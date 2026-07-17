@@ -2717,4 +2717,4 @@ Plans:
   4. Both providers produce the same schema through one zod gate, locked by a parity test
   5. Structured vision calls carry the job costContext, their real cost is visible in ai_cost_events, and photo_batch debits keep summing correctly
 
-**Plans**: TBD
+**Plans**: 3 planned, 1 complete — 171-01 COMPLETE 2026-07-17 (PEXT-01: versioned `photoExtractionSchema` zod gate with the `dropInvalid` array-level element-drop preprocess, `photoExtractionToolSchema()` JSON-schema mirror, dormant `photos.ai_extraction` JSONB column, see [171-01-SUMMARY.md](phases/171-structured-photo-extraction/171-01-SUMMARY.md)). 171-02 (providers+worker) and 171-03 (prompt serialization) remain — both depend on 171-01, file-disjoint and parallelizable against each other.

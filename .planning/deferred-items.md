@@ -31,3 +31,13 @@ Operational / scope deferrals surfaced during execution. Each carries forward wi
 **Why deferred (out of scope):** `chatEnabled` was added to `Entitlements` in Phase 126 (commit `6c0cf457`); these 3 test files were last touched in the unrelated "Billing v2" commit `f455ac16`, predating (and unrelated to) Phase 160. None of the 4 files this plan (160-04) actually modified (`app/api/estimates/[id]/send-sms/route.ts`, `lib/whatsapp/send-estimate.ts`, `lib/whatsapp/confirm-actions.ts`, `lib/billing/connect-webhook.ts`) have any type errors — confirmed via the plan's exact per-file acceptance-criteria greps. The broader `whatsapp` grep in the plan's overall `<verification>` block incidentally also matches these unrelated pre-existing fixture files. Per the SCOPE BOUNDARY rule, this pre-existing drift (not caused by this plan's changes) is logged, not fixed.
 
 **Pickup condition:** next time `tests/unit/whatsapp/handler*.test.ts` is touched for an unrelated reason, add `chatEnabled: false` (or `true` per fixture intent) to each inline `Entitlements` object at handler.test.ts:142/289, handler-intent-routing.test.ts:130, handler-inngest-dispatch.test.ts:132/231.
+
+## Phase 171 — Structured Photo Extraction
+
+### Item 1 — pre-existing bare `tsc --noEmit` drift in unrelated test files — OBSERVED, OUT OF SCOPE (171-01)
+
+**What:** 171-01's own acceptance criteria (`npx tsc --noEmit -p tsconfig.ci.json`) is clean, but running the BARE `npx tsc --noEmit` (per tsconfig.ci.json's own header note, to catch tests/** drift invisible to the scoped CI config) surfaces 7 pre-existing errors, all in files this plan never touches: `tests/unit/ai/vision-truncation.test.ts:28`, `tests/unit/billing/derived-duration.test.ts:136`, `tests/unit/billing/transcribe-short-circuit.test.ts:61`, `tests/unit/inngest/analyze-photos-cost.test.ts:81`, `tests/unit/inngest/analyze-photos-coverage.test.ts:53` (all `TS2556` — a spread argument must have a tuple type), and `tests/unit/schemas/estimate-bounds.test.ts:132,154` (`TS2322` — `unit: null` not assignable where fixture expects `unit: string`).
+
+**Why deferred (out of scope):** Verified via `git stash -u` that all 7 errors are present identically on the pre-171-01 tree — none are caused by `lib/ai/photo-extraction-schema.ts`, the `photos.ai_extraction` migration, or the `database.types.ts` hand-add. Per the SCOPE BOUNDARY rule, pre-existing failures in files this plan doesn't modify are logged, not fixed.
+
+**Pickup condition:** next time any of the 7 listed test files is touched for an unrelated reason, fix its own drift (spread-argument tuple typing / `unit: null` vs `string` fixture mismatch) as part of that change.
