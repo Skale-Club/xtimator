@@ -146,7 +146,15 @@ describe('HARD-01: refine route response-shape + status-code contract', () => {
           }),
         }
       }
-      return { insert: async () => ({}) }
+      // Phase 164 Plan 02 (TRUST-02): the route now also does a
+      // signature-exists lookup (estimate_signatures) before the credit
+      // gate — default to "no signature" so this file's own concern (the
+      // response-shape/status-code contract) stays isolated. The lock
+      // guard's own contract lives in tests/unit/api/refine-lock-guard.test.ts.
+      return {
+        insert: async () => ({}),
+        select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }) }),
+      }
     })
   })
 

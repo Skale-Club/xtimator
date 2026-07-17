@@ -123,7 +123,12 @@ describe('refine route error surface', () => {
         }
       }
       // estimate_activity insert (not reached on the error path, but safe).
-      return { insert: async () => ({}) }
+      // Phase 164 Plan 02 (TRUST-02): also stub select/eq/limit so the new
+      // estimate_signatures lock-guard lookup resolves to "no signature".
+      return {
+        insert: async () => ({}),
+        select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }) }),
+      }
     })
   })
 

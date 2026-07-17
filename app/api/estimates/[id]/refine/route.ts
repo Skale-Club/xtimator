@@ -28,6 +28,7 @@ import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
+import { isEstimateLocked } from '@/lib/estimate/lock'
 
 const MAX_PHOTOS = 5
 
@@ -101,6 +102,30 @@ export async function POST(
     }
 
     // -------------------------------------------------------------------------
+    // TRUST-02 (Phase 164 Plan 02) — freeze-on-send/sign guard. Same lock
+    // coverage as saveEstimate (lib/actions/estimate.ts): reject when
+    // isEstimateLocked({sent_at, client_response}) is true OR an
+    // estimate_signatures row exists (Opus blocker #1 — sign/route.ts inserts
+    // the signature BEFORE respondToEstimate and SWALLOWS a respond failure,
+    // so a signed estimate can have client_response still null). Placed
+    // BEFORE the credit gate / any paid call — a locked estimate must never
+    // reach ingestMultimodal regardless of billing state.
+    // -------------------------------------------------------------------------
+    const { data: signatureRows } = await supabase
+      .from('estimate_signatures')
+      .select('id')
+      .eq('estimate_id', estimateId)
+      .limit(1)
+    const hasSignature = !!signatureRows && signatureRows.length > 0
+    if (isEstimateLocked(estimate) || hasSignature) {
+      throw new XtimatorError(
+        'estimate_locked',
+        'estimates',
+        'Estimate has been delivered and is locked; create a new version to make changes'
+      )
+    }
+
+    // -------------------------------------------------------------------------
     // Billing v2 (167-01 / BILL-01) — the credit gate. Mirrors
     // app/api/generate-estimate/route.ts:110-129's 402 contract byte-for-byte:
     // refine runs Whisper + Vision + Claude in one request (Security Review
@@ -111,8 +136,9 @@ export async function POST(
     // The authed `supabase` client is sufficient (the companies select inside
     // checkCredits is client-agnostic; recording.ts's createTextRecording
     // already calls checkCredits with this same authed-client shape).
-    // NOTE (164-02 coordination): a lock guard lands beside this block later —
-    // keep it small and clearly delimited so that edit composes cleanly.
+    // (164-02 coordination: the TRUST-02 lock guard above now runs BEFORE
+    // this gate, per the plan's locked ordering — auth → ownership/current →
+    // LOCK → credit gate → paid work.)
     const credit = await checkCredits(supabase, companyId, 1)
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
