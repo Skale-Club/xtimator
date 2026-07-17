@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Lock } from 'lucide-react'
+import { Lock, History } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -106,12 +106,19 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
 // Save payload
 // ---------------------------------------------------------------------------
 
-function stateToSavePayload(state: EstimateEditorState) {
+function stateToSavePayload(state: EstimateEditorState, opts?: { force?: boolean }) {
   return {
     id: state.id,
     // Pre-launch audit fix (B7): optimistic-concurrency baseline — see
     // saveEstimate's expectedUpdatedAt doc in lib/actions/estimate.ts.
-    expectedUpdatedAt: state.updated_at,
+    // Phase 165 Plan 02 (SAVE-05, "Keep my changes"): omitting this field
+    // entirely (force:true) makes saveEstimate coalesce it to null
+    // (`estimateData.expectedUpdatedAt ?? null`), which the RPC's own guard
+    // (`p_expected_updated_at IS NULL`) treats as "skip the compare-and-set" —
+    // last-writer-wins on content, saving the CURRENT user's full editor
+    // payload. This is an explicit, non-destructive-to-the-current-user's-work
+    // choice (it overwrites whatever the OTHER tab/session saved).
+    expectedUpdatedAt: opts?.force ? undefined : state.updated_at,
     summary: state.summary,
     notes: state.notes,
     timeline: state.timeline,
@@ -237,6 +244,24 @@ export function EstimateEditor({
   // is not enough — that reproduces the audit's toast-storm bug) and the
   // lock banner renders immediately.
   const [lockedByServer, setLockedByServer] = useState(false)
+  // Phase 165 Plan 02 (SAVE-05, audit B2/B6) — a genuine optimistic-concurrency
+  // conflict (RPC P0002) is NOT terminal like a lock: the user's edits are
+  // still sitting unsaved in the editor and must get a non-destructive
+  // resolution ("Reload latest" OR "Keep my changes"), never a silent
+  // discard. This latch pauses autosave (see its effect below) WITHOUT
+  // folding into isContentReadOnly — folding it in would also block runSave's
+  // own early-return guard, which would make the "keep mine" retry impossible.
+  const [conflictPending, setConflictPending] = useState(false)
+  // "Keep my changes" is a one-shot retry SIGNAL (not a boolean): the toast
+  // action bumps this counter, and a dedicated effect below reacts to it by
+  // calling runSave({force:true}). Routing the retry through state+effect
+  // (rather than runSave calling itself directly from inside its own
+  // useCallback body) avoids a self-referential hook-value cycle entirely.
+  const [keepMineRequestId, setKeepMineRequestId] = useState(0)
+  // 'estimate_not_current' (RPC P0003) IS terminal — a superseded version is
+  // never editable again, so this folds into isContentReadOnly below like a
+  // lock (no separate carve-out needed).
+  const [notCurrentByServer, setNotCurrentByServer] = useState(false)
 
   const isCurrent = state.is_current
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
@@ -251,7 +276,7 @@ export function EstimateEditor({
   // the document/autosave/nav-guards gate on isContentReadOnly, but the gear
   // panel gets its OWN gate below (gearDisabled) so presentation settings
   // stay editable on a locked-but-current estimate.
-  const isContentReadOnly = !isCurrent || locked
+  const isContentReadOnly = !isCurrent || locked || notCurrentByServer
   const gearDisabled = !isCurrent
 
   // -------------------------------------------------------------------------
@@ -263,6 +288,10 @@ export function EstimateEditor({
     if (result.error || !result.data) { toast.error('Failed to reload estimate'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
+    // "Reload latest" is the take-theirs exit out of a conflict (SAVE-05) —
+    // the fresh INIT above re-baselines updated_at/editEpoch from the server,
+    // so the conflict is fully resolved.
+    setConflictPending(false)
     toast.success('Changes discarded')
   }, [dispatch])
 
@@ -281,13 +310,20 @@ export function EstimateEditor({
     dispatch({ type: 'INIT', estimate: loaded.data })
     setSaveStatus('idle')
     setLockedByServer(false)
+    setConflictPending(false)
+    setNotCurrentByServer(false)
     router.refresh()
   }, [projectId, dispatch, router])
 
-  const runSave = useCallback(async (): Promise<boolean> => {
+  const runSave = useCallback(async (opts?: { force?: boolean }): Promise<boolean> => {
     if (isContentReadOnly) return false
+    // SAVE-04: capture the edit epoch BEFORE the request goes out. If an edit
+    // lands while this await is in flight, the reducer bumps editEpoch again
+    // — MARK_SAVED below will then see a mismatch and correctly leave the
+    // editor dirty instead of falsely marking it clean (audit B4).
+    const savedEpoch = stateRef.current.editEpoch
     setSaveStatus('saving')
-    const result = await saveEstimate(stateToSavePayload(stateRef.current))
+    const result = await saveEstimate(stateToSavePayload(stateRef.current, opts))
     if (result.error) {
       setSaveStatus('error')
       // TRUST-02 (Phase 164 Plan 02): the server discovered a lock this tab
@@ -300,31 +336,82 @@ export function EstimateEditor({
         )
         return false
       }
-      // Pre-launch audit fix (B7): a conflict means the save was REJECTED
-      // server-side (another tab/session saved first) — local edits are still
-      // sitting unsaved in the editor, not lost, but must not be silently
-      // retried as-is (that would just fail again). Give the user a longer,
-      // explicit toast with a one-click path to load the latest version —
-      // reusing the existing Discard reload plumbing via handleDiscard.
+      // Phase 165 Plan 02 (SAVE-05, audit B2/B6) — a conflict means the save
+      // was REJECTED server-side (another tab/session saved first); local
+      // edits are still sitting unsaved in the editor, not lost. Latch
+      // conflictPending (pauses autosave — see its effect below) and surface
+      // exactly ONE non-stacking notice (a fixed `id` — sonner replaces
+      // rather than stacks) with TWO non-destructive choices: reload the
+      // server's latest (destructive to the CURRENT tab's edits, via the
+      // existing handleDiscard plumbing) or keep this tab's edits (retries
+      // the save with force:true — see stateToSavePayload's doc). Never a
+      // silent discard either way.
       if ('conflict' in result && result.conflict) {
+        setConflictPending(true)
         toast.error(result.error, {
-          duration: 15000,
+          id: 'estimate-save-conflict',
+          duration: Infinity,
           action: {
-            label: 'Load latest version',
+            label: t('Keep my changes'),
+            onClick: () => {
+              setConflictPending(false)
+              // Bumps the retry-request effect below (never calls runSave
+              // directly from inside runSave's own body — see keepMineRequestId's doc).
+              setKeepMineRequestId((n) => n + 1)
+            },
+          },
+          cancel: {
+            label: t('Reload latest'),
             onClick: () => void handleDiscard(),
           },
         })
-      } else {
-        toast.error(result.error)
+        return false
       }
+      // 'estimate_not_current' (RPC P0003) is terminal — a superseded version
+      // is never editable again (folded into isContentReadOnly above, like a
+      // lock), so there is no autosave loop to guard against here.
+      if (result.error === 'estimate_not_current') {
+        setNotCurrentByServer(true)
+        toast.error(t('This version was superseded; create a new version to keep editing.'))
+        return false
+      }
+      toast.error(result.error)
       return false
     }
     if (!result.data) return false
-    dispatch({ type: 'MARK_SAVED', updated_at: result.data.updated_at })
+    // SAVE-03 (id remap) + SAVE-07 (server totals adoption) + SAVE-04
+    // (epoch-gated isDirty clear) — see MARK_SAVED's doc in the reducer.
+    dispatch({
+      type: 'MARK_SAVED',
+      updated_at: result.data.updated_at,
+      idMap: result.data.id_map,
+      totals: {
+        subtotal: result.data.subtotal,
+        tax_amount: result.data.tax_amount,
+        discount_amount: result.data.discount_amount,
+        total: result.data.total,
+        balance_due: result.data.balance_due,
+      },
+      savedEpoch,
+    })
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     return true
   }, [isContentReadOnly, dispatch, handleDiscard, t])
+
+  // Phase 165 Plan 02 (SAVE-05) — "Keep my changes": fires runSave({force:true})
+  // exactly ONCE per keepMineRequestId bump (the toast action above). `t`
+  // (useTranslation) is not memoized, so `runSave` gets a new identity on
+  // every render — this effect WILL re-run more often than the id itself
+  // changes; handledKeepMineIdRef (mutated only inside this effect, never
+  // during render) is what guarantees the actual save call fires once per
+  // request, not once per re-render.
+  const handledKeepMineIdRef = useRef(0)
+  useEffect(() => {
+    if (keepMineRequestId === 0 || keepMineRequestId === handledKeepMineIdRef.current) return
+    handledKeepMineIdRef.current = keepMineRequestId
+    void runSave({ force: true })
+  }, [keepMineRequestId, runSave])
 
   // Phase 164 Plan 02 (TRUST-02, PRESENTATION CARVE-OUT) — the gear panel's
   // own write path. Live preview ALWAYS dispatches to the reducer (works
@@ -454,7 +541,14 @@ export function EstimateEditor({
   // the user navigates away (e.g. backgrounds the browser tab on mobile)
   // without tapping Save or triggering the SPA-navigation confirm above.
   useEffect(() => {
-    if (isContentReadOnly || !state.isDirty) return
+    // Phase 165 Plan 02 (Warning 5, SAVE-05) — conflictPending pauses autosave
+    // too: a conflicted save must not keep re-firing on every keystroke while
+    // the user decides "Reload latest" vs "Keep my changes" (that would just
+    // stack more conflicts). Deliberately NOT folded into isContentReadOnly
+    // (see conflictPending's own doc above) — runSave's early-return guard
+    // stays keyed on isContentReadOnly alone so the "keep mine" retry
+    // (runSave({force:true}) from the toast action) still works.
+    if (isContentReadOnly || conflictPending || !state.isDirty) return
     const timer = setTimeout(() => {
       void runSave()
     }, 3000)
@@ -462,10 +556,14 @@ export function EstimateEditor({
     // Intentionally depends on the whole `state` object (not just isDirty) so
     // every edit resets the debounce timer — a genuine debounce, not a
     // fire-once-then-never-again effect. isContentReadOnly already folds in
-    // lockedByServer (see its computation above), so a server-discovered lock
-    // stops this effect from scheduling any further save — no toast storm.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, isContentReadOnly, runSave])
+    // lockedByServer + notCurrentByServer (see their computation above), so a
+    // server-discovered lock/supersede stops this effect from scheduling any
+    // further save — no toast storm. conflictPending is in the dep array (not
+    // just the guard body) so FLIPPING it re-runs this effect and its cleanup
+    // cancels any already-scheduled timer — a guard-body-only check would
+    // still let one more save fire from a timer scheduled just before the
+    // conflict landed.
+  }, [state, isContentReadOnly, conflictPending, runSave])
 
   // -------------------------------------------------------------------------
   // Version switching
@@ -481,8 +579,12 @@ export function EstimateEditor({
     // The latch is scoped to the PREVIOUS version's server rejection — the
     // freshly loaded version recomputes `locked` from its own sent_at/
     // client_response/hasSignature, so stale-latch carryover would wrongly
-    // lock a version that isn't actually locked.
+    // lock a version that isn't actually locked. Same reasoning applies to
+    // the conflict/not-current latches (Phase 165 Plan 02) — both are scoped
+    // to a rejected save against the PREVIOUS version.
     setLockedByServer(false)
+    setConflictPending(false)
+    setNotCurrentByServer(false)
   }, [currentVersionId, dispatch])
 
   // Push version chrome up to the page header via context
@@ -527,6 +629,23 @@ export function EstimateEditor({
                 'This estimate was delivered to the client and is locked. Create a new version to make changes.'
               )}
             </p>
+            <Button size="sm" className="mt-2" onClick={() => void handleCreateNewVersion()}>
+              {t('Create new version')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Phase 165 Plan 02 (SAVE-05, audit B3/RPC P0003) — this tab's belief
+          that it holds the current version was WRONG (another tab/session
+          superseded it, e.g. via createBlankEstimate) — terminal, like a
+          lock: no autosave loop, no further saves possible from this tab. */}
+      {notCurrentByServer && (
+        <Alert>
+          <History />
+          <AlertTitle>{t('This version was superseded')}</AlertTitle>
+          <AlertDescription>
+            <p>{t('A newer version of this estimate was created elsewhere. Create a new version to keep editing.')}</p>
             <Button size="sm" className="mt-2" onClick={() => void handleCreateNewVersion()}>
               {t('Create new version')}
             </Button>
