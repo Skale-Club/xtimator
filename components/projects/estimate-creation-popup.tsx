@@ -214,6 +214,11 @@ function EstimateCreationPopupInner() {
             mode={captureMode}
             onComplete={handleComplete}
             onCancel={handleCancel}
+            // CAPT-02/05 (audit F4): the typed-description draft (and, per the
+            // new-project-wizard pattern, already-uploaded photos) now survive
+            // closing this popup — previously neither was passed here at all.
+            draftKey={`popup:${project.id}`}
+            restorePhotos
           />
         )}
       </DialogContent>

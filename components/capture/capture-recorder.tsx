@@ -538,13 +538,34 @@ export function CaptureRecorder({
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [tick, isRecording])
 
-  // Prevent accidental navigation while recording (Pitfall 3)
+  // Prevent accidental navigation during the ENTIRE capture-to-dispatch
+  // window (audit F2 — the old guard was `isRecording` only, which flips
+  // false the instant the recording stops and the upload begins). Gated on
+  // STAGE STATE, not refs (Opus check #5: there is no jobId state, and
+  // recordingIdRef is audio-only + non-reactive, so it can't drive an effect
+  // dependency). 'saving' alone already covers the full upload+dispatch-call
+  // window for every input type (audio/text/photos all pass through 'saving'
+  // before their dispatch resolves). The extra 'transcribing' +
+  // recordingIdRef-null check is audio-only defensive belt-and-braces: in
+  // practice recordingIdRef.current is written in the SAME synchronous block
+  // that flips stage to 'transcribing' (see runPipeline, just above its
+  // setStage('transcribing') call), so that branch is unreachable today —
+  // reading the ref INSIDE the handler (not captured at effect-setup time)
+  // keeps it race-free if that ordering ever changes. After dispatch is
+  // confirmed the server owns the chain end-to-end (audit-verified
+  // dispatch-and-watch durability) — no warning needed past that point.
   useEffect(() => {
-    if (!isRecording) return
-    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    if (!isRecording && stage !== 'saving' && stage !== 'transcribing') return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const preDispatchAudio = stage === 'transcribing' && recordingIdRef.current === null
+      if (isRecording || stage === 'saving' || preDispatchAudio) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [isRecording])
+  }, [isRecording, stage])
 
   // Track mute/inactive events — permission revoked mid-recording (Pitfall 2)
   useEffect(() => {

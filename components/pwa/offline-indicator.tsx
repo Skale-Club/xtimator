@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { WifiOff } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function OfflineIndicator() {
+  const { t } = useTranslation()
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export function OfflineIndicator() {
   return (
     <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-2 bg-yellow-500/90 px-4 pb-2 pt-[calc(env(safe-area-inset-top,_0px)_+_0.5rem)] text-xs font-medium text-yellow-950">
       <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      You&apos;re offline | showing cached data
+      {t("You're offline — changes can't be saved until you reconnect")}
     </div>
   )
 }
