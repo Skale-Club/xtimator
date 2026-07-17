@@ -60,7 +60,8 @@ vi.mock('@/lib/services/generate-estimate', () => ({
   generateEstimateForProject: (...args: unknown[]) => generateEstimateForProject(...args),
 }))
 
-const transcribeAudioOR = vi.fn().mockResolvedValue('a transcript')
+// Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy }.
+const transcribeAudioOR = vi.fn().mockResolvedValue({ text: 'a transcript', servedBy: 'primary' })
 const analyzePhotoOR = vi.fn().mockResolvedValue('a description')
 vi.mock('@/lib/ai/openrouter-client', () => ({
   transcribeAudioOR: (...args: unknown[]) => transcribeAudioOR(...args),

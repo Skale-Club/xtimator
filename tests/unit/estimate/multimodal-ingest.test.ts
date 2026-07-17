@@ -38,7 +38,9 @@ function makeAudioBlob(): Blob {
 describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockTranscribe.mockResolvedValue('TRANSCRIPT')
+    // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy }, not a
+    // bare string — ingestMultimodal destructures `.text`.
+    mockTranscribe.mockResolvedValue({ text: 'TRANSCRIPT', servedBy: 'primary' })
     mockAnalyzePhoto.mockResolvedValue('DESC')
   })
 
@@ -60,7 +62,7 @@ describe('UNIFY-01: ingestMultimodal aggregates audio/photo/text', () => {
     // First audio item rejects, second resolves. ingestMultimodal must still RESOLVE.
     mockTranscribe
       .mockRejectedValueOnce(new Error('Whisper 500'))
-      .mockResolvedValueOnce('GOOD_TRANSCRIPT')
+      .mockResolvedValueOnce({ text: 'GOOD_TRANSCRIPT', servedBy: 'primary' })
 
     const call = ingestMultimodal({
       audio: [

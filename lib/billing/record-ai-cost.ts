@@ -50,10 +50,13 @@ export interface AICostInput {
  * NEVER throws, NEVER rejects the caller — on any failure it logs a `console.warn`
  * and returns. Safe to `void` on the hot path.
  */
+/** Postgres unique_violation — the Phase 167 partial unique index already has this row. */
+const PG_UNIQUE_VIOLATION = '23505'
+
 export async function recordAICost(ev: AICostInput): Promise<void> {
   try {
     const svc = requireServiceClient()
-    await svc.from('ai_cost_events').insert({
+    const { error } = await svc.from('ai_cost_events').insert({
       attempt_id: ev.attemptId,
       operation_type: ev.operationType,
       provider: ev.provider,
@@ -64,6 +67,18 @@ export async function recordAICost(ev: AICostInput): Promise<void> {
       model: ev.model ?? null,
       units: ev.units ?? null,
     })
+    if (error) {
+      // Phase 167 (BILL-04): the PARTIAL unique index on (attempt_id,
+      // operation_type) — 'audio_minutes'/'estimate' only — rejects a genuine
+      // duplicate cost row (e.g. a retry re-running the SAME attempt+op) with
+      // 23505. That is the dedup guard doing its job, not a failure: swallow
+      // silently, same as recordUsage's (lib/quota.ts) 23505 discipline. Any
+      // OTHER error still warns (previously the return value here was
+      // discarded entirely, so no DB error was ever surfaced — fixed).
+      if ((error as { code?: string }).code !== PG_UNIQUE_VIOLATION) {
+        console.warn('[recordAICost] insert failed:', error)
+      }
+    }
   } catch (err) {
     // Best-effort: swallow — a cost-write failure must never break the pipeline.
     console.warn('[recordAICost] swallowed write failure:', err)

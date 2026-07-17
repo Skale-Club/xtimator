@@ -66,7 +66,8 @@ describe('deriveImageFormat', () => {
 
 describe('transcribeAudioBuffer', () => {
   it('passes the derived ext through to the transcriber and returns the transcript', async () => {
-    mockTranscribe.mockResolvedValue('transcribed text')
+    // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy }.
+    mockTranscribe.mockResolvedValue({ text: 'transcribed text', servedBy: 'primary' })
     const buf = Buffer.from('audio-bytes')
     const text = await transcribeAudioBuffer(buf, deriveAudioFormat('audio/mp4'))
 
@@ -78,7 +79,7 @@ describe('transcribeAudioBuffer', () => {
 
   it('returns "" when ingestMultimodal skips the item (empty result)', async () => {
     // ingestMultimodal only pushes truthy transcripts, so an empty string is skipped.
-    mockTranscribe.mockResolvedValue('')
+    mockTranscribe.mockResolvedValue({ text: '', servedBy: 'primary' })
     const text = await transcribeAudioBuffer(Buffer.from('a'), deriveAudioFormat('audio/ogg'))
     expect(text).toBe('')
   })

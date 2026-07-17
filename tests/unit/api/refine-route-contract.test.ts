@@ -89,7 +89,10 @@ vi.mock('@/lib/ai/provider-with-fallback', () => ({
   getAIProviderWithFallback: vi.fn(async () => ({ refineEstimate: mockRefineEstimate })),
 }))
 vi.mock('@/lib/ai/openrouter-client', () => ({
-  transcribeAudioOR: vi.fn(async () => ''),
+  // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy } — this
+  // JSON-only test path never sends audio, so the mock is unreached, but kept
+  // shape-correct for anyone extending this file to the multipart path.
+  transcribeAudioOR: vi.fn(async () => ({ text: '', servedBy: 'primary' as const })),
   analyzePhotoOR: vi.fn(async () => ''),
 }))
 // Pre-launch audit fix (M-3): the route resolves the caller's company via

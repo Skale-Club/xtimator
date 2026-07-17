@@ -51,9 +51,17 @@ export function makeMockProvider(): AIProvider {
   }
 }
 
-/** Deterministic transcribe stub (only used if a case exercises raw-audio ingestion). */
-export async function mockTranscribeAudioOR(): Promise<string> {
-  return activeCase?.inputs.transcripts?.join('\n') ?? ''
+/**
+ * Deterministic transcribe stub (only used if a case exercises raw-audio
+ * ingestion). Phase 167 (BILL-05): transcribeAudioOR's real contract is now
+ * `{ text, servedBy }` — mirrored here so a future case exercising this path
+ * doesn't silently regress (ingestMultimodal destructures `.text`).
+ */
+export async function mockTranscribeAudioOR(): Promise<{
+  text: string
+  servedBy: 'primary' | 'fallback'
+}> {
+  return { text: activeCase?.inputs.transcripts?.join('\n') ?? '', servedBy: 'primary' }
 }
 
 /** Deterministic photo-analysis stub (only used if a case exercises raw-photo ingestion). */

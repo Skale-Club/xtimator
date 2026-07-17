@@ -47,7 +47,8 @@ describe('normalizeMessage', () => {
 
   it('Test 2: audio path calls transcribeAudioOR with m4a when mime is audio/mp4', async () => {
     mockDownload.mockResolvedValue(Buffer.from('audio-bytes'))
-    mockTranscribe.mockResolvedValue('transcribed text')
+    // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy }.
+    mockTranscribe.mockResolvedValue({ text: 'transcribed text', servedBy: 'primary' })
     const msg: WhatsAppMessage = {
       id: 'm2',
       from: '1555',
@@ -66,7 +67,7 @@ describe('normalizeMessage', () => {
 
   it('Test 2b: audio with codec param strips the codec before splitting', async () => {
     mockDownload.mockResolvedValue(Buffer.from('audio-bytes'))
-    mockTranscribe.mockResolvedValue('hi')
+    mockTranscribe.mockResolvedValue({ text: 'hi', servedBy: 'primary' })
     const msg: WhatsAppMessage = {
       id: 'm2b',
       from: '1555',

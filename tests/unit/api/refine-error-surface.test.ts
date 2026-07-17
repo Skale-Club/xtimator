@@ -75,7 +75,9 @@ vi.mock('@/lib/ai', () => ({
   })),
 }))
 vi.mock('@/lib/ai/openrouter-client', () => ({
-  transcribeAudioOR: vi.fn(async () => ''),
+  // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy } — this
+  // JSON-only test path never sends audio, so the mock is unreached.
+  transcribeAudioOR: vi.fn(async () => ({ text: '', servedBy: 'primary' as const })),
   analyzePhotoOR: vi.fn(async () => ''),
 }))
 // Pre-launch audit fix (M-3): the route resolves the caller's company via

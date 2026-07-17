@@ -60,7 +60,8 @@ vi.mock('@/lib/ai/provider-with-fallback', () => ({
   getAIProviderWithFallback: async () => makeMockProvider(),
 }))
 vi.mock('@/lib/ai/openrouter-client', () => ({
-  transcribeAudioOR: async () => '',
+  // Phase 167 (BILL-05): transcribeAudioOR's real contract is { text, servedBy }.
+  transcribeAudioOR: async () => ({ text: '', servedBy: 'primary' as const }),
   analyzePhotoOR: async () => '',
 }))
 

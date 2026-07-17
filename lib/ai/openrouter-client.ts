@@ -97,12 +97,21 @@ export async function getORKey(): Promise<string> {
  * On BOTH failing, callWithFallback throws ProvidersUnavailableError so Inngest's
  * onFailure (ai_job.failed) surfaces it. The `OR` suffix now reflects reality:
  * transcription routes through OpenRouter.
+ *
+ * Phase 167 (BILL-05/D5): returns `{ text, servedBy }` — previously the caller
+ * had no way to know which provider actually served the transcription (the
+ * fallback is entirely hidden inside `callWithFallback`), so every job/route
+ * hardcoded provider attribution to 'openrouter' even when the OpenAI-direct
+ * fallback fired. `callWithFallback` already computes `servedBy`; this just
+ * stops discarding it. BOTH consumers were updated for this shape change:
+ * lib/inngest/functions/transcribe-audio.ts and
+ * lib/estimate/ingest/multimodal.ts (grep confirms no third consumer).
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
   ext: string,
   model = DEFAULT_TRANSCRIBE_MODEL
-): Promise<string> {
+): Promise<{ text: string; servedBy: 'primary' | 'fallback' }> {
   // OpenRouter needs a vendor-prefixed slug; OpenAI's own API needs the bare id.
   const orModel = model.includes('/') ? model : `openai/${model}`
   const openaiModel = orModel.replace(/^openai\//, '')
@@ -171,7 +180,7 @@ export async function transcribeAudioOR(
   }
 
   const { callWithFallback } = await import('@/lib/ai/with-fallback')
-  const { result } = await callWithFallback({
+  const { result, servedBy } = await callWithFallback({
     op: 'transcribe',
     primary: openrouterPrimary,
     fallback: openaiFallback,
@@ -185,7 +194,7 @@ export async function transcribeAudioOR(
   if (result.trim().length === 0) {
     throw new Error('Transcription produced no text — no speech detected in the audio')
   }
-  return result
+  return { text: result, servedBy }
 }
 
 /** Best-effort Langfuse trace for a transcription call (never throws). */

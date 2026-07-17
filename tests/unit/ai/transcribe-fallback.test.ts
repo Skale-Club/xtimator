@@ -8,6 +8,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
  *   2. OpenRouter STT failure → OpenAI direct fallback serves the transcript
  *      (the proven pre-migration path — this migration can never regress).
  *   3. Both providers fail → throws (never silently returns empty).
+ *
+ * Phase 167 (BILL-05/D5): transcribeAudioOR now returns `{ text, servedBy }`
+ * instead of a bare string — servedBy is the attribution signal the
+ * transcribe-audio Inngest job uses to record the correct cost-row provider
+ * ('openai' on fallback, 'openrouter' otherwise) instead of hardcoding it.
  */
 
 vi.mock('@/lib/platform-config', () => ({
@@ -50,7 +55,7 @@ describe('transcribeAudioOR — OpenRouter primary, OpenAI fallback', () => {
     })
 
     const result = await transcribeAudioOR(makeAudio(), 'webm')
-    expect(result).toBe('openrouter transcript')
+    expect(result).toEqual({ text: 'openrouter transcript', servedBy: 'primary' })
   })
 
   it('fallback — OpenRouter fails, OpenAI direct serves the transcript', async () => {
@@ -63,7 +68,7 @@ describe('transcribeAudioOR — OpenRouter primary, OpenAI fallback', () => {
     })
 
     const result = await transcribeAudioOR(makeAudio(), 'webm')
-    expect(result).toBe('openai transcript')
+    expect(result).toEqual({ text: 'openai transcript', servedBy: 'fallback' })
   })
 
   it('both providers fail → throws (never silently empty)', async () => {

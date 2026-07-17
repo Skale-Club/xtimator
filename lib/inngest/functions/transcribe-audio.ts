@@ -10,7 +10,27 @@
  *     that used to key on `event.data.recordingId` was REMOVED in 260707-lyq:
  *     it additionally absorbed genuine user Retries for 24h — see the comment
  *     on the createFunction config below.)
+ *
+ * Phase 167 (BILL-02/04/05/06) additions:
+ *   - The Whisper step reads `recordings.transcript` FIRST, BEFORE the storage
+ *     download, and SHORT-CIRCUITS (no download, no Whisper call, no cost row,
+ *     no debit) when a transcript already exists — a Retry after a LATER
+ *     pipeline-stage failure (e.g. generate) must never re-pay Whisper
+ *     (v4.19 audit D3).
+ *   - When NOT short-circuited, the duration used for cost/debit/entitlement is
+ *     the SERVER-DERIVED `deriveAudioMinutes` value (byte-clamp, one-sided) —
+ *     never the raw client-declared `duration_seconds` (audit D2's "declare 1s
+ *     on a 10-min blob" exploit).
+ *   - The plan's per-estimate `maxAudioMinutesPerEstimate` entitlement is
+ *     enforced against that derived value BEFORE the Whisper call, throwing a
+ *     NonRetriableError on rejection (deterministic — retrying burns 2 more
+ *     attempts for nothing) so onFailure fires immediately with zero spend.
+ *   - `transcribeAudioOR` now returns `{ text, servedBy }`; the job attributes
+ *     BOTH the pipeline event and the cost row to the provider that actually
+ *     served the call ('openai' on fallback, 'openrouter' otherwise) instead
+ *     of hardcoding 'openrouter' (audit D5).
  */
+import { NonRetriableError } from 'inngest'
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -22,7 +42,8 @@ import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
-import { computeWhisperCostUsd } from '@/lib/billing/whisper-cost'
+import { computeWhisperCostUsd, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import {
   EVENT_TRANSCRIBE_AUDIO,
   EVENT_ESTIMATE_GENERATE,
@@ -34,25 +55,32 @@ async function loadCompanyForRecording(recordingId: string): Promise<{
   userId: string | null
   projectId: string | null
   durationSeconds: number | null
+  /** Phase 167 (BILL-05): loaded up-front so the short-circuit decision runs BEFORE the storage download. */
+  transcript: string | null
+  /** Phase 167 (BILL-06): needed to resolve the per-estimate audio-minute entitlement cap. */
+  tier: string | null
 }> {
   try {
     const svc = requireServiceClient()
     const { data } = await svc
       .from('recordings')
-      .select('company_id, project_id, duration_seconds, companies(user_id)')
+      .select('company_id, project_id, duration_seconds, transcript, companies(user_id, tier)')
       .eq('id', recordingId)
       .single()
     const row = data as {
       company_id?: string | null
       project_id?: string | null
       duration_seconds?: number | null
-      companies?: { user_id?: string | null } | null
+      transcript?: string | null
+      companies?: { user_id?: string | null; tier?: string | null } | null
     } | null
     return {
       companyId: row?.company_id ?? null,
       userId: row?.companies?.user_id ?? null,
       projectId: row?.project_id ?? null,
       durationSeconds: row?.duration_seconds ?? null,
+      transcript: row?.transcript ?? null,
+      tier: row?.companies?.tier ?? null,
     }
   } catch {
     return {
@@ -60,6 +88,8 @@ async function loadCompanyForRecording(recordingId: string): Promise<{
       userId: null,
       projectId: null,
       durationSeconds: null,
+      transcript: null,
+      tier: null,
     }
   }
 }
@@ -75,7 +105,9 @@ export const transcribeAudioJob = inngest.createFunction(
     // removed so a nonce'd retry can actually run.
     retries: 2,
     triggers: [{ event: EVENT_TRANSCRIBE_AUDIO }],
-    // Phase 77 NOTIF-04: ai_job.failed on retry exhaustion.
+    // Phase 77 NOTIF-04: ai_job.failed on retry exhaustion. Phase 167 (BILL-06):
+    // this ALSO fires immediately (no wasted retries) when the whisper-transcribe
+    // step throws a NonRetriableError for an over-cap recording.
     onFailure: async ({ event, error }) => {
       const payload = (event as { data?: { event?: { data?: TranscribeAudioPayload } } })
         .data?.event?.data
@@ -133,6 +165,8 @@ export const transcribeAudioJob = inngest.createFunction(
     const t0 = Date.now()
 
     // Phase 92 (EVENT-02/D-03): started event at handler entry (best-effort).
+    // Phase 167 (BILL-05): also carries the transcript up-front so the
+    // short-circuit decision below never needs a second DB round-trip.
     const ident = await loadCompanyForRecording(recordingId)
     void recordPipelineEvent({
       attemptId,
@@ -150,9 +184,24 @@ export const transcribeAudioJob = inngest.createFunction(
     // model always matches what actually ran.
     const sttModel = await getTranscriptionModel()
 
-    // Step 1: Download audio + Whisper API call — checkpointed.
-    // A failure inside save-transcript (step 2) will not re-run Whisper.
-    const transcript = await step.run('whisper-transcribe', async () => {
+    // Step 1: short-circuit (BILL-05) + entitlement-gated (BILL-06) Whisper call.
+    // A failure inside a LATER step never re-runs this one on the SAME run
+    // (Inngest step memoization); a genuine cross-run Retry is what the
+    // transcript-exists short-circuit below protects against.
+    const transcription = await step.run('whisper-transcribe', async () => {
+      // BILL-05: read recordings.transcript FIRST — BEFORE the storage
+      // download — so a Retry dispatched after a LATER pipeline stage
+      // (e.g. generate) failed never re-downloads the audio OR re-calls
+      // Whisper when this recording was already transcribed.
+      if (ident.transcript && ident.transcript.trim().length > 0) {
+        return {
+          transcript: ident.transcript,
+          servedBy: null as 'primary' | 'fallback' | null,
+          shortCircuited: true as const,
+          derivedMinutes: null as number | null,
+        }
+      }
+
       const supabase = requireServiceClient()
       const { data: fileData, error: dlErr } = await supabase.storage
         .from('audio')
@@ -164,22 +213,82 @@ export const transcribeAudioJob = inngest.createFunction(
       }
 
       const ext = storagePath.split('.').pop() ?? 'webm'
-      return await transcribeAudioOR(fileData, ext, sttModel)
+
+      // BILL-02: server-derived duration from the downloaded blob's real size
+      // (byte-clamp, one-sided) — the "declare 1s on a 10-min blob" exploit no
+      // longer produces a near-zero cost/debit, because the derivation only
+      // ever corrects an UNDER-declaration, never an honest/over-declaration.
+      const derived = deriveAudioMinutes({
+        declaredSeconds: ident.durationSeconds,
+        blobBytes: fileData.size,
+      })
+      if (
+        derived.source === 'byte_clamp' &&
+        ident.durationSeconds != null &&
+        derived.minutes - ident.durationSeconds / 60 > 1
+      ) {
+        // Structured log: the exploit signature (declared far below the
+        // byte-derived floor, >1 minute discrepancy). Never blocks — the
+        // corrected value is already what cost/debit/entitlement use below.
+        console.warn('[transcribe-audio] byte-clamp correction (possible under-declaration)', {
+          recordingId,
+          declaredSeconds: ident.durationSeconds,
+          derivedMinutes: derived.minutes,
+        })
+      }
+
+      // BILL-06: enforce the plan's per-estimate audio-minute entitlement
+      // against the DERIVED (server-truth) duration, BEFORE the Whisper call.
+      // Previously this entitlement (free 2 / pro 15 / business 30 min) was
+      // enforced NOWHERE (audit D2/dead-entitlement finding). A rejection here
+      // throws NonRetriableError — the violation is deterministic, so retrying
+      // would just fail the same way 2 more times before onFailure ever fires.
+      const tier = ident.tier ?? 'free'
+      const entitlements = await getEntitlementsForTier(tier)
+      if (derived.minutes > entitlements.maxAudioMinutesPerEstimate) {
+        throw new NonRetriableError(
+          `This recording (${derived.minutes.toFixed(1)} min) exceeds the ${tier} plan's ${entitlements.maxAudioMinutesPerEstimate}-minute per-estimate audio limit.`
+        )
+      }
+
+      // BILL-05/D5: transcribeAudioOR now surfaces which provider actually
+      // served the call — no more hardcoding 'openrouter' downstream.
+      const { text, servedBy } = await transcribeAudioOR(fileData, ext, sttModel)
+      return {
+        transcript: text,
+        servedBy,
+        shortCircuited: false as const,
+        derivedMinutes: derived.minutes,
+      }
     })
 
-    // Step 2: Save transcript — separate step so a DB error doesn't re-call Whisper.
-    await step.run('save-transcript', async () => {
-      const supabase = requireServiceClient()
-      const { error } = await supabase
-        .from('recordings')
-        .update({ transcript })
-        .eq('id', recordingId)
-      if (error) throw new Error(`Failed to save transcript: ${error.message}`)
-    })
+    // Step 2: Save transcript (+ the corrected duration when byte-clamp
+    // fired, so downstream UI/quota views show the truth) — separate step so
+    // a DB error doesn't re-call Whisper. Skipped entirely on short-circuit:
+    // the DB already holds this transcript, nothing changed.
+    if (!transcription.shortCircuited) {
+      await step.run('save-transcript', async () => {
+        const supabase = requireServiceClient()
+        const update: { transcript: string; duration_seconds?: number } = {
+          transcript: transcription.transcript,
+        }
+        if (transcription.derivedMinutes != null) {
+          update.duration_seconds = Math.round(transcription.derivedMinutes * 60)
+        }
+        const { error } = await supabase
+          .from('recordings')
+          .update(update)
+          .eq('id', recordingId)
+        if (error) throw new Error(`Failed to save transcript: ${error.message}`)
+      })
+    }
 
     // When the client requested fire-and-forget mode, chain directly into
     // estimate generation so the user can navigate away immediately after
-    // uploading the recording. ident.projectId is already loaded above.
+    // uploading the recording. ident.projectId is already loaded above. This
+    // dispatch is UNCONDITIONAL on shortCircuited — a short-circuited retry
+    // still needs the generate stage to (re-)run, which is exactly the case
+    // this short-circuit exists to serve cheaply.
     if (data.autoGenerateEstimate && ident.projectId) {
       await step.run('dispatch-generate-estimate', async () => {
         // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK
@@ -221,6 +330,14 @@ export const transcribeAudioJob = inngest.createFunction(
       })
     }
 
+    // Phase 167 (BILL-05/D5): the provider that actually served THIS run.
+    // null (no fresh call happened) when short-circuited.
+    const provider: 'openai' | 'openrouter' | null = transcription.shortCircuited
+      ? null
+      : transcription.servedBy === 'fallback'
+        ? 'openai'
+        : 'openrouter'
+
     // Phase 92 (EVENT-02/D-03): terminal succeeded event with duration_ms.
     void recordPipelineEvent({
       attemptId,
@@ -230,57 +347,53 @@ export const transcribeAudioJob = inngest.createFunction(
       companyId: ident.companyId,
       projectId: ident.projectId,
       userId: ident.userId,
-      provider: 'openrouter',
+      provider,
       durationMs: Date.now() - t0,
     })
 
-    // Phase 110 (COST-02): record the COMPUTED Whisper/STT cost. The provider
-    // returns no cost, so cost = (recordings.duration_seconds / 60) × rate.
-    // Correlated by attemptId alone (no usage_event coupling — Phase 112 owns
-    // metering). recordAICost is never-throw, so awaiting it inside a step is
-    // still safe for the transcription outcome.
-    //
-    // Provider attribution: transcribeAudioOR runs OpenRouter STT as primary and
-    // falls back to OpenAI direct ONCE on failure, but the fallback is hidden
-    // INSIDE that fn — the job cannot see which ran. We record the common case as
-    // provider:'openrouter' with the computed cost. The rate lookup returns no
-    // cost for an unknown model; we never guess and never record 0 (null = unknown).
-    const minutes = (ident.durationSeconds ?? 0) / 60
-    // Phase 112 (CREDIT-02): compute the Whisper cost ONCE and thread the SAME value
-    // into BOTH the cost-capture and the credit debit (no read-back race here — the
-    // value is already in hand, RESEARCH Pattern 2 option b). computeWhisperCostUsd
-    // returns null for an unknown rate (e.g. a hidden Gemini fallback), so the debit
-    // no-ops on null (null vs guessed 0).
-    const whisperCost = computeWhisperCostUsd(ident.durationSeconds)
-    // D7 (quick-260705-2gp): the cost insert is memoized as its own Inngest step
-    // so a retry of a LATER step can never double-insert an ai_cost_events row
-    // (the previous bare `void recordAICost(...)` re-ran on every retry replay).
-    await step.run('record-ai-cost', async () => {
-      await recordAICost({
-        attemptId,
-        operationType: 'audio_minutes',
-        provider: 'openrouter',
-        model: sttModel,
-        realCostUsd: whisperCost,
-        companyId: ident.companyId,
-        projectId: ident.projectId,
-        units: minutes > 0 ? minutes : null,
-      })
-    })
-
-    // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated and
-    // never-throw. Anchored AFTER save-transcript + recordAICost so it only fires on
-    // transcription success. Skipped when companyId is unknown (no tenant → no debit).
-    if (ident.companyId) {
-      const debitCompanyId = ident.companyId
-      await step.run('record-credit-debit', async () => {
-        await recordCreditDebit({
-          companyId: debitCompanyId,
-          operationType: 'audio_minutes',
-          realCostUsd: whisperCost,
+    // Phase 110 (COST-02) / Phase 167 (BILL-02/04/05): record the COMPUTED
+    // Whisper/STT cost from the SERVER-DERIVED duration — GUARDED on
+    // !shortCircuited. A short-circuited retry already paid for (and logged)
+    // this transcription on its original run; re-running this step would
+    // double-count real cost (audit D3's "platform pays N×" finding) even
+    // though the customer's debit stays correct via the idempotent RPC.
+    if (!transcription.shortCircuited) {
+      const derivedMinutes = transcription.derivedMinutes
+      const whisperCost = computeWhisperCostUsd(
+        derivedMinutes != null ? derivedMinutes * 60 : null
+      )
+      // D7 (quick-260705-2gp): the cost insert is memoized as its own Inngest step
+      // so a retry of a LATER step can never double-insert an ai_cost_events row.
+      // Phase 167 (BILL-04): recordAICost also swallows a 23505 duplicate as
+      // success now that (attempt_id, operation_type) is uniquely indexed.
+      await step.run('record-ai-cost', async () => {
+        await recordAICost({
           attemptId,
+          operationType: 'audio_minutes',
+          provider: provider ?? 'openrouter',
+          model: sttModel,
+          realCostUsd: whisperCost,
+          companyId: ident.companyId,
+          projectId: ident.projectId,
+          units: derivedMinutes != null && derivedMinutes > 0 ? derivedMinutes : null,
         })
       })
+
+      // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated
+      // and never-throw. Anchored AFTER save-transcript + recordAICost so it only
+      // fires on a fresh (non-short-circuited) transcription success. Skipped
+      // when companyId is unknown (no tenant → no debit).
+      if (ident.companyId) {
+        const debitCompanyId = ident.companyId
+        await step.run('record-credit-debit', async () => {
+          await recordCreditDebit({
+            companyId: debitCompanyId,
+            operationType: 'audio_minutes',
+            realCostUsd: whisperCost,
+            attemptId,
+          })
+        })
+      }
     }
 
     // Phase 77 NOTIF-04: opt-in success notification.
@@ -305,6 +418,6 @@ export const transcribeAudioJob = inngest.createFunction(
       /* best-effort */
     }
 
-    return { transcript }
+    return { transcript: transcription.transcript }
   }
 )

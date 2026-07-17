@@ -51,8 +51,12 @@ export async function ingestMultimodal(
   const sttModel = (input.audio?.length ?? 0) > 0 ? await getTranscriptionModel() : undefined
   for (const a of input.audio ?? []) {
     try {
-      const t = await transcribeAudioOR(a.blob, a.ext, sttModel)
-      if (t) transcripts.push(t)
+      // Phase 167 (BILL-05): transcribeAudioOR now returns { text, servedBy }
+      // (previously discarded servedBy) — this ingestion path only needs the
+      // text; cost/provider attribution for refine/WhatsApp doesn't flow
+      // through here (out of scope for this channel-neutral module).
+      const { text } = await transcribeAudioOR(a.blob, a.ext, sttModel)
+      if (text) transcripts.push(text)
     } catch (e) {
       console.error('[ingest] transcription failed:', e)
     }

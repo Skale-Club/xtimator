@@ -41,7 +41,8 @@ describe('normalizeInput — channel-neutral multimodal -> text', () => {
   })
 
   it('Test 2: audio path calls transcribeAudioOR with the supplied ext, returns kind audio', async () => {
-    mockTranscribe.mockResolvedValue('transcribed text')
+    // Phase 167 (BILL-05): transcribeAudioOR resolves { text, servedBy }.
+    mockTranscribe.mockResolvedValue({ text: 'transcribed text', servedBy: 'primary' })
     const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/mp4' })
     const result = await normalizeInput({ kind: 'audio', blob, ext: 'm4a' })
 
@@ -70,7 +71,7 @@ describe('normalizeInput — channel-neutral multimodal -> text', () => {
   })
 
   it('Test 4: when the primitive yields nothing, returns ok:false with a reason (no throw)', async () => {
-    mockTranscribe.mockResolvedValue('')
+    mockTranscribe.mockResolvedValue({ text: '', servedBy: 'primary' })
     const blob = new Blob([new Uint8Array([1])], { type: 'audio/ogg' })
     const result = await normalizeInput({ kind: 'audio', blob, ext: 'ogg' })
     expect(result.ok).toBe(false)
