@@ -38,6 +38,7 @@
 - ✅ **v4.16 Admin Inbox Consolidation** — Phases 154-155 (shipped 2026-07-06) · [archive](milestones/v4.16-ROADMAP.md) — consolidated the three scattered super-admin WhatsApp surfaces into one coherent **Inbox**: a single nav item (`/admin/inbox`, old routes redirect), a two-pane master-detail conversation viewer (list + thread on the same page, Xphere-style, replacing the `Sheet` drawer), and an Inbox Settings area folding in Accounts + Templates. Read-only; credentials stay in Integrations; the data layer + DB tables kept their `whatsapp_*` names (user-facing rename only)
 - ✅ **v4.17 Admin Polish & Credit UX Compliance** — Phases 156-159 (shipped 2026-07-06) · [archive](milestones/v4.17-ROADMAP.md) — fixed a real regression against a locked v4.15 decision (tenant-facing surfaces leaking raw credit numbers), then polished the super-admin experience: nav reorg (Dashboard/Companies/Inbox first + new grouped "Content" section) + Legal Pages→Pages rename, two owner-flagged confusing labels fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox
 - ✅ **v4.18 Estimate Document & Send Experience Refresh** — Phases 160-163 (shipped 2026-07-09) · [archive](milestones/v4.18-ROADMAP.md) · [audit](milestones/v4.18-MILESTONE-AUDIT.md) — 24/24 requirements shipped (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06). Per-estimate presentation-settings resolver + gear panel + format-first Send hub + friendly URLs + cross-surface visibility parity across 6 renderers + Bill To pencil affordance + ClientPicker consolidation + mobile line-item doc-native rebuild + 5-file deletion sweep of retired send surfaces. GUARD-03 preserved structurally at every seam.
+- 🚧 **v4.19 Integrity & Reliability Hardening** — Phases 164-170 (roadmap created 2026-07-17) — close the 10 severity-ranked findings from the six-track adversarial deep audit of the estimate system ([audit](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)): snapshot-on-sign + freeze-on-send trust boundary, transactional atomic save RPC, AI fetch timeouts + truncation visibility + missing tool-schema pricing fields, credit gate on refine + server-derived audio duration + vision cost threading, full photo coverage + captions in the prompt, upload retry + IndexedDB capture persistence, and refine review-before-apply. Pure hardening — no new AI features; GUARD-03 and Inngest durability are regression contracts.
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2491,7 +2492,7 @@ Full phase details archived: [milestones/v4.17-ROADMAP.md](milestones/v4.17-ROAD
 - [x] **Phase 158: Admin Billing Page Credit-Model Overhaul** — Replaced the admin `/admin/billing` page's tier/MRR-first view with a credit-model-centric view per company (credit balance, real AI cost, effective markup), keeping force-tier/grant-credits as secondary actions; replaced the hardcoded MRR math with a real aggregated cost summary. (BILLADMIN-01, BILLADMIN-02, BILLADMIN-03) (completed 2026-07-06)
 - [x] **Phase 159: Inbox Visual Redesign — "Premium Xtimator"** — Applied the Phase-71 glassmorphism design system to the v4.16 Inbox: deterministic-color initials avatars, glass-surface list rows + thread pane, a visually rich unread accent system, and matching glass treatment on the Inbox Settings sub-page. (INBOX-05, INBOX-06, INBOX-07, INBOX-08) (completed 2026-07-06)
 
-## 🚧 v4.18 Estimate Document & Send Experience Refresh (Phases 160-163)
+## ✅ v4.18 Estimate Document & Send Experience Refresh (Phases 160-163) — SHIPPED 2026-07-09
 
 **Milestone Goal:** Give business owners full control and polish over the estimate document itself — a per-estimate settings panel, a format-first send flow with friendlier client links, mobile line-item parity with desktop, and a complete alignment/inline-editing pass on the document (including editable Bill To). Server-side math stays authoritative via `lib/estimate/compute-totals.ts` at all times — the settings panel only changes inputs/preferences, never bypasses the deterministic engine (GUARD-03 invariant carries forward unchanged). Source: SEED-041 + SEED-042 + SEED-043 + SEED-044.
 
@@ -2588,3 +2589,112 @@ Plans:
 
 **Plans**: TBD
 **UI hint**: yes
+
+## 🚧 v4.19 Integrity & Reliability Hardening (Phases 164-170)
+
+**Milestone Goal:** Close every finding from the 2026-07-17 six-track adversarial deep audit of the estimate generation & editing system ([audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)) — restoring the legal contract (what was signed stays what was signed), the financial contract (what you see is what saves; what you pay matches what you use), and the capture contract (your recording never gets lost). Pure hardening: no new AI features. The audit doc is required reading for every phase plan; its "Verified strengths" section is a regression contract (Inngest durability, GUARD-03 server math, price-research evidence gate, prompt-injection hardening, cross-tenant scoping must not be weakened).
+
+**Sequencing:** 164 → 165 are strictly sequential (both rewrite `lib/actions/estimate.ts` — the freeze guard lands first as a pre-check, then the atomic RPC absorbs it). 166, 167, 168, 169 are file-disjoint from 164/165 and from each other (166: `lib/ai/providers/*`; 167: transcribe/billing; 168: analyze-photos/vision; 169: capture client/storage) — parallelizable in any combination. 170 depends on 165 (the apply/merge logic builds on the temp-id remap). Note one light contention: 166's AIREL-04 and 168's PHOTO-01 both touch `lib/services/generate-estimate.ts` — coordinate or sequence those two plans.
+
+### Phase 164: Sign/Send Trust Boundary
+
+**Goal**: A delivered estimate is tamper-evident and tamper-proof — what the client signed is immutably captured and is what every surface renders afterward, in-place edits to sent/signed/responded estimates are rejected server-side with a "Create new version" path forward, and every content edit is visible in the audit trail.
+**Depends on**: Nothing. Must land before Phase 165 (both touch `lib/actions/estimate.ts`; the freeze guard added here is absorbed into the 165 RPC).
+**Requirements**: TRUST-01, TRUST-02, TRUST-03
+**Success Criteria** (what must be TRUE):
+
+  1. After a client signs, editing the estimate through ANY surface (editor save, refine, direct server-action/RPC call) is rejected with a typed `estimate_locked` error — and the public share page + PDF continue to render the exact signed content (sections, items, totals) from the immutable snapshot stored at signing time
+  2. The owner attempting to edit a sent/signed/responded estimate is offered "Create new version" and that path works — the new draft version is editable while the delivered version and its share link remain intact
+  3. Presentation-settings changes (v4.18 gear panel) remain allowed on delivered estimates — the freeze locks priced content, not display preferences
+  4. Every content-changing save writes an `estimate_updated` row to `estimate_activity`, visible in the estimate's activity trail
+  5. A regression test proves the pre-freeze behavior for drafts is unchanged: a never-sent draft saves exactly as today
+
+**Plans**: TBD
+
+### Phase 165: Atomic Save & Version Authority
+
+**Goal**: Saving an estimate is a single atomic transaction with server-enforced version authority — partial writes, false-conflict session poisoning, stranded keystrokes, temp-id churn, silent writes to superseded versions, unbounded inputs, and preview/total divergence are all structurally impossible.
+**Depends on**: Phase 164 (same file; the RPC absorbs the freeze guard).
+**Requirements**: SAVE-01, SAVE-02, SAVE-03, SAVE-04, SAVE-05, SAVE-06, SAVE-07
+**Success Criteria** (what must be TRUE):
+
+  1. A save that fails at any point leaves the estimate byte-identical to before the attempt (single RPC transaction), and a subsequent save from the same session succeeds — the audit's session-poisoning scenario (transient failure → false "changed elsewhere" → forced discard) can no longer occur
+  2. A stale tab holding a superseded version cannot write to it: the server rejects non-current writes, and the supersede flip bumps `updated_at` via trigger so the optimistic check also fails closed
+  3. After a successful save the editor holds server-assigned ids and server-computed totals — saving twice in a row produces zero row churn (verified by row-id stability), and a keystroke typed during an in-flight save leaves the editor dirty and re-saves
+  4. On a genuine two-tab conflict, autosave pauses, exactly one non-stacking notice appears, and the resolution path lets the user keep their edits (no forced destructive reload)
+  5. Negative quantity/unit-price/discount/cost/markup are rejected server-side, and the editor's displayed grand total equals the persisted total for the same inputs in every tax mode (flat and per-category `tax_config`), with the `taxable` toggle doing something visible in both
+
+**Plans**: TBD
+
+### Phase 166: AI Reliability & Output Integrity
+
+**Goal**: The generation path cannot hang, cannot silently truncate, asks the primary provider for the full pricing schema, refuses internally-inconsistent output, and produces deterministic prices run-to-run.
+**Depends on**: Nothing (file-disjoint from 164/165). Light contention with Phase 168 on `lib/services/generate-estimate.ts` (AIREL-04 vs PHOTO-01) — coordinate those plans.
+**Requirements**: AIREL-01, AIREL-02, AIREL-03, AIREL-04, AIREL-05
+**Success Criteria** (what must be TRUE):
+
+  1. Every AI fetch (primary generation `openrouter.ts`, needs-details, both price-research web adapters) aborts on a bounded timeout, proven by a test that a hung upstream triggers the Gemini fallback instead of pinning the job
+  2. A length-truncated generation surfaces as a distinct typed error (finish_reason read) driving a targeted retry — and a large 40+ item estimate generates completely within the raised token ceiling
+  3. On the primary OpenRouter path, generated items carry `taxable`/`tax_category`/`cost`/`markup_pct` when applicable — per-category tax and cost+markup no longer require the Gemini fallback
+  4. An estimate with duplicate lines, qty-0-priced lines, or a total above the configurable ceiling is not silently persisted — it is flagged or routed to needs-details, with the discrepancy visible
+  5. Generation runs at a pinned low temperature on both providers; two runs on identical input produce materially consistent pricing
+
+**Plans**: TBD
+
+### Phase 167: Billing & Cost Integrity
+
+**Goal**: Every AI operation is correctly gated, correctly priced from server-derived facts, charged exactly once, and attributed to the provider that actually served — the duration exploit, the unmetered refine path, the dead photo cost roll-up, and retry double-spend are all closed.
+**Depends on**: Nothing (file-disjoint; parallelizable with 166/168/169).
+**Requirements**: BILL-01, BILL-02, BILL-03, BILL-04, BILL-05, BILL-06
+**Success Criteria** (what must be TRUE):
+
+  1. A zero-balance company is blocked from refine with the same 402 + upgrade affordance as generation
+  2. Declaring a 1-second duration on a 10-minute upload results in cost/debit computed from the server-derived duration (Whisper-reported or byte-clamp), not the declared value — the audit's "one credit funds unlimited transcription" exploit no longer works
+  3. Vision cost rows carry the real attemptId/companyId/projectId and the photo-batch credit debit records actual summed cost (no more permanently-null read-backs)
+  4. A user Retry after a generate-stage failure does not re-call Whisper when a transcript already exists, and `ai_cost_events` cannot hold duplicate rows for the same attempt+operation (unique index); fallback-served transcriptions are attributed to the provider that served
+  5. Per-plan audio-minute limits are enforced against server-derived duration (or the dead entitlement is removed with a documented decision) — total transcription spend per plan is bounded
+
+**Plans**: TBD
+
+### Phase 168: Photo Pipeline Fidelity
+
+**Goal**: Every photo the user captured informs the estimate — captions included, all photos analyzed with visible coverage truth, one bad photo never kills the batch, and no description is silently truncated.
+**Depends on**: Nothing (file-disjoint; parallelizable). Light contention with Phase 166 on `lib/services/generate-estimate.ts`.
+**Requirements**: PHOTO-01, PHOTO-02, PHOTO-03, PHOTO-04
+**Success Criteria** (what must be TRUE):
+
+  1. A caption typed on a photo ("north wall, 12ft ceiling") demonstrably appears (sanitized) in the generation prompt context and can influence the estimate
+  2. A 35-photo project gets all 35 photos analyzed (chunked batching), and when coverage is partial the user sees "N of M photos analyzed"; unanalyzed photos can be re-analyzed without re-charging analyzed ones
+  3. A batch with one corrupt photo completes with the survivors (skip-and-continue), generates the estimate, and reports the skipped photo — the job hard-fails only when zero photos succeed
+  4. No vision description is persisted mid-sentence-truncated: finish_reason is checked, and primary + Gemini fallback produce comparable-length descriptions under equivalent caps
+
+**Plans**: TBD
+
+### Phase 169: Capture & Upload Resilience
+
+**Goal**: The moment of capture is protected end-to-end — transient network failures retry themselves, the recording survives a failed upload or accidental close via local persistence with resume, orphaned storage is reconciled, and the offline/draft UX stops lying.
+**Depends on**: Nothing (file-disjoint; parallelizable).
+**Requirements**: CAPT-01, CAPT-02, CAPT-03, CAPT-04, CAPT-05
+**Success Criteria** (what must be TRUE):
+
+  1. A simulated network flap during audio/photo upload recovers automatically via backoff retry without user action; only exhausted retries surface an error
+  2. Closing the tab during upload/dispatch triggers an unsaved-work warning; after an upload failure or accidental close, reopening the capture surface offers "Resume upload" from the locally-persisted blob, and completing it produces a normal estimate
+  3. The IndexedDB persistence fails soft (private mode / iOS eviction) — capture still works exactly as today when local storage is unavailable
+  4. A scheduled reconciliation removes storage objects with no DB row (audio AND photos buckets), including the out-of-credits orphan path, without ever touching objects that have rows
+  5. The false "showing cached data" banner is gone (or truthful), and a text draft typed in ANY of the three capture flows survives closing and reopening that flow
+
+**Plans**: TBD
+
+### Phase 170: Refine Safety & Review
+
+**Goal**: AI refinement is a reviewable, non-destructive operation — it always refines what the user is looking at, presents its changes for review before touching the document, and preserves the identity of untouched rows.
+**Depends on**: Phase 165 (apply/merge builds on the temp-id remap and RPC save).
+**Requirements**: REFINE-01, REFINE-02
+**Success Criteria** (what must be TRUE):
+
+  1. Opening refine with unsaved edits flushes a save first (or explicitly confirms) — the refine result always reflects the user's latest visible content, in both branches of the old race
+  2. The refine result appears as a change summary (changed/added/removed lines, old→new prices) with Apply/Discard — nothing touches the document until Apply
+  3. Applying preserves ids/created_at of rows the refinement didn't change (verified by row-id stability across a refine that touches one line); only genuinely new rows insert
+  4. Refine remains preview-only server-side (no persistence before Apply+save), and the refine credit gate from Phase 167 is verified still in place end-to-end
+
+**Plans**: TBD
