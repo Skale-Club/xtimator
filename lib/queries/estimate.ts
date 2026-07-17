@@ -82,6 +82,14 @@ export interface EstimateItem {
 export interface EstimateWithSections extends Estimate {
   sections: (EstimateSection & { items: EstimateItem[] })[]
   attachedPhotos: Photo[]
+  /** Phase 164 Plan 02 (TRUST-02) — whether ANY estimate_signatures row exists
+   *  for this estimate. Part of the lock-coverage surface the editor needs to
+   *  render the lock banner/read-only state (the signed-but-unresponded
+   *  window means sent_at/client_response alone are not sufficient — see
+   *  lib/estimate/lock.ts's doc comment). Optional: computed here, not a raw
+   *  DB column, so existing manual EstimateWithSections literals elsewhere
+   *  (tests, etc.) are unaffected. */
+  hasSignature?: boolean
 }
 
 export async function getProjectEstimates(
@@ -163,7 +171,15 @@ async function fetchEstimateWithSections(
   // Single query: fetch every section with its items embedded via the
   // estimate_items.section_id FK, replacing the prior N+1 (one items query per
   // section). Both levels are ordered by sort_order.
-  const [{ data: sectionsData }, attachedPhotos] = await Promise.all([
+  //
+  // Phase 164 Plan 02 (TRUST-02): the hasSignature lookup runs CONCURRENTLY
+  // in the same Promise.all — a single indexed EXISTS-style query
+  // (idx_estimate_signatures_estimate_id), so it adds no wall-clock latency
+  // to this already-parallel fetch. Every caller of getEstimateById /
+  // getCurrentEstimate gets the field for free, matching the "one shared
+  // query, no duplicated logic" discipline Plan 01 established for the
+  // signed-content overlay.
+  const [{ data: sectionsData }, attachedPhotos, { data: signatureRows }] = await Promise.all([
     supabase
       .from('estimate_sections')
       .select('*, items:estimate_items(*)')
@@ -171,6 +187,7 @@ async function fetchEstimateWithSections(
       .order('sort_order', { ascending: true })
       .order('sort_order', { foreignTable: 'estimate_items', ascending: true }),
     getEstimatePhotos(supabase, estimate.id),
+    supabase.from('estimate_signatures').select('id').eq('estimate_id', estimate.id).limit(1),
   ])
 
   const sections = (sectionsData ?? []) as unknown as (EstimateSection & {
@@ -184,5 +201,6 @@ async function fetchEstimateWithSections(
       items: (section.items ?? []) as EstimateItem[],
     })),
     attachedPhotos,
+    hasSignature: !!signatureRows && signatureRows.length > 0,
   }
 }

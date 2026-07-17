@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Lock } from 'lucide-react'
 import {
   saveEstimate,
+  savePresentationSettings,
+  createBlankEstimate,
   getEstimateByIdAction,
 } from '@/lib/actions/estimate'
 import { removePhotoFromEstimate } from '@/lib/actions/estimate-photo'
@@ -29,7 +32,14 @@ import {
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
-import { hasEstimateBeenSentOrViewed } from '@/lib/estimate/presentation-settings'
+import {
+  hasEstimateBeenSentOrViewed,
+  type PresentationSettings,
+} from '@/lib/estimate/presentation-settings'
+import { isEstimateLocked } from '@/lib/estimate/lock'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 // ---------------------------------------------------------------------------
 // State → EstimateDocumentData converter
@@ -206,6 +216,7 @@ export function EstimateEditor({
   onSend,
 }: EstimateEditorProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [state, dispatch] = useEstimateReducer(estimate)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -218,9 +229,30 @@ export function EstimateEditor({
   // so the panel renders as a sibling of EstimateFloatingActions and can read
   // state.presentation_settings + hasEstimateBeenSentOrViewed at the boundary.
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Phase 164 Plan 02 (TRUST-02) — stale-tab latch (Opus warning #3 / audit
+  // B6): the CLIENT's own sent_at/client_response/hasSignature can be stale
+  // (another tab/session locked this estimate after THIS tab last loaded it).
+  // When the SERVER rejects a save with 'estimate_locked', this latches true
+  // so the autosave effect stops re-firing on every keystroke (a plain toast
+  // is not enough — that reproduces the audit's toast-storm bug) and the
+  // lock banner renders immediately.
+  const [lockedByServer, setLockedByServer] = useState(false)
 
-  const isReadOnly = !state.is_current
   const isCurrent = state.is_current
+  // Lock coverage mirrors the server guard exactly (saveEstimate / refine
+  // route): sent_at OR client_response OR an existing signature row (the
+  // signed-but-unresponded window — see lib/estimate/lock.ts) OR the latch
+  // above once the server has told us so.
+  const locked =
+    lockedByServer ||
+    isEstimateLocked({ sent_at: state.sent_at, client_response: state.client_response }) ||
+    state.hasSignature
+  // Content lock ≠ display-preferences lock (164-02 PRESENTATION CARVE-OUT):
+  // the document/autosave/nav-guards gate on isContentReadOnly, but the gear
+  // panel gets its OWN gate below (gearDisabled) so presentation settings
+  // stay editable on a locked-but-current estimate.
+  const isContentReadOnly = !isCurrent || locked
+  const gearDisabled = !isCurrent
 
   // -------------------------------------------------------------------------
   // Save handlers
@@ -234,12 +266,40 @@ export function EstimateEditor({
     toast.success('Changes discarded')
   }, [dispatch])
 
+  const handleCreateNewVersion = useCallback(async () => {
+    const created = await createBlankEstimate(projectId)
+    if (created.error || !created.data) {
+      toast.error(created.error ?? 'Failed to create new version')
+      return
+    }
+    const loaded = await getEstimateByIdAction(created.data.estimateId)
+    if (loaded.error || !loaded.data) {
+      toast.error('Failed to load new version')
+      return
+    }
+    setCurrentVersionId(created.data.estimateId)
+    dispatch({ type: 'INIT', estimate: loaded.data })
+    setSaveStatus('idle')
+    setLockedByServer(false)
+    router.refresh()
+  }, [projectId, dispatch, router])
+
   const runSave = useCallback(async (): Promise<boolean> => {
-    if (isReadOnly) return false
+    if (isContentReadOnly) return false
     setSaveStatus('saving')
     const result = await saveEstimate(stateToSavePayload(stateRef.current))
     if (result.error) {
       setSaveStatus('error')
+      // TRUST-02 (Phase 164 Plan 02): the server discovered a lock this tab
+      // didn't know about yet (another tab/session sent/signed it since this
+      // tab last loaded). Latch immediately — see lockedByServer's doc above.
+      if (result.error === 'estimate_locked') {
+        setLockedByServer(true)
+        toast.error(
+          t('This estimate was delivered to the client and is now locked. Create a new version to keep editing.')
+        )
+        return false
+      }
       // Pre-launch audit fix (B7): a conflict means the save was REJECTED
       // server-side (another tab/session saved first) — local edits are still
       // sitting unsaved in the editor, not lost, but must not be silently
@@ -264,7 +324,40 @@ export function EstimateEditor({
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     return true
-  }, [isReadOnly, dispatch, handleDiscard])
+  }, [isContentReadOnly, dispatch, handleDiscard, t])
+
+  // Phase 164 Plan 02 (TRUST-02, PRESENTATION CARVE-OUT) — the gear panel's
+  // own write path. Live preview ALWAYS dispatches to the reducer (works
+  // identically whether locked or not). On a LOCKED estimate the shared
+  // isDirty/content-autosave is rejected server-side (and early-returns
+  // client-side via isContentReadOnly), so this calls the lock-exempt
+  // savePresentationSettings action DIRECTLY instead — decoupled from
+  // autosave. On a draft/unlocked estimate this is a no-op beyond the
+  // dispatch: presentation_settings continues to ride the normal content
+  // save payload (dual-path, unchanged today's behavior).
+  const handlePresentationSettingsChange = useCallback(
+    (next: PresentationSettings) => {
+      dispatch({ type: 'UPDATE_PRESENTATION_SETTINGS', presentation_settings: next })
+      if (locked) {
+        void savePresentationSettings(stateRef.current.id, next, stateRef.current.updated_at).then(
+          (result) => {
+            if (result.error) {
+              toast.error(result.error)
+              return
+            }
+            // Re-baseline updated_at (and clear the isDirty the dispatch above
+            // just set) so a SECOND consecutive presentation-only change while
+            // locked doesn't send a now-stale expectedUpdatedAt and spuriously
+            // conflict against the write this call just made.
+            if (result.data) {
+              dispatch({ type: 'MARK_SAVED', updated_at: result.data.updated_at })
+            }
+          }
+        )
+      }
+    },
+    [dispatch, locked]
+  )
 
   const handleSaveDraft = useCallback(async () => {
     const ok = await runSave()
@@ -272,9 +365,9 @@ export function EstimateEditor({
   }, [runSave])
 
   const handleSend = useCallback(async () => {
-    if (!isReadOnly && state.isDirty) await runSave()
+    if (!isContentReadOnly && state.isDirty) await runSave()
     onSend?.()
-  }, [isReadOnly, state.isDirty, runSave, onSend])
+  }, [isContentReadOnly, state.isDirty, runSave, onSend])
 
   const handleRenameProject = useCallback(async (name: string) => {
     const result = await renameProjectAction(projectId, name)
@@ -304,22 +397,22 @@ export function EstimateEditor({
       const isSave = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'
       if (!isSave) return
       e.preventDefault()
-      if (!isReadOnly && stateRef.current.isDirty) void handleSaveDraft()
+      if (!isContentReadOnly && stateRef.current.isDirty) void handleSaveDraft()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [isReadOnly, handleSaveDraft])
+  }, [isContentReadOnly, handleSaveDraft])
 
   // beforeunload guard
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
-      if (!stateRef.current.isDirty || isReadOnly) return
+      if (!stateRef.current.isDirty || isContentReadOnly) return
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [isReadOnly])
+  }, [isContentReadOnly])
 
   // Pre-launch audit fix (B7) — SPA navigation guard: beforeunload above only
   // covers a full page unload/refresh. Clicking a <Link> (Next.js App Router
@@ -330,7 +423,7 @@ export function EstimateEditor({
   // original click was prevented).
   useEffect(() => {
     function onClickCapture(e: MouseEvent) {
-      if (isReadOnly || !stateRef.current.isDirty) return
+      if (isContentReadOnly || !stateRef.current.isDirty) return
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
       const anchor = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null
       if (!anchor || (anchor.target && anchor.target !== '_self')) return
@@ -353,7 +446,7 @@ export function EstimateEditor({
     }
     document.addEventListener('click', onClickCapture, true)
     return () => document.removeEventListener('click', onClickCapture, true)
-  }, [isReadOnly, router])
+  }, [isContentReadOnly, router])
 
   // Autosave (pre-launch audit fix B7): debounced background save while
   // dirty, so edits are persisted within a few seconds of the user stopping
@@ -361,16 +454,18 @@ export function EstimateEditor({
   // the user navigates away (e.g. backgrounds the browser tab on mobile)
   // without tapping Save or triggering the SPA-navigation confirm above.
   useEffect(() => {
-    if (isReadOnly || !state.isDirty) return
+    if (isContentReadOnly || !state.isDirty) return
     const timer = setTimeout(() => {
       void runSave()
     }, 3000)
     return () => clearTimeout(timer)
     // Intentionally depends on the whole `state` object (not just isDirty) so
     // every edit resets the debounce timer — a genuine debounce, not a
-    // fire-once-then-never-again effect.
+    // fire-once-then-never-again effect. isContentReadOnly already folds in
+    // lockedByServer (see its computation above), so a server-discovered lock
+    // stops this effect from scheduling any further save — no toast storm.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, isReadOnly, runSave])
+  }, [state, isContentReadOnly, runSave])
 
   // -------------------------------------------------------------------------
   // Version switching
@@ -383,6 +478,11 @@ export function EstimateEditor({
     if (result.error || !result.data) { toast.error('Failed to load version'); return }
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
+    // The latch is scoped to the PREVIOUS version's server rejection — the
+    // freshly loaded version recomputes `locked` from its own sent_at/
+    // client_response/hasSignature, so stale-latch carryover would wrongly
+    // lock a version that isn't actually locked.
+    setLockedByServer(false)
   }, [currentVersionId, dispatch])
 
   // Push version chrome up to the page header via context
@@ -398,14 +498,14 @@ export function EstimateEditor({
       versions,
       version: state.version,
       isDirty: state.isDirty,
-      isReadOnly,
+      isReadOnly: isContentReadOnly,
       onVersionChange: (id) => handleVersionChangeRef.current(id),
       projectName: localProjectName,
       onProjectRenamed: setLocalProjectName,
       saveStatus: slotSaveStatus,
     })
     return () => setSlot(null)
-  }, [currentVersionId, versions, state.version, state.isDirty, isReadOnly, setSlot, localProjectName, slotSaveStatus])
+  }, [currentVersionId, versions, state.version, state.isDirty, isContentReadOnly, setSlot, localProjectName, slotSaveStatus])
 
   // -------------------------------------------------------------------------
   // Render
@@ -413,6 +513,27 @@ export function EstimateEditor({
 
   return (
     <div className="space-y-3">
+      {/* Phase 164 Plan 02 (TRUST-02) — lock banner. Only when this IS the
+          current version AND it is locked (older, non-current versions
+          already render their own "Read-only | older version" badge in
+          EstimateHeader — this is a distinct, delivered-and-locked state). */}
+      {isCurrent && locked && (
+        <Alert>
+          <Lock />
+          <AlertTitle>{t('This estimate is locked')}</AlertTitle>
+          <AlertDescription>
+            <p>
+              {t(
+                'This estimate was delivered to the client and is locked. Create a new version to make changes.'
+              )}
+            </p>
+            <Button size="sm" className="mt-2" onClick={() => void handleCreateNewVersion()}>
+              {t('Create new version')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* WYSIWYG document surface */}
       <EstimateDocument
         mode="edit"
@@ -428,11 +549,11 @@ export function EstimateEditor({
         estimateSeq={state.estimate_seq}
         estimateCreatedAt={estimate.created_at}
         dispatch={dispatch}
-        isReadOnly={isReadOnly}
+        isReadOnly={isContentReadOnly}
         projectId={projectId}
-        onRenameProject={isReadOnly ? undefined : handleRenameProject}
+        onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
         priceBookItems={priceBookItems}
-        onDetachPhoto={isReadOnly ? undefined : handleDetachPhoto}
+        onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
       />
 
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).
@@ -458,10 +579,10 @@ export function EstimateEditor({
         status={slotSaveStatus}
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
-        onOpenSettings={isReadOnly ? undefined : () => setSettingsOpen(true)}
+        onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen(true)}
         linkClientSlot={linkClientSlot}
         refineSlot={
-          isReadOnly ? undefined : (
+          isContentReadOnly ? undefined : (
             <RefineEstimateDialog
               estimateId={state.id}
               version={state.version}
@@ -472,20 +593,17 @@ export function EstimateEditor({
       />
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
-          The panel's onChange emits a plain PresentationSettings object that
-          we convert into the single reducer action below. GUARD-03 boundary
-          lives here, never inside the panel. */}
-      {isCurrent && !isReadOnly && (
+          Phase 164 Plan 02 (TRUST-02 carve-out): the gear panel's OWN gate is
+          `!isCurrent` (gearDisabled) — NOT isContentReadOnly — so it stays
+          enabled on a locked-but-current estimate. handlePresentationSettingsChange
+          always dispatches (live preview) and additionally calls the
+          lock-exempt savePresentationSettings action directly when locked. */}
+      {isCurrent && (
         <PresentationSettingsPanel
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           settings={state.presentation_settings}
-          onChange={(next) =>
-            dispatch({
-              type: 'UPDATE_PRESENTATION_SETTINGS',
-              presentation_settings: next,
-            })
-          }
+          onChange={handlePresentationSettingsChange}
           defaultTaxRate={state.tax_rate}
           estimateSentOrViewed={hasEstimateBeenSentOrViewed({
             sent_at: estimate.sent_at,

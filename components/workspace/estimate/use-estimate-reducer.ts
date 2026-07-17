@@ -75,6 +75,14 @@ export interface EstimateEditorState {
    * server-side so a stale save (another tab/session already saved) is
    * rejected instead of silently overwriting or deleting their changes. */
   updated_at: string
+  /** Phase 164 Plan 02 (TRUST-02) — lock-coverage fields threaded from the
+   *  server row so the editor can compute isContentReadOnly / render the
+   *  lock banner. hasSignature covers the signed-but-unresponded window
+   *  (sent_at/client_response can both still be null on a signed estimate —
+   *  see lib/estimate/lock.ts's doc comment). Never mutated client-side. */
+  sent_at: string | null
+  client_response: string | null
+  hasSignature: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +220,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       presentation_settings: null,
       isDirty: false,
       updated_at: new Date(0).toISOString(),
+      sent_at: null,
+      client_response: null,
+      hasSignature: false,
     }
   }
 
@@ -272,6 +283,9 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       .sort((a, b) => a.sort_order - b.sort_order),
     isDirty: false,
     updated_at: estimate.updated_at,
+    sent_at: estimate.sent_at,
+    client_response: estimate.client_response,
+    hasSignature: (estimate as { hasSignature?: boolean }).hasSignature ?? false,
   }
 }
 
