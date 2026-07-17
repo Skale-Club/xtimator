@@ -194,7 +194,17 @@ export const analyzePhotosJob = inngest.createFunction(
             const base64 = Buffer.from(arrayBuffer).toString('base64')
             const mimeType = getMimeType(photo.storage_path)
 
-            const description = await analyzePhotoOR(base64, mimeType)
+            // Phase 167 (BILL-03, audit D4): thread the job's costContext so
+            // each vision cost row carries the JOB's attemptId + real
+            // company/project ids — without this the row got a random
+            // attemptId + null ids and the record-credit-debit read-back
+            // below (`.eq('attempt_id', attemptId)`) matched zero rows,
+            // permanently recording a null cost for photo_batch debits.
+            const description = await analyzePhotoOR(base64, mimeType, undefined, {
+              attemptId,
+              companyId,
+              projectId,
+            })
             await supabase
               .from('photos')
               .update({ ai_description: description })
