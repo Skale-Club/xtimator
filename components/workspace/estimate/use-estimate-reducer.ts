@@ -65,6 +65,13 @@ export interface EstimateEditorState {
   estimate_date: string | null
   estimate_number: string | null
   attachedPhotos: Photo[]
+  /** Phase 165 Plan 02 (SAVE-04, audit B4 false-clean fix) — a monotonic
+   *  counter bumped by EVERY isDirty-setting reducer action (via the `dirty()`
+   *  helper below; never in MARK_SAVED/INIT). MARK_SAVED only clears isDirty
+   *  when the epoch captured by the caller BEFORE its save request still
+   *  equals this counter — a keystroke landing mid-save bumps it again, so a
+   *  stale MARK_SAVED can never falsely mark the editor clean. */
+  editEpoch: number
   /** Phase 161 (PRESENT-01/03): dormant-first -- NULL = today's behavior (all
    *  visible, no overrides). Never read by recalculate() (GUARD-03: visibility
    *  and override STATE never affect totals math here). */
@@ -105,7 +112,36 @@ export type EstimateAction =
   | { type: 'UPDATE_DEPOSIT'; deposit_type: string; deposit_value: number | null }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
   | { type: 'UPDATE_PRESENTATION_SETTINGS'; presentation_settings: PresentationSettings }
-  | { type: 'MARK_SAVED'; updated_at: string }
+  | {
+      type: 'MARK_SAVED'
+      updated_at: string
+      /** SAVE-03 — server-assigned uuids for every temp- section/item this
+       *  save persisted (the RPC's id_map). OPTIONAL (Blocker 1): the
+       *  presentation-settings re-baseline dispatch (estimate-editor.tsx's
+       *  handlePresentationSettingsChange, via savePresentationSettings) has
+       *  no id_map to offer and must stay valid without one. Absent/empty ->
+       *  skip the remap. */
+      idMap?: Record<string, string>
+      /** SAVE-07 — the server-computed totals breakdown, adopted verbatim so
+       *  the editor snaps to the persisted truth (covers per-category
+       *  tax_config companies the reducer can't compute locally). OPTIONAL
+       *  for the same reason as idMap — absent leaves today's totals as-is
+       *  (a presentation-only save never changes priced content). */
+      totals?: {
+        subtotal: number
+        tax_amount: number
+        discount_amount: number
+        total: number
+        balance_due: number
+      }
+      /** SAVE-04 — the editEpoch the caller captured BEFORE dispatching the
+       *  save request. OPTIONAL: absent means "always clear isDirty" (the
+       *  presentation-settings re-baseline path, preserving its pre-165-02
+       *  behavior exactly). When present, isDirty only clears if it still
+       *  equals the CURRENT editEpoch -- an edit that landed mid-save bumped
+       *  the epoch, so isDirty correctly stays true. */
+      savedEpoch?: number
+    }
   | { type: 'APPLY_REFINEMENT'; refined: RefinementPayload }
   | { type: 'ATTACH_PHOTO'; photo: Photo }
   | { type: 'DETACH_PHOTO'; photoId: string }
@@ -141,6 +177,21 @@ export interface RefinementPayload {
 }
 
 // ---------------------------------------------------------------------------
+// SAVE-04: centralized isDirty + editEpoch bump
+// ---------------------------------------------------------------------------
+
+/**
+ * Every reducer branch that marks the editor dirty MUST also bump editEpoch in
+ * the same step (audit B4 / SAVE-04) — centralizing this here means no branch
+ * can set isDirty:true without the epoch bump (which would re-introduce the
+ * false-clean bug: a keystroke landing during an in-flight save stranded
+ * behind a MARK_SAVED that unconditionally cleared isDirty).
+ */
+function dirty(state: EstimateEditorState): Pick<EstimateEditorState, 'isDirty' | 'editEpoch'> {
+  return { isDirty: true, editEpoch: state.editEpoch + 1 }
+}
+
+// ---------------------------------------------------------------------------
 // Recalculation helper
 // ---------------------------------------------------------------------------
 
@@ -148,9 +199,11 @@ function recalculate(state: EstimateEditorState): EstimateEditorState {
   const sections = state.sections.map((s) => {
     const items = s.items.map((i) => ({
       ...i,
-      // Client preview only — server (saveEstimate → computeEstimateTotals) is
-      // authoritative; non-taxable lines are corrected server-side on save/reload.
-      // Line net mirrors the engine's lineNet: round2(qty × unit_price) − discount.
+      // Line net mirrors the engine's lineNet: round2(qty × unit_price) −
+      // discount. `taxable` never affects the LINE total itself (the server's
+      // lineNet has no taxable term either — lib/estimate/compute-totals.ts)
+      // — it only gates which lines count toward the taxable TAX BASE below
+      // (SAVE-07).
       total: Math.round(i.quantity * i.unit_price * 100) / 100 - (i.discount ?? 0),
     }))
     return {
@@ -169,7 +222,24 @@ function recalculate(state: EstimateEditorState): EstimateEditorState {
     discount_amount = state.discount_value
   }
 
-  const tax_amount = Math.round((subtotal - discount_amount) * state.tax_rate * 100) / 100
+  // SAVE-07 (client preview parity, audit B8): mirror the server's flat-tax
+  // path EXACTLY (lib/estimate/compute-totals.ts's `!isTaxConfig` branch,
+  // landed in 165-01) — a taxable=false line contributes ZERO to the taxable
+  // base, and the global discount is PRORATED onto that base (its share of
+  // the overall subtotal), not subtracted in full. This is what keeps a
+  // mixed-taxable estimate from diverging from what saveEstimate persists (or
+  // going negative). All-taxable (taxable absent/true on every line — the
+  // overwhelming default) → taxableBase === subtotal → proratedDisc ===
+  // discount_amount → BYTE-IDENTICAL to the pre-165-02 flat formula. Flat-only:
+  // the reducer has no company tax_config, so a per-category company still
+  // only resolves its true tax on save (MARK_SAVED adopts the server totals).
+  const taxableBase = sections.reduce(
+    (sum, s) => sum + s.items.reduce((t, i) => t + ((i.taxable ?? true) ? i.total : 0), 0),
+    0
+  )
+  const proratedDisc =
+    subtotal > 0 ? Math.round(discount_amount * (taxableBase / subtotal) * 100) / 100 : 0
+  const tax_amount = Math.round((taxableBase - proratedDisc) * state.tax_rate * 100) / 100
   const total = Math.round((subtotal - discount_amount + tax_amount) * 100) / 100
 
   // v4.11 deposit preview — mirror compute-totals.ts L177-190 EXACTLY (same
@@ -219,6 +289,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       attachedPhotos: [],
       presentation_settings: null,
       isDirty: false,
+      editEpoch: 0,
       updated_at: new Date(0).toISOString(),
       sent_at: null,
       client_response: null,
@@ -282,6 +353,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       }))
       .sort((a, b) => a.sort_order - b.sort_order),
     isDirty: false,
+    editEpoch: 0,
     updated_at: estimate.updated_at,
     sent_at: estimate.sent_at,
     client_response: estimate.client_response,
@@ -299,7 +371,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       return initState(action.estimate)
 
     case 'UPDATE_FIELD':
-      return { ...state, [action.field]: action.value, isDirty: true }
+      return { ...state, [action.field]: action.value, ...dirty(state) }
 
     case 'UPDATE_SECTION_TITLE':
       return {
@@ -307,7 +379,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         sections: state.sections.map((s) =>
           s.id === action.sectionId ? { ...s, title: action.title } : s
         ),
-        isDirty: true,
+        ...dirty(state),
       }
 
     case 'UPDATE_ITEM': {
@@ -335,7 +407,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             }),
           }
         }),
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -365,7 +437,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ],
           }
         }),
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -380,7 +452,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             items: s.items.filter((i) => i.id !== action.itemId),
           }
         }),
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -413,7 +485,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ],
           },
         ],
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -422,7 +494,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       const updated = {
         ...state,
         sections: state.sections.filter((s) => s.id !== action.sectionId),
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -440,7 +512,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             .filter(Boolean) as EditorItem[]
           return { ...s, items: reordered }
         }),
-        isDirty: true,
+        ...dirty(state),
       }
       return updated
     }
@@ -452,7 +524,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
           return section ? { ...section, sort_order: idx } : null
         })
         .filter(Boolean) as EditorSection[]
-      return { ...state, sections: reordered, isDirty: true }
+      return { ...state, sections: reordered, ...dirty(state) }
     }
 
     case 'UPDATE_DISCOUNT': {
@@ -460,7 +532,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         ...state,
         discount_type: action.discount_type,
         discount_value: action.discount_value,
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -470,7 +542,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         ...state,
         deposit_type: action.deposit_type,
         deposit_value: action.deposit_value,
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -479,16 +551,63 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       const updated = {
         ...state,
         tax_rate: action.tax_rate,
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
 
     case 'UPDATE_PRESENTATION_SETTINGS':
-      return { ...state, presentation_settings: action.presentation_settings, isDirty: true }
+      return { ...state, presentation_settings: action.presentation_settings, ...dirty(state) }
 
-    case 'MARK_SAVED':
-      return { ...state, isDirty: false, updated_at: action.updated_at }
+    case 'MARK_SAVED': {
+      // SAVE-03: remap every temp- section/item id to its server-assigned uuid
+      // (the RPC's id_map) so a second immediate save re-UPDATEs those rows
+      // instead of re-INSERTing them (no churn, no duplicate-row window).
+      // Absent/empty idMap (e.g. the presentation-settings re-baseline dispatch,
+      // which has no id_map to offer) → skip the remap entirely.
+      const idMap = action.idMap
+      const sections =
+        idMap && Object.keys(idMap).length > 0
+          ? state.sections.map((s) => ({
+              ...s,
+              id: idMap[s.id] ?? s.id,
+              items: s.items.map((i) => ({ ...i, id: idMap[i.id] ?? i.id })),
+            }))
+          : state.sections
+
+      // SAVE-07: adopt the server-computed totals verbatim (covers
+      // per-category tax_config companies the reducer's own flat-only preview
+      // can't compute) so the editor snaps to the persisted truth immediately.
+      // Absent totals (the presentation-only re-baseline path) → leave
+      // today's priced content untouched.
+      const totals = action.totals
+
+      // SAVE-04 (audit B4 false-clean fix): only clear isDirty when the epoch
+      // captured by the caller BEFORE it dispatched the save still equals the
+      // CURRENT editEpoch. `savedEpoch` absent → always clear (preserves the
+      // 164-02 presentation-settings re-baseline behavior exactly). A mismatch
+      // means an edit landed mid-save — leave isDirty as-is (still true).
+      const isDirty =
+        action.savedEpoch === undefined || action.savedEpoch === state.editEpoch
+          ? false
+          : state.isDirty
+
+      return {
+        ...state,
+        sections,
+        ...(totals
+          ? {
+              subtotal: totals.subtotal,
+              tax_amount: totals.tax_amount,
+              discount_amount: totals.discount_amount,
+              total: totals.total,
+              balance_due: totals.balance_due,
+            }
+          : {}),
+        isDirty,
+        updated_at: action.updated_at,
+      }
+    }
 
     case 'ATTACH_PHOTO': {
       if (state.attachedPhotos.some((p) => p.id === action.photo.id)) {
@@ -548,7 +667,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         payment_terms: r.payment_terms ?? state.payment_terms,
         warranty_terms: r.warranty_terms ?? state.warranty_terms,
         sections: refinedSections,
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }
@@ -573,7 +692,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             }),
           }
         }),
-        isDirty: true,
+        ...dirty(state),
       }
       return recalculate(updated)
     }

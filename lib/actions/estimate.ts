@@ -271,7 +271,24 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
   // id_map is NEW (165-01) — 165-02 consumes it to remap temp- ids to real
   // ids client-side. Additive: existing callers reading .data.total/.updated_at
   // are unaffected.
-  return { data: { total, updated_at: savedUpdatedAt, id_map: result.id_map } }
+  //
+  // Phase 165 Plan 02 (SAVE-07 client half) — additively extend the return
+  // with the FULL totals breakdown (subtotal/tax_amount/discount_amount/
+  // balance_due), not just `total`, so the editor's MARK_SAVED handler can
+  // adopt the server-computed truth verbatim (the reducer's own flat-only
+  // preview can't compute a per-category tax_config company's real tax).
+  // camelCase locals already in scope from the engineResult above.
+  return {
+    data: {
+      total,
+      updated_at: savedUpdatedAt,
+      id_map: result.id_map,
+      subtotal,
+      tax_amount: taxAmount,
+      discount_amount: discountAmount,
+      balance_due: balanceDue,
+    },
+  }
 }
 
 // ---------------------------------------------------------------------------
