@@ -34,6 +34,16 @@ export interface CaptureProcessingOverlayProps {
   activeStepStartedAt?: string | null
   /** Live per-step median durations (getStepMedians); fallbacks apply when absent. */
   medians?: Record<string, number>
+  /**
+   * Phase 168 (PHOTO-02 UI half): analyze-step coverage counts from the
+   * journal (168-01's analyze-photos.ts metadata, threaded through
+   * poll-outcome's StageProgress). When coverage is partial (analyzedCount <
+   * totalCount, or any failure), a "N of M photos analyzed" subtitle renders
+   * below the main label instead of silently hiding the shortfall.
+   */
+  analyzedCount?: number
+  totalCount?: number
+  failedCount?: number
 }
 
 export function CaptureProcessingOverlay({
@@ -43,6 +53,9 @@ export function CaptureProcessingOverlay({
   activeStep,
   activeStepStartedAt,
   medians,
+  analyzedCount,
+  totalCount,
+  failedCount,
 }: CaptureProcessingOverlayProps) {
   const { t } = useTranslation()
 
@@ -129,6 +142,19 @@ export function CaptureProcessingOverlay({
     )
   }
 
+  // Phase 168 (PHOTO-02 UI half): surface the journal's real analyze coverage
+  // ("N of M photos analyzed") whenever it's partial — some photos still
+  // pending analysis (analyzedCount < totalCount) or at least one hard
+  // failure (failedCount > 0) — rather than silently hiding the shortfall
+  // behind the generic "Analyzing photos" label.
+  const hasPartialCoverage =
+    typeof analyzedCount === 'number' &&
+    typeof totalCount === 'number' &&
+    (analyzedCount < totalCount || (failedCount ?? 0) > 0)
+  const coverageSubtitle = hasPartialCoverage
+    ? `${analyzedCount} ${t('of')} ${totalCount} ${t('photos analyzed')}`
+    : null
+
   return (
     <div
       className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/60 backdrop-blur-sm"
@@ -150,6 +176,14 @@ export function CaptureProcessingOverlay({
           <span className="tabular-nums text-muted-foreground/70"> · {elapsedSuffix}</span>
         )}
       </p>
+      {coverageSubtitle && (
+        <p
+          className="text-xs text-muted-foreground/70"
+          data-testid="capture-processing-coverage"
+        >
+          {coverageSubtitle}
+        </p>
+      )}
     </div>
   )
 }

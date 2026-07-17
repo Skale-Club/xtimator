@@ -130,6 +130,15 @@ interface AttemptProgress {
   completedSteps: string[]
   activeStep: string | null
   activeStepStartedAt: string | null
+  /**
+   * Phase 168 (PHOTO-02 UI half): analyze-step coverage counts forwarded from
+   * the journal (168-01's analyze-photos.ts metadata, via poll-outcome's
+   * StageProgress) — absent for non-photo capture modes or before the
+   * analyze step's succeeded event lands.
+   */
+  analyzedCount?: number
+  totalCount?: number
+  failedCount?: number
 }
 const EMPTY_ATTEMPT_PROGRESS: AttemptProgress = {
   completedSteps: [],
@@ -661,6 +670,11 @@ export function CaptureRecorder({
           ? progress.lastStep
           : null,
       activeStepStartedAt: progress.activeStepStartedAt,
+      // Phase 168 (PHOTO-02 UI half): forward the analyze-step coverage
+      // counts so the overlay can render "N of M photos analyzed".
+      analyzedCount: progress.analyzedCount,
+      totalCount: progress.totalCount,
+      failedCount: progress.failedCount,
     })
   }, [])
 
@@ -1295,6 +1309,9 @@ export function CaptureRecorder({
               activeStep={attemptProgress.activeStep}
               activeStepStartedAt={attemptProgress.activeStepStartedAt}
               medians={stepMedians}
+              analyzedCount={attemptProgress.analyzedCount}
+              totalCount={attemptProgress.totalCount}
+              failedCount={attemptProgress.failedCount}
             />
           )}
           {failedAt && (

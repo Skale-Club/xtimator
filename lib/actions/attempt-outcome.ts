@@ -45,12 +45,19 @@ export type AttemptOutcome =
   //   completedSteps — steps with a `succeeded` event, in journal order;
   //   activeStepStartedAt — created_at of the latest `started` event whose
   //   step has no `succeeded` event yet (null when nothing is mid-flight).
+  // Phase 168 (PHOTO-02 UI half): analyzedCount/totalCount/failedCount are the
+  // additive coverage counts 168-01 recorded on the analyze/succeeded journal
+  // row's metadata (analyze-photos.ts) — optional/absent for non-photo capture
+  // modes or when the analyze step hasn't reached its succeeded event yet.
   | {
       state: 'pending'
       lastStep: string | null
       lastStatus: string | null
       completedSteps: string[]
       activeStepStartedAt: string | null
+      analyzedCount?: number
+      totalCount?: number
+      failedCount?: number
     }
   | { state: 'unauthorized' }
 
@@ -64,6 +71,10 @@ interface JournalRow {
   // QUICK-psh-02: needed to read the project's needs_details enrichment.
   project_id: string | null
   created_at: string
+  // Phase 168 (PHOTO-02 UI half): carries { analyzedCount, totalCount,
+  // failedCount } on the analyze/succeeded row (analyze-photos.ts:346-360).
+  // Untyped at the DB boundary — narrowed defensively where read.
+  metadata: Record<string, unknown> | null
 }
 
 /**
@@ -117,7 +128,9 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
     const svc = requireServiceClient()
     const { data } = await svc
       .from('pipeline_events')
-      .select('step,status,error_code,error_message,estimate_id,company_id,project_id,created_at')
+      .select(
+        'step,status,error_code,error_message,estimate_id,company_id,project_id,created_at,metadata'
+      )
       .eq('attempt_id', attemptId)
       .order('created_at', { ascending: true })
 
@@ -189,12 +202,31 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
       }
     }
 
+    // Phase 168 (PHOTO-02 UI half): surface the analyze step's coverage
+    // counts (168-01's analyze-photos.ts metadata) so the client can render
+    // "N of M photos analyzed" while generation is still pending. Absent for
+    // non-photo capture modes or before the analyze/succeeded row lands.
+    const analyzeRow = rows.find((r) => r.step === 'analyze' && r.status === 'succeeded')
+    const analyzeMetadata = analyzeRow?.metadata as
+      | { analyzedCount?: unknown; totalCount?: unknown; failedCount?: unknown }
+      | null
+      | undefined
+    const analyzedCount =
+      typeof analyzeMetadata?.analyzedCount === 'number' ? analyzeMetadata.analyzedCount : undefined
+    const totalCount =
+      typeof analyzeMetadata?.totalCount === 'number' ? analyzeMetadata.totalCount : undefined
+    const failedCount =
+      typeof analyzeMetadata?.failedCount === 'number' ? analyzeMetadata.failedCount : undefined
+
     return {
       state: 'pending',
       lastStep: last.step,
       lastStatus: last.status,
       completedSteps,
       activeStepStartedAt,
+      ...(analyzedCount !== undefined ? { analyzedCount } : {}),
+      ...(totalCount !== undefined ? { totalCount } : {}),
+      ...(failedCount !== undefined ? { failedCount } : {}),
     }
   } catch (err) {
     // Never throw — a read failure must not break the client's polling loop.

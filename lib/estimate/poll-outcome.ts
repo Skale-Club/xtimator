@@ -58,6 +58,15 @@ export interface StageProgress {
   completedSteps: string[]
   /** created_at of the latest `started` event without a matching `succeeded`. */
   activeStepStartedAt: string | null
+  /**
+   * Phase 168 (PHOTO-02 UI half): analyze-step coverage counts forwarded from
+   * the journal's analyze/succeeded metadata (168-01, exact key names) via
+   * getAttemptOutcome — absent for non-photo capture modes or before the
+   * analyze step's succeeded event lands.
+   */
+  analyzedCount?: number
+  totalCount?: number
+  failedCount?: number
 }
 
 /**
@@ -183,6 +192,9 @@ export async function pollEstimateOutcome(opts: {
             lastStep: attemptOutcome.lastStep,
             completedSteps: attemptOutcome.completedSteps,
             activeStepStartedAt: attemptOutcome.activeStepStartedAt,
+            analyzedCount: attemptOutcome.analyzedCount,
+            totalCount: attemptOutcome.totalCount,
+            failedCount: attemptOutcome.failedCount,
           })
         }
         // 'unauthorized' — a scoping edge (e.g. a stale claims read); never
