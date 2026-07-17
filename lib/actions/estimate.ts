@@ -15,7 +15,6 @@ import {
   presentationSettingsSchema,
   type SaveEstimateInput,
 } from '@/lib/schemas/estimate'
-import { isEstimateLocked } from '@/lib/estimate/lock'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // ---------------------------------------------------------------------------
@@ -108,7 +107,10 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
   const balanceDue = engineResult.balanceDue
 
   // Re-attach the engine-resolved per-item totals/unit_price to the original section/item
-  // shape (preserving id/sort_order/price_source/isManuallyEdited for the persistence paths).
+  // shape, AND resolve price_source here (Opus nit #5) — item.isManuallyEdited ? null :
+  // (item.price_source ?? null) — so the RPC receives the FINAL value and never needs
+  // isManuallyEdited (isManuallyEdited is still spread through via `...item` for internal
+  // bookkeeping only; it is dropped when the RPC payload is built below).
   const calculatedSections = estimateData.sections.map((section, sIdx) => {
     const engineSection = engineResult.sections[sIdx]
     const items = section.items.map((item, iIdx) => {
@@ -117,59 +119,39 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
         ...item,
         unit_price: engineItem.unit_price,
         total: engineItem.total,
+        price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
       }
     })
     return { ...section, items, subtotal: engineSection.subtotal }
   })
 
-  // TRUST-02 (Phase 164 Plan 02) — freeze-on-send/sign guard. A pre-UPDATE
-  // SELECT (NOT folded into the header UPDATE's filters below — that would
-  // collide with the optimistic-concurrency zero-rows path and lose this
-  // distinct error) loads the lock-relevant fields BEFORE any write. Runs
-  // concurrently with the signature-existence lookup (Opus blocker #1 — the
-  // signed-but-unresponded window: app/api/estimates/[id]/sign/route.ts
-  // inserts the estimate_signatures row BEFORE calling respondToEstimate and
-  // SWALLOWS a respond failure, so a signed estimate can have
-  // client_response still null — isEstimateLocked() alone is not sufficient;
-  // an existing signature row locks the estimate too). This SAME query also
-  // supplies the project_id + previous total the code below used to fetch
-  // separately AFTER the update — net cost is exactly one new round-trip
-  // (the signature lookup), not two.
-  const [{ data: preUpdateRow }, { data: signatureRows }] = await Promise.all([
-    supabase
-      .from('estimates')
-      .select('sent_at, client_response, total, project_id')
-      .eq('id', estimateData.id)
-      .single(),
-    supabase
-      .from('estimate_signatures')
-      .select('id')
-      .eq('estimate_id', estimateData.id)
-      .limit(1),
-  ])
-
-  const hasSignature = !!signatureRows && signatureRows.length > 0
-  if (isEstimateLocked(preUpdateRow) || hasSignature) {
-    return { error: 'estimate_locked' }
-  }
-
-  const previousTotal = (preUpdateRow as { total?: number | null } | null)?.total ?? null
-  const projectId = (preUpdateRow as { project_id?: string } | null)?.project_id ?? null
-
-  // Update estimate row.
+  // Phase 165 Plan 01 (SAVE-01/02) — the ENTIRE write set (header
+  // compare-and-set + all section/item upserts + both orphan-delete passes +
+  // project total) is now ONE atomic Postgres RPC call, replacing the
+  // multi-statement sequence this action used to run (a separate pre-UPDATE
+  // lock SELECT, a header UPDATE, per-section/per-item upserts, per-section
+  // orphan item deletes, an estimate-level orphan section delete, and a
+  // project total UPDATE — each its own PostgREST round-trip with no shared
+  // transaction). A failure partway through that old sequence left header
+  // totals != items (audit B1) and, because the failed call already
+  // committed the new updated_at, poisoned every subsequent save from the
+  // same session with a false "changed elsewhere" conflict (audit B2). The
+  // freeze-on-send/sign guard (TRUST-02) and the new server-side is_current
+  // guard (SAVE-02) now run INSIDE the RPC's transaction instead of via a
+  // separate pre-UPDATE SELECT that raced the write it was guarding; the
+  // RPC also returns project_id + previous_total (Opus BLOCKER #1) so the
+  // post-RPC estimate_updated activity insert and revalidatePath below have
+  // what they need WITHOUT that now-removed pre-UPDATE SELECT.
   //
-  // Pre-launch audit fix (B7): last-write-wins concurrency. When the caller
-  // supplies expectedUpdatedAt (the editor always does), scope the UPDATE to
-  // it — `.eq('updated_at', expectedUpdatedAt)` — so a STALE save (another
-  // tab/session already saved this estimate since this client last loaded
-  // it) matches ZERO rows instead of silently overwriting the newer version.
-  // This check runs BEFORE any section/item insert/update/delete below, so a
-  // stale save never reaches the destructive "delete orphaned items/sections
-  // not in this payload" step and can't wipe out content the other writer
-  // just added.
-  let updateQuery = supabase
-    .from('estimates')
-    .update({
+  // updated_at is NOT sent — the estimates BEFORE UPDATE trigger
+  // (20260717000005) owns that column now; the RPC's own compare-and-set
+  // reads the value it locked internally (step 1 of the function), not a
+  // value this action would otherwise have to fetch and pass in.
+  const { data: rpcResult, error: rpcError } = await supabase.rpc('save_estimate_atomic', {
+    p_estimate_id: estimateData.id,
+    p_company_id: companyId,
+    p_expected_updated_at: estimateData.expectedUpdatedAt ?? null,
+    p_header: {
       summary: estimateData.summary,
       notes: estimateData.notes,
       timeline: estimateData.timeline,
@@ -192,204 +174,77 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
       // Phase 161 (PRESENT-01/03): pure pass-through -- never touches the
       // totals-engine call above (GUARD-03).
       presentation_settings: estimateData.presentation_settings ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', estimateData.id)
+    },
+    p_sections: calculatedSections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      sort_order: section.sort_order,
+      subtotal: section.subtotal,
+      items: section.items.map((item) => ({
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit,
+        unit_price: item.unit_price,
+        total: item.total,
+        sort_order: item.sort_order,
+        price_source: item.price_source,
+        // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
+        taxable: item.taxable ?? true,
+        tax_category: item.tax_category ?? null,
+        discount: item.discount ?? 0,
+        cost: item.cost ?? null,
+        markup_pct: item.markup_pct ?? null,
+      })),
+    })),
+  })
 
-  if (estimateData.expectedUpdatedAt) {
-    updateQuery = updateQuery.eq('updated_at', estimateData.expectedUpdatedAt)
-  }
-
-  const { data: updatedRows, error: estimateError } = await updateQuery.select('id, updated_at')
-
-  if (estimateError) return { error: 'Failed to save estimate' }
-
-  if (estimateData.expectedUpdatedAt && (!updatedRows || updatedRows.length === 0)) {
-    return {
-      error:
-        'This estimate was changed elsewhere since you last loaded it. Your unsaved changes were NOT applied — reload to see the latest version before continuing.',
-      conflict: true as const,
+  if (rpcError) {
+    // Distinct SQLSTATEs raised by save_estimate_atomic (165-01 interface):
+    // P0001 estimate_locked, P0002 estimate_conflict, P0003 estimate_not_current,
+    // P0004/anything else -> generic failure. Matched on error.code (not message)
+    // so this mapping survives PostgREST/supabase-js intact (Opus warning #4).
+    if (rpcError.code === 'P0001') {
+      return { error: 'estimate_locked' }
     }
-  }
-
-  const savedUpdatedAt =
-    (updatedRows?.[0] as { updated_at?: string } | undefined)?.updated_at ?? new Date().toISOString()
-
-  // Upsert sections
-  const incomingSectionIds: string[] = []
-  for (const section of calculatedSections) {
-    const isNew = section.id.startsWith('temp-')
-
-    if (isNew) {
-      const { data: newSection, error: sectionError } = await supabase
-        .from('estimate_sections')
-        .insert({
-          estimate_id: estimateData.id,
-          company_id: companyId,
-          title: section.title,
-          sort_order: section.sort_order,
-          subtotal: section.subtotal,
-        })
-        .select('id')
-        .single()
-
-      if (sectionError || !newSection) {
-        return { error: 'Failed to save section' }
-      }
-
-      const newSectionId = newSection.id as string
-      incomingSectionIds.push(newSectionId)
-
-      // Insert items for new section
-      if (section.items.length > 0) {
-        const itemRows = section.items.map((item, idx) => ({
-          section_id: newSectionId,
-          company_id: companyId,
-          description: item.description,
-          quantity: item.quantity,
-          unit: item.unit,
-          unit_price: item.unit_price,
-          total: item.total,
-          sort_order: idx,
-          price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
-          // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
-          taxable: item.taxable ?? true,
-          tax_category: item.tax_category ?? null,
-          discount: item.discount ?? 0,
-          cost: item.cost ?? null,
-          markup_pct: item.markup_pct ?? null,
-        }))
-        const { error: itemsError } = await supabase
-          .from('estimate_items')
-          .insert(itemRows)
-        if (itemsError) return { error: 'Failed to save items' }
-      }
-    } else {
-      incomingSectionIds.push(section.id)
-
-      // Update existing section
-      const { error: sectionError } = await supabase
-        .from('estimate_sections')
-        .update({
-          title: section.title,
-          sort_order: section.sort_order,
-          subtotal: section.subtotal,
-        })
-        .eq('id', section.id)
-
-      if (sectionError) return { error: 'Failed to update section' }
-
-      // Upsert items for existing section
-      const incomingItemIds: string[] = []
-      for (const item of section.items) {
-        const isNewItem = item.id.startsWith('temp-')
-
-        if (isNewItem) {
-          const { data: newItem, error: itemError } = await supabase
-            .from('estimate_items')
-            .insert({
-              section_id: section.id,
-              company_id: companyId,
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unit_price: item.unit_price,
-              total: item.total,
-              sort_order: item.sort_order,
-              price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
-              // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
-              taxable: item.taxable ?? true,
-              tax_category: item.tax_category ?? null,
-              discount: item.discount ?? 0,
-              cost: item.cost ?? null,
-              markup_pct: item.markup_pct ?? null,
-            })
-            .select('id')
-            .single()
-
-          if (itemError || !newItem) return { error: 'Failed to save item' }
-          incomingItemIds.push(newItem.id as string)
-        } else {
-          incomingItemIds.push(item.id)
-          const { error: itemError } = await supabase
-            .from('estimate_items')
-            .update({
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unit_price: item.unit_price,
-              total: item.total,
-              sort_order: item.sort_order,
-              price_source: item.isManuallyEdited ? null : (item.price_source ?? null),
-              // v4.11 advanced-pricing columns (no-op defaults → byte-identical retrocompat).
-              taxable: item.taxable ?? true,
-              tax_category: item.tax_category ?? null,
-              discount: item.discount ?? 0,
-              cost: item.cost ?? null,
-              markup_pct: item.markup_pct ?? null,
-            })
-            .eq('id', item.id)
-          if (itemError) return { error: 'Failed to update item' }
-        }
-      }
-
-      // Delete orphaned items within this section
-      const { data: existingItems } = await supabase
-        .from('estimate_items')
-        .select('id')
-        .eq('section_id', section.id)
-
-      if (existingItems) {
-        const orphanedItemIds = existingItems
-          .map((i) => i.id as string)
-          .filter((id) => !incomingItemIds.includes(id))
-
-        if (orphanedItemIds.length > 0) {
-          await supabase
-            .from('estimate_items')
-            .delete()
-            .in('id', orphanedItemIds)
-        }
+    if (rpcError.code === 'P0002') {
+      return {
+        error:
+          'This estimate was changed elsewhere since you last loaded it. Your unsaved changes were NOT applied — reload to see the latest version before continuing.',
+        conflict: true as const,
       }
     }
-  }
-
-  // Delete orphaned sections (items cascade-delete with their section)
-  const { data: existingSections } = await supabase
-    .from('estimate_sections')
-    .select('id')
-    .eq('estimate_id', estimateData.id)
-
-  if (existingSections) {
-    const orphanedSectionIds = existingSections
-      .map((s) => s.id as string)
-      .filter((id) => !incomingSectionIds.includes(id))
-
-    if (orphanedSectionIds.length > 0) {
-      await supabase
-        .from('estimate_sections')
-        .delete()
-        .in('id', orphanedSectionIds)
+    if (rpcError.code === 'P0003') {
+      return { error: 'estimate_not_current' }
     }
+    return { error: 'Failed to save estimate' }
   }
 
-  // Update project total
+  const result = rpcResult as {
+    updated_at: string
+    project_total: number
+    project_id: string | null
+    previous_total: number | null
+    id_map: Record<string, string>
+  }
+
+  const projectId = result.project_id
+  const previousTotal = result.previous_total
+  const savedUpdatedAt = result.updated_at
+
   if (projectId) {
-    await supabase
-      .from('projects')
-      .update({ total })
-      .eq('id', projectId)
-
     revalidatePath(`/projects/${projectId}`)
   }
 
   // TRUST-03 (Phase 164 Plan 02) — every successful content save gets an
   // auditable estimate_activity row (saveEstimate wrote ZERO activity rows
-  // before this phase — v4.19 audit A2 — so in-place tampering was invisible
+  // before that phase — v4.19 audit A2 — so in-place tampering was invisible
   // in the audit trail). Fire-and-forget / never-throw, matching the house
   // pattern used elsewhere in this file (markAsSentAction's delivery-log
   // insert, below): NOT awaited, so a slow or failed insert can never block
-  // or fail the save the user is waiting on.
+  // or fail the save the user is waiting on. project_id/previous_total now
+  // come FROM THE RPC RESULT (Opus blocker #1), not a separate pre-UPDATE
+  // SELECT (removed above).
   const itemsCount = calculatedSections.reduce((sum, s) => sum + s.items.length, 0)
   const totalDelta =
     previousTotal != null ? Math.round((total - previousTotal) * 100) / 100 : null
@@ -407,13 +262,16 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
           total_delta: totalDelta,
         },
       })
-      if (error) console.error('[164-02] estimate_updated activity insert failed', error)
+      if (error) console.error('[165-01] estimate_updated activity insert failed', error)
     } catch (err) {
-      console.error('[164-02] estimate_updated activity insert threw', err)
+      console.error('[165-01] estimate_updated activity insert threw', err)
     }
   })()
 
-  return { data: { total, updated_at: savedUpdatedAt } }
+  // id_map is NEW (165-01) — 165-02 consumes it to remap temp- ids to real
+  // ids client-side. Additive: existing callers reading .data.total/.updated_at
+  // are unaffected.
+  return { data: { total, updated_at: savedUpdatedAt, id_map: result.id_map } }
 }
 
 // ---------------------------------------------------------------------------

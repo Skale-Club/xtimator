@@ -5,13 +5,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * + estimate_updated activity emission, and the presentation-settings
  * lock-exempt carve-out (savePresentationSettings).
  *
- * Lock coverage (Opus blocker #1 — the signed-but-unresponded window): a
- * locked estimate is rejected pre-write when EITHER
- * isEstimateLocked({sent_at, client_response}) is true OR an
- * estimate_signatures row exists. sign/route.ts inserts the signature
- * BEFORE calling respondToEstimate and SWALLOWS a respond failure, so a
- * signed estimate can still have sent_at and client_response both null —
- * isEstimateLocked() alone would miss it.
+ * Phase 165 Plan 01 update: the lock guard (sent_at OR client_response OR an
+ * existing estimate_signatures row) now runs INSIDE the save_estimate_atomic
+ * RPC's transaction rather than via a separate pre-UPDATE SELECT + signature
+ * lookup in this action. The RPC raises a distinct SQLSTATE ('P0001') for a
+ * locked estimate, which saveEstimate maps to { error: 'estimate_locked' }.
+ * This file now drives the lock scenarios by configuring the mocked rpc()'s
+ * response instead of a pre-UPDATE SELECT payload.
+ *
+ * savePresentationSettings is UNTOUCHED by Phase 165 (it doesn't call the
+ * RPC — lock-exempt by design, see lib/actions/estimate.ts) — its tests
+ * below keep mocking `.from('estimates').update(...)` directly.
  */
 
 const getActiveCompanyId = vi.fn()
@@ -28,34 +32,36 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({
 }))
 
 const fromImpl = vi.fn()
-let sectionsAndItemsTouched = false
+const rpcImpl = vi.fn()
 let estimatesUpdated = false
 let activityInsertPayload: Record<string, unknown> | null = null
 
-let preUpdateRow: {
-  sent_at: string | null
-  client_response: string | null
-  total: number | null
-  project_id: string
-} = {
-  sent_at: null,
-  client_response: null,
-  total: 1000,
+// Configurable per-test: what save_estimate_atomic's mocked rpc() call returns.
+let rpcError: { code: string; message: string } | null = null
+let rpcData: Record<string, unknown> | null = {
+  updated_at: '2026-07-17T12:00:00.000Z',
+  project_total: 1000,
   project_id: 'proj_1',
+  previous_total: 1000,
+  id_map: {},
 }
-let signatureRows: Array<{ id: string }> = []
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'u_1' } } }) },
     from: (t: string) => fromImpl(t),
+    rpc: (...args: unknown[]) => rpcImpl(...args),
   }),
 }))
 
 function configureSupabase() {
-  sectionsAndItemsTouched = false
   estimatesUpdated = false
   activityInsertPayload = null
+
+  rpcImpl.mockImplementation(() => {
+    if (rpcError) return Promise.resolve({ data: null, error: rpcError })
+    return Promise.resolve({ data: rpcData, error: null })
+  })
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'companies') {
@@ -71,14 +77,9 @@ function configureSupabase() {
       }
     }
 
+    // savePresentationSettings-only path (lock-exempt; untouched by 165-01).
     if (table === 'estimates') {
       return {
-        // The pre-UPDATE lock-check SELECT (sent_at, client_response, total, project_id).
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: preUpdateRow, error: null }),
-          }),
-        }),
         update: vi.fn().mockImplementation(() => {
           estimatesUpdated = true
           return {
@@ -93,32 +94,6 @@ function configureSupabase() {
       }
     }
 
-    if (table === 'estimate_signatures') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({ data: signatureRows, error: null }),
-          }),
-        }),
-      }
-    }
-
-    if (table === 'estimate_sections' || table === 'estimate_items') {
-      sectionsAndItemsTouched = true
-      return {
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'real_1' }, error: null }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-        delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
-      }
-    }
-
     if (table === 'estimate_activity') {
       return {
         insert: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
@@ -128,10 +103,6 @@ function configureSupabase() {
       }
     }
 
-    if (table === 'projects') {
-      return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
-    }
-
     throw new Error(`Unexpected table: ${table}`)
   })
 }
@@ -139,8 +110,14 @@ function configureSupabase() {
 beforeEach(() => {
   vi.clearAllMocks()
   getActiveCompanyId.mockResolvedValue('co_1')
-  preUpdateRow = { sent_at: null, client_response: null, total: 1000, project_id: 'proj_1' }
-  signatureRows = []
+  rpcError = null
+  rpcData = {
+    updated_at: '2026-07-17T12:00:00.000Z',
+    project_total: 1000,
+    project_id: 'proj_1',
+    previous_total: 1000,
+    id_map: {},
+  }
   configureSupabase()
 })
 
@@ -179,76 +156,64 @@ function baseInput(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('TRUST-02: saveEstimate freeze-on-send/sign guard', () => {
-  it('rejects a save when sent_at is set — zero writes', async () => {
-    preUpdateRow.sent_at = '2026-07-17T00:00:00.000Z'
+describe('TRUST-02: saveEstimate freeze-on-send/sign guard (now enforced inside the RPC)', () => {
+  it('rejects a save when the RPC raises the locked SQLSTATE (P0001) — zero direct writes', async () => {
+    rpcError = { code: 'P0001', message: 'estimate_locked' }
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
     const result = await saveEstimate(baseInput() as never)
 
     expect(result.error).toBe('estimate_locked')
+    expect(rpcImpl).toHaveBeenCalledTimes(1)
+    // saveEstimate itself never falls back to a direct table write on lock.
     expect(estimatesUpdated).toBe(false)
-    expect(sectionsAndItemsTouched).toBe(false)
   })
 
-  it('rejects a save when client_response is set — zero writes', async () => {
-    preUpdateRow.client_response = 'accepted'
-    const { saveEstimate } = await import('@/lib/actions/estimate')
-
-    const result = await saveEstimate(baseInput() as never)
-
-    expect(result.error).toBe('estimate_locked')
-    expect(estimatesUpdated).toBe(false)
-    expect(sectionsAndItemsTouched).toBe(false)
-  })
-
-  it('rejects a save when a signature row exists even with sent_at AND client_response both null (signed-but-unresponded window)', async () => {
-    signatureRows = [{ id: 'sig_1' }]
-    const { saveEstimate } = await import('@/lib/actions/estimate')
-
-    const result = await saveEstimate(baseInput() as never)
-
-    expect(result.error).toBe('estimate_locked')
-    expect(estimatesUpdated).toBe(false)
-    expect(sectionsAndItemsTouched).toBe(false)
-  })
-
-  it('a draft (no lock conditions) saves normally and emits an estimate_updated activity row', async () => {
+  it('a draft (RPC succeeds) saves normally and emits an estimate_updated activity row', async () => {
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
     const result = await saveEstimate(baseInput() as never)
 
     expect(result.error).toBeUndefined()
-    expect(estimatesUpdated).toBe(true)
-    expect(sectionsAndItemsTouched).toBe(true)
+    expect(rpcImpl).toHaveBeenCalledTimes(1)
 
     // Fire-and-forget: flush microtasks so the un-awaited activity insert lands.
     await new Promise((r) => setTimeout(r, 0))
     expect(activityInsertPayload).not.toBeNull()
     expect(activityInsertPayload!.event_type).toBe('estimate_updated')
     expect(activityInsertPayload!.estimate_id).toBe('est_1')
+    expect(activityInsertPayload!.project_id).toBe('proj_1')
+  })
+
+  it('a not_current RPC error (P0003) maps to { error: "estimate_not_current" }', async () => {
+    rpcError = { code: 'P0003', message: 'estimate_not_current' }
+    const { saveEstimate } = await import('@/lib/actions/estimate')
+
+    const result = await saveEstimate(baseInput() as never)
+
+    expect(result.error).toBe('estimate_not_current')
   })
 })
 
-describe('TRUST-02: savePresentationSettings is lock-exempt', () => {
-  it('updates presentation_settings on a LOCKED estimate (sent_at set) without the lock guard applying', async () => {
-    // Would reject saveEstimate outright — must NOT affect this separate path.
-    preUpdateRow.sent_at = '2026-07-17T00:00:00.000Z'
+describe('TRUST-02: savePresentationSettings is lock-exempt (untouched by 165-01 — no RPC call)', () => {
+  it('updates presentation_settings directly via .from(estimates).update, never calling the RPC', async () => {
     const { savePresentationSettings } = await import('@/lib/actions/estimate')
 
     const result = await savePresentationSettings('est_1', { sections: { summary: false } })
 
     expect(result.error).toBeUndefined()
     expect(estimatesUpdated).toBe(true)
+    expect(rpcImpl).not.toHaveBeenCalled()
   })
 
-  it('updates presentation_settings on a signature-locked estimate too', async () => {
-    signatureRows = [{ id: 'sig_1' }]
+  it('updates presentation_settings even in a scenario where saveEstimate would be locked (proves the two paths are independent)', async () => {
+    rpcError = { code: 'P0001', message: 'estimate_locked' }
     const { savePresentationSettings } = await import('@/lib/actions/estimate')
 
     const result = await savePresentationSettings('est_1', { discount: { enabled: false } })
 
     expect(result.error).toBeUndefined()
     expect(estimatesUpdated).toBe(true)
+    expect(rpcImpl).not.toHaveBeenCalled()
   })
 })

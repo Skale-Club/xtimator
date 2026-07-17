@@ -6,17 +6,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Two tabs/sessions editing the SAME estimate: without this guard, whichever
  * save lands second silently overwrites the first (and DELETES any
  * section/item the first writer added that the second writer's stale payload
- * doesn't know about — see lib/actions/estimate.ts's orphan-delete steps).
+ * doesn't know about).
  *
- * saveEstimate now scopes the estimates UPDATE to
- * `.eq('updated_at', expectedUpdatedAt)` when the caller supplies it (the
- * editor always does). This test proves:
+ * Phase 165 Plan 01 update: the compare-and-set now runs INSIDE the
+ * save_estimate_atomic RPC's transaction (against the row it locked via
+ * SELECT ... FOR UPDATE), not via a `.eq('updated_at', expectedUpdatedAt)`
+ * filter on a separate UPDATE call. A stale p_expected_updated_at makes the
+ * RPC RAISE the 'P0002' SQLSTATE, which saveEstimate maps to
+ * { error, conflict: true } WITHOUT ever reaching the section/item upserts
+ * (they live inside the SAME transaction, after the compare-and-set check,
+ * so a raised exception rolls back the whole transaction — nothing partial
+ * is ever written).
+ *
+ * This test proves:
  *   - a MATCHING expectedUpdatedAt saves normally and returns the new
- *     updated_at for the caller to use as its next baseline.
- *   - a STALE expectedUpdatedAt (someone else already saved) returns
- *     { error, conflict: true } and does NOT touch estimate_sections /
- *     estimate_items at all — the destructive orphan-delete steps never run.
- *   - omitting expectedUpdatedAt entirely (back-compat) skips the check.
+ *     updated_at (sourced from the RPC result) for the caller's next baseline.
+ *   - a STALE expectedUpdatedAt returns { error, conflict: true }.
+ *   - omitting expectedUpdatedAt entirely (back-compat) passes p_expected_updated_at
+ *     as null, skipping the RPC's internal check.
  */
 
 const getActiveCompanyId = vi.fn()
@@ -36,17 +43,40 @@ const SERVER_UPDATED_AT = '2026-07-06T10:00:00.000Z'
 const NEW_UPDATED_AT = '2026-07-06T10:05:00.000Z'
 
 const fromImpl = vi.fn()
-let sectionsAndItemsTouched = false
+const rpcImpl = vi.fn()
+let lastRpcArgs: Record<string, unknown> | null = null
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'u_1' } } }) },
     from: (t: string) => fromImpl(t),
+    rpc: (fn: string, args: Record<string, unknown>) => rpcImpl(fn, args),
   }),
 }))
 
 function configureSupabase() {
-  sectionsAndItemsTouched = false
+  lastRpcArgs = null
+
+  rpcImpl.mockImplementation((_fn: string, args: Record<string, unknown>) => {
+    lastRpcArgs = args
+    const expected = args.p_expected_updated_at as string | null
+
+    if (expected != null && expected !== SERVER_UPDATED_AT) {
+      // Stale caller — the RPC's internal compare-and-set raises P0002.
+      return Promise.resolve({ data: null, error: { code: 'P0002', message: 'estimate_conflict' } })
+    }
+
+    return Promise.resolve({
+      data: {
+        updated_at: NEW_UPDATED_AT,
+        project_total: 1000,
+        project_id: 'proj_1',
+        previous_total: 1000,
+        id_map: {},
+      },
+      error: null,
+    })
+  })
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'companies') {
@@ -62,89 +92,8 @@ function configureSupabase() {
       }
     }
 
-    if (table === 'estimates') {
-      let sawUpdatedAtEq = false
-      let matched = true
-
-      const afterIdEq: {
-        eq: ReturnType<typeof vi.fn>
-        select: ReturnType<typeof vi.fn>
-      } = {
-        eq: vi.fn().mockImplementation((col: string, val: unknown) => {
-          if (col === 'updated_at') {
-            sawUpdatedAtEq = true
-            matched = val === SERVER_UPDATED_AT
-          }
-          return afterIdEq
-        }),
-        select: vi.fn().mockImplementation(() => {
-          if (sawUpdatedAtEq && !matched) {
-            return Promise.resolve({ data: [], error: null })
-          }
-          return Promise.resolve({
-            data: [{ id: 'est_1', updated_at: NEW_UPDATED_AT }],
-            error: null,
-          })
-        }),
-      }
-
-      return {
-        update: vi.fn().mockImplementation(() => {
-          sawUpdatedAtEq = false
-          matched = true
-          return afterIdEq
-        }),
-        // Phase 164 Plan 02 (TRUST-02): saveEstimate now does a pre-UPDATE
-        // SELECT of sent_at/client_response/total/project_id for the
-        // freeze-on-send/sign guard (this file's fixture is always a draft —
-        // both null — so the guard never fires here).
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { sent_at: null, client_response: null, total: 1000, project_id: 'proj_1' },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-
-    // Phase 164 Plan 02 (TRUST-02): signature-existence lookup — no signature
-    // by default, so the freeze-on-send/sign guard never fires in this file.
-    if (table === 'estimate_signatures') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
-      }
-    }
-
-    // Phase 164 Plan 02 (TRUST-03): fire-and-forget estimate_updated activity
-    // insert — wrapped in try/catch by the action, but stub it cleanly.
     if (table === 'estimate_activity') {
       return { insert: vi.fn().mockResolvedValue({ error: null }) }
-    }
-
-    if (table === 'estimate_sections' || table === 'estimate_items') {
-      sectionsAndItemsTouched = true
-      return {
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'real_1' }, error: null }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-        delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
-      }
-    }
-
-    if (table === 'projects') {
-      return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
     }
 
     throw new Error(`Unexpected table: ${table}`)
@@ -192,8 +141,8 @@ function baseInput(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('B7: saveEstimate optimistic-concurrency guard', () => {
-  it('matching expectedUpdatedAt saves normally and returns the new updated_at', async () => {
+describe('B7 / SAVE-01: saveEstimate optimistic-concurrency guard (now enforced inside the RPC)', () => {
+  it('matching expectedUpdatedAt saves normally and returns the new updated_at from the RPC result', async () => {
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
     const result = await saveEstimate(
@@ -202,10 +151,10 @@ describe('B7: saveEstimate optimistic-concurrency guard', () => {
 
     expect(result.error).toBeUndefined()
     expect(result.data?.updated_at).toBe(NEW_UPDATED_AT)
-    expect(sectionsAndItemsTouched).toBe(true)
+    expect(lastRpcArgs?.p_expected_updated_at).toBe(SERVER_UPDATED_AT)
   })
 
-  it('stale expectedUpdatedAt returns a conflict and never touches sections/items', async () => {
+  it('stale expectedUpdatedAt returns a conflict — the RPC call is made exactly once (no retry/partial write)', async () => {
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
     const result = await saveEstimate(
@@ -214,12 +163,10 @@ describe('B7: saveEstimate optimistic-concurrency guard', () => {
 
     expect(result.error).toBeDefined()
     expect('conflict' in result && result.conflict).toBe(true)
-    // The destructive orphan-delete steps live inside the sections/items loop —
-    // proving that table was never reached is the core safety property here.
-    expect(sectionsAndItemsTouched).toBe(false)
+    expect(rpcImpl).toHaveBeenCalledTimes(1)
   })
 
-  it('omitting expectedUpdatedAt entirely skips the check (back-compat)', async () => {
+  it('omitting expectedUpdatedAt entirely passes p_expected_updated_at as null (back-compat — skips the RPC-internal check)', async () => {
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
     const input = baseInput()
@@ -228,6 +175,6 @@ describe('B7: saveEstimate optimistic-concurrency guard', () => {
     const result = await saveEstimate(input as never)
 
     expect(result.error).toBeUndefined()
-    expect(sectionsAndItemsTouched).toBe(true)
+    expect(lastRpcArgs?.p_expected_updated_at).toBeNull()
   })
 })

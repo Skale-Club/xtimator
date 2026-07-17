@@ -11,14 +11,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *      saves the SAME subtotal/tax/total today's inline math produced; balance_due === total,
  *      deposit === 0.
  *
- * Behavioral test: mocks the supabase client chain, getActiveCompanyId, next/cache, and the
- * xphere dispatch. Captures the estimates UPDATE payload and the estimate_items INSERT payload.
+ * Phase 165 Plan 01 update: saveEstimate persists everything through ONE
+ * supabase.rpc('save_estimate_atomic', { p_header, p_sections, ... }) call
+ * instead of separate `.from('estimates').update(...)` /
+ * `.from('estimate_items').insert(...)` calls. This file now captures the
+ * RPC's p_header/p_sections arguments instead of those per-table payloads —
+ * same assertions, different capture point.
  *
  * Hand-computed golden: quantity 10 × unit_price 100, tax_rate 0.0875 →
  *   subtotal 1000, tax 87.5, total 1087.5.
- *
- * RED until Task 2 widens the action (the new-field keys are absent from the captured payloads
- * and the inline math ignores the per-item fields).
  */
 
 // --- Mocks -----------------------------------------------------------------
@@ -36,24 +37,39 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({
   dispatchXphereSync: vi.fn(),
 }))
 
-// Captured payloads
-let estimatesUpdatePayload: Record<string, unknown> | null = null
-const estimateItemsInsertPayloads: Array<Record<string, unknown>> = []
-const estimateItemsUpdatePayloads: Array<Record<string, unknown>> = []
+// Captured RPC call arguments.
+let lastRpcArgs: {
+  p_header: Record<string, unknown>
+  p_sections: Array<{ items: Array<Record<string, unknown>> }>
+} | null = null
 
 const fromImpl = vi.fn()
+const rpcImpl = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
     auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'u_1' } } }) },
     from: (t: string) => fromImpl(t),
+    rpc: (fn: string, args: typeof lastRpcArgs) => rpcImpl(fn, args),
   }),
 }))
 
 function configureSupabase() {
-  estimatesUpdatePayload = null
-  estimateItemsInsertPayloads.length = 0
-  estimateItemsUpdatePayloads.length = 0
+  lastRpcArgs = null
+
+  rpcImpl.mockImplementation((_fn: string, args: NonNullable<typeof lastRpcArgs>) => {
+    lastRpcArgs = args
+    return Promise.resolve({
+      data: {
+        updated_at: '2026-01-01T00:00:00.000Z',
+        project_total: 1000,
+        project_id: 'proj_1',
+        previous_total: 1000,
+        id_map: { 'temp-sec-1': 'sec_real_1', 'temp-item-1': 'item_real_1' },
+      },
+      error: null,
+    })
+  })
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'companies') {
@@ -75,110 +91,8 @@ function configureSupabase() {
       }
     }
 
-    if (table === 'estimates') {
-      return {
-        update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
-          // The first .update on estimates is the totals write (carries subtotal/total).
-          if ('subtotal' in payload || 'total' in payload) {
-            estimatesUpdatePayload = payload
-          }
-          // Pre-launch audit fix (B7): saveEstimate now chains .select() after
-          // .eq() to read back the row (optimistic-concurrency check + the
-          // new updated_at returned to the caller).
-          return {
-            eq: vi.fn().mockReturnValue({
-              select: vi.fn().mockResolvedValue({
-                data: [{ id: 'est_1', updated_at: '2026-01-01T00:00:00.000Z' }],
-                error: null,
-              }),
-            }),
-          }
-        }),
-        // Phase 164 Plan 02 (TRUST-02): saveEstimate now does a pre-UPDATE
-        // SELECT of sent_at/client_response/total/project_id for the
-        // freeze-on-send/sign guard (this fixture is always a draft — both
-        // null — so the guard never fires here).
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { sent_at: null, client_response: null, total: 1000, project_id: 'proj_1' },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-
-    // Phase 164 Plan 02 (TRUST-02): signature-existence lookup — no signature
-    // by default, so the freeze-on-send/sign guard never fires in this file.
-    if (table === 'estimate_signatures') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
-      }
-    }
-
-    // Phase 164 Plan 02 (TRUST-03): fire-and-forget estimate_updated activity insert.
     if (table === 'estimate_activity') {
       return { insert: vi.fn().mockResolvedValue({ error: null }) }
-    }
-
-    if (table === 'estimate_sections') {
-      return {
-        // new-section insert path
-        insert: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { id: 'sec_real_1' }, error: null }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [{ id: 'sec_real_1' }], error: null }),
-        }),
-        delete: vi.fn().mockReturnValue({
-          in: vi.fn().mockResolvedValue({ error: null }),
-        }),
-      }
-    }
-
-    if (table === 'estimate_items') {
-      return {
-        insert: vi.fn().mockImplementation((rows: unknown) => {
-          const arr = Array.isArray(rows) ? rows : [rows]
-          for (const r of arr) estimateItemsInsertPayloads.push(r as Record<string, unknown>)
-          // new-section bulk insert returns nothing chainable; new-item insert needs .select().single()
-          return {
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { id: 'item_real_1' }, error: null }),
-            }),
-            // allow `await insert(rows)` (bulk insert) to resolve directly
-            then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
-          }
-        }),
-        update: vi.fn().mockImplementation((payload: Record<string, unknown>) => {
-          estimateItemsUpdatePayloads.push(payload)
-          return { eq: vi.fn().mockResolvedValue({ error: null }) }
-        }),
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-        delete: vi.fn().mockReturnValue({
-          in: vi.fn().mockResolvedValue({ error: null }),
-        }),
-      }
-    }
-
-    if (table === 'projects') {
-      return {
-        update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
-        }),
-      }
     }
 
     throw new Error(`Unexpected table: ${table}`)
@@ -191,8 +105,8 @@ beforeEach(() => {
   configureSupabase()
 })
 
-// A NEW section + NEW item (temp- ids) so the action takes the insert path and we capture the
-// estimate_items insert payload.
+// A NEW section + NEW item (temp- ids) so the payload exercises the
+// new-section/new-item shape.
 function baseInput(overrides: {
   item?: Record<string, unknown>
   estimate?: Record<string, unknown>
@@ -232,7 +146,7 @@ function baseInput(overrides: {
   }
 }
 
-describe('PUI-01: saveEstimate widened contract', () => {
+describe('PUI-01: saveEstimate widened contract (persisted via save_estimate_atomic)', () => {
   it('Case A — GUARD-03: a wrong client-sent total/subtotal is ignored; server recompute wins', async () => {
     const { saveEstimate } = await import('@/lib/actions/estimate')
 
@@ -245,12 +159,12 @@ describe('PUI-01: saveEstimate widened contract', () => {
     expect(result).not.toHaveProperty('error')
 
     // Server recompute: 10 × 100 = 1000 subtotal; tax 1000 × 0.0875 = 87.5; total 1087.5.
-    expect(estimatesUpdatePayload).not.toBeNull()
-    expect(estimatesUpdatePayload!.subtotal).toBe(1000)
-    expect(estimatesUpdatePayload!.tax_amount).toBe(87.5)
-    expect(estimatesUpdatePayload!.total).toBe(1087.5)
+    expect(lastRpcArgs).not.toBeNull()
+    expect(lastRpcArgs!.p_header.subtotal).toBe(1000)
+    expect(lastRpcArgs!.p_header.tax_amount).toBe(87.5)
+    expect(lastRpcArgs!.p_header.total).toBe(1087.5)
     // The wrong client number never wins.
-    expect(estimatesUpdatePayload!.total).not.toBe(999999)
+    expect(lastRpcArgs!.p_header.total).not.toBe(999999)
   })
 
   it('Case B — new per-item + deposit fields are accepted and persisted', async () => {
@@ -270,20 +184,19 @@ describe('PUI-01: saveEstimate widened contract', () => {
     const result = await saveEstimate(input as never)
     expect(result).not.toHaveProperty('error')
 
-    // estimate_items insert payload carries the five new columns.
-    expect(estimateItemsInsertPayloads.length).toBeGreaterThan(0)
-    const itemPayload = estimateItemsInsertPayloads[0]
+    // p_sections[0].items[0] carries the five new columns.
+    expect(lastRpcArgs).not.toBeNull()
+    const itemPayload = lastRpcArgs!.p_sections[0].items[0]
     expect(itemPayload).toHaveProperty('taxable', false)
     expect(itemPayload).toHaveProperty('tax_category', 'labor')
     expect(itemPayload).toHaveProperty('discount', 25)
     expect(itemPayload).toHaveProperty('cost', 80)
     expect(itemPayload).toHaveProperty('markup_pct', 25)
 
-    // estimates update payload carries deposit_type/deposit_value/balance_due.
-    expect(estimatesUpdatePayload).not.toBeNull()
-    expect(estimatesUpdatePayload).toHaveProperty('deposit_type', 'percent')
-    expect(estimatesUpdatePayload).toHaveProperty('deposit_value', 50)
-    expect(estimatesUpdatePayload).toHaveProperty('balance_due')
+    // p_header carries deposit_type/deposit_value/balance_due.
+    expect(lastRpcArgs!.p_header).toHaveProperty('deposit_type', 'percent')
+    expect(lastRpcArgs!.p_header).toHaveProperty('deposit_value', 50)
+    expect(lastRpcArgs!.p_header).toHaveProperty('balance_due')
   })
 
   it('Case C — retrocompat: no new fields → byte-identical totals; deposit 0, balance_due === total', async () => {
@@ -296,12 +209,39 @@ describe('PUI-01: saveEstimate widened contract', () => {
     expect(result).not.toHaveProperty('error')
 
     // Same numbers today's inline math produces: subtotal 1000, tax 87.5, total 1087.5.
-    expect(estimatesUpdatePayload).not.toBeNull()
-    expect(estimatesUpdatePayload!.subtotal).toBe(1000)
-    expect(estimatesUpdatePayload!.tax_amount).toBe(87.5)
-    expect(estimatesUpdatePayload!.total).toBe(1087.5)
-    expect(estimatesUpdatePayload!.discount_amount).toBe(0)
+    expect(lastRpcArgs).not.toBeNull()
+    expect(lastRpcArgs!.p_header.subtotal).toBe(1000)
+    expect(lastRpcArgs!.p_header.tax_amount).toBe(87.5)
+    expect(lastRpcArgs!.p_header.total).toBe(1087.5)
+    expect(lastRpcArgs!.p_header.discount_amount).toBe(0)
     // Deposit dormant: balance_due === total, deposit 0.
-    expect(estimatesUpdatePayload!.balance_due).toBe(1087.5)
+    expect(lastRpcArgs!.p_header.balance_due).toBe(1087.5)
+  })
+
+  it('Case D (165-01 new) — price_source is resolved in the action: isManuallyEdited true forces price_source null', async () => {
+    const { saveEstimate } = await import('@/lib/actions/estimate')
+
+    const input = baseInput({
+      item: { price_source: 'ai_estimate', isManuallyEdited: true },
+    })
+
+    const result = await saveEstimate(input as never)
+    expect(result).not.toHaveProperty('error')
+
+    const itemPayload = lastRpcArgs!.p_sections[0].items[0]
+    expect(itemPayload.price_source).toBeNull()
+    // isManuallyEdited itself must NOT reach the RPC payload (Opus nit #5).
+    expect(itemPayload).not.toHaveProperty('isManuallyEdited')
+  })
+
+  it('Case E (165-01 new) — id_map from the RPC result is returned to the caller', async () => {
+    const { saveEstimate } = await import('@/lib/actions/estimate')
+
+    const result = await saveEstimate(baseInput() as never)
+
+    expect(result.data?.id_map).toEqual({
+      'temp-sec-1': 'sec_real_1',
+      'temp-item-1': 'item_real_1',
+    })
   })
 })
