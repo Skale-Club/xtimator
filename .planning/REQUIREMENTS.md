@@ -47,12 +47,12 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Billing & Cost Integrity
 
-- [ ] **BILL-01**: The refine endpoint is credit-gated like generation — a zero-balance company cannot run unmetered Whisper/Vision/Claude calls through refine.
-- [ ] **BILL-02**: Audio transcription cost, credit debit, and entitlement checks key on a server-derived duration (Whisper-reported and/or byte-size clamp) — a client-declared duration can no longer under-price transcription.
-- [ ] **BILL-03**: Vision calls carry the job's cost context (attemptId/companyId/projectId) so photo-batch cost roll-up and credit debits record real cost instead of permanently-null reads.
-- [ ] **BILL-04**: Retrying a failed generation does not re-pay for transcription — the transcribe job short-circuits when a non-empty transcript already exists.
-- [ ] **BILL-05**: Cost events are deduplicated per attempt+operation (unique index) and record the provider that actually served (fallback attribution) — measured platform cost is accurate.
-- [ ] **BILL-06**: Per-plan audio-minute limits are actually enforced against the server-derived duration — the dead `maxAudioMinutesPerEstimate` entitlement becomes real (or is consciously removed), bounding total transcription spend per plan.
+- [x] **BILL-01**: The refine endpoint is credit-gated like generation — a zero-balance company cannot run unmetered Whisper/Vision/Claude calls through refine. *(167-01: checkCredits + affordance before ingestMultimodal.)*
+- [x] **BILL-02**: Audio transcription cost, credit debit, and entitlement checks key on a server-derived duration (Whisper-reported and/or byte-size clamp) — a client-declared duration can no longer under-price transcription. *(167-01: deriveAudioMinutes one-sided 128k byte-clamp.)*
+- [ ] **BILL-03**: Vision calls carry the job's cost context (attemptId/companyId/projectId) so photo-batch cost roll-up and credit debits record real cost instead of permanently-null reads. *(→ 167-02, after 168-01.)*
+- [x] **BILL-04**: Retrying a failed generation does not re-pay for transcription — the transcribe job short-circuits when a non-empty transcript already exists. *(167-01: transcript-exists short-circuit before download, cost/debit guarded on !shortCircuited.)*
+- [x] **BILL-05**: Cost events are deduplicated per attempt+operation (unique index) and record the provider that actually served (fallback attribution) — measured platform cost is accurate. *(167-01: partial unique index + servedBy attribution.)*
+- [x] **BILL-06**: Per-plan audio-minute limits are actually enforced against the server-derived duration — the dead `maxAudioMinutesPerEstimate` entitlement becomes real (or is consciously removed), bounding total transcription spend per plan. *(167-01: NonRetriableError over-cap reject + pre-dispatch belt; behavior-change flagged for owner recalibration.)*
 
 ### Photo Pipeline Fidelity
 
