@@ -25,6 +25,13 @@ const mockGetClaims = vi.fn()
 const mockFrom = vi.fn()
 const mockRefineEstimate = vi.fn()
 
+// Phase 167-01 (BILL-01): stub the new credit gate permissive so this file's
+// concern (typed error envelope on a thrown inner error) stays isolated from
+// the gate's own contract (tests/unit/api/refine-credit-gate.test.ts).
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getClaims: mockGetClaims },

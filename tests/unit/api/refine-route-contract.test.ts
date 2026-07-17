@@ -31,6 +31,15 @@ const mockRefineEstimate = vi.fn()
 const mockRateLimit = vi.fn()
 const mockDemoGuard = vi.fn()
 
+// Phase 167-01 (BILL-01): the route now runs a credit gate on every request —
+// stub it permissive (plain async fn, not vi.fn, so no global mock reset can
+// ever strip it — same pattern as tests/unit/api/generate-estimate-quota.test.ts)
+// so this file's status-code/shape contract stays focused on ITS OWN concern.
+// The gate's own contract lives in tests/unit/api/refine-credit-gate.test.ts.
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  checkCredits: async () => ({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
     auth: { getClaims: mockGetClaims },

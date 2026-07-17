@@ -26,6 +26,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { checkCredits } from '@/lib/billing/credit-ledger'
+import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 
 const MAX_PHOTOS = 5
 
@@ -97,6 +99,34 @@ export async function POST(
         'Cannot refine an old version. Switch to the current version first.'
       )
     }
+
+    // -------------------------------------------------------------------------
+    // Billing v2 (167-01 / BILL-01) — the credit gate. Mirrors
+    // app/api/generate-estimate/route.ts:110-129's 402 contract byte-for-byte:
+    // refine runs Whisper + Vision + Claude in one request (Security Review
+    // S05: the most cost-amplifying endpoint) yet had NO credit gate at all
+    // (v4.19 audit D1) — a zero-balance company could refine indefinitely at
+    // platform cost while generate correctly blocked. Placed AFTER
+    // auth/ownership, BEFORE ingestMultimodal — no paid call may precede it.
+    // The authed `supabase` client is sufficient (the companies select inside
+    // checkCredits is client-agnostic; recording.ts's createTextRecording
+    // already calls checkCredits with this same authed-client shape).
+    // NOTE (164-02 coordination): a lock guard lands beside this block later —
+    // keep it small and clearly delimited so that edit composes cleanly.
+    const credit = await checkCredits(supabase, companyId, 1)
+    if (!credit.allowed) {
+      const affordance = buildOverageAffordance(credit)
+      return NextResponse.json(
+        {
+          error: 'plan_limit_reached',
+          reason: 'credits',
+          upgradeUrl: '/settings/billing',
+          ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
+        },
+        { status: 402 }
+      )
+    }
+    // ---- END credit gate ----
 
     // -------------------------------------------------------------------------
     // Parse multimodal input. Supports either FormData (multipart) or JSON.
