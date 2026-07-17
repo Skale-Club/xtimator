@@ -42,7 +42,7 @@ Each requirement maps to exactly one roadmap phase.
 - [x] **AIREL-01**: Every AI fetch in the codebase carries an explicit timeout (generation, needs-details, price-research web adapters) — a hung upstream can no longer pin a generation job or bypass the provider fallback.
 - [x] **AIREL-02**: Estimate generation cannot silently truncate — output token ceiling raised to fit large estimates, `finish_reason` is read, and a length-stop surfaces as a distinct typed error that drives a targeted retry instead of masquerading as malformed JSON.
 - [x] **AIREL-03**: The live OpenRouter tool schema requests `taxable`, `tax_category`, `cost`, and `markup_pct` — per-category tax and cost+markup work on the primary provider path, not only via the Gemini fallback.
-- [ ] **AIREL-04**: Generated estimates pass post-generation consistency checks before persisting — duplicate line detection, qty-0-with-price flagging, and a configurable per-estimate total ceiling that routes to needs-details instead of silently persisting an absurd total.
+- [x] **AIREL-04**: Generated estimates pass post-generation consistency checks before persisting — duplicate line detection, qty-0-with-price flagging, and a configurable per-estimate total ceiling that routes to needs-details instead of silently persisting an absurd total.
 - [x] **AIREL-05**: Estimate generation runs at a pinned low temperature on all providers — run-to-run price variance is deliberately minimized.
 
 ### Billing & Cost Integrity
@@ -98,7 +98,7 @@ Each requirement maps to exactly one roadmap phase.
 |-------------|-------|--------|
 | TRUST-01..03 | 164 | Pending |
 | SAVE-01..07 | 165 | Pending |
-| AIREL-01..05 | 166 | Pending |
+| AIREL-01..05 | 166 | Complete |
 | BILL-01..06 | 167 | Pending |
 | PHOTO-01..04 | 168 | Pending |
 | CAPT-01..05 | 169 | Pending |

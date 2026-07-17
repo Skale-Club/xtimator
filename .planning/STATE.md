@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.1.1
 milestone_name: MVP Launch Prep + Future-Proofing
 status: executing
-stopped_at: Completed 169-02-PLAN.md
-last_updated: "2026-07-17T17:27:43.638Z"
+stopped_at: Completed 166-02-PLAN.md
+last_updated: "2026-07-17T18:17:23.153Z"
 last_activity: "2026-07-17 - Completed 164-01-PLAN.md (see [164-01-SUMMARY.md](phases/164-sign-send-trust-boundary/164-01-SUMMARY.md)). Known limitation carried forward: photo URLs are NOT part of the frozen snapshot (signed URLs expire hourly) — a post-sign photo add/remove is still visible on the share page/PDF."
 progress:
   total_phases: 18
@@ -945,6 +945,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 164]: TRUST-01: signature snapshot captured in the SAME insert as the signature row (fail-closed if content load/serialize fails); share + PDF render-from-snapshot via ONE shared applySignedSnapshot (REPLACE, not merge) + shared loadLatestSignedSnapshot query; total_amount_cents re-derived from signed_total at both share lookup call sites; photo URLs stay live (known limitation, documented).
 - [Phase 166]: TruncatedOutputError lives in with-fallback.ts beside InvalidEstimateOutputError; NOT terminal — Gemini fallback still fires on truncation
 - [Phase 166]: 300s research timeout kept as local const per adapter; only AI_CHAT_TIMEOUT_MS (120s) exported as the shared chat budget
+- [Phase 166-02]: Over-ceiling routes through the EXISTING non-destructive RFALL-01 awaiting_details seam (`|| overCeiling` on the projectStatus condition) instead of any new graph/adapter path — never touches assess/autoRefine/revertVagueEstimate; a distinct estimate_activity row (`estimate_over_ceiling_flagged`, metadata `{total, ceiling}`) differentiates it from the flaggedUnpriced reason
+- [Phase 166-02]: ESTIMATE_TOTAL_CEILING_USD defaults to 2_000_000 (above the existing $1M per-unit price-anchoring clamp, deliberately an absurdity ceiling not a business cap), resolved in generate-estimate.ts (env-at-the-boundary), never inside the pure consistency module
+- [Phase 166-02]: aiProposedSubtotal (the totals_discrepancy metric input) is recomputed on a deduped view of the AI's own raw sections so duplicate AI lines can't produce an artificial discrepancy anomaly unrelated to anchoring/research — Phase 166 (AIREL-01..05) is now COMPLETE, 2/2 plans
 - [Phase 169-capture-upload-resilience]: Storage orphan cron slot 04:45 UTC — offset from cleanup-audio (04:00) and retention-cleanup (04:30)
 - [Phase 169-capture-upload-resilience]: Orphan sweep never deletes on unknown age (no updatedAt/createdAt) and never deletes outside the proven 3-level key shape
 - [Phase 169-capture-upload-resilience]: Protected prefixes (audio: whatsapp/, photos: price-book/) are hard-skipped before any list() call — primary guard; per-bucket union row-matcher is the belt
@@ -1261,6 +1264,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 163-format-first-send-hub-cross-surface-settings-rollout P06 | 19m 14s | 2 tasks | 10 files |
 | Phase 164 P01 | 1h45m (mostly environment contention wait; ~35min active implementation) | 3 tasks | 9 files |
 | Phase 166 P01 | 29min | 3 tasks | 10 files |
+| Phase 166 P02 | 75min (mostly two full-suite npm test verification runs, ~25min each, under shared-environment contention; ~20min active implementation) | 2 tasks | 4 files |
 | Phase 169-capture-upload-resilience P02 | 50min | 3 tasks | 7 files |
 
 ## Project Reference
