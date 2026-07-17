@@ -2745,6 +2745,16 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      save_estimate_atomic: {
+        Args: {
+          p_company_id: string
+          p_estimate_id: string
+          p_expected_updated_at: string | null
+          p_header: Json
+          p_sections: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
