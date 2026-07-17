@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1.1
-milestone_name: MVP Launch Prep + Future-Proofing
-status: completed
-stopped_at: Completed 163-06-PLAN.md (Phase 163 fully closed)
-last_updated: "2026-07-09T01:34:49.188Z"
-last_activity: 2026-07-09
+milestone: v4.19
+milestone_name: Integrity & Reliability Hardening
+status: roadmap_created
+stopped_at: Roadmap created (Phases 164-170) — next /gsd:plan-phase 164
+last_updated: "2026-07-17T00:00:00.000Z"
+last_activity: 2026-07-17
 progress:
-  total_phases: 107
-  completed_phases: 89
+  total_phases: 114
+  completed_phases: 93
   total_plans: 252
   completed_plans: 263
 ---
@@ -16,6 +16,10 @@ progress:
 # Project State
 
 ## Current Status
+
+- **Milestone**: v4.19 Integrity & Reliability Hardening — ROADMAP CREATED 2026-07-17. **7 phases (164-170)**, **32/32 requirements mapped** (TRUST-01..03, SAVE-01..07, AIREL-01..05, BILL-01..06, PHOTO-01..04, CAPT-01..05, REFINE-01..02), **0 orphans, 0 duplicates**. Source: NOT seeds — the six-track adversarial deep audit `[audits/v4.19-ESTIMATE-DEEP-AUDIT.md]` (2026-07-17), required reading for every phase plan (all file:line evidence lives there). Closes the 10 severity-ranked findings: signed-estimate mutability with zero snapshot/audit (CRITICAL — snapshot-on-sign + freeze-on-send + estimate_updated events, Phase 164); non-atomic saveEstimate session-poisoning (single transactional RPC + version authority + preview parity, Phase 165); missing AI fetch timeouts + 4096-token truncation + 4 pricing fields missing from the live OpenRouter tool schema + coarse quality gate (Phase 166); unmetered refine + client-declared-duration exploit + dead vision cost roll-up + Whisper retry re-pay (Phase 167); photos 21-50 silently dropped + captions never reaching generation + whole-batch failure on one bad photo (Phase 168); single-shot uploads with memory-only blobs + false offline banner + permanent storage orphans (Phase 169); refine stale-read race + no review-before-apply + full-tree id churn (Phase 170). Sequencing: 164 → 165 strictly sequential (both rewrite `lib/actions/estimate.ts`); 166/167/168/169 file-disjoint and parallelizable (one light contention: 166's AIREL-04 vs 168's PHOTO-01 on `lib/services/generate-estimate.ts`); 170 depends on 165. Locked decisions in REQUIREMENTS.md: freeze policy (sent_at OR signature OR client_response → typed `estimate_locked`; presentation settings stay editable), money stays float-major-units this milestone (parity fixes the dollar-scale bug; minor-units deferred FUT-01), structured photo extraction deferred (FUT-02), TUS deferred (FUT-04), hand-rolled fail-soft IndexedDB. Regression contracts (must NOT weaken): Inngest idempotency/concurrency, GUARD-03 server math, price-research evidence gate, prompt-injection hardening, cross-tenant scoping. Pure hardening — no new AI features. Numbering continues the global counter — v4.18 ended at Phase 163, so v4.19 starts at **Phase 164**. Next: `/gsd:plan-phase 164` (then 165; meanwhile 166-169 can be planned/executed in parallel).
+
+### Previous Milestone (shipped)
 
 - **Milestone**: v4.18 Estimate Document & Send Experience Refresh — ROADMAP CREATED 2026-07-08. **4 phases (160-163)**, **24/24 requirements mapped** (PUBURL-01..06, PRESENT-01..05, DOCUX-01..07, SENDHUB-01..06), **0 orphans, 0 duplicates**. Per-estimate settings panel (gear on the floating Photos/Send pill) for tax/discount/deposit overrides + non-destructive section visibility via one shared resolver (`lib/estimate/presentation-settings.ts`); a format-first Send hub (Online Estimate/PDF/Plain Text) replacing the channel-first Email/SMS tabs + friendlier branded URLs (`/estimate/{companySlug}/{estimateSlug}-{shortToken}`, old token links keep working forever, no new anon RLS ever added to `estimates`); a mobile line-item editor rebuilt to match the desktop document-native table language; a full document alignment pass + inline-editable Bill To via one consolidated client-picker. Sequencing follows research's file-contention analysis: Phase 160 (URL contract/security) and Phase 161 (settings data model) are file-disjoint and can run in parallel; Phase 162 (the 2018-line `estimate-document.tsx` consolidated pass) is internally sequenced 3a→3b→3c and depends on Phase 161; Phase 163 (Send Hub + cross-surface settings rollout) depends on Phase 161 and benefits from Phase 160, closing the milestone's #1 structural risk (settings-drift). Server-side math stays authoritative via `lib/estimate/compute-totals.ts` throughout — GUARD-03 unchanged. Source: SEED-041 + SEED-042 + SEED-043 + SEED-044. Numbering continues the global counter — v4.17 ended at Phase 159, so v4.18 starts at **Phase 160**. Next: `/gsd:plan-phase 160` (Phase 160 and 161 are file-disjoint — could be planned/executed in parallel per research).
 

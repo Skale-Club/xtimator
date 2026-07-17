@@ -14,17 +14,26 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.18 Estimate Document & Send Experience Refresh
+## Current Milestone: v4.19 Integrity & Reliability Hardening
 
-**Goal:** Give business owners full control and polish over the estimate document itself — a per-estimate settings panel, a format-first send flow with friendlier client links, mobile line-item parity with desktop, and a complete alignment/inline-editing pass on the document (including editable Bill To). Source: [SEED-041](seeds/SEED-041-estimate-settings-control-panel.md) + [SEED-042](seeds/SEED-042-format-first-send-flow-friendly-estimate-links.md) + [SEED-043](seeds/SEED-043-mobile-estimate-line-item-editor-parity.md) + [SEED-044](seeds/SEED-044-estimate-document-alignment-and-client-editing.md).
+**Goal:** Close the 10 severity-ranked findings from the 2026-07-17 six-track adversarial deep audit of the estimate generation & editing system ([audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)) — restoring the three user-facing contracts the audit found broken: the legal contract ("what was signed stays what was signed"), the financial contract ("what you see is what saves; what you pay matches what you use"), and the capture contract ("your recording never gets lost").
 
 **Target features:**
-- Per-estimate settings control panel (gear button on the floating `Photos / Send` pill) — tax/discount/deposit overrides + document section visibility (summary, sections, payment terms, timeline, warranty, notes, photos), applied consistently across editor, share page, PDF, and plain-text/WhatsApp output
-- Format-first Send hub (Online Estimate / PDF / Plain Text) replacing the current channel-first Email/SMS tabs + friendlier estimate URLs (`/estimate/{companySlug}/{estimateSlug}-{shortToken}`) that stay unguessable via a secret suffix; old `/estimate/{share_token}` links keep working
-- Mobile line item editor rebuilt to match the desktop document-native table language — removes the standalone glass-card styling that currently feels like a separate mobile design
-- Full document alignment pass (company header, title band, project/bill-to grid, summary, section/table columns) + inline-editable `Bill To` client block with a consolidated client-picker pattern (today duplicated across 3 components)
+- Sign/send trust boundary: snapshot-on-sign (immutable signed content on `estimate_signatures`), freeze-on-send/sign server-side guards on save + refine, and `estimate_updated` audit events — today a signed estimate is silently editable, the client's live link re-renders the altered content, and no audit event records the edit
+- Atomic save: `saveEstimate` rewritten as one transactional Postgres RPC (kills session-poisoning, partial writes, temp-id churn, silent writes to superseded versions), plus dirty-epoch reconciliation, non-destructive conflict UX, validation bounds, and client-preview/server-total parity
+- AI reliability: timeouts on every AI fetch (the primary generation fetch has none today), `max_tokens` raise + `finish_reason` handling, the 4 pricing fields missing from the live OpenRouter tool schema, post-generation consistency checks, pinned generation temperature
+- Billing integrity: credit gate on refine (today an unmetered AI path), server-derived audio duration (kills the client-declared-duration exploit), vision costContext threading (dead cost roll-up today), Whisper retry short-circuit, cost-event dedup + correct provider attribution, enforced audio-minute entitlements
+- Photo fidelity: user captions feed generation, >20-photo coverage with visible "N of M analyzed" truth, per-photo skip-and-continue so one bad photo no longer kills the whole batch
+- Capture resilience: upload retry with backoff, beforeunload over the upload window, IndexedDB blob persistence with resume, storage-orphan reconciliation, honest offline UI (the current "showing cached data" banner is false — no SW/cache exists)
+- Refine safety: dirty-flush guard before refine, review-before-apply, row-identity preservation on apply
 
-**Key context:** All 4 seeds were planted 2026-07-08 right after v4.17 shipped, all centered on the estimate document/editor surface — shipping as one coherent milestone rather than 4 separate ones. Server-side math stays authoritative via `lib/estimate/compute-totals.ts` at all times — the settings panel only changes inputs/preferences, never bypasses the deterministic engine (GUARD-03 invariant carries forward unchanged).
+**Key context:** Sourced entirely from the deep audit (not seeds) — every finding carries file:line evidence in [audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md), which is the required reading for every phase plan. GUARD-03 (server-authoritative math) and the Inngest dispatch-and-watch durability layer are verified strengths every phase must preserve. Numbering continues the global counter — v4.18 ended at Phase 163, so v4.19 starts at **Phase 164**.
+
+## Last Milestone: v4.18 Estimate Document & Send Experience Refresh ✅ (shipped 2026-07-09)
+
+**Shipped:** all 4 phases (160-163), 24/24 requirements (PUBURL-01..06, PRESENT-01..05, DOCUX-01..07, SENDHUB-01..06). Per-estimate presentation-settings resolver + gear panel, format-first Send hub, friendly branded URLs with permanent old-token compatibility, cross-surface visibility parity across all 6 renderers, consolidated ClientPicker + inline-editable Bill To, mobile line-item doc-native rebuild, and the retired-surface deletion sweep. GUARD-03 preserved structurally at every seam. Archive: [milestones/v4.18](MILESTONES.md).
+
+**Goal:** Give business owners full control and polish over the estimate document itself — a per-estimate settings panel, a format-first send flow with friendlier client links, mobile line-item parity with desktop, and a complete alignment/inline-editing pass on the document (including editable Bill To). Source: [SEED-041](seeds/SEED-041-estimate-settings-control-panel.md) + [SEED-042](seeds/SEED-042-format-first-send-flow-friendly-estimate-links.md) + [SEED-043](seeds/SEED-043-mobile-estimate-line-item-editor-parity.md) + [SEED-044](seeds/SEED-044-estimate-document-alignment-and-client-editing.md).
 
 ## Last Milestone: v4.17 Admin Polish & Credit UX Compliance ✅ (shipped 2026-07-06)
 
