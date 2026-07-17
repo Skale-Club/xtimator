@@ -216,10 +216,15 @@ export const analyzePhotosJob = inngest.createFunction(
       })
     }
 
-    // Phase 168 (PHOTO-03 lands the skip-and-continue relaxation of this
-    // check in the next commit): today ANY failure still fails the whole
-    // batch — parity with the previous Promise.all behavior.
-    if (failed.length > 0) {
+    // Phase 168 (PHOTO-03, audit E3): skip-and-continue. A single bad photo no
+    // longer fails the whole batch — the job only throws when EVERY photo in
+    // this run failed (zero successes), which preserves today's onFailure/
+    // notify semantics for a total failure. Any partial success (>=1 photo
+    // succeeded) falls through: survivors' descriptions already persisted
+    // above, generate still dispatches, and record-usage/record-credit-debit
+    // below meter ONLY the succeeded count — mirrors ingestMultimodal's
+    // per-item skip policy (lib/estimate/ingest/multimodal.ts).
+    if (succeeded.length === 0 && failed.length > 0) {
       throw new Error(
         `Photo analysis failed for ${failed.length} of ${photos.length} photo(s): ` +
           failed.map((f) => `${f.photoId}: ${f.reason}`).join('; ')
@@ -272,54 +277,62 @@ export const analyzePhotosJob = inngest.createFunction(
       })
     }
 
-    // Step 3: Final step — record usage on success only.
-    await step.run('record-usage', async () => {
-      const supabase = requireServiceClient()
-      await recordUsage(
-        supabase,
-        companyId,
-        'photo_analyzed',
-        photos.length,
-        requestId
-      )
-    })
+    // Step 3: record usage + credit debit — ONLY when at least one photo
+    // succeeded (Phase 168 PHOTO-03: audit flagged partial batches going
+    // unmetered under the old all-or-nothing throw; the flip side is a
+    // fully-empty re-dispatch — nothing left to analyze — must NOT record a
+    // zero-unit usage event or an unattributed debit). `units` is the
+    // SUCCEEDED count, never `photos.length` — a failed photo is never
+    // charged.
+    if (succeeded.length > 0) {
+      await step.run('record-usage', async () => {
+        const supabase = requireServiceClient()
+        await recordUsage(
+          supabase,
+          companyId,
+          'photo_analyzed',
+          succeeded.length,
+          requestId
+        )
+      })
 
-    // Phase 112 (CREDIT-02): fire the credit debit AFTER record-usage, in its own
-    // retry-isolated step. recordCreditDebit is never-throw, so a ledger failure
-    // never breaks analysis; enforcement is OFF, so this RECORDS but never blocks.
-    // The per-photo vision cost was captured deep at the provider seam (void
-    // recordAICost — RESEARCH Pitfall 6), so read it BACK from ai_cost_events by
-    // attemptId and SUM all rows — the per-photo `vision` sub-calls roll up into the
-    // single `photo_batch` debit (Open Question 2). Bounded read-back: up to 3×150ms
-    // (~450ms worst case) ONLY on the cost-miss path — fine for a background step.
-    // All-null costs → realCostUsd: null (recordCreditDebit no-ops; null vs guessed 0).
-    await step.run('record-credit-debit', async () => {
-      const svc = requireServiceClient()
-      let realCostUsd: number | null = null
-      for (let i = 0; i < 3; i++) {
-        const { data } = await svc
-          .from('ai_cost_events')
-          .select('real_cost_usd')
-          .eq('attempt_id', attemptId)
-        const rows = (data ?? []) as { real_cost_usd: number | null }[]
-        if (rows.length > 0) {
-          const known = rows
-            .map((r) => r.real_cost_usd)
-            .filter((c): c is number => c != null)
-          realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-          break
+      // Phase 112 (CREDIT-02): fire the credit debit AFTER record-usage, in its own
+      // retry-isolated step. recordCreditDebit is never-throw, so a ledger failure
+      // never breaks analysis; enforcement is OFF, so this RECORDS but never blocks.
+      // The per-photo vision cost was captured deep at the provider seam (void
+      // recordAICost — RESEARCH Pitfall 6), so read it BACK from ai_cost_events by
+      // attemptId and SUM all rows — the per-photo `vision` sub-calls roll up into the
+      // single `photo_batch` debit (Open Question 2). Bounded read-back: up to 3×150ms
+      // (~450ms worst case) ONLY on the cost-miss path — fine for a background step.
+      // All-null costs → realCostUsd: null (recordCreditDebit no-ops; null vs guessed 0).
+      await step.run('record-credit-debit', async () => {
+        const svc = requireServiceClient()
+        let realCostUsd: number | null = null
+        for (let i = 0; i < 3; i++) {
+          const { data } = await svc
+            .from('ai_cost_events')
+            .select('real_cost_usd')
+            .eq('attempt_id', attemptId)
+          const rows = (data ?? []) as { real_cost_usd: number | null }[]
+          if (rows.length > 0) {
+            const known = rows
+              .map((r) => r.real_cost_usd)
+              .filter((c): c is number => c != null)
+            realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+            break
+          }
+          await new Promise((r) => setTimeout(r, 150))
         }
-        await new Promise((r) => setTimeout(r, 150))
-      }
-      await recordCreditDebit({ companyId, operationType: 'photo_batch', realCostUsd, attemptId })
-    })
+        await recordCreditDebit({ companyId, operationType: 'photo_batch', realCostUsd, attemptId })
+      })
+    }
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded analyze event with duration_ms.
     // Phase 168 (PHOTO-02/03): additive metadata carries analyzed/total/failed
     // counts so 168-02's "N of M photos analyzed" UI can read them off the
-    // journal (poll-outcome) — failedCount is always 0 until PHOTO-03's
-    // skip-and-continue relaxation lands (today ANY failure throws before
-    // reaching this event).
+    // journal (poll-outcome). failedCount > 0 here means a PARTIAL success —
+    // the job only reaches this event (instead of throwing) when at least one
+    // photo succeeded.
     void recordPipelineEvent({
       attemptId,
       inputType,

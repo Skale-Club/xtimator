@@ -11,10 +11,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Promise.allSettled, with each `vision-${photoId}` step a DIRECT child of the
  * handler (never nested inside a chunk step.run).
  *
- * v4.19 audit E3 (PHOTO-03, added in the next commit on this same file):
- * `Promise.all` rejected on the FIRST failed photo, failing the whole batch
- * (generate never dispatched; already-persisted descriptions lingered
- * unmetered). That suite locks skip-and-continue.
+ * v4.19 audit E3 (PHOTO-03): `Promise.all` rejected on the FIRST failed
+ * photo, failing the whole batch (generate never dispatched; already-
+ * persisted descriptions lingered unmetered). The PHOTO-03 suite below locks
+ * skip-and-continue: partial failure persists survivors, dispatches
+ * generate, and meters record-usage/record-credit-debit for the succeeded
+ * count; only a TOTAL failure (zero successes) still throws (onFailure/
+ * notify semantics preserved).
  */
 
 const mockAnalyzePhotoOR = vi.fn()
@@ -230,5 +233,84 @@ describe('PHOTO-02: full coverage + chunking', () => {
     const eqCalls = state.photoQueryCalls.filter((c) => c.method === 'eq')
     expect(eqCalls).toContainEqual({ method: 'eq', args: ['project_id', 'project-9'] })
     expect(eqCalls).toContainEqual({ method: 'eq', args: ['company_id', 'company-9'] })
+  })
+})
+
+describe('PHOTO-03: skip-and-continue failure policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.photos = []
+    state.photoQueryCalls = []
+    state.updateCalls = []
+    state.aiCostRows = [{ real_cost_usd: 0.01 }]
+    state.downloadShouldFail = new Set()
+    mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
+  })
+
+  it('1-of-5 fails: 4 descriptions persist, generate dispatches, usage/debit run with units=4, failedCount=1', async () => {
+    state.photos = makePhotos(5)
+    // photo-3's DOWNLOAD fails — a per-photo vision-step failure.
+    state.downloadShouldFail = new Set(['company-1/project-1/photo-3.jpg'])
+    mockAnalyzePhotoOR.mockImplementation(async () => 'a description')
+
+    const result = await invokeJob({ autoGenerateEstimate: true })
+
+    expect(result.results).toHaveLength(4)
+    expect(state.updateCalls).toHaveLength(4)
+    expect(state.updateCalls.find((u) => u.photoId === 'photo-3')).toBeUndefined()
+
+    expect(mockInngestSend).toHaveBeenCalledOnce()
+    const sendArgs = mockInngestSend.mock.calls[0][0] as { name: string }
+    expect(sendArgs.name).toBe('estimate/generate.requested')
+
+    expect(mockRecordUsage).toHaveBeenCalledOnce()
+    const usageArgs = mockRecordUsage.mock.calls[0]
+    expect(usageArgs[3]).toBe(4) // units = succeeded count, NOT photos.length
+    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
+
+    expect(succeededMetadataFromLastEvent()).toEqual({
+      analyzedCount: 4,
+      totalCount: 5,
+      failedCount: 1,
+    })
+  })
+
+  it('5-of-5 fail: job throws (zero successes) — onFailure/notify semantics preserved', async () => {
+    state.photos = makePhotos(5)
+    state.downloadShouldFail = new Set(state.photos.map((p) => p.storage_path))
+
+    await expect(invokeJob()).rejects.toThrow(/Photo analysis failed/)
+
+    expect(state.updateCalls).toHaveLength(0)
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+    expect(mockRecordCreditDebit).not.toHaveBeenCalled()
+    // Total failure never reaches the succeeded terminal event.
+    expect(succeededMetadataFromLastEvent()).toBeUndefined()
+  })
+
+  it('one bad photo does not block the others from persisting even mid-chunk', async () => {
+    state.photos = makePhotos(3)
+    state.downloadShouldFail = new Set(['company-1/project-1/photo-1.jpg'])
+    mockAnalyzePhotoOR.mockImplementation(async () => 'a description')
+
+    const result = await invokeJob()
+
+    expect(result.results).toHaveLength(2)
+    expect(state.updateCalls.map((u) => u.photoId).sort()).toEqual(['photo-0', 'photo-2'])
+  })
+
+  it('zero photos to process (fully re-dispatched, nothing left) — no throw, no metering, terminal event records 0/0/0', async () => {
+    state.photos = []
+
+    const result = await invokeJob()
+
+    expect(result.results).toHaveLength(0)
+    expect(mockRecordUsage).not.toHaveBeenCalled()
+    expect(mockRecordCreditDebit).not.toHaveBeenCalled()
+    expect(succeededMetadataFromLastEvent()).toEqual({
+      analyzedCount: 0,
+      totalCount: 0,
+      failedCount: 0,
+    })
   })
 })
