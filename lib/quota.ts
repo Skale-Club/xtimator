@@ -79,6 +79,13 @@ export async function checkQuota(
   }
 
   // Phase 56: only 'estimate' has monthly+daily limits. Others are per-estimate (Phase 57).
+  // Phase 167 (BILL-06): 'audio_minutes' entitlement enforcement does NOT live
+  // here — this branch is (and always was, per the v4.19 audit's "dead
+  // entitlement" finding) a no-op for it. The real per-estimate audio-minute
+  // cap (maxAudioMinutesPerEstimate) is enforced against the SERVER-DERIVED
+  // duration inside lib/inngest/functions/transcribe-audio.ts (deriveAudioMinutes
+  // + a NonRetriableError on rejection), with a cheap client-declared-duration
+  // pre-check in lib/actions/recording.ts's createRecording for honest-path UX.
   if (quotaType !== 'estimate') {
     return { allowed: true, remaining: null }
   }

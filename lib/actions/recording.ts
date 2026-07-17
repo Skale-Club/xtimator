@@ -11,6 +11,7 @@ import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { assertWritable } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
 // 260707-lyq (P4): Billing v2 credit gate shared by every server-owned dispatch
 // path in this module (startRecordingPipeline, createTextRecording's optional
@@ -268,6 +269,41 @@ export async function createRecording(
       provider: null,
     })
     return { error: 'Invalid recording duration.' }
+  }
+
+  // BILL-06 (167-01) — synchronous-UX belt: cheap pre-dispatch rejection when
+  // the CLIENT-DECLARED duration already exceeds this company's per-estimate
+  // audio-minute entitlement (free 2 / pro 15 / business 30 by default, read
+  // live from billing_config — never hardcoded here). This is NOT the
+  // authoritative gate: a dishonest under-declaration sails straight through
+  // this check and is caught server-side by the byte-clamp-derived check
+  // inside the transcribe Inngest job (lib/inngest/functions/transcribe-audio.ts,
+  // deriveAudioMinutes). This check exists only so an HONEST over-long
+  // recording fails fast with a clear message instead of silently dispatching
+  // a doomed transcription job.
+  const { data: companyTierRow } = await supabase
+    .from('companies')
+    .select('tier')
+    .eq('id', company.id)
+    .single()
+  const tier = (companyTierRow as { tier?: string } | null)?.tier ?? 'free'
+  const entitlements = await getEntitlementsForTier(tier)
+  if (durationSeconds / 60 > entitlements.maxAudioMinutesPerEstimate) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorMessage: `Recording (${(durationSeconds / 60).toFixed(1)} min) exceeds the ${tier} plan's ${entitlements.maxAudioMinutesPerEstimate}-minute per-estimate audio limit.`,
+      errorCode: 'audio_minutes_exceeded',
+      durationMs: Date.now() - t0,
+      provider: null,
+    })
+    return {
+      error: `This recording is too long for your ${tier} plan (max ${entitlements.maxAudioMinutesPerEstimate} min per estimate). Trim it or upgrade to continue.`,
+    }
   }
 
   const { data: recording, error: insertError } = await supabase
