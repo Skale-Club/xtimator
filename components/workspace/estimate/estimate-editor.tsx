@@ -705,6 +705,24 @@ export function EstimateEditor({
             <RefineEstimateDialog
               estimateId={state.id}
               version={state.version}
+              isDirty={state.isDirty}
+              // REFINE-01 (audit G1): the dialog flushes THIS before its POST
+              // when the editor is dirty -- runSave's own boolean IS the
+              // flush-succeeded signal (false on lock/conflict/error, in
+              // which case the dialog aborts before ever reaching the route).
+              onBeforeRefine={() => runSave()}
+              // REFINE-02: the LIVE current content, read by the dialog via a
+              // ref at compute time (not a dialog-open snapshot) -- reflects
+              // the flush above + 165-02's id remap.
+              currentContent={{
+                sections: state.sections,
+                summary: state.summary,
+                notes: state.notes,
+                timeline: state.timeline,
+                payment_terms: state.payment_terms,
+                warranty_terms: state.warranty_terms,
+              }}
+              currencyCode={state.currency_code}
               onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
             />
           )

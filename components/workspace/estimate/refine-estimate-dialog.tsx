@@ -9,6 +9,9 @@ import {
   Loader2,
   Send,
   Image as ImageIcon,
+  ArrowRight,
+  Plus,
+  Minus,
 } from 'lucide-react'
 import {
   Dialog,
@@ -25,10 +28,28 @@ import { toast } from 'sonner'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import type { RefinementPayload } from './use-estimate-reducer'
+import { mergeRefinement, type MergeCurrentContent, type RefineDiff } from '@/lib/estimate/refine-merge'
+import { formatCurrency } from '@/lib/utils/format'
 
 interface RefineEstimateDialogProps {
   estimateId: string
   version: number
+  /** REFINE-01 (audit G1): true when the editor has unsaved edits. Gates the
+   *  pre-POST flush below -- a clean editor has nothing to lose, so no flush
+   *  is needed. */
+  isDirty: boolean
+  /** REFINE-01: flushes a save BEFORE the refine POST so the server (which
+   *  reads the PERSISTED estimate) refines what the user is actually looking
+   *  at. Returns runSave's boolean -- false on lock/conflict/error, in which
+   *  case the dialog must NOT proceed to the POST (the refine would run on
+   *  stale data and silently discard the user's edit). runSave itself
+   *  surfaces the failure toast; the dialog only needs to abort. */
+  onBeforeRefine: () => Promise<boolean>
+  /** REFINE-02: the LIVE current editor content (sections + summary/notes/
+   *  terms), read at compute time via a ref (NOT a dialog-open snapshot) so
+   *  the diff reflects the post-flush + id-remapped state. */
+  currentContent: MergeCurrentContent
+  currencyCode: string
   onApply: (refined: RefinementPayload) => void
 }
 
@@ -41,6 +62,10 @@ type SubmitState = 'idle' | 'submitting'
 export function RefineEstimateDialog({
   estimateId,
   version,
+  isDirty,
+  onBeforeRefine,
+  currentContent,
+  currencyCode,
   onApply,
 }: RefineEstimateDialogProps) {
   const [open, setOpen] = useState(false)
@@ -51,6 +76,18 @@ export function RefineEstimateDialog({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [photos, setPhotos] = useState<File[]>([])
   const [submitState, setSubmitState] = useState<SubmitState>('idle')
+  // REFINE-02: post-POST review state -- Apply/Discard decide from here, the
+  // dialog never auto-applies. Holding both the raw refined payload (what
+  // Apply dispatches) and the precomputed diff (what the user reviews).
+  const [pendingReview, setPendingReview] = useState<{ refined: RefinementPayload; diff: RefineDiff } | null>(null)
+
+  // REFINE-02: currentContent must be read LIVE at compute time (after the
+  // flush resolves), never a value captured when `submit` started -- a ref
+  // updated every render (same idiom as estimate-editor.tsx's stateRef)
+  // guarantees `submit`'s async body sees the post-flush content even though
+  // its own closure was created before the flush ran.
+  const currentContentRef = useRef(currentContent)
+  currentContentRef.current = currentContent
 
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -92,6 +129,7 @@ export function RefineEstimateDialog({
     setElapsedMs(0)
     setRecState('idle')
     setSubmitState('idle')
+    setPendingReview(null)
   }, [open, teardownStream])
 
   const startRecording = useCallback(async () => {
@@ -190,6 +228,21 @@ export function RefineEstimateDialog({
 
     setSubmitState('submitting')
     try {
+      // REFINE-01 (audit G1): flush unsaved edits BEFORE the refine POST --
+      // the route reads the PERSISTED estimate (getEstimateById), so a dirty
+      // editor would otherwise get refined against stale data AND have its
+      // local edit silently discarded once the merge lands. onBeforeRefine
+      // returns runSave's boolean; a lock/conflict/error means the flush did
+      // NOT persist -- abort before the POST (runSave already surfaced the
+      // failure toast; nothing more to say here).
+      if (isDirty) {
+        const flushed = await onBeforeRefine()
+        if (!flushed) {
+          setSubmitState('idle')
+          return
+        }
+      }
+
       const form = new FormData()
       if (text.trim()) form.append('instruction', text.trim())
       if (audioBlob) form.append('audio', audioBlob, 'voice-refine.webm')
@@ -203,19 +256,45 @@ export function RefineEstimateDialog({
       if (!res.ok) {
         throw new Error(data.error ?? 'Refinement failed')
       }
-      onApply(data.refined as RefinementPayload)
-      toast.success('Changes applied | review and save your draft.')
-      setOpen(false)
+      const refined = data.refined as RefinementPayload
+      // REFINE-02: compute the review diff against the LIVE post-flush
+      // content (currentContentRef, not a value snapshotted at dialog-open)
+      // -- the SAME pure util the reducer's APPLY_REFINEMENT re-runs on
+      // Apply, so what's reviewed here is exactly what lands.
+      const { diff } = mergeRefinement(currentContentRef.current, refined)
+      setPendingReview({ refined, diff })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Refinement failed')
     } finally {
       setSubmitState('idle')
     }
-  }, [audioBlob, photos, text, estimateId, onApply])
+  }, [audioBlob, photos, text, estimateId, isDirty, onBeforeRefine])
+
+  const handleApply = useCallback(() => {
+    if (!pendingReview) return
+    onApply(pendingReview.refined)
+    toast.success('Changes applied | review and save your draft.')
+    setOpen(false)
+  }, [pendingReview, onApply])
+
+  const handleDiscardReview = useCallback(() => {
+    setOpen(false)
+  }, [])
 
   const elapsedSeconds = Math.floor(elapsedMs / 1000)
   const maxSeconds = Math.floor(MAX_AUDIO_MS / 1000)
   const isSubmitting = submitState === 'submitting'
+
+  const diff = pendingReview?.diff
+  const hasFieldChanges = !!(
+    diff?.fields.summary ||
+    diff?.fields.notes ||
+    diff?.fields.timeline ||
+    diff?.fields.payment_terms ||
+    diff?.fields.warranty_terms
+  )
+  const hasAnyChanges =
+    !!diff && (diff.changed.length > 0 || diff.added.length > 0 || diff.removed.length > 0 || hasFieldChanges)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -232,11 +311,121 @@ export function RefineEstimateDialog({
             Refine v{version} draft
           </DialogTitle>
           <DialogDescription>
-            Tell the AI what to change. Use text, voice, or photos | your
-            updates apply to the current draft and you decide when to save.
+            {pendingReview
+              ? 'Review the AI’s changes below, then Apply or Discard.'
+              : 'Tell the AI what to change. Use text, voice, or photos | your updates apply to the current draft and you decide when to save.'}
           </DialogDescription>
         </DialogHeader>
 
+        {pendingReview && diff ? (
+          // -------------------------------------------------------------
+          // REFINE-02: review-before-apply. The dialog never dispatches
+          // APPLY_REFINEMENT on its own -- only Apply does, and Discard is a
+          // true no-op (close only).
+          // -------------------------------------------------------------
+          <div className="space-y-4" data-testid="refine-review">
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 max-h-[50vh] overflow-y-auto">
+              {!hasAnyChanges && (
+                <p className="text-sm text-muted-foreground">No changes detected.</p>
+              )}
+
+              {diff.fields.summary && (
+                <div className="space-y-1" data-testid="refine-diff-summary">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Summary
+                  </p>
+                  <p className="text-sm text-muted-foreground line-through">{diff.fields.summary.old}</p>
+                  <p className="text-sm text-foreground">{diff.fields.summary.new}</p>
+                </div>
+              )}
+
+              {(diff.fields.notes || diff.fields.timeline || diff.fields.payment_terms || diff.fields.warranty_terms) && (
+                <p className="text-sm text-muted-foreground" data-testid="refine-diff-fields">
+                  Also updated:{' '}
+                  {[
+                    diff.fields.notes && 'notes',
+                    diff.fields.timeline && 'timeline',
+                    diff.fields.payment_terms && 'payment terms',
+                    diff.fields.warranty_terms && 'warranty terms',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </p>
+              )}
+
+              {diff.changed.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                    <ArrowRight className="h-3 w-3" /> Changed ({diff.changed.length})
+                  </p>
+                  {diff.changed.map((c, i) => (
+                    <div
+                      key={i}
+                      data-testid="refine-diff-changed"
+                      className="text-sm flex items-center justify-between gap-2 rounded-md bg-background px-2.5 py-1.5"
+                    >
+                      <span className="truncate">{c.description}</span>
+                      {c.oldPrice !== c.newPrice && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatCurrency(c.oldPrice, currencyCode)}
+                          {' → '}
+                          {formatCurrency(c.newPrice, currencyCode)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {diff.added.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium uppercase tracking-wide text-emerald-600 flex items-center gap-1">
+                    <Plus className="h-3 w-3" /> Added ({diff.added.length})
+                  </p>
+                  {diff.added.map((a, i) => (
+                    <div
+                      key={i}
+                      data-testid="refine-diff-added"
+                      className="text-sm flex items-center justify-between gap-2 rounded-md bg-background px-2.5 py-1.5"
+                    >
+                      <span className="truncate">{a.description}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {formatCurrency(a.unit_price, currencyCode)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {diff.removed.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium uppercase tracking-wide text-destructive flex items-center gap-1">
+                    <Minus className="h-3 w-3" /> Removed ({diff.removed.length})
+                  </p>
+                  {diff.removed.map((r, i) => (
+                    <div
+                      key={i}
+                      data-testid="refine-diff-removed"
+                      className="text-sm rounded-md bg-background px-2.5 py-1.5 truncate"
+                    >
+                      {r.description}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={handleDiscardReview} data-testid="refine-discard-btn">
+                Discard
+              </Button>
+              <Button onClick={handleApply} className="gap-1.5" data-testid="refine-apply-btn">
+                <Send className="h-3.5 w-3.5" />
+                Apply changes
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-4">
           <Textarea
             value={text}
@@ -350,21 +539,22 @@ export function RefineEstimateDialog({
             >
               Cancel
             </Button>
-            <Button onClick={submit} disabled={isSubmitting} className="gap-1.5">
+            <Button onClick={submit} disabled={isSubmitting} className="gap-1.5" data-testid="refine-submit-btn">
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Applying...
+                  Reviewing...
                 </>
               ) : (
                 <>
                   <Send className="h-3.5 w-3.5" />
-                  Apply changes
+                  Preview changes
                 </>
               )}
             </Button>
           </div>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   )

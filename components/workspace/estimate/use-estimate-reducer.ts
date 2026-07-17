@@ -5,6 +5,7 @@ import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { Photo } from '@/lib/queries/photo'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { mergeRefinement } from '@/lib/estimate/refine-merge'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -628,37 +629,28 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       }
 
     case 'APPLY_REFINEMENT': {
-      // Replace summary/notes/timeline/terms and the entire sections tree with
-      // refined data. New section/item ids are temp- so saveEstimate will
-      // insert fresh rows.
+      // Phase 170 Plan 01 (REFINE-02, audit G2 fix): mergeRefinement (lib/
+      // estimate/refine-merge.ts) replaces the old blanket temp- regeneration
+      // (100% row churn, created_at reset on the next save). It TWO-PASS
+      // matches refined items back onto the CURRENT rows (exact normalized-
+      // description, then section-relative positional pairing of the
+      // leftovers under a similarity guard) so untouched AND reworded rows
+      // keep their id/created_at; only genuinely NEW rows get temp- ids. The
+      // SAME util computes the diff the review dialog rendered before Apply
+      // was clicked (refine-estimate-dialog.tsx) -- what the user reviewed is
+      // exactly what lands here.
       const r = action.refined
-      const refinedSections: EditorSection[] = r.sections.map((s, sIdx) => ({
-        id: 'temp-' + crypto.randomUUID(),
-        title: s.title,
-        sort_order: sIdx,
-        subtotal: 0,
-        items: s.items.map((i, iIdx) => ({
-          id: 'temp-' + crypto.randomUUID(),
-          description: i.description,
-          quantity: i.quantity,
-          unit: i.unit ?? null,
-          unit_price: i.unit_price,
-          total: 0,
-          sort_order: iIdx,
-          price_source: i.price_source,
-          isManuallyEdited: false,
-          // Carry through advanced pricing when the AI preserved/set them (same
-          // no-op-default cast pattern as initState); previously hardcoded to
-          // taxable:true/discount:0, which silently wiped every line's per-item
-          // tax/discount/cost/markup state on every refinement, not just the
-          // lines the instruction actually touched.
-          taxable: i.taxable ?? true,
-          tax_category: i.tax_category ?? null,
-          discount: i.discount ?? 0,
-          cost: i.cost ?? null,
-          markup_pct: i.markup_pct ?? null,
-        })),
-      }))
+      const { mergedSections } = mergeRefinement(
+        {
+          sections: state.sections,
+          summary: state.summary,
+          notes: state.notes,
+          timeline: state.timeline,
+          payment_terms: state.payment_terms,
+          warranty_terms: state.warranty_terms,
+        },
+        r
+      )
       const updated: EstimateEditorState = {
         ...state,
         summary: r.summary,
@@ -666,7 +658,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         timeline: r.timeline ?? null,
         payment_terms: r.payment_terms ?? state.payment_terms,
         warranty_terms: r.warranty_terms ?? state.warranty_terms,
-        sections: refinedSections,
+        sections: mergedSections,
         ...dirty(state),
       }
       return recalculate(updated)
