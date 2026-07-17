@@ -165,6 +165,12 @@ export class GeminiAdapter implements AIProvider {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: appendRetryHint(buildUserContent(input), input.retryHint),
+      // AIREL-02/05: @google/genai's generateContent({model, contents, config})
+      // takes a FLAT GenerateContentConfig — there is NO nested sub-object for
+      // generation params (that shape belongs to the OLDER, DIFFERENT
+      // @google/generative-ai package; an unknown key there is silently
+      // ignored). maxOutputTokens/temperature MUST sit directly on this
+      // config object or the SDK never reads them.
       config: {
         systemInstruction: buildSystemPrompt(input),
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],
@@ -174,6 +180,8 @@ export class GeminiAdapter implements AIProvider {
             allowedFunctionNames: ['create_estimate'],
           },
         },
+        // AIREL-02: symmetric output budget with OpenRouter's max_tokens 8192.
+        maxOutputTokens: 8192,
       },
     })
 
@@ -282,6 +290,9 @@ export class GeminiAdapter implements AIProvider {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: userContent,
+      // AIREL-02/05: independent config from generateEstimate's above — see
+      // that method's comment on the FLAT GenerateContentConfig shape (no
+      // nested generation-params sub-object in @google/genai).
       config: {
         systemInstruction,
         tools: [{ functionDeclarations: [createEstimateDeclaration] }],
@@ -291,6 +302,8 @@ export class GeminiAdapter implements AIProvider {
             allowedFunctionNames: ['create_estimate'],
           },
         },
+        // AIREL-02: symmetric output budget with OpenRouter's max_tokens 8192.
+        maxOutputTokens: 8192,
       },
     })
 

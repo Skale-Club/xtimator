@@ -75,6 +75,28 @@ export class InvalidEstimateOutputError extends Error {
 }
 
 /**
+ * AIREL-02 marker error thrown by the OpenRouter adapter when the model's
+ * response reports `finish_reason === 'length'` (the generation was cut off by
+ * the max_tokens budget). Previously this was invisible: a truncated tool-call
+ * either failed JSON.parse and surfaced as the generic "OpenRouter returned
+ * malformed tool-call arguments" (masking the real cause), or — worse — landed
+ * on a byte-for-byte VALID-but-incomplete JSON object and persisted as a
+ * silent partial estimate.
+ *
+ * Unlike `InvalidEstimateOutputError`, this is NOT a schema-validation failure
+ * and must NOT short-circuit `callWithFallback`'s fallback branch — a
+ * truncated primary response still lets the Gemini fallback run exactly once
+ * (today's behavior, now diagnosable instead of masked as malformed JSON).
+ */
+export class TruncatedOutputError extends Error {
+  readonly truncated = true as const
+  constructor(op: string) {
+    super(`AI output truncated (finish_reason=length) during ${op}`)
+    this.name = 'TruncatedOutputError'
+  }
+}
+
+/**
  * Run `primary()`; on any throw run `fallback()` exactly once.
  *   - primary succeeds → { result, servedBy: 'primary', fallbackFired: false } (fallback NOT called).
  *   - primary throws, fallback succeeds → { result, servedBy: 'fallback', fallbackFired: true }.
@@ -105,11 +127,19 @@ export class InvalidEstimateOutputError extends Error {
  *
  * Company-agnostic (multi-tenant invariant): the signal carries op + primary
  * error only, NEVER a companyId.
+ *
+ * AIREL-02: the reported message is prefixed with the error's `.name` (e.g.
+ * `TruncatedOutputError: AI output truncated...`) so a distinguishable marker
+ * error is diagnosable in the alert itself — before this, a truncated primary
+ * response was indistinguishable from any other generic thrown Error in the
+ * ops log (the audit's "masking the cause" finding, C2).
  */
 function reportSilentFallback(op: string, primaryErr: unknown): void {
   try {
     const primaryError =
-      primaryErr instanceof Error ? primaryErr.message : String(primaryErr)
+      primaryErr instanceof Error
+        ? `${primaryErr.name}: ${primaryErr.message}`
+        : String(primaryErr)
     const billingOrAuth =
       /402|insufficient credits|401|user not found|not configured/i.test(primaryError)
     void notifyOps({

@@ -13,7 +13,7 @@ import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../type
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
-import { InvalidEstimateOutputError } from '../with-fallback'
+import { InvalidEstimateOutputError, TruncatedOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
@@ -87,6 +87,10 @@ type OpenRouterChatResponse = {
         function?: { name?: string; arguments?: string }
       }>
     }
+    // AIREL-02: 'length' means the model's response was cut off by max_tokens
+    // — read so a truncated generation is typed (TruncatedOutputError) instead
+    // of masquerading as a generic parse failure.
+    finish_reason?: string
   }>
   error?: { message?: string }
   usage?: {
@@ -166,7 +170,10 @@ export class OpenRouterAdapter implements AIProvider {
 
     const body = {
       model: this.model,
-      max_tokens: 4096,
+      // AIREL-02: 4096 was tight — a rich 40-50-item estimate needs roughly
+      // 2,900-4,400 output tokens, leaving little headroom before a silent
+      // truncation. Raised to 8192, symmetric with Gemini's maxOutputTokens.
+      max_tokens: 8192,
       messages: [
         { role: 'system', content: args.system },
         { role: 'user', content: args.user },
@@ -220,10 +227,25 @@ export class OpenRouterAdapter implements AIProvider {
       throw new Error(`OpenRouter error: ${json.error.message}`)
     }
 
-    const toolCall = json.choices?.[0]?.message?.tool_calls?.find(
+    const choice = json.choices?.[0]
+    const toolCall = choice?.message?.tool_calls?.find(
       (t) => t.function?.name === 'create_estimate'
     )
     const argsJson = toolCall?.function?.arguments
+
+    // AIREL-02: check finish_reason BEFORE the !argsJson guard below. A
+    // truncation early enough that no tool-call arguments exist at all is
+    // STILL typed as truncation (not the generic "did not return a
+    // structured estimate" error) — and a truncation that lands on
+    // byte-for-byte VALID JSON is ALSO typed as truncation here, so a silent
+    // partial estimate can never parse through as if it were complete.
+    // (Known/accepted: the truncated primary call's usage.cost is not
+    // recorded here — consistent with the pre-existing malformed-JSON path;
+    // noted for Phase 167, no action in this plan.)
+    if (choice?.finish_reason === 'length') {
+      throw new TruncatedOutputError(operationName)
+    }
+
     if (!argsJson) {
       throw new Error(
         `OpenRouter did not return a structured estimate from model ${this.model}`
