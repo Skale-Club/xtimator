@@ -35,7 +35,17 @@ export function createSupabaseStorageProvider(client: SupabaseClient): StoragePr
           upsert: opts?.upsert ?? false,
         })
       if (error) {
-        throw new Error(`Storage upload failed (${bucket}/${path}): ${error.message}`)
+        // Phase 169-01 (CAPT-01 prerequisite): preserve the storage error's
+        // .status/.statusCode (StorageError from @supabase/storage-js) on the
+        // thrown Error — the old plain `new Error(msg)` discarded them,
+        // leaving upload-with-retry.ts unable to classify retryable
+        // (network/5xx) vs terminal (4xx) failures. Message/throw contract
+        // is unchanged — this only adds properties to the same Error shape.
+        throw Object.assign(new Error(`Storage upload failed (${bucket}/${path}): ${error.message}`), {
+          status: (error as { status?: number }).status,
+          statusCode: (error as { statusCode?: string }).statusCode,
+          cause: error,
+        })
       }
       return { path: data?.path ?? path }
     },

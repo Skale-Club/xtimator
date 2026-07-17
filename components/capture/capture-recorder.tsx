@@ -17,6 +17,7 @@ import { createBlankEstimate } from '@/lib/actions/estimate'
 import { createPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
+import { uploadWithRetry } from '@/lib/storage/upload-with-retry'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
@@ -729,7 +730,11 @@ export function CaptureRecorder({
         setPhotoItems(prev => prev.map(it => it.id === photoId ? { ...it, status, photo } : it))
 
       try {
-        await storage.upload('photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
+        // CAPT-01: retry wrapper (3 tries, exponential backoff) — self-heals a
+        // transient network flap or 5xx instead of failing the whole photo on
+        // the first blip. Error surface is unchanged (flip('error') is the
+        // same outcome as before for a genuinely terminal failure).
+        await uploadWithRetry(storage, 'photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
       } catch (err) {
         console.error('[capture] photo upload failed:', err)
         flip('error')
@@ -809,7 +814,10 @@ export function CaptureRecorder({
       const ext = getFileExtension(mimeTypeRef.current)
       storagePath = `${companyId}/${projectId}/${fileNameId}.${ext}`
       try {
-        await createStorage(createClient()).upload('audio', storagePath, blob, {
+        // CAPT-01: retry wrapper (3 tries, exponential backoff 1s/2s/4s,
+        // retry only on network/5xx — never on 4xx/quota). Error surface is
+        // unchanged: failAt fires exactly as before once retries exhaust.
+        await uploadWithRetry(createStorage(createClient()), 'audio', storagePath, blob, {
           contentType: mimeTypeRef.current || 'audio/webm',
           upsert: false,
         })
