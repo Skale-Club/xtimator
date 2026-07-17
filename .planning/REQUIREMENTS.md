@@ -71,8 +71,8 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Refine Safety & Review
 
-- [ ] **REFINE-01**: Opening refine with unsaved edits flushes (or explicitly confirms) a save first, so the AI always refines the estimate the user is actually looking at and no local edit is silently discarded by the apply.
-- [ ] **REFINE-02**: Refinement results are presented as a reviewable change summary (changed/added/removed lines, old→new prices) with Apply/Discard, and applying preserves the identity (ids/created_at) of untouched rows instead of regenerating the entire tree.
+- [x] **REFINE-01**: Opening refine with unsaved edits flushes (or explicitly confirms) a save first, so the AI always refines the estimate the user is actually looking at and no local edit is silently discarded by the apply.
+- [x] **REFINE-02**: Refinement results are presented as a reviewable change summary (changed/added/removed lines, old→new prices) with Apply/Discard, and applying preserves the identity (ids/created_at) of untouched rows instead of regenerating the entire tree.
 
 ## Future Requirements (deferred)
 
@@ -101,5 +101,5 @@ Each requirement maps to exactly one roadmap phase.
 | AIREL-01..05 | 166 | Complete |
 | BILL-01..06 | 167 | Complete |
 | PHOTO-01..04 | 168 | Complete |
-| CAPT-01..05 | 169 | Pending |
-| REFINE-01..02 | 170 | Pending |
+| CAPT-01..05 | 169 | Complete |
+| REFINE-01..02 | 170 | Complete |

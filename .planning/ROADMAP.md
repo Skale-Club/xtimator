@@ -38,7 +38,7 @@
 - ✅ **v4.16 Admin Inbox Consolidation** — Phases 154-155 (shipped 2026-07-06) · [archive](milestones/v4.16-ROADMAP.md) — consolidated the three scattered super-admin WhatsApp surfaces into one coherent **Inbox**: a single nav item (`/admin/inbox`, old routes redirect), a two-pane master-detail conversation viewer (list + thread on the same page, Xphere-style, replacing the `Sheet` drawer), and an Inbox Settings area folding in Accounts + Templates. Read-only; credentials stay in Integrations; the data layer + DB tables kept their `whatsapp_*` names (user-facing rename only)
 - ✅ **v4.17 Admin Polish & Credit UX Compliance** — Phases 156-159 (shipped 2026-07-06) · [archive](milestones/v4.17-ROADMAP.md) — fixed a real regression against a locked v4.15 decision (tenant-facing surfaces leaking raw credit numbers), then polished the super-admin experience: nav reorg (Dashboard/Companies/Inbox first + new grouped "Content" section) + Legal Pages→Pages rename, two owner-flagged confusing labels fixed (Message→Message Template, Support Mode→View as Company), a credit-model-centric admin Billing page overhaul, and a "Premium Xtimator" glassmorphism visual redesign of the v4.16 Inbox
 - ✅ **v4.18 Estimate Document & Send Experience Refresh** — Phases 160-163 (shipped 2026-07-09) · [archive](milestones/v4.18-ROADMAP.md) · [audit](milestones/v4.18-MILESTONE-AUDIT.md) — 24/24 requirements shipped (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06). Per-estimate presentation-settings resolver + gear panel + format-first Send hub + friendly URLs + cross-surface visibility parity across 6 renderers + Bill To pencil affordance + ClientPicker consolidation + mobile line-item doc-native rebuild + 5-file deletion sweep of retired send surfaces. GUARD-03 preserved structurally at every seam.
-- 🚧 **v4.19 Integrity & Reliability Hardening** — Phases 164-170 (roadmap created 2026-07-17) — close the 10 severity-ranked findings from the six-track adversarial deep audit of the estimate system ([audit](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)): snapshot-on-sign + freeze-on-send trust boundary, transactional atomic save RPC, AI fetch timeouts + truncation visibility + missing tool-schema pricing fields, credit gate on refine + server-derived audio duration + vision cost threading, full photo coverage + captions in the prompt, upload retry + IndexedDB capture persistence, and refine review-before-apply. Pure hardening — no new AI features; GUARD-03 and Inngest durability are regression contracts.
+- ✅ **v4.19 Integrity & Reliability Hardening** — Phases 164-170 (shipped 2026-07-17) — 32/32 requirements shipped (TRUST-01..03, SAVE-01..07, AIREL-01..05, BILL-01..06, PHOTO-01..04, CAPT-01..05, REFINE-01..02), closing the 10 severity-ranked findings from the six-track adversarial deep audit of the estimate system ([audit](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)): snapshot-on-sign + freeze-on-send trust boundary, transactional atomic save RPC, AI fetch timeouts + truncation visibility + missing tool-schema pricing fields, credit gate on refine + server-derived audio duration + vision cost threading, full photo coverage + captions in the prompt, upload retry + IndexedDB capture persistence, and refine review-before-apply (shared identity-preserving merge/diff util + flush-before-refine + review-before-apply). Pure hardening — no new AI features; GUARD-03 and Inngest durability regression contracts held throughout.
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2590,7 +2590,7 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
-## 🚧 v4.19 Integrity & Reliability Hardening (Phases 164-170)
+## ✅ v4.19 Integrity & Reliability Hardening (Phases 164-170) — SHIPPED 2026-07-17
 
 **Milestone Goal:** Close every finding from the 2026-07-17 six-track adversarial deep audit of the estimate generation & editing system ([audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)) — restoring the legal contract (what was signed stays what was signed), the financial contract (what you see is what saves; what you pay matches what you use), and the capture contract (your recording never gets lost). Pure hardening: no new AI features. The audit doc is required reading for every phase plan; its "Verified strengths" section is a regression contract (Inngest durability, GUARD-03 server math, price-research evidence gate, prompt-injection hardening, cross-tenant scoping must not be weakened).
 
@@ -2639,7 +2639,7 @@ Plans:
   4. An estimate with duplicate lines, qty-0-priced lines, or a total above the configurable ceiling is not silently persisted — it is flagged or routed to needs-details, with the discrepancy visible
   5. Generation runs at a pinned low temperature on both providers; two runs on identical input produce materially consistent pricing
 
-**Plans**: TBD
+**Plans**: 2 — 166-01 COMPLETE 2026-07-17 (AIREL-01/02/03/05: 120s/300s AbortSignal timeouts on every AI fetch, a typed `TruncatedOutputError` on `finish_reason==='length'`, the primary OpenRouter tool schema now requests `taxable`/`tax_category`/`cost`/`markup_pct`, both providers pinned to temperature 0.3 with symmetric 8192-token budgets, see [166-01-SUMMARY.md](phases/166-ai-reliability-output-integrity/166-01-SUMMARY.md)); 166-02 COMPLETE 2026-07-17 (AIREL-04: a deterministic post-generation consistency gate — exact-duplicate collapse, qty-0-with-price flags, a configurable absurdity ceiling — routing over-ceiling estimates through the existing non-destructive `awaiting_details` path, see [166-02-SUMMARY.md](phases/166-ai-reliability-output-integrity/166-02-SUMMARY.md)). **Phase 166 COMPLETE.**
 
 ### Phase 167: Billing & Cost Integrity
 
@@ -2683,7 +2683,7 @@ Plans:
   4. A scheduled reconciliation removes storage objects with no DB row (audio AND photos buckets), including the out-of-credits orphan path, without ever touching objects that have rows
   5. The false "showing cached data" banner is gone (or truthful), and a text draft typed in ANY of the three capture flows survives closing and reopening that flow
 
-**Plans**: TBD
+**Plans**: 2 — 169-01 COMPLETE 2026-07-17 (CAPT-01/02/03/05: upload retry wrapper with exponential backoff on both call sites, IndexedDB persist-before-upload with a "Resume upload / Discard" recovery card, `beforeunload` extended across the full upload/dispatch window, honest offline copy + drafts persisting in all three capture flows, see [169-01-SUMMARY.md](phases/169-capture-upload-resilience/169-01-SUMMARY.md)); 169-02 COMPLETE 2026-07-17 (CAPT-04: scheduled daily reconciliation sweeping row-less storage objects in both the audio and photos buckets, including the out-of-credits orphan path, see [169-02-SUMMARY.md](phases/169-capture-upload-resilience/169-02-SUMMARY.md)). **Phase 169 COMPLETE.**
 
 ### Phase 170: Refine Safety & Review
 
@@ -2697,4 +2697,4 @@ Plans:
   3. Applying preserves ids/created_at of rows the refinement didn't change (verified by row-id stability across a refine that touches one line); only genuinely new rows insert
   4. Refine remains preview-only server-side (no persistence before Apply+save), and the refine credit gate from Phase 167 is verified still in place end-to-end
 
-**Plans**: TBD
+**Plans**: 1 — 170-01 COMPLETE 2026-07-17 (REFINE-01/02: shared pure `mergeRefinement` util with two-pass item matching (exact normalized-description, then similarity-guarded positional pairing of leftovers) replacing the blanket temp-id regeneration; `onBeforeRefine` flush-before-refine gate; a post-POST review screen (changed/added/removed + field-level flags) with Apply/Discard, see [170-01-SUMMARY.md](phases/170-refine-safety-review/170-01-SUMMARY.md)). **Phase 170 COMPLETE.**
