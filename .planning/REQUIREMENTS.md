@@ -57,9 +57,9 @@ Each requirement maps to exactly one roadmap phase.
 ### Photo Pipeline Fidelity
 
 - [ ] **PHOTO-01**: User-entered photo captions are included (sanitized) alongside AI descriptions in the estimate generation prompt — typed context like "north wall, 12ft ceiling" is never discarded.
-- [ ] **PHOTO-02**: All of a project's photos are analyzed (batched beyond the current first-20 cutoff), the user sees "N of M photos analyzed" when coverage is partial, and unanalyzed photos can be re-analyzed without re-charging already-analyzed ones.
-- [ ] **PHOTO-03**: One failing photo no longer fails the whole batch — per-photo skip-and-continue with the job failing only when zero photos succeed, matching the refine path's policy.
-- [ ] **PHOTO-04**: Vision descriptions are never silently truncated mid-sentence — `finish_reason` is checked, the token cap is adequate, and the Gemini fallback uses an equivalent cap so both providers produce comparable descriptions.
+- [x] **PHOTO-02**: All of a project's photos are analyzed (batched beyond the current first-20 cutoff), the user sees "N of M photos analyzed" when coverage is partial, and unanalyzed photos can be re-analyzed without re-charging already-analyzed ones.
+- [x] **PHOTO-03**: One failing photo no longer fails the whole batch — per-photo skip-and-continue with the job failing only when zero photos succeed, matching the refine path's policy.
+- [x] **PHOTO-04**: Vision descriptions are never silently truncated mid-sentence — `finish_reason` is checked, the token cap is adequate, and the Gemini fallback uses an equivalent cap so both providers produce comparable descriptions.
 
 ### Capture & Upload Resilience
 
