@@ -84,16 +84,41 @@ export function createSupabaseStorageProvider(client: SupabaseClient): StoragePr
       }
     },
 
-    async list(bucket, prefix) {
-      const { data, error } = await client.storage.from(bucket).list(prefix)
+    async list(bucket, prefix, opts) {
+      // Phase 169-02 (CAPT-04): additive paging passthrough. Only forward
+      // limit/offset when the caller actually supplied them, so existing
+      // call sites (that never pass `opts`) hit the Supabase client exactly
+      // as before (no options object at all).
+      const searchOptions: { limit?: number; offset?: number } = {}
+      if (opts?.limit !== undefined) searchOptions.limit = opts.limit
+      if (opts?.offset !== undefined) searchOptions.offset = opts.offset
+      const hasSearchOptions = Object.keys(searchOptions).length > 0
+
+      const { data, error } = await client.storage
+        .from(bucket)
+        .list(prefix, hasSearchOptions ? searchOptions : undefined)
       if (error) {
         throw new Error(`Storage list failed (${bucket}/${prefix ?? ''}): ${error.message}`)
       }
-      return (data ?? []).map((entry) => ({
-        name: entry.name,
-        size: (entry as { metadata?: { size?: number } }).metadata?.size,
-        updatedAt: (entry as { updated_at?: string }).updated_at,
-      }))
+      return (data ?? []).map((entry) => {
+        const e = entry as {
+          name: string
+          id?: string | null
+          metadata?: { size?: number } | null
+          updated_at?: string | null
+          created_at?: string | null
+        }
+        return {
+          name: e.name,
+          size: e.metadata?.size,
+          updatedAt: e.updated_at ?? undefined,
+          // Phase 169-02: created_at maps verbatim; Supabase's folder
+          // placeholder entries have id === null (no metadata/timestamps) —
+          // that's the isFolder signal the reconciliation cron relies on.
+          createdAt: e.created_at ?? undefined,
+          isFolder: e.id == null,
+        }
+      })
     },
   }
 }

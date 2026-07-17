@@ -39,6 +39,33 @@ export interface ListedObject {
   name: string
   size?: number
   updatedAt?: string
+  /**
+   * Phase 169-02 (CAPT-04): Supabase's Storage `list()` V1 API DOES expose a
+   * true `created_at` on the underlying Postgres-backed objects table — this
+   * surfaces it. Optional because a future non-Supabase provider (e.g. S3)
+   * may not have a native creation timestamp; callers that need an "age"
+   * signal should prefer `updatedAt` and fall back to this field (documented
+   * at the call site in lib/inngest/functions/storage-orphan-cleanup.ts).
+   */
+  createdAt?: string
+  /**
+   * Phase 169-02 (CAPT-04): Supabase's `list()` returns folder PLACEHOLDER
+   * entries (no `id`, no `metadata`) for every intermediate path segment
+   * alongside real file entries. `isFolder=true` marks these placeholders —
+   * callers walking a bucket recursively MUST skip them rather than treating
+   * them as deletable/downloadable objects.
+   */
+  isFolder?: boolean
+}
+
+/**
+ * Phase 169-02 (CAPT-04): optional paging for list(). Omitting `opts`
+ * preserves the existing single-call behavior (provider/bucket default page
+ * size) — purely additive, no existing call site needs to change.
+ */
+export interface ListOptions {
+  limit?: number
+  offset?: number
 }
 
 /**
@@ -62,7 +89,7 @@ export interface StorageProvider {
    */
   getPublicUrl(bucket: string, path: string): string
   delete(bucket: string, path: string): Promise<void>
-  list(bucket: string, prefix?: string): Promise<ListedObject[]>
+  list(bucket: string, prefix?: string, opts?: ListOptions): Promise<ListedObject[]>
 }
 
 // Re-exports for convenient single-import surface.

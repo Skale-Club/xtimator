@@ -35,10 +35,14 @@ function makeClient(opsOverrides: Partial<StorageOps> = {}): {
     }),
     getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://supabase.co/public/x' } }),
     remove: vi.fn().mockResolvedValue({ data: null, error: null }),
+    // Real Supabase FileObject entries always have an `id` (non-null for
+    // actual files) — the default fixture reflects that so `isFolder`
+    // defaults to false here; the dedicated isFolder test below overrides
+    // this with an explicit `id: null` folder-placeholder entry.
     list: vi.fn().mockResolvedValue({
       data: [
-        { name: 'a.jpg', metadata: { size: 100 }, updated_at: '2026-01-01T00:00:00Z' },
-        { name: 'b.jpg' },
+        { name: 'a.jpg', id: 'file-a', metadata: { size: 100 }, updated_at: '2026-01-01T00:00:00Z' },
+        { name: 'b.jpg', id: 'file-b' },
       ],
       error: null,
     }),
@@ -206,10 +210,12 @@ describe('createSupabaseStorageProvider', () => {
       const items = await provider.list('photos', 'co/photos/')
 
       expect(fromMock).toHaveBeenCalledWith('photos')
-      expect(ops.list).toHaveBeenCalledWith('co/photos/')
+      // No opts supplied — the Supabase client sees the exact 1-arg call it
+      // always has (undefined second arg), unchanged for existing call sites.
+      expect(ops.list).toHaveBeenCalledWith('co/photos/', undefined)
       expect(items).toEqual([
-        { name: 'a.jpg', size: 100, updatedAt: '2026-01-01T00:00:00Z' },
-        { name: 'b.jpg', size: undefined, updatedAt: undefined },
+        { name: 'a.jpg', size: 100, updatedAt: '2026-01-01T00:00:00Z', createdAt: undefined, isFolder: false },
+        { name: 'b.jpg', size: undefined, updatedAt: undefined, createdAt: undefined, isFolder: false },
       ])
     })
 
@@ -219,7 +225,7 @@ describe('createSupabaseStorageProvider', () => {
 
       await provider.list('photos')
 
-      expect(ops.list).toHaveBeenCalledWith(undefined)
+      expect(ops.list).toHaveBeenCalledWith(undefined, undefined)
     })
 
     it('returns empty array when Supabase returns null data', async () => {
@@ -240,6 +246,45 @@ describe('createSupabaseStorageProvider', () => {
       const provider = createSupabaseStorageProvider(client)
 
       await expect(provider.list('photos')).rejects.toThrow(/denied/)
+    })
+
+    // Phase 169-02 (CAPT-04): additive coverage for createdAt/isFolder + paging passthrough.
+    it('maps id === null entries to isFolder: true (Supabase folder placeholders)', async () => {
+      const { client } = makeClient({
+        list: vi.fn().mockResolvedValue({
+          data: [
+            { name: 'some-folder', id: null, updated_at: null, created_at: null, metadata: null },
+            { name: 'real-file.jpg', id: 'abc-123', updated_at: '2026-01-01T00:00:00Z', created_at: '2025-12-01T00:00:00Z', metadata: { size: 42 } },
+          ],
+          error: null,
+        }),
+      })
+      const provider = createSupabaseStorageProvider(client)
+
+      const items = await provider.list('photos', 'co')
+
+      expect(items).toEqual([
+        { name: 'some-folder', size: undefined, updatedAt: undefined, createdAt: undefined, isFolder: true },
+        { name: 'real-file.jpg', size: 42, updatedAt: '2026-01-01T00:00:00Z', createdAt: '2025-12-01T00:00:00Z', isFolder: false },
+      ])
+    })
+
+    it('forwards { limit, offset } through to client.storage.from(bucket).list(prefix, opts) when supplied', async () => {
+      const { client, ops } = makeClient()
+      const provider = createSupabaseStorageProvider(client)
+
+      await provider.list('audio', 'co/rec', { limit: 100, offset: 200 })
+
+      expect(ops.list).toHaveBeenCalledWith('co/rec', { limit: 100, offset: 200 })
+    })
+
+    it('omits offset from the forwarded options when only limit is supplied', async () => {
+      const { client, ops } = makeClient()
+      const provider = createSupabaseStorageProvider(client)
+
+      await provider.list('audio', 'co/rec', { limit: 50 })
+
+      expect(ops.list).toHaveBeenCalledWith('co/rec', { limit: 50 })
     })
   })
 })
