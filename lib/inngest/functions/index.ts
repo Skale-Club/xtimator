@@ -13,6 +13,8 @@ export { notificationCleanup } from './notification-cleanup'
 export { notificationChannelSend } from './notification-channel-send'
 // Quick task 260522-kf2 — daily audio Storage auto-cleanup (7-day TTL).
 export { cleanupAudioJob } from './cleanup-audio'
+// Phase 169-02 (CAPT-04) — daily audio/photos Storage orphan reconciliation cron.
+export { storageOrphanCleanupJob } from './storage-orphan-cleanup'
 // Phase 1000 (XPHERE-B4) — Xphere CRM sync job.
 export { xphereSyncJob } from './xphere-sync'
 // Phase 142 (ANN-02) — monthly AI-credit grant cron (decoupled from invoice cadence).
