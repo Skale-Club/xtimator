@@ -17,6 +17,9 @@ import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+// AIREL-01: single source of truth for the 120s chat-completion budget — see
+// openrouter-client.ts's comment for the AbortSignal.timeout rationale.
+import { AI_CHAT_TIMEOUT_MS } from '../openrouter-client'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -199,6 +202,10 @@ export class OpenRouterAdapter implements AIProvider {
         'X-Title': 'Xtimator',
       },
       body: JSON.stringify(body),
+      // AIREL-01: the ONLY unbounded fetch on the primary generation path — a
+      // hung socket previously never threw, so the Gemini fallback was
+      // unreachable and the Inngest step stayed pinned indefinitely.
+      signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
     })
 
     if (!res.ok) {

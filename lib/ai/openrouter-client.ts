@@ -56,8 +56,13 @@ const SITE_HEADERS = {
  * AbortSignal.timeout(...) rejects the fetch with a TimeoutError, which surfaces
  * as a thrown error through the existing !res.ok / callWithFallback / caller
  * catch paths — same handling as any other network failure.
+ *
+ * AIREL-01: `AI_CHAT_TIMEOUT_MS` is EXPORTED so the primary estimate-generation
+ * call (`lib/ai/providers/openrouter.ts`) and the best-effort classification
+ * call (`lib/ai/needs-details.ts`) import this SAME constant rather than
+ * duplicating the number — single source of truth for the 120s chat budget.
  */
-const AI_CHAT_TIMEOUT_MS = 120_000
+export const AI_CHAT_TIMEOUT_MS = 120_000
 const AI_TRANSCRIBE_TIMEOUT_MS = 300_000
 
 /** Fetch and validate the OpenRouter API key. Throws if not configured. */

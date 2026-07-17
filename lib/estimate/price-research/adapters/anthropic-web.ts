@@ -30,6 +30,12 @@ import type { PriceResearchProvider, PriceResearchResult, Region } from '../prov
 const MODEL = 'claude-sonnet-4-20250514'
 const MAX_SEARCH_USES = 5
 
+// AIREL-01: the SDK default is 10 minutes (unbounded for our purposes). This is
+// a multi-step agentic web-search call — same 300s rationale as the
+// openrouter-web adapter's RESEARCH_TIMEOUT_MS, not the 120s single-completion
+// budget.
+const RESEARCH_TIMEOUT_MS = 300_000
+
 type AnthropicContentBlock = {
   type?: string
   text?: string
@@ -63,7 +69,9 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
       if (!apiKey) return items.map((i) => missFor(i, currency))
 
       try {
-        const client = new Anthropic({ apiKey })
+        // AIREL-01: explicit timeout (keep default maxRetries) — the SDK
+        // default is 10 minutes, an unbounded fetch on this never-throw path.
+        const client = new Anthropic({ apiKey, timeout: RESEARCH_TIMEOUT_MS })
 
         const response = (await client.messages.create({
           model: MODEL,

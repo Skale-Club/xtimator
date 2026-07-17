@@ -19,7 +19,12 @@
  * `{ reason: 'missing_specifics', questions: [] }` so the vague/awaiting_details
  * flow itself can never break because of this enrichment call.
  */
-import { getORKey, OR_DEFAULTS, OPENROUTER_BASE } from '@/lib/ai/openrouter-client'
+import {
+  getORKey,
+  OR_DEFAULTS,
+  OPENROUTER_BASE,
+  AI_CHAT_TIMEOUT_MS,
+} from '@/lib/ai/openrouter-client'
 
 export type NeedsDetailsReason = 'mic_test' | 'too_short' | 'missing_specifics'
 
@@ -95,6 +100,10 @@ export async function buildNeedsDetails(
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
       }),
+      // AIREL-01: this call is best-effort/never-throw (see the outer try/catch
+      // below) — an abort degrades to SAFE_FALLBACK exactly like any other
+      // network failure, it never throws out of buildNeedsDetails.
+      signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
     })
 
     if (!res.ok) return { ...SAFE_FALLBACK }

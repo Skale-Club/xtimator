@@ -36,6 +36,13 @@ const FALLBACK_MODEL = 'anthropic/claude-sonnet-4'
 
 const MAX_SEARCH_RESULTS = 5
 
+// AIREL-01: this is a multi-step agentic web-search call (max_results 5),
+// analogous to the transcription path's 300s budget (openrouter-client.ts) —
+// NOT the 120s single-completion budget. Kept local (not imported) because
+// openrouter-client.ts's transcription constant is intentionally not exported
+// beyond AI_CHAT_TIMEOUT_MS.
+const RESEARCH_TIMEOUT_MS = 300_000
+
 type ResearchEngine = 'exa' | 'native'
 
 const RESEARCH_SYSTEM =
@@ -160,6 +167,10 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
             'X-Title': 'Xtimator',
           },
           body: JSON.stringify(body),
+          // AIREL-01: was the ONLY unbounded fetch on this never-throw path —
+          // an abort is caught by the surrounding try/catch below and degrades
+          // to a research miss, same as any other network failure.
+          signal: AbortSignal.timeout(RESEARCH_TIMEOUT_MS),
         })
 
         if (!res.ok) return items.map((i) => missFor(i, currency))
