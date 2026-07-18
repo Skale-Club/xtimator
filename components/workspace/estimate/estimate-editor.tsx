@@ -455,6 +455,7 @@ export function EstimateEditor({
         onRenameProject={isReadOnly ? undefined : handleRenameProject}
         priceBookItems={priceBookItems}
         onDetachPhoto={isReadOnly ? undefined : handleDetachPhoto}
+        pageView={viewMode === 'page'}
       />
 
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).

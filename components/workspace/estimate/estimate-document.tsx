@@ -401,6 +401,10 @@ interface EstimateDocumentProps {
   priceBookItems?: PriceBookItem[]
   /** Edit mode only — renders a remove "x" on each attached-photo thumbnail. Never passed in view/share mode. */
   onDetachPhoto?: (photoId: string) => void
+  /** Quick-260718-p3v — 'Full page' view mode: renders the document as a
+   *  print-preview letter sheet (square corners, hairline border, paper
+   *  shadow, US-Letter min-height) instead of the rounded app card. */
+  pageView?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -1581,6 +1585,7 @@ export function EstimateDocument({
   onRenameProject,
   priceBookItems = [],
   onDetachPhoto,
+  pageView = false,
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -1655,7 +1660,14 @@ export function EstimateDocument({
 
   return (
     <div
-      className="rounded-3xl border-4 shadow-lg overflow-hidden"
+      // Quick-260718-p3v — pageView renders a print-preview sheet: square
+      // corners, hairline border, paper shadow, and US-Letter proportions
+      // (min-h 1056px = 11in @96dpi, pairing the editor's 816px max width).
+      className={
+        pageView
+          ? 'min-h-[1056px] border shadow-2xl overflow-hidden'
+          : 'rounded-3xl border-4 shadow-lg overflow-hidden'
+      }
       style={{
         backgroundColor: '#ffffff',
         colorScheme: 'light',
@@ -1673,7 +1685,7 @@ export function EstimateDocument({
         '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
         '--glass-border': 'rgba(15, 23, 42, 0.08)',
         color: 'hsl(240 10% 3.9%)',
-        borderColor: '#3f3f46',
+        borderColor: pageView ? '#d4d4d8' : '#3f3f46',
       } as React.CSSProperties}
     >
       {/* Company header — only when company provided (share/view mode + editor) */}
