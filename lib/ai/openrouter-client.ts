@@ -16,12 +16,17 @@ import { randomUUID } from 'node:crypto'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { TruncatedOutputError } from '@/lib/ai/with-fallback'
+import { photoExtractionSchema, photoExtractionToolSchema, type PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 
 /**
  * Phase 110 (COST-01): non-LLM cost-correlation context. Optional/additive on the
  * vision + translation call sites — absent → cost still captured with null ids.
+ * Exported (Phase 171/PEXT-05) so the Gemini structured-extraction sibling
+ * (lib/ai/providers/gemini.ts's analyzePhotoStructuredGemini) shares the SAME
+ * shape instead of a duplicated inline type.
  */
-type CostContext = {
+export type CostContext = {
   attemptId?: string | null
   companyId?: string | null
   projectId?: string | null
@@ -393,6 +398,222 @@ export async function analyzePhotoOR(
   // photo context.
   if (result.trim().length === 0) {
     throw new Error('Photo analysis produced no description')
+  }
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// Structured photo extraction (Phase 171 — PEXT-01/03/04/05)
+// ---------------------------------------------------------------------------
+
+/**
+ * PEXT: dedicated timeout for the STRUCTURED extraction attempts ONLY
+ * (analyzePhotoStructuredOR below + analyzePhotoStructuredGemini in
+ * lib/ai/providers/gemini.ts) — deliberately NOT `AI_CHAT_TIMEOUT_MS` (120s).
+ * The worker's fallback ladder can stack up to FOUR provider calls in one
+ * Inngest step (structured-OR -> structured-Gemini -> prose-OR -> prose-
+ * Gemini); 4x120s would blow the step's time budget before the prose safety
+ * net (today's already-proven path) even runs. Structured attempts are
+ * best-effort — 40s each bounds the worst case while prose keeps its
+ * existing, untouched timeouts.
+ */
+export const STRUCTURED_VISION_TIMEOUT_MS = 40_000
+/** Sizing per audit § E5 — richer output than the prose path's 450 base cap. */
+export const STRUCTURED_VISION_MAX_TOKENS = 700
+
+/**
+ * PEXT: structured-extraction prompt — a superset of PHOTO_PROMPT's
+ * contractor framing plus explicit measurement/confidence guidance so the
+ * forced tool-call has a fighting chance of populating `measurements[].value`
+ * with a defensible confidence tag instead of guessing silently. Exported so
+ * `analyzePhotoStructuredGemini` (gemini.ts) uses the SAME instruction text —
+ * no duplicated/diverging prompt.
+ */
+export const PHOTO_EXTRACTION_PROMPT =
+  "Describe this photo from a contractor's perspective and extract structured " +
+  'details via the extract_photo tool: surfaces (with material and condition), ' +
+  'measurements (dimension, value, unit, subject), materials, visible damage ' +
+  '(with severity), and trade signals. Extract every visible or reasonably ' +
+  "estimable measurement with its unit; mark confidence 'stated' only when a " +
+  'dimension is readable in the image (tape measure, plans, labels), else ' +
+  "'estimated'. Always populate overall_description with a concise summary."
+
+/**
+ * PEXT-04 marker error thrown when a structured extraction tool-call's parsed
+ * arguments fail `photoExtractionSchema` (the ONE authoritative gate — see
+ * `validatePhotoExtraction` below). Distinct from `InvalidEstimateOutputError`
+ * (estimate-only) and from `TruncatedOutputError` (finish_reason length) — the
+ * worker's fallback ladder treats all three the same way (fall through to the
+ * next rung), but a typed name aids diagnosis in logs.
+ */
+export class InvalidPhotoExtractionError extends Error {
+  readonly invalidPhotoExtraction = true as const
+  constructor(readonly zodError: import('zod').ZodError) {
+    super('Structured photo extraction failed schema validation')
+    this.name = 'InvalidPhotoExtractionError'
+  }
+}
+
+/**
+ * PEXT-04 — the ONE authoritative zod gate. Both `analyzePhotoStructuredOR`
+ * (below) and `analyzePhotoStructuredGemini` (lib/ai/providers/gemini.ts)
+ * funnel their raw parsed tool-call arguments through this SINGLE function
+ * rather than each calling `photoExtractionSchema.safeParse` independently —
+ * the parity test (d) locks drift by construction (one call site, not two
+ * independently-maintained ones) rather than merely asserting two separately
+ * written calls happen to agree today.
+ */
+export function validatePhotoExtraction(raw: unknown): PhotoExtraction {
+  const result = photoExtractionSchema.safeParse(raw)
+  if (!result.success) throw new InvalidPhotoExtractionError(result.error)
+  return result.data
+}
+
+/**
+ * Structured sibling of `analyzePhotoOR` above — forces a tool-call
+ * ('extract_photo') on the platform vision model so the response is a typed,
+ * validated `PhotoExtraction` instead of prose. This is a NEW call path, not a
+ * modification of `analyzePhotoOR`: the prose ladder above stays completely
+ * untouched as the worker's terminal fallback (both `PHOTO_STRUCTURED_
+ * EXTRACTION=off` and a total structured failure degrade to it byte-
+ * identically — PEXT-03).
+ *
+ * NO internal retry — the worker's structured(OR) -> structured(Gemini) ->
+ * prose ladder IS the retry. One attempt, one outcome: a validated
+ * `PhotoExtraction` or a thrown (typed where possible) error.
+ */
+export async function analyzePhotoStructuredOR(
+  base64: string,
+  mimeType: string,
+  model?: string,
+  costContext?: CostContext
+): Promise<PhotoExtraction> {
+  const apiKey = await getORKey()
+  const visionModel = model ?? OR_DEFAULTS.chat
+  const startTime = new Date()
+
+  const body = {
+    model: visionModel,
+    max_tokens: STRUCTURED_VISION_MAX_TOKENS,
+    // PEXT: pinned like the estimate paths (166-01/AIREL-05) — minimizes
+    // run-to-run variance for a call whose whole point is a consistent shape.
+    temperature: 0.3,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: `data:${mimeType};base64,${base64}` },
+          },
+          { type: 'text', text: PHOTO_EXTRACTION_PROMPT },
+        ],
+      },
+    ],
+    tools: [
+      {
+        type: 'function',
+        function: {
+          name: 'extract_photo',
+          description:
+            'Extract structured surfaces/measurements/materials/damage from a job-site photo.',
+          parameters: photoExtractionToolSchema(),
+        },
+      },
+    ],
+    tool_choice: { type: 'function', function: { name: 'extract_photo' } },
+    // COST-01: request the real upstream USD cost in the response usage block.
+    usage: { include: true },
+  }
+
+  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      ...SITE_HEADERS,
+    },
+    body: JSON.stringify(body),
+    // PEXT: the dedicated 40s structured budget, NOT AI_CHAT_TIMEOUT_MS — see
+    // STRUCTURED_VISION_TIMEOUT_MS's comment above.
+    signal: AbortSignal.timeout(STRUCTURED_VISION_TIMEOUT_MS),
+  })
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown')
+    throw new Error(`OpenRouter structured vision failed (${res.status}): ${err.slice(0, 400)}`)
+  }
+
+  const json = (await res.json()) as {
+    choices?: Array<{
+      message?: {
+        tool_calls?: Array<{ function?: { name?: string; arguments?: string } }>
+      }
+      finish_reason?: string | null
+    }>
+    error?: { message?: string }
+    usage?: { cost?: number }
+  }
+  if (json.error?.message) {
+    throw new Error(`OpenRouter structured vision error: ${json.error.message}`)
+  }
+
+  const choice = json.choices?.[0]
+  const toolCall = choice?.message?.tool_calls?.find((t) => t.function?.name === 'extract_photo')
+  const argsJson = toolCall?.function?.arguments
+  const finishReason = choice?.finish_reason ?? null
+  const costUsd = json.usage?.cost ?? null
+
+  // COST ORDERING (Opus plan-check #1): once the model made a genuine
+  // tool-call ATTEMPT (argsJson present — even if truncated or later found
+  // schema-invalid), record the real cost BEFORE any of the failure branches
+  // below. A billable response that fails finish_reason/parse/the zod gate
+  // (the COMMON structured failure mode) still cost real money and MUST land
+  // in ai_cost_events — this ordering is what test (c) locks. A response with
+  // NO tool-call attempt at all (the model fully ignored the forced
+  // tool_choice) is not recorded here, mirroring the pre-existing estimate
+  // callTool convention (lib/ai/providers/openrouter.ts: its `!argsJson`
+  // guard also precedes any cost recording there).
+  if (argsJson !== undefined) {
+    await recordAICost({
+      attemptId: costContext?.attemptId ?? randomUUID(),
+      operationType: 'vision',
+      provider: 'openrouter',
+      model: visionModel,
+      realCostUsd: costUsd,
+      companyId: costContext?.companyId ?? null,
+      projectId: costContext?.projectId ?? null,
+    })
+  }
+
+  if (finishReason === 'length') {
+    throw new TruncatedOutputError('analyze_photo_structured')
+  }
+  if (argsJson === undefined) {
+    throw new Error(
+      `OpenRouter did not return a structured extraction tool call from model ${visionModel}`
+    )
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(argsJson)
+  } catch {
+    throw new Error('OpenRouter returned malformed structured-extraction tool-call arguments')
+  }
+
+  const result = validatePhotoExtraction(parsed)
+  try {
+    const gen = langfuseClient.generation({
+      name: 'analyze_photo_structured',
+      model: visionModel,
+      input: { mimeType, prompt: PHOTO_EXTRACTION_PROMPT },
+      startTime,
+    })
+    gen.end({ output: result.overall_description.slice(0, 500), endTime: new Date() })
+    await langfuseClient.flushAsync()
+  } catch (err) {
+    console.warn('[langfuse] analyze_photo_structured trace failed:', err)
   }
   return result
 }

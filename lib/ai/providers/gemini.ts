@@ -9,7 +9,15 @@ import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
-import { PHOTO_PROMPT } from '@/lib/ai/openrouter-client'
+import {
+  PHOTO_PROMPT,
+  PHOTO_EXTRACTION_PROMPT,
+  STRUCTURED_VISION_TIMEOUT_MS,
+  STRUCTURED_VISION_MAX_TOKENS,
+  validatePhotoExtraction,
+  type CostContext,
+} from '@/lib/ai/openrouter-client'
+import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 
 /** File-extension → MIME type for inline audio sent to Gemini. */
 const AUDIO_EXT_TO_MIME: Record<string, string> = {
@@ -97,6 +105,173 @@ export async function analyzePhotoGemini(base64: string, mimeType: string): Prom
   })
 
   return (response.text ?? '').trim()
+}
+
+/**
+ * PEXT-04 (Phase 171): Gemini functionDeclaration mirror of
+ * `photoExtractionToolSchema()` (lib/ai/photo-extraction-schema.ts). EXPORTED
+ * so the parity test can assert its property KEYS and the three enum
+ * VALUE-SETS (embedded in `description` — Gemini has no `Type.ENUM`, see the
+ * `price_source` precedent in `GeminiAdapter.generateEstimate` below) match
+ * the zod-derived tool schema. The two shapes CANNOT deep-equal (different
+ * SDK type systems), so key+enum parity is the drift lock — mirrors AIREL-03's
+ * approach for the estimate schemas (tests/unit/ai/tool-schema-fields.test.ts).
+ */
+export const extractPhotoDeclaration = {
+  name: 'extract_photo',
+  description: 'Extract structured surfaces/measurements/materials/damage from a job-site photo.',
+  parameters: {
+    type: Type.OBJECT,
+    required: ['overall_description'],
+    properties: {
+      version: { type: Type.NUMBER, description: 'Schema version. Always 1.' },
+      surfaces: {
+        type: Type.ARRAY,
+        description: 'Distinct surfaces visible in the photo (e.g. wall, floor, ceiling, roof).',
+        items: {
+          type: Type.OBJECT,
+          required: ['name'],
+          properties: {
+            name: { type: Type.STRING, description: 'e.g. "kitchen floor", "north wall"' },
+            material: { type: Type.STRING, description: 'e.g. "vinyl plank", "drywall"' },
+            condition: { type: Type.STRING, description: 'e.g. "worn", "new", "water damaged"' },
+          },
+        },
+      },
+      measurements: {
+        type: Type.ARRAY,
+        description: 'Quantities directly observed or reasonably estimated from the photo.',
+        items: {
+          type: Type.OBJECT,
+          required: ['dimension', 'value', 'unit', 'subject'],
+          properties: {
+            dimension: {
+              type: Type.STRING,
+              // Gemini has no Type.ENUM (D-15 fallback / price_source precedent
+              // above) — the parity test extracts this value set FROM the
+              // description text, so keep the quoted values exact.
+              description:
+                "What kind of quantity this measurement represents — one of 'length', 'area', 'height', 'count'.",
+            },
+            value: { type: Type.NUMBER, description: 'The numeric quantity.' },
+            unit: { type: Type.STRING, description: 'e.g. "sq ft", "linear ft", "ft", "each"' },
+            subject: {
+              type: Type.STRING,
+              description: 'What was measured, e.g. "living room floor"',
+            },
+            confidence: {
+              type: Type.STRING,
+              description:
+                "One of 'stated', 'estimated' — 'stated' if a measurement was explicitly given (sign, tape measure, spoken), 'estimated' if visually inferred.",
+            },
+          },
+        },
+      },
+      materials: {
+        type: Type.ARRAY,
+        description: 'Distinct materials identified across the photo (flat string list).',
+        items: { type: Type.STRING },
+      },
+      damage: {
+        type: Type.ARRAY,
+        description: 'Visible damage or defects.',
+        items: {
+          type: Type.OBJECT,
+          required: ['description'],
+          properties: {
+            description: { type: Type.STRING, description: 'What the damage is and where.' },
+            severity: {
+              type: Type.STRING,
+              description: "One of 'minor', 'moderate', 'severe' — how severe the damage appears.",
+            },
+          },
+        },
+      },
+      trade_signals: {
+        type: Type.ARRAY,
+        description:
+          'Trade/category hints this photo implies (e.g. "flooring", "roofing", "electrical").',
+        items: { type: Type.STRING },
+      },
+      access_notes: {
+        type: Type.STRING,
+        description: 'Access/site constraints visible in the photo (e.g. narrow stairwell).',
+      },
+      overall_description: {
+        type: Type.STRING,
+        description:
+          'A prose summary of the photo — REQUIRED. Populates the existing photo description shown to the estimator.',
+      },
+    },
+  },
+}
+
+/**
+ * PEXT-01/03/04/05 (Phase 171) — Gemini structured-extraction fallback for
+ * `analyzePhotoStructuredOR` (openrouter-client.ts). Mirrors
+ * `GeminiAdapter.generateEstimate`'s functionDeclarations pattern: FLAT config
+ * (166-01's @google/genai lesson — no nested generation-params sub-object),
+ * forced tool_choice via `FunctionCallingConfigMode.ANY` +
+ * `allowedFunctionNames`, `maxOutputTokens` 700, `temperature` 0.3, and a
+ * dedicated 40s `abortSignal` (`STRUCTURED_VISION_TIMEOUT_MS` — NOT this
+ * file's unbounded estimate calls). Threads `costContext` (PEXT-05) — unlike
+ * the plain `analyzePhotoGemini` above, which deliberately omits it; this
+ * structured sibling mirrors `GeminiAdapter`'s cost-capture instead.
+ */
+export async function analyzePhotoStructuredGemini(
+  base64: string,
+  mimeType: string,
+  costContext?: CostContext
+): Promise<PhotoExtraction> {
+  const apiKey = await getIntegrationKey('gemini')
+  if (!apiKey) throw new Error('Gemini API key not configured')
+
+  const ai = new GoogleGenAI({ apiKey })
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      { text: PHOTO_EXTRACTION_PROMPT },
+      { inlineData: { mimeType, data: base64 } },
+    ],
+    config: {
+      tools: [{ functionDeclarations: [extractPhotoDeclaration] }],
+      toolConfig: {
+        functionCallingConfig: {
+          mode: FunctionCallingConfigMode.ANY,
+          allowedFunctionNames: ['extract_photo'],
+        },
+      },
+      maxOutputTokens: STRUCTURED_VISION_MAX_TOKENS,
+      temperature: 0.3,
+      abortSignal: AbortSignal.timeout(STRUCTURED_VISION_TIMEOUT_MS),
+    },
+  })
+
+  const fc = response.functionCalls?.[0]
+  // COST ORDERING mirror (PEXT-05): record BEFORE validating, same rationale
+  // as the OpenRouter structured path above — a genuine tool-call attempt (fc
+  // present) still cost real money even if its args later fail the zod gate.
+  // Gemini's SDK returns no per-call USD figure (same as
+  // GeminiAdapter.generateEstimate below) — realCostUsd is NULL, never
+  // coerced to 0, but the row still COUNTS the attempt. A response with no
+  // function call at all (fc absent) is not recorded, mirroring the
+  // OpenRouter sibling's `argsJson !== undefined` gate.
+  if (fc) {
+    await recordAICost({
+      attemptId: costContext?.attemptId ?? randomUUID(),
+      operationType: 'vision',
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      realCostUsd: null,
+      companyId: costContext?.companyId ?? null,
+      projectId: costContext?.projectId ?? null,
+    })
+  }
+  if (!fc) {
+    throw new Error('Gemini did not return a structured extraction function call')
+  }
+  const args = fc.args as Record<string, unknown>
+  return validatePhotoExtraction(args)
 }
 
 export class GeminiAdapter implements AIProvider {
