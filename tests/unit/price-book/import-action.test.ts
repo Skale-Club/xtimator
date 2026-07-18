@@ -31,16 +31,19 @@ function makeSupabase(opts: {
     eq: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data: opts.company }),
   }
+  // Quick-260718-t7d: the dedup query now ends `.is('deleted_at', null)` —
+  // eq chains through, `is` resolves the rows.
   const existingChain = {
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockResolvedValue({ data: opts.existing, error: null }),
+    eq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockResolvedValue({ data: opts.existing, error: null }),
   }
   const insertSpy = vi.fn().mockResolvedValue(opts.insertResult)
   const insertChain = { insert: insertSpy }
 
   let priceBookCalls = 0
   return {
-    spies: { insert: insertSpy, existingEq: existingChain.eq, existingSelect: existingChain.select },
+    spies: { insert: insertSpy, existingEq: existingChain.eq, existingSelect: existingChain.select, existingIs: existingChain.is },
     client: {
       auth: {
         getClaims: vi.fn().mockResolvedValue({
@@ -124,6 +127,8 @@ describe('importPriceBookItems', () => {
 
     expect(helper.spies.existingEq).toHaveBeenCalledWith('company_id', 'company-123')
     expect(helper.spies.existingSelect).toHaveBeenCalledWith('folder_id, name')
+    // Trashed rows are excluded so a deleted item's name can be re-imported
+    expect(helper.spies.existingIs).toHaveBeenCalledWith('deleted_at', null)
   })
 
   it('calls supabase.insert with an array of rows (single bulk call)', async () => {

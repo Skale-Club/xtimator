@@ -57,12 +57,40 @@ export async function getPriceBookItems(
       price_book_folders ( name )
     `)
     .eq('company_id', companyId)
+    .is('deleted_at', null)
     .order('name')
   return ((data ?? []) as any[]).map((row) => ({
     ...row,
     folder_name: (row.price_book_folders as { name: string } | null)?.name ?? null,
     price_book_folders: undefined,
   })) as PriceBookItem[]
+}
+
+// --- Trash (quick-260718-t7d) ---
+
+export interface DeletedPriceBookItem extends PriceBookItem {
+  deleted_at: string
+}
+
+export async function getDeletedPriceBookItems(
+  supabase: SupabaseClient,
+  companyId: string
+): Promise<DeletedPriceBookItem[]> {
+  const { data } = await supabase
+    .from('company_price_book')
+    .select(`
+      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url,
+      pricing_type, base_price, price_per_unit, minimum_price, area_sizes, deleted_at,
+      price_book_folders ( name )
+    `)
+    .eq('company_id', companyId)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+  return ((data ?? []) as any[]).map((row) => ({
+    ...row,
+    folder_name: (row.price_book_folders as { name: string } | null)?.name ?? null,
+    price_book_folders: undefined,
+  })) as DeletedPriceBookItem[]
 }
 
 // --- PriceBookItemOption ---

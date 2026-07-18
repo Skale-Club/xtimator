@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 
 const mockRefresh = vi.fn()
@@ -22,11 +22,13 @@ vi.mock('sonner', () => ({
 }))
 
 const mockDelete = vi.fn().mockResolvedValue({ data: { deleted: true } })
+const mockTrash = vi.fn().mockResolvedValue({ data: { trashed: 2 } })
 
 vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   updatePriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   deletePriceBookItem: (...args: any[]) => mockDelete(...args),
+  trashPriceBookItems: (...args: any[]) => mockTrash(...args),
   bulkAdjustPriceBookFolder: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
   createFolder: vi.fn().mockResolvedValue({ data: {} }),
   updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
@@ -212,6 +214,57 @@ describe('PriceBookList', () => {
     render(<PriceBookList items={[]} folders={[]} companyId="c1" />)
     expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
+  })
+})
+
+// Quick-260718-t7d — bulk select-all + move-to-Trash from the category header.
+describe('Bulk select and delete (quick-260718-t7d)', () => {
+  beforeEach(() => {
+    mockTrash.mockClear()
+    mockRefresh.mockClear()
+  })
+
+  it('category header renders a select-all checkbox per section', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.getByTestId('select-all-folder-folder-labor')).toBeDefined()
+    expect(screen.getByTestId('select-all-folder-uncategorized')).toBeDefined()
+  })
+
+  it('select-all checks the category items and shows the bulk bar with the count', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    // Labor has 2 items → "2 selected" + Delete button appear
+    expect(document.body.textContent).toContain('2 selected')
+    expect(screen.getByTestId('bulk-delete-btn')).toBeDefined()
+  })
+
+  it('bulk bar is hidden when nothing is selected', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.queryByTestId('bulk-delete-btn')).toBeNull()
+  })
+
+  it('confirming bulk delete calls trashPriceBookItems with the selected ids', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    fireEvent.click(screen.getByTestId('bulk-delete-btn'))
+
+    // Confirm dialog opens
+    expect(screen.getByText('Delete selected items')).toBeDefined()
+    const dialog = screen.getByRole('alertdialog')
+    const confirmBtn = within(dialog).getByRole('button', { name: /^Delete$/ })
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => expect(mockTrash).toHaveBeenCalledTimes(1))
+    expect(mockTrash).toHaveBeenCalledWith(expect.arrayContaining(['1', '2']))
+    expect((mockTrash.mock.calls[0][0] as string[]).length).toBe(2)
+  })
+
+  it('search-filtered select-all only selects VISIBLE items of the category', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const searchInput = screen.getByPlaceholderText('Search items...')
+    fireEvent.change(searchInput, { target: { value: 'Supervisor' } })
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    expect(document.body.textContent).toContain('1 selected')
   })
 })
 

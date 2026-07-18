@@ -289,6 +289,8 @@ export async function fetchItemOptions(itemId: string): Promise<
   return { data: data ?? [] }
 }
 
+// Quick-260718-t7d — deleting from the price book is a SOFT delete: the row
+// gets deleted_at and moves to /trash, where it can be restored or destroyed.
 export async function deletePriceBookItem(itemId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -296,13 +298,102 @@ export async function deletePriceBookItem(itemId: string) {
 
   const { error } = await supabase
     .from('company_price_book')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', itemId)
 
   if (error) return { error: 'Failed to delete item. Please try again.' }
 
   revalidatePath('/price-book')
+  revalidatePath('/trash')
   return { data: { deleted: true } }
+}
+
+/** Bulk soft delete — moves the given items to Trash (quick-260718-t7d). */
+export async function trashPriceBookItems(itemIds: string[]) {
+  const denied = await assertWritable()
+  if (denied) return denied
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  if (itemIds.length === 0) return { error: 'No items selected.' }
+
+  const { error } = await supabase
+    .from('company_price_book')
+    .update({ deleted_at: new Date().toISOString() })
+    .in('id', itemIds)
+    .eq('company_id', company.id)
+
+  if (error) return { error: 'Failed to move items to Trash. Please try again.' }
+
+  revalidatePath('/price-book')
+  revalidatePath('/trash')
+  return { data: { trashed: itemIds.length } }
+}
+
+/** Restore trashed items back into the price book (quick-260718-t7d). */
+export async function restorePriceBookItems(itemIds: string[]) {
+  const denied = await assertWritable()
+  if (denied) return denied
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  if (itemIds.length === 0) return { error: 'No items selected.' }
+
+  const { error } = await supabase
+    .from('company_price_book')
+    .update({ deleted_at: null })
+    .in('id', itemIds)
+    .eq('company_id', company.id)
+
+  if (error) return { error: 'Failed to restore items. Please try again.' }
+
+  revalidatePath('/price-book')
+  revalidatePath('/trash')
+  return { data: { restored: itemIds.length } }
+}
+
+/** Permanently delete specific trashed items. Only rows already in Trash
+ *  (deleted_at set) can be destroyed — an active item can never be hard-deleted
+ *  through this path (quick-260718-t7d). */
+export async function destroyPriceBookItems(itemIds: string[]) {
+  const denied = await assertWritable()
+  if (denied) return denied
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+  if (itemIds.length === 0) return { error: 'No items selected.' }
+
+  const { error } = await supabase
+    .from('company_price_book')
+    .delete()
+    .in('id', itemIds)
+    .eq('company_id', company.id)
+    .not('deleted_at', 'is', null)
+
+  if (error) return { error: 'Failed to delete items. Please try again.' }
+
+  revalidatePath('/trash')
+  return { data: { destroyed: itemIds.length } }
+}
+
+/** Permanently delete EVERYTHING in the company's Trash (quick-260718-t7d). */
+export async function emptyPriceBookTrash() {
+  const denied = await assertWritable()
+  if (denied) return denied
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { error, count } = await supabase
+    .from('company_price_book')
+    .delete({ count: 'exact' })
+    .eq('company_id', company.id)
+    .not('deleted_at', 'is', null)
+
+  if (error) return { error: 'Failed to empty Trash. Please try again.' }
+
+  revalidatePath('/trash')
+  return { data: { destroyed: count ?? 0 } }
 }
 
 export async function importPriceBookItems(
@@ -326,11 +417,13 @@ export async function importPriceBookItems(
     return { error: 'No valid rows to import.' }
   }
 
-  // Fetch existing (folder_id, name) pairs for the company — one query
+  // Fetch existing (folder_id, name) pairs for the company — one query.
+  // Trashed rows excluded so a deleted item's name can be re-imported.
   const { data: existing, error: existingErr } = await supabase
     .from('company_price_book')
     .select('folder_id, name')
     .eq('company_id', company.id)
+    .is('deleted_at', null)
   if (existingErr) {
     return { error: 'Could not check for duplicates. Please try again.' }
   }
@@ -536,10 +629,12 @@ export async function commitImportChunk(
   }
 
   // 2. Fetch existing items (full row) and shape into PriceBookExistingRow.
+  // Trashed rows excluded — they must not count as dedupe targets.
   const { data: existingItems, error: exErr } = await supabase
     .from('company_price_book')
     .select('id, folder_id, name, unit, unit_price, notes')
     .eq('company_id', company.id)
+    .is('deleted_at', null)
   if (exErr) return { error: 'Could not load existing items.' }
 
   const folderIdToName = new Map<string, string>()
