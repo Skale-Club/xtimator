@@ -2,48 +2,6 @@
 @plugin "@tailwindcss/typography";
 @source not "../.planning";
 
-@keyframes bar-pulse {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(0.25); }
-}
-
-@keyframes cam-flash-unit {
-  0%, 55%   { opacity: 0 }
-  60%, 68%  { opacity: 1 }
-  78%, 100% { opacity: 0 }
-}
-
-@keyframes bubble-dot-1 {
-  0%, 2%    { opacity: 0; transform: scale(0.4) }
-  10%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-@keyframes bubble-dot-2 {
-  0%, 12%   { opacity: 0; transform: scale(0.4) }
-  20%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-@keyframes bubble-dot-3 {
-  0%, 22%   { opacity: 0; transform: scale(0.4) }
-  30%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-@keyframes bubble-dot-4 {
-  0%, 32%   { opacity: 0; transform: scale(0.4) }
-  40%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-@keyframes bubble-dot-5 {
-  0%, 42%   { opacity: 0; transform: scale(0.4) }
-  50%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-@keyframes bubble-dot-6 {
-  0%, 52%   { opacity: 0; transform: scale(0.4) }
-  60%, 70%  { opacity: 0.25; transform: scale(1) }
-  80%, 100% { opacity: 0; transform: scale(0.4) }
-}
-
 /* Photo icon swap — ph-show: visible in phase 1 / ph-hide: visible in phase 2 */
 @keyframes ph-show { 0%,38% { opacity:1 } 46%,95% { opacity:0 } 100% { opacity:1 } }
 @keyframes ph-hide { 0%,44% { opacity:0 } 52%,90% { opacity:1 } 98%,100% { opacity:0 } }
@@ -106,8 +64,13 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 15px; }
 }
 
-/* ── iPad Landscape 768-1279px — side-by-side, font/button sizing only ── */
-@media (min-width: 768px) and (max-width: 1279px) and (orientation: landscape) {
+/* ── iPad Landscape 768-1279px — side-by-side, font/button sizing only ──
+   (pointer: coarse) restricts this to real touch tablets: a DESKTOP browser
+   window is also landscape in this width range (especially with Windows
+   display scaling), and without the pointer guard it inherited the iPad hero
+   (56px 3-row title, image flush to the right edge). Desktop gets the
+   standard lg: styling from hero-section.tsx instead. */
+@media (min-width: 768px) and (max-width: 1279px) and (orientation: landscape) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
   section:has(.hero-left) { max-height: 600px !important; }
   .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
