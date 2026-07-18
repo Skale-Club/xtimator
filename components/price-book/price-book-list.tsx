@@ -63,7 +63,7 @@ import {
   trashPriceBookItems,
   createFolder,
   updateFolder,
-  deleteFolder,
+  deleteFolderWithItems,
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
@@ -157,6 +157,13 @@ export function PriceBookList({
     }
     return sections
   }, [folders, groupedByFolder])
+
+  // Total (UNFILTERED) items in the category pending deletion — drives the
+  // Delete Category dialog copy (quick-260718-d2f).
+  const deletingFolderItemCount = useMemo(
+    () => (deletingFolderId ? items.filter((i) => i.folder_id === deletingFolderId).length : 0),
+    [items, deletingFolderId]
+  )
 
   function handleAddItem() {
     setEditingItem(null)
@@ -290,10 +297,11 @@ export function PriceBookList({
 
   function handleConfirmDeleteFolder() {
     if (!deletingFolderId) return
+    const hadItems = deletingFolderItemCount > 0
     startTransition(async () => {
-      const result = await deleteFolder(deletingFolderId)
+      const result = await deleteFolderWithItems(deletingFolderId)
       if (result.error) { toast.error(result.error); return }
-      toast.success(t('Category deleted'))
+      toast.success(hadItems ? t('Category deleted — items moved to Trash') : t('Category deleted'))
       setDeleteFolderDialogOpen(false)
       setDeletingFolderId(null)
       router.refresh()
@@ -450,9 +458,17 @@ export function PriceBookList({
                         </Button>
                         <Button
                           variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                          data-testid={`delete-folder-btn-${folderId}`}
                           onClick={() => {
-                            setDeletingFolderId(folderId!)
-                            setDeleteFolderDialogOpen(true)
+                            // Dual function (quick-260718-d2f): with a selection,
+                            // trash the selected items; with none, delete the
+                            // category together with all its items.
+                            if (selected.size > 0) {
+                              setBulkDeleteDialogOpen(true)
+                            } else {
+                              setDeletingFolderId(folderId!)
+                              setDeleteFolderDialogOpen(true)
+                            }
                           }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -706,7 +722,9 @@ export function PriceBookList({
           <AlertDialogHeader>
             <AlertDialogTitle>{t('Delete Category')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('This will delete the category. Items in this category must be moved or deleted first.')}
+              {deletingFolderItemCount > 0
+                ? `${t('This will delete the category and move its')} ${deletingFolderItemCount} ${deletingFolderItemCount === 1 ? t('item') : t('items')} ${t('to Trash. You can restore them later from Trash.')}`
+                : t('This will delete the empty category.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

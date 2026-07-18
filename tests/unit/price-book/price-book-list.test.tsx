@@ -23,6 +23,7 @@ vi.mock('sonner', () => ({
 
 const mockDelete = vi.fn().mockResolvedValue({ data: { deleted: true } })
 const mockTrash = vi.fn().mockResolvedValue({ data: { trashed: 2 } })
+const mockDeleteFolderWithItems = vi.fn().mockResolvedValue({ data: { deleted: true } })
 
 vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
@@ -33,6 +34,7 @@ vi.mock('@/lib/actions/price-book', () => ({
   createFolder: vi.fn().mockResolvedValue({ data: {} }),
   updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
   deleteFolder: vi.fn().mockResolvedValue({ data: { deleted: true } }),
+  deleteFolderWithItems: (...args: any[]) => mockDeleteFolderWithItems(...args),
 }))
 
 vi.mock('@/components/price-book/price-book-item-dialog', () => ({
@@ -265,6 +267,52 @@ describe('Bulk select and delete (quick-260718-t7d)', () => {
     fireEvent.change(searchInput, { target: { value: 'Supervisor' } })
     fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
     expect(document.body.textContent).toContain('1 selected')
+  })
+})
+
+// Quick-260718-d2f — category trash button is dual-function: with a selection it
+// bulk-trashes the selected items; with none it deletes the category + its items.
+describe('Category trash button dual function (quick-260718-d2f)', () => {
+  beforeEach(() => {
+    mockTrash.mockClear()
+    mockDeleteFolderWithItems.mockClear()
+    mockRefresh.mockClear()
+  })
+
+  it('with a selection, opens the bulk-delete dialog and trashes the selected ids', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    expect(screen.getByText('Delete selected items')).toBeDefined()
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Delete$/ }))
+
+    await waitFor(() => expect(mockTrash).toHaveBeenCalledTimes(1))
+    expect(mockTrash).toHaveBeenCalledWith(expect.arrayContaining(['1', '2']))
+    expect(mockDeleteFolderWithItems).not.toHaveBeenCalled()
+  })
+
+  it('with no selection, opens the Delete Category dialog showing the item count', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('heading', { name: 'Delete Category' })).toBeDefined()
+    // Labor has 2 (unfiltered) items — copy announces they move to Trash
+    expect(dialog.textContent).toContain('2')
+    expect(dialog.textContent).toContain('to Trash')
+  })
+
+  it('confirming the Delete Category dialog calls deleteFolderWithItems with the folder id', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete Category/ }))
+
+    await waitFor(() => expect(mockDeleteFolderWithItems).toHaveBeenCalledWith('folder-labor'))
+    expect(mockTrash).not.toHaveBeenCalled()
   })
 })
 

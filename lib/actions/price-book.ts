@@ -84,6 +84,38 @@ export async function deleteFolder(folderId: string) {
   return { data: { deleted: true } }
 }
 
+/** Delete a category AND move all its items to Trash (quick-260718-d2f).
+ *  Active items are soft-deleted first; deleting the folder row then relies on
+ *  the FK's ON DELETE SET NULL to un-categorize any remaining (already-trashed)
+ *  rows, so everything in Trash stays restorable — restored items land in
+ *  Uncategorized. */
+export async function deleteFolderWithItems(folderId: string) {
+  const denied = await assertWritable()
+  if (denied) return denied
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { error: trashErr } = await supabase
+    .from('company_price_book')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('company_id', company.id)
+    .eq('folder_id', folderId)
+    .is('deleted_at', null)
+  if (trashErr) return { error: 'Failed to move items to Trash. Please try again.' }
+
+  const { error } = await supabase
+    .from('price_book_folders')
+    .delete()
+    .eq('id', folderId)
+    .eq('company_id', company.id)
+  if (error) return { error: 'Failed to delete category.' }
+
+  revalidatePath('/price-book')
+  revalidatePath('/trash')
+  return { data: { deleted: true } }
+}
+
 export async function resolveOrCreateFolders(
   names: string[]
 ): Promise<{ data: Map<string, string> } | { error: string }> {
