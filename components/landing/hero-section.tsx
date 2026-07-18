@@ -97,16 +97,17 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               }
             >
               <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-[1279px]:self-start min-[1280px]:self-auto min-[1280px]:flex-none">
-                <Button variant="primary" size="default" className="min-w-40" onClick={() => onOpenAuth?.('signup')}>
+                {/* xl: bumps both CTAs 15% over size=default (40px/14px) for desktop */}
+                <Button variant="primary" size="default" className="min-w-40 xl:h-[46px] xl:min-w-[184px] xl:px-[18px] xl:text-base" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
-                  <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
+                  <ArrowRight className="ml-1.5 size-4 xl:size-[18px]" aria-hidden="true" />
                 </Button>
               </div>
               <Button
                 asChild
                 size="default"
                 variant="outline"
-                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4"
+                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4 xl:h-[46px] xl:min-w-[166px] xl:px-[18px] xl:text-base"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
