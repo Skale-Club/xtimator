@@ -111,20 +111,12 @@ describe('Landing root (/) routing rules (D-01, D-02)', () => {
     expect(wouldRedirectAnonymous('/')).toBe(false)
   })
 
-  it('authenticated GET / triggers redirect to /dashboard', () => {
-    const pathname = '/'
-    const claims = { sub: 'user-123' } // authenticated (truthy object)
-    const isLandingRoot = pathname === '/'
-    const wouldRedirectToDashboard = !!claims && isLandingRoot
-    expect(wouldRedirectToDashboard).toBe(true)
-  })
-
-  it('authenticated GET /dashboard does NOT trigger the landing-root redirect', () => {
-    const pathname: string = '/dashboard'
-    const claims = { sub: 'user-123' } // authenticated
-    const isLandingRoot = pathname === '/'
-    const wouldRedirectToDashboard = !!claims && isLandingRoot
-    expect(wouldRedirectToDashboard).toBe(false)
+  it('authenticated GET / does NOT redirect — landing stays reachable when logged in (quick-260718-w4r)', () => {
+    // The authed-'/'→'/dashboard' hop was removed from proxy.ts: the only
+    // redirect left in the proxy is the anonymous protected-route guard, and
+    // '/' is public — so a logged-in GET / falls through to the landing page.
+    expect(isPublicRoute('/')).toBe(true)
+    expect(wouldRedirectAnonymous('/')).toBe(false)
   })
 
   it('unauthenticated request to /dashboard would redirect to /?auth=login', () => {
