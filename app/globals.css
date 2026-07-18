@@ -27,8 +27,9 @@
   92%,100% { opacity:0 }
 }
 
-/* ── iPad Portrait 640-1023px (mini, Air, Pro 11") — side-by-side, big image ── */
-@media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) {
+/* ── iPad Portrait 640-1023px (mini, Air, Pro 11") — side-by-side, big image.
+   pointer: coarse keeps these tablet blocks off desktop windows at the same width. ── */
+@media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
   section:has(.hero-left) { max-height: 680px !important; }
   .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
@@ -46,7 +47,7 @@
 }
 
 /* ── iPad Portrait 1024-1279px (Pro 12.9") — side-by-side; cancels lg: desktop image ── */
-@media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) {
+@media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
   section:has(.hero-left) { max-height: 680px !important; }
   .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
