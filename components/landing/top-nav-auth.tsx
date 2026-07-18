@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { LogOut, Loader2, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
 import { signOut } from '@/lib/actions/auth'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,9 +24,11 @@ interface TopNavAuthProps {
   branding: { appName: string; logoUrl: string | null }
   onOpenAuth?: (mode: 'login' | 'signup') => void
   navUser?: { email: string; avatarUrl: string | null } | null
+  /** Signup CTA label — same DB-driven value as the hero CTA. */
+  ctaLabel?: string
 }
 
-export function TopNavAuth({ branding, onOpenAuth, navUser }: TopNavAuthProps) {
+export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }: TopNavAuthProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [isPending, startTransition] = useTransition()
@@ -107,14 +110,25 @@ export function TopNavAuth({ branding, onOpenAuth, navUser }: TopNavAuthProps) {
     setOpen(true)
   }
 
+  function openSignup() {
+    if (onOpenAuth) { onOpenAuth('signup'); return }
+    setMode('signup')
+    setOpen(true)
+  }
+
   return (
     <>
-      <button
-        onClick={openLogin}
-        className="text-sm font-medium text-white/60 transition-colors hover:text-white"
-      >
-        Login
-      </button>
+      <div className="flex items-center gap-4">
+        <button
+          onClick={openLogin}
+          className="text-sm font-medium text-white/60 transition-colors hover:text-white"
+        >
+          Login
+        </button>
+        <Button variant="primary" size="sm" className="px-4" onClick={openSignup}>
+          {ctaLabel}
+        </Button>
+      </div>
       {open && (
         <AuthDialog
           branding={branding}

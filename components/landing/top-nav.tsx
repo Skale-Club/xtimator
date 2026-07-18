@@ -6,9 +6,11 @@ interface TopNavProps {
   branding: { appName: string; logoUrl: string | null }
   onOpenAuth?: (mode: 'login' | 'signup') => void
   navUser?: { email: string; avatarUrl: string | null } | null
+  /** Signup CTA label — same DB-driven value as the hero CTA. */
+  ctaLabel?: string
 }
 
-export function TopNav({ branding, onOpenAuth, navUser }: TopNavProps) {
+export function TopNav({ branding, onOpenAuth, navUser, ctaLabel }: TopNavProps) {
   return (
     // pt-[env(safe-area-inset-top)]: in PWA/standalone mode the status bar is
     // translucent (black-translucent) and overlaps fixed elements — pad the nav
@@ -19,7 +21,7 @@ export function TopNav({ branding, onOpenAuth, navUser }: TopNavProps) {
           <AppIcon logoUrl={branding.logoUrl} appName={branding.appName} className="h-6 w-6" />
           <span className="text-lg font-bold tracking-tight text-foreground">{branding.appName}</span>
         </Link>
-        <TopNavAuth branding={branding} onOpenAuth={onOpenAuth} navUser={navUser} />
+        <TopNavAuth branding={branding} onOpenAuth={onOpenAuth} navUser={navUser} ctaLabel={ctaLabel} />
       </div>
     </header>
   )
