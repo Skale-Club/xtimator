@@ -22,9 +22,9 @@ Each requirement maps to exactly one roadmap phase.
 
 - [x] **PEXT-01**: Each analyzed photo gains a persisted structured extraction (`photos.ai_extraction` JSONB: surfaces, measurements with unit + confidence, materials, damage, trade signals) validated by one authoritative zod schema, with `ai_description` populated from `overall_description` so every existing consumer renders unchanged.
 - [x] **PEXT-02**: The generation prompt includes a compact structured block per extracted photo (measurements/materials/damage, sanitized through the existing sanitizeField path) — quantities reach the estimator as typed data; prose-only photos produce byte-identical prompt output to today.
-- [ ] **PEXT-03**: A failed, invalid, or truncated structured call degrades to the prose pipeline for that photo with zero user-visible failure, and the env kill-switch reverts the whole feature to today's behavior — the v4.19 coverage/skip-and-continue/N-of-M semantics are provably intact either way.
-- [ ] **PEXT-04**: Both providers (OpenRouter forced tool-call primary, Gemini functionDeclarations fallback) produce the same schema through the same zod gate — provider drift is locked by a parity test (the AIREL-03 lesson).
-- [ ] **PEXT-05**: Structured calls carry the job's costContext and their real cost lands in ai_cost_events — the per-photo cost increase (~1.3-1.7×) is measurable, and photo_batch debits keep summing correctly.
+- [x] **PEXT-03**: A failed, invalid, or truncated structured call degrades to the prose pipeline for that photo with zero user-visible failure, and the env kill-switch reverts the whole feature to today's behavior — the v4.19 coverage/skip-and-continue/N-of-M semantics are provably intact either way.
+- [x] **PEXT-04**: Both providers (OpenRouter forced tool-call primary, Gemini functionDeclarations fallback) produce the same schema through the same zod gate — provider drift is locked by a parity test (the AIREL-03 lesson).
+- [x] **PEXT-05**: Structured calls carry the job's costContext and their real cost lands in ai_cost_events — the per-photo cost increase (~1.3-1.7×) is measurable, and photo_batch debits keep summing correctly.
 
 ## Future Requirements (deferred)
 
@@ -43,4 +43,4 @@ Each requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PEXT-01..05 | 171 | In Progress (PEXT-01 complete) |
+| PEXT-01..05 | 171 | Complete |
