@@ -174,10 +174,14 @@ export function ProjectWorkspace({
             clearance region. Without this pairing, main's padding sits OUTSIDE
             the sticky rail/floating-bar's containing block, so the page can be
             scrolled past where that containing block ends — both stickies detach
-            in that last sliver, reading as a jump right at the end of scroll. */}
+            in that last sliver, reading as a jump right at the end of scroll.
+            On desktop the floating action pill is `fixed` to the viewport
+            (always overlaying), so the md height also provides scroll clearance:
+            tall enough for the estimate's last content to clear the ~46px pill
+            sitting 8px above the bottom edge. */}
         <div
           aria-hidden
-          className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-6"
+          className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-16"
         />
       </div>
     </div>
