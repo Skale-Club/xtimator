@@ -14,7 +14,7 @@ import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
-import { EstimateFloatingActions } from './estimate-floating-actions'
+import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
@@ -154,6 +154,9 @@ function stateToSavePayload(state: EstimateEditorState) {
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 
+/** localStorage key for the document viewing mode (quick-260718-m2q). */
+const VIEW_MODE_KEY = 'estimate-view-mode'
+
 interface EstimateEditorProps {
   estimate: EstimateWithSections
   versions: Estimate[]
@@ -218,6 +221,21 @@ export function EstimateEditor({
   // so the panel renders as a sibling of EstimateFloatingActions and can read
   // state.presentation_settings + hasEstimateBeenSentOrViewed at the boundary.
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // Quick-260718-m2q — document viewing mode: 'width' fills the column
+  // (default), 'page' centers the document at letter width. Initialized in an
+  // effect (not the useState initializer) so server and first client render
+  // agree — reading localStorage during render would desync hydration.
+  const [viewMode, setViewMode] = useState<EstimateViewMode>('width')
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(VIEW_MODE_KEY) === 'page') setViewMode('page')
+    } catch { /* storage unavailable (private mode) — keep default */ }
+  }, [])
+  const handleViewModeChange = useCallback((mode: EstimateViewMode) => {
+    setViewMode(mode)
+    try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* non-fatal */ }
+  }, [])
 
   const isReadOnly = !state.is_current
   const isCurrent = state.is_current
@@ -413,6 +431,10 @@ export function EstimateEditor({
 
   return (
     <div className="space-y-3">
+      {/* Quick-260718-m2q — 'page' view centers the document (and the invoice
+          surfaces below, so nothing pokes past the page edge) at US-Letter
+          width; 'width' leaves everything filling the column as before. */}
+      <div className={viewMode === 'page' ? 'mx-auto w-full max-w-[816px] space-y-3' : 'space-y-3'}>
       {/* WYSIWYG document surface */}
       <EstimateDocument
         mode="edit"
@@ -452,6 +474,7 @@ export function EstimateEditor({
           />
         </div>
       )}
+      </div>
 
       <EstimateFloatingActions
         isCurrent={isCurrent}
@@ -459,6 +482,8 @@ export function EstimateEditor({
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={isReadOnly ? undefined : () => setSettingsOpen(true)}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
         linkClientSlot={linkClientSlot}
         refineSlot={
           isReadOnly ? undefined : (
