@@ -1,7 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { Send, Camera, Settings, File, StretchHorizontal } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Send, Camera, Settings, File, StretchHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -71,9 +71,30 @@ export function EstimateFloatingActions({
   linkClientSlot,
   refineSlot,
 }: EstimateFloatingActionsProps) {
+  // Quick-260718-w4k — the pill collapses to a single small round button so it
+  // stops covering the bottom of the document. Session-local state (resets on
+  // navigation) — the pill should reappear expanded on a fresh visit.
+  const [collapsed, setCollapsed] = useState(false)
+
   if (!isCurrent) return null
 
   const isSaving = status === 'saving'
+
+  if (collapsed) {
+    return (
+      <Pill>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setCollapsed(false)}
+          aria-label="Show actions"
+          className="rounded-full text-foreground"
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </Button>
+      </Pill>
+    )
+  }
 
   return (
     <Pill>
@@ -119,6 +140,15 @@ export function EstimateFloatingActions({
       <Button size="sm" onClick={onSend} disabled={isSaving} className="rounded-full gap-1.5">
         <Send className="h-3.5 w-3.5" />
         Send
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => setCollapsed(true)}
+        aria-label="Hide actions"
+        className="rounded-full text-foreground"
+      >
+        <ChevronDown className="h-3.5 w-3.5" />
       </Button>
     </Pill>
   )

@@ -157,6 +157,13 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 /** localStorage key for the document viewing mode (quick-260718-m2q). */
 const VIEW_MODE_KEY = 'estimate-view-mode'
 
+/** Quick-260718-w4k — US Letter height at 96dpi (11in), pairing the 816px
+ *  page width. Page mode scales the sheet so this full height fits the
+ *  visible viewport, like a print preview. */
+const LETTER_PAGE_HEIGHT = 1056
+/** Vertical clearance reserved below the sheet for the floating pill. */
+const PAGE_FIT_CLEARANCE = 84
+
 interface EstimateEditorProps {
   estimate: EstimateWithSections
   versions: Estimate[]
@@ -236,6 +243,32 @@ export function EstimateEditor({
     setViewMode(mode)
     try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* non-fatal */ }
   }, [])
+
+  // Quick-260718-w4k — page mode fits the WHOLE letter sheet in the visible
+  // viewport (print-preview fit) via CSS zoom. Measured, not fixed: available
+  // height = viewport bottom − sheet top − pill clearance. The sheet top is
+  // clamped to the scroll container's top (<main>) so toggling mid-scroll
+  // doesn't measure a negative offset. Capped at 1 (no upscaling), floored
+  // at 0.45 (never unreadably small). Recomputes on window resize.
+  const pageWrapRef = useRef<HTMLDivElement | null>(null)
+  const [pageZoom, setPageZoom] = useState(1)
+  useEffect(() => {
+    if (viewMode !== 'page') {
+      setPageZoom(1)
+      return
+    }
+    const compute = () => {
+      const el = pageWrapRef.current
+      if (!el) return
+      const scrollerTop = el.closest('main')?.getBoundingClientRect().top ?? 0
+      const sheetTop = Math.max(el.getBoundingClientRect().top, scrollerTop)
+      const avail = window.innerHeight - sheetTop - PAGE_FIT_CLEARANCE
+      setPageZoom(Math.min(1, Math.max(avail / LETTER_PAGE_HEIGHT, 0.45)))
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    return () => window.removeEventListener('resize', compute)
+  }, [viewMode])
 
   const isReadOnly = !state.is_current
   const isCurrent = state.is_current
@@ -433,8 +466,14 @@ export function EstimateEditor({
     <div className="space-y-3">
       {/* Quick-260718-m2q — 'page' view centers the document (and the invoice
           surfaces below, so nothing pokes past the page edge) at US-Letter
-          width; 'width' leaves everything filling the column as before. */}
-      <div className={viewMode === 'page' ? 'mx-auto w-full max-w-[816px] space-y-3' : 'space-y-3'}>
+          width; 'width' leaves everything filling the column as before.
+          Quick-260718-w4k — zoom scales the whole page group so the full
+          letter sheet fits the visible viewport (print-preview fit). */}
+      <div
+        ref={pageWrapRef}
+        className={viewMode === 'page' ? 'mx-auto w-full max-w-[816px] space-y-3' : 'space-y-3'}
+        style={viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : undefined}
+      >
       {/* WYSIWYG document surface */}
       <EstimateDocument
         mode="edit"

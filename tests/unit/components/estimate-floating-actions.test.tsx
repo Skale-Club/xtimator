@@ -183,3 +183,46 @@ describe('EstimateFloatingActions view mode toggle (quick-260718-m2q)', () => {
     expect(toggle.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
+
+// Quick-260718-w4k — collapsible pill: a chevron after Send collapses the
+// pill to a single "Show actions" button; clicking that restores everything.
+describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
+  function renderFull() {
+    return render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        onOpenPhotos={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    )
+  }
+
+  it('renders expanded by default with a "Hide actions" chevron AFTER Send', () => {
+    renderFull()
+    const send = screen.getByRole('button', { name: /^send$/i })
+    const hide = screen.getByRole('button', { name: /^hide actions$/i })
+    expect(send.compareDocumentPosition(hide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeNull()
+  })
+
+  it('clicking "Hide actions" collapses the pill to a single "Show actions" button', () => {
+    renderFull()
+    fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
+    expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /photos/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^settings$/i })).toBeNull()
+  })
+
+  it('clicking "Show actions" restores all action buttons', () => {
+    renderFull()
+    fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^show actions$/i }))
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /photos/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^settings$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^hide actions$/i })).toBeTruthy()
+  })
+})
