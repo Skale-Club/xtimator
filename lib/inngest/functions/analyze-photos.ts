@@ -10,7 +10,10 @@
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { analyzePhotoOR } from '@/lib/ai/openrouter-client'
+import { analyzePhotoOR, analyzePhotoStructuredOR } from '@/lib/ai/openrouter-client'
+import { analyzePhotoStructuredGemini } from '@/lib/ai/providers/gemini'
+import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
+import type { Json } from '@/types/database.types'
 import { recordUsage } from '@/lib/quota'
 import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
 import { notify } from '@/lib/notifications/dispatch'
@@ -200,11 +203,63 @@ export const analyzePhotosJob = inngest.createFunction(
             // attemptId + null ids and the record-credit-debit read-back
             // below (`.eq('attempt_id', attemptId)`) matched zero rows,
             // permanently recording a null cost for photo_batch debits.
-            const description = await analyzePhotoOR(base64, mimeType, undefined, {
-              attemptId,
-              companyId,
-              projectId,
-            })
+            const costContext = { attemptId, companyId, projectId }
+
+            // Phase 171 (PEXT-01/03): structured extraction ladder —
+            // structured(OpenRouter) -> structured(Gemini) -> prose (the
+            // existing analyzePhotoOR ladder, untouched, stays the terminal
+            // fallback). ON by default; PHOTO_STRUCTURED_EXTRACTION=off skips
+            // it entirely so the per-photo behavior is byte-identical to the
+            // pre-171 prose pipeline. Read once per photo — env is stable
+            // across an Inngest replay, so this stays deterministic/replay-
+            // safe. A structured failure at EITHER rung NEVER fails the
+            // photo: it falls through to the proven prose ladder below,
+            // exactly as today — only a prose failure (unchanged from
+            // 168-01) counts against skip-and-continue.
+            let extraction: PhotoExtraction | undefined
+            if (process.env.PHOTO_STRUCTURED_EXTRACTION !== 'off') {
+              try {
+                extraction = await analyzePhotoStructuredOR(
+                  base64,
+                  mimeType,
+                  undefined,
+                  costContext
+                )
+              } catch (structuredErr) {
+                console.warn(
+                  `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
+                  structuredErr instanceof Error ? structuredErr.message : String(structuredErr)
+                )
+                try {
+                  extraction = await analyzePhotoStructuredGemini(base64, mimeType, costContext)
+                } catch (geminiErr) {
+                  console.warn(
+                    `[analyze-photos] structured-Gemini extraction failed for photo ${photo.id}:`,
+                    geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
+                  )
+                }
+              }
+            }
+
+            if (extraction) {
+              // Phase 171 (PEXT-01): persist both columns in ONE update —
+              // ai_description = overall_description so every existing
+              // consumer (share, PDF, prompt fallback) renders unchanged.
+              // `as unknown as Json`: PhotoExtraction is structurally a Json
+              // value (string/number/array/object/null fields only) but its
+              // optional `access_notes?: string | null` needs the cast to
+              // satisfy the generated column type.
+              await supabase
+                .from('photos')
+                .update({
+                  ai_extraction: extraction as unknown as Json,
+                  ai_description: extraction.overall_description,
+                })
+                .eq('id', photo.id)
+              return { photoId: photo.id, description: extraction.overall_description }
+            }
+
+            const description = await analyzePhotoOR(base64, mimeType, undefined, costContext)
             await supabase
               .from('photos')
               .update({ ai_description: description })
