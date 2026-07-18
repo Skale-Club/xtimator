@@ -47,10 +47,13 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             </div>
 
             <h1 className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]">
-              {content.heroHeadline.split(' ')[0]}
-              {/* Always break after word 1 — keeps the title 3 lines on desktop too */}
-              <br />
-              {' '}{content.heroHeadline.split(' ')[1]}
+              {/* Break after word 1 below xl; ≥1280px words 1-2 share the top row → 2-line title
+                  (nowrap because at 56px the pair sits right at the 580px box limit) */}
+              <span className="xl:whitespace-nowrap">
+                {content.heroHeadline.split(' ')[0]}
+                <br className="xl:hidden" />
+                {' '}{content.heroHeadline.split(' ')[1]}
+              </span>
               <br className="hidden sm:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
             </h1>
@@ -58,9 +61,9 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             <p
               className={
                 hasImage
-                  // xl:text-[20px] keeps the title:subheadline ratio (~2.8) harmonic on
-                  // wide desktop — the iPad media queries already tune it for tablets.
-                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base xl:text-[20px]'
+                  // xl 18px pairs with the 2-row desktop subheadline — the iPad media
+                  // queries (640-1279px) still tune tablets separately.
+                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base xl:text-[18px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
@@ -69,12 +72,18 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 const b1 = text.indexOf('pricing,')
                 const b2 = text.indexOf('you leave')
                 if (b1 === -1 || b2 === -1) return text
+                // Desktop (≥1280px) collapses to 2 rows split before "and branded";
+                // when that anchor is missing, xl falls back to natural wrap.
+                const bd = text.indexOf('and branded')
+                const mid = bd > b1 && bd < b2 ? bd : b2
                 return <>
                   {text.slice(0, b1)}
-                  {/* 3-line break shown ≥768 (tablet + desktop); 640-767 stays natural-wrap */}
-                  <br className="block sm:hidden md:block" />
-                  {text.slice(b1, b2)}
-                  <br className="block sm:hidden md:block" />
+                  {/* 3-line break shown 768-1279 (tablet); 640-767 stays natural-wrap */}
+                  <br className="block sm:hidden md:block xl:hidden" />
+                  {text.slice(b1, mid)}
+                  {mid < b2 && <br className="hidden xl:block" />}
+                  {text.slice(mid, b2)}
+                  <br className="block sm:hidden md:block xl:hidden" />
                   {text.slice(b2)}
                 </>
               })()}
