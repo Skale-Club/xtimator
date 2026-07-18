@@ -16,6 +16,7 @@ import {
   Trash2,
   FolderPlus,
   FolderOpen,
+  ListChecks,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -435,16 +436,26 @@ export function PriceBookList({
                   )}
 
                   <div className="ml-auto flex items-center gap-1">
-                    {/* Select-all for this category's VISIBLE items (quick-260718-t7d) */}
-                    {folderItems.length > 0 && (
-                      <Checkbox
-                        className="mr-1.5"
-                        checked={folderSelectionState(folderItems)}
-                        onCheckedChange={(checked) => toggleFolderSelected(folderItems, checked === true)}
-                        aria-label={`Select all in ${folderName}`}
-                        data-testid={`select-all-folder-${folderId ?? 'uncategorized'}`}
-                      />
-                    )}
+                    {/* Select-all for this category's VISIBLE items — icon button,
+                        not a checkbox (quick-260718-s8a): click selects all; when
+                        everything is already selected, click deselects. */}
+                    {folderItems.length > 0 && (() => {
+                      const selState = folderSelectionState(folderItems)
+                      return (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-6 w-6 mr-0.5 ${selState === false ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary'}`}
+                          onClick={() => toggleFolderSelected(folderItems, selState !== true)}
+                          aria-label={`Select all in ${folderName}`}
+                          aria-pressed={selState === true}
+                          title={selState === true ? t('Deselect all') : t('Select all')}
+                          data-testid={`select-all-folder-${folderId ?? 'uncategorized'}`}
+                        >
+                          <ListChecks className="h-4 w-4" />
+                        </Button>
+                      )
+                    })()}
                     {!isVirtual && !isRenaming && (
                       <>
                         <Button

@@ -270,6 +270,39 @@ describe('Bulk select and delete (quick-260718-t7d)', () => {
   })
 })
 
+// Quick-260718-s8a — the category select-all is an icon button (ListChecks), not
+// an empty checkbox: click selects all visible items, click again deselects,
+// and a partial selection completes to all.
+describe('Select-all icon button (quick-260718-s8a)', () => {
+  it('renders a button (not a checkbox role) with a Select all label', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const btn = screen.getByTestId('select-all-folder-folder-labor')
+    expect(btn.tagName).toBe('BUTTON')
+    expect(btn.getAttribute('aria-label')).toBe('Select all in Labor')
+    expect(btn.getAttribute('title')).toBe('Select all')
+  })
+
+  it('toggles: first click selects all, second click deselects all', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const btn = screen.getByTestId('select-all-folder-folder-labor')
+    fireEvent.click(btn)
+    expect(document.body.textContent).toContain('2 selected')
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+    expect(btn.getAttribute('title')).toBe('Deselect all')
+    fireEvent.click(btn)
+    expect(screen.queryByTestId('bulk-delete-btn')).toBeNull()
+  })
+
+  it('partial selection completes to all instead of deselecting', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    // Check a single row first (row checkboxes render twice: table + mobile cards)
+    fireEvent.click(screen.getAllByLabelText('Select General Labor')[0])
+    expect(document.body.textContent).toContain('1 selected')
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    expect(document.body.textContent).toContain('2 selected')
+  })
+})
+
 // Quick-260718-d2f — category trash button is dual-function: with a selection it
 // bulk-trashes the selected items; with none it deletes the category + its items.
 describe('Category trash button dual function (quick-260718-d2f)', () => {
