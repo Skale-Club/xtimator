@@ -83,6 +83,17 @@ function makeSupabaseMock(opts: { authed?: boolean } = {}) {
       if (table === 'estimate_activity') {
         return { insert: vi.fn().mockResolvedValue({ error: null }) }
       }
+      // BILL-06 (167-01): createRecording reads the company's tier for the
+      // pre-dispatch audio-minute entitlement check — default to 'free'.
+      if (table === 'companies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { tier: 'free' }, error: null }),
+            }),
+          }),
+        }
+      }
       return {}
     }),
   }

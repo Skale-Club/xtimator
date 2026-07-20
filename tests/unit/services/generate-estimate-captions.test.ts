@@ -118,15 +118,14 @@ function makeSupabaseMock() {
     }
 
     if (table === 'company_price_book') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
-      }
+      // getPriceBookItems chain: select().eq().is('deleted_at', null).order()
+      // (quick-260718-t7d added the .is soft-delete filter) → empty book
+      const pbChain: Record<string, ReturnType<typeof vi.fn>> = {}
+      pbChain.select = vi.fn(() => pbChain)
+      pbChain.eq = vi.fn(() => pbChain)
+      pbChain.is = vi.fn(() => pbChain)
+      pbChain.order = vi.fn().mockResolvedValue({ data: [], error: null })
+      return pbChain
     }
 
     if (table === 'clients') {
