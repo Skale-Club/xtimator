@@ -67,7 +67,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
     <div className="dark isolate bg-background text-foreground selection:bg-primary/30">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,hsl(var(--primary)/0.15),hsl(var(--foreground)/0))]" />
 
-      <TopNav branding={branding} onOpenAuth={openAuth} navUser={navUser} />
+      <TopNav branding={branding} onOpenAuth={openAuth} navUser={navUser} ctaLabel={content.ctaLabel} />
 
       {/* Scrollable shell — overflow lives here, not on the outer wrapper */}
       <div

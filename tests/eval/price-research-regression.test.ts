@@ -286,15 +286,13 @@ function makeSupabaseMock() {
 
     if (table === 'company_price_book') {
       // EMPTY book → the couch line stays ai_estimate after anchoring.
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
-      }
+      // Chain: select().eq().is('deleted_at', null).order() (quick-260718-t7d).
+      const pbChain: Record<string, ReturnType<typeof vi.fn>> = {}
+      pbChain.select = vi.fn(() => pbChain)
+      pbChain.eq = vi.fn(() => pbChain)
+      pbChain.is = vi.fn(() => pbChain)
+      pbChain.order = vi.fn().mockResolvedValue({ data: [], error: null })
+      return pbChain
     }
 
     if (table === 'clients') {

@@ -186,6 +186,7 @@ export async function listServices(
     .from('company_price_book')
     .select('id, name, unit, unit_price, currency_code')
     .eq('company_id', companyId)
+    .is('deleted_at', null)
     .order('name', { ascending: true })
     .limit(CAP + 1)
   const rows = (data as PriceBookRow[] | null) ?? []
@@ -210,6 +211,7 @@ export async function findServiceByName(
     .from('company_price_book')
     .select('id, name, unit, unit_price, currency_code')
     .eq('company_id', companyId)
+    .is('deleted_at', null)
     .ilike('name', `%${name}%`)
     .order('name', { ascending: true })
     .limit(5)

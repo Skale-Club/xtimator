@@ -658,6 +658,7 @@ export type Database = {
           company_id: string
           created_at: string
           currency_code: string
+          deleted_at: string | null
           folder_id: string | null
           id: string
           image_url: string | null
@@ -675,6 +676,7 @@ export type Database = {
           company_id: string
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           folder_id?: string | null
           id?: string
           image_url?: string | null
@@ -692,6 +694,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           currency_code?: string
+          deleted_at?: string | null
           folder_id?: string | null
           id?: string
           image_url?: string | null

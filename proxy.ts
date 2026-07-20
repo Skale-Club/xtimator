@@ -104,7 +104,7 @@ export async function proxy(request: NextRequest) {
   // themselves (signatures/bearer tokens) or are public probes, so the auth
   // validation was pure overhead on every webhook/inngest/cron/health hit. The
   // landing page '/' and all protected routes deliberately fall through below so
-  // the authed-'/'-→-/dashboard redirect and protected-route gating still run.
+  // the session-cookie refresh (getClaims) and protected-route gating still run.
   if (isClaimFreeApiRoute(request.nextUrl.pathname)) {
     return NextResponse.next({ request })
   }
@@ -142,17 +142,11 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Redirect authenticated users from landing page to dashboard
-  if (claims && pathname === '/') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    url.search = ''
-    const redirectResponse = NextResponse.redirect(url)
-    supabaseResponse.headers.forEach((value, key) => {
-      if (key === 'set-cookie') redirectResponse.headers.append(key, value)
-    })
-    return redirectResponse
-  }
+  // Quick-260718-w4r: authenticated GET / used to 307 to /dashboard here. It now
+  // falls through to the landing page — the marketing site must stay reachable
+  // when logged in (the landing TopNav resolves the session client-side and
+  // shows the avatar + Dashboard link). Sign-in and the OAuth callback redirect
+  // to /dashboard explicitly on their own, so nothing relied on this hop.
 
   // Protect private routes
   // Cron routes authenticate with their own CRON_SECRET Bearer token. They

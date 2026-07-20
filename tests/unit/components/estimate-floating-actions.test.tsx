@@ -105,3 +105,124 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
     expect(icon!.getAttribute('class') ?? '').toMatch(/w-3\.5/)
   })
 })
+
+// Quick-260718-m2q — the view mode toggle offers the OTHER mode: in 'width'
+// mode the button says "Full page"; in 'page' mode it says "Full width".
+describe('EstimateFloatingActions view mode toggle (quick-260718-m2q)', () => {
+  it('renders "Full page" while in width mode (offers the other mode)', () => {
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        viewMode="width"
+        onViewModeChange={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /full page/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /full width/i })).toBeNull()
+  })
+
+  it('renders "Full width" while in page mode', () => {
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        viewMode="page"
+        onViewModeChange={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /full width/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /full page/i })).toBeNull()
+  })
+
+  it('does NOT render when viewMode/onViewModeChange are omitted (backward-compat)', () => {
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /full (page|width)/i })).toBeNull()
+  })
+
+  it('clicking the toggle calls onViewModeChange with the OTHER mode', () => {
+    const onViewModeChange = vi.fn()
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        viewMode="width"
+        onViewModeChange={onViewModeChange}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /full page/i }))
+    expect(onViewModeChange).toHaveBeenCalledTimes(1)
+    expect(onViewModeChange).toHaveBeenCalledWith('page')
+  })
+
+  it('gear stays LEFTMOST — toggle sits between gear and linkClientSlot', () => {
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        onOpenSettings={vi.fn()}
+        viewMode="width"
+        onViewModeChange={vi.fn()}
+        linkClientSlot={<span data-testid="lcs">slot</span>}
+      />,
+    )
+    const gear = screen.getByRole('button', { name: /^settings$/i })
+    const toggle = screen.getByRole('button', { name: /full page/i })
+    const slot = screen.getByTestId('lcs')
+    expect(gear.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(toggle.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+// Quick-260718-w4k — collapsible pill: a chevron after Send collapses the
+// pill to a single "Show actions" button; clicking that restores everything.
+describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
+  function renderFull() {
+    return render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        onOpenPhotos={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    )
+  }
+
+  it('renders expanded by default with a "Hide actions" chevron AFTER Send', () => {
+    renderFull()
+    const send = screen.getByRole('button', { name: /^send$/i })
+    const hide = screen.getByRole('button', { name: /^hide actions$/i })
+    expect(send.compareDocumentPosition(hide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeNull()
+  })
+
+  it('clicking "Hide actions" collapses the pill to a single "Show actions" button', () => {
+    renderFull()
+    fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
+    expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /photos/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^settings$/i })).toBeNull()
+  })
+
+  it('clicking "Show actions" restores all action buttons', () => {
+    renderFull()
+    fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^show actions$/i }))
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /photos/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^settings$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^hide actions$/i })).toBeTruthy()
+  })
+})

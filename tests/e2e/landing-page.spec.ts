@@ -38,13 +38,13 @@ test.describe('landing page', () => {
     await expect(page).toHaveURL('/')
   })
 
-  test('authenticated root redirect', async ({ page }) => {
+  test('authenticated root stays on landing', async ({ page }) => {
     const adminEmail = process.env.TEST_ADMIN_EMAIL
     const adminPassword = process.env.TEST_ADMIN_PASSWORD
 
     test.skip(
       !adminEmail || !adminPassword,
-      'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run authenticated root redirect test'
+      'Set TEST_ADMIN_EMAIL + TEST_ADMIN_PASSWORD to run authenticated root test'
     )
 
     await page.goto('/?auth=login')
@@ -56,8 +56,11 @@ test.describe('landing page', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click()
     await page.waitForURL(/\/(dashboard|admin)/, { timeout: 10000 })
 
+    // Quick-260718-w4r: the proxy no longer 307s an authed GET / to /dashboard
+    // — the marketing page must stay reachable while logged in.
     await page.goto('/')
-    await expect(page).toHaveURL('/dashboard')
+    await expect(page).toHaveURL('/')
+    await expect(page.getByTestId('landing-shell')).toBeVisible()
   })
 })
 

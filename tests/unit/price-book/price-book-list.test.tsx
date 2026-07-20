@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 
 const mockRefresh = vi.fn()
@@ -22,15 +22,19 @@ vi.mock('sonner', () => ({
 }))
 
 const mockDelete = vi.fn().mockResolvedValue({ data: { deleted: true } })
+const mockTrash = vi.fn().mockResolvedValue({ data: { trashed: 2 } })
+const mockDeleteFolderWithItems = vi.fn().mockResolvedValue({ data: { deleted: true } })
 
 vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   updatePriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   deletePriceBookItem: (...args: any[]) => mockDelete(...args),
+  trashPriceBookItems: (...args: any[]) => mockTrash(...args),
   bulkAdjustPriceBookFolder: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
   createFolder: vi.fn().mockResolvedValue({ data: {} }),
   updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
   deleteFolder: vi.fn().mockResolvedValue({ data: { deleted: true } }),
+  deleteFolderWithItems: (...args: any[]) => mockDeleteFolderWithItems(...args),
 }))
 
 vi.mock('@/components/price-book/price-book-item-dialog', () => ({
@@ -212,6 +216,136 @@ describe('PriceBookList', () => {
     render(<PriceBookList items={[]} folders={[]} companyId="c1" />)
     expect(screen.getByRole('button', { name: /Add first item/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /Import CSV/i })).toBeDefined()
+  })
+})
+
+// Quick-260718-t7d — bulk select-all + move-to-Trash from the category header.
+describe('Bulk select and delete (quick-260718-t7d)', () => {
+  beforeEach(() => {
+    mockTrash.mockClear()
+    mockRefresh.mockClear()
+  })
+
+  it('category header renders a select-all checkbox per section', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.getByTestId('select-all-folder-folder-labor')).toBeDefined()
+    expect(screen.getByTestId('select-all-folder-uncategorized')).toBeDefined()
+  })
+
+  it('select-all checks the category items and shows the bulk bar with the count', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    // Labor has 2 items → "2 selected" + Delete button appear
+    expect(document.body.textContent).toContain('2 selected')
+    expect(screen.getByTestId('bulk-delete-btn')).toBeDefined()
+  })
+
+  it('bulk bar is hidden when nothing is selected', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.queryByTestId('bulk-delete-btn')).toBeNull()
+  })
+
+  it('confirming bulk delete calls trashPriceBookItems with the selected ids', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    fireEvent.click(screen.getByTestId('bulk-delete-btn'))
+
+    // Confirm dialog opens
+    expect(screen.getByText('Delete selected items')).toBeDefined()
+    const dialog = screen.getByRole('alertdialog')
+    const confirmBtn = within(dialog).getByRole('button', { name: /^Delete$/ })
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => expect(mockTrash).toHaveBeenCalledTimes(1))
+    expect(mockTrash).toHaveBeenCalledWith(expect.arrayContaining(['1', '2']))
+    expect((mockTrash.mock.calls[0][0] as string[]).length).toBe(2)
+  })
+
+  it('search-filtered select-all only selects VISIBLE items of the category', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const searchInput = screen.getByPlaceholderText('Search items...')
+    fireEvent.change(searchInput, { target: { value: 'Supervisor' } })
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    expect(document.body.textContent).toContain('1 selected')
+  })
+})
+
+// Quick-260718-s8a — the category select-all is an icon button (ListChecks), not
+// an empty checkbox: click selects all visible items, click again deselects,
+// and a partial selection completes to all.
+describe('Select-all icon button (quick-260718-s8a)', () => {
+  it('renders a button (not a checkbox role) with a Select all label', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const btn = screen.getByTestId('select-all-folder-folder-labor')
+    expect(btn.tagName).toBe('BUTTON')
+    expect(btn.getAttribute('aria-label')).toBe('Select all in Labor')
+    expect(btn.getAttribute('title')).toBe('Select all')
+  })
+
+  it('toggles: first click selects all, second click deselects all', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    const btn = screen.getByTestId('select-all-folder-folder-labor')
+    fireEvent.click(btn)
+    expect(document.body.textContent).toContain('2 selected')
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+    expect(btn.getAttribute('title')).toBe('Deselect all')
+    fireEvent.click(btn)
+    expect(screen.queryByTestId('bulk-delete-btn')).toBeNull()
+  })
+
+  it('partial selection completes to all instead of deselecting', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    // Check a single row first (row checkboxes render twice: table + mobile cards)
+    fireEvent.click(screen.getAllByLabelText('Select General Labor')[0])
+    expect(document.body.textContent).toContain('1 selected')
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    expect(document.body.textContent).toContain('2 selected')
+  })
+})
+
+// Quick-260718-d2f — category trash button is dual-function: with a selection it
+// bulk-trashes the selected items; with none it deletes the category + its items.
+describe('Category trash button dual function (quick-260718-d2f)', () => {
+  beforeEach(() => {
+    mockTrash.mockClear()
+    mockDeleteFolderWithItems.mockClear()
+    mockRefresh.mockClear()
+  })
+
+  it('with a selection, opens the bulk-delete dialog and trashes the selected ids', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    expect(screen.getByText('Delete selected items')).toBeDefined()
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Delete$/ }))
+
+    await waitFor(() => expect(mockTrash).toHaveBeenCalledTimes(1))
+    expect(mockTrash).toHaveBeenCalledWith(expect.arrayContaining(['1', '2']))
+    expect(mockDeleteFolderWithItems).not.toHaveBeenCalled()
+  })
+
+  it('with no selection, opens the Delete Category dialog showing the item count', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('heading', { name: 'Delete Category' })).toBeDefined()
+    // Labor has 2 (unfiltered) items — copy announces they move to Trash
+    expect(dialog.textContent).toContain('2')
+    expect(dialog.textContent).toContain('to Trash')
+  })
+
+  it('confirming the Delete Category dialog calls deleteFolderWithItems with the folder id', async () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
+
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete Category/ }))
+
+    await waitFor(() => expect(mockDeleteFolderWithItems).toHaveBeenCalledWith('folder-labor'))
+    expect(mockTrash).not.toHaveBeenCalled()
   })
 })
 

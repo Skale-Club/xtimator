@@ -47,10 +47,16 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             </div>
 
             <h1 className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]">
-              {content.heroHeadline.split(' ')[0]}
-              {/* Always break after word 1 — keeps the title 3 lines on desktop too */}
-              <br />
-              {' '}{content.heroHeadline.split(' ')[1]}
+              {/* Break after word 1 below lg; ≥1024px words 1-2 share the top row → 2-line title
+                  (nowrap because at 56px the pair sits right at the 580px box limit).
+                  Quick-260718-h9x: gate moved xl→lg — desktop windows under 1280px CSS
+                  (common with Windows display scaling) must get the 2-row title too;
+                  the 3-row layout is reserved for real tablets + sub-lg widths. */}
+              <span className="lg:whitespace-nowrap">
+                {content.heroHeadline.split(' ')[0]}
+                <br className="lg:hidden" />
+                {' '}{content.heroHeadline.split(' ')[1]}
+              </span>
               <br className="hidden sm:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
             </h1>
@@ -58,9 +64,10 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             <p
               className={
                 hasImage
-                  // xl:text-[20px] keeps the title:subheadline ratio (~2.8) harmonic on
-                  // wide desktop — the iPad media queries already tune it for tablets.
-                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-base xl:text-[20px]'
+                  // lg 18px pairs with the 2-row desktop subheadline on EVERY desktop
+                  // width (≥1024) — the coarse-gated iPad media queries still force
+                  // their own sizes on real tablets by selector specificity.
+                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-[18px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
@@ -69,12 +76,19 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 const b1 = text.indexOf('pricing,')
                 const b2 = text.indexOf('you leave')
                 if (b1 === -1 || b2 === -1) return text
+                // Desktop (≥1024px) collapses to 2 rows split before "and branded";
+                // when that anchor is missing, lg falls back to natural wrap.
+                // Quick-260718-h9x: gates moved xl→lg (see h1 comment above).
+                const bd = text.indexOf('and branded')
+                const mid = bd > b1 && bd < b2 ? bd : b2
                 return <>
                   {text.slice(0, b1)}
-                  {/* 3-line break shown ≥768 (tablet + desktop); 640-767 stays natural-wrap */}
-                  <br className="block sm:hidden md:block" />
-                  {text.slice(b1, b2)}
-                  <br className="block sm:hidden md:block" />
+                  {/* 3-line break shown 768-1023 (tablet); 640-767 stays natural-wrap */}
+                  <br className="block sm:hidden md:block lg:hidden" />
+                  {text.slice(b1, mid)}
+                  {mid < b2 && <br className="hidden lg:block" />}
+                  {text.slice(mid, b2)}
+                  <br className="block sm:hidden md:block lg:hidden" />
                   {text.slice(b2)}
                 </>
               })()}
@@ -83,21 +97,23 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             <div
               className={
                 hasImage
-                  ? 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3'
-                  : 'flex flex-col gap-2 min-[1280px]:flex-row min-[1280px]:gap-3 min-[1280px]:justify-center'
+                  ? 'flex flex-col gap-2 lg:flex-row lg:gap-3'
+                  : 'flex flex-col gap-2 lg:flex-row lg:gap-3 lg:justify-center'
               }
             >
-              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-[1279px]:self-start min-[1280px]:self-auto min-[1280px]:flex-none">
-                <Button variant="primary" size="default" className="min-w-40" onClick={() => onOpenAuth?.('signup')}>
+              <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-lg:self-start lg:self-auto lg:flex-none">
+                {/* lg: bumps both CTAs 15% over size=default (40px/14px) on every desktop
+                    width; real tablets keep their media-query !important heights */}
+                <Button variant="primary" size="default" className="min-w-40 lg:h-[46px] lg:min-w-[184px] lg:px-[18px] lg:text-base" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
-                  <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
+                  <ArrowRight className="ml-1.5 size-4 lg:size-[18px]" aria-hidden="true" />
                 </Button>
               </div>
               <Button
                 asChild
                 size="default"
                 variant="outline"
-                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4"
+                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4 lg:h-[46px] lg:min-w-[166px] lg:px-[18px] lg:text-base"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
@@ -105,8 +121,11 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
           </div>
 
           {/* Right: image */}
+          {/* Quick-260718-h9x: lg right offset is +12px INSIDE the container (was -2.5rem
+              overhang) — at full-bleed lg widths the container edge IS the viewport edge,
+              so the old negative offset cropped the image flush against the screen. */}
           {hasImage && (
-            <div className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-[-2.5rem] lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
+            <div className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
               <Image
                 src={content.heroImageUrl!}
                 alt=""

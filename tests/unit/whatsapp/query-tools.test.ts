@@ -35,6 +35,8 @@ function makeSupabaseMock(resultRows: Record<string, unknown[]>) {
     })
     chain.ilike = vi.fn(() => chain)
     chain.in = vi.fn(() => chain)
+    // Quick-260718-t7d: price-book reads now chain .is('deleted_at', null)
+    chain.is = vi.fn(() => chain)
     chain.order = vi.fn(() => chain)
     chain.limit = vi.fn(() => Promise.resolve(resolved))
     chain.maybeSingle = vi.fn(() => Promise.resolve({ data: rows[0] ?? null, error: null }))
