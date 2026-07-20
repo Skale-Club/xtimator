@@ -44,6 +44,29 @@ Conventions not yet established. Will populate as patterns emerge during develop
 ## Architecture
 
 Architecture not yet mapped. Follow existing patterns found in the codebase.
+
+### Deployment (production)
+
+Production deploy is **GitHub Actions → Docker/GHCR → Coolify** (self-hosted at
+`coolify.skale.club`) — **not Vercel**, despite a `.vercel/project.json` present
+in the repo root (that file is a stale/unused artifact — the connected Vercel
+account has no `xtimator` project under it; do not assume Vercel controls
+production).
+
+Pipeline (`.github/workflows/build-deploy.yml`), triggered by `workflow_run`
+after `test.yml`'s `Test` workflow completes on `main`:
+1. `Test` workflow (typecheck + `vitest run tests/unit tests/eval`) must pass
+   on `main` — `build-deploy.yml` only runs `if: workflow_run.conclusion == 'success'`.
+2. Builds the Next.js app into a Docker image, pushes to `ghcr.io/skale-club/xtimator`.
+3. Calls the Coolify API to pull the new image (rolling/zero-downtime update,
+   app UUID `cf1cqh0bq8jyw91e78tcw8c6`).
+4. Polls `https://xtimator.com/api/health` for the new commit SHA, then PUTs
+   `/api/inngest` to force Inngest Cloud to re-sync serve endpoints (a missed
+   sync here silently stops every event-triggered Inngest job — see
+   `.planning/debug/whatsapp-inbound-no-reply-recurrence.md`).
+
+To check deploy status: `gh run list`/`gh run watch` for the `Test` and
+`Build and Deploy` workflow runs on `main`, not any Vercel API/dashboard.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
