@@ -2857,7 +2857,16 @@ Plans:
   3. Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`
   4. Every end-customer send passes the Phase 176 consent/suppression + quiet-hours gate before dispatch — a suppressed or out-of-hours recipient is never messaged
 
-**Plans**: TBD
+**Plans**: 7 plans in `.planning/phases/177-end-customer-send-path/` (3 waves)
+Plans:
+
+- [ ] 177-01-PLAN.md — TDD: symbol-harden SendPermit (mandatory hardening) + widen assertSendAllowed() for the email channel (CUST-01, CUST-02)
+- [ ] 177-02-PLAN.md — customer_messages audit table migration + hand-maintained types + logCustomerMessage() writer (CUST-05)
+- [ ] 177-03-PLAN.md — TDD: dedicated Twilio Messaging Service config + sendCustomerSms() primitive + admin panel field (CUST-02)
+- [ ] 177-04-PLAN.md — TDD: customerEmailFrom() honest friendly-from + sendCustomerEmail() primitive (CUST-01)
+- [ ] 177-05-PLAN.md — TDD: customer-scoped copy fallback + DB-first template resolver, parallel to the tenant resolver (CUST-01, CUST-02)
+- [ ] 177-06-PLAN.md — TDD: sendCustomerMessage() neutral orchestrator wiring gate + primitives + resolver + audit log (CUST-01, CUST-02, CUST-05)
+- [ ] 177-07-PLAN.md — legacy send-sms route migration onto the gate + dedicated Messaging Service (mandatory carry-forward) (CUST-02, CUST-05)
 **Operational gate**: **Provision the dedicated Twilio Messaging Service** for end-customer SMS in the Twilio Console (separate from the shared owner-notification number) and configure it via the admin panel (`platform_integrations`, never env) with Advanced Opt-Out enabled — a non-code task that gates CUST-02 shipping to real tenants.
 **Pitfalls addressed**: #6 (shared Twilio number reputation blast-radius across 6 apps — a dedicated `from`/Messaging Service for this new traffic class; explicit owner/operator sign-off on A2P scope before shipping), #4 (the shared HTML-escaping renderer also covers the least-reversible customer-facing email channel)
 **Research flag**: **needs deeper research during planning** — confirm Twilio Advanced Opt-Out's exact dependency on a Messaging Service and re-verify Toll-Free/A2P pricing-timeline against the live Twilio Console before committing
@@ -2886,5 +2895,5 @@ Plans:
 | 174. Tenant Notification Cutover & WhatsApp Re-enable | 0/? | Not started | - |
 | 175. Telegram Platform-Event Catalog & Per-Event Toggles | 0/? | Not started | - |
 | 176. End-Customer Consent, Opt-Out & Quiet Hours | 0/? | Not started | - |
-| 177. End-Customer Email/SMS Send Path & Audit Log | 0/? | Not started | - |
+| 177. End-Customer Email/SMS Send Path & Audit Log | 0/7 | Not started | - |
 | 178. Agentic Send | 0/? | Not started | - |
