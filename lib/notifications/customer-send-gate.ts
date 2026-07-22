@@ -5,23 +5,30 @@ import { isWithinQuietHours } from '@/lib/notifications/quiet-hours'
 
 /**
  * Phase 176 Plan 04 (CUST-03 + CUST-04) — the ONE pre-send gate every
- * end-customer SMS dispatch must call before hitting the send primitive.
- * Phase 177's sendSms()/sendEmail() wrapper and Phase 178's agentic
- * sendCustomerMessage() both call assertSendAllowed() and require its
- * success output (a SendPermit) as a typed argument to the actual send
- * call — so bypassing the gate becomes a TypeScript compile error, not
- * just a code-review convention.
+ * end-customer dispatch must call before hitting the send primitive.
+ * Phase 177's sendCustomerEmail()/sendCustomerSms() and Phase 178's
+ * agentic sendCustomerMessage() all call assertSendAllowed() and require
+ * its success output (a SendPermit) as a typed argument to the actual
+ * send call — so bypassing the gate becomes a TypeScript compile error,
+ * not just a code-review convention.
  *
  * Composition order (LOAD-BEARING — do not reorder):
  *   1. clients row fetch, scoped by BOTH id AND company_id (explicit
  *      tenant-scope filter — this gate runs via service role, which
  *      bypasses RLS, so the company_id check must be in the query itself).
  *   2. Suppression (sms_opted_out_at) — cheapest, most legally decisive,
- *      checked first and unconditionally. A suppressed client is blocked
- *      no matter what consent/quiet-hours would otherwise say.
- *   3. Consent (isConsentSendable) — checked before the timezone/quiet-
- *      hours work so a non-consented client never pays that cost.
- *   4. Quiet hours — time-dependent, ordered LAST (a retry a few hours
+ *      checked first and unconditionally, for BOTH channels. A suppressed
+ *      client is blocked no matter what consent/quiet-hours would
+ *      otherwise say.
+ *   3. channel === 'email' -> allowed immediately after suppression
+ *      clears. Consent (isConsentSendable) and quiet-hours are SMS-only
+ *      checks (see the channel branch below for the legal rationale) and
+ *      are skipped entirely for email — no companies fetch, no timezone
+ *      resolution.
+ *   4. channel === 'sms' -> the pre-existing chain, unchanged:
+ *      Consent (isConsentSendable) — checked before the timezone/quiet-
+ *      hours work so a non-consented client never pays that cost — then
+ *      Quiet hours — time-dependent, ordered LAST (a retry a few hours
  *      later could pass; no point resolving a timezone for a client
  *      already blocked by suppression/consent).
  *   5. All clear -> SendPermit.
@@ -32,17 +39,36 @@ import { isWithinQuietHours } from '@/lib/notifications/quiet-hours'
  * closed.
  */
 
+// Module-private brand key. NOT exported. TypeScript's structural typing
+// means an external module can only produce a value with this exact
+// property if it can reference this exact symbol — and it cannot, because
+// the symbol itself is never exported. This is what makes "cannot be
+// constructed outside this module" a real compile-time guarantee instead
+// of a comment on a forgeable string-literal shape.
+const SEND_PERMIT_TAG: unique symbol = Symbol('SendPermit')
+
+export type SendChannel = 'sms' | 'email'
+
 // Branded/opaque — cannot be constructed outside this module (no exported
 // constructor other than assertSendAllowed itself). Phase 177's
-// sendCustomerMessage() and Phase 178's agentic send path type their
-// recipient parameter as SendPermit, not a bare clientId — calling the
-// send primitive without first calling assertSendAllowed() becomes a
-// TypeScript compile error.
+// sendCustomerEmail()/sendCustomerSms() and Phase 178's agentic send path
+// type their recipient parameter as SendPermit, not a bare clientId —
+// calling the send primitive without first calling assertSendAllowed()
+// becomes a TypeScript compile error.
 export type SendPermit = {
-  readonly __brand: 'SendPermit'
+  readonly [SEND_PERMIT_TAG]: true
   clientId: string
-  channel: 'sms' | 'email'
+  channel: SendChannel
   grantedAt: string
+}
+
+function makePermit(clientId: string, channel: SendChannel): SendPermit {
+  return {
+    [SEND_PERMIT_TAG]: true,
+    clientId,
+    channel,
+    grantedAt: new Date().toISOString(),
+  }
 }
 
 export interface SendGateResult {
@@ -95,9 +121,7 @@ interface CompanyGateRow {
 export async function assertSendAllowed(
   companyId: string,
   clientId: string,
-  // Widen to 'email' later if email ever needs quiet-hours/consent gating
-  // — not this phase.
-  channel: 'sms',
+  channel: SendChannel,
 ): Promise<SendGateResult> {
   try {
     const svc = requireServiceClient()
@@ -122,19 +146,35 @@ export async function assertSendAllowed(
     }
     const clientRow = client as unknown as ClientGateRow
 
-    // 1. Suppression — cheapest, most legally decisive, checked first.
+    // 1. Suppression — cheapest, most legally decisive, checked first,
+    // for BOTH channels. An opt-out is treated as a full contact opt-out
+    // until a separate email-suppression signal exists (forward note: the
+    // `clients.sms_*` columns are SMS-specific by name and schema intent
+    // per the 176 migration header — a dedicated email-suppression column
+    // should replace this read once email delivery events warrant one).
     if (clientRow.sms_opted_out_at) {
       return { allowed: false, reason: 'suppressed' }
     }
 
-    // 2. Consent — the wired isConsentSendable() branch, not a hardcoded
-    // `!== 'granted'` comparison.
+    // 2. Email branch: allowed immediately once suppression clears. The
+    // SMS-specific consent check and quiet-hours resolution are
+    // deliberately skipped — CAN-SPAM does not require prior opt-in for
+    // transactional email, and there is no TCPA-style quiet-hours rule
+    // for email. This is a documented interpretation, not a silent
+    // assumption. Do NOT fetch `companies` here — that fetch exists only
+    // to resolve a timezone for the SMS quiet-hours check below.
+    if (channel === 'email') {
+      return { allowed: true, permit: makePermit(clientId, channel) }
+    }
+
+    // 3. Consent (SMS only) — the wired isConsentSendable() branch, not a
+    // hardcoded `!== 'granted'` comparison.
     if (!isConsentSendable(clientRow.sms_consent_status)) {
       return { allowed: false, reason: 'no_consent' }
     }
 
-    // 3. Quiet hours — time-dependent, ordered last. Only reached once
-    // suppression/consent have both cleared.
+    // 4. Quiet hours (SMS only) — time-dependent, ordered last. Only
+    // reached once suppression/consent have both cleared.
     const { data: company, error: companyError } = await svc
       .from('companies')
       .select('state')
@@ -166,16 +206,8 @@ export async function assertSendAllowed(
       return { allowed: false, reason: 'quiet_hours' }
     }
 
-    // 4. All clear.
-    return {
-      allowed: true,
-      permit: {
-        __brand: 'SendPermit',
-        clientId,
-        channel,
-        grantedAt: new Date().toISOString(),
-      },
-    }
+    // 5. All clear.
+    return { allowed: true, permit: makePermit(clientId, channel) }
   } catch (e) {
     console.warn(
       '[notifications.customer-send-gate] unexpected:',

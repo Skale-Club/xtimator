@@ -63,7 +63,11 @@ export async function resolveNotificationCopy(
     if (!renderedBody) return buildNotificationCopy(eventType, ctx)
 
     const label = channel === 'email' ? row.subject : row.title
-    const renderedTitle = label ? renderTemplate(label, vars, mode).trim() : ''
+    // Title/subject is NEVER an HTML-rendering context (email subject header, in-app
+    // title, sms label) — always render in 'text' mode regardless of channel. Phase 174
+    // (TNT-01, plan-checker FLAG 3): an email subject rendered in 'html' mode would
+    // surface a literal HTML entity (e.g. &amp;) in a recipient's plain-text subject line.
+    const renderedTitle = label ? renderTemplate(label, vars, 'text').trim() : ''
 
     return {
       title: renderedTitle || buildNotificationCopy(eventType, ctx).title,

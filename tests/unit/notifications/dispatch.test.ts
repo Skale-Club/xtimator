@@ -529,4 +529,158 @@ describe('lib/notifications/dispatch — copyContext seam (TMPL-06)', () => {
     expect(insertCall).toMatchObject({ title: 'Caller title', body: 'Caller body' })
     warn.mockRestore()
   })
+
+  it('WITH a SPARSE copyContext: buildFullCopyContext enriches ctx with copy.ts defaults BEFORE resolution (carry-forward a, now load-bearing)', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_sparse' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => ({ title: 'x', body: 'y' }),
+    )
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Caller title',
+      body: 'Caller body',
+      // Sparse: amountUSD/projectName intentionally omitted/undefined.
+      copyContext: { amountUSD: undefined, projectName: undefined },
+    })
+
+    expect(resolveNotificationCopy).toHaveBeenCalledTimes(1)
+    const call = (resolveNotificationCopy as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(call?.[2]).toBe('in_app')
+    // The ctx actually received has copy.ts's defaults filled in — NOT undefined.
+    expect(call?.[3]).toMatchObject({ amountUSD: 'A payment', projectName: 'a project' })
+  })
+
+  it('WITH copyContext + channels.email:true + userId: resolves a SECOND (email-channel) copy and stashes metadata.email_copy', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_email' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_scope: string, _eventType: string, channel: string) => ({
+        title: channel === 'email' ? 'Email subject' : 'In-app title',
+        body: channel === 'email' ? 'Email body html' : 'In-app body',
+      }),
+    )
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext: { clientName: 'Acme Co' },
+      channels: { inApp: true, email: true },
+    })
+
+    const calls = (resolveNotificationCopy as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls.some((c) => c[2] === 'email')).toBe(true)
+    expect(calls).toHaveLength(2) // in_app + email
+    const insertCall = (svc.__from.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(insertCall.metadata).toMatchObject({
+      email_copy: { subject: 'Email subject', body: 'Email body html' },
+    })
+  })
+
+  it('WITH copyContext but channels.email:false: resolveNotificationCopy is NEVER called with "email", no metadata.email_copy key', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_noemail' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockResolvedValue({
+      title: 'In-app title',
+      body: 'In-app body',
+    })
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext: { clientName: 'Acme Co' },
+      channels: { inApp: true, email: false },
+    })
+
+    const calls = (resolveNotificationCopy as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls.some((c) => c[2] === 'email')).toBe(false)
+    const insertCall = (svc.__from.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(insertCall.metadata).not.toHaveProperty('email_copy')
+  })
+
+  it('WITH copyContext + channels.sms:true + resolvable phone: resolves a DISTINCT sms-channel copy for the sms body', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_sms' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_scope: string, _eventType: string, channel: string) => ({
+        title: channel === 'sms' ? 'SMS title' : 'Other title',
+        body: channel === 'sms' ? 'SMS body' : 'Other body',
+      }),
+    )
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext: { amountUSD: '$100', projectName: 'Kitchen remodel' },
+      channels: { inApp: true, sms: true },
+    })
+
+    const calls = (resolveNotificationCopy as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls.some((c) => c[2] === 'sms')).toBe(true)
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const smsCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('sms'),
+    )
+    expect(smsCall).toBeDefined()
+    const data = (smsCall?.[0] as { data?: Record<string, unknown> })?.data
+    expect(data?.body).toBe('SMS title: SMS body')
+  })
+
+  it('WITH copyContext + channels.sms:true, sms-channel resolver REJECTS: falls back to today\'s exact `${resolvedTitle}: ${resolvedBody}` format', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_sms_fallback' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_scope: string, _eventType: string, channel: string) => {
+        if (channel === 'sms') throw new Error('sms resolver exploded')
+        return { title: 'In-app resolved title', body: 'In-app resolved body' }
+      },
+    )
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext: { amountUSD: '$100', projectName: 'Kitchen remodel' },
+      channels: { inApp: true, sms: true },
+    })
+
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const smsCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('sms'),
+    )
+    expect(smsCall).toBeDefined()
+    const data = (smsCall?.[0] as { data?: Record<string, unknown> })?.data
+    expect(data?.body).toBe('In-app resolved title: In-app resolved body')
+  })
 })

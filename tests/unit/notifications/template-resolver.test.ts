@@ -170,6 +170,33 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
     expect(copy.body).not.toContain('&amp;')
   })
 
+  it('Phase 174 (TNT-01 / FLAG 3): email-channel SUBJECT renders in TEXT mode (never HTML-escaped), while BODY stays html-escaped', async () => {
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplateClient({
+        data: {
+          title: null,
+          subject: '{{clientName}} & co',
+          body: '{{clientName}} viewed it',
+        },
+        error: null,
+      }),
+    )
+
+    // The interpolated VALUE (not the literal template text) is what a mode
+    // escapes/doesn't escape — put the ampersand in ctx so html vs. text
+    // divergence is actually observable.
+    const ctx: CopyContext = { clientName: 'Acme & Co' }
+    const copy = await resolveNotificationCopy('tenant', 'estimate.viewed', 'email', ctx)
+
+    // Subject/title is TEXT mode — the interpolated value is never HTML-escaped.
+    expect(copy.title).toBe('Acme & Co & co')
+    expect(copy.title).not.toContain('&amp;')
+    // Body's mode stays channel-driven (html for the email channel) — unchanged.
+    expect(copy.body).toBe('Acme &amp; Co viewed it')
+  })
+
   it('seed byte-equivalence (TMPL-01): renderTemplate(seed.body) matches buildNotificationCopy(...).body for every EventType', () => {
     const fixtures: Record<EventType, CopyContext> = {
       'estimate.viewed': { clientName: 'Acme Co', estimateNumber: 'EST-001' },

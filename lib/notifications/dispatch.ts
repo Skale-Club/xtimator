@@ -7,6 +7,7 @@ import { resolveOwnerPhone } from './owner-phone'
 import { getApprovedTemplateForEvent } from './whatsapp-registry'
 import type { CopyContext } from './copy'
 import { resolveNotificationCopy } from './template-resolver'
+import { buildFullCopyContext } from './copy-context'
 
 /**
  * Phase 77 (NOTIF-03) — Single fan-out entry point for the notifications system.
@@ -95,13 +96,20 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
     // trigger in practice (Research Pitfall 4).
     let resolvedTitle = params.title
     let resolvedBody = params.body
-    if (params.copyContext) {
+    // Phase 174 (TNT-01) — enrich a caller-supplied (possibly sparse) copyContext
+    // with the SAME defaults `copy.ts`'s `buildNotificationCopy` uses, ONCE, before
+    // any resolution call. Closes the sparse-ctx-renders-blank regression risk
+    // (172-03-SUMMARY.md carry-forward a) now that this seam is load-bearing.
+    const fullCopyContext = params.copyContext
+      ? buildFullCopyContext(params.eventType, params.copyContext)
+      : undefined
+    if (fullCopyContext) {
       try {
         const copy = await resolveNotificationCopy(
           'tenant',
           params.eventType,
           'in_app',
-          params.copyContext,
+          fullCopyContext,
         )
         resolvedTitle = copy.title
         resolvedBody = copy.body
@@ -146,6 +154,33 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
     let notificationId: string | undefined
 
     if (channels.inApp) {
+      // Phase 174 (TNT-01) — a DISTINCT email-channel copy resolution, stashed
+      // as metadata.email_copy for Plan 174-02's already-shipped digest consumer
+      // (EmailCopyMetadata contract: subject plain-text, body pre-escaped html).
+      // Scoped inside this block because the notifications row insert (which
+      // carries the metadata) only happens here — a pre-existing coupling this
+      // plan does not restructure.
+      let emailCopy: { subject: string; body: string } | null = null
+      if (fullCopyContext && channels.email && params.userId) {
+        try {
+          // .title is TEXT-mode (subject) after the template-resolver FLAG-3
+          // fix; .body is HTML-mode.
+          const resolved = await resolveNotificationCopy(
+            'tenant',
+            params.eventType,
+            'email',
+            fullCopyContext,
+          )
+          emailCopy = { subject: resolved.title, body: resolved.body }
+        } catch (e) {
+          console.warn(
+            '[notifications.dispatch] email copy resolution failed, metadata.email_copy omitted:',
+            e instanceof Error ? e.message : String(e),
+          )
+          // emailCopy stays null — Plan 174-02's digest consumer falls back per its own contract.
+        }
+      }
+
       const { data, error } = await svc
         .from('notifications')
         .insert({
@@ -157,7 +192,10 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
           link_url: params.linkUrl ?? null,
           resource_type: params.resourceType ?? null,
           resource_id: params.resourceId ?? null,
-          metadata: params.metadata ?? {},
+          metadata: {
+            ...(params.metadata ?? {}),
+            ...(emailCopy ? { email_copy: emailCopy } : {}),
+          },
           pinned: params.pinned ?? false,
           expires_at: params.expiresAt
             ? params.expiresAt.toISOString()
@@ -253,6 +291,23 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
 
         if (channels.sms) {
           try {
+            // Phase 174 (TNT-01) — a DISTINCT sms-channel copy resolution
+            // (text mode); falls back to today's exact `${title}: ${body}`
+            // format on any miss/error/omitted copyContext.
+            let smsBody = `${resolvedTitle}: ${resolvedBody}`
+            if (fullCopyContext) {
+              try {
+                const smsCopy = await resolveNotificationCopy(
+                  'tenant',
+                  params.eventType,
+                  'sms',
+                  fullCopyContext,
+                )
+                smsBody = `${smsCopy.title}: ${smsCopy.body}`
+              } catch (e) {
+                // keep the default smsBody — defense-in-depth, never throws.
+              }
+            }
             await inngest.send({
               name: 'notification/sms.send',
               data: {
@@ -261,7 +316,7 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
                 userId: params.userId,
                 companyId: params.companyId,
                 eventType: params.eventType,
-                body: `${resolvedTitle}: ${resolvedBody}`,
+                body: smsBody,
               },
             })
           } catch (e) {

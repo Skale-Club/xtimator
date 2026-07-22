@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 
 /**
  * Phase 176 Plan 04 (CUST-03 + CUST-04) — assertSendAllowed() is the ONE
@@ -203,10 +204,13 @@ describe('lib/notifications/customer-send-gate — assertSendAllowed() (composit
     expect(result.allowed).toBe(true)
     expect(result.permit).toBeDefined()
     expect(result.permit).toMatchObject({
-      __brand: 'SendPermit',
       clientId: 'client-99',
       channel: 'sms',
     })
+    // The brand is a private symbol key, not the old forgeable string
+    // literal — the permit must carry exactly one symbol-keyed own
+    // property (the tag) and nothing else observable via symbols.
+    expect(Object.getOwnPropertySymbols(result.permit!)).toHaveLength(1)
     expect(new Date(result.permit!.grantedAt).toString()).not.toBe('Invalid Date')
   })
 
@@ -246,5 +250,116 @@ describe('lib/notifications/customer-send-gate — assertSendAllowed() (composit
     ]
     expect(eqCalls).toContainEqual(['id', 'the-client-id'])
     expect(eqCalls).toContainEqual(['company_id', 'tenant-company-id'])
+  })
+})
+
+describe('lib/notifications/customer-send-gate — SendPermit hardening (source-text proof)', () => {
+  /**
+   * SendPermit's brand key is a module-private `unique symbol`
+   * (SEND_PERMIT_TAG) and its only producer (makePermit) is never
+   * exported. Neither of these facts is runtime-observable from outside
+   * the module — TypeScript structural typing and JS module encapsulation
+   * are both compile-time/load-time properties. Mirrors the source-text
+   * assertion convention in tests/unit/api/send-sms-format-fallback.test.ts
+   * for load-bearing properties that aren't otherwise testable.
+   */
+  const source = readFileSync('lib/notifications/customer-send-gate.ts', 'utf8')
+
+  it('declares a private SEND_PERMIT_TAG unique symbol', () => {
+    expect(source).toMatch(/const SEND_PERMIT_TAG/)
+  })
+
+  it('NEVER exports SEND_PERMIT_TAG — the brand key must stay module-private', () => {
+    expect(source).not.toMatch(/export\s+(const|{[^}]*)\s*SEND_PERMIT_TAG/)
+  })
+
+  it('NEVER exports makePermit — assertSendAllowed() must be the ONLY exported producer of a SendPermit', () => {
+    // Matches a direct `export function/const/let/var makePermit` declaration
+    // or `makePermit` appearing inside an `export { ... }` list — the two
+    // forgery doors this hardening plan closes. (A naive
+    // `/export[\s{][^)]*makePermit/` false-positives on the legitimate
+    // `export type SendPermit = { ... }` declaration a few lines above the
+    // makePermit function, since `[^)]*` spans across that unrelated export
+    // — this pattern anchors to an export that actually targets the
+    // `makePermit` identifier.)
+    expect(source).not.toMatch(
+      /export\s+(?:default\s+)?(?:async\s+)?(?:function|const|let|var)\s+makePermit\b|export\s*\{[^}]*\bmakePermit\b[^}]*\}/,
+    )
+  })
+})
+
+describe('lib/notifications/customer-send-gate — assertSendAllowed() email channel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('email: sms_opted_out_at set -> suppressed (suppression still blocks email)', async () => {
+    const { assertSendAllowed } = await import('@/lib/notifications/customer-send-gate')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const svc = buildServiceClient(
+      { ...CLEAR_CLIENT, sms_opted_out_at: '2026-07-01T00:00:00Z' },
+      CLEAR_COMPANY,
+    )
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await assertSendAllowed('company-1', 'client-1', 'email')
+    expect(result).toEqual({ allowed: false, reason: 'suppressed' })
+  })
+
+  it("email: sms_consent_status 'unknown', not suppressed -> allowed (consent is SKIPPED for email)", async () => {
+    const { assertSendAllowed } = await import('@/lib/notifications/customer-send-gate')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const svc = buildServiceClient(
+      { ...CLEAR_CLIENT, sms_consent_status: 'unknown' },
+      CLEAR_COMPANY,
+    )
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await assertSendAllowed('company-1', 'client-1', 'email')
+    expect(result.allowed).toBe(true)
+    expect(result.permit?.channel).toBe('email')
+  })
+
+  it("email: sms_consent_status 'revoked', not suppressed -> allowed (revoked-for-SMS does not block email)", async () => {
+    const { assertSendAllowed } = await import('@/lib/notifications/customer-send-gate')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const svc = buildServiceClient(
+      { ...CLEAR_CLIENT, sms_consent_status: 'revoked' },
+      CLEAR_COMPANY,
+    )
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await assertSendAllowed('company-1', 'client-1', 'email')
+    expect(result.allowed).toBe(true)
+    expect(result.permit?.channel).toBe('email')
+  })
+
+  it('email: instant well outside 8am-8pm local, not suppressed -> allowed (quiet-hours is SKIPPED for email)', async () => {
+    vi.useFakeTimers()
+    // 3:00am EDT (NY, UTC-4 mid-summer) = 07:00 UTC — would fail SMS quiet-hours.
+    vi.setSystemTime(new Date('2026-07-15T07:00:00Z'))
+
+    const { assertSendAllowed } = await import('@/lib/notifications/customer-send-gate')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const svc = buildServiceClient(CLEAR_CLIENT, CLEAR_COMPANY)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await assertSendAllowed('company-1', 'client-1', 'email')
+    expect(result.allowed).toBe(true)
+  })
+
+  it('email: fully-clear client -> companies (quiet-hours-only) fetch is never called', async () => {
+    const { assertSendAllowed } = await import('@/lib/notifications/customer-send-gate')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const svc = buildServiceClient(CLEAR_CLIENT, CLEAR_COMPANY)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await assertSendAllowed('company-1', 'client-1', 'email')
+    expect(result.allowed).toBe(true)
+    expect(svc.companiesQuery.select).not.toHaveBeenCalled()
   })
 })
