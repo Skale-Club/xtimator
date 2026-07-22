@@ -31,6 +31,8 @@ export type LimitName =
   // Pre-launch audit fix (B9) — /api/chat had NO rate limit at all (the turn
   // itself is credit-absorbed, so this is its only cost control).
   | 'chatPerMinute'
+  // Phase 178 (AGENT-03) — per-company cap on agentic end-customer sends.
+  | 'agenticSendPerCompanyPerDay'
 
 interface LimitConfig {
   max: number
@@ -63,6 +65,11 @@ export const limits: Record<LimitName, LimitConfig> = {
   // Default only — the chat route passes billing_config.absorbedChatRateLimitPerMin
   // as a runtime-tunable override (see the `maxOverride` param below).
   chatPerMinute: { max: 20, window: 60 },
+
+  // Phase 178 (AGENT-03) — per-company (not per-user/session) cap on agentic
+  // end-customer sends, across both the WhatsApp assistant and MCP tool.
+  // Identifier passed to rateLimit() is companyId, never a user/session id.
+  agenticSendPerCompanyPerDay: { max: 10, window: 86400 },
 }
 
 export interface RateLimitResult {
