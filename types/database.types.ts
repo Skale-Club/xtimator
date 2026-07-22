@@ -279,6 +279,54 @@ export type Database = {
           },
         ]
       }
+      client_message_events: {
+        Row: {
+          client_id: string | null
+          company_id: string | null
+          from_phone: string
+          id: string
+          keyword_type: string
+          raw_body: string | null
+          received_at: string
+          twilio_message_sid: string
+        }
+        Insert: {
+          client_id?: string | null
+          company_id?: string | null
+          from_phone: string
+          id?: string
+          keyword_type: string
+          raw_body?: string | null
+          received_at?: string
+          twilio_message_sid: string
+        }
+        Update: {
+          client_id?: string | null
+          company_id?: string | null
+          from_phone?: string
+          id?: string
+          keyword_type?: string
+          raw_body?: string | null
+          received_at?: string
+          twilio_message_sid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_message_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_message_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -291,7 +339,14 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          phone_normalized: string
           preferred_language: string | null
+          sms_consent_method: string | null
+          sms_consent_recorded_at: string | null
+          sms_consent_recorded_by: string | null
+          sms_consent_status: string
+          sms_consent_text: string | null
+          sms_opted_out_at: string | null
           state: string | null
           updated_at: string
           zip: string | null
@@ -308,6 +363,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           preferred_language?: string | null
+          sms_consent_method?: string | null
+          sms_consent_recorded_at?: string | null
+          sms_consent_recorded_by?: string | null
+          sms_consent_status?: string
+          sms_consent_text?: string | null
+          sms_opted_out_at?: string | null
           state?: string | null
           updated_at?: string
           zip?: string | null
@@ -324,6 +385,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           preferred_language?: string | null
+          sms_consent_method?: string | null
+          sms_consent_recorded_at?: string | null
+          sms_consent_recorded_by?: string | null
+          sms_consent_status?: string
+          sms_consent_text?: string | null
+          sms_opted_out_at?: string | null
           state?: string | null
           updated_at?: string
           zip?: string | null
