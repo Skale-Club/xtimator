@@ -3,7 +3,7 @@ phase: 173
 slug: super-admin-template-editor
 status: draft
 nyquist_compliant: true
-wave_0_complete: true
+wave_0_complete: false
 created: 2026-07-21
 ---
 
@@ -38,11 +38,11 @@ created: 2026-07-21
 
 | Req | Behavior | Test Type | Automated Command | File Exists |
 |-----|----------|-----------|-------------------|-------------|
-| TMPL-04 | `validateTemplateVariables` rejects an unknown `{{var}}` in subject/title/body, naming it in `error`; accepts a fully-whitelisted body | unit | `npx vitest run tests/unit/notifications/template-validation.test.ts` | ❌ W0 (173-01 Task 1) |
-| TMPL-04 | `admin.bonus_credits_granted`'s empty catalog rejects ANY `{{var}}` reference — CREDITUI-04 guard re-pointed at the editor's save gate | unit | `npx vitest run tests/unit/notifications/copy-tenant-neutrality.test.ts` | ❌ W0 (173-01 Task 1, extends existing file) |
-| TMPL-02 | `listNotificationTemplates`/`saveNotificationTemplate`/`sendTestNotification` all call `requireAdmin()`; `saveNotificationTemplate` upserts `notification_templates` on `(scope,event_type,channel)` conflict with the correct nulled subject/title per channel | unit (mocked service client) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ❌ W0 (173-01 Task 1) |
-| TMPL-04 | `saveNotificationTemplate` rejects an unknown variable WITHOUT calling `upsert` (server-side enforcement, not just client) | unit (mocked service client) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ❌ W0 (173-01 Task 1) |
-| TMPL-05 | `sendTestNotification` routes to exactly one of Resend (email) / `sendSms` (sms) / `sendTelegramMessage` (telegram) per `target`, renders with `SAMPLE_COPY_CONTEXT` first, never throws on provider failure | unit (mocked Resend/Twilio/Telegram clients) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ❌ W0 (173-01 Task 1) |
+| TMPL-04 | `validateTemplateVariables` rejects an unknown `{{var}}` in subject/title/body, naming it in `error`; accepts a fully-whitelisted body | unit | `npx vitest run tests/unit/notifications/template-validation.test.ts` | ✅ (173-01 Task 1/2) |
+| TMPL-04 | `admin.bonus_credits_granted`'s empty catalog rejects ANY `{{var}}` reference — CREDITUI-04 guard re-pointed at the editor's save gate | unit | `npx vitest run tests/unit/notifications/copy-tenant-neutrality.test.ts` | ✅ (173-01 Task 1/2, extends existing file) |
+| TMPL-02 | `listNotificationTemplates`/`saveNotificationTemplate`/`sendTestNotification` all call `requireAdmin()`; `saveNotificationTemplate` upserts `notification_templates` on `(scope,event_type,channel)` conflict with the correct nulled subject/title per channel | unit (mocked service client) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ✅ (173-01 Task 1/2) |
+| TMPL-04 | `saveNotificationTemplate` rejects an unknown variable WITHOUT calling `upsert` (server-side enforcement, not just client) | unit (mocked service client) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ✅ (173-01 Task 1/2) |
+| TMPL-05 | `sendTestNotification` routes to exactly one of Resend (email) / `sendSms` (sms) / `sendTelegramMessage` (telegram) per `target`, renders with `SAMPLE_COPY_CONTEXT` first, never throws on provider failure | unit (mocked Resend/Twilio/Telegram clients) | `npx vitest run tests/unit/admin/notification-templates-actions.test.ts` | ✅ (173-01 Task 1/2) |
 | TMPL-03 | Editor renders exactly the selected event's variable catalog as chips (zero for `admin.bonus_credits_granted`) and a live preview matching real `renderTemplate()` output against the pinned `SAMPLE_COPY_CONTEXT` fixture | integration (RTL) | `npx vitest run tests/unit/admin/notification-template-editor.test.tsx` | ❌ W0 (173-02 Task 2) |
 | TMPL-04 | Typing an unknown variable in the editor shows a named inline error and disables Save BEFORE any server round trip | integration (RTL) | `npx vitest run tests/unit/admin/notification-template-editor.test.tsx` | ❌ W0 (173-02 Task 2) |
 | TMPL-05 | Clicking a test-send button calls `sendTestNotification` with the CURRENT in-progress (unsaved) field values, not the last-saved row | integration (RTL, mocked action) | `npx vitest run tests/unit/admin/notification-template-editor.test.tsx` | ❌ W0 (173-02 Task 2) |
@@ -54,10 +54,10 @@ created: 2026-07-21
 
 ## Wave 0 Requirements
 
-- [x] `tests/unit/notifications/template-validation.test.ts` — TMPL-04 core gate (173-01 Task 1, RED before Task 2's implementation)
-- [x] `tests/unit/notifications/copy-tenant-neutrality.test.ts` (extended, not replaced) — CREDITUI-04 re-pointed at the DB/editor era (173-01 Task 1)
-- [x] `tests/unit/admin/notification-templates-actions.test.ts` — admin-gate posture, save-validation enforcement, 3-transport test-send routing (173-01 Task 1)
-- [x] `tests/unit/admin/notification-template-editor.test.tsx` — client-side chip/preview/validation/test-send wiring (173-02 Task 2)
+- [x] `tests/unit/notifications/template-validation.test.ts` — TMPL-04 core gate (173-01 Task 1 RED, Task 2 GREEN — done)
+- [x] `tests/unit/notifications/copy-tenant-neutrality.test.ts` (extended, not replaced) — CREDITUI-04 re-pointed at the DB/editor era (173-01 Task 1 RED, Task 2 GREEN — done)
+- [x] `tests/unit/admin/notification-templates-actions.test.ts` — admin-gate posture, save-validation enforcement, 3-transport test-send routing (173-01 Task 1 RED, Task 2 GREEN — done)
+- [ ] `tests/unit/admin/notification-template-editor.test.tsx` — client-side chip/preview/validation/test-send wiring (173-02 Task 2, not yet executed — pending)
 
 *Framework already installed — no `npm install` needed. All 4 files are net-new test surfaces (or, for `copy-tenant-neutrality.test.ts`, a net-new describe block appended to an existing file) written RED-first per each plan's Task 1/Task 2 TDD split.*
 
