@@ -176,7 +176,7 @@ Classify the owner's latest message into EXACTLY ONE of these labels. Reply with
 - CREATE: a NEW job description (text, or a new audio/photo describing work). This is the DEFAULT for new media when intent is not clearly edit/confirm, and the default when there is NO active session.
 - QUERY: a QUESTION about EXISTING data ("qual o ultimo estimate do cliente X", "status do projeto Y", "quanto ficou o orcamento do Joao", "what's the latest quote for Maria").
 - KNOWLEDGE: a trade HOW-TO / process / best-practice question that does NOT depend on this company's own data ("how do I pre-treat a pet stain?", "what's the correct order for pressure-washing a deck?", "como faço a remoção de odor de pet em carpete?").
-- MANAGE: the owner wants to SAVE something to their account — ADD a service/price to their price book ("add sofa cleaning for $180", "cadastra limpeza de sofá 180"), or REMEMBER a rule/preference for future estimates ("we always charge a $50 minimum", "lembra que não fazemos janela externa"). This WRITES data; only route here for explicit add/save/remember requests, NOT questions.
+- MANAGE: the owner wants to SAVE something to their account — ADD a service/price to their price book ("add sofa cleaning for $180", "cadastra limpeza de sofá 180"), or REMEMBER a rule/preference for future estimates ("we always charge a $50 minimum", "lembra que não fazemos janela externa"), or MESSAGE a client (send/text/email them something, e.g. "text Sarah that we're running a day late", "email John his invoice reminder"). This WRITES data; only route here for explicit add/save/remember/message requests, NOT questions.
 
 DISAMBIGUATION — QUERY vs KNOWLEDGE (decide carefully):
 - QUERY = a question about THIS company's OWN records: its estimates, clients, projects, or its own price book ("what did I quote Maria?", "what's my price for window cleaning?").
@@ -349,7 +349,8 @@ async function dispatchManage(
 ): Promise<void> {
   // companyId is the trusted closure inside makeManageTools — no tool schema
   // accepts a tenant, so untrusted message text can never switch companies.
-  const tools = makeManageTools(input.companyId, input.supabase)
+  // ownerPhone is likewise a trusted closure — the channelRef any draft binds to.
+  const tools = makeManageTools(input.companyId, input.supabase, input.ownerPhone)
   const llm = new ChatOpenAI({
     apiKey: (await getIntegrationKey('openai')) ?? undefined,
     model: 'gpt-4o',
@@ -358,14 +359,16 @@ async function dispatchManage(
 
   const systemPrompt = `You are the Xtimator assistant helping a service-business owner over WhatsApp manage their own account.
 
-The owner wants to either ADD a service to their price book or SAVE a rule/preference for future estimates. Use the tools to do exactly what they asked:
+The owner wants to either ADD a service to their price book, SAVE a rule/preference for future estimates, or MESSAGE a client. Use the tools to do exactly what they asked:
 - add_service: register a fixed-price service (needs a name and a price).
 - add_knowledge: remember a company rule, price, or preference.
+- draft_customer_message: prepare a text or email to an existing client. This does NOT send it — it only prepares a draft the owner must separately confirm on their next message. Never tell the owner the message was "sent"; say it is "ready" or "drafted" and ask them to confirm.
+- get_latest_estimate_for_client: look up a client's latest estimate total. ALWAYS call this before including a dollar amount in a drafted message — never invent or recall a price from memory.
 
 RULES
-- Only act on what the owner clearly stated. If a required detail is missing (e.g. a price for a service), ask ONE short question instead of guessing — do NOT invent values.
-- After saving, confirm back in ONE short sentence what you saved (name + price, or the rule), so they can catch a mistake.
-- Reply in the SAME language the owner writes in. Keep it to 1-2 short sentences.`
+- Only act on what the owner clearly stated. If a required detail is missing (e.g. a price for a service, or which client to message), ask ONE short question instead of guessing — do NOT invent values.
+- After saving or drafting, relay the tool's own confirmation text back to the owner as-is (it already contains the exact detail they need to see) — do not paraphrase or shorten it.
+- Reply in the SAME language the owner writes in. Keep it to 1-2 short sentences, except when relaying a draft_customer_message confirmation, which must be passed through in full.`
 
   const agent = createReactAgent({ llm, tools })
   const result = await agent.invoke({
