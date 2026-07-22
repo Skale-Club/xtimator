@@ -80,4 +80,61 @@ describe('sendWhatsAppTemplate (Phase 98 — WANOTIF-01)', () => {
       sendWhatsAppTemplate('+15551234567', { name: 't', languageCode: 'en_US' }),
     ).rejects.toThrow(/sendMessage failed 400/)
   })
+
+  // Phase 172 (TMPL-07) — closes the pre-existing no-sanitization gap: bodyVariables/
+  // headerVariables used to map straight into `{ type: 'text', text }` params with
+  // zero sanitization. Both arrays now flow through sanitizeWhatsAppParam first.
+  it('sanitizes bodyVariables (newlines, 4+ spaces, leading/trailing whitespace) before building components', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendWhatsAppTemplate('+15551234567', {
+      name: 'owner_billing_alert',
+      languageCode: 'en_US',
+      bodyVariables: ['Line1\nLine2   too   many   spaces', '  padded  '],
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    const bodyComponent = body.template.components.find((c: { type: string }) => c.type === 'body')
+    const texts = bodyComponent.parameters.map((p: { text: string }) => p.text)
+    expect(texts).toEqual(['Line1 Line2   too   many   spaces', 'padded'])
+    for (const text of texts) {
+      expect(text).not.toMatch(/[\r\n\t]/)
+      expect(text).not.toMatch(/ {4,}/)
+      expect(text).toBe(text.trim())
+    }
+  })
+
+  it('sanitizes headerVariables the same way as bodyVariables', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendWhatsAppTemplate('+15551234567', {
+      name: 'owner_billing_alert',
+      languageCode: 'en_US',
+      headerVariables: ['  Receipt\n\n  '],
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    const headerComponent = body.template.components.find((c: { type: string }) => c.type === 'header')
+    expect(headerComponent.parameters).toEqual([{ type: 'text', text: 'Receipt' }])
+  })
+
+  it('leaves an already-sanitary variable value unchanged (no over-aggressive stripping)', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendWhatsAppTemplate('+15551234567', {
+      name: 'payment_received',
+      languageCode: 'en_US',
+      headerVariables: ['Receipt'],
+      bodyVariables: ['Acme Co', '$1,200'],
+    })
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body.template.components).toEqual([
+      { type: 'header', parameters: [{ type: 'text', text: 'Receipt' }] },
+      {
+        type: 'body',
+        parameters: [
+          { type: 'text', text: 'Acme Co' },
+          { type: 'text', text: '$1,200' },
+        ],
+      },
+    ])
+  })
 })

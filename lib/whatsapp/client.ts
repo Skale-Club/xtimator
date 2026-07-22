@@ -4,6 +4,7 @@
  */
 
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
+import { sanitizeWhatsAppParam } from '@/lib/notifications/template-engine'
 
 const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
@@ -45,6 +46,11 @@ export async function sendWhatsAppMessage(to: string, body: object): Promise<voi
  *
  * Reuses sendWhatsAppMessage so token/phoneNumberId resolution and error handling
  * stay in one place. Throws on a non-2xx Meta response (same contract).
+ *
+ * Every header/body variable is sanitized via sanitizeWhatsAppParam (TMPL-07)
+ * before it reaches Meta — strips newlines/tabs, collapses 4+ consecutive
+ * spaces, trims leading/trailing whitespace — closing the previously
+ * unsanitized pass-through gap.
  */
 export async function sendWhatsAppTemplate(
   to: string,
@@ -55,17 +61,20 @@ export async function sendWhatsAppTemplate(
     headerVariables?: string[]
   }
 ): Promise<void> {
+  const headerVariables = opts.headerVariables?.map(sanitizeWhatsAppParam)
+  const bodyVariables = opts.bodyVariables?.map(sanitizeWhatsAppParam)
+
   const components: Array<Record<string, unknown>> = []
-  if (opts.headerVariables && opts.headerVariables.length > 0) {
+  if (headerVariables && headerVariables.length > 0) {
     components.push({
       type: 'header',
-      parameters: opts.headerVariables.map((text) => ({ type: 'text', text })),
+      parameters: headerVariables.map((text) => ({ type: 'text', text })),
     })
   }
-  if (opts.bodyVariables && opts.bodyVariables.length > 0) {
+  if (bodyVariables && bodyVariables.length > 0) {
     components.push({
       type: 'body',
-      parameters: opts.bodyVariables.map((text) => ({ type: 'text', text })),
+      parameters: bodyVariables.map((text) => ({ type: 'text', text })),
     })
   }
 
