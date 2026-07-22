@@ -2742,6 +2742,7 @@ export type Database = {
       }
       whatsapp_notification_templates: {
         Row: {
+          body_text: string | null
           created_at: string
           created_by: string | null
           event_category: string | null
@@ -2756,6 +2757,7 @@ export type Database = {
           variables_schema: Json
         }
         Insert: {
+          body_text?: string | null
           created_at?: string
           created_by?: string | null
           event_category?: string | null
@@ -2770,6 +2772,7 @@ export type Database = {
           variables_schema?: Json
         }
         Update: {
+          body_text?: string | null
           created_at?: string
           created_by?: string | null
           event_category?: string | null

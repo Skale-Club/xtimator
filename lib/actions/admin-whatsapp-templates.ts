@@ -24,6 +24,16 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
+import {
+  buildBodyComponent,
+  validateComposerTemplate,
+  type ComposerParam,
+} from '@/lib/whatsapp/template-composer'
+import {
+  buildCreatePayload,
+  createMetaTemplate,
+  mapMetaEventToStatus,
+} from '@/lib/whatsapp/meta-templates-client'
 
 const TABLE = 'whatsapp_notification_templates'
 
@@ -37,6 +47,7 @@ export interface TemplateRow {
   status: string
   rejection_reason: string | null
   variables_schema: unknown
+  body_text: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -48,6 +59,26 @@ export interface CreateTemplateInput {
   event_category?: string | null
   event_type?: string | null
   variables_schema?: unknown
+  body_text?: string
+}
+
+/**
+ * Defensive parse of a stored `variables_schema` JSONB value into an ordered
+ * `ComposerParam[]`. Never throws — legacy/malformed rows (e.g. a bare
+ * label-string array from before this phase, or a non-array value) degrade
+ * to `[]`, which then fails `validateComposerTemplate` with a clear error
+ * rather than crashing `submitTemplateToMeta`/`updateTemplateAndResubmit`.
+ */
+function parseComposerParams(raw: unknown): ComposerParam[] {
+  return Array.isArray(raw)
+    ? raw.filter(
+        (p): p is ComposerParam =>
+          !!p &&
+          typeof p === 'object' &&
+          typeof (p as Record<string, unknown>).label === 'string' &&
+          typeof (p as Record<string, unknown>).example === 'string'
+      )
+    : []
 }
 
 export interface TemplateStatusUpdateInput {
@@ -87,6 +118,7 @@ export async function createTemplate(
       event_category: input.event_category ?? null,
       event_type: input.event_type ?? null,
       variables_schema: input.variables_schema ?? [],
+      body_text: input.body_text ?? null,
       status: 'draft',
       created_by: admin.userId,
     })
@@ -111,7 +143,7 @@ export async function submitTemplateToMeta(
   id: string
 ): Promise<
   | { ok: true; metaTemplateId: string }
-  | { ok: false; reason?: 'scope' | 'not_found'; error?: string }
+  | { ok: false; reason?: 'scope' | 'not_found' | 'invalid'; error?: string }
 > {
   try {
     await requireAdmin()
@@ -127,6 +159,16 @@ export async function submitTemplateToMeta(
     }
     const template = row as TemplateRow
 
+    // Validate the STORED body/params against Meta's auto-reject rules
+    // BEFORE any network call — an incomplete draft (no body composed yet)
+    // is refused here, never silently POSTed as components: [].
+    const bodyText = (template.body_text ?? '').trim()
+    const params = parseComposerParams(template.variables_schema)
+    const validation = validateComposerTemplate(bodyText, params)
+    if (!validation.valid) {
+      return { ok: false, reason: 'invalid', error: validation.errors.join('; ') }
+    }
+
     const { accessToken, wabaId } = await getWhatsAppPlatformConfig()
     // De-risked MVP: without a WABA id (or token) we cannot programmatically
     // submit. Surface `reason:'scope'` so the admin registers the already-approved
@@ -135,44 +177,33 @@ export async function submitTemplateToMeta(
       return { ok: false, reason: 'scope' }
     }
 
-    const apiVersion = process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'
-    const res = await fetch(
-      `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: template.template_name,
-          category: 'UTILITY',
-          language: template.language_code,
-          components: [],
-        }),
-      }
-    )
+    const bodyComponent = buildBodyComponent(bodyText, params)
+    const payload = buildCreatePayload({
+      name: template.template_name,
+      languageCode: template.language_code,
+      bodyComponent,
+    })
+    const result = await createMetaTemplate(wabaId, accessToken, payload)
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
+    if (!result.ok) {
       // A 403/permission error means the token lacks the management scope.
-      if (res.status === 403) return { ok: false, reason: 'scope', error: text }
-      return { ok: false, error: `Meta submit failed ${res.status}: ${text}` }
+      if (result.status === 403) return { ok: false, reason: 'scope', error: result.error }
+      return { ok: false, error: `Meta submit failed ${result.status}: ${result.error}` }
     }
 
-    const body = (await res.json().catch(() => ({}))) as { id?: string }
-    const metaTemplateId = body.id ?? null
+    const metaTemplateId = result.id
 
     await svc
       .from(TABLE)
       .update({
         meta_template_id: metaTemplateId,
         status: 'pending',
+        variables_schema: params,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
 
-    return { ok: true, metaTemplateId: metaTemplateId ?? '' }
+    return { ok: true, metaTemplateId }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -219,20 +250,5 @@ export async function applyTemplateStatusUpdate(
   } catch (err) {
     console.warn('[admin-whatsapp-templates] applyTemplateStatusUpdate threw:', err)
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
-  }
-}
-
-/** Map a Meta status event to our stored `status` value. */
-function mapMetaEventToStatus(event: string): string {
-  switch (event.toUpperCase()) {
-    case 'APPROVED':
-      return 'approved'
-    case 'REJECTED':
-      return 'rejected'
-    case 'PENDING':
-    case 'PENDING_DELETION':
-      return 'pending'
-    default:
-      return event.toLowerCase()
   }
 }
