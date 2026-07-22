@@ -45,6 +45,7 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
+    expectedVariableCount: 2,
   }),
   // Phase 104.3 wiring: the WhatsApp dispatch branch resolves via the async
   // DB-backed variant (approved DB row → template, static-map fallback).
@@ -52,6 +53,7 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
+    expectedVariableCount: 2,
   }),
 }))
 
@@ -342,6 +344,7 @@ describe('lib/notifications/dispatch — DB-backed WhatsApp template resolver (N
       templateName: 'db_approved_owner_estimate',
       languageCode: 'pt_BR',
       variables: (p: { title: string; body: string }) => [p.title, p.body],
+      expectedVariableCount: 2,
     })
 
     await notify({
@@ -432,6 +435,90 @@ describe('lib/notifications/dispatch — DB-backed WhatsApp template resolver (N
       String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
     )
     expect(whatsappCall).toBeUndefined()
+    warn.mockRestore()
+  })
+
+  it('Phase 174 (TNT-03 / Pitfall 3): a resolved variable count that does NOT match expectedVariableCount refuses the send and logs a warning', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_mismatch' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: false,
+    })
+    // DB-approved row whose variables_schema (expectedVariableCount) doesn't
+    // match its own projector's actual output — a misconfigured admin row.
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      templateName: 'db_approved_owner_estimate',
+      languageCode: 'en_US',
+      variables: () => ['a', 'b', 'c'],
+      expectedVariableCount: 2,
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Payment received',
+      body: '$100',
+    })
+
+    // Refused and logged — never delivered garbled.
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeUndefined()
+    expect(warn).toHaveBeenCalled()
+    // Isolation: the refused WhatsApp send does not affect the in-app insert.
+    expect(svc.__from.insert).toHaveBeenCalled()
+    expect(result.ok).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('Phase 174 (TNT-03 / FLAG 4): expectedVariableCount:0 (unconfigured variables_schema) refuses the send — proves the guard, not the dormancy story', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { inngest } = await import('@/lib/inngest/client')
+    const svc = makeServiceClient({})
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveChannels as ReturnType<typeof vi.fn>).mockResolvedValue({
+      inApp: true,
+      email: false,
+      whatsapp: true,
+      sms: false,
+    })
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      templateName: 'db_approved_owner_estimate',
+      languageCode: 'en_US',
+      variables: () => ['a', 'b'],
+      expectedVariableCount: 0,
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'payment.received',
+      title: 'Payment received',
+      body: '$100',
+    })
+
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeUndefined()
+    expect(warn).toHaveBeenCalled()
     warn.mockRestore()
   })
 })

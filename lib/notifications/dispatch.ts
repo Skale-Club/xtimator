@@ -264,22 +264,40 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
             // rejection still never breaks the in-app insert (Research Pitfall 4).
             const tpl = await getApprovedTemplateForEvent(params.eventType)
             if (tpl) {
-              await inngest.send({
-                name: 'notification/whatsapp.send',
-                data: {
-                  channel: 'whatsapp',
-                  to: phone,
-                  userId: params.userId,
-                  companyId: params.companyId,
-                  eventType: params.eventType,
-                  templateName: tpl.templateName,
-                  languageCode: tpl.languageCode,
-                  variables: tpl.variables({
-                    title: resolvedTitle,
-                    body: resolvedBody,
-                  }),
-                },
+              const variables = tpl.variables({
+                title: resolvedTitle,
+                body: resolvedBody,
               })
+              // Phase 174 (TNT-03 / Pitfall 3) — refuse-and-log a param-count
+              // mismatch rather than deliver a garbled WhatsApp template. This
+              // is a structural no-op for the 5 static REGISTRY entries (their
+              // expectedVariableCount hardcodes 2, matching titleBodyVars'
+              // fixed 2-element output) — it only guards a DB-approved row
+              // whose variables_schema doesn't match the projector's output.
+              if (variables.length !== tpl.expectedVariableCount) {
+                console.warn(
+                  '[notifications.dispatch] whatsapp variable count mismatch, refusing send:',
+                  params.eventType,
+                  'expected',
+                  tpl.expectedVariableCount,
+                  'got',
+                  variables.length,
+                )
+              } else {
+                await inngest.send({
+                  name: 'notification/whatsapp.send',
+                  data: {
+                    channel: 'whatsapp',
+                    to: phone,
+                    userId: params.userId,
+                    companyId: params.companyId,
+                    eventType: params.eventType,
+                    templateName: tpl.templateName,
+                    languageCode: tpl.languageCode,
+                    variables,
+                  },
+                })
+              }
             }
           } catch (e) {
             console.warn(

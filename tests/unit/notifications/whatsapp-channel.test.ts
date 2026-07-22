@@ -45,6 +45,7 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
+    expectedVariableCount: 2,
   }),
   // Phase 104.3 wiring: dispatch resolves via the async DB-backed variant
   // (approved DB row → template, static-map fallback).
@@ -52,6 +53,7 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: () => ['Acme', '$100'],
+    expectedVariableCount: 2,
   }),
 }))
 
@@ -150,6 +152,37 @@ describe('lib/notifications/dispatch — WhatsApp branch (NOTIF-03 RED)', () => 
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const result = await notify(BILLING_EVENT)
+    expect(result).toHaveProperty('ok')
+    warn.mockRestore()
+  })
+
+  it('Phase 174 (TNT-03 / Pitfall 3): a variable-count mismatch refuses the WhatsApp send and logs, never throws', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { inngest } = await import('@/lib/inngest/client')
+    const { resolveOwnerPhone } = await import('@/lib/notifications/owner-phone')
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(makeServiceClient())
+    // afterEach only clears mock CALL history (vi.clearAllMocks), not queued
+    // implementations from an earlier test's .mockResolvedValue — re-assert
+    // an on-file phone explicitly so this test is order-independent.
+    ;(resolveOwnerPhone as ReturnType<typeof vi.fn>).mockResolvedValue('+15551230000')
+    ;(getApprovedTemplateForEvent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      templateName: 'owner_billing_alert',
+      languageCode: 'en_US',
+      variables: () => ['Acme', '$100', 'extra'],
+      expectedVariableCount: 2,
+    })
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await notify(BILLING_EVENT)
+
+    const sendMock = inngest.send as ReturnType<typeof vi.fn>
+    const whatsappCall = sendMock.mock.calls.find(([evt]) =>
+      String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
+    )
+    expect(whatsappCall).toBeUndefined()
+    expect(warn).toHaveBeenCalled()
     expect(result).toHaveProperty('ok')
     warn.mockRestore()
   })
