@@ -12,7 +12,8 @@ import { inngest } from '@/lib/inngest/client'
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { recordUsage } from '@/lib/quota'
+import { recordUsage, notifyQuotaThresholds } from '@/lib/quota'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
@@ -204,6 +205,51 @@ export const generateEstimateJob = inngest.createFunction(
       const supabase = requireServiceClient()
       await recordUsage(supabase, companyId, 'estimate_generated', 1, requestId)
     })
+
+    // Phase 175 (bonus fix) — notifyQuotaThresholds() has had NO production
+    // caller since Phase 77 (dead code — confirmed by repo-wide grep). This is
+    // the ONE call site that increments the 'estimate' quota, so it's the
+    // correct place to revive it. Best-effort, non-durable (deliberately NOT
+    // step.run — matches the existing void notifyOps()/notify() fire-and-forget
+    // posture used elsewhere in this function): a failure here must never
+    // affect generation. Revives BOTH the tenant-facing quota.80pct/quota.exhausted
+    // notify() calls AND (Phase 175) the platform-facing tenant_quota_exhausted
+    // notifyOps() call inside notifyQuotaThresholds.
+    void (async () => {
+      try {
+        const supabase = requireServiceClient()
+        const { data: company } = await supabase
+          .from('companies')
+          .select('tier')
+          .eq('id', companyId)
+          .single()
+        const tier = (company as { tier?: string } | null)?.tier ?? 'free'
+        const { maxEstimatesPerMonth: limit } = await getEntitlementsForTier(tier)
+        if (!limit) return // unlimited tier — no threshold to cross
+        const now = new Date()
+        const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        const { data: rows } = await supabase
+          .from('usage_events')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('event_type', 'estimate_generated')
+          .gte('created_at', startOfMonth.toISOString())
+        const newCount = (rows ?? []).length
+        // The count is read AFTER recordUsage's insert, so newCount already
+        // includes this run's row (or doesn't, if recordUsage no-op'd on a
+        // duplicate idempotency key) — newCount-1 approximates previousCount,
+        // which is precise enough for "did we just cross 80%/100%" purposes.
+        await notifyQuotaThresholds({
+          companyId,
+          userId: ownerUserId,
+          previousCount: Math.max(0, newCount - 1),
+          newCount,
+          limit,
+        })
+      } catch {
+        // best-effort — never blocks generation
+      }
+    })()
 
     // Phase 112 (CREDIT-02): fire the credit debit AFTER record-usage, in its own
     // retry-isolated step. recordCreditDebit is never-throw, so a ledger failure

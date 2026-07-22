@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 // Stripe mock: class-based so constructors work (Phase 08 pattern)
 const mockConstructEvent = vi.fn()
@@ -41,6 +42,14 @@ vi.mock('@/lib/supabase/service', () => ({
       return { insert: mockInsert, update: mockUpdate, select: mockSelect }
     }),
   }),
+}))
+
+// Phase 175 (PLAT-01) test-safety: route.ts now imports notifyOps, which
+// carries a dedupeKey and would otherwise attempt a real Upstash SETNX
+// round-trip (this file's @/lib/supabase/service mock is module-wide and its
+// Redis is unmocked).
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_test')
@@ -129,6 +138,14 @@ describe('POST /api/webhooks/stripe — checkout.session.completed (STRIPE-02)',
         // Re-subscribe after a lapse must clear the stale pending-cancel marker,
         // or page.tsx renders "plan ends on <past date>" for an active payer.
         tier_cancelled_at: null,
+      })
+    )
+    // Phase 175 (PLAT-01): platform revenue event — DISTINCT from
+    // tenant_payment_received (Stripe Connect, a customer paying a tenant).
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'subscription_payment_received',
+        dedupeKey: 'subscription_payment_received:evt_checkout',
       })
     )
   })
@@ -222,6 +239,14 @@ describe('POST /api/webhooks/stripe — invoice.paid (STRIPE-02)', () => {
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         tier_renews_at: new Date(periodEnd * 1000).toISOString(),
+      })
+    )
+    // Phase 175 (PLAT-01): renewal payment — fired unconditionally on the
+    // tier_renews_at update, not gated on the credit-grant lookup below it.
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'subscription_payment_received',
+        dedupeKey: 'subscription_payment_received:evt_invoice_paid',
       })
     )
   })

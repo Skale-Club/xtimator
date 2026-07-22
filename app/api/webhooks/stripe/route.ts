@@ -7,6 +7,7 @@ import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { grantCredits, monthGrantKey } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -219,6 +220,19 @@ async function handlePlatformEvent(
 
       // Mirror the subscription change into Xphere CRM (fire-and-forget).
       if (companyId) dispatchXphereSync(companyId, 'subscription.updated')
+
+      // Phase 175 (PLAT-01) — a NEW paid subscription is platform revenue,
+      // DISTINCT from a customer paying a tenant (tenant_payment_received in
+      // connect-webhook.ts's Connect arms). Sibling, fire-and-forget.
+      void notifyOps({
+        kind: 'subscription_payment_received',
+        title: `Subscription payment - tier ${tier}`,
+        message: `Company ${companyId} - checkout ${session.id}${
+          typeof session.amount_total === 'number' ? ` - $${(session.amount_total / 100).toFixed(2)}` : ''
+        }`,
+        severity: 'warning',
+        dedupeKey: `subscription_payment_received:${event.id}`,
+      })
       break
     }
 
@@ -244,6 +258,18 @@ async function handlePlatformEvent(
       if (error) {
         console.error('[Stripe] invoice.paid update failed:', error)
       }
+
+      // Phase 175 (PLAT-01) — subscription renewal payment received; platform
+      // revenue event, unconditional on the credit-grant lookup below.
+      void notifyOps({
+        kind: 'subscription_payment_received',
+        title: 'Subscription payment received',
+        message: `subscription ${subId} - invoice ${invoice.id}${
+          typeof invoice.amount_paid === 'number' ? ` - $${(invoice.amount_paid / 100).toFixed(2)}` : ''
+        }`,
+        severity: 'warning',
+        dedupeKey: `subscription_payment_received:${event.id}`,
+      })
 
       // TOPUP-01 / Phase 142 (ANN-02): grant the tier's monthly credit allowance.
       // Keyed on the COMPANY-MONTH key (`grant:{companyId}:{YYYY-MM}`) — the SINGLE
