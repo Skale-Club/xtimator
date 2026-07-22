@@ -22,39 +22,39 @@ Each requirement maps to exactly one roadmap phase.
 
 ### Platform Alerts — Telegram (PLAT)
 
-- [ ] **PLAT-01**: A typed platform-event catalog (tenant signup, payment received, job failure, quota exhaustion, critical platform errors) exists as a new union distinct from the tenant-scoped `EventType`, and every cataloged platform event routes through `notifyOps()` to Telegram.
-- [ ] **PLAT-02**: Super-admin can toggle each platform event's Telegram delivery on/off from the admin panel (per-event toggle matrix persisted in DB).
-- [ ] **PLAT-03**: Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix.
+- [x] **PLAT-01**: A typed platform-event catalog (tenant signup, payment received, job failure, quota exhaustion, critical platform errors) exists as a new union distinct from the tenant-scoped `EventType`, and every cataloged platform event routes through `notifyOps()` to Telegram.
+- [x] **PLAT-02**: Super-admin can toggle each platform event's Telegram delivery on/off from the admin panel (per-event toggle matrix persisted in DB).
+- [x] **PLAT-03**: Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix.
 
 ### Template System (TMPL)
 
-- [ ] **TMPL-01**: A `notification_templates` table models event_type × channel × audience with subject/body containing `{{var}}` placeholders, seeded from the current hardcoded copy so day-one behavior is byte-equivalent.
-- [ ] **TMPL-02**: Super-admin can browse and edit every template (by audience, event, channel) from a Notification Center admin page.
-- [ ] **TMPL-03**: The editor shows the per-event variable catalog inline and renders a live preview with sample data before save.
-- [ ] **TMPL-04**: Saving a template with an unknown variable (not in that event's catalog) is rejected with a clear error — a template that would render `{{client_name}}` literally can never be activated.
-- [ ] **TMPL-05**: Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data from the editor.
-- [ ] **TMPL-06**: A fallback resolver renders the DB template when present and valid, and falls back to the built-in copy on any miss/parse error — a broken template NEVER blocks a send (proven by tests that corrupt a template and assert delivery).
-- [ ] **TMPL-07**: Template rendering escapes output per channel — HTML-escape for email/Telegram HTML, plain text for SMS, sanitized (newline-stripped) ordered params for WhatsApp HSM — closing the existing `sendWhatsAppTemplate()` sanitization gap.
+- [x] **TMPL-01**: A `notification_templates` table models event_type × channel × audience with subject/body containing `{{var}}` placeholders, seeded from the current hardcoded copy so day-one behavior is byte-equivalent.
+- [x] **TMPL-02**: Super-admin can browse and edit every template (by audience, event, channel) from a Notification Center admin page.
+- [x] **TMPL-03**: The editor shows the per-event variable catalog inline and renders a live preview with sample data before save.
+- [x] **TMPL-04**: Saving a template with an unknown variable (not in that event's catalog) is rejected with a clear error — a template that would render `{{client_name}}` literally can never be activated.
+- [x] **TMPL-05**: Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data from the editor.
+- [x] **TMPL-06**: A fallback resolver renders the DB template when present and valid, and falls back to the built-in copy on any miss/parse error — a broken template NEVER blocks a send (proven by tests that corrupt a template and assert delivery).
+- [x] **TMPL-07**: Template rendering escapes output per channel — HTML-escape for email/Telegram HTML, plain text for SMS, sanitized (newline-stripped) ordered params for WhatsApp HSM — closing the existing `sendWhatsAppTemplate()` sanitization gap.
 
 ### Tenant Notifications (TNT)
 
-- [ ] **TNT-01**: All existing `notify()` call sites resolve their copy through the template resolver (callers pass a context object; `copy.ts` survives only as the fallback source).
-- [ ] **TNT-02**: The existing per-category channel preference matrix (in_app/email/whatsapp/sms) keeps working unchanged through the template cutover — proven by the existing preference tests staying green.
-- [ ] **TNT-03**: Tenant proactive WhatsApp notifications are re-enabled: the forced-off gate is lifted, approved HSM templates from the existing registry drive the whatsapp channel, and sends respect the tenant's opt-in preference. (Operational dependency: templates authored + APPROVED in Meta WhatsApp Manager.)
+- [x] **TNT-01**: All existing `notify()` call sites resolve their copy through the template resolver (callers pass a context object; `copy.ts` survives only as the fallback source).
+- [x] **TNT-02**: The existing per-category channel preference matrix (in_app/email/whatsapp/sms) keeps working unchanged through the template cutover — proven by the existing preference tests staying green.
+- [x] **TNT-03**: Tenant proactive WhatsApp notifications are re-enabled: the forced-off gate is lifted, approved HSM templates from the existing registry drive the whatsapp channel, and sends respect the tenant's opt-in preference. (Operational dependency: templates authored + APPROVED in Meta WhatsApp Manager.)
 
 ### End-Customer Messaging (CUST)
 
-- [ ] **CUST-01**: The system can send a templated email to an end customer where the sender identity reads as the tenant's business (`{{business_name}} via Xtimator` friendly-from — honest, never deceptive).
-- [ ] **CUST-02**: The system can send a templated SMS to an end customer through a dedicated Twilio Messaging Service (separate from the shared owner-notification number), with the tenant's business name leading the body.
-- [ ] **CUST-03**: End-customer contact records carry consent/suppression state; STOP is honored (Twilio Advanced Opt-Out + a suppression check before EVERY send), and a suppressed recipient can never be messaged by any path — manual or agentic.
-- [ ] **CUST-04**: A platform-wide quiet-hours guard prevents end-customer SMS outside acceptable local hours.
-- [ ] **CUST-05**: Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`.
+- [x] **CUST-01**: The system can send a templated email to an end customer where the sender identity reads as the tenant's business (`{{business_name}} via Xtimator` friendly-from — honest, never deceptive).
+- [x] **CUST-02**: The system can send a templated SMS to an end customer through a dedicated Twilio Messaging Service (separate from the shared owner-notification number), with the tenant's business name leading the body.
+- [x] **CUST-03**: End-customer contact records carry consent/suppression state; STOP is honored (Twilio Advanced Opt-Out + a suppression check before EVERY send), and a suppressed recipient can never be messaged by any path — manual or agentic.
+- [x] **CUST-04**: A platform-wide quiet-hours guard prevents end-customer SMS outside acceptable local hours.
+- [x] **CUST-05**: Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`.
 
 ### Agentic Send (AGENT)
 
-- [ ] **AGENT-01**: The owner can ask the WhatsApp assistant to send an SMS or email to one of their clients; the assistant drafts the message and requires explicit owner confirmation (confirm-gated state machine) before anything is sent.
-- [ ] **AGENT-02**: The same send capability is exposed as an MCP tool with the same confirmation and validation gates as the WhatsApp path.
-- [ ] **AGENT-03**: The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, recipient and body are re-validated server-side at send time (prompt-injection cannot redirect a message), and sends are rate-limited per company.
+- [x] **AGENT-01**: The owner can ask the WhatsApp assistant to send an SMS or email to one of their clients; the assistant drafts the message and requires explicit owner confirmation (confirm-gated state machine) before anything is sent.
+- [x] **AGENT-02**: The same send capability is exposed as an MCP tool with the same confirmation and validation gates as the WhatsApp path.
+- [x] **AGENT-03**: The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, recipient and body are re-validated server-side at send time (prompt-injection cannot redirect a message), and sends are rate-limited per company.
 
 ## Future Requirements (deferred)
 
@@ -79,24 +79,24 @@ Each requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|----------|--------|
-| PLAT-01 | Phase 175 | Pending |
-| PLAT-02 | Phase 175 | Pending |
-| PLAT-03 | Phase 175 | Pending |
-| TMPL-01 | Phase 172 | Pending |
-| TMPL-02 | Phase 173 | Pending |
-| TMPL-03 | Phase 173 | Pending |
-| TMPL-04 | Phase 173 | Pending |
-| TMPL-05 | Phase 173 | Pending |
-| TMPL-06 | Phase 172 | Pending |
-| TMPL-07 | Phase 172 | Pending |
-| TNT-01 | Phase 174 | Pending |
-| TNT-02 | Phase 174 | Pending |
-| TNT-03 | Phase 174 | Pending |
-| CUST-01 | Phase 177 | Pending |
-| CUST-02 | Phase 177 | Pending |
-| CUST-03 | Phase 176 | Pending |
-| CUST-04 | Phase 176 | Pending |
-| CUST-05 | Phase 177 | Pending |
-| AGENT-01 | Phase 178 | Pending |
-| AGENT-02 | Phase 178 | Pending |
-| AGENT-03 | Phase 178 | Pending |
+| PLAT-01 | Phase 175 | Complete |
+| PLAT-02 | Phase 175 | Complete |
+| PLAT-03 | Phase 175 | Complete |
+| TMPL-01 | Phase 172 | Complete |
+| TMPL-02 | Phase 173 | Complete |
+| TMPL-03 | Phase 173 | Complete |
+| TMPL-04 | Phase 173 | Complete |
+| TMPL-05 | Phase 173 | Complete |
+| TMPL-06 | Phase 172 | Complete |
+| TMPL-07 | Phase 172 | Complete |
+| TNT-01 | Phase 174 | Complete |
+| TNT-02 | Phase 174 | Complete |
+| TNT-03 | Phase 174 | Complete |
+| CUST-01 | Phase 177 | Complete |
+| CUST-02 | Phase 177 | Complete |
+| CUST-03 | Phase 176 | Complete |
+| CUST-04 | Phase 176 | Complete |
+| CUST-05 | Phase 177 | Complete |
+| AGENT-01 | Phase 178 | Complete |
+| AGENT-02 | Phase 178 | Complete |
+| AGENT-03 | Phase 178 | Complete |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.21
 milestone_name: Notification Center
-status: executing
-stopped_at: Phases 172+173+174+175+176 COMPLETE & VERIFIED (Opus PASS all — 8/8, 5/5, 3/3+861 tests, 4/4, 13/13). Phase 177 fully executed (7/7 plans, legacy route gated), verification in flight. Phase 178 (agentic send, final phase) planning in flight. Prod-apply pending (manual, before UAT): migrations 20260721000001/2/3/4.
+status: complete
+stopped_at: MILESTONE v4.21 COMPLETE — all 7 phases (172-178) executed AND Opus goal-backward verified PASS (172 8/8, 173 5/5, 174 3/3, 175 4/4, 176 13/13, 177 6/6, 178 16/16). 26 plans, 21/21 requirements. Full-suite gate 4172 passing; 5 pre-existing out-of-scope failures being fixed (stale supabase mocks from earlier merges). Operational deferrals - apply migrations 20260721000001-5 to prod (manual convention) BEFORE push; provision dedicated Twilio Messaging Service + Advanced Opt-Out (Console); author+approve WhatsApp HSM templates in Meta Manager; configure Telegram per-event toggles; live UAT items per phase VERIFICATION frontmatter.
 last_updated: "2026-07-21T18:00:00.000Z"
 last_activity: 2026-07-21 - Milestone v4.21 Notification Center ROADMAP CREATED. 7 phases (172-178), 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Mapping - 172 Template Engine Foundation (TMPL-01/06/07); 173 Super-Admin Template Editor UI (TMPL-02/03/04/05); 174 Tenant Notification Cutover & WhatsApp Re-enable (TNT-01/02/03); 175 Telegram Platform-Event Catalog & Per-Event Toggles (PLAT-01/02/03); 176 End-Customer Consent/Opt-Out/Quiet Hours - HARD GATE (CUST-03/04); 177 End-Customer Email/SMS Send Path & Audit (CUST-01/02/05); 178 Agentic Send (AGENT-01/02/03). Dependency spine - template engine 172 is root for 173/174/177; consent gate 176 is a hard prerequisite before 177 and 178; agentic 178 depends on the real send path 177; Telegram 175 is a parallel track sharing no code; TNT-03 WhatsApp re-enable uses the existing HSM registry. Critical path 172 -> 176 -> 177 -> 178; parallel starts 172, 175, 176. Operational gates - Twilio Messaging Service provisioning (CUST-02, Phase 177), Meta HSM template approval (TNT-03, Phase 174). Next: /gsd:plan-phase 172.
 progress:
   total_phases: 7
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 7
+  total_plans: 26
+  completed_plans: 26
 ---
 
 # Project State
