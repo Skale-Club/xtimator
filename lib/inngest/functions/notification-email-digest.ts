@@ -28,7 +28,10 @@
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBranding } from '@/lib/platform-config'
-import { sendNotificationDigestEmail } from '@/lib/email/notification-emails'
+import {
+  sendNotificationDigestEmail,
+  type DigestEmailItem,
+} from '@/lib/email/notification-emails'
 import {
   EVENT_CATEGORIES,
   type EventType,
@@ -52,6 +55,54 @@ interface NotificationRow {
 
 function categoryFor(eventType: string): EventCategory {
   return EVENT_CATEGORIES[eventType as EventType] ?? 'system'
+}
+
+/**
+ * Phase 174 (TNT-01, carry-forward b) — maps a notifications row to a
+ * DigestEmailItem, preferring the resolver-sourced `metadata.email_copy`
+ * (populated by Plan 174-04's dispatch.ts wiring) over the row's plain
+ * `title`/`body` columns.
+ *
+ * Contract (mirrors lib/email/notification-emails.ts's DigestEmailItem):
+ *   - metadata.email_copy.subject → title (plain TEXT-mode, never preEscaped
+ *     — resolveNotificationCopy always renders title/subject in text mode).
+ *   - metadata.email_copy.body → body, preEscaped: true (HTML-mode content,
+ *     already escaped by escapeHtmlValue — MUST NOT be re-escaped downstream).
+ *   - Absent/null/malformed metadata.email_copy → falls back to row.title /
+ *     row.body verbatim, preEscaped: false — today's behavior, unchanged.
+ *   - Never throws; defensive type-narrowing only.
+ */
+export function buildDigestItem(
+  row: NotificationRow,
+  category: EventCategory,
+): DigestEmailItem {
+  const emailCopy = row.metadata?.email_copy
+  const isValidEmailCopy =
+    typeof emailCopy === 'object' &&
+    emailCopy !== null &&
+    typeof (emailCopy as Record<string, unknown>).subject === 'string' &&
+    typeof (emailCopy as Record<string, unknown>).body === 'string'
+
+  if (isValidEmailCopy) {
+    const copy = emailCopy as { subject: string; body: string }
+    return {
+      category,
+      title: copy.subject,
+      body: copy.body,
+      preEscaped: true,
+      linkUrl: row.link_url ?? undefined,
+      createdAt: row.created_at,
+    }
+  }
+
+  return {
+    category,
+    title: row.title,
+    body: row.body,
+    preEscaped: false,
+    linkUrl: row.link_url ?? undefined,
+    createdAt: row.created_at,
+  }
 }
 
 export const notificationEmailDigest = inngest.createFunction(
@@ -137,13 +188,7 @@ export const notificationEmailDigest = inngest.createFunction(
               brandColor: branding.primaryColor,
               businessName: branding.appName,
             },
-            items: items.map((i) => ({
-              category: cat,
-              title: i.title,
-              body: i.body,
-              linkUrl: i.link_url ?? undefined,
-              createdAt: i.created_at,
-            })),
+            items: items.map((i) => buildDigestItem(i, cat)),
             groupedByCategory: grouped,
           })
         })
