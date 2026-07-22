@@ -2882,9 +2882,15 @@ Plans:
   3. The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, and recipient + body are re-validated server-side at send time so prompt injection cannot redirect a message; any dollar figure is sourced from server-authoritative `estimates`/`compute-totals.ts`, never LLM free text
   4. Agentic sends are rate-limited per company (companyId-scoped, not user-session-scoped), still pass the Phase 176 consent/suppression gate, and every send lands in the `customer_messages` audit log with its `source` (agentic_whatsapp/agentic_mcp)
 
-**Plans**: TBD
+**Plans**: 4 plans in `.planning/phases/178-agentic-send/` (3 waves)
+Plans:
+
+- [ ] 178-01-PLAN.md — TDD: agentic_send_confirmations migration + confirmation state machine (create/resolve/confirm/cancel/refuse, hash binding, multilingual confirm/cancel classifier, per-company rate limit config) (AGENT-01, AGENT-02, AGENT-03)
+- [ ] 178-02-PLAN.md — TDD: lib/agent-tools/send-customer-message.ts neutral capability (recipient resolution scoped to clients, rate limit, gate-then-dispatch through Phase 177's sendCustomerMessage()) + barrel export (AGENT-01, AGENT-02, AGENT-03)
+- [ ] 178-03-PLAN.md — WhatsApp adapter: draft_customer_message MANAGE tool + confirmation-echo, pending-confirmation pre-check ahead of debounce/batching and the LLM classifier (AGENT-01, AGENT-03)
+- [ ] 178-04-PLAN.md — MCP adapter: draft_customer_message + send_customer_message tool pair, token-only send schema closes the injection surface (AGENT-02, AGENT-03)
 **Pitfalls addressed**: #8 (no confirmation-gate precedent — use the `confirm.ts` session-state-machine shape, not immediate-write), #9 (prompt injection into recipient/amount — resolve `to` from `clients` records and amounts from `estimates`, mismatch triggers explicit confirmation), #6 (agentic volume must ride the dedicated Messaging Service from Phase 177, not the shared number)
-**Research flag**: **needs deeper research during planning** — MCP-side confirmation/elicitation round-trip mechanics per the current MCP spec
+**Research flag**: resolved during planning — MCP elicitation primitive not required; a two-call draft/token/send round-trip achieves the same distinct-propose/distinct-commit guarantee using ordinary tool calls every MCP client already supports
 
 ### v4.21 Progress
 
@@ -2896,4 +2902,4 @@ Plans:
 | 175. Telegram Platform-Event Catalog & Per-Event Toggles | 0/? | Not started | - |
 | 176. End-Customer Consent, Opt-Out & Quiet Hours | 0/? | Not started | - |
 | 177. End-Customer Email/SMS Send Path & Audit Log | 0/7 | Not started | - |
-| 178. Agentic Send | 0/? | Not started | - |
+| 178. Agentic Send | 0/4 | Not started | - |
