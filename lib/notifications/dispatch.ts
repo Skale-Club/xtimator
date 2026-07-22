@@ -5,6 +5,8 @@ import { type EventType, EVENT_CATEGORIES } from './event-types'
 import { resolveChannels } from './preferences'
 import { resolveOwnerPhone } from './owner-phone'
 import { getApprovedTemplateForEvent } from './whatsapp-registry'
+import type { CopyContext } from './copy'
+import { resolveNotificationCopy } from './template-resolver'
 
 /**
  * Phase 77 (NOTIF-03) — Single fan-out entry point for the notifications system.
@@ -40,6 +42,14 @@ export interface NotifyParams {
     whatsapp?: boolean
     sms?: boolean
   }
+  /**
+   * Phase 172 (TMPL-06) — optional DB-template resolution seam. Omitted by
+   * every call site today (zero behavior change). When provided, notify()
+   * resolves the 'in_app' copy via `resolveNotificationCopy()` and uses the
+   * resolved title/body for the in_app insert + the downstream email/sms/
+   * whatsapp payloads. Per-channel divergence is Phase 174's job.
+   */
+  copyContext?: CopyContext
 }
 
 export interface NotifyResult {
@@ -72,6 +82,36 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
       !channels.sms
     ) {
       return { ok: true, skipped: 'channel_disabled' }
+    }
+
+    // Phase 172 (TMPL-06) — optional DB-template resolution seam. Only runs
+    // when a caller opts in via `copyContext`; every existing call site
+    // (none pass it yet) skips this block entirely and stays byte-identical.
+    // `resolveNotificationCopy` is already internally never-throwing (its
+    // own try/catch falls back to `buildNotificationCopy`) — this outer
+    // try/catch is defense-in-depth only (mirrors the existing double-guard
+    // style already used for the WhatsApp branch's
+    // `getApprovedTemplateForEvent` call below), so it should never actually
+    // trigger in practice (Research Pitfall 4).
+    let resolvedTitle = params.title
+    let resolvedBody = params.body
+    if (params.copyContext) {
+      try {
+        const copy = await resolveNotificationCopy(
+          'tenant',
+          params.eventType,
+          'in_app',
+          params.copyContext,
+        )
+        resolvedTitle = copy.title
+        resolvedBody = copy.body
+      } catch (e) {
+        console.warn(
+          '[notifications.dispatch] copyContext resolution failed, using caller-supplied title/body:',
+          e instanceof Error ? e.message : String(e),
+        )
+        // resolvedTitle/resolvedBody already default to params.title/params.body — no-op fallback.
+      }
     }
 
     const svc = requireServiceClient()
@@ -112,8 +152,8 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
           company_id: params.companyId,
           user_id: params.userId ?? null,
           event_type: params.eventType,
-          title: params.title,
-          body: params.body,
+          title: resolvedTitle,
+          body: resolvedBody,
           link_url: params.linkUrl ?? null,
           resource_type: params.resourceType ?? null,
           resource_id: params.resourceId ?? null,
@@ -146,8 +186,8 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
             companyId: params.companyId,
             eventType: params.eventType,
             category: EVENT_CATEGORIES[params.eventType],
-            title: params.title,
-            body: params.body,
+            title: resolvedTitle,
+            body: resolvedBody,
             linkUrl: params.linkUrl,
           },
         })
@@ -197,8 +237,8 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
                   templateName: tpl.templateName,
                   languageCode: tpl.languageCode,
                   variables: tpl.variables({
-                    title: params.title,
-                    body: params.body,
+                    title: resolvedTitle,
+                    body: resolvedBody,
                   }),
                 },
               })
@@ -221,7 +261,7 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
                 userId: params.userId,
                 companyId: params.companyId,
                 eventType: params.eventType,
-                body: `${params.title}: ${params.body}`,
+                body: `${resolvedTitle}: ${resolvedBody}`,
               },
             })
           } catch (e) {

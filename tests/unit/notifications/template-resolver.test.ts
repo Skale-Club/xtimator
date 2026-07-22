@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import type { EventType } from '@/lib/notifications/event-types'
 import { EVENT_TEMPLATE_SEED } from '@/lib/notifications/template-seed'
 import { buildNotificationCopy, type CopyContext } from '@/lib/notifications/copy'
-import { renderTemplate } from '@/lib/notifications/template-engine'
+import { renderTemplate, type TemplateVars } from '@/lib/notifications/template-engine'
 
 /**
  * Phase 172 plan 03 (TMPL-06 / TMPL-07) — RED tests for the DB-first,
@@ -50,7 +50,7 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
         data: {
           title: 'Estimate viewed by {{clientName}}',
           subject: null,
-          body: '{{clientName}} opened estimate {{estimateNumber}}.',
+          body: 'Heads up: {{clientName}} just opened estimate {{estimateNumber}}.',
         },
         error: null,
       }),
@@ -59,7 +59,7 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
     const ctx: CopyContext = { clientName: 'Acme Co', estimateNumber: 'EST-1' }
     const copy = await resolveNotificationCopy('tenant', 'estimate.viewed', 'in_app', ctx)
 
-    expect(copy.body).toBe('Acme Co opened estimate EST-1.')
+    expect(copy.body).toBe('Heads up: Acme Co just opened estimate EST-1.')
     expect(copy.title).toBe('Estimate viewed by Acme Co')
     // Sanity: this is NOT copy.ts's output for the same ctx (DB wins).
     expect(copy.body).not.toBe(buildNotificationCopy('estimate.viewed', ctx).body)
@@ -196,7 +196,11 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
 
     for (const eventType of Object.keys(EVENT_TEMPLATE_SEED) as EventType[]) {
       const ctx = fixtures[eventType]
-      const seedRendered = renderTemplate(EVENT_TEMPLATE_SEED[eventType].body, ctx, 'text')
+      const seedRendered = renderTemplate(
+        EVENT_TEMPLATE_SEED[eventType].body,
+        ctx as unknown as TemplateVars,
+        'text',
+      )
       const copyRendered = buildNotificationCopy(eventType, ctx).body
       expect(seedRendered, `mismatch for event "${eventType}"`).toBe(copyRendered)
     }
