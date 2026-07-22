@@ -27,3 +27,29 @@ describe('admin.bonus_credits_granted tenant-neutral copy', () => {
     expect(body).not.toMatch(/\d/)
   })
 })
+
+/**
+ * Phase 173 plan 01 — the same CREDITUI-04 invariant, re-pointed at the
+ * DB-template era: the admin editor's save/preview gate must be structurally
+ * unable to reintroduce a raw credit count into this event's tenant-facing
+ * copy. `@/lib/notifications/template-catalog` and
+ * `@/lib/notifications/template-validation` do not exist yet at RED time —
+ * lazy `await import` inside each test keeps this describe block collectable
+ * (and its own RED isolated) without breaking the two pre-existing tests
+ * above, which import `@/lib/notifications/copy` (already shipped) at the
+ * top of the file.
+ */
+describe('admin.bonus_credits_granted template-editor guard (TMPL-04 / Phase 173)', () => {
+  it('getEventVariableCatalog returns an empty catalog for this event', async () => {
+    const { getEventVariableCatalog } = await import('@/lib/notifications/template-catalog')
+    expect(getEventVariableCatalog('admin.bonus_credits_granted')).toEqual([])
+  })
+
+  it('validateTemplateVariables rejects any {{var}} reference for this event', async () => {
+    const { validateTemplateVariables } = await import('@/lib/notifications/template-validation')
+    const result = validateTemplateVariables('admin.bonus_credits_granted', {
+      body: '{{credits}} credits added!',
+    })
+    expect(result.valid).toBe(false)
+  })
+})
