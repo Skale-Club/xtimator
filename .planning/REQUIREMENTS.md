@@ -56,6 +56,14 @@ Each requirement maps to exactly one roadmap phase.
 - [x] **AGENT-02**: The same send capability is exposed as an MCP tool with the same confirmation and validation gates as the WhatsApp path.
 - [x] **AGENT-03**: The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, recipient and body are re-validated server-side at send time (prompt-injection cannot redirect a message), and sends are rate-limited per company.
 
+### WhatsApp Template Composer — Phase 179 extension (owner-requested 2026-07-22, pulls in FUT-01)
+
+- [ ] **TMPLCOMP-01**: Super-admin can compose a WhatsApp HSM template BODY in the panel with positional `{{n}}` variables, each position carrying a label + example value — one single ordered array drives the body text, Meta's `example.body_text`, and `variables_schema` (order-mismatch-by-construction impossible; research: Meta validates param COUNT at send time but never ORDER).
+- [ ] **TMPLCOMP-02**: Submit sends REAL components to Meta (BODY + mandatory `example.body_text`), with pre-submit validation mirroring Meta's auto-reject rules (sequential variables, no leading/trailing variable, char limits) so avoidable rejections are caught before the API call.
+- [ ] **TMPLCOMP-03**: Approval status is verifiable in-system — the existing webhook sync plus a "Check status now" button doing a direct Meta GET; the FULL status enum is handled (PAUSED/DISABLED/FLAGGED etc. resolve to non-approved states, never a silent lowercase fall-through).
+- [ ] **TMPLCOMP-04**: Super-admin can edit and resubmit a rejected (or approved) template in place via `POST /{template_id}` — rejection reason displayed in the panel.
+- [ ] **TMPLCOMP-05**: The event→template mapping writes the populated `variables_schema` so Phase 174's `expectedVariableCount` send guard is live end-to-end; `lib/actions/admin-whatsapp-templates.ts` gains its missing unit coverage (Wave 0 gap found by research).
+
 ## Future Requirements (deferred)
 
 - **FUT-01**: WhatsApp HSM body editing in the template editor (positional `{{n}}` parameter model needs its own design pass + Meta API validation research).
