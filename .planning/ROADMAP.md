@@ -2752,7 +2752,7 @@ Plans:
   4. A variable value containing `<`, `>`, `&`, or `"` renders escaped in HTML channels and never injects markup — proven with a client literally named `<script>`
   5. With the `notification_templates` table empty, every notification is byte-identical to pre-milestone behavior (strictly additive rollout, zero call-site changes required)
 
-**Plans**: TBD
+**Plans**: 3 — 172-01 (TMPL-07: hand-rolled {{var}} interpolator + per-channel escaping module, closes the sendWhatsAppTemplate() sanitization gap), 172-02 (TMPL-01: notification_templates migration + day-one seed byte-derived from copy.ts, TypeScript-exhaustive against EventType), 172-03 (TMPL-06/07: resolveNotificationCopy() DB-first/copy.ts-fallback resolver + the additive optional copyContext seam wired into notify() — zero call-site cutover, see [172-01-PLAN.md](phases/172-template-engine-foundation/172-01-PLAN.md), [172-02-PLAN.md](phases/172-template-engine-foundation/172-02-PLAN.md), [172-03-PLAN.md](phases/172-template-engine-foundation/172-03-PLAN.md)).
 **Pitfalls addressed**: #1 (lost exhaustiveness guard — seed every `EventType` + CI diff), #2 (no missing-template fallback — DB→built-in→skip, never throw/blank), #4 (HTML injection via un-escaped variable substitution — escape values not template text, two renderers by channel type)
 **Research flag**: none — direct generalization of the shipped `whatsapp-registry.ts` pattern (skip `/gsd:research-phase`)
 
