@@ -2,6 +2,7 @@ import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { getRedis } from '@/lib/redis'
 import { sendTelegramMessage } from '@/lib/telegram/client'
+import { isTelegramAlertEnabled } from '@/lib/observability/platform-preferences'
 
 /**
  * lib/observability/ops-alert.ts
@@ -74,11 +75,17 @@ export async function notifyOps(alert: OpsAlert): Promise<void> {
       // Swallow: Sentry down must not break the fan-out.
     }
 
-    // (3) Telegram — a Telegram failure (incl. 'not configured') is swallowed.
+    // (3) Telegram — gated per-kind by the admin toggle matrix (PLAT-02), EXCEPT
+    // locked/critical kinds which always deliver (PLAT-03). The toggle check
+    // itself never throws (fail-open); a Telegram failure (incl. 'not
+    // configured') is still swallowed exactly as before.
     try {
-      await sendTelegramMessage(formatOpsMessage(alert))
+      const telegramEnabled = await isTelegramAlertEnabled(alert.kind)
+      if (telegramEnabled) {
+        await sendTelegramMessage(formatOpsMessage(alert))
+      }
     } catch {
-      // Swallow: dormant/erroring Telegram must not throw out of notifyOps.
+      // Swallow: dormant/erroring Telegram (or a toggle-check hiccup) must not throw out of notifyOps.
     }
   } catch {
     // Belt-and-suspenders: notifyOps NEVER throws.

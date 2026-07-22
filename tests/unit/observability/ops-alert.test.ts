@@ -16,8 +16,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *  - never-throw (st)→ captureMessage throws: notifyOps resolves, Telegram still called.
  *  - dormant         → sendTelegramMessage rejects '[Telegram] not configured': resolves.
  *  - severity default→ no severity: captureMessage level 'warning', ⚠️ emoji in message.
+ *  - toggle gate     → isTelegramAlertEnabled false: Sentry still called, Telegram NOT called
+ *                      (Phase 175 PLAT-02); true: both still called (regression guard); the
+ *                      toggle check itself rejecting: notifyOps still resolves, Sentry still called.
  *
- * All downstreams are mocked — no real Sentry, Redis, or Telegram is touched.
+ * All downstreams are mocked — no real Sentry, Redis, Telegram, or DB is touched.
  */
 
 const captureMessageMock = vi.fn()
@@ -35,15 +38,24 @@ vi.mock('@/lib/redis', () => ({
   getRedis: () => getRedisMock(),
 }))
 
+const isTelegramAlertEnabledMock = vi.fn()
+vi.mock('@/lib/observability/platform-preferences', () => ({
+  isTelegramAlertEnabled: (...args: unknown[]) => isTelegramAlertEnabledMock(...args),
+}))
+
 import { notifyOps, formatOpsMessage } from '@/lib/observability/ops-alert'
 
 beforeEach(() => {
   captureMessageMock.mockReset()
   sendTelegramMessageMock.mockReset()
   getRedisMock.mockReset()
-  // Default: Telegram send succeeds, Redis absent (fail-open pass-through).
+  isTelegramAlertEnabledMock.mockReset()
+  // Default: Telegram send succeeds, Redis absent (fail-open pass-through),
+  // toggle gate resolves enabled — keeps every existing test in this file
+  // passing unmodified.
   sendTelegramMessageMock.mockResolvedValue(undefined)
   getRedisMock.mockReturnValue(null)
+  isTelegramAlertEnabledMock.mockResolvedValue(true)
 })
 
 describe('formatOpsMessage', () => {
@@ -208,5 +220,35 @@ describe('notifyOps', () => {
 
     const sentText = sendTelegramMessageMock.mock.calls[0][0] as string
     expect(sentText).toContain('⚠️')
+  })
+
+  it('toggle gate false — Sentry still fires, Telegram is NOT sent (Phase 175 PLAT-02)', async () => {
+    isTelegramAlertEnabledMock.mockResolvedValue(false)
+
+    await notifyOps({ kind: 'tenant_signup', title: 't', message: 'm' })
+
+    expect(isTelegramAlertEnabledMock).toHaveBeenCalledWith('tenant_signup')
+    expect(captureMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendTelegramMessageMock).not.toHaveBeenCalled()
+  })
+
+  it('toggle gate true — both Sentry and Telegram fire (regression guard)', async () => {
+    isTelegramAlertEnabledMock.mockResolvedValue(true)
+
+    await notifyOps({ kind: 'tenant_signup', title: 't', message: 'm' })
+
+    expect(captureMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendTelegramMessageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('never throws when the toggle check itself rejects — Sentry still fires', async () => {
+    isTelegramAlertEnabledMock.mockRejectedValue(new Error('toggle check hiccup'))
+
+    await expect(
+      notifyOps({ kind: 'tenant_signup', title: 't', message: 'm' })
+    ).resolves.toBeUndefined()
+
+    expect(captureMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendTelegramMessageMock).not.toHaveBeenCalled()
   })
 })
