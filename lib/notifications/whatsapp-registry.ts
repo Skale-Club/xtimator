@@ -25,6 +25,21 @@ export interface NotificationTemplate {
   languageCode: string
   /** Projects the notify payload into ordered `{{n}}` body variables. */
   variables: (payload: { title: string; body: string }) => string[]
+  /**
+   * Phase 174 (TNT-03 / Pitfall 3) — the expected `{{n}}` variable count the
+   * approved Meta template requires. Sourced from a DB-approved row's
+   * `variables_schema.length` (0 when the column is unconfigured, its own
+   * default). Plan 174-04 builds a send-time guard on top of this field that
+   * refuses to send when the actual variable count doesn't match.
+   *
+   * NOTE: this is a structural NO-OP for the 5 static `REGISTRY` fallback
+   * entries below — they hardcode `2` to match `titleBodyVars`'s own fixed
+   * 2-element output, so the guard never blocks today's existing send
+   * behavior for unmigrated/static entries. Real dormancy for those 5 events
+   * comes from the opt-in consent gate (lib/notifications/preferences.ts) and
+   * Meta's own template-approval gate, not from this field.
+   */
+  expectedVariableCount: number
 }
 
 /** Maps the body `{ title, body }` into the two-variable [title, body] order. */
@@ -38,27 +53,32 @@ const REGISTRY: Partial<Record<EventType, NotificationTemplate>> = {
     templateName: 'owner_estimate_update',
     languageCode: 'en_US',
     variables: titleBodyVars,
+    expectedVariableCount: 2,
   },
   'estimate.declined': {
     templateName: 'owner_estimate_update',
     languageCode: 'en_US',
     variables: titleBodyVars,
+    expectedVariableCount: 2,
   },
   // Billing — money + plan health.
   'payment.received': {
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: titleBodyVars,
+    expectedVariableCount: 2,
   },
   'quota.exhausted': {
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: titleBodyVars,
+    expectedVariableCount: 2,
   },
   'trial.expiring_3d': {
     templateName: 'owner_billing_alert',
     languageCode: 'en_US',
     variables: titleBodyVars,
+    expectedVariableCount: 2,
   },
 }
 
@@ -92,7 +112,7 @@ export async function getApprovedTemplateForEvent(
 
     const { data } = await svc
       .from('whatsapp_notification_templates')
-      .select('template_name, language_code')
+      .select('template_name, language_code, variables_schema')
       .eq('event_type', eventType)
       .eq('status', 'approved')
       .order('updated_at', { ascending: false })
@@ -104,6 +124,11 @@ export async function getApprovedTemplateForEvent(
         templateName: data.template_name as string,
         languageCode: (data.language_code as string) ?? 'en_US',
         variables: titleBodyVars,
+        // Defensive: variables_schema defaults to '[]'::jsonb in the DB, but
+        // guard against null/non-array values regardless — never throw here.
+        expectedVariableCount: Array.isArray(data.variables_schema)
+          ? data.variables_schema.length
+          : 0,
       }
     }
   } catch (err) {
