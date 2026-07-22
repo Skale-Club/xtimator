@@ -1,140 +1,158 @@
 # Stack Research
 
-**Domain:** Incremental UI/UX refresh on an existing production SaaS — v4.18 Estimate Document & Send Experience Refresh (Xtimator)
-**Researched:** 2026-07-08
-**Confidence:** HIGH (every claim below verified directly against `package.json`, the lockfile, and live source files in this repo — not training-data guesses)
+**Domain:** Notification Center additions — Telegram admin channel, DB-driven template rendering, A2P 10DLC SMS compliance for end-customer messaging
+**Researched:** 2026-07-21
+**Confidence:** HIGH (Telegram + template engine — verified against code already shipped in this repo) / MEDIUM (A2P 10DLC — verified via multiple current sources, no Context7 coverage for compliance topics)
 
 ## Bottom Line
 
-**Zero new runtime dependencies are required for any of the 4 target features.** Every capability needed (short unguessable tokens, slug generation, an adaptive popover/bottom-sheet, a flexible per-row settings bag, a command-palette client picker) is either a Node.js built-in already used elsewhere in this codebase, or an npm package already declared in `package.json` and already wrapped as a shadcn/ui primitive in `components/ui/`. This milestone is UI/UX consolidation + one migration, not a new subsystem — treat any proposal to add a package as a red flag requiring justification.
+**No new runtime npm dependency is required for any of the 3 target capabilities.** Two of them — Telegram and SMS — already have proven raw-`fetch` clients shipped in this exact repo; the milestone's job is to *widen* those, not build new ones. The template-rendering need is fully satisfied by a small hand-rolled interpolator matching a pattern the codebase already uses for email HTML. The A2P 10DLC item is almost entirely a Twilio Console/compliance-copy task, not a library decision.
+
+## Codebase Reality Check (read before recommending anything)
+
+Two of the three "new" capabilities in the milestone brief are **not actually new** — they already exist, shipped via a 2026-07-05 quick-task (`260705-c1y-telegram-ops-alerting-system-for-the-pla`):
+
+| Exists today | File | Shape |
+|---|---|---|
+| Telegram send client | `lib/telegram/client.ts` | `sendTelegramMessage(text)` — raw `fetch` to `api.telegram.org/bot<token>/sendMessage`, `parse_mode: 'HTML'`, single `chat_id` |
+| Telegram config | `lib/platform-config.ts` → `getTelegramConfig()` | Reads `platform_integrations` (`provider: 'telegram'`), encrypted bot token + `metadata.chat_id`; dormant (`null`) unless both are set |
+| Telegram consumer | `lib/observability/ops-alert.ts` → `notifyOps()` | System-health alerts only (Sentry co-fired); NOT wired to `notify()`/event-types; already HTML-escapes title/message (`&`/`<`/`>`) before sending |
+| Admin UI for the token | `app/admin/integrations/telegram-chat-id-form.tsx` | Exists, single chat_id field |
+| SMS send primitive | `lib/sms/client.ts` | `sendSms(to, body)` — raw `fetch` REST call to Twilio (Basic Auth, urlencoded body), **no Twilio SDK**, comment explicitly states this is "the established repo convention" |
+| End-customer SMS precedent | `app/api/estimates/[id]/send-sms/route.ts` | Already sends estimate share links to end customers via `sendSms()`, gated by `company.sms_delivery_enabled`, logs to `estimate_deliveries` |
+| Email HTML rendering | `lib/email/notification-emails.ts` | Hand-rolled template-literal HTML + a local `escapeHtml()` (`&`/`<`/`>`/`"`/`'`) — **no templating library anywhere in the codebase** |
+| TCPA/consent gate | `lib/notifications/preferences.ts` | `sms_opt_in_at` / `whatsapp_opt_in_at` timestamps already gate the paid channels in `resolveChannels()` — a toggle alone never triggers a send |
+| WhatsApp HSM param send | `lib/whatsapp/client.ts` → `sendWhatsAppTemplate()` | Passes `bodyVariables: string[]` straight through as ordered `{type:'text', text}` params — **no sanitization today** (no newline/whitespace stripping); the new template engine should close this gap |
+
+**This changes the shape of the work**: (a) is "widen an existing raw-fetch client from 1 chat_id + system alerts to N chat_id(s) + all platform events with per-event toggles," not "add a Telegram library." (b) is "write one small interpolation+escaping utility," not "add a template engine" — the codebase has zero templating dependencies today and a proven hand-rolled pattern to extend. (c) is close to zero new code — mostly a Twilio Console/Trust Hub registration + `from_phone` provisioning decision.
 
 ## Recommended Stack
 
-### Core Technologies (all ALREADY INSTALLED — reuse, do not reinstall)
+### Core Technologies — what to ADD
 
-| Technology | Version (from package.json) | Purpose in this milestone | Why Recommended |
-|------------|------------------------------|----------------------------|------------------|
-| `radix-ui` (unified meta-package) | `^1.4.3` | Backs `components/ui/popover.tsx` (`Popover as PopoverPrimitive`) and `components/ui/sheet.tsx` (`Dialog as SheetPrimitive`) | This project already consolidated onto the single `radix-ui` meta-package instead of per-primitive `@radix-ui/react-*` packages — confirmed by reading both files. Both the desktop-popover and mobile-bottom-sheet needed for the settings panel (feature 1) are 1-import-away, already themed to the app's glass design system. |
-| `cmdk` | `^1.1.1` | Powers `components/ui/command.tsx` (shadcn `Command`) | Already the command-palette search-select primitive used in production for a client picker — see `components/workspace/link-client-card.tsx` and `link-client-button.tsx`, both of which combine `Popover` + `Command`/`CommandInput`/`CommandGroup`/`CommandItem` to search & select a client. This is *exactly* the pattern feature 4 needs to consolidate. |
-| Node.js built-in `node:crypto` | Runtime (Node ≥20.9, required by Next.js 16.2.6 — [nextjs.org/docs/app/guides/upgrading/version-16](https://nextjs.org/docs/app/guides/upgrading/version-16)) | Short unguessable token suffix for friendly estimate URLs (feature 2) | `crypto.randomUUID()` is already used pervasively client-side (`components/workspace/photos/photo-drop-zone.tsx`, `components/settings/team-section.tsx`, `components/workspace/estimate/use-estimate-reducer.ts`, `components/projects/text-describe.tsx`). Server-side, `crypto.randomBytes(n).toString('base64url')` gives a short, URL-safe, cryptographically-random suffix — `base64url` encoding has been stable in Node since v15.7, far below this project's Node ≥20.9 floor. No new package needed. |
-| Existing `slugify()` pattern | N/A (hand-rolled, ~1 line) | `companySlug` / `estimateSlug` generation (feature 2) | `app/admin/blog/actions.ts` already has a proven, dependency-free slugify: `s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')`, used to derive `blog_posts.slug`. Reuse the same one-liner (extract to `lib/utils/slugify.ts` if it needs to be shared) rather than pulling in an npm slug library. |
-| Postgres `gen_random_uuid()` (pgcrypto) | Already in use | Precedent for DB-side token generation | The *existing* `estimates.share_token` column is defined as `UUID DEFAULT gen_random_uuid()` (`supabase/migrations/20260409000001_initial_schema.sql:94`) — i.e., today's bearer token is generated entirely DB-side, not in application code. This confirms the project already has both DB-side and (per above) app-side random-token idioms available; for a *short* suffix, app-side `crypto.randomBytes` is the simpler choice since it gives control over length/charset that a raw UUID does not. |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| *(none — no new runtime dependency)* | — | Telegram send | Raw `fetch` to `api.telegram.org` already works, is already proven in this repo (`lib/telegram/client.ts`), and this milestone is send-only (no inline keyboards, no inbound commands, no conversation state). A bot framework buys you update routing, middleware, session storage, and inline-keyboard builders — none of which this feature needs. |
+| *(none — no new runtime dependency)* | — | Template rendering | A ~40-line hand-rolled `{{var}}` interpolator matches the existing `escapeHtml`-in-`notification-emails.ts` pattern exactly, and is the only option that lets you apply *different* escaping per channel (HTML-escape for email, control-char-strip for SMS/Telegram, ordered-params array for WhatsApp HSM) from one small, fully-audited function. |
 
-### Supporting Libraries — none new
+### Supporting Utilities to Build (code you write this milestone, not libraries)
 
-| Library | Status | Notes |
-|---------|--------|-------|
-| `zod` | Already `^4.3.6` | Validate the new settings-panel payload / slug+token route params the same way every other server action in this codebase validates input (`lib/schemas/`). No new validation library needed. |
-| `react-hook-form` + `@hookform/resolvers` | Already `^7.72.1` / `^5.2.2` | The settings panel's tax/discount/deposit override fields are ordinary form fields — reuse the existing RHF + zod pattern used throughout `components/workspace/`. |
-| `date-fns` | Already `^4.1.0` | If any settings-panel UI needs relative/formatted dates, this is already the project's date library — do not add `dayjs` or `luxon`. |
+| Utility | Purpose | When to Use |
+|---------|---------|-------------|
+| `lib/notifications/template-engine.ts` (new) | `renderTemplate(template: string, vars: Record<string,string>, ctx: 'html' \| 'text' \| 'whatsapp_ordered')` — literal `{{var}}` substitution (regex `/\{\{(\w+)\}\}/g`), one defined missing-var behavior applied everywhere, context-aware escaping | Single call site every channel adapter routes through — email HTML, SMS/Telegram plain text, WhatsApp HSM `{{n}}` ordered params |
+| Widen `lib/telegram/client.ts` | `sendTelegramMessage(text, chatId?)` accepting an explicit chat id (or looping over an array) instead of always reading the single configured one | Per-event fan-out to possibly-multiple admin chats |
+| Widen `getTelegramConfig()` in `lib/platform-config.ts` | `metadata.chat_ids: string[]` (or a join table if per-event-per-admin chat routing is needed) instead of today's single `metadata.chat_id` string | Needed to support "ALL platform events... with per-event toggles" — a single chat_id can't express per-admin or per-event routing |
+| A `platform_event_preferences`-style table (mirrors `notification_preferences`) | Per-platform-event Telegram toggle, admin-panel editable | The tenant side already has this exact shape (`notification_preferences.categories`); reuse the pattern for platform events rather than inventing a new one |
 
-### Development Tools — none needed
+### Development Tools
 
-No new dev-time tooling is required. Type regeneration (`types/database.types.ts`) will be needed after the new migration for feature 1's settings column and feature 2's `companies.slug`/`estimates.slug` columns, using whatever existing Supabase CLI workflow this repo already uses — that's a process step, not a new dependency.
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| Telegram `@BotFather` | Bot token issuance + bot settings | One-time setup; token goes into `platform_integrations` via the existing admin form, never `.env` (project rule) |
+| Twilio Console → Trust Hub | A2P 10DLC Brand + Campaign registration, OR Toll-Free Verification | Operational, not code — see compliance section below |
 
 ## Installation
 
 ```bash
-# No installation required. Zero new packages for this milestone.
-# All 4 target features are satisfied by dependencies already declared in package.json:
-#   radix-ui, cmdk, zod, react-hook-form — plus Node's built-in `crypto` module.
+# No new packages required for (a) Telegram send or (b) template rendering.
+# The milestone should NOT run any install for these two areas.
+
+# (c) is a Twilio Console/API registration task, not an npm install.
+# If a Messaging Service is later provisioned for custom opt-out copy, it's
+# reachable via the SAME raw-fetch/Basic-Auth convention lib/sms/client.ts
+# already uses — no `twilio` SDK needed.
 ```
 
-## Answers to the 4 Specific Questions
+## Alternatives Considered
 
-### (a) Slug generation / short unguessable public tokens
+### (a) Telegram: raw fetch vs grammY vs Telegraf
 
-**Node's built-in `crypto` suffices — no new library.**
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|--------------------------|
+| Raw `fetch` (current, extend it) | [grammY](https://grammy.dev) `^1.45.1` (~1.26M weekly downloads, TypeScript-first, modern plugin ecosystem, actively maintained) | If a LATER milestone adds inbound admin commands (`/mute`, `/status`, two-way replies), inline keyboards, or conversation state — grammY's update router + session middleware earns its keep there. Not needed for send-only. |
+| Raw `fetch` (current, extend it) | [Telegraf](https://telegraf.js.org) `^4.16.3` (~856K weekly downloads, longer-established, weaker TS types than grammY per grammY's own comparison, supports both webhook and long-polling) | Same trigger as grammY — only relevant once inbound handling exists. If a framework is ever adopted, grammY is the better pick of the two per current community comparisons. |
 
-- Confirmed nothing like `nanoid`, `uuid`, `shortid`, `cuid2`, or `hashids` is a *direct* dependency in `package.json`.
-- `nanoid@3.3.12` DOES appear in `pnpm-lock.yaml` / `package-lock.json`, but only as a **transitive** dependency of `postcss` (verified: `pnpm-lock.yaml` shows `postcss@8.4.31`/`8.5.15` → `dependencies: nanoid: 3.3.12`). It is not declared in `package.json`'s `dependencies`, so importing it directly would be fragile (relies on flat-node_modules hoisting, no types guarantee, could silently break on a future postcss bump that changes/drops nanoid). **Do not import it.**
-- Use `crypto.randomBytes(6).toString('base64url')` (8 url-safe characters, ~48 bits of entropy — plenty for a share-link secret suffix that isn't the *sole* auth boundary, since RLS + the service-role lookup pattern already used by `app/estimate/[token]/actions.ts` bounds the blast radius) or `crypto.randomBytes(8)` for extra margin. This mirrors the `crypto.randomUUID()` idiom already used in 4+ client components in this repo.
-- Slug: reuse the existing regex `slugify()` from `app/admin/blog/actions.ts` — proven in production for `blog_posts.slug`, zero dependencies, trivially extracted to a shared `lib/utils/slugify.ts` if both blog and estimate/company code need it.
-- Backward compatibility (old `/estimate/{share_token}` links must keep working) is a routing/lookup concern, not a stack concern — both the legacy UUID `share_token` and the new `{shortToken}` suffix can be looked up the same way `app/estimate/[token]/actions.ts` already does (`eq('share_token', token)` today; add a second lookup path for the new slug+shortToken shape).
+**Rationale for staying raw-fetch:** this milestone is explicitly send-only ("bot token... delivered to Xtimator admins," "ALL platform events covered with per-event toggles" — no mention of admins replying to the bot). Polling vs webhook is a non-question for send-only bots: neither `getUpdates` nor a webhook endpoint is needed at all if the bot never receives anything the app needs to react to. Adding grammY/Telegraf now would mean carrying an update-routing/middleware framework whose central feature (handling *incoming* updates) is unused — pure dependency weight for zero benefit, and inconsistent with the codebase's established "REST-over-fetch" convention used identically for `lib/whatsapp/client.ts`, `lib/sms/client.ts`, and `lib/telegram/client.ts`.
 
-### (b) Popover + Sheet/Drawer primitive for a settings panel (desktop-popover / mobile-bottom-sheet)
+**Rate limits to design around (regardless of client choice):** Telegram allows roughly 1 message/sec per chat and ~30 messages/sec globally on the free tier; excess requests get HTTP 429 with a `retry_after` field. With N platform admins × per-event fan-out, this is very unlikely to be hit, but route sends through Inngest (see Version Compatibility below) so a burst of platform events naturally serializes/retries instead of firing a wall of concurrent `fetch` calls from request handlers.
 
-**Already shipped — `components/ui/popover.tsx` and `components/ui/sheet.tsx` both exist and are both Radix-based via the unified `radix-ui` package. No `vaul` needed.**
+### (b) Template rendering: hand-rolled vs Mustache vs Handlebars
 
-- `components/ui/popover.tsx` wraps `Popover as PopoverPrimitive` from `radix-ui` — standard anchored popover, already themed (`bg-popover`, glass tokens elsewhere in the app).
-- `components/ui/sheet.tsx` wraps `Dialog as SheetPrimitive` from `radix-ui` and **already supports `side="bottom"`**, styled with the app's glassmorphism tokens and rounded top corners (`inset-x-0 bottom-0 h-auto border-t border-[var(--glass-border)] rounded-t-[var(--radius-lg)]`) — this is functionally a bottom sheet today, just without vaul's drag-to-dismiss gesture/snap-points.
-- Confirmed via repo-wide search that `vaul` is **not installed and not imported anywhere** (only unrelated substring false-positives like "vault" turned up).
-- For switching between the two based on viewport, this codebase already has a precedent — an ad hoc `window.matchMedia('(max-width: 767px)')` check in `components/workspace/project-workspace.tsx:76` (no dedicated hook library such as `usehooks-ts` or `@uidotdev/usehooks` is installed). Reuse that same breakpoint/pattern (or extract it into a tiny local `useIsMobile()` hook) to decide whether the gear button opens `<Popover>` or `<Sheet side="bottom">`.
-- **Optional, explicitly deferrable:** if product wants true swipe-to-dismiss / snap-point gestures on the mobile settings sheet (beyond what Radix Dialog + CSS gives), `vaul` (`^1.x`) is the standard React drawer library and would be a legitimate *future* addition — but it is not required to ship this milestone's stated goal ("bottom sheet on mobile") and should not be added preemptively.
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|--------------------------|
+| Hand-rolled `{{var}}` interpolator (~40 lines, no dependency) | [mustache](https://www.npmjs.com/package/mustache) `^4.2.0` — logic-less templates, sections (`{{#items}}`), no code execution | If the template catalog later needs loops/conditionals (e.g., "list each line item") beyond flat variable substitution. Mustache is genuinely logic-less (no arbitrary JS eval), so it's the safer *library* escalation path if flat substitution stops being enough — prefer it over Handlebars if that day comes. |
+| Hand-rolled `{{var}}` interpolator | [handlebars](https://www.npmjs.com/package/handlebars) `^4.7.9` — Mustache superset with helpers, partials, custom logic | **Avoid for this feature.** Handlebars helpers can execute arbitrary registered JS, and its template compiler has a documented history of prototype-pollution/RCE-class CVEs when template *sources* are attacker- or lower-trust-influenced. Relevant here: the new template table is super-admin-editable via a web form — a stored-template-injection surface. Handlebars is the wrong trust model for "templates live in a DB, editable via an admin UI, not compiled from reviewed source." |
 
-### (c) JSONB vs typed nullable columns for per-estimate presentation settings
+**Rationale:** the milestone's own spec is flat named placeholders — `{{client_name}}`, `{{estimate_number}}` — with **no loops, no conditionals, no partials** described anywhere in the feature list. A regex-based substitution function satisfies 100% of the stated requirement, is trivially auditable (the entire security surface fits in one code review), and — critically — lets you implement the **per-channel output-context escaping** the milestone actually needs (HTML-escape for email vs plain-text for SMS/Telegram vs an ordered array for WhatsApp HSM) as first-class function behavior rather than fighting a general-purpose engine's own escaping model. Neither Mustache nor Handlebars is channel-aware; you'd still hand-write the per-channel escaping wrapper around them, so adopting one adds a dependency without removing any of the actual work.
 
-**Follow the `companies.tax_config` precedent: a nullable JSONB column + a typed TS interface + a permissive type-guard that degrades to defaults.** This is a stronger, more specific precedent in this codebase than `billing_config` for a *per-row* settings bag.
+**Per-channel output rules the engine must encode** (this is the actual design work, not a library choice):
+- **Email HTML** — HTML-entity-escape every interpolated value (`&`, `<`, `>`, `"`, `'`) before insertion, exactly like the existing `escapeHtml()` in `lib/email/notification-emails.ts`. The template *shell* is admin-authored trusted HTML; only the *values* (client names, amounts, etc.) are escaped.
+- **SMS / Telegram plain text** — no HTML escaping (would show literal `&amp;` to the recipient); instead strip/replace control characters and collapse newlines-in-values so a malicious/odd variable value can't inject extra lines or break Telegram's `parse_mode: 'HTML'` entity parsing (Telegram HTML mode still needs `&`/`<`/`>` escaped even in plain "text" messages, per the existing `formatOpsMessage()` precedent — reuse that exact escaping for the Telegram context specifically, since it uses `parse_mode: 'HTML'`; use no escaping at all for SMS, which is truly plain text).
+- **WhatsApp HSM `{{n}}` params** — Meta rejects/mishandles template parameters containing newlines, tabs, or 4+ consecutive spaces, and leading/trailing whitespace. The renderer's `whatsapp_ordered` context should strip newlines/tabs and collapse whitespace in each value before returning the ordered array — this is a real gap today (`sendWhatsAppTemplate` passes values through unsanitized).
 
-- `companies.tax_config` (JSONB, nullable) is read in `lib/services/generate-estimate.ts` and modeled in `lib/estimate/compute-totals.ts` as:
-  ```ts
-  export interface TaxConfig {
-    rates: { labor?: number; materials?: number; other?: number }
-    default_rate?: number
-  }
-  function isTaxConfig(value: unknown): value is TaxConfig {
-    return typeof value === 'object' && value !== null && 'rates' in value &&
-      typeof (value as { rates: unknown }).rates === 'object' && (value as { rates: unknown }).rates !== null
-  }
-  ```
-  A malformed/absent value **degrades to the flat retrocompat path** rather than throwing (GUARD-03 never-throw discipline) — this is the exact resilience shape a per-estimate settings bag needs (missing/malformed settings → sane defaults, never a broken document).
-- `lib/billing/billing-config.ts` shows the *singleton* analog of the same idea: one JSONB `metadata` column on `platform_integrations`, read through a server-only typed getter (`getBillingConfig()`) that deep-merges the stored value over a `DEFAULT_BILLING_CONFIG` constant. Mirror this shape for the estimate-level reader (e.g. `getEstimateSettings(estimate)` merging over a `DEFAULT_ESTIMATE_SETTINGS`), just scoped per-row instead of platform-wide.
-- **Why JSONB and not typed columns for the section-visibility toggles + overrides bag specifically:** the existing `estimates` table already demonstrates the project's actual convention — fields consumed *directly by the deterministic math engine* or needing to be individually queryable/indexed get **discrete typed nullable columns** (`discount_type`, `discount_value`, `discount_amount`, `tax_rate`, `tax_amount`, `payment_terms`, `timeline`, `warranty_terms`, `notes`, `summary` — confirmed in `types/database.types.ts:765-807`). A document-section-visibility toggle set (summary/sections/payment terms/timeline/warranty/notes/photos shown-or-hidden) is opaque UI preference data with no query/index need and a shape that will keep growing — exactly what `tax_config` JSONB already models successfully. **Do not** add 7+ new boolean columns for section toggles; **do** add one JSONB column (e.g. `estimates.display_settings` or `estimates.presentation_config`) for those, while any NEW tax/discount/deposit *override* value that the math engine must consume directly should extend the existing discrete-column family (or reuse the dormant `deposit_type`/`deposit_value` columns already authored in the Phase 129 pricing-schema migration per PROJECT.md) rather than being buried in JSONB — keep server-math inputs typed/columnar, keep display preferences JSONB.
+### (c) SMS to end customers: 10DLC vs Toll-Free
 
-### (d) Command-palette-style search-select for the client picker
-
-**Already installed and already used exactly this way — `cmdk` (`^1.1.1`) wrapped as `components/ui/command.tsx`, consumed today by 2 of the 3 duplicated client-picker components.**
-
-- `components/workspace/link-client-card.tsx` and `components/workspace/link-client-button.tsx` are near-identical: both render `<Popover><PopoverTrigger>...</PopoverTrigger><PopoverContent><Command><CommandInput .../><CommandGroup>{clients.map(c => <CommandItem .../>)}</CommandGroup></Command></PopoverContent></Popover>`, fetching `/api/clients` client-side and filtering by name/email.
-- The third duplicate mentioned in the milestone brief (`LinkClientInline`) was not found under that exact name in the current tree (grep found only `link-client-card.tsx`, `link-client-button.tsx`, `estimate-document.tsx`, `client-tab.tsx`, `overview-tab.tsx` referencing client-linking) — it may be inline logic inside `estimate-document.tsx`/`client-tab.tsx` rather than a separate file; worth a quick look during planning to confirm the exact 3rd implementation, but the *pattern* to consolidate around is unambiguous either way: `Popover` + `Command` (this repo's existing shadcn wrapper), not a new library.
-- **Consolidation approach:** extract the shared `ClientList`/search-and-select logic (currently copy-pasted between the two files above) into one component (matching the milestone's stated goal), parameterized by trigger style (card button vs. inline hover-icon vs. pill) and `onSelect` callback — a refactor, not a new dependency.
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|--------------------------|
+| **Toll-Free Verification** for the outbound `from_phone` | A2P 10DLC (Brand + Campaign registration via Twilio Trust Hub) | Use 10DLC instead if Xtimator later sends genuinely high-volume or marketing-adjacent SMS (10DLC scales to far higher per-second throughput once a Campaign is registered and trust-scored). For this milestone's use case — transactional estimate links + "send an SMS to my client about X" agentic sends, one tenant's small client list — Toll-Free is materially faster to provision (Twilio verifies toll-free numbers **in-house**; 10DLC requires **external carrier vetting**, commonly 1–2+ weeks) and carries no per-campaign carrier fee. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|--------------|
-| `nanoid` (as a direct dependency) | Only present as a transitive dep of `postcss` today — not in `package.json`, fragile to import directly, no version guarantee across postcss upgrades | `crypto.randomBytes(n).toString('base64url')` (Node built-in, already the project's idiom via `crypto.randomUUID()`) |
-| `uuid` (npm package) | Node's built-in `crypto.randomUUID()` already covers every UUID need this codebase has (used in 4+ places already) | `crypto.randomUUID()` |
-| `vaul` | Not installed, not needed to meet the stated "bottom sheet on mobile" requirement — the existing `components/ui/sheet.tsx` already renders a bottom sheet via Radix Dialog + `side="bottom"` | `components/ui/sheet.tsx` with `side="bottom"`; revisit only if product explicitly asks for swipe-to-dismiss/snap-point gestures beyond what ships this milestone |
-| `slugify` / `speakingurl` / `@sindresorhus/slugify` (npm packages) | This codebase already has a proven zero-dependency `slugify()` one-liner in production use for `blog_posts.slug` | Reuse/extract the existing `app/admin/blog/actions.ts` `slugify()` function |
-| `react-select`, `downshift`, or any other combobox/autocomplete library | `cmdk` (already installed) + the existing shadcn `Command` wrapper already implements exactly this UX and is already proven across 2 client-picker components | `components/ui/command.tsx` (`cmdk`) |
-| A brand-new "presentation settings" table | Overkill for a per-estimate preference bag; `companies.tax_config`'s JSONB-on-the-owning-row pattern already solves this at the right granularity | A nullable JSONB column directly on `estimates` |
-| Adding 7+ new boolean columns to `estimates` for section-visibility toggles | Breaks the established convention (discrete columns reserved for math-engine inputs / queryable fields); adds migration churn every time a new toggle is needed | One JSONB `display_settings`-style column, typed + type-guarded like `TaxConfig` |
-| `usehooks-ts` / `@uidotdev/usehooks` (for a `useMediaQuery`/`useIsMobile` hook) | The codebase already has an inline `window.matchMedia('(max-width: 767px)')` precedent (`project-workspace.tsx:76`); a whole utility-hooks package is unjustified for one breakpoint check | Reuse the existing inline `matchMedia` pattern, or extract it locally into a ~10-line hook if reused 3+ times |
+| grammY / Telegraf / node-telegram-bot-api (for THIS milestone) | Send-only outbound to admin chat(s) needs zero update-routing, middleware, or session machinery — all three libraries' core value proposition. Adding one now is unjustified dependency weight and breaks the established raw-fetch convention shared by `lib/whatsapp/client.ts`, `lib/sms/client.ts`, and `lib/telegram/client.ts`. | Extend `lib/telegram/client.ts` |
+| Handlebars (or any engine that executes registered helper code against template sources) | Templates become DB-stored + admin-UI-editable this milestone — a lower-trust-than-source-code surface. Handlebars' helper/partial execution model + its CVE history around template-source trust make it the wrong fit even though it's the most "batteries included" option. | Hand-rolled interpolator; escalate to Mustache (logic-less) only if loops/conditionals become a real requirement |
+| `sanitize-html` / `isomorphic-dompurify` / `juice` for the email HTML | Nothing here renders *user-supplied HTML* — it renders admin-authored template shells with interpolated plain-text variables (names, numbers, amounts). The injection vector is the variable VALUES, not arbitrary markup from an untrusted author, and those are single strings — entity-escaping them (already the codebase's proven pattern) fully closes the vector without a DOM-sanitization library. | The existing `escapeHtml()` pattern from `lib/email/notification-emails.ts`, reused in the new interpolator |
+| `twilio` npm SDK | The codebase has deliberately never adopted it (`lib/sms/client.ts`'s own comment: "NO Twilio SDK — the REST-over-`fetch` shape is the established repo convention"). Any Messaging Service / opt-out-config management this milestone might need is a handful of REST calls, not SDK-scale surface. | Raw `fetch` + Basic Auth, same shape as `lib/sms/client.ts` |
+| Rolling a custom STOP/HELP/START keyword parser + new inbound Twilio webhook | Twilio **already auto-handles** STOP/HELP/START on every Twilio-owned number (toll-free or 10DLC) with **zero application code** — a carrier-compliance feature Twilio provides for free, not something to reimplement. Building a custom inbound-SMS webhook to catch these keywords duplicates a solved problem and adds a new webhook surface + a new opt-out-state table to maintain (note: no Twilio inbound webhook exists in this repo today — only Stripe and WhatsApp inbound webhooks do). | Rely on Twilio's default automatic keyword handling; only add a Messaging Service + Advanced Opt-Out (still config, not code) if per-brand custom STOP copy is later required |
 
 ## Stack Patterns by Variant
 
-**If the settings-panel trigger needs to work identically across desktop and mobile without a media-query hook:**
-- Render both `<Popover>` (wrapping the gear button, desktop breakpoint) and `<Sheet side="bottom">` (mobile breakpoint) behind the same `open` state, gated by Tailwind responsive utility classes on separate trigger/wrapper elements, OR gate which component mounts via the existing `window.matchMedia` check — either is consistent with existing patterns in this repo (both `Sheet`-based mobile nav and Tailwind-responsive conditional rendering already appear elsewhere in `components/workspace/`).
-- Because: avoids adding a new "responsive dialog" abstraction/library (e.g. `vaul`+`cmdk`-combo "Credenza" pattern some OSS templates ship) when two already-themed primitives (`Popover`, `Sheet`) cover both cases.
+**If per-admin (not just per-chat) Telegram routing is needed later:**
+- Use a join table (`platform_event_telegram_recipients` or similar) instead of a flat `chat_ids: string[]` array on `platform_integrations.telegram.metadata`
+- Because a flat array can't express "admin A gets billing alerts, admin B gets everything" — if that's in scope this milestone, design the schema for it now rather than migrating later
 
-**If the new friendly estimate URL needs the short token to be re-derivable/regenerable (e.g. owner wants to rotate a leaked link):**
-- Keep generating the short suffix app-side with `crypto.randomBytes` at write time (not a Postgres `DEFAULT`), since app-side gives you the freedom to regenerate on demand from a server action, whereas the current `share_token`'s `DEFAULT gen_random_uuid()` only fires once at row-insert.
-- Because: the milestone requires the OLD `share_token`-only links to keep working forever, so the new short-token column is additive, not a replacement of the DB-default column — no schema change to `share_token` itself, just a new nullable column populated by application code.
+**If the template catalog stays flat variable substitution (as currently specced):**
+- Use the hand-rolled interpolator
+- Because it's the smallest, most auditable surface that satisfies the stated requirement and gives you full control over per-channel escaping
+
+**If loops/conditionals get added to the template catalog in a future milestone:**
+- Migrate to `mustache` (not `handlebars`) at that point
+- Because Mustache's logic-less guarantee (no helper functions execute against template source) preserves the same trust model the hand-rolled version has today — admin-authored templates can add sections but never arbitrary logic
+
+**For the Twilio outbound number used for end-customer SMS:**
+- Use Toll-Free Verification for v1 (fast, no carrier fee, sufficient throughput for one tenant's client list)
+- Escalate to full A2P 10DLC Brand+Campaign registration only if/when per-tenant sending volume or use-case classification (e.g., marketing content mixed into transactional sends) requires it
+
+## SMS Compliance for End-Customer Messaging (A2P 10DLC / TCPA)
+
+This is almost entirely a **Twilio Console + legal-copy** task, not a stack decision — flagging it here because the milestone explicitly calls it out and getting it wrong blocks sends or risks carrier filtering/fines.
+
+1. **Registration path.** Two independent Twilio compliance tracks exist for US SMS from an application number:
+   - **A2P 10DLC** (Brand + Campaign registration via Twilio Trust Hub) — required for 10-digit long-code numbers, externally carrier-vetted, commonly 1–2+ weeks to approve, ongoing per-campaign carrier fees. **As of the currently-in-effect requirement (June 30, 2026), campaign registration requires two additional fields — `PrivacyPolicyUrl` and `TermsAndConditionsUrl` — submissions without them hard-fail with a 400.** Xtimator's marketing site already has EN/PT-BR/ES pages per `PROJECT.md`; confirm a stable, public Privacy Policy + Terms URL exists before registering.
+   - **Toll-Free Verification** — Twilio verifies in-house (faster), no per-campaign carrier fee, adequate throughput (~3 msg/sec/number) for transactional use. **Recommended for this milestone's scope** (owner-triggered "send an SMS to my client" + estimate-link delivery — low volume, single-recipient, transactional).
+2. **Opt-out handling is automatic and requires no new code.** Twilio auto-processes STOP/HELP/START (and locale variants) on every Twilio-owned number by default — inbound keyword messages are intercepted and answered by Twilio before they reach any application webhook. No inbound SMS webhook needs to be built for baseline compliance. Advanced Opt-Out (custom bilingual copy, per-brand messaging) requires provisioning a **Messaging Service** and is an optional, config-only upgrade — not required for v1.
+3. **Consent, not just delivery.** TCPA requires affirmative opt-in before texting an end customer, with opt-out disclosed at consent time. The codebase's existing `sms_opt_in_at` timestamp pattern (`lib/notifications/preferences.ts`) is currently scoped to **tenant/owner** consent for the owner's own SMS notifications — it does **not** cover **end-customer** consent for messages the tenant's business sends to *its own* clients. That consent relationship is between the tenant (the "business" in TCPA terms) and their own client, with Xtimator acting as the tenant's SMS platform/processor. Practically: the tenant already has a business relationship + phone number on file for their client, which supports an "established business relationship" transactional basis for estimate-related texts, but the agentic "send an SMS to my client about X" free-form use case should stay scoped to *estimate/project-related* content only — not marketing — to remain inside transactional messaging norms and avoid needing per-client A2P consent capture in v1.
+4. **Message content review.** Both toll-free and 10DLC carrier review reject campaigns whose sample messages/privacy policy don't match actual use. Keep registration sample messages limited to what Xtimator actually sends (estimate links, project updates) — do not register a "marketing" or "mixed" use case if the actual traffic is transactional; that mismatch is a common rejection cause.
 
 ## Version Compatibility
 
 | Package A | Compatible With | Notes |
-|-----------|------------------|-------|
-| `radix-ui@^1.4.3` | `react@19.2.4` / `react-dom@19.2.4` / `next@16.2.6` | Already proven in production in this exact repo — `Popover` and `Dialog` (Sheet) primitives from the same unified package are already imported and rendering correctly today; no upgrade needed. |
-| `cmdk@^1.1.1` | `radix-ui@^1.4.3` (via `components/ui/command.tsx`'s `CommandDialog` which wraps the app's `Dialog`) | Already wired together and shipping in `link-client-card.tsx` / `link-client-button.tsx` — zero compatibility risk since it's already load-bearing production code. |
-| Node built-in `crypto.randomBytes(...).toString('base64url')` | Node ≥15.7 (project floor: Node ≥20.9, required by Next.js 16.2.6) | Comfortably within range; no polyfill or package needed. |
+|-----------|-----------------|-------|
+| `resend@^6.10.0` (current) | Existing hand-rolled HTML template pattern | No change needed — the new template engine slots in as the string producer feeding `resend.emails.send({ html, text })`, same call shape as today |
+| `zod@^4.3.6` (current) | New template-variable-catalog schema | Use zod to define the per-event variable catalog (`{{client_name}}: string`, etc.) for the super-admin editor's validation — consistent with the rest of the codebase's zod-first schema discipline |
+| `inngest@^4.4.0` (current) | Telegram fan-out | Route platform-event → Telegram sends through Inngest (`notification/telegram.send`, mirroring the existing `notification/whatsapp.send` / `notification/sms.send` family in `lib/inngest/functions/notification-channel-send.ts`) rather than calling `sendTelegramMessage` inline from request handlers — keeps the async/durable/retry pattern consistent with every other outbound channel in `dispatch.ts`, and gives free backoff/retry against Telegram's 429 rate-limit responses |
 
 ## Sources
 
-- `C:\Users\Vanildo\Dev\xtimator\package.json` — full dependency list verified directly (no version guessed)
-- `C:\Users\Vanildo\Dev\xtimator\pnpm-lock.yaml` / `package-lock.json` — confirmed `nanoid@3.3.12` is transitive-only (via `postcss`), not a direct dependency
-- `C:\Users\Vanildo\Dev\xtimator\components\ui\popover.tsx`, `sheet.tsx`, `command.tsx` — confirmed existing shadcn/Radix/cmdk wrappers and their exact import sources (`radix-ui` unified package, `cmdk`)
-- `C:\Users\Vanildo\Dev\xtimator\components\workspace\link-client-card.tsx`, `link-client-button.tsx` — confirmed existing production Popover+Command client-picker pattern (the precedent for feature 4)
-- `C:\Users\Vanildo\Dev\xtimator\lib\estimate\compute-totals.ts` — confirmed `TaxConfig` JSONB type + `isTaxConfig` type-guard degrade-to-default pattern (the precedent for feature 1's settings bag)
-- `C:\Users\Vanildo\Dev\xtimator\lib\billing\billing-config.ts` — confirmed the singleton JSONB+typed-reader-with-defaults pattern (`billing_config`)
-- `C:\Users\Vanildo\Dev\xtimator\types\database.types.ts` (lines 765-891, `estimates` table) — confirmed current discrete-typed-column convention for math-engine-consumed fields
-- `C:\Users\Vanildo\Dev\xtimator\app\admin\blog\actions.ts` — confirmed existing dependency-free `slugify()` precedent
-- `C:\Users\Vanildo\Dev\xtimator\supabase\migrations\20260409000001_initial_schema.sql` (line 94) — confirmed `share_token UUID DEFAULT gen_random_uuid()` DB-side generation precedent
-- `C:\Users\Vanildo\Dev\xtimator\components\workspace\project-workspace.tsx` (line 76) — confirmed existing `window.matchMedia` responsive-breakpoint precedent
-- `C:\Users\Vanildo\Dev\xtimator\.planning\PROJECT.md` — v4.18 milestone context and target-feature descriptions
-- [nextjs.org/docs/app/guides/upgrading/version-16](https://nextjs.org/docs/app/guides/upgrading/version-16) — verified Next.js 16 minimum Node.js requirement (≥20.9) via WebSearch, confirming `base64url` encoding (stable since Node 15.7) is safely available
+- `lib/telegram/client.ts`, `lib/observability/ops-alert.ts`, `lib/platform-config.ts`, `lib/sms/client.ts`, `lib/email/notification-emails.ts`, `lib/notifications/{dispatch,preferences,whatsapp-registry}.ts`, `lib/whatsapp/client.ts`, `app/api/estimates/[id]/send-sms/route.ts` — direct repo inspection, HIGH confidence (this is what's actually shipped)
+- [Telegram Bot API rate limits](https://botnamefinder.com/blog/telegram-bot-rate-limits-explained) — ~1 msg/sec per chat, ~30 msg/sec global (free tier), 429 + `retry_after` on excess — MEDIUM confidence (WebSearch, consistent with well-established Telegram platform behavior)
+- [grammY vs other frameworks comparison](https://grammy.dev/resources/comparison) / [npmtrends](https://npmtrends.com/grammy-vs-node-telegram-bot-api-vs-telegraf-vs-telegram-bot-api) — grammY ~1.26M weekly downloads vs Telegraf ~856K, TS-first design — MEDIUM confidence (WebSearch/npmtrends)
+- `npm view grammy/telegraf/mustache/handlebars/twilio version` — grammY 1.45.1, telegraf 4.16.3, mustache 4.2.0, handlebars 4.7.9, twilio SDK 6.0.2 — HIGH confidence (live npm registry query, 2026-07-21)
+- [Twilio — Programmable Messaging and A2P 10DLC](https://www.twilio.com/docs/messaging/compliance/a2p-10dlc) — registration requirement, new required `PrivacyPolicyUrl`/`TermsAndConditionsUrl` fields as of June 30 2026 — MEDIUM confidence (WebSearch of official Twilio docs + secondary sources; date-sensitive, re-verify against Twilio Console at actual registration time)
+- [Twilio Support — Getting Started with Advanced Opt-Out for Messaging Services](https://support.twilio.com/hc/en-us/articles/360034798533-Getting-Started-with-Advanced-Opt-Out-for-Messaging-Services) — default automatic STOP/HELP/START handling on all Twilio numbers, Messaging Service required only for customization — MEDIUM-HIGH confidence (official Twilio support docs)
+- Toll-Free Verification vs A2P 10DLC speed/cost — [Twilio toll-free docs](https://www.twilio.com/docs/messaging/compliance/toll-free/console-onboarding), [10DLC docs](https://www.twilio.com/en-us/phone-numbers/a2p-10dlc) — MEDIUM confidence (WebSearch synthesis of multiple sources including Twilio's own docs; no single canonical Twilio page states the comparison side-by-side, so treat the "toll-free is faster/cheaper for low volume" conclusion as directionally correct but re-verify current Twilio pricing/timelines before committing to the path)
 
 ---
-*Stack research for: v4.18 Estimate Document & Send Experience Refresh (Xtimator)*
-*Researched: 2026-07-08*
+*Stack research for: Xtimator v4.21 Notification Center (Telegram channel, template engine, end-customer SMS compliance)*
+*Researched: 2026-07-21*

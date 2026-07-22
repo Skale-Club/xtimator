@@ -1,250 +1,389 @@
-# Architecture Research — v4.18 Estimate Document & Send Experience Refresh
+# Architecture Research — v4.21 Notification Center
 
-**Domain:** Subsequent-milestone integration research (existing production Next.js 14 App Router + Supabase SaaS)
-**Researched:** 2026-07-08
-**Confidence:** HIGH — every finding below is grounded in direct inspection of the current codebase (files/line ranges cited in Sources), not training-data assumptions about generic Next.js/Supabase architecture.
+**Domain:** Brownfield integration study — three-audience Notification Center (platform admins / tenants / end customers) on top of an existing tenant-scoped `notify()` fan-out
+**Researched:** 2026-07-21
+**Confidence:** HIGH (every claim below is grounded in a specific file read from the current `main` branch, cited inline)
 
-This is **not** a greenfield ecosystem survey. It answers: how do 4 tightly-coupled features (SEED-041..044) integrate with an existing, already-hardened estimate pipeline without breaking the channel-neutral generation core or the GUARD-03 deterministic-math invariant.
+## Headline Finding
 
-## Standard Architecture
+This is not a greenfield feature. It is **three separate integration seams onto two already-shipped pipelines**, plus one genuinely new pipeline:
 
-### System Overview — the estimate document/send/share surface today
+1. **Tenant pipeline** (`notify()` → `lib/notifications/dispatch.ts`) — EXISTS, company-scoped, gains DB-template resolution.
+2. **Platform-ops pipeline** (`notifyOps()` → `lib/observability/ops-alert.ts` + `lib/telegram/client.ts`) — EXISTS AND ALREADY SENDS TELEGRAM. The milestone's "Telegram channel" bullet is ~70% pre-built (quick-task `260705-c1y`, shipped 2026-07-05). The remaining work is a per-event toggle gate + widening the event catalog, not building a Telegram integration from scratch.
+3. **End-customer agentic-send pipeline** — GENUINELY NEW. No table, no neutral capability, no tool exists today. `estimate_deliveries` (Phase-19-era) is the closest prior art (email/sms delivery logging) but is scoped to estimate-send receipts, not arbitrary agentic messages.
+
+Getting the roadmap right depends on NOT conflating these three — they have different scope keys (`company_id` vs none vs `company_id` again but a different table), different RLS postures, and different trust boundaries (system-authored copy vs LLM-authored copy sent to a real third party).
+
+## System Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  EDITOR (authenticated, tenant-scoped)                                            │
-│  estimate-tab.tsx → estimate-editor.tsx → useEstimateReducer (client state)       │
-│    stateToDocumentData() ─────────────► EstimateDocument (mode="edit")            │
-│    stateToSavePayload()  ─────────────► saveEstimate() [Server Action]            │
-└───────────────────────────────────────────┬───────────────────────────────────────┘
-                                              │ writes (GUARD-03: server recomputes ALL
-                                              │ math via computeEstimateTotals — client
-                                              │ never trusted for tax/discount/deposit)
-                                              ▼
-                              ┌───────────────────────────────┐
-                              │   estimates / estimate_sections /   (Supabase Postgres,
-                              │   estimate_items  (RLS, per-company)  RLS-scoped)
-                              └───────────────────────────────┘
-                                              │ read by 6 INDEPENDENT render/format paths
-                     ┌────────────┬───────────┼───────────┬────────────┬─────────────┐
-                     ▼            ▼           ▼           ▼            ▼             ▼
-             EstimateDocument  EstimateDocument  estimate-pdf.tsx  estimate-pdf-  estimate-   lib/whatsapp/
-             (mode="view",     Modern (share,    (classic PDF,     modern.tsx     template.ts  formatter.ts
-             classic share)    modern only)      /api/.../pdf)     (modern PDF)   buildItems-  formatEstimate-
-                                                                                    Breakdown()  ForWhatsApp()
-                     ▲            ▲                  ▲                 ▲              ▲             ▲
-                     │            │                  │                 │              │             │
-         app/estimate/[token]/page.tsx      app/api/estimates/[id]/pdf/route.ts   SendActionsMenu/  send-whatsapp/
-         → getEstimateByShareToken()        (also builds its own doc-data object   PlainTextSheet    route.ts →
-         (lib/queries/share.ts)             independently via getEstimateWithContext)                deliverEstimate-
-                                                                                                       ViaWhatsApp()
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  TENANT-SCOPED (company_id required)              PLATFORM-SCOPED (no company)│
+│                                                                                 │
+│  event source (9 call sites)                      event source (6 call sites) │
+│  e.g. connect-webhook.ts, quota.ts        ┌──────► with-fallback.ts,          │
+│         │                                 │        cron routes,               │
+│         │ buildNotificationCopy(ctx)      │        pipeline-watchdog,         │
+│         ▼                                 │        transcribe/analyze/        │
+│  notify({companyId, eventType, ...}) ─────┘        generate-estimate failures │
+│         │  lib/notifications/dispatch.ts                    │                 │
+│         │                                          notifyOps({kind,title,msg})│
+│         ├─► resolveChannels() (preferences.ts)     lib/observability/         │
+│         ├─► NEW: resolveNotificationCopy()          ops-alert.ts             │
+│         │     DB notification_templates                     │                 │
+│         │     ↳ fallback copy.ts                    ┌────────┴────────┐       │
+│         ├─► notifications row (in_app)              │                 │       │
+│         ├─► Inngest notification/email.queued   Redis dedupe    Sentry       │
+│         ├─► Inngest notification/whatsapp.send       │                        │
+│         │     (unchanged — HSM registry)             ▼                        │
+│         └─► Inngest notification/sms.send      lib/telegram/client.ts        │
+│                                                  (sendTelegramMessage)         │
+│                                                       │                        │
+│                                                  NEW: gate on                  │
+│                                                  platform_notification_        │
+│                                                  preferences[kind]             │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  END-CUSTOMER AGENTIC SEND (NEW — company_id-scoped, LLM-authored content)     │
+│                                                                                 │
+│  Owner: "send an SMS to Sarah about the delay"                                │
+│    │                                                                           │
+│    ▼ WhatsApp inbound                          ▼ Claude.ai / MCP client       │
+│  lib/whatsapp/intent-router.ts  ─── MANAGE ──►  lib/mcp/tools/write.ts        │
+│  lib/whatsapp/manage-tools.ts   (NEW tool)      (NEW send_customer_message)   │
+│    │                                                  │                        │
+│    └───────────────────┬────────────────────────────┘                        │
+│                         ▼                                                      │
+│         NEW: lib/agent-tools/send-customer-message.ts                         │
+│         (trusted companyId closure param, mirrors create-estimate.ts)         │
+│                         │                                                      │
+│         ├─► clients row ownership check (company_id === trusted companyId)    │
+│         ├─► optional template resolve (scope='customer', notification_templates)│
+│         ├─► sendSms() [lib/sms/client.ts, UNCHANGED]                          │
+│         │      or sendEmail() [NEW lib/email/send-raw.ts, same shape as sendSms]│
+│         └─► NEW customer_messages row (audit log, mirrors estimate_deliveries)│
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**The load-bearing fact for this whole milestone:** there is no single "assemble estimate document data" function today. `EstimateDocumentData` (the shared TS shape consumed by both classic renderers) is independently re-built by **at least 3 different code paths** — `stateToDocumentData()` in `estimate-editor.tsx` (from reducer state), the inline object literal in `estimate-view.tsx` (from `ShareEstimateData`), and `getEstimateWithContext()` in `lib/queries/estimate.ts` (consumed by the PDF route). Two more consumers (`buildItemsBreakdown` and `formatEstimateForWhatsApp`) don't even use `EstimateDocumentData` — they read the raw `EstimateWithSections`/`FormatterEstimate` row directly. **All 6 render/format paths currently do their own independent `field != null` check** to decide whether Summary/Notes/Timeline/Warranty/Payment Terms render. None of them consult a shared "is this visible" source of truth, because none exists yet.
+## Component Responsibilities
 
-### Component Responsibilities (current state)
-
-| Component/Module | Responsibility | File |
+| Component | Status | Responsibility |
 |---|---|---|
-| `useEstimateReducer` | Client-side editor state machine; recomputes preview totals (`recalculate()`) mirroring the server engine byte-for-byte | `components/workspace/estimate/use-estimate-reducer.ts` |
-| `computeEstimateTotals` | Server-side, deterministic tax/discount/deposit/markup math (GUARD-03 authority) | `lib/estimate/compute-totals.ts` |
-| `saveEstimate` | Server Action; recomputes totals via the engine, persists sections/items/estimate row, optimistic-concurrency check | `lib/actions/estimate.ts` |
-| `EstimateDocument` | THE shared classic renderer — used in BOTH `mode="edit"` (editor) and `mode="view"` (share page, classic template only). 2018 lines. Owns `InlineProjectName`, `LinkClientInline`, `DocumentTotals`, `TermsBlock`, `AddDetailsPopover`, `SortableDocumentItemRow` (desktop table row), the mobile branch that renders `ItemCardMobile` | `components/workspace/estimate/estimate-document.tsx` |
-| `EstimateDocumentModern` | Share-only modern-template renderer (parallel implementation, not a variant of `EstimateDocument`) | `components/share/estimate-document-modern.tsx` |
-| `estimate-pdf.tsx` / `estimate-pdf-modern.tsx` | `@react-pdf/renderer` PDF renderers, registry-selected by `companies.estimate_template_style` | `components/pdf/` |
-| `getEstimateByShareToken` / `getShareLinkState` | Public bearer-token lookup — the ONLY authorization mechanism for `/estimate/[token]`; strips `share_token` from the response before it reaches the browser | `lib/queries/share.ts` |
-| `buildShareLink` | **Client-only** URL builder (`window.location.origin`) — cannot be called from server routes | `lib/utils/share-link.ts` |
-| `EstimateFloatingActions` | The `Save / Send` (+ overflow: Edit Estimate, Discard, Link Client) sticky pill — desktop + mobile variants | `components/workspace/estimate/estimate-floating-actions.tsx` |
-| `SendDialog` → `SendForm` + `SendActionsMenu` + `PlainTextSheet` | Current channel-first (Email/SMS tabs) send UI + a separate "Share & Export" dropdown | `components/workspace/send/*.tsx` |
-| `resolveTemplate` / `buildItemsBreakdown` | Pure plain-text template engine (already unit-testable, no React/DB) | `lib/utils/estimate-template.ts` |
-| `deliverEstimateViaWhatsApp` / `formatEstimateForWhatsApp` | WhatsApp-specific delivery + formatter, honors `company.delivery_format` (`share_link`/`formatted_text`/`pdf_attachment`) | `lib/whatsapp/send-estimate.ts`, `lib/whatsapp/formatter.ts` |
-| `linkProjectToClient` / `unlinkProjectFromClient` | Server actions — the ONLY DB write path for client linkage (already exist, already correct) | `lib/actions/project.ts:256-286` |
-| `LinkClientInline` / `LinkClientButton` / `LinkClientCard` | **3 independent** implementations of the same fetch-clients → Command search → select → `linkProjectToClient` → toast → `router.refresh()` flow | `estimate-document.tsx:1339-1415`, `components/workspace/link-client-button.tsx`, `components/workspace/link-client-card.tsx` |
-| `proxy.ts` | Route-level auth gate (Next.js middleware, renamed). `/estimate` is deliberately **absent** from `PROTECTED_ROUTE_PREFIXES`, so **any** path depth under `/estimate/*` is already public — a friendly 2-segment route needs zero proxy changes for auth | `proxy.ts:4-23` |
+| `lib/notifications/dispatch.ts` (`notify()`) | MODIFIED | Tenant-scoped fan-out choke point; gains DB-template resolution ahead of in_app write + email/sms dispatch |
+| `lib/notifications/copy.ts` (`buildNotificationCopy`) | MODIFIED (kept, not deleted) | Becomes the permanent last-resort fallback when no active DB template row exists |
+| `lib/notifications/whatsapp-registry.ts` | UNCHANGED | Owner-WhatsApp HSM template registry — stays the only source for the `whatsapp` channel (Meta requires pre-approved templates; free-text DB templates cannot apply here) |
+| `lib/observability/ops-alert.ts` (`notifyOps()`) | MODIFIED | Platform-scoped (no `company_id`) fan-out choke point for Telegram; gains a per-`kind` toggle gate read from `platform_notification_preferences` |
+| `lib/telegram/client.ts` | UNCHANGED | `sendTelegramMessage()` — already reads bot token + chat_id from `platform_integrations` (provider `'telegram'`) via `getTelegramConfig()`. No new Telegram integration work needed. |
+| `lib/platform-config.ts` (`getTelegramConfig`) | UNCHANGED | Already dormant-until-configured, already the standing "no keys in env" pattern the project requires |
+| `lib/agent-tools/*` | ADDS ONE FILE | Channel-neutral capability layer (`createEstimate`, `createProject`, `createPriceBookService`, `addCompanyKnowledge`, ...) gains `sendCustomerMessage` |
+| `lib/whatsapp/manage-tools.ts` (MANAGE intent) | MODIFIED | Already the general-purpose, non-session-scoped write-tool bucket reached from any conversation state via `intent-router.ts`'s classifier — the natural home for "message my client" |
+| `lib/whatsapp/agent-tools.ts` (confirmation agent) | NOT the right home | Scoped to one active `session.draft_estimate_id`; do not bolt customer-send here |
+| `lib/mcp/tools/write.ts` | MODIFIED | Gains `send_customer_message` write tool, same annotation tier as `create_estimate`/`add_service` |
+| `lib/sms/client.ts` (`sendSms`) | UNCHANGED | Reused as-is by both the tenant `notify()` sms branch and the new agentic-send path |
+| `lib/email/sender.ts` | MODIFIED (additive) | Currently only exports `emailFrom()`; needs a sibling generic `sendEmail()` primitive (see below) |
+| **NEW** `lib/notifications/template-resolver.ts` | NEW | `resolveNotificationCopy(scope, eventType, channel, vars)` — DB-first, `copy.ts`-fallback, mirrors the proven `getApprovedTemplateForEvent` pattern |
+| **NEW** `notification_templates` table | NEW | DB-editable per-(scope, event_type, channel) copy with `{{variables}}` |
+| **NEW** `platform_notification_preferences` table | NEW | Per-platform-event-`kind` Telegram toggle |
+| **NEW** `customer_messages` table | NEW | Audit log for every end-customer email/SMS send (agentic or manual) |
+| **NEW** `lib/notifications/platform-events.ts` | NEW | Code catalog of platform alert `kind`s (mirrors `event-types.ts`'s `EventType`/`EVENT_CATEGORIES` split of code-catalog vs DB-toggle-state) |
+| **NEW** `lib/agent-tools/send-customer-message.ts` | NEW | Neutral capability, trusted-`companyId` closure param (T-lrf-01 pattern), calls `sendSms`/`sendEmail` directly (synchronous — see Data Flow) |
 
-## Integration Architecture — answering the 4 sub-questions
+## The Tenant-Scope vs Platform-Scope Split (addressed head-on)
 
-### (a) Where presentation settings live, and how every consumer reads the same snapshot
+The orchestrator's framing is correct and load-bearing: **`notify()` cannot be the Telegram channel's entry point**, for structural reasons visible in the code, not just convention:
 
-**Recommendation: one new nullable JSONB column, `estimates.presentation_settings`, mirroring the exact precedent already in this codebase (`companies.tax_config JSONB`, landed dormant-first in `supabase/migrations/20260627000001_phase129_advanced_pricing_schema.sql`).** Do **not** use `estimates.metadata` — no such generic column exists on `estimates` today (only `estimate_activity.metadata` and `estimate_deliveries` have metadata-shaped columns; inventing a new generic bag on `estimates` would be a new pattern, not a reused one). Do **not** use N separate typed nullable boolean columns — SEED-041 needs ~8-10 toggle-shaped flags (summary/sections/payment-terms/timeline/warranty/notes/photos visibility, section-subtotals, qty/price visibility, estimate-number/date visibility); a JSONB bag is the established idiom here for "extensible, mostly-off, per-row configuration" and avoids a migration per future toggle.
+- `NotifyParams.companyId` is a **required** field (`lib/notifications/dispatch.ts:26`).
+- The dedupe check queries `.eq('company_id', params.companyId)` (`dispatch.ts:92`).
+- The `notifications` table has `company_id UUID NOT NULL REFERENCES public.companies(id)` and RLS keyed on `(auth.jwt() ->> 'company_id')::uuid` (`supabase/migrations/20260520000002_notifications_system.sql:7,42`).
+- `resolveChannels()` reads `notification_preferences` keyed by `user_id` (a company member), not a platform concept (`lib/notifications/preferences.ts`).
 
-**Split calculation from presentation exactly as the seed's own product rules demand — and exactly as v4.11 already built the precedent for:**
-- Calculation-affecting knobs (Tax Off/Custom, Discount, Deposit) are **already** first-class typed columns (`tax_rate`, `discount_type`/`discount_value`, `deposit_type`/`deposit_value`) that `computeEstimateTotals` reads directly. **No schema change needed for these** — "Tax: Off" is simply `tax_rate = 0` (matches Decision-to-Lock #3's own leaning in SEED-041, and matches the existing `DefaultStateIndicator`/"Customized vs Default" UI pattern already in `DocumentTotals`). Routing these through the NEW gear panel is a UI-wiring change only, not a data-model change.
-- Presentation-only knobs (section visibility, subtotal visibility, etc.) go in `presentation_settings`. **NULL/absent = show everything (retrocompat)** — same "dormant/type-guard-degrade" discipline as `isTaxConfig()` in `compute-totals.ts` (a malformed or absent config degrades to the safe default, never throws).
+Platform events — a new tenant signing up, a payment landing, a cron job dying, an AI provider falling back — are either **zero-company** (cron failure, ai fallback) or **about a company from the platform's outside perspective** (a specific tenant's signup/payment is itself the subject of the alert, not a message addressed to that tenant's own users). Forcing these through `notify()` would require making `companyId` optional everywhere downstream (dedupe, RLS, the notifications feed itself) — a structural regression to a table that 15+ call sites and the entire in-app notification UI depend on being company-scoped.
+
+The codebase already independently arrived at this same conclusion: `lib/observability/ops-alert.ts`'s own doc comment states *"Company-agnostic: alerts carry only the kind/title/message — never a companyId."* This is not a gap to fix — it is the correct existing seam. **The architecture recommendation is: keep two parallel, independently-triggered pipelines that share only a call site, never a table or a function.**
+
+Concretely, for events that have BOTH a tenant-facing and a platform-facing angle (e.g. payment received), the SAME business call site fires **two independent calls**:
+
+```typescript
+// lib/billing/connect-webhook.ts (illustrative — both calls already-pattern-consistent)
+await notify({ companyId, userId, eventType: 'payment.received', title, body, ... })   // tenant sees it
+void notifyOps({ kind: 'tenant_payment_received', title: `Payment: ${company.name}`, message, severity: 'warning' }) // platform admin sees it
+```
+
+This is not a new pattern — `with-fallback.ts` and the cron routes already call `notifyOps()` standalone, with zero relationship to `notify()`. The only new work is adding sibling `notifyOps()` calls at the ~3 business call sites the milestone names (signup, payment, quota) that don't yet emit a platform alert, alongside the 6 that already do (reliability alerts).
+
+## (a) Where Template Resolution Slots In
+
+**Per event, resolved per channel, inside `notify()` — not at the 9 call sites.**
+
+Today, call sites (`lib/quota.ts`, `lib/inngest/functions/{transcribe-audio,analyze-photos,generate-estimate}.ts`, `lib/whatsapp/handler.ts`, `lib/billing/{connect-webhook,credit-ledger}.ts`, `app/admin/billing/actions.ts`, `app/estimate/[token]/actions.ts`) call `buildNotificationCopy(eventType, ctx)` themselves, THEN pass the resulting `{title, body}` into `notify()`. `notify()` itself never touches `copy.ts` — this is the key discovery that shapes the integration.
+
+**Recommendation:** extend `NotifyParams` with an optional `copyContext?: CopyContext` (the same shape callers already build for `buildNotificationCopy`). Inside `notify()`, before building the in_app row / queuing email / building the sms body, resolve copy per channel:
+
+```typescript
+// lib/notifications/template-resolver.ts (NEW)
+export async function resolveNotificationCopy(
+  scope: 'tenant' | 'customer',
+  eventType: string,
+  channel: 'in_app' | 'email' | 'sms',
+  vars: CopyContext,
+): Promise<NotificationCopy | null> {
+  // DB lookup: notification_templates WHERE scope, event_type, channel, is_active
+  // → interpolate {{var}} tokens from `vars`
+  // → return null on any miss/error (never throws)
+}
+```
+
+`notify()`'s resolution order per channel becomes: **DB template (if `copyContext` was passed by the caller) → caller-supplied `title`/`body` (unchanged fallback) → nothing changes for un-migrated callers.** This is the exact precedent already proven in this codebase for WhatsApp: `getApprovedTemplateForEvent()` (`lib/notifications/whatsapp-registry.ts:83-113`) resolves an approved DB row from `whatsapp_notification_templates`, falling back to the static `REGISTRY` map, called from inside `notify()`'s whatsapp branch (`dispatch.ts:187`). The new work generalizes this ONE-channel pattern to THREE more channels (in_app/email/sms) and TWO scopes (tenant/customer) — it is not a new architectural idea, it is the same idea applied more broadly.
+
+**Zero-regression rollout is two steps, and they can be two different phases:**
+1. Ship the resolver + wire it into `notify()` as strictly additive (`copyContext` optional, defaults to `undefined` → 100% fallback to current behavior, since `notification_templates` starts empty). Zero call-site changes required.
+2. Sweep the 9 call sites to pass `copyContext: ctx` instead of pre-computing `buildNotificationCopy(eventType, ctx)` inline — mechanical, low-risk, each site already has `ctx` in scope. This is what actually lets an admin's DB edit take effect for that event.
+
+**Per-channel divergence detail (why "per channel" is the right axis, not "per event"):**
+- **in_app**: title + body (existing shape, unchanged).
+- **email**: subject + body. Today the email digest worker (`lib/inngest/functions/notification-email-digest.ts`) re-reads `notifications.title`/`.body` straight from the row — it does NOT re-derive copy, because it runs later/batched. To let email wording diverge from in_app wording, `notify()` should stash a resolved email-specific copy into `notifications.metadata.email_copy = {subject, body}` (metadata is already JSONB, already used for `dedupe_key`/`email_sent_at` — no schema migration beyond the new table). The digest worker prefers `metadata.email_copy` when present, else falls back to `title`/`body` exactly as today.
+- **sms**: today `dispatch.ts:224` inlines `body: `${params.title}: ${params.body}`` directly in the Inngest payload. New: resolve an sms-channel template if present, else keep that exact fallback string.
+- **whatsapp**: intentionally untouched — Meta HSM templates can't be free-text edited, so `whatsapp_notification_templates` stays the sole source for that one channel.
+
+## (b) New Tables
+
+### `notification_templates` (NEW — the DB-editable copy engine)
 
 ```sql
--- mirrors 20260627000001's exact idiom: idempotent, dormant, comment-documented
-ALTER TABLE estimates ADD COLUMN IF NOT EXISTS presentation_settings JSONB;
-COMMENT ON COLUMN estimates.presentation_settings IS
-  'Per-estimate document presentation overrides (SEED-041). NULL = show everything (retrocompat). Read by the shared lib/estimate/presentation-settings.ts resolver — never by ad hoc field != null checks.';
+CREATE TABLE public.notification_templates (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope        text NOT NULL CHECK (scope IN ('tenant','customer')),
+  event_type   text NOT NULL,
+  channel      text NOT NULL CHECK (channel IN ('in_app','email','sms')),
+  subject      text,               -- email only
+  title        text,               -- in_app only
+  body         text NOT NULL,
+  variables    jsonb NOT NULL DEFAULT '[]'::jsonb,  -- catalog for the admin preview UI
+  is_active    boolean NOT NULL DEFAULT true,
+  updated_by   uuid,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (scope, event_type, channel)
+);
+-- RLS: service-role-only, mirrors whatsapp_notification_templates (20260621000003) —
+-- ENABLE RLS, zero anon/authenticated policies. Structurally enforces the locked
+-- "no tenant overrides" decision: there is no company_id column at all.
 ```
 
-**The drift-prevention mechanism (the actual answer to "how must every consumer read the SAME settings snapshot"):** introduce one new pure module, e.g. `lib/estimate/presentation-settings.ts`, exporting:
-- `resolvePresentationSettings(raw: unknown): ResolvedPresentationSettings` — a type-guard + defaults-fill function (same shape as `isTaxConfig`'s defensive pattern), so a malformed/legacy value never crashes a renderer.
-- `isSectionVisible(settings: ResolvedPresentationSettings, field: 'summary' | 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes' | 'photos'): boolean`.
+One row per channel (not one row per event with per-channel JSONB columns) because email genuinely needs `subject`+`body` while in_app needs `title`+`body` while sms needs `body`-only — forcing these into one row produces an awkward, mostly-null shape. Row-per-channel also gives the admin editor UI a natural "list, filter by scope/channel, edit one" surface, matching the existing `whatsapp-templates-panel.tsx` UX precedent.
 
-Then **every one of the 6 existing independent consumers must import and call this instead of its own `field != null` check**:
+`scope='customer'` rows serve the agentic-send flow's *templated* case (e.g. "appointment reminder") — free-form agentic sends (owner dictates exact wording) skip this table entirely; the LLM composes the body directly.
 
-| Consumer | File | Current behavior (must change) |
-|---|---|---|
-| Editor + classic share | `components/workspace/estimate/estimate-document.tsx` | Replace the local `isFieldVisible`/`revealed` Set/`toggleField` mechanism (lines 1613-1632) — see callout below, this is not additive, it's a replacement |
-| Modern share | `components/share/estimate-document-modern.tsx` | Currently unconditional `estimate.summary &&` style checks (needs same audit as classic) |
-| Classic PDF | `components/pdf/estimate-pdf.tsx:613,764-805` | `estimate.summary &&`, `estimate.payment_terms \|\| ...` — swap for `isSectionVisible()` |
-| Modern PDF | `components/pdf/estimate-pdf-modern.tsx:624,765-812` | Same pattern, same fix |
-| Plain text | `lib/utils/estimate-template.ts` `buildItemsBreakdown()` | Currently renders ALL sections/items unconditionally — needs a `presentation_settings`-aware variant (sections don't have individual visibility, but the "show quantities/unit prices" flag and Notes text will need to reach this pure function) |
-| WhatsApp formatted | `lib/whatsapp/formatter.ts` `formatEstimateForWhatsApp()` | Same — `deliverEstimateViaWhatsApp` fetches its own narrow `estimates` select (`lib/whatsapp/send-estimate.ts:46-59`); that select must widen to include `presentation_settings` |
-
-**Critical existing-behavior conflict to flag for planning (not just an addition):** `estimate-document.tsx`'s current "hide a section" mechanism is `toggleField()` (lines 1619-1632), which for an already-filled field **destructively clears it** (`dispatch({ type: 'UPDATE_FIELD', field, value: null })`). SEED-041 explicitly requires non-destructive toggling ("retain the text so it can be toggled back on"). This means `isFieldVisible`/`revealed`/`toggleField`/`AddDetailsPopover`'s wiring must be **replaced**, not layered underneath, by the new persisted `presentation_settings` flags — otherwise the editor will have two contradictory "is this shown" mechanisms (local ephemeral `revealed` Set vs. persisted `presentation_settings`) fighting each other. `EstimateDocumentData` (the shared type, `estimate-document.tsx:343`) should gain `presentation_settings?: ResolvedPresentationSettings | null`, threaded through by both `stateToDocumentData()` (editor) and the `documentData` builder in `estimate-view.tsx`.
-
-`saveEstimate`'s `SaveEstimateInput` (`lib/actions/estimate.ts:70-97`) needs one new optional field (`presentation_settings?: ...`) — pass-through only, zero interaction with `computeEstimateTotals`, so GUARD-03 stays untouched.
-
-### (b) Friendly URL alongside the token-only route — security model
-
-**The existing `share_token` (`UUID DEFAULT gen_random_uuid()`, `supabase/migrations/20260409000001_initial_schema.sql:94`) is the sole bearer credential** — `getEstimateByShareToken()` (`lib/queries/share.ts:87-99`) looks up the row **exclusively** by exact match on this column and strips it from every response before it reaches the browser (`lib/queries/share.ts:243`). Any friendly-URL design must preserve this exactly: **the human-readable part of the path must never participate in authorization** — it is decoration only, resolved and validated purely for display.
-
-**Recommendation: a NEW short opaque token column with its own unique index, not a truncation/reuse of the existing UUID.** A raw UUID (36 chars, hyphenated) is unsuitable for a "friendly" URL suffix, and truncating it arbitrarily (a) weakens entropy in a way that's hard to reason about and (b) can't be efficiently indexed for a prefix-match query. Instead:
+### `platform_notification_preferences` (NEW — Telegram per-event toggle)
 
 ```sql
-ALTER TABLE estimates ADD COLUMN IF NOT EXISTS public_slug_token TEXT;  -- e.g. nanoid(10), generated once
-CREATE UNIQUE INDEX IF NOT EXISTS idx_estimates_public_slug_token
-  ON public.estimates(public_slug_token) WHERE public_slug_token IS NOT NULL;
-```
-— this exactly mirrors the existing hardening precedent `idx_estimates_share_token` in `supabase/migrations/20260706000007_rls_hardening_indexes_grants.sql:56-57` (partial unique index, `WHERE ... IS NOT NULL`, dormant-safe for legacy rows). Backfill existing rows in the same migration (or lazily on first send, matching how `share_expires_at` is already lazily refreshed on every send path).
-
-**`companySlug` also does not exist yet** — no `companies.slug` column exists in the schema (confirmed by grep; the only `slug` precedent in this codebase is `blog_posts.slug` with its own unique index, `supabase/migrations/20260503000001_phase15_admin_panel.sql:13,25`). Add `companies.slug` the same way (generated from `company.name` at creation or via a one-time backfill migration + trigger/action on rename).
-
-**`estimateSlug` should NOT be persisted or required to be unique.** Since the trailing `shortToken` is what actually resolves the row, the slug text is purely cosmetic — compute it on the fly from the project/estimate title at render/send time (the codebase already does exactly this kind of ad hoc slugification for PDF filenames: `projectName.replace(/[^a-zA-Z0-9\s-]/g,'').replace(/\s+/g,'-').slice(0,50)` in both `send/route.ts:169-172` and `pdf/route.ts:112-115`). This avoids a slug-uniqueness migration burden and avoids stale-slug problems after a project rename — old shared links keep resolving correctly (the token still matches) even if the visible slug text no longer matches the current title; no redirect-to-fix-the-slug logic is needed.
-
-**Route implementation:** Next.js App Router supports two **structurally distinct** dynamic trees at the same top-level prefix without conflict — the existing `app/estimate/[token]/page.tsx` (1 segment) and a new `app/estimate/[companySlug]/[estimateSlug]/page.tsx` (2 segments) can coexist; Next.js dispatches by segment count/shape, not by name. `[estimateSlug]`'s actual param value is `{estimateSlug}-{shortToken}` — parse the token as the suffix after the last `-` (or a fixed-length suffix if the token generator uses a fixed length, which is simpler and less fragile than delimiter-splitting against a slug that might itself contain hyphens).
-
-**`proxy.ts` requires zero changes** — `/estimate` is deliberately absent from `PROTECTED_ROUTE_PREFIXES` (see the "Pre-launch audit fix" comment at `proxy.ts:7-17`), so `isProtectedRoute()` returns `false` for any path under `/estimate/*` regardless of depth; the new 2-segment route is public by construction, same as today's 1-segment route.
-
-**`lib/queries/share.ts` needs a sibling lookup**, e.g. `getEstimateByPublicToken(token)` (or generalize `getEstimateByShareToken` to accept a `{ column: 'share_token' | 'public_slug_token' }` param) plus a matching `getShareLinkState` variant — both reusing the exact same expiry (`share_expires_at`) and PII-stripping discipline already proven in the existing function.
-
-**Backward compat is free by construction:** leave `app/estimate/[token]/page.tsx` completely unmodified — it keeps resolving via `share_token` exactly as today. No redirect is required for the seed's stated requirement ("old links keep working"); a 301-to-canonical-friendly-URL can be added later as a pure enhancement once `companies.slug`/`public_slug_token` backfill is confirmed complete for the estimate being visited.
-
-**A genuinely new finding relevant to sub-question (b) — the URL-builder duplication that will make this migration painful if not centralized first:** `buildShareLink()` (`lib/utils/share-link.ts`) is **client-only** (reads `window.location.origin`), so it can only be called from client components. Every **server-side** call site that needs to embed a share URL in an outbound message has independently hand-rolled the same string instead of importing a shared helper:
-- `app/api/estimates/[id]/send-sms/route.ts:103` — `` `${baseUrl}/estimate/${estimate.share_token}` ``
-- `lib/whatsapp/send-estimate.ts:76` — `` `${baseUrl}/estimate/${estimate.share_token}` ``
-- `lib/whatsapp/confirm-actions.ts:123` — `` `${getCanonicalBaseUrl()}/estimate/${estimate.share_token}` ``
-- `app/api/estimates/[id]/send/route.ts:113` builds an (unused/dead) `shareLink` local and actually leaves the link to be typed into the email body by the user via `SendForm`'s default `body` value (`buildShareLink(shareToken)` computed client-side in `send-form.tsx:71`).
-
-**This is the real shared choke point for SEED-042**, more so than any single component: recommend introducing ONE isomorphic path-builder — e.g. `buildEstimatePublicPath(company: {slug, name}, estimate: {id, public_slug_token, share_token, project_name}): string` returning just the **path** (no origin) — and updating `buildShareLink` (client) and all 4 server call sites above to combine it with `window.location.origin` / `getCanonicalBaseUrl()` respectively. Doing this FIRST (as part of the URL-contract phase) means the friendly-URL rollout is a one-function change propagated everywhere, instead of 4-5 separate patches with drift risk.
-
-**White-label/custom-domain flag — worth a quick verification, not a blocker:** `app/estimate/[token]/page.tsx` reads an `x-white-label` request header (`headers().get('x-white-label')`) that, per `.planning/phases/39-subdomain-routing-white-label/39-01-SUMMARY.md`, was originally set by a "custom host detection block" in `proxy.ts` "before updateSession()". **That block no longer exists in the current `proxy.ts`** (159 lines, fully read, no `white-label` or custom-host logic present) — meaning `isWhiteLabel` is very likely always `false` today regardless of custom domain. This predates and is unrelated to this milestone, but because SEED-042 explicitly claims "custom domains and white-label routing should still work with the new path," recommend a 10-minute verification pass (confirm whether white-label detection moved elsewhere, e.g. `next.config.js` rewrites, or is genuinely dead) before building custom-domain-aware slug resolution on top of it.
-
-### (c) Suggested phase/build order
-
-The four seeds have **near-zero data-model dependencies on each other**, but they have a **hard file-contention dependency** in one place (`estimate-document.tsx`) and **one real cross-feature data dependency**: the Send Hub's "Online Estimate / PDF / Plain Text" previews are supposed to show the client "what they'll see," which is meaningless before presentation settings exist.
-
-```
-Phase A ─┬─ SEED-042 URL contract + data model            (zero overlap w/ B, C)
-         │   migrations, lib/queries/share.ts, lib/utils/share-link.ts + server
-         │   call-site consolidation, new [companySlug]/[estimateSlug] route
-         │
-Phase B ─┴─ SEED-041 settings model + persistence          (small overlap w/ C via
-             migration, lib/estimate/presentation-settings.ts,                the reducer + EstimateDocumentData
-             use-estimate-reducer.ts action + EstimateDocumentData field,     type — land BEFORE Phase C)
-             saveEstimate() pass-through field
-
-Phase C  ── estimate-document.tsx CONSOLIDATED PASS         (SEED-041 UI, SEED-043, SEED-044
-             all edit this ONE 2018-line file — sequence          all land here — see (d) below
-             sub-steps, don't run 3 parallel agents on it)         for the recommended internal order)
-
-Phase D  ── SEED-042 Send Hub UI + delivery templates        (depends on Phase B's settings
-             + presentation-settings-aware plain-text/            existing; depends on Phase A's
-             WhatsApp formatter updates                           friendly URL existing to surface
-                                                                     it in the "Online Estimate" tab)
+CREATE TABLE public.platform_notification_preferences (
+  event_kind   text PRIMARY KEY,          -- matches OpsAlert.kind
+  telegram_enabled boolean NOT NULL DEFAULT true,  -- default ON = zero regression vs today's always-on notifyOps
+  updated_by   uuid,
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+-- RLS: service-role-only. No company_id — genuinely platform-scoped.
 ```
 
-- **Phase A and Phase B can run fully in parallel** — disjoint file sets (A: `lib/queries/share.ts`, `lib/utils/share-link.ts`, new route, migrations for `companies.slug`/`estimates.public_slug_token`; B: `use-estimate-reducer.ts`, `lib/actions/estimate.ts`, a new `lib/estimate/presentation-settings.ts`, migration for `estimates.presentation_settings`). Two migrations in the same milestone are fine as long as they're separate idempotent files (matches existing convention of one migration per concern).
-- **Phase C must be sequenced internally, not parallelized**, because SEED-041 (gear-driven visibility rewiring), SEED-043 (mobile item editor swap), and SEED-044 (alignment pass + `InlineProjectName` + client-picker consolidation) all touch `estimate-document.tsx` directly. See (d) for the recommended internal C1→C2→C3 order.
-- **Phase D is the only piece with a genuine cross-seed data dependency** (needs Phase B's `presentation_settings` to exist so the plain-text/WhatsApp preview in the new Send Hub can honor hidden sections) and a soft UX dependency on Phase A (surfacing the friendly URL in the "Online Estimate" tab). Phase D's own files (`components/workspace/send/*.tsx`) are otherwise disjoint from Phase C's files, so **Phase D could start in parallel with Phase C** once Phase B is done — the only shared touch-point is `estimate-floating-actions.tsx`, which both the SEED-041 gear button and the SEED-042 Send-hub trigger wire into, and that's a small, additive, low-conflict file (243 lines, clear prop-based extension points already).
+The **event catalog itself stays code**, not DB — a new `lib/notifications/platform-events.ts` exporting a `PlatformEventKind` union + human labels, mirroring the existing code/DB split already used for tenant events (`EVENT_CATEGORIES`/`DEFAULT_PREFERENCES` are code in `event-types.ts`; only the per-user override lives in `notification_preferences`). The DB table only stores the admin-editable toggle *state*, keyed by the code-defined string. This lets the roadmap add new alert kinds without a migration.
 
-### (d) New vs modified components per feature, and the shared choke points
+**No new table for the bot token / chat_id** — `platform_integrations` (provider `'telegram'`, `metadata.chat_id`) already exists and is already wired end-to-end via `getTelegramConfig()`. Recommend keeping the existing single-chat-id model (one ops Telegram group) rather than adding per-admin-recipient fan-out — that would be a materially bigger schema change (a recipient list + per-recipient delivery tracking) not clearly asked for by the milestone bullet ("Telegram bot token stored encrypted... delivered to Xtimator admins"), and every current call site already assumes one destination.
 
-**SEED-041 — Settings control panel**
+### `customer_messages` (NEW — end-customer send audit log)
 
-| New | Modified |
-|---|---|
-| `EstimateSettingsPopover` (or `.../estimate/estimate-settings-panel.tsx`) — desktop popover / mobile sheet, gear-triggered | `components/workspace/estimate/estimate-floating-actions.tsx` — add gear button + `onOpenSettings` prop |
-| `lib/estimate/presentation-settings.ts` — `resolvePresentationSettings`, `isSectionVisible`, defaults | `components/workspace/estimate/estimate-document.tsx` — **replace** `isFieldVisible`/`revealed`/`toggleField`/`AddDetailsPopover` wiring (destructive → persisted) |
-| Migration `NNN_estimate_presentation_settings.sql` | `components/workspace/estimate/use-estimate-reducer.ts` — new `UPDATE_PRESENTATION_SETTINGS` action, new state field |
-| | `lib/actions/estimate.ts` — `SaveEstimateInput` gains the field (pass-through) |
-| | `components/workspace/estimate/estimate-editor.tsx` — `stateToDocumentData()`/`stateToSavePayload()` |
-| | `components/share/estimate-view.tsx` — thread settings into `documentData` |
-| | `components/share/estimate-document-modern.tsx`, `components/pdf/estimate-pdf.tsx`, `components/pdf/estimate-pdf-modern.tsx`, `lib/utils/estimate-template.ts`, `lib/whatsapp/formatter.ts`, `lib/whatsapp/send-estimate.ts` (widen its narrow `estimates` select) — all 6 consumers from part (a) |
+```sql
+CREATE TABLE public.customer_messages (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id          uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  client_id           uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+  channel             text NOT NULL CHECK (channel IN ('email','sms')),
+  recipient_email     text,
+  recipient_phone     text,
+  subject             text,                 -- email only
+  body                text NOT NULL,
+  template_event_type text,                 -- NULL for free-form agentic sends
+  source              text NOT NULL CHECK (source IN ('manual','agentic_whatsapp','agentic_mcp')),
+  provider             text NOT NULL CHECK (provider IN ('resend','twilio')),
+  provider_message_id  text,
+  status               text NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','sent','delivered','failed','bounced')),
+  error_message         text,
+  sent_by_user_id       uuid,               -- the owner/staff whose conversation triggered it
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  sent_at                timestamptz
+);
+-- RLS: tenant-scoped SELECT via company_members (mirrors estimate_deliveries' pattern),
+-- INSERT/UPDATE service-role only.
+```
 
-**SEED-042 — Format-first send + friendly links**
+This is modeled directly on **`estimate_deliveries`** (`supabase/migrations/20260519000003_estimate_deliveries.sql`), which already logs exactly this shape (channel CHECK email/sms, provider CHECK resend/twilio, status lifecycle, RLS via `company_id IN (SELECT id FROM companies WHERE ...)`) for estimate-send receipts. Recommend a **new, separate table** rather than widening `estimate_deliveries` — the latter has a `NOT NULL` FK to `estimates` and is a proven, currently-shipping table; do not touch it. `customer_messages` reuses its conventions but is not tied to any estimate, and carries the extra `source`/`sent_by_user_id`/`template_event_type` columns that matter for auditing an LLM-authored send to a real third party — the first time this codebase lets that happen.
 
-| New | Modified |
-|---|---|
-| `app/estimate/[companySlug]/[estimateSlug]/page.tsx` (+ `actions.ts` mirroring the token route's) | `lib/queries/share.ts` — new `getEstimateByPublicToken`/state variant |
-| `SendHub` (replaces the channel-first `SendDialog` composition) with 3 format tabs (Online/PDF/Plain Text) | `lib/utils/share-link.ts` — isomorphic path builder |
-| `lib/estimate/public-url.ts` (or similar) — `buildEstimatePublicPath()` shared path-builder | `app/api/estimates/[id]/send-sms/route.ts`, `send-whatsapp/route.ts`, `send/route.ts` — use the shared builder instead of inline string construction |
-| Migration: `companies.slug`, `estimates.public_slug_token` + unique indexes | `lib/whatsapp/confirm-actions.ts`, `lib/whatsapp/send-estimate.ts` |
-| | `components/workspace/send/send-form.tsx`, `send-actions-menu.tsx`, `plain-text-sheet.tsx` — likely absorbed into the new format-first hub, not kept as-is |
-| | `estimate_deliveries` table — widen `channel` CHECK / add a `format` column (mirrors the existing idempotent-migration style in `20260519000003_estimate_deliveries.sql`) |
+## (c) Telegram Channel Integration
 
-**SEED-043 — Mobile line-item editor parity**
+**Extend the existing `notifyOps()`/`ops-alert.ts` pipeline. Do not add a Telegram branch to `notify()`.** (Full rationale in the Tenant-vs-Platform section above.)
 
-| New | Modified |
-|---|---|
-| A document-native mobile item editor (refactor `ItemCardMobile` in place, or a new `DocumentItemMobileEditor` per the seed's own open decision) sharing compact field classes with `SortableDocumentItemRow` | `components/workspace/estimate/estimate-document.tsx` — the `sm:hidden` branch inside `DocumentSectionBlock` (lines ~765-806) |
-| | `components/workspace/estimate/item-card-mobile.tsx` (if refactored in place rather than replaced) |
-| — confirmed dead code, safe to delete or leave alone: `components/workspace/estimate/section-card.tsx` (only self-referenced; grep across `components/` found zero importers) — this resolves the seed's own "audit the active render path" open question. `item-row.tsx` is only imported by the dead `section-card.tsx`, so it is transitively dead too. | |
+Concrete changes to `lib/observability/ops-alert.ts`:
 
-**SEED-044 — Document alignment + client editing**
+```typescript
+export async function notifyOps(alert: OpsAlert): Promise<void> {
+  try {
+    if (alert.dedupeKey) { /* unchanged Redis SETNX */ }
+    try { Sentry.captureMessage(...) } catch {}   // unchanged — always fires regardless of toggle
 
-| New | Modified |
-|---|---|
-| A shared client-picker (e.g. `useClientPicker()` hook or `ClientLinkPopover` component) consolidating the fetch/search/select/toast/refresh logic currently triplicated in `LinkClientInline` (`estimate-document.tsx:1339-1415`), `LinkClientButton` (`components/workspace/link-client-button.tsx`), `LinkClientCard` (`components/workspace/link-client-card.tsx`) | `components/workspace/estimate/estimate-document.tsx` — `InlineProjectName`'s `decoration-dotted` → solid thin underline; `Bill To` block gains hover/focus edit affordance wired to the new picker + `unlinkProjectFromClient`; broad spacing/alignment pass across company header/title band/info grid/summary/section headers |
-| | `components/workspace/link-client-button.tsx`, `components/workspace/link-client-card.tsx` — refactor to consume the new shared picker instead of their own Command/fetch logic |
+    // NEW: per-kind toggle gate — Sentry stays the unconditional technical record;
+    // Telegram becomes admin-toggleable. Defaults to enabled (fail-open) so an
+    // unconfigured/errored preferences read never silently kills alerting.
+    const telegramEnabled = await isTelegramAlertEnabled(alert.kind) // reads platform_notification_preferences, defaults true
+    if (telegramEnabled) {
+      try { await sendTelegramMessage(formatOpsMessage(alert)) } catch {}
+    }
+  } catch {}
+}
+```
 
-**Shared choke points ranked by sequencing risk:**
+Widen the event catalog by adding `notifyOps()` calls at the 3 net-new business call sites the milestone names, as SIBLING calls next to existing tenant `notify()` calls (not replacing them):
 
-1. **`components/workspace/estimate/estimate-document.tsx`** (2018 lines) — touched by SEED-041 (visibility rewiring), SEED-043 (mobile branch), SEED-044 (alignment + `InlineProjectName` + `LinkClientInline`). **3 of 4 features, same file.** Highest risk if worked on in parallel — recommend the internal order below.
-2. **The 6-consumer render/format fan-out** (part a's table) — not a single file, but a single *concept* that must land consistently across 6 files or the "editor shows X, client sees Y" bug class reappears immediately.
-3. **Server-side share-URL construction** (part b's finding) — 4 independent inline string-builders that must all move to one shared path-builder in the same phase, or the friendly URL only half-rolls-out (e.g. SMS gets it, WhatsApp confirm-actions doesn't).
-4. **`estimate-floating-actions.tsx`** — low risk, additive only (gear button for 041, unchanged `onSend` trigger reused by 042's new hub).
+| Platform event | New `kind` | Call site to add sibling `notifyOps()` |
+|---|---|---|
+| Tenant signup | `tenant_signup` | wherever onboarding/`createOrUpdateCompany` completes (new call site — no existing `notify()`/`notifyOps()` fires today on signup) |
+| Payment received | `tenant_payment_received` | `lib/billing/connect-webhook.ts` (already calls tenant `notify('payment.received', ...)`) |
+| Quota exhausted | `tenant_quota_exhausted` | `lib/quota.ts` (already calls tenant `notify('quota.exhausted', ...)`) |
+| Job failures | *(already covered)* | `estimate_generation_failed`/`transcription_failed`/`vision_failed`/`ai_fallback` already fire via existing `notifyOps()` calls in `generate-estimate.ts`, `transcribe-audio.ts`, `analyze-photos.ts`, `with-fallback.ts` |
+| Critical errors | *(already covered)* | `pipeline_stuck` (`pipeline-watchdog.ts`), `cron_failed` (both cron routes) |
 
-**Recommended internal order for the `estimate-document.tsx` phase (C1 → C2 → C3):**
-1. **C1 — SEED-044 first**: extract the shared client-picker, fix `InlineProjectName`'s underline, do the alignment/spacing pass. This is the most self-contained of the three (mostly styling + one new extracted component) and settles the file's structure before the other two add behavior on top of it.
-2. **C2 — SEED-041 second**: rewire `isFieldVisible`/`toggleField`/`AddDetailsPopover` to read `presentation_settings` (requires Phase B already landed), wire the gear button. Doing this after C1 means the diff is against the already-aligned layout, not a moving target.
-3. **C3 — SEED-043 last**: swap the mobile item editor. Most isolated of the three (only the `sm:hidden` branch + `item-card-mobile.tsx`), and benefits from verifying mobile parity against the *final* desktop state (post-alignment, post-settings) rather than an intermediate one.
+Admin UI: extend the existing `/admin/integrations` Telegram card (`app/admin/integrations/telegram-chat-id-form.tsx`) — or a new `/admin/notifications` platform tab — with a per-`kind` toggle list bound to `platform_notification_preferences`, following the exact `requireAdmin` + `requireServiceClient` server-action pattern already used in `lib/actions/admin-whatsapp-templates.ts`.
 
-## Patterns to Follow
+**What is explicitly NOT new work:** the Telegram HTTP client, the bot-token/chat-id admin field, the encrypted-credential storage, the dedupe layer, the Sentry co-fan-out, and 6 of the ~9 needed event sources. All shipped 2026-07-05 (quick-task `260705-c1y`) and are proven in production use by `with-fallback.ts` and 5 other call sites.
 
-### Pattern 1: Dormant-first JSONB with a pure resolver + type guard
+## (d) Agentic End-Customer Send Flow
 
-**What:** Add nullable JSONB columns via idempotent `ADD COLUMN IF NOT EXISTS`, ship them fully inert (NULL = old behavior), and centralize every read through one pure function that degrades safely on malformed/absent data (`isTaxConfig()` in `compute-totals.ts` is the canonical example — never throws, falls back to the flat/retrocompat path).
-**When to use:** Any new per-row configuration bag where the toggle set is expected to grow (this milestone's `presentation_settings`).
-**Trade-off:** JSONB loses column-level constraints/indexing on individual keys — acceptable here because these are UI toggles, not query filters.
+**New neutral capability, called synchronously (not via Inngest) from two channel adapters (WhatsApp MANAGE tool + MCP write tool), hitting the same `sendSms`/`sendEmail` primitives `notify()` uses — with tenant-scoped ownership guardrails mirroring the MCP `create_estimate` project-ownership preflight.**
 
-### Pattern 2: Server is the sole arithmetic authority (GUARD-03) — extend inputs, never outputs
+### Why synchronous, not Inngest-queued
+`notify()`'s email/whatsapp/sms branches go through Inngest because they are proactive, nobody-is-waiting system notifications. The agentic send is the opposite: the owner is mid-conversation and the agent's reply THIS TURN needs to say "sent" or "couldn't send, no phone on file." The established precedent for a user-initiated, response-this-turn external send is `app/api/estimates/[id]/send-sms/route.ts`, which calls `sendSms()` directly, synchronously, with no Inngest hop. The new tool follows that precedent, not the `notify()` precedent.
 
-**What:** The client reducer's `recalculate()` (`use-estimate-reducer.ts:125-164`) is explicitly a **preview only**; `saveEstimate()` always recomputes via `computeEstimateTotals` server-side and the persisted row is authoritative.
-**When to use:** Any new field that could plausibly affect a total (tax/discount/deposit toggles in SEED-041's settings panel). `presentation_settings` is safe specifically *because* it's read-visibility-only and never reaches `compute-totals.ts` — keep it that way; if a future field looks like it could change a number, it belongs in the typed columns/engine inputs, not the JSONB bag.
-**Example:** `lib/estimate/compute-totals.ts:87-90` — `computeEstimateTotals` takes exactly the inputs it needs (`taxRate`, `discountType`, `depositType`, etc.); nothing UI-shaped is ever passed in.
+### Neutral capability
 
-### Pattern 3: Registry-keyed component lookup, not if/else
+```typescript
+// lib/agent-tools/send-customer-message.ts (NEW)
+// Mirrors lib/agent-tools/create-estimate.ts: companyId is a CLOSURE/trusted
+// param resolved upstream — NEVER an LLM tool-input field (T-lrf-01).
+export async function sendCustomerMessage(args: {
+  companyId: string
+  clientId: string
+  channel: 'email' | 'sms'
+  body: string            // LLM-authored (free-form) or template-rendered
+  subject?: string        // email only
+  eventType?: string      // optional — for template-resolved sends + audit
+}): Promise<{ ok: boolean; error?: string }> {
+  // 1. Ownership check: clients row WHERE id = clientId AND company_id = companyId
+  //    (mirrors handleCreateEstimate's project.company_id === auth.company_id check
+  //    in lib/mcp/tools/write.ts)
+  // 2. Resolve `to` from clients.email / clients.phone
+  // 3. sendSms(to, body)  or  sendEmail({to, subject, body})  [NEW lib/email/send-raw.ts]
+  // 4. Insert customer_messages row (audit trail) regardless of outcome
+}
+```
 
-**What:** `PDF_TEMPLATE_COMPONENTS: Record<EstimateTemplateId, Component>` in `app/api/estimates/[id]/pdf/route.ts:20-23`, backed by `lib/estimate/templates/registry.ts`'s `isEstimateTemplateId` type guard.
-**When to use:** Any place branching on a small closed set of variants (already used for classic/modern template selection). Not directly needed by this milestone's 4 features, but the presentation-settings resolver and the new format-first Send Hub (Online/PDF/Plain Text) should follow the same registry idiom rather than inline conditionals, for consistency with the surrounding code.
+### WhatsApp side — extend the MANAGE intent, not the confirmation agent
+
+`lib/whatsapp/manage-tools.ts` is already the general-purpose, non-session-scoped write-tool bucket — reached from ANY conversation state via `lib/whatsapp/intent-router.ts`'s classifier (`MANAGE` intent, alongside `add_service`/`add_knowledge`). This is architecturally the right home: "send an SMS to my client about X" is a standalone command, not part of reviewing one pending estimate draft (which is what `lib/whatsapp/agent-tools.ts`'s confirmation agent is scoped to via `session.draft_estimate_id`).
+
+Required changes:
+- Add a `sendCustomerMessageTool` to `makeManageTools()` (`lib/whatsapp/manage-tools.ts`), resolving the client via the existing `findClientByName` (`lib/agent-tools/query-company-data.ts`, already bound as a QUERY tool) before calling the new neutral function.
+- Update the intent classifier's `MANAGE:` system-prompt bullet in `intent-router.ts` (currently scoped to "SAVE something to their account") to also cover "message/text/email a client" — otherwise the classifier will misroute these requests to `CREATE` or `QUERY`.
+
+### MCP side — new write tool, same neutral core
+
+Add `send_customer_message` to `lib/mcp/tools/write.ts`, following the exact `handleCreateEstimate`/`handleAddService` shape: `WRITE_ANNOTATIONS`, `ensureScope(auth, 'mcp:write')`, a service-client ownership preflight, then delegate to `sendCustomerMessage()`. This closes the loop on the project's own standing principle, stated explicitly in `PROJECT.md`'s v4.9/v4.10 milestone history: *"WhatsApp = CHAT = MCP, three siblings over the SAME neutral core."* The agentic-send capability should be the newest instance of that pattern, not a one-off.
+
+### Guardrails (this is the first LLM-authored message sent to a real third party)
+
+- **Tenant ownership**: `clientId` must resolve to a row where `company_id === companyId` (trusted closure param) — identical shape to the MCP `create_estimate` project check.
+- **Audit log**: every send (success or failure) writes a `customer_messages` row — this is the reviewability/revocability surface for an autonomous send, and the compliance record.
+- **Consent**: the codebase already has a TCPA-driven consent gate for tenant-facing SMS (`notification_preferences.sms_opt_in_at`, enforced in `resolveChannels()`, `lib/notifications/preferences.ts:90`). End-customer SMS has no equivalent today — `clients` has no opt-in timestamp column. **Flag as an open product/legal question for the roadmap phase, not resolved by this research**: sending unsolicited SMS to a tenant's customers carries real TCPA exposure that the existing owner-facing consent pattern does not cover.
+- **Abuse/rate limiting**: unlike AI generation, SMS/email cost is trivial, so the existing credit ledger (`checkCredits`) is the wrong gate. Recommend a lightweight per-company rate limit (reuse `lib/redis.ts`'s `getRedis()`, already used for `notifyOps` dedupe) to prevent a runaway agent loop from spamming a client.
+- **Never-throw at the primitive, but NOT at the tool layer**: `sendSms`/`sendEmail` stay never-throw (`{ok, error?}`), matching the existing contract — but the LangChain/MCP tool WRAPPING them should surface failure into the agent's reply text this turn ("Couldn't send — no phone on file for Sarah"), unlike `notify()`'s fire-and-forget swallow-everything posture, because here a human is actively waiting on this turn's answer.
+
+## Data Flow
+
+### Tenant notification with template resolution (modified)
+```
+event source (9 call sites)
+  → notify({ companyId, eventType, copyContext, ... })
+      → resolveNotificationCopy('tenant', eventType, 'in_app', copyContext)
+          → DB hit? render {{vars}} : buildNotificationCopy(eventType, copyContext)
+      → INSERT notifications row (title/body from above)
+      → Inngest notification/email.queued (carries copyContext or resolved title/body;
+         digest worker later resolves 'email' channel copy, falls back to row title/body)
+      → Inngest notification/whatsapp.send (UNCHANGED — HSM registry only)
+      → Inngest notification/sms.send (body resolved via 'sms' channel template, else
+         `${title}: ${body}` fallback — UNCHANGED shape)
+```
+
+### Platform Telegram alert with toggle (modified)
+```
+reliability call site OR new signup/payment/quota sibling call
+  → notifyOps({ kind, title, message, severity, dedupeKey })
+      → Redis SETNX dedupe (fail-open, UNCHANGED)
+      → Sentry.captureMessage (UNCHANGED, unconditional)
+      → NEW: platform_notification_preferences[kind].telegram_enabled ?? true
+          → true: sendTelegramMessage(formatOpsMessage(alert))  [UNCHANGED client]
+          → false: skip Telegram, Sentry record still exists
+```
+
+### Agentic end-customer send (new)
+```
+Owner (WhatsApp or Claude.ai/MCP): "send Sarah an SMS about the delay"
+  → WhatsApp: intent-router classifies MANAGE → makeManageTools() ReAct agent
+     MCP: send_customer_message tool call
+  → sendCustomerMessage({ companyId [trusted], clientId, channel, body })
+      → clients ownership check (company_id match)
+      → resolve `to` (clients.email / clients.phone)
+      → sendSms() / sendEmail()  [existing / new primitive, synchronous]
+      → INSERT customer_messages row (audit, regardless of outcome)
+  → tool returns success/failure text THIS TURN → agent composes reply
+```
+
+## Suggested Build Order (dependency spine)
+
+The three pipelines are independently shippable in parallel (they share no code), but within each there is a real dependency order. Recommended phase spine, in dependency order:
+
+1. **Template engine foundation** — `notification_templates` table (migration) + `lib/notifications/template-resolver.ts` + wiring into `notify()` as strictly additive (Step 1 of the (a) rollout above). Ships with zero call-site changes and zero visible behavior change (DB starts empty → 100% `copy.ts` fallback). This is the dependency root for everything template-related, including the customer-scope rows the agentic-send flow will optionally use.
+2. **Super-admin template editor UI** — CRUD screen over `notification_templates` (list/edit/preview with the `variables` catalog), reusing the `whatsapp-templates-panel.tsx` + `admin-whatsapp-templates.ts` server-action pattern. Depends on (1)'s table existing.
+3. **Call-site sweep** — migrate the 9 `buildNotificationCopy()` call sites to pass `copyContext` instead of pre-built title/body (Step 2 of the (a) rollout). Depends on (1); can ship any time after, low risk, mechanical.
+4. **Telegram per-event toggle** — `platform_notification_preferences` table + `lib/notifications/platform-events.ts` catalog + the gate inside `notifyOps()` + admin toggle UI. Independent of (1)-(3); depends only on the already-shipped Telegram infra (`lib/telegram/client.ts`, `getTelegramConfig`).
+5. **Widen platform event catalog** — add `notifyOps()` sibling calls at signup/payment/quota call sites. Depends on (4) existing (so new kinds are toggleable from day one) but is otherwise independent of (1)-(3).
+6. **`customer_messages` table + `sendCustomerMessage` neutral capability + `lib/email/send-raw.ts`** — the foundation the agentic-send tools bind to. Can start in parallel with (1)-(5); depends on nothing upstream in this milestone, only on existing `sendSms`/`clients` schema.
+7. **WhatsApp MANAGE tool integration** — `sendCustomerMessageTool` in `manage-tools.ts` + classifier prompt update in `intent-router.ts`. Depends on (6).
+8. **MCP `send_customer_message` write tool**. Depends on (6); independent of (7) (both bind the same neutral function, ship in either order or in parallel).
+9. **(Optional, template-dependent) customer-scope templates** — `scope='customer'` rows in `notification_templates` for semi-fixed customer messages (e.g. appointment-reminder). Depends on both (1) and (6); can be deferred past MVP since the free-form (LLM-authored body) path in (6)-(8) doesn't require it.
+
+Critical path for an MVP slice: **1 → 6 → 7/8**. Steps 2-3 (editor polish, call-site sweep) and 4-5 (Telegram breadth) can trail without blocking the headline "agentic send" capability, and vice versa — a roadmap that ships (1)+(6)+(7) before (4)+(5) is equally valid, since the two pipelines never share code.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Encoding "is visible" as "is non-null"
+### Anti-Pattern 1: Routing Telegram through `notify()`
+**What people might do:** add a `telegram?: boolean` to `NotifyParams.channels` and a Telegram branch inside `dispatch.ts`, since it looks like "just another channel" next to whatsapp/sms.
+**Why it's wrong:** every layer of `notify()` — the required `companyId`, the dedupe query, the `notifications` table FK/RLS — assumes a tenant. Platform alerts (cron failures, ai fallback) have no tenant at all. Bending `notify()` to accept `companyId: null` would ripple into the in-app feed, RLS, and every existing consumer of `notifications`.
+**Instead:** extend `notifyOps()` (already company-agnostic, already sends Telegram) as shown in (c).
 
-**What people do (today, in `estimate-document.tsx`):** `isFieldVisible('summary') = data.summary != null || revealed.has('summary')` — conflates "has content" with "should be shown," and hiding destroys the content (`dispatch({ ..., value: null })`).
-**Why it's wrong:** SEED-041 explicitly calls this out as a product requirement to fix — a business owner should be able to hide Notes for one client without losing the text.
-**Do this instead:** Persisted boolean visibility flags in `presentation_settings`, fully independent of whether the underlying text field is null or populated.
+### Anti-Pattern 2: Deleting `copy.ts` once DB templates ship
+**What people might do:** treat the DB template table as the sole source of truth and remove `buildNotificationCopy` once the admin panel is live.
+**Why it's wrong:** every event needs a working default from day one (before an admin has authored anything), and a DB read can fail/be empty. `copy.ts` is the safety net, mirroring how `whatsapp-registry.ts`'s static `REGISTRY` map was never deleted after the DB-backed resolver shipped in Phase 104.3.
+**Instead:** keep `copy.ts` permanently as the fallback tier.
 
-### Anti-Pattern 2: Re-deriving the same public URL in N places
+### Anti-Pattern 3: Queuing the agentic send through Inngest "for consistency with `notify()`"
+**What people might do:** dispatch an `EVENT_CUSTOMER_MESSAGE_SEND` Inngest event from the WhatsApp/MCP tool, mirroring `notification/sms.send`.
+**Why it's wrong:** the agent's reply for THIS conversational turn needs to know whether the send succeeded; queuing makes that a fire-and-forget the tool can't report on, producing a confidently-wrong "Sent!" reply before the async worker has even run.
+**Instead:** synchronous call, matching the `app/api/estimates/[id]/send-sms/route.ts` precedent.
 
-**What people do (today):** `send-sms/route.ts`, `lib/whatsapp/send-estimate.ts`, and `lib/whatsapp/confirm-actions.ts` each independently write `` `${baseUrl}/estimate/${estimate.share_token}` ``, while `buildShareLink()` (the one existing shared helper) can't be reused server-side because it's client-only.
-**Why it's wrong:** A friendly-URL migration touches N call sites with N chances to miss one (exactly the failure mode SEED-042's "keep old links working, don't break WhatsApp/SMS" requirement is worried about).
-**Do this instead:** One isomorphic path-builder, imported everywhere a share URL needs constructing, exercised by a single unit test that would catch any call site still hand-rolling the old shape.
+### Anti-Pattern 4: Adding the customer-send tool to the estimate-confirmation agent
+**What people might do:** add `sendCustomerMessage` to `lib/whatsapp/agent-tools.ts` since it already has a resolved client in scope.
+**Why it's wrong:** that agent only runs while `session.draft_estimate_id` is set (an active pending-confirm session) — "send an SMS to my client" as a standalone command outside that flow would be unreachable.
+**Instead:** the MANAGE intent (`manage-tools.ts`), which is reachable from any session state.
 
 ## Integration Points
 
@@ -252,42 +391,39 @@ Phase D  ── SEED-042 Send Hub UI + delivery templates        (depends on Pha
 
 | Boundary | Communication | Notes |
 |---|---|---|
-| Editor reducer ↔ `saveEstimate()` | Server Action, full-object payload, optimistic-concurrency via `expectedUpdatedAt` | `presentation_settings` slots in here as a pass-through field, no math coupling |
-| `estimates.presentation_settings` ↔ 6 renderers | Direct Supabase row read per consumer (no shared query layer exists yet) | Recommend the `lib/estimate/presentation-settings.ts` resolver as the enforced single read-path, not a new query abstraction (would be a larger refactor than this milestone needs) |
-| Public share route ↔ `estimates` table | Bearer-token exact-match lookup via service-role client (RLS bypassed intentionally, PII stripped in the query layer) | New friendly route must reuse this exact posture with a second token column, never the slug |
-| `proxy.ts` ↔ `/estimate/*` | Prefix-based route classification, `/estimate` deliberately unprotected at any depth | Zero changes needed for the new 2-segment route |
-| WhatsApp delivery format ↔ presentation settings | `company.delivery_format` (`share_link`/`formatted_text`/`pdf_attachment`) already branches per-company; `formatted_text` path must additionally honor per-estimate `presentation_settings` | `lib/whatsapp/send-estimate.ts:69,110-113` |
+| `notify()` ↔ `notification_templates` | Direct Supabase read (service client) | New — mirrors `getApprovedTemplateForEvent`'s DB-then-fallback shape |
+| `notifyOps()` ↔ `platform_notification_preferences` | Direct Supabase read (service client) | New — same TTL-cache-optional posture as `platform-config.ts` reads |
+| `notification-email-digest.ts` ↔ `notifications.metadata.email_copy` | JSONB field, no schema change | New — lets email wording diverge from in_app without touching the digest worker's query shape |
+| `lib/whatsapp/manage-tools.ts` ↔ `lib/agent-tools/send-customer-message.ts` | Direct function call, `companyId` closure param | New — T-lrf-01 pattern (never an LLM-suppliable field) |
+| `lib/mcp/tools/write.ts` ↔ `lib/agent-tools/send-customer-message.ts` | Direct function call, `auth.company_id` preflight-checked | New — same neutral function as the WhatsApp side |
+| `sendCustomerMessage` ↔ `sendSms` / `sendEmail` | Direct function call | `sendSms` unchanged; `sendEmail` is a new sibling primitive in `lib/email/` |
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---|---|---|
+| Telegram Bot API | `lib/telegram/client.ts`, credentials via `platform_integrations` (`getTelegramConfig`) | Already shipped — no new integration work |
+| Twilio (SMS) | `lib/sms/client.ts`, credentials via `platform_integrations` (`getTwilioConfig`) | Reused as-is for both tenant `notify()` sms and agentic customer sms |
+| Resend (email) | Currently one-off per email type (`payment-emails.ts`, `notification-emails.ts`, ...) via `getIntegrationKey('resend')` | New: extract a generic `sendEmail()` primitive so the agentic-send path and future channel-templated email don't each hand-roll a Resend call |
 
 ## Sources
 
-All findings are direct codebase inspection (HIGH confidence) of the following files, read in full or in relevant part during this research pass:
+All findings grounded in direct reads of the current `main` branch (no external documentation needed — this is an internal integration study):
 
-- `.planning/PROJECT.md` (Current Milestone: v4.18 section)
-- `.planning/seeds/SEED-041-estimate-settings-control-panel.md`
-- `.planning/seeds/SEED-042-format-first-send-flow-friendly-estimate-links.md`
-- `.planning/seeds/SEED-043-mobile-estimate-line-item-editor-parity.md`
-- `.planning/seeds/SEED-044-estimate-document-alignment-and-client-editing.md`
-- `lib/estimate/compute-totals.ts`
-- `lib/queries/share.ts`
-- `lib/utils/share-link.ts`
-- `app/estimate/[token]/page.tsx`, `app/estimate/[token]/actions.ts`
-- `app/api/estimates/[id]/send/route.ts`, `send-sms/route.ts`, `send-whatsapp/route.ts`, `pdf/route.ts`
-- `components/workspace/estimate/estimate-document.tsx` (full 2018 lines)
-- `components/workspace/estimate/use-estimate-reducer.ts` (full)
-- `components/workspace/estimate/estimate-editor.tsx`, `estimate-tab.tsx`, `estimate-floating-actions.tsx`
-- `components/workspace/estimate/item-card-mobile.tsx`, `section-card.tsx` (confirmed dead code)
-- `components/share/estimate-view.tsx` (full), `estimate-document-modern.tsx` (structural)
-- `components/pdf/estimate-pdf-modern.tsx`, `estimate-pdf.tsx` (structural/grep)
-- `components/workspace/send/send-dialog.tsx`, `send-form.tsx`, `send-actions-menu.tsx`, `plain-text-sheet.tsx` (full)
-- `components/workspace/link-client-button.tsx`, `link-client-card.tsx` (full)
-- `lib/utils/estimate-template.ts` (full), `lib/whatsapp/send-estimate.ts` (full), `lib/whatsapp/confirm-actions.ts` (grep)
-- `lib/actions/project.ts` (full), `lib/actions/estimate.ts` (partial), `lib/queries/estimate.ts` (partial)
-- `lib/estimate/templates/registry.ts` (full)
-- `lib/estimates/share-link.ts` (full), `lib/utils/site-url.ts` (full)
-- `proxy.ts` (full)
-- `supabase/migrations/20260409000001_initial_schema.sql`, `20260627000001_phase129_advanced_pricing_schema.sql`, `20260519000003_estimate_deliveries.sql`, `20260706000007_rls_hardening_indexes_grants.sql`, `20260503000001_phase15_admin_panel.sql` (grep + relevant sections)
-- `.planning/phases/39-subdomain-routing-white-label/39-01-SUMMARY.md` (grep, cross-referenced against current `proxy.ts` — found the white-label header-setting logic no longer present)
+- `lib/notifications/dispatch.ts`, `event-types.ts`, `copy.ts`, `preferences.ts`, `whatsapp-registry.ts`
+- `lib/observability/ops-alert.ts`, `lib/telegram/client.ts`, `lib/platform-config.ts` (`getTelegramConfig`, `getTwilioConfig`)
+- `lib/inngest/functions/notification-channel-send.ts`, `notification-email-digest.ts`
+- `lib/email/notification-emails.ts`, `sender.ts`
+- `lib/sms/client.ts`
+- `lib/whatsapp/agent.ts`, `agent-tools.ts`, `manage-tools.ts`, `query-tools.ts`, `intent-router.ts`
+- `lib/agent-tools/index.ts`, `create-estimate.ts`, `query-company-data.ts`
+- `lib/mcp/tools/registry.ts`, `write.ts`
+- `lib/actions/admin-whatsapp-templates.ts`
+- `supabase/migrations/20260520000002_notifications_system.sql`, `20260621000003_whatsapp_notification_templates.sql`, `20260519000003_estimate_deliveries.sql`
+- `types/database.types.ts` (`clients` row shape — confirms `email`/`phone` columns)
+- `.planning/PROJECT.md` (v4.21 milestone definition; v4.8-v4.10 "WhatsApp = CHAT = MCP" neutral-core principle)
+- `.planning/quick/260705-c1y-telegram-ops-alerting-system-for-the-pla/` (prior-art quick task that shipped the existing Telegram infra, 2026-07-05)
 
 ---
-*Architecture research for: v4.18 Estimate Document & Send Experience Refresh (Xtimator)*
-*Researched: 2026-07-08*
+*Architecture research for: Xtimator v4.21 Notification Center*
+*Researched: 2026-07-21*

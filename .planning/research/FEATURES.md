@@ -1,206 +1,210 @@
 # Feature Research
 
-**Domain:** Estimate/Quote document, per-document settings, and client-send experience — US service-business estimating/invoicing SaaS (Jobber, ServiceTitan, Housecall Pro, HoneyBook, PandaDoc, Proposify, Invoice Ninja, QuickBooks, Dubsado, Contractor+, Joist, plus URL-pattern precedents from Notion/Stripe)
-**Researched:** 2026-07-08
-**Confidence:** MEDIUM-HIGH (direct competitor help-docs verified via WebFetch for Housecall Pro and PandaDoc; multiple-source WebSearch corroboration for the rest; a few claims — Bonsai inline client editing, exact PandaDoc override hierarchy — are LOW confidence and flagged inline)
+**Domain:** Notification Center — three-audience outbound messaging (platform-admin Telegram alerts, super-admin DB-driven template editor, end-customer email/SMS) for a B2B2C service-business SaaS
+**Researched:** 2026-07-21
+**Confidence:** MEDIUM-HIGH — grounded in the existing Xtimator codebase (HIGH) + WebSearch findings cross-referenced against official docs (Postmark, Customer.io, Resend, Twilio, Telegram) where fetched directly (MEDIUM-HIGH); a few ecosystem claims are WebSearch-only (flagged LOW below). Context7 MCP tools were not available in this session — Resend/Twilio/Telegram claims were instead verified via direct WebFetch of official doc pages.
 
-This research answers 4 targeted questions for Xtimator's v4.18 milestone (SEED-041..044), not a full ecosystem survey. It maps directly onto the milestone's 4 target features.
+**Audience legend:** `[PA]` = Platform-Admin (Xtimator ops team, via Telegram) · `[TN]` = Tenant (business owner, via in-app/email/WhatsApp/SMS) · `[EC]` = End-Customer (tenant's client, via email/SMS only) · `[ALL]` = spans multiple audiences (the template editor itself)
 
-## Question-by-Question Findings
+## Existing Foundation (do not re-spec, but load-bearing for every feature below)
 
-### (a) Per-document settings that override company defaults
-
-**Closest direct analog: Housecall Pro's "Adjust Individual Estimate Settings"** (same industry — US home-service contractors). Verified via their help docs:
-- Per-estimate toggles override "Default Estimate Settings" (company-wide) without touching other estimates ("ad hoc changes will only affect that specific estimate").
-- Covers: estimate number/date, message, view format, business/customer info visibility, per-line-item field visibility (name/description/qty/unit price/amount/subtotal), multi-option consolidation/reorder.
-- **Critical rule, directly validates SEED-041's "avoid destructive hiding" principle:** unchecking a field only hides it from the customer-facing PDF/view — "it does not delete the information from the job itself," and dollar amounts still accrue toward totals even when hidden. Presentation and calculation are explicitly decoupled.
-- One thing is permanently locked regardless of settings: company address cannot be removed from estimates — a precedent for "some fields are calculation/legal-adjacent and should not be hideable."
-
-**Contractor+ (construction-specific)** — discount before/after tax is configurable, deposit default is configurable, tax scope is labor/materials/both. Load-bearing finding for SEED-041 decision #3 (tax-off semantics): **settings changes only apply to draft/new estimates going forward — already-approved/sent estimates are NOT retroactively recalculated.** This is a settings-snapshot pattern, not a live-recompute-on-every-view pattern.
-
-**Invoice Ninja** — layered override hierarchy: company defaults → client-group settings → individual client settings → per-invoice override (e.g., a client's "auto-add to invoice" preference can be overridden on one invoice without touching the client record). Also line-level vs invoice-level tax as an explicit either/or choice, not both simultaneously.
-
-**PandaDoc** — workspace-level "Document settings" (delivery method default, expiration, theme, currency) explicitly documented as overridable "on a per template basis and a per document basis," though the precise UI mechanics of that override weren't detailed in their public docs (LOW confidence on exact mechanics, MEDIUM confidence the capability exists).
-
-**Section/column visibility as a standard proposal-software pattern** — GoProposal, HubSpot Quotes, Qwilr, Better Proposals, and QuoteCloud all ship show/hide toggles for sections, line items, and pricing-table columns (qty, unit price, discount, totals). This is table-stakes across the whole proposal-software category, not just service-business tools, and confirms SEED-041's "Document Sections" panel concept (Summary/sections/payment terms/timeline/warranty/notes/photos) is an established pattern, not a novel one.
-
-### (b) Send flow: artifact-first vs channel-first
-
-**The category is mid-migration from channel-first to artifact/link-first, and the leaders have already moved.**
-
-- **Jobber** (closest strategic analog to SEED-042): sending via *either* email or SMS delivers the client to the same **Client Hub** — an interactive online view where the client can approve, request changes, pay a deposit, or select optional line items — plus a PDF is generated for their records. Jobber explicitly does NOT auto-attach the PDF to email; the link/portal is primary, PDF is an on-demand secondary download from inside the hub. This is the strongest evidence supporting SEED-042's "Online Estimate is primary, PDF secondary" design.
-- **ServiceTitan** — the online estimate link (`{OnlineEstimateLink}` merge tag) is embedded in customizable email templates and carries business-unit branding (logo, name, contact) automatically. Channel (email today, others via template) is the delivery wrapper around one link-based artifact.
-- **HoneyBook "Smart Files"** — goes further than artifact-first: it collapses proposal + contract + invoice into ONE shareable link/experience ("choose package → sign contract → pay invoice" as one continuous flow), rather than separating format at all. Relevant secondary finding: clients can **view** a smart file via link/email with no login, but **sensitive actions** (sign, pay) require an emailed verification code — a useful precedent for "no-login viewing, gated action" that Xtimator's public estimate page already follows.
-- **Dubsado** — still fundamentally an email-first tool (canned emails), but bundles multiple artifact links (contract + invoice + portal) into a single message via "smart field links," rather than picking one channel tab.
-- **Legacy channel-first pattern still in the market:** Housecall Pro and QuickBooks Online both default to Email/SMS as the top-level choice, with PDF-attach as a checkbox/setting inside that channel — i.e., today's Xtimator `SendForm` pattern (Email/SMS tabs, PDF as attach-checkbox) matches the *older*, not the *emerging*, convention.
-
-**Emerging best practice (MEDIUM-HIGH confidence, triangulated across Jobber/ServiceTitan/HoneyBook):** organize the top-level choice around the **artifact** (interactive online link > PDF > plain text), because only the online artifact supports interactivity (approve, pay deposit, select options) that a static PDF or text message cannot. Channel (email/SMS/WhatsApp/copy/download) becomes a secondary "how do you want to deliver this" decision nested under the chosen artifact — which is exactly SEED-042's proposed structure.
-
-### (c) Friendly/branded public document URLs
-
-Three real precedent patterns exist in the wild, spanning the full readability↔security tradeoff:
-
-1. **Notion (readable-slug + opaque suffix, "hybrid" pattern):** URL shape is `{title-slug}-{long-hex-id}` (e.g. `Arpit-Dalal-115f0f16d2cd80ea8cf0d37ffb8ccfdf`). The slug is cosmetic/SEO-flavored; the actual lookup key is the trailing high-entropy ID, so renaming the source title doesn't break old links, and the ID portion alone remains unguessable even though a human-readable prefix is exposed. **This is structurally identical to SEED-042's Option 1 (`/estimate/{companySlug}/{estimateSlug}-{shortPublicToken}`).**
-2. **Stripe Payment Links (fully opaque):** `buy.stripe.com/{opaque-id}` — no readable component at all. Prioritizes unguessability/simplicity over branding; relies entirely on the shared domain for trust signal, not the path.
-3. **Proposify (branded custom domain + opaque slug):** tenants configure a CNAME (`proposals.yourdomain.com`) so the *domain* carries the brand, while the path segment itself stays an opaque "gibberish" identifier. Readability is achieved at the domain level, not the path level — and this requires the tenant to own/configure DNS, a heavier lift than Xtimator's shared-domain approach.
-
-**Conclusion (MEDIUM-HIGH confidence):** nobody in this research ships a *purely* human-readable path with zero entropy for a financial/client document — that would be the anti-pattern. The two viable, observed approaches are (i) readable-prefix + high-entropy suffix on a shared domain (Notion-style — matches SEED-042's locked-in direction) or (ii) opaque path + branded custom domain (Proposify-style — a heavier, DNS-dependent alternative). Given Xtimator's tenants won't all configure custom domains, the Notion-style hybrid is the correct default, with true custom-domain white-labeling remaining a possible future differentiator, not a v1 requirement.
-
-### (d) Inline editing of the client/recipient block on the document
-
-This is the one area where the milestone's proposed feature (SEED-044's hover-to-edit "Bill To" with a pencil icon directly on the document canvas) goes **beyond** what any researched competitor documents publicly:
-
-- **PandaDoc** allows changing recipient details ("Edit Personal Details") or the signer entirely ("Change Signer") after a document is sent — but as a dedicated recipient-management action/panel, not an in-canvas hover-and-click edit on the document body itself. Critically, editing a sent document's *content* (as opposed to just recipient metadata) **erases any signature/initials fields already completed**, specifically to protect a signer from having signed an altered document — an integrity guardrail worth carrying into Xtimator's design.
-- **DocuSign** allows recipient changes ("Correct") only while an envelope is still "Waiting for Others"/"Needs Action" — never on a completed envelope. Recipient identity is treated as locked once the document has been acted upon.
-- **Bonsai** — no confirmed evidence of literal inline client-block editing on the document surface; their flow routes through a separate "Invoice Preview Page" for edits (LOW confidence finding — could not verify either way).
-
-**Conclusion:** true in-canvas "hover reveals pencil beside Bill To → click → popover picker → swap client" is not an established competitor pattern — it is a genuine differentiator opportunity for Xtimator, not a table-stakes gap to close. The one universal safety principle that DOES transfer from PandaDoc/DocuSign: **once an estimate has been sent/viewed/accepted, changing the linked client (or its details) should not happen silently** — competitors gate this by document status specifically to avoid an accepted/signed document silently pointing at different client data after the fact.
+| Capability | File(s) | What it already does |
+|---|---|---|
+| Telegram outbound client | `lib/telegram/client.ts` | Single bot token + single `chat_id` from `platform_integrations`, HTML `parse_mode`, throws `[Telegram] not configured` when dormant |
+| Ops-alert fan-out | `lib/observability/ops-alert.ts` | `notifyOps()` — Redis SETNX dedupe (fail-open) → Sentry → Telegram, each stage independently swallowed; **today scoped to system-health only** (AI down, cron failures), not general platform events (signup/payment/quota) |
+| Telegram admin config UI | `lib/admin/integrations-providers.ts` (`showTelegramConfig`) | Bot token + chat_id form + "send test alert" button already exists in `/admin/integrations` — precedent for test-send UX, but **no per-event toggle, single recipient only, chat_id found manually via `getUpdates`** |
+| Tenant notification dispatch | `lib/notifications/dispatch.ts` (`notify()`) | Single fan-out entry point: resolves channel prefs → dedupe → in_app insert → email/whatsapp/sms via Inngest, every branch best-effort/never-throw |
+| Tenant event catalog | `lib/notifications/event-types.ts` | Typed `EventType` union + `EVENT_CATEGORIES` (estimate/billing/system) + `DEFAULT_PREFERENCES` per category — **tenant-scoped only, no platform-level event catalog exists yet** |
+| Tenant copy (hardcoded) | `lib/notifications/copy.ts` | `buildNotificationCopy()` — the exact thing this milestone converts from hardcoded switch/case to DB-driven templates |
+| WhatsApp template registry (precedent for the fallback pattern) | `lib/notifications/whatsapp-registry.ts` | `getApprovedTemplateForEvent()` — DB row (`whatsapp_notification_templates`, name/language/status only) wins, falls back to a static in-code map on any DB miss/error. **This exact fallback shape is the one to reuse/generalize for the new template resolver.** |
+| Email send | `lib/email/*` (Resend) | `notification-emails.ts`, `payment-emails.ts`, `invite-emails.ts`, `account-emails.ts` — existing hardcoded-copy senders |
+| SMS send | `lib/sms/client.ts` (Twilio) | Bare REST-over-fetch `sendSms(to, body)`, creds from `platform_integrations`, never-throw |
+| Encrypted credential pattern | `lib/platform-config.ts`, `lib/admin/integrations-providers.ts` | The `platform_integrations` table + admin UI is the established home for ANY new provider secret (Telegram bot token already lives here — no new pattern needed) |
+| Channel-neutral agent tools | `lib/agent-tools/`, `lib/whatsapp/agent.ts`, MCP server (v4.9/v4.10) | WhatsApp assistant + MCP already share one neutral tool-calling core — the "agentic send" feature is a NEW tool added to this existing layer, not a new channel integration |
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Per-estimate override of tax/discount/deposit, scoped to that estimate only | Housecall Pro, Contractor+, Invoice Ninja all ship this; owners expect "this one job is different" flexibility | MEDIUM | Builds directly on the v4.11 (SEED-032) per-item tax/discount/deposit model + `compute-totals.ts`; this milestone adds the UI surface, not new math |
-| Hiding a section/field only changes presentation, never deletes underlying data or recalculates totals silently | Housecall Pro explicit behavior: hidden fields still accrue to totals; unhiding restores them | LOW-MEDIUM | Directly matches SEED-041's "avoid destructive hiding" rule already written into the seed |
-| Section/column visibility toggles (summary, line detail, qty/unit price, terms, notes) | Standard across GoProposal, HubSpot Quotes, Qwilr, Better Proposals, QuoteCloud | LOW-MEDIUM | Confirms SEED-041's "Document Sections" panel concept is industry-normal, not novel |
-| Link/portal as the primary send artifact, with PDF generated on demand rather than force-attached | Jobber's Client Hub model is the category leader; ServiceTitan mirrors it | MEDIUM | Core of SEED-042; the online link enables interactivity a PDF cannot |
-| Same artifact deliverable through multiple channels (email, SMS, copy) without changing its content | Jobber and Housecall Pro both deliver the identical estimate via email OR SMS | LOW | Already partially true in Xtimator; format-first reorg formalizes it |
-| Company branding (logo, name, colors) auto-applied to the public/shared view | ServiceTitan pulls branding automatically from the business unit for portal + link | LOW | Already exists in Xtimator's share page; must survive the URL/UI rework |
-| Recipient can view a shared estimate with no login/account required | Universal across Jobber Client Hub, HoneyBook Smart Files (view without a code), ServiceTitan | LOW | Already true for Xtimator's `/estimate/{token}` page; must be preserved under the new URL scheme |
-| Old share links keep working after a URL-format change | Implicit expectation any time a URL scheme changes; Notion/Stripe both decouple lookup-by-ID from display-slug specifically to allow this | MEDIUM | Explicitly required by SEED-042; backward-compat with existing `share_token` |
+| Feature | Audience | Why Expected | Complexity | Notes |
+|---|---|---|---|---|
+| Per-event Telegram toggle matrix | `[PA]` | Locked decision: "ALL platform events, toggleable" | LOW | Extends `notifyOps`/admin-integrations UI; needs a NEW platform-event catalog (today's `EventType` is tenant-scoped) |
+| Variable placeholder catalog per event, documented in the editor | `[ALL]` | Every template editor (Postmark, Customer.io) shows "available variables" alongside the edit box — users can't write `{{x}}` they can't see | LOW-MEDIUM | Postmark uses Mustache; Customer.io uses Liquid (`{{customer.first_name}}`) with sample data shown inline — reuse Xtimator's existing `{{var}}` convention from the milestone spec, don't adopt a new templating DSL |
+| Live preview with sample data | `[ALL]` | Table stakes across Postmark/Customer.io — editing raw `{{var}}` text blind is error-prone | MEDIUM | Needs a per-event sample-context object (e.g., `{client_name: "Jane Doe", estimate_number: "EST-1042"}`) to render before save |
+| Test-send | `[PA]` `[TN]` `[EC]` | Already precedented for Telegram ("send a test alert" button exists); Postmark/Customer.io both let you send a test email to yourself before activating | LOW | For Telegram: reuse existing button pattern. For email/SMS: new, but same shape (send to admin's own address/phone with sample data) |
+| Fallback when template missing/broken | `[ALL]` | Never block a send because of a bad DB edit — this is a SAFETY property, not a nice-to-have | LOW | Precedented TWICE already (`whatsapp-registry.ts` DB→static fallback; `notify()`'s never-throw philosophy) — generalize the SAME pattern, don't invent a new one |
+| Template save validation (no unresolved `{{var}}`, no unknown variable names) | `[ALL]` | Prevents shipping a template that silently renders `{{client_name}}` literally to a real customer | LOW-MEDIUM | Validate against the per-event variable catalog at save time |
+| STOP / opt-out compliance for end-customer SMS | `[EC]` | Legally mandated (TCPA/CTIA, A2P 10DLC campaign registration terms) — reply STOP must be honored immediately with an automated confirmation, non-negotiable | LOW (if using Twilio Messaging Service's built-in Advanced Opt-Out) / MEDIUM (if hand-rolled) | Twilio's Advanced Opt-Out auto-handles STOP/START/HELP keywords when messages route through a Messaging Service — verify Xtimator's existing SMS sending already uses one before building custom STOP logic |
+| Sender identity that reads as the tenant's business, not "Xtimator" | `[EC]` | The entire point of "on behalf of" messaging — a customer receiving "Your estimate from Xtimator" instead of "Your estimate from Jane's Plumbing" breaks trust in the tenant's brand | LOW-MEDIUM | Email: `From: {{business_name}} via Xtimator <notify@xtimator.com>` or similar friendly-from pattern (Gmail now penalizes deceptive friendly-from, so include "via Xtimator" honesty). SMS: body should open with the business name since there's no separate from-name field on a shared long code |
+| Delivery status at least logged (sent/delivered/bounced/failed) | `[PA]` mainly, `[TN]` optionally | Any transactional-messaging system needs to know when a send silently failed | LOW (webhook receipt + log) / MEDIUM (surfaced in UI) | Resend webhooks: `email.sent/delivered/bounced/failed/complained/delivery_delayed`. Twilio status callbacks: `queued/sent/delivered/undelivered/failed` (out-of-order arrival possible — handlers must not assume ordering) |
+| Respect the existing per-category channel matrix for tenant notifications | `[TN]` | Not new work but a HARD dependency — new DB-driven tenant templates must still resolve through `in_app/email/whatsapp/sms` per-category prefs already shipped | LOW | Just don't break `lib/notifications/preferences.ts` — the template layer replaces COPY, not the channel-resolution logic |
 
 ### Differentiators (Competitive Advantage)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| In-canvas hover-to-edit "Bill To" block (pencil icon → popover picker) | No researched competitor (PandaDoc, DocuSign, Bonsai) does true in-canvas recipient editing — they use separate recipient-management panels | MEDIUM | SEED-044; genuine UX lead if executed cleanly, not a parity gap |
-| 3 equal top-level format choices (Online / PDF / Plain Text) fully replacing channel tabs | Housecall Pro and QuickBooks still default to channel-first (Email/SMS) with PDF as an attach-checkbox; even Jobber/HoneyBook lean link-first without fully exposing 3 peer format choices in one hub | MEDIUM-HIGH | SEED-042's core reorg — ahead of the observed market, not merely catching up |
-| Human-readable branded URL on the shared domain with no tenant DNS setup required | Proposify requires a paid custom-domain/CNAME setup to get readability; Xtimator gets `xtimator.com/estimate/{companySlug}/{estimateSlug}-{token}` readability by default | MEDIUM | SEED-042; matches the Notion hybrid pattern, zero setup burden on the tenant |
-| Single consolidated "settings for this estimate" panel (pricing + section visibility + presentation) opened from a gear near Send | Competitors scatter this: Housecall Pro nests it inside the send flow's preview step; PandaDoc keeps document settings at account/template level with override mechanics not clearly exposed at document level | MEDIUM | SEED-041; a genuinely more discoverable single point of control |
-| Mobile line-item editor with true visual parity to desktop (same document language, not a distinct card-based mobile form) | Joist — the cleanest mobile-first competitor researched — still uses a visually distinct mobile card treatment rather than a literal responsive version of its desktop table | MEDIUM | SEED-043; exceeds the current best-in-class mobile bar (Joist), not just matches it |
+| Feature | Audience | Value Proposition | Complexity | Notes |
+|---|---|---|---|---|
+| Agentic send ("send an SMS to my client about X") | `[TN]` → `[EC]` | Voice/chat-first value prop extended to messaging — no competitor field-service SaaS lets the owner just ASK the assistant to text a client; this is Xtimator's core differentiation applied to notifications | MEDIUM | New tool on the EXISTING `lib/agent-tools/` neutral layer (WhatsApp assistant + MCP already share it per v4.9/v4.10) — the send primitive (Twilio/Resend) already exists, this is a thin tool wrapper + confirmation UX |
+| One unified template repository for BOTH tenant AND end-customer messages | `[ALL]` | Most vendors (Customer.io, Intercom) serve ONE audience; Xtimator's super-admin manages tenant notifications AND end-customer copy from a single screen — genuinely less common | MEDIUM | Straightforward once the schema models `audience` as a dimension alongside `event_type`/`channel` |
+| Non-toggleable "critical" Telegram events (e.g., platform outage) that always fire regardless of the toggle matrix | `[PA]` | Prevents an admin from accidentally silencing a page-me-now event while decluttering routine noise | LOW | A simple `locked: boolean` flag on select platform events; small but meaningfully safer than a flat toggle-everything design |
+| Inline variable insert-picker (click to insert `{{client_name}}` vs. copy-pasting from a legend) | `[PA]` (editor UX) | Customer.io's code editor shows available attributes alongside a Liquid editor; a picker beats a static legend for editing speed | LOW-MEDIUM | Pure UX polish — safe to defer past v1 without harming the core feature |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|------------------|-------------|
-| Exhaustive per-field toggle sprawl (show/hide/lock dozens of individual fields, mirroring HubSpot Quotes' granular section-by-section control) | Feels like "maximum control" for power users | Cognitive overload on exactly the screen (right before Send) where speed and confidence matter most; documented complexity-fatigue pattern in enterprise software (Salesforce/Workday-style criticism: "more options, more problems") | Segmented high-level controls (Default/Custom/Off for tax; on/off toggles for whole sections, not individual sub-fields) — already SEED-041's stated direction; defer granular per-field toggles unless real usage data demands them |
-| Fully opaque, non-readable public URLs as the only option (Stripe Payment Links style) | Maximizes unguessability with minimal engineering | Reads as generic/untrustworthy to a client receiving a link from a small local business — undermines the "professional, branded" goal that motivated this milestone | Notion-style hybrid (readable prefix + secret suffix) — already the locked SEED-042 direction |
-| Letting per-estimate settings changes silently recompute totals on an estimate the client has already viewed/accepted/paid a deposit on | Feels convenient — "always show the latest configured price" | Breaks client trust (approved total changes underneath them), breaks deposit/payment reconciliation already in flight; Contractor+ explicitly freezes settings on approved/sent estimates, and PandaDoc/DocuSign both lock or invalidate signed content on post-send edits | Settings apply going forward from save time; once sent/accepted/paid, changing calculation-affecting settings should warn and require an explicit resend, never silently mutate a document the client already has |
-| Silent/unconfirmed client reassignment via the inline Bill To editor on an already-sent or paid estimate | Feels like a fast convenience edit | DocuSign/PandaDoc both gate recipient changes by document status specifically to prevent an accepted quote from silently pointing at different client data after the fact — an integrity bug class, not a style preference | Allow free editing pre-send; require explicit confirmation (and consider an audit trail) once the estimate has financial/sent state |
-| Pixel-based PDF/email open-tracking analytics ("client viewed 3 times") bolted onto this milestone | Sounds like valuable sales visibility, and delivery-tracking research surfaced it as a common adjacent feature | PDF-embedded tracking pixels are unreliable (stripped by re-save/print/many mail clients per research); this is unrequested scope creep — none of SEED-041/042/043/044 ask for it | Out of scope for v4.18; if pursued later, track link-open events server-side against the online-link artifact only, not PDF pixels |
+| Feature | Audience | Why Requested | Why Problematic | Alternative |
+|---|---|---|---|---|
+| Tenant-level template overrides | `[TN]` | "Typical" template editors (Customer.io, Intercom) let each account customize its own copy — feels like an obvious ask | **Explicitly locked OUT for v1** — doubles the editing surface, RLS/authorization complexity, and conflicts with the milestone's single-source-of-truth goal | Ship the `{{business_name}}`/`{{brand_color}}`-style variables so tenant identity still shows through a GLOBAL template; revisit per-tenant overrides only if multiple tenants explicitly ask for copy beyond what variables can express |
+| WhatsApp as an end-customer channel | `[EC]` | WhatsApp already exists in the stack and has the richest formatting/interactivity — tempting to reuse for customer messaging too | **Explicitly locked OUT** — WhatsApp is reserved exclusively for owner↔Xtimator conversation; mixing it into customer-facing sends would blur that boundary and risks HSM-template compliance issues on a channel not built for it | Email + SMS only, per locked scope |
+| Full drag-and-drop visual email builder (MailMason/Postmark-style WYSIWYG) | `[PA]` (editor) | "Real" template editors look like this — feels like the professional bar | Heavy build (rich-text/DnD engine, HTML sanitization, cross-client rendering testing) for a v1 that only needs transactional variable substitution, not marketing-grade design | A plain rich-text-lite editor (or even markdown-to-HTML) with `{{var}}` insertion + live preview is sufficient; defer a visual builder until template volume/design needs justify it |
+| Per-tenant sender reputation isolation (Twilio subaccounts, dedicated IP pools per tenant) | `[EC]` infra | The "correct" architecture for large multi-tenant email/SMS platforms per current best-practice writeups (MailChannels, MailerSend) | Significant operational lift (subaccount provisioning, per-tenant DNS/SPF/DKIM, monitoring) with no evidence yet that Xtimator's current volume creates shared-reputation risk | Shared platform sender (current Resend/Twilio setup) with tenant identity carried in From-name/body copy; revisit isolation only if real deliverability degradation from one tenant's behavior is observed |
+| Two-way end-customer conversation threading for SMS/email replies | `[EC]` | "Why can't the client just reply and it becomes a conversation" feels natural once messaging exists | Explicitly out of scope — WhatsApp is the ONLY two-way channel by design; building inbound SMS/email handling means a second inbox/routing system this milestone doesn't need | End-customer messages should close with a clear "call/text {{business_phone}}" or similar, not invite a reply-and-continue flow |
+| Per-tenant custom quiet-hours scheduling UI | `[EC]` (sending) | Feels like a natural "let each business set their own send window" config | Scope creep for v1 — a single sane platform-wide quiet-hours guard (avoid sending 9pm–8am recipient-local time) already satisfies the compliance-risk reason this matters | Hardcode/derive one platform-wide default guard (from area code or company timezone); expose per-tenant configurability only if requested later |
+| Telegram MarkdownV2 formatting | `[PA]` | MarkdownV2 supports spoilers/underline that HTML parse_mode doesn't | MarkdownV2 requires escaping 18 special characters — far more error-prone than HTML (which only needs `<`, `>`, `&` escaped) — and the existing `ops-alert.ts` already uses HTML successfully | Keep `parse_mode: 'HTML'` (existing convention in `lib/telegram/client.ts`/`ops-alert.ts`) for the new event alerts too — don't introduce a second formatting mode |
 
 ## Feature Dependencies
 
 ```
-Per-estimate settings panel (SEED-041)
-    └──requires──> v4.11 per-item tax/discount/deposit model + compute-totals.ts (already shipped)
+[Platform-event catalog (NEW)] (PA)
+    └──requires──> [none — new typed union, sibling to lib/notifications/event-types.ts]
+    └──enables────> [Telegram per-event toggle matrix] (PA)
 
-Format-first Send hub (SEED-042)
-    └──requires──> Per-estimate settings persistence (SEED-041)
-                       (the artifact renderers — online/PDF/plain-text — must read the same
-                        settings snapshot the panel writes, so section-visibility flows through consistently)
-    └──requires──> Backward-compatible share_token lookup
-                       (friendly URLs are an additive resolution layer over getEstimateByShareToken,
-                        not a replacement — old links must keep resolving)
+[Telegram per-event toggle matrix] (PA)
+    └──requires──> [Platform-event catalog (NEW)]
+    └──requires──> [Existing Telegram client + platform_integrations config] (already shipped)
+    └──enhances──> [Telegram chat registration/binding flow] (PA, v1.x — multi-admin)
 
-Editable Bill To (SEED-044, part of the alignment pass)
-    └──enhances──> existing linkProjectToClient / unlinkProjectFromClient server actions (already exist)
-    (does not require SEED-041/042; primarily a UI + shared-client-picker consolidation task)
+[notification_templates schema + per-event variable catalog] (ALL)
+    └──requires──> [none — new table]
+    └──enables───> [Super-admin template editor (edit/preview/test-send)]
+    └──enables───> [End-customer email/SMS templates]
+    └──enables───> [Tenant template migration off lib/notifications/copy.ts]
 
-Mobile line-item parity (SEED-043)
-    └──touches same file as──> Document alignment pass (SEED-044, both edit estimate-document.tsx)
-       (sequencing/coordination risk, not a hard dependency — both are in-scope for the same milestone)
+[Fallback-to-default resolver] (ALL)
+    └──requires──> [notification_templates schema]
+    └──reuses────> [Pattern already proven in lib/notifications/whatsapp-registry.ts]
+    └──gates─────> [Every send path — nothing may send without this safety net in place]
+
+[Super-admin template editor] (PA editing, serves TN + EC copy)
+    └──requires──> [notification_templates schema + variable catalog]
+    └──requires──> [Fallback-to-default resolver] (must exist before templates go live, or a bad edit blocks sends)
+    └──enables───> [Test-send] (PA/TN/EC)
+
+[End-customer email/SMS templates + send path] (EC)
+    └──requires──> [Super-admin template editor] (no end-customer copy exists today — must be authored)
+    └──requires──> [Existing lib/email/* (Resend) + lib/sms/client.ts (Twilio)]
+    └──requires──> [STOP/opt-out + sender-identity resolution] (NEW logic)
+
+[Agentic send tool] (TN → EC)
+    └──requires──> [End-customer email/SMS templates + send path] (the underlying capability it invokes)
+    └──requires──> [lib/agent-tools/ neutral tool layer] (already shipped, v4.9/v4.10)
+
+[Tenant-level template overrides] ──conflicts──> [Locked v1 scope: super-admin-only editing, no tenant overrides]
+[WhatsApp end-customer channel] ──conflicts──> [Locked scope: WhatsApp reserved for owner↔Xtimator conversation]
 ```
 
 ### Dependency Notes
 
-- **Format-first Send hub requires the settings panel's persistence layer:** whichever artifact the client receives (online link, PDF, plain text) must honor the same section-visibility settings the gear panel writes — otherwise a business owner could hide "Warranty" in the settings panel but still have it appear in the PDF. This is the single biggest cross-feature coupling in the milestone and matches PROJECT.md's framing of shipping all 4 seeds as one coherent milestone rather than four independent ones.
-- **Friendly URLs are additive, not a replacement:** every competitor precedent researched (Notion, PandaDoc doc-settings) treats the lookup key as separate from the display slug specifically so old links never break. Xtimator's plan (`/estimate/{share_token}` keeps working) follows the same principle.
-- **Editable Bill To has no hard dependency on the settings panel** — it reuses already-shipped project/client-linking server actions, so it can be sequenced independently if needed, though PROJECT.md's plan is to ship it alongside the alignment pass in the same milestone.
-- **Mobile line-item parity and the document alignment pass share a file** (`estimate-document.tsx` and its mobile branch) — not a logical dependency, but a coordination point to avoid merge/rebase conflicts within the milestone.
+- **Platform-event catalog must exist before the Telegram toggle matrix:** today's `EventType`/`EVENT_CATEGORIES` in `lib/notifications/event-types.ts` models TENANT-facing categories (estimate/billing/system). The milestone's "tenant signup, payment, job failures, quota, critical errors" are Xtimator-ops-facing events — a distinct catalog dimension that doesn't exist yet. Building the toggle UI before this catalog exists has nothing to bind toggles to.
+- **Fallback resolver must ship before (or atomically with) the template editor going live:** the moment templates become the source of truth for a send, an admin typo/broken edit becomes a production incident unless the resolver degrades gracefully. `whatsapp-registry.ts`'s DB-row-falls-back-to-static-map is the proven shape to generalize — do not treat this as optional polish.
+- **End-customer templates require the editor, not just the schema:** unlike tenant notifications (which have `copy.ts` to migrate FROM), there is no existing end-customer copy anywhere in the codebase — it must be authored net-new through the editor, which makes the editor a hard prerequisite rather than a parallel-track feature.
+- **Agentic send depends on the send path being real, not stubbed:** the WhatsApp assistant/MCP tool is a thin wrapper: it cannot be built usefully before end-customer email/SMS actually sends via real templates — sequence it after, not alongside.
+- **STOP/opt-out logic depends on knowing whether Twilio Advanced Opt-Out already applies:** if Xtimator's SMS sends already route through a Twilio Messaging Service, STOP/START/HELP may already be auto-handled at the platform level — verify before building custom compliance logic (avoids duplicate/conflicting opt-out state).
 
-## MVP Definition (this milestone's scope, not a new product)
+## MVP Definition
 
-### Launch With (v4.18)
+### Launch With (v1)
 
-- [ ] Per-estimate settings gear panel: Pricing (tax/discount/deposit segmented controls) + Document Sections (on/off per section) — not granular per-field toggles
-- [ ] Settings persist per estimate and are read consistently by editor, share page, PDF, and plain-text/WhatsApp output
-- [ ] Send hub reorganized around Online Estimate / PDF / Plain Text, Online Estimate as default
-- [ ] Friendly URL shape `/estimate/{companySlug}/{estimateSlug}-{shortPublicToken}` with old `/estimate/{share_token}` still resolving
-- [ ] Mobile line-item editor rebuilt on document-native styling (no standalone glass card)
-- [ ] Inline-editable Bill To block (hover/focus pencil → popover picker → `linkProjectToClient`), pre-send editing unrestricted
-- [ ] Document alignment pass (header, title band, info grid, table columns) + clean (non-dotted) inline-edit underline
+- [ ] Platform-event catalog (NEW typed union) covering tenant signup, payment, job failures, quota, critical errors `[PA]` — essential, nothing else in the Telegram feature has anything to bind to without it
+- [ ] Telegram per-event toggle matrix in admin panel `[PA]` — essential, this is the locked "ALL platform events, toggleable" requirement
+- [ ] `notification_templates` table (event_type × channel × audience, body/subject with `{{var}}` placeholders) + per-event variable catalog `[ALL]` — essential foundation for everything else
+- [ ] Super-admin template editor: list by event, edit body/subject, live preview with sample data `[ALL]` — essential, the core deliverable
+- [ ] Test-send from the editor (email/SMS/Telegram) `[PA]` `[TN]` `[EC]` — essential; Telegram precedent already exists, extend to the other two channels
+- [ ] Fallback-to-default resolver (DB template missing/broken → safe default, never block a send) `[ALL]` — essential safety net, generalizes the existing WhatsApp-registry pattern
+- [ ] End-customer email templates (client_name, business_name, estimate_number, link, etc.) wired to a real send path `[EC]` — essential per locked scope
+- [ ] End-customer SMS templates + STOP/opt-out compliance verified against existing Twilio setup `[EC]` — essential, legally required
+- [ ] Sender-identity resolution for end-customer messages (business name surfaces, not just "Xtimator") `[EC]` — essential for the messaging to feel legitimately from the tenant
+- [ ] Agentic send tool exposed to WhatsApp assistant + MCP `[TN]`→`[EC]` — essential, explicit locked target feature
 
-### Add After Validation (v4.18.x)
+### Add After Validation (v1.x)
 
-- [ ] Granular per-field visibility toggles inside a section (e.g., hide unit price but keep totals) — only if owners request it after the coarse on/off ships
-- [ ] Confirmation/warning step when changing calculation settings on an already-sent/viewed estimate
-- [ ] Reusable estimate settings presets/templates (explicitly deferred inside SEED-041 itself)
+- [ ] Self-service Telegram chat binding via `/start` deep link (multiple admins register themselves without manual `getUpdates` lookup) `[PA]` — trigger: more than 1-2 platform admins need alerts, current manual chat_id lookup becomes a support burden
+- [ ] Delivery-status surfaced in admin UI (Resend/Twilio webhook ingestion beyond raw logging) `[PA]` — trigger: need visibility into bounce/failure rates once template send volume grows
+- [ ] Inline variable-picker/autocomplete in the template editor `[PA]` — trigger: editor UX friction reported by whoever maintains templates
+- [ ] Template version history / rollback `[PA]` — trigger: a bad template edit ships and there's no fast undo
 
 ### Future Consideration (v2+)
 
-- [ ] Tenant custom-domain white-labeling for public estimate URLs (Proposify-style CNAME) — heavier DNS lift, not needed while the shared-domain friendly-URL pattern already reads as branded
-- [ ] Server-side link-open/view analytics on the online estimate artifact (not PDF pixel tracking)
-- [ ] Post-send recipient-change audit trail, matching the PandaDoc/DocuSign status-gating precedent, if inline Bill To editing is later extended to post-send estimates
+- [ ] Tenant-level template overrides `[TN]` — locked out for v1; defer until tenants explicitly request copy beyond what variables (`{{business_name}}`, etc.) can express
+- [ ] Per-tenant sender reputation isolation (Twilio subaccounts / dedicated pools) `[EC]` infra — defer until real deliverability degradation is observed at scale
+- [ ] Two-way end-customer SMS/email reply threading `[EC]` — defer; WhatsApp stays the only two-way channel by design
+- [ ] Per-tenant configurable quiet-hours `[EC]` — defer; ship one platform-wide guard first
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|----------------------|----------|
-| Per-estimate settings panel (coarse: Pricing + Sections) | HIGH | MEDIUM | P1 |
-| Format-first Send hub (3 artifact choices) | HIGH | MEDIUM-HIGH | P1 |
-| Friendly branded URLs with secret suffix + backward compat | MEDIUM-HIGH | MEDIUM | P1 |
-| Mobile line-item editor document-native parity | MEDIUM-HIGH | MEDIUM | P1 |
-| Inline editable Bill To block | MEDIUM | MEDIUM | P1 |
-| Document alignment/polish pass | MEDIUM | LOW-MEDIUM | P1 |
-| Granular per-field visibility toggles | LOW-MEDIUM | MEDIUM | P3 (anti-feature risk if pulled forward) |
-| Reusable settings presets/templates | LOW-MEDIUM | MEDIUM | P3 |
-| Post-send settings-change confirmation guard | MEDIUM (risk mitigation) | LOW | P2 — cheap insurance against the Contractor+/PandaDoc integrity pitfall, worth pulling into v4.18 if time allows even though not explicitly in the seeds |
-| Tenant custom-domain white-labeling | LOW (at current scale) | HIGH | P3 |
+| Feature | Audience | User Value | Implementation Cost | Priority |
+|---|---|---|---|---|
+| Platform-event catalog | PA | HIGH | LOW | P1 |
+| Telegram per-event toggle matrix | PA | HIGH | LOW | P1 |
+| `notification_templates` schema + variable catalog | ALL | HIGH | MEDIUM | P1 |
+| Super-admin template editor + preview | ALL | HIGH | MEDIUM | P1 |
+| Test-send | PA/TN/EC | MEDIUM | LOW | P1 |
+| Fallback-to-default resolver | ALL | HIGH | LOW | P1 |
+| End-customer email templates + send | EC | HIGH | MEDIUM | P1 |
+| End-customer SMS templates + STOP compliance | EC | HIGH | MEDIUM | P1 |
+| Sender-identity resolution | EC | HIGH | LOW-MEDIUM | P1 |
+| Agentic send tool (WhatsApp/MCP) | TN→EC | HIGH | MEDIUM | P1 |
+| Self-service Telegram binding flow | PA | MEDIUM | MEDIUM | P2 |
+| Delivery-status dashboard | PA | MEDIUM | MEDIUM | P2 |
+| Inline variable-picker UX | PA | LOW | LOW | P2 |
+| Template version history | PA | LOW | MEDIUM | P3 |
+| Tenant-level template overrides | TN | MEDIUM | HIGH | P3 (locked out v1) |
+| Per-tenant sender isolation | EC infra | LOW today | HIGH | P3 |
+
+**Priority key:**
+- P1: Must have for launch (this milestone)
+- P2: Should have, add when possible
+- P3: Nice to have, future consideration
 
 ## Competitor Feature Analysis
 
-| Feature Area | Housecall Pro / Jobber (service-business leaders) | PandaDoc / DocuSign (document/proposal leaders) | HoneyBook / Dubsado (creative-services leaders) | Our Approach (v4.18) |
-|---------|--------------|--------------|--------------|--------------|
-| Per-document settings override | Housecall Pro: full per-estimate override, additive-only (hiding ≠ deleting), locked company address field | PandaDoc: workspace defaults overridable per template/document (mechanics not fully public) | Not a strong pattern here — HoneyBook leans on unified Smart Files, not per-doc setting overrides | Gear panel: Pricing (tax/discount/deposit) + Document Sections, snapshot-per-estimate, retrocompat defaults |
-| Send flow organization | Jobber: link/portal-first, PDF secondary; Housecall Pro: still channel-first (Email/SMS) with PDF attach checkbox | Not applicable (signature workflow, not client-facing send-format choice) | HoneyBook: single unified Smart File link (no format choice); Dubsado: channel-first (email) bundling multiple links | Format-first hub: Online Estimate (default) / PDF / Plain Text, each with its own channel actions |
-| Public URL shape | ServiceTitan: opaque token + on-page branding from business unit; not a readable-slug pattern | Not applicable (auth-gated documents mostly) | Not documented as a readable-URL pattern | Notion-style hybrid: `/estimate/{companySlug}/{estimateSlug}-{shortToken}`, old `/estimate/{token}` still works |
-| Recipient/client editing on document | Not documented as in-canvas editing | PandaDoc/DocuSign: separate recipient-management action, status-gated after send, erases signatures on content edit | Not documented | In-canvas hover-to-edit Bill To (pre-send unrestricted; post-send guard recommended as P2 add) |
-| View-without-login | Yes (Client Hub / Online Estimate link) | N/A (typically requires identity verification for signing) | Yes for viewing; verification code required for sign/pay actions | Already true for Xtimator's public estimate page; must be preserved under new URL scheme |
+| Feature | Postmark / Customer.io | Intercom | Xtimator's Approach |
+|---|---|---|---|
+| Variable placeholder syntax | Postmark: Mustache. Customer.io: Liquid (`{{customer.first_name}}`), code editor shows sample data + available attributes inline | Merge-tag picker UI | Keep the existing `{{var}}` convention already used in `copy.ts`/milestone spec — no new templating engine dependency, server-resolved with a per-event sample-data preview |
+| Test send | Postmark: edit JSON test variables (not saved with template), send test email, switch HTML/text | Preview + test send to admin | Reuse the EXISTING Telegram "send test alert" button pattern; extend the same UX shape to email/SMS from the same editor screen |
+| Per-account customization | Both support per-customer/workspace template overrides as a core feature | Yes | Explicitly NOT included in v1 (locked decision) — single global template per event, template variables carry tenant identity instead |
+| Fallback on missing/broken template | Not always graceful — a bad Liquid reference can break the send | Falls back to a default | Xtimator's existing `whatsapp-registry.ts` DB-falls-back-to-static-map pattern is a stronger baseline than what was found documented for the competitors above — generalize it, don't weaken it |
+| Sender identity for multi-tenant sends | MailerSend/MailChannels writeups stress platform-published guides for tenants on DNS/SPF/DKIM + honest friendly-from naming (Gmail now penalizes deceptive friendly-from) | N/A (single-tenant product) | Friendly-from with an honest "via Xtimator" qualifier + business name leading the SMS body — avoids the deceptive-friendly-from trap while still reading as the tenant's business |
 
 ## Sources
 
-- [Adjust Individual Estimate Settings on Web or Mobile — Housecall Pro](https://help.housecallpro.com/en/articles/6908612-adjust-individual-estimate-settings-on-web-or-mobile) (WebFetch-verified, HIGH confidence)
-- [How to Send an Estimate — Housecall Pro](https://help.housecallpro.com/en/articles/120533-how-to-send-an-estimate)
-- [Document settings — PandaDoc Help Center](https://support.pandadoc.com/en/articles/9715025-document-settings) (WebFetch-verified for workspace defaults; per-document override mechanics MEDIUM confidence)
-- [Edit sent documents — PandaDoc Help Center](https://support.pandadoc.com/en/articles/9714684-edit-sent-documents)
-- [Add and manage recipients — PandaDoc Help Center](https://support.pandadoc.com/en/articles/9714650-add-and-manage-recipients)
-- DocuSign Community: recipient-correction threads on changing/removing signers after send (MEDIUM confidence, community not official docs)
-- [Quote Basics — Jobber Help Center](https://help.getjobber.com/hc/en-us/articles/115009378727-Quote-Basics)
-- [What Do Your Clients See in Client Hub — Jobber Help Center](https://help.getjobber.com/hc/en-us/articles/1500011237822-What-Do-Your-Clients-See-in-Client-Hub)
-- [Use Online Estimates — ServiceTitan](https://help.servicetitan.com/how-to/online-estimates)
-- [Set up and customize the New Customer Portal — ServiceTitan](https://help.servicetitan.com/docs/set-up-and-customize-the-new-customer-portal)
-- [How clients access and submit smart files — HoneyBook Help Center](https://help.honeybook.com/en/articles/9768365-how-clients-access-and-submit-smart-files)
-- [Creating and sending a Proposal — HoneyBook Help Center](https://help.honeybook.com/en/articles/2209024-creating-and-sending-a-proposal)
-- [Connect a contract and invoice to a proposal — Dubsado Help Center](https://help.dubsado.com/en/articles/6943800-connect-a-contract-and-invoice-to-a-proposal)
-- [Send multiple Dubsado links in one email — Dubsado Help Center](https://help.dubsado.com/en/articles/14363243-send-multiple-dubsado-links-in-one-email)
-- [Branded URL — Proposify Knowledge Base](https://support.proposify.com/articles/2882195-branded-url)
-- [Taxes — Invoice Ninja Docs](https://invoiceninja.github.io/docs/user-guide/taxes)
-- [Tax setting per item or invoice total — Invoice Ninja Blog](https://www.invoiceninja.com/tax-setting-per-item-or-invoice-total/)
-- [Configuring Estimate & Invoice Settings in Contractor+ — Help Center](https://support.contractorplus.app/en/articles/9468352-configuring-estimate-invoice-settings-in-contractor) (settings-snapshot-on-approved-documents finding, MEDIUM confidence — single source)
-- [How to hide line items and sections — GoProposal Help Centre](https://help.goproposal.com/en/articles/3315368-how-to-hide-line-items-and-sections)
-- [Create quote templates — HubSpot Knowledge Base](https://knowledge.hubspot.com/quotes/create-quote-templates)
-- [Quote Blocks — Qwilr Help Center](https://help.qwilr.com/article/179-creating-quotes-with-quote-blocks)
-- [Hide content on a sales quote — QuoteCloud User Guide](https://quote.cloud/hide-content-on-a-sales-quote)
-- [Create and send estimates — QuickBooks/Intuit](https://quickbooks.intuit.com/learn-support/en-us/help-article/job-estimates/create-send-estimates-quickbooks-online/L0kOXRjoP_US_en_US)
-- URL Design / Notion-style slug+ID pattern — [Enhancing UX with Notion-style URL architecture](https://blog.arpitdalal.dev/enhancing-user-experience-with-notion-style-url-architecture) (MEDIUM confidence, single blog-post source but internally consistent with observed Notion behavior)
-- [Payment Link API — Stripe Docs](https://docs.stripe.com/api/payment-link) (opaque-ID pattern, HIGH confidence — official docs)
-- Joist mobile UI reviews — [A No-Nonsense Review of Joist — Workyard](https://www.workyard.com/compare/joist-review), [Joist App Reviews — GetOneCrew](https://www.getonecrew.com/post/joist-app-reviews) (MEDIUM confidence, third-party review aggregators)
-- Bad-UX-complexity precedent (Salesforce/Workday) — [12 Bad UX Examples — Eleken](https://www.eleken.co/blog-posts/bad-ux-examples) (LOW-MEDIUM confidence, general UX blog, used only for the "more options, more problems" anti-feature framing, not a hard fact claim)
-- PDF/email tracking-pixel reliability — [A Comprehensive Guide to PDF Tracking — FlippingBook](https://flippingbook.com/blog/guides/pdf-tracking-guide), [PDF Document Tracking — Locklizard](https://www.locklizard.com/track-pdf-monitoring/) (MEDIUM confidence, vendor blogs but consistent across sources)
+**Codebase (HIGH confidence, verified directly):**
+- `lib/telegram/client.ts`, `lib/observability/ops-alert.ts`, `lib/admin/integrations-providers.ts`, `lib/platform-config.ts`
+- `lib/notifications/{dispatch,copy,event-types,whatsapp-registry,preferences}.ts`
+- `lib/email/*` (Resend), `lib/sms/client.ts` (Twilio)
+
+**Official docs (verified via WebFetch, HIGH-MEDIUM confidence):**
+- [Resend webhook event types](https://resend.com/docs/dashboard/webhooks/event-types)
+- [Twilio outbound message status tracking](https://www.twilio.com/docs/messaging/guides/track-outbound-message-status)
+- [Telegram deep links (official)](https://core.telegram.org/api/links)
+- [Postmark transactional email best practices 2026](https://postmarkapp.com/guides/transactional-email-best-practices)
+- [Postmark MailMason template toolset](https://postmarkapp.com/mailmason)
+- [Customer.io transactional email docs](https://docs.customer.io/journeys/send/transactional/email/)
+- [Customer.io email code editor (Liquid variables)](https://docs.customer.io/journeys/email-code-editor/)
+
+**WebSearch, cross-referenced (MEDIUM confidence):**
+- [Telegram MarkdownV2 escape guide](https://botnamefinder.com/blog/telegram-markdownv2-escape-characters)
+- [grammY ParseMode reference](https://grammy.dev/ref/types/parsemode)
+- [Telegram deep linking (aiogram docs)](https://docs.aiogram.dev/en/latest/utils/deep_linking.html)
+- [A2P 10DLC compliance guide 2026 (Textbolt)](https://textbolt.com/blog/10dlc-compliance/)
+- [A2P 10DLC compliance guide (Sakari)](https://sakari.io/blog/meeting-10dlc-compliance-with-opt-ins)
+- [TCPA quiet hours guide (ReadySMS)](https://readysms.io/blog/quiet-hours-sms-rules)
+- [SMS quiet hours 2026 (MessageBlink)](https://www.messageblink.com/sms-quiet-hours-what-they-are-in-2026/)
+- [Multi-tenant transactional email guide (MailerSend)](https://www.mailersend.com/blog/multi-tenant-email-sending)
+- [Multi-tenant email deliverability 2026 (MailChannels)](https://www.mailchannels.com/multi-tenant-email-deliverability/)
+
+**LOW confidence (single-source WebSearch summaries, not independently fetched — flag for validation if load-bearing):**
+- Twilio Advanced Opt-Out auto-handling of STOP/START/HELP specifically requiring a Messaging Service — WebSearch summaries did not confirm this explicitly; verify against Twilio's own Advanced Opt-Out docs before relying on it instead of custom STOP logic
+- Gmail's stricter stance against deceptive "friendly-from" names — sourced from a WebSearch summary of a MailerSend blog post, not Google's own sender guidelines page
 
 ---
-*Feature research for: Xtimator v4.18 Estimate Document & Send Experience Refresh*
-*Researched: 2026-07-08*
+*Feature research for: Notification Center (three-audience) — Xtimator v4.21*
+*Researched: 2026-07-21*

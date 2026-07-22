@@ -1,261 +1,248 @@
 # Pitfalls Research
 
-**Domain:** Modify-in-place milestone on a live production SaaS's core document/send surface — per-document settings panels, URL-scheme evolution alongside a live secret-token scheme, mobile editor visual rewrite, duplicated-component consolidation.
-**Milestone:** v4.18 Estimate Document & Send Experience Refresh (SEED-041..044)
-**Researched:** 2026-07-08
-**Confidence:** HIGH — every pitfall below is grounded in direct inspection of the current Xtimator codebase (file/line citations included), not generic domain knowledge. Where a claim is inference rather than a direct code fact, it is flagged LOW/MEDIUM.
+**Domain:** Multi-audience notification center (Telegram platform-ops bot + DB-driven editable templates + end-customer email/SMS + agentic send) added to a live, multi-tenant SaaS notification pipeline
+**Milestone:** v4.21 Notification Center
+**Researched:** 2026-07-21
+**Confidence:** HIGH — every pitfall below is grounded in direct inspection of the current Xtimator codebase (file/line citations included), not generic domain knowledge. Where a claim relies on general TCPA/A2P/Telegram-API domain knowledge rather than a codebase fact, it is flagged MEDIUM and called out in Sources.
 
 ## Critical Pitfalls
 
-### Pitfall 1: Settings-drift — the new presentation settings get read by some renderers and silently ignored by others
+### Pitfall 1: The DB template lookup silently drops TypeScript's exhaustiveness safety net
 
 **What goes wrong:**
-The owner toggles "hide Summary" (or turns tax off, or hides section subtotals) in the new gear panel, previews it in the editor, and sends it — but the PDF, the "classic" share page, the "modern" share page, or the plain-text/WhatsApp message the client actually receives still shows the old content, because that renderer never learned about the new setting.
+`lib/notifications/copy.ts`'s `buildNotificationCopy` is a `switch` over the `EventType` union with **no `default` case** — if a new `EventType` is added to the union without a matching `case`, `tsc` fails the build. That is the only thing today preventing a "new event, forgotten copy" bug. The moment `copy.ts` becomes a DB lookup (`SELECT body FROM notification_templates WHERE event_type = ...`), that compile-time guarantee disappears — a missing row is now a **runtime** condition, not a build failure. `tests/unit/notifications/event-sources.test.ts` and `copy-tenant-neutrality.test.ts` currently assert against the hardcoded strings; both silently stop testing anything meaningful once `copy.ts` becomes a thin DB-fetch shim, unless they're rewritten to seed/assert against the DB-driven path.
 
 **Why it happens:**
-This is not hypothetical risk — it is the *current, proven* architecture. Section visibility today is decided independently in at least 5 places, each with its own `!= null` / `isFieldVisible()` check, with **zero shared source of truth**:
-- Editor: `components/workspace/estimate/estimate-document.tsx` — `isFieldVisible()` (L1616) is local `useState<Set<OptionalField>>` React state, not persisted.
-- Modern share page: `components/share/estimate-document-modern.tsx` (L346-533) — repeats its own `data.summary != null`, `data.payment_terms != null`, etc.
-- Modern PDF: `components/pdf/estimate-pdf-modern.tsx` (L624-805) — repeats the same checks a third time.
-- Classic PDF: `components/pdf/estimate-pdf.tsx` — a fourth independent implementation.
-- Plain-text/WhatsApp: `lib/utils/estimate-template.ts` → `buildItemsBreakdown()` (L85-96) **iterates every section/item unconditionally** — there is no visibility gate here at all today, and section-hiding via SEED-041 will not affect it unless someone explicitly wires it in.
-
-Five renderers, five independent implementations of "should this render." Add a 6th behavior (persisted `presentation_settings`) without a single shared predicate function, and it is near-certain at least one of the five drifts.
+Moving from a compiled switch to a DB table trades a compile-time contract for a runtime one, and it's easy to ship the DB read path without also shipping (a) a seed migration populating a row for every existing `EventType`, and (b) a CI check that every `EventType` has a corresponding seeded template row.
 
 **How to avoid:**
-Build ONE pure function (e.g. `lib/estimate/presentation.ts` → `resolveVisibleSections(data, settings)` / `isSectionVisible(field, settings, data)`) that every renderer — editor, classic share, modern share, classic PDF, modern PDF, plain-text template, WhatsApp send — imports and calls. No renderer may re-derive visibility from `data.field != null` on its own once settings exist. Treat this the same way `lib/estimate/compute-totals.ts` is already treated for math (single authoritative module, byte-identical retrocompat tests) — this milestone's own key context explicitly says the settings panel "only changes inputs/preferences" the way tax/discount already do; visibility deserves the identical discipline.
+- Ship one migration that seeds a template row for **every** current `EventType` (source the copy from the current `copy.ts` switch verbatim — a byte-identical seed, not a rewrite) before the dispatch path is switched to read from the DB.
+- Add a CI-run test (in the already-configured `vitest run tests/unit` scope per `tsconfig.ci.json`) that diffs `Object.keys(EVENT_CATEGORIES)` (still a compiled TS source) against the seeded DB template rows, so a new `EventType` with no template is a red CI, not a silent runtime gap.
+- Keep the hardcoded `copy.ts` strings as the **fallback** (see Pitfall 2), not delete them.
 
 **Warning signs:**
-- Any PR that adds a `presentation_settings.xxx` check inside `estimate-pdf.tsx`, `estimate-pdf-modern.tsx`, `estimate-document-modern.tsx`, or `estimate-template.ts` directly (duplicated logic) instead of importing a shared resolver.
-- `buildItemsBreakdown()` / the WhatsApp plain-text path not mentioned at all in the settings-panel plan.
-- A demo where the editor preview and the "Open Preview" link (real share page) are shown side by side and match — but PDF or plain text isn't checked.
+- Any new `EventType` added to `lib/notifications/event-types.ts` without a paired template-editor row.
+- `notify()` sending a blank/undefined title or body in production logs.
 
 **Phase to address:**
-"Renderer Application + Tests" phase (SEED-041's own phase 3) — should be the LAST phase of that seed's work, and its success criteria must explicitly require diffing all 5+ output surfaces for the same toggle, not just the editor + one renderer.
+Schema/foundation phase (the phase that introduces `notification_templates` and migrates `copy.ts` off the hardcoded switch) — this is a day-one guard, not late polish.
 
 ---
 
-### Pitfall 2: The new non-destructive settings panel collides with the existing destructive "Add Details" hide toggle
+### Pitfall 2: No missing-template fallback means a bad admin edit blocks or blanks a live send
 
 **What goes wrong:**
-SEED-041 explicitly requires: "If a section has generated text and the owner toggles it off, retain the text so it can be toggled back on." But that non-destructive behavior does not exist today for these exact same fields — a different, already-shipped control does the opposite.
+`notify()` is explicitly designed to **never throw and never block the business operation that triggered it** (its own doc comment: "A failure to write a notification MUST NOT break the business operation"). If the new DB template lookup returns `null` (row deleted, unpublished, or a variable substitution throws on a malformed `{{ref}}`) and there's no fallback, two bad outcomes are equally likely depending on how the migration is written: (a) the whole `notify()` call throws inside a `try/catch` that was written assuming `buildNotificationCopy` is synchronous and total (it always returns something today — see the guideline in `copy.ts`'s own header: "even when `ctx` fields are missing the function still returns a coherent sentence... never throws"), or (b) it silently sends an empty-subject/empty-body email or SMS to a real end customer.
 
 **Why it happens:**
-`estimate-document.tsx`'s existing `AddDetailsPopover` + `toggleField()` (L1470-1522, L1619-1632) already lets an owner "hide" Summary/Payment Terms/Timeline/Warranty/Notes — but toggling one off calls `dispatch({ type: 'UPDATE_FIELD', field, value: null })`, i.e. it **deletes the content** (sets it to `null`), not just hides it. If SEED-041 ships a second, parallel "hide this section" control in the new gear panel that behaves non-destructively, the estimate now has two UI affordances for "hide Summary" that do materially different things (one nukes the AI-generated text permanently, one doesn't) — guaranteed user confusion and a realistic support ticket ("I hid a section and now the text is gone").
+`copy.ts`'s current contract — "defensive defaults, never throws, always coherent" — is easy to lose the moment the function becomes `async` and DB-backed, because the natural implementation (`const row = await getTemplate(eventType); return { title: row.title, body: interpolate(row.body, ctx) }`) has no defined behavior for `row === null`.
 
 **How to avoid:**
-Decide explicitly (this is SEED-041's own open decision #1, but it's actually load-bearing, not cosmetic): either (a) retire `AddDetailsPopover`'s destructive toggle and route ALL show/hide through the new non-destructive `presentation_settings`-backed control, or (b) keep `AddDetailsPopover` strictly as "add/generate new content for an empty section" (its original purpose) and make the new gear panel the ONLY place that can hide a section that already has content. Do not ship both as independent toggles over the same five fields.
+Mirror the fallback pattern this codebase **already built and shipped** for exactly this problem: `lib/notifications/whatsapp-registry.ts`'s `getApprovedTemplateForEvent()` — DB row missing/unapproved → falls back to the static `REGISTRY` map → `null` is a safe, silent no-op branch upstream. Do the same for the new generalized template system: DB row missing/malformed → fall back to the **retained** hardcoded `copy.ts` switch (don't delete it, demote it to `DEFAULT_COPY`) → only if that somehow also fails, skip the channel rather than send blank content or throw.
 
 **Warning signs:**
-- Any estimate where a section is both (a) `data.field == null` (content was deleted) and (b) marked `visible: true` in `presentation_settings` — that pairing means content already got nuked by the old mechanism and the new one can't recover it.
-- QA script: fill Summary → hide via new gear panel → verify Summary text still exists in `estimates` table → toggle back on via gear panel → verify same text reappears without re-generation.
+- Any end-customer or admin-facing message that arrives with an empty body/subject.
+- `notify()`'s try/catch swallowing an error that used to be impossible (synchronous, total function) and is now possible (async DB read that can reject).
 
 **Phase to address:**
-"Settings Model + Persistence" phase (SEED-041 phase 1) must lock this decision before "Floating Gear UI" (phase 2) is built, since the UI's hide/show semantics depend on it.
+Template-engine phase (same phase as Pitfall 1) — the fallback discipline has to exist before ANY channel is cut over to DB-sourced copy, tenant-facing or customer-facing.
 
 ---
 
-### Pitfall 3: Reintroducing the exact anon-PII-leak class of bug that was already found and fixed once on this table
+### Pitfall 3: Editable `{{var}}` templates break the WhatsApp HSM's positional `{{n}}` contract
 
 **What goes wrong:**
-The friendly-URL lookup path (company slug + estimate slug + short suffix) is implemented as a new Supabase query pattern that, even unintentionally, ends up readable by the `anon` role via RLS instead of exclusively through the service-role client with an exact-match filter — re-exposing every estimate's owner/client PII (name, email, phone, address) to anyone who can guess or enumerate a slug.
+`lib/notifications/whatsapp-registry.ts` already shows the exact seam where this breaks: every WhatsApp send goes through a `variables: (payload) => string[]` **projector function** that turns named fields into an **ordered** array (`titleBodyVars` → `[title, body]`) matching Meta's positional `{{1}}`, `{{2}}` placeholders in the pre-approved HSM template. Meta's API has no concept of named variables — it is strictly positional, and a WhatsApp template edit/approval is a slow, external, human-reviewed process (Meta Business Manager), unlike the same-request DB writes for email/SMS/in-app. If the new template editor lets a super-admin edit an event's variable list (add/remove/reorder `{{client_name}}`, `{{estimate_number}}`, …) as if it applies uniformly across all four channels, one of two things breaks silently for WhatsApp specifically: (a) the ordered array sent to Meta no longer matches what the *already-approved* HSM template expects (right count, wrong order → the wrong values land in the wrong slots of a real customer/owner message, with **no error from Meta** — a reordering send doesn't fail, it just says something wrong), or (b) the count changes (a variable added/removed) and Meta **rejects** the send outright because the approved template's `{{n}}` count doesn't match.
 
 **Why it happens:**
-This is not a theoretical risk for this codebase — it already happened once and was deliberately fixed. Migration `supabase/migrations/20260606000002_drop_estimates_anon_select_policy.sql` documents dropping a policy `estimates_anon_select_by_share_token ... FOR SELECT TO anon USING (share_token IS NOT NULL)`. Its own comment: *"let the unauthenticated anon/publishable key read EVERY estimate row, because share_token defaults to a UUID on all rows. An attacker could SELECT * FROM estimates, harvest every share_token, then open each public share page to scrape every client's and owner's phone/email/address."* The fix: every public lookup today goes through `requireServiceClient()` (bypasses RLS) filtered by an **exact-match** `.eq('share_token', token)` (`lib/queries/share.ts` L96, L280; `app/estimate/[token]/actions.ts` L17, L120). The root cause of the original bug was a predicate that checked "is this column non-null" instead of "does this column equal the caller's presented secret." A friendly-URL lookup that resolves `companySlug + estimateSlug` first and only checks the short suffix as an afterthought (or via a client-readable RLS policy scoped by slug-existence rather than suffix-equality) recreates the identical class of bug with a new column.
+Email/SMS/in-app template bodies are freeform strings where `{{var}}` can appear anywhere, any number of times, in any order — trivially editable. WhatsApp HSM bodies are **not editable at all** post-approval; only the *values* plugged into the fixed `{{n}}` slots can change. Building one "generic template editor" UI without modeling this distinction lets someone edit a WhatsApp-backed event's variable list as freely as an email one.
 
 **How to avoid:**
-The new lookup (`getEstimateBySlug(companySlug, estimateSlug, shortToken)` or equivalent) must live in the same service-role, exact-match pattern as `getEstimateByShareToken` — never grant anon a new RLS SELECT policy on `estimates` scoped by slug alone. The short public token/suffix must be part of the WHERE-equivalent filter, not a post-fetch check on data already returned to a broader-than-necessary query. Reuse `getEstimateByShareToken`'s existing safe-payload shape (which already strips `share_token` before it reaches the browser, `lib/queries/share.ts` L243) rather than writing a second payload-shaping function that might forget a field.
+- Treat WhatsApp as structurally different in the schema: the template editor's variable list for a WhatsApp-mapped event should be **read-only / order-locked**, sourced from `variables_schema` (the column that already exists on `whatsapp_notification_templates` but is currently unused by `getApprovedTemplateForEvent`, which still hardcodes `titleBodyVars`) — not from the same free-text `{{var}}` body editor used for email/SMS.
+- Any change to a WhatsApp event's variable *set* must be gated on "has a matching Meta-approved template been registered with this exact `{{n}}` count," not just saved to the DB.
+- Add a runtime guard in the WhatsApp send path: if the resolved `variables()` array length doesn't match the DB template's `variables_schema.length`, refuse the send and log/alert rather than fire a garbled message.
 
 **Warning signs:**
-- Any new RLS policy on `estimates` (or a new lookup table backing slugs) granted to `anon` or `authenticated` roles as part of this milestone.
-- A slug-resolution query executed against anything other than `requireServiceClient()`.
-- The new short-token entropy source not reviewed (see Pitfall 4).
+- A WhatsApp send succeeding (200 from Meta) but the delivered message showing values in the wrong field (e.g., estimate number where the client name should be).
+- Meta returning a template-parameter-count error after an "unrelated" template-editor save.
 
 **Phase to address:**
-"URL Contract + Data Model" phase (SEED-042 phase 1) — this is the single highest-severity item in the whole milestone and should have an explicit security-review checkpoint / negative test ("anon Supabase client cannot read an estimates row by slug alone") before Send Hub UI work begins.
+The phase that generalizes the template editor to cover WhatsApp (should be scoped as its own sub-phase, later than the email/SMS/in-app editor, precisely because of this structural mismatch) — flag for deeper research (Meta Cloud API template parameter validation behavior) before implementation.
 
 ---
 
-### Pitfall 4: The "friendly" slug + short suffix is guessable/enumerable even though it looks like it has a secret component
+### Pitfall 4: Template-body HTML injection through un-escaped variable substitution
 
 **What goes wrong:**
-`companySlug` will almost certainly be derived from the company name (e.g. `skale-club`), and `estimateSlug` from the estimate/project title (e.g. `untitled-scope-assessment`) — both are attacker-visible or guessable (company names are public marketing info; generic estimate titles like "roof-repair-estimate" repeat across many customers). If the "secret suffix" appended to make the URL unguessable is short, uses a small alphabet, or is derived from something predictable (e.g. `estimates.id` truncated, or a sequential/incrementing counter), the combined URL is far weaker than the current 128-bit random UUID `share_token`, even though it visually looks like it has a random-looking tail.
+The existing email renderer (`lib/email/notification-emails.ts`) hand-rolls `escapeHtml()` and calls it on every piece of dynamic content (`item.title`, `item.body`, `ctx.toName`, `ctx.branding.businessName`) **before** splicing it into the HTML string. That discipline is easy to lose once template *bodies themselves* become admin-authored strings containing `{{client_name}}`-style placeholders: a naive `template.replace(/\{\{(\w+)\}\}/g, (_, k) => String(vars[k] ?? ''))` executed on the final HTML string does NOT escape the substituted *values* — and those values include tenant/customer-supplied free text (`clientName`, `projectName`, `errorMessage`) that can legitimately contain `<`, `>`, `&`, or a stray `"` (e.g., a client literally named `<script>` in a CRM demo, or an AI-classified `jobType`/`errorMessage` string echoing raw content). Because the *template* is trusted (super-admin authored) but the *variable values* are not, the injection point is specifically the value-substitution step, not the template text.
 
 **Why it happens:**
-The current `share_token` is `UUID DEFAULT gen_random_uuid()` (`20260409000001_initial_schema.sql` L94) — full 122 bits of entropy, effectively unguessable. SEED-042 itself flags this risk directly ("a human-readable slug based only on company and estimate name is guessable, so it cannot safely replace the token unless the system adds a non-guessable public slug/secret") but leaves the suffix length/alphabet as an open decision. A "short" suffix optimized for URL aesthetics (6-8 base62 chars ≈ 36-48 bits) is meaningfully weaker than a UUID, and weaker still if there is no rate limiting on the public `/estimate/...` route — nothing currently rate-limits anonymous GETs to `app/estimate/[token]/page.tsx`.
+It's natural to treat "the template editor is admin-only, so it's trusted" as license to skip escaping — but the vulnerable step isn't the template, it's the values plugged in at send time, which can originate from tenant or end-customer input.
 
 **How to avoid:**
-Pick a suffix length with real security margin (10-12 base62 characters ≈ 60-70+ bits is a reasonable floor) and generate it with a CSPRNG (`crypto.randomBytes`/`gen_random_uuid()`-derived), never from a sequential ID, timestamp, or truncated hash of predictable inputs (company slug + title). Add basic abuse protection to the public estimate route (rate limiting or at minimum consistent 404 timing/response for "wrong suffix" vs "no such slug," so the endpoint can't be used as an existence oracle for enumeration). Treat the suffix exactly like `share_token` from a threat-model standpoint — same TTL/expiry rules (Pitfall 6), same "never exposed in any payload it doesn't belong in" discipline.
+- Build one shared `renderTemplate(body: string, vars: Record<string,string>): string` used by every HTML-emitting channel (email digest, future customer-facing email), where the substitution step HTML-escapes every value the same way `notification-emails.ts` already escapes computed fields today.
+- Keep plain-text channels (SMS, Telegram body) on a *different*, non-HTML-escaping substitution path — escaping HTML entities into an SMS would show literal `&amp;` to a customer. Two renderers, not one, driven by channel type.
+- For Telegram specifically, `lib/telegram/client.ts` and `lib/observability/ops-alert.ts` already use `parse_mode: 'HTML'` with hand-rolled `&`/`<`/`>` escaping (see `formatOpsMessage`) — the new template system's Telegram renderer must reuse that exact escaping, not a fresh implementation, and must NOT switch to MarkdownV2 without also escaping MarkdownV2's much larger reserved-character set (`` _*[]()~`>#+-=|{}.! ``) — a common Telegram-bot mistake (see Pitfall 7).
 
 **Warning signs:**
-- Suffix generation logic that reuses/truncates `estimate.id`, `created_at`, or any other value already knowable/derivable from other public data (project name, company slug, sequence number visible elsewhere).
-- No rate limiting mentioned anywhere in the URL Contract phase's plan.
-- Suffix shorter than ~10 characters of a 62-character alphabet.
+- Any customer-supplied or tenant-supplied field (`clientName`, `projectName`) rendering literally instead of escaped in a saved-template preview.
+- A support/admin report of a malformed or broken-looking email where a client name contained a special character.
 
 **Phase to address:**
-"URL Contract + Data Model" phase (SEED-042 phase 1), same phase as Pitfall 3 — this is a design decision that must be locked before any UI work references the new URL shape.
+Template-rendering-engine phase, before any customer-facing (end-customer email) template goes live — this is the highest-severity item in that phase's own scope because end-customer emails are the least-monitored, least-reversible channel (once sent, it's sent).
 
 ---
 
-### Pitfall 5: Old `/estimate/{share_token}` call sites get "helpfully" migrated to the new format and silently drop the Stripe redirect query-param contract
+### Pitfall 5: Cross-audience template editing leaks internal data or breaks a locked tenant-neutrality invariant
 
 **What goes wrong:**
-Share-link URLs are constructed independently in at least 7 places in the current codebase, not through one shared builder:
-- `lib/utils/share-link.ts` → `buildShareLink()` (used by `send-form.tsx`, `send-actions-menu.tsx`)
-- `lib/whatsapp/send-estimate.ts` L76 (own inline template string)
-- `lib/whatsapp/confirm-actions.ts` L123 (own inline template string)
-- `app/api/estimates/[id]/send-sms/route.ts` L103 (own inline template string)
-- `lib/billing/connect-webhook.ts` L179 and L324 (two more inline template strings, used for Stripe Connect payment confirmation/notification emails)
-
-SEED-042 requires the OLD token URLs keep working (retrocompat) — that's the easy, well-scoped part. The real risk is the opposite direction: a developer, mid-milestone, decides to proactively update all 7 call sites to emit the NEW friendly format for consistency, and in doing so forgets that `tests/e2e/visual/share.spec.ts` and `tests/e2e/estimate-share-payment.spec.ts` assert on `?stripe=success` / `?stripe=canceled` query params appended to the share URL after a Stripe Checkout round-trip. If the new friendly route doesn't parse/honor those same query params (or the checkout `success_url`/`cancel_url` construction in `connect-webhook.ts` isn't updated to build a friendly-URL-shaped redirect target with the param preserved), the post-payment redirect silently regresses for real paying customers going through Stripe Connect.
+The milestone explicitly puts platform-admin (Telegram), tenant (in-app/email/WhatsApp/SMS), and end-customer (email/SMS) templates in **one shared, platform-wide, super-admin-only editor** with **no tenant overrides** (a locked decision). Two concrete existing invariants are easy to violate through this shared surface:
+1. `tests/unit/notifications/copy-tenant-neutrality.test.ts` locks in that `admin.bonus_credits_granted`'s body **must never contain a digit**, regardless of `ctx.credits` — a real, already-shipped business rule (CREDITUI-04: tenants never see raw credit counts, only a % bar). A DB-editable template with a `{{credits}}` variable exposed in that event's variable catalog would let a future super-admin trivially reintroduce the exact regression that shipped-and-was-fixed in v4.15/v4.17.
+2. A shared variable catalog across audiences risks a platform-admin event's internal fields (real $ cost, internal company UUID, AI error stack trace) being copy-pasted into an end-customer-facing template body, leaking data that should never leave the platform-admin/Telegram channel.
 
 **Why it happens:**
-There is no single `buildShareLink()`-style function used everywhere — it's the exception (2 of 7 call sites), not the rule. Any "search and update the share URL" pass is highly likely to miss at least one of these 5 additional inline constructions, especially the two inside `connect-webhook.ts`, which are payment-webhook code far from the Send UI a developer would naturally think to check.
+One editor UI for three audiences is efficient to build but erases the audience boundary that used to be enforced by separate hardcoded functions/files. Nothing in a generic `{{var}}` textarea stops an admin from typing a variable name that happens to resolve to sensitive data for that event.
 
 **How to avoid:**
-Before touching any URL construction, grep for every literal `/estimate/${` and `buildShareLink(` occurrence (this research already found all 7) and route them ALL through one function that knows both formats (e.g. `buildShareLink(estimate, { preferFriendly: true })` falling back to token format when slug/suffix data isn't available). Explicitly test the Stripe success/cancel redirect against whichever URL shape is actually deployed for that estimate — don't assume the friendly path inherits query-param handling for free just because the route resolves to the same page component.
+- Scope the variable catalog **per event type**, not globally — the editor should only ever offer the whitelisted variable names valid for that specific event (mirroring how `CopyContext` today is one big optional-fields interface, but each `case` in `copy.ts` only reaches into 2-3 of them). Never expose a global "insert any variable" picker.
+- For any event with a locked business-rule constraint (like `admin.bonus_credits_granted`), simply never add the sensitive field to that event's variable catalog at all — the safest enforcement is "the variable doesn't exist to insert," not a runtime content filter.
+- Keep the existing test as a live regression gate — since the value now comes from a DB row instead of a compiled string, the test needs to be re-pointed at whatever the DB seed/default for that event is, so it keeps failing CI if that default (or the catalog) regresses.
+- Since this is a single platform-wide edit with no tenant override and no staging, treat every save as an instant production change across every tenant and every future send — a preview + "send test to myself" step (per the milestone context's own PITFALLS-relevant framing) is materially more important here than in a per-tenant-scoped feature.
 
 **Warning signs:**
-- A grep for `/estimate/${` after the milestone still shows more than 1-2 remaining literal constructions.
-- `connect-webhook.ts`'s two share-URL builders not mentioned in the phase's file list.
-- Stripe success/cancel e2e tests (`tests/e2e/estimate-share-payment.spec.ts`) not re-run against the new URL shape.
+- A pull request adding a new variable to an existing event's catalog without a corresponding audience-boundary review.
+- The `copy-tenant-neutrality` test (or its DB-era successor) going red.
 
 **Phase to address:**
-"URL Contract + Data Model" phase should introduce the shared builder; "Delivery APIs + Templates" phase (SEED-042 phase 3) is responsible for actually swapping each of the 7 call sites and must include `connect-webhook.ts` explicitly in scope (easy to overlook since it's billing code, not send/share code).
+Template-editor UI phase — the variable-catalog design (event-scoped, not global) is a schema/data-model decision that should be locked in the same phase the `notification_templates` table is designed, not retrofitted after the editor ships.
 
 ---
 
-### Pitfall 6: `share_expires_at` expiry and `viewed_at`/`estimate_activity` view-logging silently stop firing on the new route because they're keyed by `share_token`, and the new route may not have that value in hand
+### Pitfall 6: The shared, platform-wide Twilio number's reputation is one blast radius for six unrelated apps
 
 **What goes wrong:**
-A client opens a friendly link. The page loads fine (estimate resolves via the new slug lookup). But `viewed_at` never updates, no "estimate viewed" in-app notification fires for the owner, and `estimate_activity` gets no row — analytics and owner notifications silently go dark for every view through the new URL, while the old token URL keeps working perfectly. Nobody notices immediately because the page itself renders correctly.
+`getTwilioConfig()` reads exactly **one row** from `platform_integrations` (`provider = 'twilio'`) — one Account SID, one Auth Token, one `from_phone` — used for every tenant's every SMS send today (`app/api/estimates/[id]/send-sms/route.ts`). Per project memory, this same Twilio account is **already shared across 6 apps and 3 databases** (Xtimator, Xphere×2, Xkedule, skaleclub-websites×2). This milestone adds (a) end-customer SMS as a first-class, template-driven feature and (b) **agentic send** — an LLM-triggered, ad-hoc SMS send path with no fixed message catalog. Both multiply the volume and unpredictability of traffic through that single shared number. US carriers (via A2P 10DLC or toll-free verification) evaluate spam/complaint signals **per sending number/campaign**, not per tenant or per app — a spike in complaint rate or unregistered use-case drift from Xtimator's agentic-send traffic can get that shared number throttled or blocked by carriers, silently breaking SMS for Xtimator's other tenants AND for the five other unrelated apps sharing the same Twilio account.
 
 **Why it happens:**
-`logEstimateView(token)` and `respondToEstimate(token, response)` (`app/estimate/[token]/actions.ts` L9, L110) both take a single `token` param and query `.eq('share_token', token).single()` (L17, L120) — a query that **quietly returns `null`/no-op on no match rather than throwing**, per the existing `if (!estimate) return` / `if (!estimate) return { success: false, ... }` guards. If the new friendly-URL page passes its own `shortToken` (a value distinct from the DB's `share_token` column) into these functions instead of the estimate's actual `share_token`, the lookup fails silently — no error surfaces anywhere, because "no such token" is treated as a normal, expected case (an expired/garbage link), not a bug. Additionally, `getShareLinkState()` (`lib/queries/share.ts` L275-287) is a SEPARATE function from `getEstimateByShareToken()` used only to distinguish "expired" from "missing" for the friendly 404 page — a second parallel lookup that must also be extended/reused for the new URL shape, or expired friendly links will show a generic 404 instead of the deliberate "this link has expired" messaging that exists today.
+The current architecture (one platform-level Twilio config, no per-tenant or per-purpose number) was fine when SMS was a single templated "here's your estimate link" send. Agentic, freeform, higher-volume end-customer SMS is a materially different traffic profile riding the same infrastructure without anyone re-evaluating the shared-resource risk.
 
 **How to avoid:**
-Whichever identifier the new friendly route resolves with, make sure `logEstimateView`, `respondToEstimate`, and `getShareLinkState` are called with the estimate's real `share_token` (fetched as part of resolving the friendly URL) — not the new short suffix — unless those three functions are deliberately updated to accept either identifier. The safest approach: have the new slug-lookup function return the full estimate row (which already contains `share_token` internally, even though it's stripped before reaching the browser), and pass `estimate.share_token` through to these existing actions unchanged, rather than inventing a parallel identity plumbing path for view-logging.
+- Flag explicitly for the owner/operator: agentic SMS send volume needs A2P 10DLC campaign registration (or a dedicated Messaging Service) that reflects the *actual* new use-case (conversational/agentic business messaging, not just "estimate delivery notifications") — the existing registration (if any) may not legally or technically cover this new pattern.
+- Consider (as a design question to raise, not a decision to make silently) whether end-customer/agentic SMS should ride a **separate** `from_phone` / Messaging Service SID from the existing owner-notification SMS path, so a reputation hit on one doesn't take down the other — this only requires a second `metadata` field on the same `platform_integrations` row or a second provider key, consistent with the existing pattern.
+- Do not treat this as purely a code problem — it needs an explicit owner decision + Twilio Console action before agentic SMS ships to any real tenant.
 
 **Warning signs:**
-- `estimate_activity` rows for `event_type = 'estimate_viewed'` never appear for estimates only ever opened via friendly links (checkable by comparing view-logged estimates against which URL format was sent).
-- QA script: open a friendly link → check `viewed_at` updates on first view → open again → confirm no duplicate view-triggered email (existing "only on first view" guard, L32).
-- Expired friendly link shows a generic Next.js 404 instead of the "This estimate link has expired" message.
+- Twilio delivery status callbacks (if added) showing a rising `undelivered`/`failed` rate.
+- Any of the other 5 apps sharing the account reporting SMS delivery problems that coincide with an Xtimator SMS volume change.
 
 **Phase to address:**
-"URL Contract + Data Model" phase must explicitly plan how `logEstimateView`/`respondToEstimate`/`getShareLinkState` are wired to the new route, not leave it as an implicit "same as before" assumption; "Logging + Tests" phase (SEED-042 phase 4) must add a friendly-link view-logging regression test as a named requirement, not just "URL generation" tests.
+Should be raised and decided in the phase that builds end-customer SMS + agentic send — this is a "needs deeper research + an explicit human decision" flag, not something to default silently. **Severity: HIGH.**
 
 ---
 
-### Pitfall 7: Consolidating the 3 (really 4) client-picker implementations loses a capability one of them will be asked to gain, and the "shared" component quietly re-forks the next time someone touches just one call site
+### Pitfall 7: Telegram bot built as two-way (webhook + commands) inherits serverless/polling and MarkdownV2 traps if copied naively
 
 **What goes wrong:**
-The 3 named candidates (`LinkClientButton`, `LinkClientCard`) plus the undocumented 4th (`LinkClientInline` + `ClientSearchList`, inline inside `estimate-document.tsx` L1339-1415) are consolidated into one shared component. Six months later, someone needs "allow creating a new client inline" for the Bill-To editor specifically (SEED-044's own open decision #5) and bolts it on ONLY inside the document's usage of the shared component via a local wrapper — recreating exactly the fragmentation this milestone set out to eliminate, just with fewer total files.
+Xtimator already has a **one-way, fire-and-forget** Telegram integration (`lib/telegram/client.ts` + `lib/observability/ops-alert.ts`): single bot token, single hardcoded `chat_id`, outbound `sendMessage` only, `parse_mode: 'HTML'` with manual escaping. This milestone's "ALL platform events covered with per-event toggles in the admin panel" is an extension of that outbound-only model, and does NOT by itself require inbound webhook handling. But if implementation reaches for two-way interactivity (admins replying/acting from Telegram, or a `/start` binding flow to register a chat_id) without deliberate design, several concrete traps apply to THIS deployment (a persistent Docker container on Coolify — not Vercel edge, but also not a bot-framework-managed process):
+- **Polling mode is architecturally wrong here.** There is no long-running "start a polling loop at boot" slot in a Next.js App Router server — the only durable background-execution mechanism in this codebase is Inngest (used for every async fan-out today: `notification-channel-send`, cron jobs). Reaching for a library's default `bot.startPolling()` either does nothing (no process ever calls it) or, if force-fit into a route handler, can register duplicate `getUpdates` pollers across container restarts/replicas and trigger Telegram's `409: terminated by other getUpdates request` conflict.
+- **Webhook is the correct model** and there's a direct precedent to mirror: `app/api/webhooks/whatsapp/route.ts` verifies `x-hub-signature-256` against `META_WHATSAPP_APP_SECRET`. Telegram's equivalent is `setWebhook`'s `secret_token` parameter, checked against the `X-Telegram-Bot-Api-Secret-Token` header on every inbound POST — skipping this leaves `/api/webhooks/telegram` (once built) as an open POST endpoint anyone can spoof to inject fake bot updates.
+- **The precedent itself is a trap for this project's own hard rule:** the existing WhatsApp webhook secret (`META_WHATSAPP_APP_SECRET`, `META_WHATSAPP_VERIFY_TOKEN`) is stored as a plain **env var**, not in `platform_integrations` — inconsistent with the project's stated rule ("provider credentials live encrypted in the DB... NEVER env vars"). Copying that pattern verbatim for a new Telegram webhook secret repeats the inconsistency; the bot token already correctly lives in `platform_integrations` via `getTelegramConfig()` (with an explicit env fallback marked "dev only") — any new webhook `secret_token` should follow that same DB-encrypted pattern, not the WhatsApp webhook's env-var precedent.
+- **MarkdownV2 escaping hell** only applies if/when the renderer switches from `parse_mode: 'HTML'` (current, simple 3-character escape set: `&<>`) to `MarkdownV2` (a much larger reserved set), which is often reached for because it looks nicer for bold/links — every dynamic value (client names, error messages, estimate numbers containing `.` or `-`) then needs full MarkdownV2 escaping or Telegram returns a 400 `can't parse entities`. **Recommendation: stay on HTML `parse_mode`** (already proven, already escaped correctly in `formatOpsMessage`) rather than introduce MarkdownV2 for the richer per-event template system.
+- **Chat-id binding is fragile.** The current single hardcoded `chat_id` in `metadata` assumes one admin/one chat. If a group chat is used and later "upgraded" to a Telegram supergroup, Telegram issues a **new** negative chat_id (`-100xxxxxxxx`) — the old stored id starts failing silently (Telegram returns `chat not found`, and `sendTelegramMessage` throws — currently swallowed by `notifyOps`'s catch, meaning delivery could go dark with no visible failure signal for weeks). If the milestone moves to multiple admins/chat_ids, this needs an explicit re-verification step surfaced in the admin panel, not just "save and hope."
+- **Rate limits.** Telegram's Bot API caps outbound messages to roughly 30/sec globally and ~1/sec per chat_id (lower for groups). Fanning out many platform events (tenant signups, job failures, quota alerts) through per-event toggles into ONE chat with no batching/queueing can hit `429 Too Many Requests` under a burst (e.g., a mass failure incident generating many alerts at once — precisely the moment reliable delivery matters most).
 
 **Why it happens:**
-Direct comparison of the current 3 implementations shows they are **already functionally identical** — all three fetch from `GET /api/clients`, filter client-side by name/email substring, and call `linkProjectToClient(projectId, clientId)` on select; they differ only in container chrome (`Card` wrapper vs `Button` trigger vs bare popover). None of the three supports inline client creation or unlinking today. SEED-044 explicitly needs the consolidated component to grow NEW capabilities it doesn't have anywhere yet: an "Unlink client" action (`unlinkProjectFromClient` already exists in `lib/actions/project.ts` but no picker calls it) and possibly inline client creation. If those new capabilities are added as component-specific escape hatches (a special prop only the document's usage sets) rather than first-class, testable options on the shared component's public API, the fork starts immediately.
+The existing dormant Telegram integration was scoped narrowly (ops alerts only, one admin, outbound only) and its simplicity hides all of the above until the surface area grows (more events, more admins, interactivity).
 
 **How to avoid:**
-Design the shared component's props around capability flags from day one — e.g. `<ClientPicker projectId trigger="button"|"card"|"inline" allowCreate={boolean} allowUnlink={boolean} onSelect />` — and have each of the 3+ call sites (floating pill, client-tab no-client state, document Bill-To) pass explicit flags rather than each maintaining its own copy. Write one shared test suite (search/filter/select/create/unlink) that all call sites exercise via the same component, so a future capability change is visible everywhere it's used instead of file-local.
+- Keep the bot outbound-only (matches the milestone's literal scope — "platform events delivered to Xtimator admins") unless two-way interactivity is explicitly required; this sidesteps the webhook/polling/signature questions entirely for v1.
+- If/when interactivity is added: webhook route + `secret_token` stored in `platform_integrations` (not env) + dispatch through Inngest, exactly mirroring the WhatsApp webhook + `notification-channel-send` pattern already proven in this codebase.
+- Stay on `parse_mode: 'HTML'`, reuse `formatOpsMessage`'s escaping.
+- Add a lightweight send queue/backoff (even a simple per-chat token-bucket, since Inngest already provides retry/backoff primitives used elsewhere) before fanning many per-event toggles into a burst of individual `sendMessage` calls.
+- Surface chat_id health in the admin panel (last successful send timestamp) so a silently-broken binding is visible, not just swallowed by `notifyOps`'s catch-all.
 
 **Warning signs:**
-- A new file named something like `bill-to-client-picker.tsx` or `client-link-popover-v2.tsx` appears that is 80% similar to the "shared" component instead of extending it.
-- `allowCreate`/`allowUnlink` implemented as a conditional inside the shared component keyed off which page it's rendered on, rather than an explicit prop the caller sets.
-- Only 1 of the 3 call sites gets updated to the new shared component while the other 2 keep their pre-milestone implementations "for now."
+- `notifyOps`/Telegram send logs showing repeated swallowed errors (currently invisible — nothing surfaces them today).
+- A burst of platform events (e.g., a mass job failure) correlating with missing Telegram alerts.
 
 **Phase to address:**
-"Bill To Editing" phase (SEED-044 phase 3) — the shared-component extraction should happen BEFORE the new unlink/create capabilities are designed, so the capability API is designed once, not retrofitted onto three call sites separately.
+The Telegram-channel phase — scope it explicitly as outbound-only + per-event-toggle first; flag two-way interactivity as a separate, deeper-research phase if it's ever pursued.
 
 ---
 
-### Pitfall 8: `estimate_deliveries` schema can't represent the new `format × channel` model — delivery/analytics logging silently fails or is quietly skipped
+### Pitfall 8: Agentic send has no confirmation-gate precedent to inherit, and the existing "write-immediately" pattern is the wrong one to copy
 
 **What goes wrong:**
-The Send Hub ships with new delivery actions (copy link, open preview, download PDF, mark-as-sent via plain text) that attempt to log to `estimate_deliveries`, but the insert either throws (CHECK constraint violation, if the app surfaces the error) or the app's existing "fire-and-forget, ignore analytics failures" pattern silently swallows it (as `logEstimateView` does today, L55-57 of the share page) — so nothing appears broken in the UI, but delivery history/audit for the new formats never gets recorded.
+This codebase has TWO existing patterns for LLM-triggered writes, and they are **not interchangeable**:
+1. `lib/whatsapp/manage-tools.ts` (`add_service`, `add_knowledge`) — writes immediately, no confirmation turn, because the action is internal, reversible, and same-tenant (adding a price-book entry).
+2. `lib/whatsapp/confirm.ts` + `agent.ts` + `confirm-actions.ts`'s `actionSend` — sending an estimate to an **external party** (the client) goes through a dedicated `awaiting_confirm` session state machine: the estimate must reach a confirmed draft state before `actionSend` ever fires, and even then it only fires from within that gated flow.
+
+"Send an SMS/email to my client about X" (the new agentic-send feature) is squarely in the second category — external recipient, real cost, real reputational/compliance exposure (TCPA), irreversible once sent — yet it's a brand-new capability being added at the same time as the general "LLM writes tools" pattern is being extended, making it easy for an implementer to reach for the *simpler*, already-familiar `manage-tools.ts`-style immediate-write pattern (less code, fewer states to manage) rather than the *correct*, heavier `confirm.ts`-style gated pattern. There is no existing single "send a message to an external party via natural-language request" tool to copy from directly — `actionSend` sends a *pre-existing estimate*, not an arbitrary agent-composed message, so the new tool also needs its own confirmation UX designed, not just wired.
 
 **Why it happens:**
-`estimate_deliveries.channel` has a hard CHECK constraint. It has already been widened once via a deliberate `DROP CONSTRAINT` + `ADD CONSTRAINT` migration (`20260526000005_phase81_whatsapp_delivery_channel.sql`, adding `'whatsapp'` to what was `('email','sms')`) — that precedent exists and must be followed again, but today the constraint is still only `IN ('email', 'sms', 'whatsapp')`. SEED-042's own delivery model explicitly wants `channel: copy | open | download | email | sms | whatsapp | manual` — 4 new values not yet in the CHECK — and a `format: online_link | pdf | plain_text` dimension that has **no column at all** in the current schema (only `channel`, no `format`).
+The two patterns coexist in the same file family with no enforced convention distinguishing "internal, reversible" from "external, cost-bearing, irreversible" — the distinction lives only in code comments and the specific choices made in `confirm-actions.ts`, not in a reusable abstraction.
 
 **How to avoid:**
-Add the migration (mirroring the `20260526000005` DROP+ADD pattern) to widen `channel` and add a `format` column (or a compatible metadata JSONB field, per SEED-042's own decision #7) in the SAME phase that starts emitting these new values — not after the UI ships. Since this is a genuinely new table shape, decide explicitly per SEED-042 decision #7 whether `copy`/`open`/`download` (client-only, no server round-trip) even belong in `estimate_deliveries` (a server-side delivery-attempt table) versus a lighter client-analytics event, rather than forcing every UI action through a table designed for email/SMS/WhatsApp provider send-attempts.
+- Explicitly classify the new send-SMS/send-email agentic tool as an "external-party, confirm-required" action from the design phase, and reuse the `confirm.ts`/session-state-machine shape (or, for the MCP channel, an equivalent explicit `confirm: true` round-trip / `elicitation` step per the MCP spec) rather than the `manage-tools.ts` immediate-write shape.
+- The confirmation echo must show the **actual resolved recipient (phone/email) and message body** before send, not just "yes I'll send it" — because the recipient identity itself can be attacker/hallucination-influenced (see Pitfall 9).
+- For the MCP channel, mark the send tool with an explicit non-`readOnlyHint` and require a confirmation step distinct from the existing read-only query tools (`ask_knowledge`, `find_client`, etc., which are `readOnlyHint: true` and rightly need none).
 
 **Warning signs:**
-- Send Hub UI PRs that add `channel: 'copy'` or `channel: 'download'` insert calls without an accompanying migration in the same phase.
-- Supabase logs (`get_logs`/`get_advisors` via the Supabase MCP tools) showing recurring CHECK-constraint violations on `estimate_deliveries` after this milestone ships.
-- No delivery rows ever appearing for "Copy Link" / "Download PDF" actions in QA, despite the buttons visibly working.
+- A send-SMS/send-email tool implementation that fires on the first LLM tool-call with no intermediate "confirm?" turn.
+- No audit trail entry distinguishing "owner explicitly confirmed this send" from "agent inferred and sent."
 
 **Phase to address:**
-"Delivery APIs + Templates" phase (SEED-042 phase 3) — the migration must land before or alongside the first UI action that logs a new channel/format value; "Logging + Tests" phase (SEED-042 phase 4) should include a schema-level test asserting all planned format×channel combinations are insertable.
+The agentic-send phase itself — this is core to that phase's design, not a follow-up hardening pass.
 
 ---
 
-### Pitfall 9: The mobile visual rewrite is verified at one viewport (375px) that isn't even one of the three the seed asks for, and "resize the browser" verification misses real touch regressions
+### Pitfall 9: Prompt injection can put a wrong recipient or a wrong dollar amount into a real send
 
 **What goes wrong:**
-SEED-043 explicitly requires screenshot verification "at 360px, 390px, and 430px widths" plus real iOS Safari/Android Chrome touch verification. The rewrite ships looking great in the PR screenshots, but those screenshots were taken by resizing a desktop Chrome window (which reports pointer capabilities, hover state, and default tap-highlight behavior differently from a real touchscreen) at whatever width was convenient — commonly 375px, not the three specified widths — and a control that's fine at 375px clips text or overlaps at 360px (the narrowest common Android width) or looks sparse/misaligned at 430px (iPhone Pro Max).
+The codebase's established security discipline (`T-lrf-01`, enforced in `manage-tools.ts`'s header comment) protects the **tenant boundary** — `companyId` is a closure parameter, never an LLM-controllable field, so a malicious message can't make the agent write into another company's data. It does **not**, by itself, protect the **content** of an agentic send: the recipient phone/email and the dollar amount/message body are exactly the kind of free-text fields an LLM tool schema would naturally expose (`z.object({ to: z.string(), message: z.string() })`), and those ARE influenceable by adversarial input. Two concrete injection surfaces exist for this exact feature:
+1. **Inbound WhatsApp text is untrusted content the agent reads.** If a scammer texts the owner's WhatsApp number (or the owner forwards/pastes suspicious text) containing something like "also text +1-555-0100 that the deposit account changed to X," an agent with a send-SMS tool and no re-validation could act on attacker-supplied instructions embedded in what looks like ordinary conversation — the same class of risk the v4.8 knowledge base work already named and defended against ("curated ≠ trusted as LLM context," `sanitizeField` + `<knowledge>` tag hardening) for a *different* input surface (RAG retrieval). Agentic send is a new surface with no equivalent hardening yet.
+2. **Dollar amounts must never be freely typed by the model.** This project has a hard, repeatedly-enforced rule that the AI never computes/originates money math (GUARD-03, and the v4.11 "AI gained ZERO arithmetic" design principle for the pricing engine) — any agentic-send message that mentions an amount ("your balance due is $X") must pull that number from the server-authoritative `estimates.total`/`balance_due` field, never let the LLM state a number from its own context window.
 
 **Why it happens:**
-The project's own existing Playwright visual-regression harness (`tests/e2e/visual/_helpers.ts`) defines exactly ONE mobile viewport: `{ name: 'mobile', width: 375, height: 812 }` (L6) — none of 360/390/430 are currently automated anywhere in the repo. Without deliberately adding new viewport entries, "visual verification" for this seed will default to whatever the existing harness already covers (375px only), which technically passes CI but doesn't fulfill the seed's own stated bar. Separately, `hover:` and `group-hover:` interaction patterns used elsewhere in this exact document (e.g. `ProjectTitle`'s edit-pencil, L119 of `project-title.tsx`: `opacity-60 sm:opacity-0 sm:group-hover:opacity-100`) already show the team is aware that hover ≠ touch discoverability — but a rewrite focused purely on "looks like desktop" density could regress that awareness for new mobile-only controls if hover-revealed affordances are copied in without the sm:-gated always-visible-on-touch pattern.
+Extending "the agent can write things" naturally extends to "the agent can compose message text," and unlike DB writes (which go through typed columns with constraints), free-text message bodies have no structural check that a number or a phone/email actually corresponds to a real system record.
 
 **How to avoid:**
-Extend `tests/e2e/visual/_helpers.ts`'s `viewports` array with the three widths the seed asks for (at minimum for the estimate document / mobile line-item route) before claiming this seed's UI work is verifiable, and capture baselines at all three. For touch verification specifically, don't rely on resized-desktop-Chrome screenshots alone — either use Playwright's mobile device emulation (`devices['iPhone 12']`/`devices['Pixel 5']`, which sets `hasTouch: true` and correct DPR) for interaction tests, or require a real-device manual pass before sign-off, since desktop Chrome resize does not exercise `:hover`-vs-touch discoverability bugs at all.
+- The send tool's recipient should be resolved from the **system's own client record** (`clients.phone`/email on the associated project), not a phone/email number typed fresh into the tool call by the LLM from conversation text — if the request names a different number, treat it as a mismatch requiring explicit owner confirmation ("this isn't the phone number on file for this client — send anyway?"), not silent pass-through.
+- Any dollar figure interpolated into an agentic-send message must be sourced from the authoritative `estimates`/`compute-totals.ts` fields, never emitted as free text by the model.
+- The confirmation echo (Pitfall 8) is the actual enforcement point — showing the resolved-from-DB recipient and amount before send makes a mismatch visible to the human in the loop.
 
 **Warning signs:**
-- PR screenshots attached only at one width, or captured via manual window resize rather than named device presets.
-- New viewport entries never added to `tests/e2e/visual/_helpers.ts`.
-- Any newly-introduced `hover:` / `group-hover:`-only affordance on a control that only exists in the mobile layout (no touch-visible fallback).
+- A send tool whose zod schema accepts an arbitrary `to` string with no cross-check against `clients` records.
+- Any agentic message template that string-interpolates a number the model produced rather than one read from a DB column.
 
 **Phase to address:**
-"Visual verification" task within SEED-043's own phase — should be promoted to an explicit phase success-criterion ("baselines exist at 360/390/430 + one desktop, in `tests/e2e/visual/`"), not left as a manual, easy-to-shortcut checklist item.
+Agentic-send phase — same phase as Pitfall 8, this is the content-integrity half of the same confirmation-gate design.
 
 ---
 
-### Pitfall 10: Shrinking mobile line-item controls to desktop-like density silently drops the 44px touch targets this exact component was already tuned to have
+### Pitfall 10: End-customer SMS has zero consent/opt-out infrastructure to build on — this is new legal surface, not an extension of existing TCPA work
 
 **What goes wrong:**
-The rewritten mobile item editor visually matches the desktop table's compactness (the seed's explicit goal) but the interactive elements — remove button, taxable toggle, unit select, discount input — shrink along with the surrounding whitespace, dropping below a comfortable real-thumb tap size. It looks like a win in a screenshot; it's measurably worse to actually use on a phone.
+The project already has real, working TCPA-consent scaffolding — but it is scoped **entirely to the tenant/owner**: `notification_preferences.sms_opt_in_at` / `whatsapp_opt_in_at` / `sms_opt_in_consent_text` (migration `20260621000002_notification_opt_in_consent.sql`, enforced in `resolveChannels()`) gate whether *Xtimator sends SMS/WhatsApp to a business owner*. There is **no equivalent column anywhere on `clients`** (the end-customer table) and **no inbound Twilio webhook** in the codebase at all — the only Twilio integration today is the outbound `sendSms()` primitive. That means:
+- There is currently no mechanism to capture, store, or honor a `STOP` reply from an end customer. Twilio's carrier-level auto-block (via Advanced Opt-Out on a registered number/Messaging Service) is a separate, external layer from Xtimator's own application logic — even if Twilio blocks future carrier delivery, Xtimator's own retry/reminder/agentic-send logic has no application-level suppression list and could keep *attempting* sends (burning API calls, and legally the business — not just Twilio — is on the hook for TCPA compliance, which requires the *sender* to honor opt-out, not just rely on carrier filtering).
+- "Prior express consent" for informational/transactional SMS tied to a service the customer already requested (an estimate) is a materially different legal footing than marketing SMS, but the agentic-send feature broadens *what* gets sent (open-ended "send an SMS about X") in a way that can drift from narrow transactional content toward something needing stronger consent — and there's no design decision recorded yet about which bucket end-customer messages fall into.
+- Quiet-hours (many states restrict unsolicited texts to certain hours) and message-frequency norms have no enforcement point today — `sendSms()` is a pure passthrough with no time-of-day or frequency gate.
 
 **Why it happens:**
-The current `ItemCardMobile` (`components/workspace/estimate/item-card-mobile.tsx`) already has deliberate, commented touch-target engineering from a past phase: `min-h-[44px]` on the taxable-toggle wrapper (L134) and `h-9 w-9 min-h-[44px] min-w-[44px]` on the remove button (L156), with an explicit code comment: *"Mobile-safe: numeric keypad via MoneyInput, 44px tap target on the toggle row"* (L119-120). SEED-043 asks for "32-36px visual control height where possible" — a real, intentional tension between "looks document-native/compact" and "the 44px minimum this file was already tuned to." A pure visual rewrite optimizing for the screenshot-density goal can regress the touch-target goal without anyone noticing, because both goals live in the same component and only one of them shows up in a static screenshot.
+End-customer messaging is genuinely new (today's only end-customer SMS is the manual "send my estimate link" action, a single one-off, low-risk send) — the existing consent infrastructure was correctly scoped to the *owner* channel (paid/proactive, TCPA-relevant) and was never meant to cover the *customer* channel, but it's easy to assume "we already solved TCPA" when only half the surface was solved.
 
 **How to avoid:**
-Treat 44px as the tap-*target* size (via padding/hit-slop or `min-h-`/`min-w-` on the interactive wrapper), decoupled from the *visual* control height (which can legitimately shrink to 32-36px). This is exactly what the current code already does for the remove button (`h-9` visual height + `min-h-[44px]` hit area) — carry that same pattern forward for every new compact control (Select trigger, Switch, any tap targets in the "mobile table card" alternate layout), rather than only preserving it for the elements that happened to already have it.
+- Treat end-customer SMS/email consent as a **net-new data model decision**, not a reuse of `notification_preferences` — needs its own column(s) on `clients` (or a join table) for opt-in provenance, opt-out timestamp, and consent text shown.
+- Build the inbound Twilio webhook (there is none today) specifically to capture `STOP`/`START`/`HELP` keyword replies and write them to that new suppression state — and gate every outbound end-customer SMS send (including agentic ones) on checking it first, independent of whatever Twilio/carrier-level filtering may or may not be active.
+- Flag this explicitly for legal/compliance review before end-customer SMS ships broadly — this file can name the technical gaps but the actual consent-basis decision (transactional vs. marketing framing, required disclosure language, quiet-hours policy) is a business/legal decision, not a pure engineering one.
+- Email has a materially lower bar (CAN-SPAM vs. TCPA) but still needs an unsubscribe path if end-customer email becomes template-driven and recurring rather than one-off transactional.
 
 **Warning signs:**
-- New compact controls where the visible box height AND the clickable/tappable area are the same shrunk value (no `min-h-[44px]`/padding hit-slop separating them).
-- Any control's computed bounding box <44px in both dimensions in a real-device inspector, even if it "looks right" in a screenshot.
+- Any end-customer SMS send path that doesn't check a suppression flag before sending.
+- No inbound SMS webhook existing at all (true today — confirm this gap is closed before end-customer SMS volume grows).
 
 **Phase to address:**
-Same phase as Pitfall 9 (SEED-043's implementation phase) — should be a named acceptance check ("every interactive control's tappable area is ≥44×44px, verified via computed styles, independent of visual size"), and it should be checked against the decision the seed itself flags as open ("What is the minimum acceptable touch target for dense estimate editing").
-
----
-
-### Pitfall 11: The document already has two independently-diverged inline-rename implementations for "the same" concept — fixing one (the dotted underline) without reconciling the other propagates the weaker one forward
-
-**What goes wrong:**
-SEED-044 targets `InlineProjectName` inside `estimate-document.tsx` for its underline fix and suggests extracting "shared inline editable text styles for project name, estimate number, dates, and future client field editing." But there is already a SECOND, more mature inline-rename component for what is conceptually the same field (project name) — `components/workspace/project-title.tsx`'s `ProjectTitle` — and the two have already drifted:
-
-| Behavior | `InlineProjectName` (estimate-document.tsx L1421-1467) | `ProjectTitle` (project-title.tsx) |
-|---|---|---|
-| Edit affordance discoverability | Dotted underline only, no icon | Always-visible Pencil icon on mobile, hover-revealed on desktop |
-| Escape to cancel | Yes | Yes |
-| Length validation | None | Yes (200 char max, empty check, with toast) |
-| Error handling on save failure | Silently closes edit mode either way (`finally` block) | Reverts draft but **keeps editing open** so the user can retry |
-| No-op detection (unchanged value) | Implicit (`trimmed === name` skips) | Explicit early-return with the same check |
-
-If the underline fix is applied to `InlineProjectName` in isolation (the narrow reading of the seed), the weaker implementation (no validation, no error-retry) ships polished-looking but behaviorally worse than the sibling component sitting one directory over — and if it's used as the template for the NEW Bill-To client editor (which SEED-044 also builds), the gap propagates to a third component.
-
-**Why it happens:**
-The two components were built at different times for slightly different contexts (project header vs. embedded document) and nobody has since unified them, because visually they look unrelated (one is a page `<h1>`, one is a document field). This milestone is the first time anyone is asked to think about "shared inline editable text styles" explicitly, which is exactly the moment this kind of quiet regression either gets fixed for good or gets baked in a third time.
-
-**How to avoid:**
-Before styling `InlineProjectName`'s underline, diff it against `ProjectTitle` for behavior (not just look) and decide once whether to extract a single shared inline-edit-text primitive (hook or component) both consume, carrying forward `ProjectTitle`'s validation + error-retry behavior. Build the new Bill-To client-edit affordance on top of that same shared primitive/pattern, not a third bespoke implementation.
-
-**Warning signs:**
-- The underline fix ships as a pure CSS/className change to `InlineProjectName` with no discussion of the behavioral gap above.
-- The new Bill-To editable-field affordance is built as yet another bespoke inline-edit implementation rather than reusing whatever came out of reconciling the first two.
-
-**Phase to address:**
-"Inline Edit Polish" phase (SEED-044 phase 2) — should explicitly scope in `ProjectTitle` as a comparison/consolidation target, not just `InlineProjectName` in isolation, per the seed's own decisions-to-lock item #1.
+Should be its own early phase (or a hard prerequisite gate before the end-customer-SMS and agentic-send phases) — this is exactly the kind of item that's cheap to get right in the schema/foundation phase and expensive (legal exposure, not just a bug) to retrofit later. **Severity: HIGH / legal.**
 
 ---
 
@@ -263,92 +250,94 @@ Before styling `InlineProjectName`'s underline, diff it against `ProjectTitle` f
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|-----------------|------------------|
-| Wire the new `presentation_settings` flags into the editor + modern share/PDF only, deferring the classic renderers ("modern" is the newer/preferred template) | Ships faster, covers the template most new estimates likely use | Any tenant on `estimate_template_style = 'classic'` (the fallback for unrecognized/legacy values per `estimate-view.tsx` L182-186) gets a client-visible mismatch between what the owner configured and what renders | Only acceptable if explicitly scoped out in the phase plan AND a visible warning/fallback exists in the editor when a classic-template company edits settings that won't apply |
-| Keep `estimate_deliveries.channel` logging only for the 3 existing values (email/sms/whatsapp) and skip logging `copy`/`open`/`download`/`manual` entirely for v1 | Avoids a migration in this milestone | Loses delivery-history/audit visibility for what the seed calls the "highest-value moment in Xtimator" — no data to answer "did the owner ever actually send this?" for link-copy-only flows | Acceptable ONLY if explicitly decided (SEED-042 decision #7) and documented, not silently dropped |
-| Generate `companySlug` once at company creation and never re-derive it when the company renames | Simpler, no link-breaking on rename | If slugs DO get regenerated on rename instead, every previously-shared friendly link 404s — a real regression the milestone must avoid | Never acceptable to silently regenerate; if renaming is supported, the slug must either stay stable or old slugs must keep resolving |
-| Ship the mobile item rewrite verified only via Playwright emulation (no real-device pass) | Faster, fully automatable | Playwright's touch emulation doesn't catch every real iOS Safari quirk (e.g. 100vh/safe-area, momentum scroll, native date/number keyboard behavior) that this project's own CLAUDE.md flags as a real constraint ("Audio recording and camera capture must work on iOS Safari and Android Chrome") | Acceptable for the visual-density work; NOT acceptable as the only verification for touch-target/interaction work given the project's known iOS Safari sensitivity (see also the iOS PWA session-cookie issue already on file for this project) |
+| Ship the DB template editor for email/SMS/in-app first, defer WhatsApp's structural `{{n}}` mismatch (Pitfall 3) to "later" | Faster v1 ship | WhatsApp stays on the static registry, or someone "generalizes" it without noticing the positional-vs-named mismatch and ships a silent garbled-message bug | Acceptable if explicitly scoped as a separate later phase, NOT if the same editor UI is reused unmodified for WhatsApp |
+| Reuse `manage-tools.ts`'s immediate-write pattern for agentic send instead of building a confirm-gate (Pitfall 8) | Less code, faster ship | Real cost-bearing sends to real external parties with no undo, no confirmation, higher fraud/injection exposure | Never acceptable for the send-to-end-customer tool |
+| Skip building end-customer STOP/opt-out infra for the first end-customer SMS rollout, relying on Twilio's registered-number-level filtering alone (Pitfall 10) | Ships faster | TCPA exposure is a per-sender legal obligation, not fully discharged by carrier-level filtering; also no app-level suppression means agentic-send could re-attempt indefinitely | Only acceptable for a very narrow, fixed-content, one-off transactional send (today's manual "send estimate link" SMS) — NOT acceptable once agentic/open-ended send ships |
+| Keep the Telegram bot outbound-only for v1, defer webhook/interactivity | Sidesteps the whole webhook-secret/polling/signature-verification problem set (Pitfall 7) | None if genuinely deferred — this is the recommended path, not a debt | Always acceptable; this is the RECOMMENDED default for v1 |
+| Let the super-admin template editor expose every `CopyContext` field as a variable for every event, rather than a per-event whitelist (Pitfall 5) | Simpler UI, less schema design | Reintroduces fixed business-rule regressions (CREDITUI-04-class bugs) and cross-audience data leaks | Never acceptable |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|-----------------|-------------------|
-| Supabase RLS (public estimate lookup) | Adding a new anon-readable RLS policy scoped by slug/company to make the friendly route "simpler" client-side | Keep ALL public estimate reads on `requireServiceClient()` with exact-match filtering (the pattern that replaced the exact policy this milestone must not reintroduce — see Pitfall 3) |
-| Stripe Checkout success/cancel redirect | Updating `success_url`/`cancel_url` construction in `lib/billing/connect-webhook.ts` to the new friendly format without confirming the new route still parses `?stripe=success`/`?stripe=canceled` | Explicitly re-run `tests/e2e/estimate-share-payment.spec.ts` (and `visual/share.spec.ts`) against whichever URL shape is live for a given estimate before considering the URL migration done |
-| WhatsApp / SMS estimate sends | Each of `lib/whatsapp/send-estimate.ts`, `lib/whatsapp/confirm-actions.ts`, and `app/api/estimates/[id]/send-sms/route.ts` builds its own share-link string inline — a new format change requires editing all three independently, and it's easy to update the visible Send UI paths while forgetting the WhatsApp confirm-flow (`confirm-actions.ts`), which is triggered from conversational flows, not the Send dialog | Route every share-URL construction through one shared builder function (see Pitfall 5) so a future format change is a one-file edit, not a grep-and-hope |
-| `estimate_deliveries` CHECK constraints | Assuming the existing `('email','sms','whatsapp')` CHECK already covers "channel" conceptually and building the new format×channel model on top without a migration | Follow the exact `DROP CONSTRAINT` / `ADD CONSTRAINT` precedent already used once in `20260526000005_phase81_whatsapp_delivery_channel.sql` |
+| Meta WhatsApp HSM templates | Treating the new template editor's variable list as freely reorderable/editable, same as email | Lock WhatsApp variable order/count to the Meta-approved template's `variables_schema`; any change requires re-approval in Meta Business Manager first |
+| Telegram Bot API | Reaching for `bot.startPolling()` inside a Next.js route/server with no persistent worker slot; or switching to MarkdownV2 for richer formatting without full escaping | Webhook + `secret_token` + Inngest dispatch (mirrors the existing WhatsApp webhook pattern); stay on `parse_mode: 'HTML'` with the existing `formatOpsMessage`-style escaping |
+| Twilio SMS (shared platform-level account) | Assuming the current single global `from_phone`/Account SID can absorb new, higher-volume, unpredictable agentic-send traffic without any carrier-registration or reputation review | Flag explicitly for A2P 10DLC/Messaging-Service review before agentic SMS ships; consider a dedicated `from_phone`/Messaging Service for this new traffic class, separate from the existing owner-notification SMS |
+| Resend email | Interpolating admin-authored template `{{var}}` placeholders into the final HTML string without escaping the *substituted values* | Reuse the existing `escapeHtml()` discipline from `notification-emails.ts` in the new generic template renderer, applied to values, not template text |
+| `platform_integrations` (encrypted credential store) | Copying the WhatsApp webhook precedent (`META_WHATSAPP_APP_SECRET` in env) for a new Telegram webhook secret | Any new secret — including webhook `secret_token`s, not just API keys — goes in `platform_integrations`, following `getTelegramConfig()`'s existing pattern, not the WhatsApp webhook's env-var precedent |
+| MCP send tool | Registering the agentic send tool with `readOnlyHint: true` (copy-pasted from the existing read-only query tools) or with no confirmation step at all | Explicitly non-read-only, with a confirmation/elicitation round-trip before the actual send fires |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|-----------------|
-| Friendly-URL lookup does 2 sequential queries (resolve company by slug, then estimate by slug within that company) instead of 1 indexed query | Public share page feels slightly slower than the current single `.eq('share_token', token)` lookup, more pronounced under load | Add a composite index on `(company_id, estimate_slug)` or equivalent, and consider denormalizing the resolved slug pair onto the estimate row so a single query resolves it, mirroring the existing single-query token lookup | Noticeable once share-page traffic exceeds a few requests/sec per instance; low risk at current ~18-tenant scale but worth avoiding by design since it's free to get right now |
-| `estimate_deliveries` gains high-frequency inserts for `copy`/`open` events if those are logged there | Table grows much faster than the email/SMS/WhatsApp send-attempt volume it was designed for; per-estimate delivery-history UI becomes noisy/slow | Keep lightweight client-side actions (copy, open-preview) out of the delivery-attempt table, or add an index/partition strategy if they must live there (see decision #7 in SEED-042) | Not urgent at current scale, but worth deciding deliberately rather than accidentally coupling analytics volume to a table with RLS policies designed for provider webhooks |
+| Fanning many per-event Telegram toggles into individual `sendMessage` calls with no batching | `429 Too Many Requests` from Telegram during incident bursts (exactly when alerting matters most) | Queue/backoff via Inngest (already the durable-job layer in this codebase) rather than calling `sendTelegramMessage` inline per event | A burst of more than ~1/sec to the same chat_id, or more than ~30/sec globally |
+| `sendPerMinute` rate limit (`lib/ratelimit.ts`, keyed on Supabase `claims.sub`) not applying to WhatsApp-agent-triggered or MCP-triggered sends (those channels have no `claims.sub`) | Agentic send from WhatsApp/MCP has no rate limit at all, unlike the web-app send-SMS route | Add a companyId-scoped (not user-session-scoped) rate limit specifically for the agentic-send tool, reusing `lib/ratelimit.ts`'s existing limit-config shape | As soon as the agentic-send tool ships without its own explicit rate-limit key |
+| Template-render cost: re-fetching/re-parsing a DB template row on every single `notify()` call instead of caching | Added DB round-trip latency on every notification fan-out (today `copy.ts` is a pure in-memory function call) | Apply the same 30s TTL in-memory cache pattern already used for `platform-config.ts` (`brandingCache`, `integrationCache`) to template rows | Noticeable once notification volume is meaningful; low risk at current scale but cheap to prevent now by following the existing cache convention |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Treating the new short public-token suffix as "just a nicer URL" rather than a bearer credential with the same sensitivity as `share_token` | Weak entropy or leaking the suffix in a log/analytics payload exposes the same PII (owner+client name/email/phone/address) the original `share_token` protects | Apply identical handling discipline: never log the full friendly URL server-side in a way that's broadly readable, never include it in a payload sent to third-party analytics, same TTL/expiry enforcement as `share_token` (Pitfall 6) |
-| Company-slug collisions resolved by silently appending a numeric suffix (`skale-club`, `skale-club-2`) without checking uniqueness is enforced at the DB level | Two companies could theoretically resolve to overlapping/ambiguous slugs under a race condition (two companies signing up simultaneously with the same name) | Enforce slug uniqueness with a DB-level unique constraint/index, not just application-level "check then insert" (TOCTOU race) |
-| Public estimate route (`app/estimate/...`) has no rate limiting today and the new friendly route inherits that as-is | A suffix-guessing/enumeration attack against the new format is only as hard as the suffix's raw entropy, since there's nothing slowing repeated attempts | Consider basic rate limiting (even coarse, e.g. per-IP) on the public estimate route as part of this milestone, since it now has a second, potentially-weaker-entropy lookup path alongside the UUID one |
+| Un-escaped `{{var}}` substitution into email HTML (Pitfall 4) | HTML injection in owner/admin inboxes; potential stored-XSS if a template preview ever renders unescaped in the admin panel itself | Shared, escaping-by-default `renderTemplate()` for HTML channels; separate plain renderer for SMS/Telegram |
+| Telegram webhook route (if built) with no `secret_token` verification | Anyone can POST fake "Telegram updates" to the endpoint, potentially triggering agent actions if it's ever wired to trigger anything beyond logging | `X-Telegram-Bot-Api-Secret-Token` header check against a DB-stored secret, mirroring the WhatsApp `x-hub-signature-256` pattern (but store the secret correctly this time — see Integration Gotchas) |
+| Recipient/amount for agentic send taken from LLM free text instead of DB records (Pitfall 9) | Prompt-injection-driven message to a wrong number/email, or a hallucinated dollar amount reaching a real customer | Resolve recipient from `clients` records, resolve amounts from `estimates`/`compute-totals.ts`; mismatch triggers explicit confirmation, not silent pass-through |
+| Template editor exposing internal/sensitive variables (real cost, internal IDs, stack traces) in a catalog shared across platform-admin and end-customer event types (Pitfall 5) | Data leak to a tenant or end customer via an incorrectly-scoped template edit | Per-event-type variable whitelist, never a global "any variable" picker |
+| Telegram bot token or webhook secret placed in an env var "for convenience" during implementation | Violates the project's standing rule (never env for provider credentials) and creates a second, inconsistent credential-storage pattern to maintain | All Telegram secrets — bot token AND any webhook secret — via `platform_integrations`, following the already-correct `getTelegramConfig()` precedent |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-------------------|
-| Gear settings panel shows the SAME toggle set as the existing `AddDetailsPopover` ("+Add Details") button, both visible in the UI at once | Owner doesn't know which control to use, or uses one and is confused the other doesn't reflect the change | Either merge them into one control or clearly differentiate "add content" (empty→filled) from "hide/show existing content" (the new settings panel) — see Pitfall 2 |
-| Format-first Send hub defaults change (Online Estimate first, replacing Email/SMS tabs) without migrating the "remembered last channel" expectation some owners have built habit around | Owners who always used Email now have to re-learn where their familiar action lives | SEED-042 itself asks this as decision #6 ("default to Online Estimate, or remember the user's last used format/channel") — resolve explicitly, don't let it default silently to "always Online Estimate" without checking whether that breaks an established owner habit |
-| Bill-To inline client editor and the floating-pill `LinkClientButton` both exist on the same estimate page after SEED-044 ships, doing overlapping things (both can change the linked client) from two different visual locations | Owner doesn't know if changing the client in one place also updates the other, or which is "the" way to do it now | Once the Bill-To block is editable, consider whether the floating-pill `Link Client` control becomes redundant for estimates that already have a client (vs. its real job today: initial linking on a client-less project) and scope its visibility accordingly |
+| No preview/test-send before saving a template edit that's instantly live for every tenant (platform-wide, no staging — a locked decision) | A typo'd `{{var}}` reference or a broken layout goes out to real customers on the very next triggered event | Require a live preview (rendered with sample data) + a "send test to myself" action in the super-admin template editor before save takes effect |
+| Agentic send confirming with a vague "OK, I'll send that" instead of echoing the resolved recipient + exact message body | Owner can't catch a wrong number/amount before an irreversible external send | Echo the fully-resolved recipient and message text in the confirmation turn (Pitfall 8/9) |
+| Telegram delivery failures swallowed silently by `notifyOps`'s catch-all with no visible health signal | An admin believes they're covered by Telegram alerts for weeks while the chat_id binding is actually broken (e.g., after a group→supergroup migration) | Surface last-successful-send timestamp / failure count for the Telegram channel in the admin panel |
+| Reusing the same variable name across audiences with different meaning (e.g. `{{amount}}` meaning "credits" for one event, "estimate total $" for another) confuses template authors | Wrong value substituted despite a "correct-looking" template | Event-scoped variable catalogs with clear, disambiguated names in the picker UI (ties to Pitfall 5) |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Settings panel toggle**: Often looks done after the editor preview updates — verify the SAME toggle change is reflected in the actual PDF download, the actual public share URL (both classic and modern templates), and the actual plain-text/WhatsApp message body, not just the in-app preview.
-- [ ] **Friendly URL**: Often looks done once the new route renders the estimate — verify `viewed_at`, `estimate_activity` view logging, and low-balance/notification email triggers (`notify_on_view`) still fire correctly when accessed via the friendly path, not just via the legacy token path.
-- [ ] **Old share links**: Often looks done because "the old page still exists" — verify links already sent to real clients weeks ago (pre-milestone `share_token` values, no `share_expires_at` set = legacy "never expires" per `20260606000003`'s own comment) still resolve after this milestone ships, including through a full deploy cycle.
-- [ ] **Client picker consolidation**: Often looks done once the 3 known call sites are updated — verify no 4th/5th caller was missed (this research found the undocumented `LinkClientInline`/`ClientSearchList` pair inside `estimate-document.tsx` that isn't named in the seed's own "Candidates to consolidate" list).
-- [ ] **Mobile line-item rewrite**: Often looks done from PR screenshots at a single convenient width — verify at 360px, 390px, AND 430px per the seed's own explicit requirement, plus a real iOS Safari and Android Chrome pass, not just Chrome DevTools device toolbar.
-- [ ] **estimate_deliveries analytics**: Often looks done because the Send Hub buttons all work in the UI — verify the DB actually accepts an insert for every new format/channel combination (no CHECK-constraint violations swallowed silently by a fire-and-forget pattern).
+- [ ] **DB-driven templates:** Often missing a seeded row for every existing `EventType` — verify a CI check fails if any `EventType` lacks a template row (Pitfall 1).
+- [ ] **Template fallback:** Often missing the "DB row null/malformed → fall back to hardcoded default" branch — verify by deleting a template row in a test environment and confirming `notify()` still degrades gracefully, never throws, never sends blank content (Pitfall 2).
+- [ ] **WhatsApp template editing:** Often looks generalized (same UI as email) but silently breaks positional `{{n}}` order — verify by editing a WhatsApp-mapped event's variable order and confirming the send either gets blocked (count/order guard) or is proven still correct against the actual Meta-approved template (Pitfall 3).
+- [ ] **End-customer SMS opt-out:** Often shipped as "we already handle TCPA" by reusing owner-scoped `notification_preferences` logic — verify there's an actual `clients`-scoped consent/suppression column AND an inbound Twilio webhook processing STOP/START before any end-customer SMS goes to a real number (Pitfall 10).
+- [ ] **Agentic send confirmation:** Often looks safe because "the LLM tool schema requires a phone number" — verify the phone number/email is cross-checked against the client record on file, not just whatever string the model produced (Pitfall 9).
+- [ ] **Telegram per-event toggles:** Often looks complete once the admin panel checkbox exists — verify a burst of several simultaneous events (e.g., a mass job-failure) doesn't 429 against Telegram's per-chat rate limit (Pitfall 7).
+- [ ] **Template HTML escaping:** Often looks fine in manual testing (normal names, no special characters) — verify with a client/project name containing `<`, `>`, `&`, or `"` that the rendered email doesn't break or inject (Pitfall 4).
+- [ ] **WhatsApp end-customer wall-off:** Often looks enforced because "we just don't build a WhatsApp option for customer templates" — verify the schema itself (a CHECK constraint or enum) makes it *impossible* to select WhatsApp as a channel for an end-customer-audience event type, not just an editor UI omission that a future change could bypass.
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|-----------------|------------------|
-| Settings drift shipped (PDF/plain-text ignore a toggle) | LOW | Since the underlying data (`presentation_settings`, section content) is still intact and non-destructive per Pitfall 2's fix, this is a pure rendering-logic bug — patch the missed renderer to call the shared resolver; no data recovery needed if Pitfall 2's non-destructive design was followed |
-| Friendly-URL RLS/anon-leak regression shipped | HIGH | Immediately drop/patch the offending policy (mirror the exact `DROP POLICY IF EXISTS` pattern from `20260606000002`), rotate/regenerate affected short-suffix tokens if any evidence of scraping exists, audit `estimate_activity`/access logs for anomalous view patterns across many estimates from one source |
-| Old share links broken by the URL migration | MEDIUM | Because `share_token` and `share_expires_at` are untouched columns (only the resolution path changes), recovery is a routing fix — restore the legacy token route's lookup path; no data loss since the token itself is never removed from the estimate row |
-| Client-picker consolidation dropped an inline-create capability a call site needed | LOW | Since `linkProjectToClient`/`unlinkProjectFromClient` already exist as stable server actions independent of the picker UI, re-adding a capability flag to the shared component is a UI-only fix, no data migration |
-| Mobile touch-target regression shipped (controls too small) | LOW | Pure CSS/hit-slop fix (`min-h-`/`min-w-` or padding) on the affected controls; no data or architecture change needed if Pitfall 10's separation of visual size vs. tap target wasn't followed initially |
+| Missing template row causes blank sends in prod (Pitfall 1/2) | LOW | Re-seed the missing row from the retained hardcoded `copy.ts` fallback; add the CI guard retroactively |
+| WhatsApp template variable mismatch sends garbled content (Pitfall 3) | MEDIUM | Immediately revert the WhatsApp event's variable mapping to the last-known-good `variables_schema`; audit recently sent messages for that event/template for wrong-content exposure; re-verify against Meta's actual approved template before re-enabling |
+| HTML injection shipped in a template (Pitfall 4) | LOW–MEDIUM | Patch the shared renderer to escape values; audit recently sent emails for injected content; no data-store fix needed since this is a render-time issue, not a stored-data issue |
+| Shared Twilio number gets carrier-throttled from agentic-send volume (Pitfall 6) | HIGH | Requires external Twilio/carrier remediation (support ticket, campaign re-registration), not just a code fix; may need to cut over to a new number/Messaging Service and coordinate with the other 5 apps sharing the account |
+| Telegram chat_id silently broken after a group→supergroup migration (Pitfall 7) | LOW | Re-fetch the correct chat_id from a fresh bot interaction and update `platform_integrations.telegram.metadata.chat_id` |
+| Agentic send fires to a wrong recipient (Pitfall 9) | HIGH (external, irreversible) | No code-only recovery — requires manual outreach/correction to the affected recipient and an audit-log review of what was sent; this is exactly why prevention (Pitfall 8/9) is non-negotiable rather than "acceptable risk" |
+| End-customer SMS sent after a STOP reply, no suppression list existed (Pitfall 10) | HIGH (legal) | Build the missing suppression infra immediately, backfill from Twilio's own opt-out records where available, and treat as a compliance incident requiring legal review, not just a bug fix |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|-------------------|----------------|
-| 1. Settings-drift across renderers | Renderer Application + Tests (SEED-041 ph.3) | Single shared visibility/settings resolver imported by all 5+ renderers; a test that toggles one setting and asserts identical section presence across editor, classic share, modern share, classic PDF, modern PDF, and plain-text output |
-| 2. Destructive vs. non-destructive hide collision | Settings Model + Persistence (SEED-041 ph.1) | Explicit decision recorded in plan; test that hiding a filled section preserves the underlying text in the DB and restores it on re-show |
-| 3. Anon RLS / slug-lookup PII leak | URL Contract + Data Model (SEED-042 ph.1) | No new anon-readable RLS policy added to `estimates`; negative test using an anon Supabase client attempting a slug-only read |
-| 4. Weak/guessable short suffix | URL Contract + Data Model (SEED-042 ph.1) | Suffix generation reviewed for entropy (≥60 bits, CSPRNG source); rate-limiting or existence-oracle mitigation considered |
-| 5. Scattered URL builders / Stripe redirect regression | URL Contract + Data Model → Delivery APIs + Templates (SEED-042 ph.1 & ph.3) | Grep for remaining literal `/estimate/${` constructions after the phase == near-zero; Stripe success/cancel e2e re-run against both URL shapes |
-| 6. View-logging/expiry silently broken on new route | URL Contract + Data Model (SEED-042 ph.1) | `logEstimateView`/`respondToEstimate`/`getShareLinkState` explicitly wired with the estimate's real `share_token`; test asserts `viewed_at` updates via a friendly-link open |
-| 7. Client-picker consolidation re-forks | Bill To Editing (SEED-044 ph.3) | Shared component with explicit capability props (`allowCreate`/`allowUnlink`/`trigger`); one shared test suite exercised from all call sites |
-| 8. `estimate_deliveries` schema can't hold new format×channel | Delivery APIs + Templates (SEED-042 ph.3) | Migration lands widening `channel` CHECK / adding `format` column before/alongside first UI action logging a new value; insert test for every planned combination |
-| 9. Mobile verified at wrong/single viewport | SEED-043's implementation phase | `tests/e2e/visual/_helpers.ts` viewports extended to 360/390/430; baselines captured and reviewed at all three plus desktop |
-| 10. Compact rewrite drops 44px touch targets | SEED-043's implementation phase | Computed tap-area check (≥44×44px) on every interactive control, independent of visual size, on a real device or Playwright touch-emulated device preset |
-| 11. Two diverged inline-rename implementations | Inline Edit Polish (SEED-044 ph.2) | `ProjectTitle` explicitly compared/reconciled with `InlineProjectName` before/alongside the underline fix; new Bill-To editor built on the reconciled pattern, not a third bespoke one |
+| 1. Lost exhaustiveness guard | Template schema/foundation phase | CI test diffing `EventType` union against seeded template rows |
+| 2. No missing-template fallback | Template schema/foundation phase (same as #1) | Delete a template row in test/staging; confirm `notify()` degrades gracefully |
+| 3. WhatsApp positional `{{n}}` mismatch | WhatsApp-specific template editor sub-phase (later than email/SMS/in-app) | Editing a WhatsApp event's variables triggers a count/order guard; cross-check against Meta's approved template |
+| 4. HTML injection via variable substitution | Template rendering engine phase | Test render with `<`, `>`, `&`, `"` in a variable value |
+| 5. Cross-audience data leak / locked-invariant regression | Template editor UI + schema design phase | `copy-tenant-neutrality`-style test re-pointed at DB source stays green in CI |
+| 6. Shared Twilio number reputation risk | End-customer SMS + agentic-send phase | Explicit owner/operator sign-off on A2P 10DLC scope before shipping; flagged as a human decision, not auto-resolved |
+| 7. Telegram webhook/polling/MarkdownV2 traps | Telegram-channel phase | Scope v1 as outbound-only explicitly; any future interactivity gets its own deeper-research phase |
+| 8. No confirmation gate for agentic send | Agentic-send phase | Manual test: agent proposes a send, confirms with full recipient+body echo, requires explicit yes before firing |
+| 9. Prompt-injection into recipient/amount | Agentic-send phase (same as #8) | Test: conversation contains a phone number NOT on the client record; system requires confirmation rather than silent send |
+| 10. No end-customer consent/opt-out infra | Early phase / hard prerequisite gate before end-customer SMS + agentic-send phases | Inbound Twilio webhook exists and processes STOP/START; `clients`-scoped suppression checked before every send |
 
 ## Sources
 
-- Direct codebase inspection (HIGH confidence, primary evidence for every pitfall above):
-  - `lib/queries/share.ts`, `app/estimate/[token]/page.tsx`, `app/estimate/[token]/actions.ts`, `lib/estimates/share-link.ts`, `lib/utils/share-link.ts`
-  - `supabase/migrations/20260606000002_drop_estimates_anon_select_policy.sql` (documents a real, previously-fixed PII-leak vulnerability on this exact table)
-  - `supabase/migrations/20260606000003_estimates_share_expires_at.sql`, `20260409000001_initial_schema.sql`, `20260519000003_estimate_deliveries.sql`, `20260526000005_phase81_whatsapp_delivery_channel.sql`
-  - `components/workspace/estimate/estimate-document.tsx`, `components/workspace/estimate/item-card-mobile.tsx`, `components/workspace/project-title.tsx`
-  - `components/share/estimate-document-modern.tsx`, `components/share/estimate-view.tsx`, `components/pdf/estimate-pdf-modern.tsx`, `components/pdf/estimate-pdf.tsx`
-  - `components/workspace/link-client-button.tsx`, `components/workspace/link-client-card.tsx`
-  - `lib/estimate/compute-totals.ts`, `lib/utils/estimate-template.ts`
-  - `lib/whatsapp/send-estimate.ts`, `lib/whatsapp/confirm-actions.ts`, `lib/billing/connect-webhook.ts`, `app/api/estimates/[id]/send-sms/route.ts`
-  - `tests/e2e/visual/_helpers.ts`, `tests/e2e/visual/share.spec.ts`, `tests/e2e/estimate-share-payment.spec.ts`
-- Project source of truth (HIGH confidence): `.planning/PROJECT.md` (v4.18 milestone section, prior-milestone retrocompat discipline e.g. v4.11/v4.13 byte-identical math precedent), `.planning/seeds/SEED-041..044-*.md`
+- Direct repository inspection (HIGH confidence, primary source for all project-specific findings): `lib/notifications/copy.ts`, `dispatch.ts`, `event-types.ts`, `preferences.ts`, `whatsapp-registry.ts`; `lib/telegram/client.ts`; `lib/observability/ops-alert.ts`; `lib/platform-config.ts`; `lib/sms/client.ts`; `lib/inngest/functions/notification-channel-send.ts`; `lib/email/notification-emails.ts`; `lib/whatsapp/confirm.ts`, `manage-tools.ts`, `confirm-actions.ts`; `app/api/mcp/route.ts`; `app/api/webhooks/whatsapp/route.ts`; `app/api/estimates/[id]/send-sms/route.ts`; `lib/ratelimit.ts`; `supabase/migrations/20260621000002_notification_opt_in_consent.sql`, `20260621000003_whatsapp_notification_templates.sql`; `tests/unit/notifications/copy-tenant-neutrality.test.ts`; `.planning/PROJECT.md` (milestone context + prior-milestone locked decisions, e.g. CREDITUI-04, D-15 WhatsApp-owner-only, GUARD-03 never-trust-LLM-math).
+- General domain knowledge (MEDIUM confidence — training-data-derived, not verified against fresh official docs this session; recommend a dedicated deeper-research pass before implementation): Meta WhatsApp Cloud API HSM template positional-parameter behavior; Telegram Bot API rate limits, MarkdownV2 reserved-character set, `secret_token` webhook verification; TCPA prior-express-consent distinctions for transactional vs. marketing SMS; A2P 10DLC campaign/use-case registration scope.
+- Project memory (user-provided, HIGH confidence): Twilio account shared across 6 apps/3 databases; migrations applied manually to prod, never by deploy; red CI blocks all deploys; provider credentials must never live in env vars, only encrypted `platform_integrations`.
 
 ---
-*Pitfalls research for: Xtimator v4.18 Estimate Document & Send Experience Refresh*
-*Researched: 2026-07-08*
+*Pitfalls research for: Xtimator v4.21 Notification Center*
+*Researched: 2026-07-21*
