@@ -2820,7 +2820,14 @@ Plans:
   3. A suppressed recipient can never be messaged by any path — manual or agentic — because an application-level suppression check runs before EVERY send, independent of carrier-level filtering (proven by a test asserting a STOP'd number is never dispatched)
   4. A platform-wide quiet-hours guard blocks end-customer SMS outside acceptable local hours
 
-**Plans**: TBD
+**Plans**: 5 plans in `.planning/phases/176-end-customer-consent-optout-quiet-hours/`
+Plans:
+
+- [ ] 176-01-PLAN.md — clients consent/suppression columns + client_message_events audit table migration + database.types.ts hand-add (CUST-03 schema foundation)
+- [ ] 176-02-PLAN.md — TDD: Twilio webhook HMAC-SHA1 signature verification + STOP/START/HELP keyword classification (CUST-03 primitives)
+- [ ] 176-03-PLAN.md — TDD: recipient-local-timezone derivation (state -> area code -> company state -> fail-closed) + 8am-8pm quiet-hours window check (CUST-04)
+- [ ] 176-04-PLAN.md — TDD: assertSendAllowed() pre-send gate composing suppression -> consent -> quiet-hours, the one function Phase 177/178 must call before every end-customer send (CUST-03, CUST-04)
+- [ ] 176-05-PLAN.md — Inbound Twilio webhook route (signature-verified, idempotent, sender-agnostic cross-company suppression fan-out, never drops an unresolved event) (CUST-03)
 **Operational/legal gate**: An explicit legal/operator decision on the TCPA consent basis (transactional vs. broadened agentic content), required disclosure language, quiet-hours policy, and the **Toll-Free vs A2P 10DLC registration** path for the end-customer sending number — flagged for human sign-off, not silent resolution. (Carrier-level Twilio Advanced Opt-Out rides the dedicated Messaging Service provisioned in Phase 177; the app-level suppression built here is self-contained and does not depend on it.)
 **Pitfalls addressed**: #10 (HIGH/legal — no end-customer consent/opt-out infra exists today; carrier filtering alone does not discharge the sender's own TCPA obligation)
 **Research flag**: **needs deeper research during planning** — TCPA consent basis, quiet-hours enforcement, and Toll-Free vs A2P 10DLC are legal/operator decisions research could not fully resolve
