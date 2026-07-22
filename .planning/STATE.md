@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.21
 milestone_name: Notification Center
-status: roadmap created
-stopped_at: Milestone v4.21 roadmap CREATED — 7 phases (172-178), 21/21 requirements mapped, 0 orphans. Next: /gsd:plan-phase 172 (172, 175, 176 are file-disjoint parallel starts).
-last_updated: "2026-07-21T12:00:00.000Z"
+status: executing
+stopped_at: Phase 172 EXECUTED (3/3 plans, awaiting Opus verification). Phase 175 wave 1 executing. Phases 173/174 planning. Phase 176 plans in post-check revision (SendPermit seam + consent-safe START + normalized phone matching adopted).
+last_updated: "2026-07-21T16:00:00.000Z"
 last_activity: 2026-07-21 - Milestone v4.21 Notification Center ROADMAP CREATED. 7 phases (172-178), 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Mapping - 172 Template Engine Foundation (TMPL-01/06/07); 173 Super-Admin Template Editor UI (TMPL-02/03/04/05); 174 Tenant Notification Cutover & WhatsApp Re-enable (TNT-01/02/03); 175 Telegram Platform-Event Catalog & Per-Event Toggles (PLAT-01/02/03); 176 End-Customer Consent/Opt-Out/Quiet Hours - HARD GATE (CUST-03/04); 177 End-Customer Email/SMS Send Path & Audit (CUST-01/02/05); 178 Agentic Send (AGENT-01/02/03). Dependency spine - template engine 172 is root for 173/174/177; consent gate 176 is a hard prerequisite before 177 and 178; agentic 178 depends on the real send path 177; Telegram 175 is a parallel track sharing no code; TNT-03 WhatsApp re-enable uses the existing HSM registry. Critical path 172 -> 176 -> 177 -> 178; parallel starts 172, 175, 176. Operational gates - Twilio Messaging Service provisioning (CUST-02, Phase 177), Meta HSM template approval (TNT-03, Phase 174). Next: /gsd:plan-phase 172.
 progress:
   total_phases: 7
