@@ -37,6 +37,8 @@ export type AuditAction =
   | 'whatsapp.sender.status'
   | 'whatsapp.sender.remove'
   | 'platform_event.toggle'
+  | 'notification_template.save'
+  | 'notification_template.test_send'
 
 interface LogParams {
   actorId: string
