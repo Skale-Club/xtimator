@@ -43,3 +43,14 @@ export {
   type CreateProjectInput,
   type CreateProjectResult,
 } from './create-project'
+
+export {
+  draftCustomerMessage,
+  confirmSendByChannelRef,
+  cancelSendByChannelRef,
+  confirmSendByToken,
+  type DraftSendParams,
+  type DraftSendResult,
+  type ConfirmSendResult,
+  type ClientMatch,
+} from './send-customer-message'
