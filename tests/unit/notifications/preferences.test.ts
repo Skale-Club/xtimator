@@ -185,3 +185,66 @@ describe('lib/notifications/preferences — 4 channels + opt-in gate (NOTIF-02 R
     expect(result.sms).toBe(false)
   })
 })
+
+/**
+ * Phase 174 plan 03 (TNT-03) — D-15 forced-off WhatsApp gate lifted.
+ *
+ * Prior to this plan, `resolveChannels` unconditionally forced
+ * `whatsapp = false` after the consent gate (Phase 142.1's D-15). This
+ * milestone's owner-confirmed decision reverses that: an opted-in tenant with
+ * the category toggle on should now get `whatsapp: true`. The pre-existing
+ * consent gate (`whatsapp_opt_in_at`) is untouched and remains the sole
+ * additional gate beyond the category preference.
+ */
+describe('lib/notifications/preferences — D-15 lifted, opt-in reaches resolveChannels (TNT-03)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('opted-in tenant with whatsapp category toggle on → whatsapp resolves true', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({
+        data: {
+          user_id: 'user_1',
+          categories: { billing: { in_app: true, email: true, sms: false, whatsapp: true } },
+          email_digest_enabled: true,
+          whatsapp_opt_in_at: '2026-01-01T00:00:00.000Z',
+        },
+        error: null,
+      }),
+    )
+    const result = await resolveChannels('payment.received', 'user_1') as unknown as Record<string, boolean>
+    expect(result.whatsapp).toBe(true)
+  })
+
+  it('non-opted-in tenant (whatsapp_opt_in_at: null) with category toggle on → whatsapp still resolves false', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({
+        data: {
+          user_id: 'user_1',
+          categories: { billing: { in_app: true, email: true, sms: false, whatsapp: true } },
+          email_digest_enabled: true,
+          whatsapp_opt_in_at: null,
+        },
+        error: null,
+      }),
+    )
+    const result = await resolveChannels('payment.received', 'user_1') as unknown as Record<string, boolean>
+    // Lifting D-15 must NOT bypass the pre-existing consent gate.
+    expect(result.whatsapp).toBe(false)
+  })
+
+  it('no stored prefs row at all → whatsapp still resolves false (DEFAULT_PREFERENCES default off)', async () => {
+    const { resolveChannels } = await import('@/lib/notifications/preferences')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makePrefsClient({ data: null, error: null }),
+    )
+    const result = await resolveChannels('payment.received', 'user_1') as unknown as Record<string, boolean>
+    expect(result.whatsapp).toBe(false)
+  })
+})

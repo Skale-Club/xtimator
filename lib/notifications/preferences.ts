@@ -20,11 +20,14 @@ import {
  *   4. WhatsApp/SMS consent gate → force whatsapp/sms=false unless an explicit
  *      per-channel opt-in timestamp is recorded (TCPA/cost defense — a toggle
  *      alone never sends a paid channel). The verified-phone gate lands in Wave 2.
- *   5. D-15: WhatsApp is always forced false — tenant cannot enable proactive
- *      WhatsApp dispatch regardless of stored preferences.
- *   6. `override` param (used by force-send events e.g. trial.expired)
+ *   5. `override` param (used by force-send events e.g. trial.expired)
  *
  * Best-effort: a DB read failure falls back to DEFAULT_PREFERENCES.
+ *
+ * History: Phase 142.1's D-15 forced `whatsapp = false` unconditionally here
+ * ("old preferences cannot continue proactive sends"). Phase 174 (TNT-03)
+ * lifts that override — the consent gate in step 4 above is now the sole gate
+ * on tenant WhatsApp beyond category preference; the D-15 line itself is gone.
  */
 
 export interface UserPrefs {
@@ -89,10 +92,6 @@ export async function resolveChannels(
   // before any WhatsApp/SMS send. (Verified-phone gating is added in Wave 2.)
   if (!userPrefs?.whatsapp_opt_in_at) whatsapp = false
   if (!userPrefs?.sms_opt_in_at) sms = false
-
-  // D-15: WhatsApp is always forced false for tenants — proactive WhatsApp
-  // dispatch is platform-managed only. Old preferences cannot continue sends.
-  whatsapp = false
 
   // Override wins absolutely (e.g. trial.expired forces email)
   if (override?.inApp !== undefined) inApp = override.inApp
