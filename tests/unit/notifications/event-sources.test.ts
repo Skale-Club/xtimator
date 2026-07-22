@@ -279,6 +279,12 @@ describe('payment.received instrumentation', () => {
     expect((params.metadata as { dedupe_key?: string } | undefined)?.dedupe_key).toBe('evt_stripe_abc')
     expect((params.channels as { email?: boolean } | undefined)?.email).toBe(true)
 
+    // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+    // buildNotificationCopy is also passed to notify()
+    expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.amountUSD).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.projectName).toBe('Roof Job')
+
     // Phase 175 (PLAT-01): additive platform-event sibling — a customer paying
     // a tenant via Stripe Connect fires tenant_payment_received.
     expect(notifyOps).toHaveBeenCalledWith(
@@ -354,6 +360,13 @@ describe('payment.received instrumentation', () => {
     const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
     const match = calls.find((c) => (c[0] as { eventType: string }).eventType === 'payment.received')
     expect(match).toBeDefined()
+
+    // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+    // buildNotificationCopy is also passed to notify()
+    const params = match![0] as Record<string, unknown>
+    expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.amountUSD).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.projectName).toBe('Bathroom remodel')
 
     expect(notifyOps).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'tenant_payment_received' })

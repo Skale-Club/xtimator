@@ -252,15 +252,15 @@ export async function notifyQuotaThresholds(
   try {
     // 80% threshold — fire only when crossing UP
     if (prevPct < 80 && newPct >= 80 && newPct < 100) {
-      const copy = buildNotificationCopy('quota.80pct', {
-        quotaPercent: Math.floor(newPct),
-      })
+      const ctx = { quotaPercent: Math.floor(newPct) }
+      const copy = buildNotificationCopy('quota.80pct', ctx)
       void notify({
         companyId,
         userId: userId ?? null,
         eventType: 'quota.80pct',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: '/settings/billing',
         metadata: { dedupe_key: `quota-80-${companyId}-${month}` },
       })
@@ -268,13 +268,15 @@ export async function notifyQuotaThresholds(
 
     // 100% threshold — force both channels (user must know)
     if (prevPct < 100 && newPct >= 100) {
-      const copy = buildNotificationCopy('quota.exhausted', {})
+      const ctx = {}
+      const copy = buildNotificationCopy('quota.exhausted', ctx)
       void notify({
         companyId,
         userId: userId ?? null,
         eventType: 'quota.exhausted',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: '/settings/billing',
         channels: { inApp: true, email: true },
         metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },

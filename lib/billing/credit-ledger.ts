@@ -194,13 +194,15 @@ export async function notifyLowCreditBalance(params: {
     // meter and the count meter can never DOUBLE-ping the owner in the same
     // month — whichever fires first wins (they mean the same thing to the user).
     if (previousBalance > 0 && newBalance <= 0) {
-      const copy = buildNotificationCopy('quota.exhausted', {})
+      const ctx = {}
+      const copy = buildNotificationCopy('quota.exhausted', ctx)
       void notify({
         companyId,
         userId: userId ?? null,
         eventType: 'quota.exhausted',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: '/settings/billing',
         channels: { inApp: true, email: true },
         metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },
@@ -219,13 +221,15 @@ export async function notifyLowCreditBalance(params: {
     // Same unified namespace as notifyQuotaThresholds' 80% ping (`quota-80-…`):
     // "you're running low" reaches the owner at most once per month regardless
     // of which meter (count or credit) crossed first.
-    const copy = buildNotificationCopy('quota.80pct', { quotaPercent: 0 })
+    const ctx = { quotaPercent: 0 }
+    const copy = buildNotificationCopy('quota.80pct', ctx)
     void notify({
       companyId,
       userId: userId ?? null,
       eventType: 'quota.80pct',
       title: copy.title,
       body: copy.body,
+      copyContext: ctx,
       linkUrl: '/settings/billing',
       metadata: { dedupe_key: `quota-80-${companyId}-${month}` },
     })

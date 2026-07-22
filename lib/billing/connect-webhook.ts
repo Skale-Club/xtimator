@@ -144,16 +144,18 @@ async function handleCheckoutSessionCompleted(
       typeof session.amount_total === 'number'
         ? formatMinorUnits(session.amount_total, updated.currency_code)
         : undefined
-    const copy = buildNotificationCopy('payment.received', {
+    const ctx = {
       amountUSD,
       projectName: project?.name ?? undefined,
-    })
+    }
+    const copy = buildNotificationCopy('payment.received', ctx)
     void notify({
       companyId: updated.company_id,
       userId: company?.user_id ?? null,
       eventType: 'payment.received',
       title: copy.title,
       body: copy.body,
+      copyContext: ctx,
       linkUrl: `/projects/${updated.project_id}/estimates/${updated.id}`,
       resourceType: 'estimate',
       resourceId: updated.id,
@@ -302,16 +304,18 @@ async function handleInvoicePaid(
       updated.amount_cents,
       updated.currency_code
     )
-    const copy = buildNotificationCopy('payment.received', {
+    const ctx = {
       amountUSD,
       projectName: updated.project_name ?? undefined,
-    })
+    }
+    const copy = buildNotificationCopy('payment.received', ctx)
     void notify({
       companyId: updated.company_id,
       userId: company?.user_id ?? null,
       eventType: 'payment.received',
       title: copy.title,
       body: copy.body,
+      copyContext: ctx,
       linkUrl: estimate?.project_id
         ? `/projects/${estimate.project_id}/estimates/${updated.estimate_id}`
         : undefined,
@@ -417,16 +421,18 @@ async function handleChargeRefunded(
       : undefined
 
   try {
-    const copy = buildNotificationCopy('payment.refunded', {
+    const ctx = {
       amountUSD,
       projectName: (project as { name?: string } | null)?.name ?? undefined,
-    })
+    }
+    const copy = buildNotificationCopy('payment.refunded', ctx)
     void notify({
       companyId: est.company_id,
       userId: (company as { user_id?: string | null } | null)?.user_id ?? null,
       eventType: 'payment.refunded',
       title: copy.title,
       body: copy.body,
+      copyContext: ctx,
       linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
       resourceType: 'estimate',
       resourceId: est.id,
