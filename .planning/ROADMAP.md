@@ -2788,7 +2788,16 @@ Plans:
   3. A tenant who has opted in to WhatsApp receives proactive WhatsApp notifications again (the forced-off gate is lifted), driven by approved HSM templates from the existing registry, respecting the tenant's opt-in preference
   4. A WhatsApp send whose resolved parameter count doesn't match the approved HSM template's `variables_schema` is refused (and logged) rather than delivered garbled
 
-**Plans**: TBD
+**Plans**: 7 plans in `.planning/phases/174-tenant-cutover-whatsapp-reenable/`
+
+Plans:
+- [ ] 174-01-PLAN.md — buildFullCopyContext: carry-forward-(a) sparse-ctx default enrichment, mirrors copy.ts exhaustively (TNT-01)
+- [ ] 174-02-PLAN.md — Email digest double-escape fix (carry-forward b): preEscaped flag on DigestEmailItem + buildDigestItem() prefers metadata.email_copy (TNT-01)
+- [ ] 174-03-PLAN.md — Lift D-15 forced-off WhatsApp gate + expectedVariableCount on NotificationTemplate (variables_schema-sourced) (TNT-02, TNT-03)
+- [ ] 174-04-PLAN.md — dispatch.ts wiring: per-channel copy resolution (in_app enrichment + email/sms) + metadata.email_copy stash + WhatsApp param-count guard (TNT-01, TNT-03)
+- [ ] 174-05-PLAN.md — Sweep lib/quota.ts + lib/billing/credit-ledger.ts + lib/billing/connect-webhook.ts onto copyContext (TNT-01)
+- [ ] 174-06-PLAN.md — Sweep the 3 AI-job Inngest functions onto copyContext (TNT-01)
+- [ ] 174-07-PLAN.md — Sweep lib/whatsapp/handler.ts + app/admin/billing/actions.ts + app/estimate/[token]/actions.ts onto copyContext — completes TNT-01
 **Operational gate**: WhatsApp HSM templates must be authored AND **APPROVED in Meta WhatsApp Manager** before TNT-03's proactive WhatsApp actually delivers (non-code, human/Meta-review-latency task).
 **Pitfalls addressed**: #3 (WhatsApp positional `{{n}}` mismatch — the runtime count/order guard on the send path; note WhatsApp body EDITING in the new editor stays deferred to FUT-01)
 **Research flag**: none — the call-site sweep is mechanical (each site already has `ctx` in scope)
