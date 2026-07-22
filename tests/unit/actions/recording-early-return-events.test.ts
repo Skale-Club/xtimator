@@ -80,6 +80,18 @@ function makeSupabaseMock(opts: { authed?: boolean } = {}) {
       if (table === 'projects') {
         return { update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) }
       }
+      if (table === 'companies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { tier: 'free' },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
       if (table === 'estimate_activity') {
         return { insert: vi.fn().mockResolvedValue({ error: null }) }
       }
