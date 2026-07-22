@@ -58,11 +58,11 @@ Each requirement maps to exactly one roadmap phase.
 
 ### WhatsApp Template Composer — Phase 179 extension (owner-requested 2026-07-22, pulls in FUT-01)
 
-- [ ] **TMPLCOMP-01**: Super-admin can compose a WhatsApp HSM template BODY in the panel with positional `{{n}}` variables, each position carrying a label + example value — one single ordered array drives the body text, Meta's `example.body_text`, and `variables_schema` (order-mismatch-by-construction impossible; research: Meta validates param COUNT at send time but never ORDER).
-- [ ] **TMPLCOMP-02**: Submit sends REAL components to Meta (BODY + mandatory `example.body_text`), with pre-submit validation mirroring Meta's auto-reject rules (sequential variables, no leading/trailing variable, char limits) so avoidable rejections are caught before the API call.
-- [ ] **TMPLCOMP-03**: Approval status is verifiable in-system — the existing webhook sync plus a "Check status now" button doing a direct Meta GET; the FULL status enum is handled (PAUSED/DISABLED/FLAGGED etc. resolve to non-approved states, never a silent lowercase fall-through).
-- [ ] **TMPLCOMP-04**: Super-admin can edit and resubmit a rejected (or approved) template in place via `POST /{template_id}` — rejection reason displayed in the panel.
-- [ ] **TMPLCOMP-05**: The event→template mapping writes the populated `variables_schema` so Phase 174's `expectedVariableCount` send guard is live end-to-end; `lib/actions/admin-whatsapp-templates.ts` gains its missing unit coverage (Wave 0 gap found by research).
+- [x] **TMPLCOMP-01**: Super-admin can compose a WhatsApp HSM template BODY in the panel with positional `{{n}}` variables, each position carrying a label + example value — one single ordered array drives the body text, Meta's `example.body_text`, and `variables_schema` (order-mismatch-by-construction impossible; research: Meta validates param COUNT at send time but never ORDER).
+- [x] **TMPLCOMP-02**: Submit sends REAL components to Meta (BODY + mandatory `example.body_text`), with pre-submit validation mirroring Meta's auto-reject rules (sequential variables, no leading/trailing variable, char limits) so avoidable rejections are caught before the API call.
+- [x] **TMPLCOMP-03**: Approval status is verifiable in-system — the existing webhook sync plus a "Check status now" button doing a direct Meta GET; the FULL status enum is handled (PAUSED/DISABLED/FLAGGED etc. resolve to non-approved states, never a silent lowercase fall-through).
+- [x] **TMPLCOMP-04**: Super-admin can edit and resubmit a rejected (or approved) template in place via `POST /{template_id}` — rejection reason displayed in the panel.
+- [x] **TMPLCOMP-05**: The event→template mapping writes the populated `variables_schema` so Phase 174's `expectedVariableCount` send guard is live end-to-end; `lib/actions/admin-whatsapp-templates.ts` gains its missing unit coverage (Wave 0 gap found by research).
 
 ## Future Requirements (deferred)
 
