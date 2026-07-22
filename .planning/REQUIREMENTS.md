@@ -1,46 +1,82 @@
-# Requirements: Xtimator — Milestone v4.20 Structured Photo Extraction
+# Requirements: Xtimator — Milestone v4.21 Notification Center
 
-**Defined:** 2026-07-17
+**Defined:** 2026-07-21
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Photo analysis produces typed, structured intelligence (measurements, surfaces, materials, damage) that reaches the estimator as data — the biggest estimate-quality lever for measurement-heavy trades (flooring, painting, roofing). Design source: [audits/v4.19-ESTIMATE-DEEP-AUDIT.md](audits/v4.19-ESTIMATE-DEEP-AUDIT.md) § E5 (FUT-02, deliberately deferred until v4.19 fixed the pipeline's foundation).
+**Milestone goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (Telegram), tenants (in-app/email/WhatsApp/SMS), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy. Research: [research/SUMMARY.md](research/SUMMARY.md) (+ STACK/FEATURES/ARCHITECTURE/PITFALLS).
 
-> **Locked decisions (resolved autonomously per the standing no-checkpoint-interruptions preference):**
-> - **Schema v1** (`PhotoExtraction`, versioned): `{ version: 1, surfaces: [{name, material, condition}], measurements: [{dimension: 'length'|'area'|'height'|'count', value, unit, subject, confidence: 'stated'|'estimated'}], materials: string[], damage: [{description, severity: 'minor'|'moderate'|'severe'}], trade_signals: string[], access_notes?: string, overall_description: string }`. `overall_description` is REQUIRED — it populates `ai_description` so every existing consumer (share, PDF, prompt fallback) renders unchanged.
-> - **Two-layer enforcement, mirroring estimates (GUARD-01 pattern):** provider tool schema is advisory; the authoritative gate is one zod schema (`safeParse`). Invalid output → fall back to the PROSE path for that photo (no retry storm; one structured attempt per photo). Truncation (finish_reason 'length') → same prose fallback via the 166-01 typed-error pattern.
-> - **Fallback ladder per photo:** structured (OpenRouter) → structured (Gemini functionDeclarations) → prose (existing analyzePhotoOR ladder). A photo NEVER fails analysis because structured extraction failed — PEXT never weakens the 168-01 skip-and-continue/coverage semantics.
-> - **Kill-switch:** env `PHOTO_STRUCTURED_EXTRACTION` (default ON; `off` reverts to the prose pipeline byte-identically). Env is the house-accepted config layer for v1 (precedent: ESTIMATE_TOTAL_CEILING_USD); admin-panel toggle is a follow-up.
-> - **Prompt serialization is a pure module** feeding the EXISTING `<photo_description>`/`sanitizeField` path — no new prompt-builder surface, no parallel unsanitized route. Prose-only photos (legacy or fallback) produce byte-identical prompt output to today.
-> - **max_tokens 700** for the structured call (audit § E5 sizing), temperature 0.3 (166-01 consistency), costContext threaded (167-02 pattern) with operationType 'vision' unchanged.
-> - **Refine-path photos stay prose** (ephemeral, never persisted — threading a schema there is cost without benefit). No re-analysis backfill of old photos in v1 (they keep prose; the serializer handles both shapes).
-> - **v4.19 photo-pipeline semantics are regression contracts:** chunked full coverage, `.is('ai_description', null)` re-analyze filter, per-photo step.run checkpointing (stable names), skip-and-continue, N-of-M counts in pipeline_events.metadata, caption folding, cross-tenant scoping. None may weaken.
+> **Locked decisions (owner-confirmed 2026-07-21):**
+> - **Telegram scope:** ALL platform events, each with a per-event toggle in the admin panel; select critical events carry a `locked` flag and always deliver. Outbound-only, HTML `parse_mode`, single admin chat (multi-admin binding deferred). Extends the EXISTING `lib/telegram/client.ts` + `notifyOps()` pipe — not a new integration.
+> - **Template editing is super-admin-only for v1** — NO tenant-level template overrides. Tenant identity flows through variables (`{{business_name}}` etc.) in global templates.
+> - **WhatsApp is reserved exclusively for owner↔Xtimator conversation.** End customers NEVER receive WhatsApp. Tenant proactive WhatsApp notifications ARE re-enabled this milestone via the EXISTING HSM registry (Meta-approved templates required — operational task); WhatsApp body editing in the new template editor is deferred (positional `{{n}}` mismatch).
+> - **Dedicated Twilio Messaging Service for end-customer SMS** — separate from the shared owner-notification number (which 6 apps share); Advanced Opt-Out handles STOP/START/HELP. Operational task: provision in Twilio Console, config via admin panel (`platform_integrations`, never env).
+> - **No templating library** — hand-rolled ~40-line `{{var}}` interpolator with per-channel output escaping (HTML-escape for email/Telegram, plain for SMS, sanitized ordered params for WhatsApp HSM). Handlebars rejected: helper-execution CVE surface against admin-editable DB templates.
+> - **Fallback discipline:** DB template → static built-in copy → never block a send (generalizes the proven `whatsapp-registry.ts` pattern). The resolver ships before or atomically with the editor.
+> - **Tenant-scoped `notify()` and platform-scoped `notifyOps()` remain parallel pipelines** — they never share a table.
+> - **Agentic send is confirmation-gated** (the `confirm.ts` state-machine pattern, NOT `manage-tools.ts` immediate-write) with injection-resistant recipient validation. Synchronous send (agent needs same-turn success/failure).
+> - **End-customer consent/STOP infra is a hard prerequisite gate** before any end-customer or agentic SMS ships — HIGH/legal severity per PITFALLS.md.
+> - **Model orchestration:** Fable orchestrates, Opus validates, Sonnet executes, Haiku does the simplest work.
 
 ## v1 Requirements
 
 Each requirement maps to exactly one roadmap phase.
 
-### Structured Photo Extraction
+### Platform Alerts — Telegram (PLAT)
 
-- [x] **PEXT-01**: Each analyzed photo gains a persisted structured extraction (`photos.ai_extraction` JSONB: surfaces, measurements with unit + confidence, materials, damage, trade signals) validated by one authoritative zod schema, with `ai_description` populated from `overall_description` so every existing consumer renders unchanged.
-- [x] **PEXT-02**: The generation prompt includes a compact structured block per extracted photo (measurements/materials/damage, sanitized through the existing sanitizeField path) — quantities reach the estimator as typed data; prose-only photos produce byte-identical prompt output to today.
-- [x] **PEXT-03**: A failed, invalid, or truncated structured call degrades to the prose pipeline for that photo with zero user-visible failure, and the env kill-switch reverts the whole feature to today's behavior — the v4.19 coverage/skip-and-continue/N-of-M semantics are provably intact either way.
-- [x] **PEXT-04**: Both providers (OpenRouter forced tool-call primary, Gemini functionDeclarations fallback) produce the same schema through the same zod gate — provider drift is locked by a parity test (the AIREL-03 lesson).
-- [x] **PEXT-05**: Structured calls carry the job's costContext and their real cost lands in ai_cost_events — the per-photo cost increase (~1.3-1.7×) is measurable, and photo_batch debits keep summing correctly.
+- [ ] **PLAT-01**: A typed platform-event catalog (tenant signup, payment received, job failure, quota exhaustion, critical platform errors) exists as a new union distinct from the tenant-scoped `EventType`, and every cataloged platform event routes through `notifyOps()` to Telegram.
+- [ ] **PLAT-02**: Super-admin can toggle each platform event's Telegram delivery on/off from the admin panel (per-event toggle matrix persisted in DB).
+- [ ] **PLAT-03**: Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix.
+
+### Template System (TMPL)
+
+- [ ] **TMPL-01**: A `notification_templates` table models event_type × channel × audience with subject/body containing `{{var}}` placeholders, seeded from the current hardcoded copy so day-one behavior is byte-equivalent.
+- [ ] **TMPL-02**: Super-admin can browse and edit every template (by audience, event, channel) from a Notification Center admin page.
+- [ ] **TMPL-03**: The editor shows the per-event variable catalog inline and renders a live preview with sample data before save.
+- [ ] **TMPL-04**: Saving a template with an unknown variable (not in that event's catalog) is rejected with a clear error — a template that would render `{{client_name}}` literally can never be activated.
+- [ ] **TMPL-05**: Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data from the editor.
+- [ ] **TMPL-06**: A fallback resolver renders the DB template when present and valid, and falls back to the built-in copy on any miss/parse error — a broken template NEVER blocks a send (proven by tests that corrupt a template and assert delivery).
+- [ ] **TMPL-07**: Template rendering escapes output per channel — HTML-escape for email/Telegram HTML, plain text for SMS, sanitized (newline-stripped) ordered params for WhatsApp HSM — closing the existing `sendWhatsAppTemplate()` sanitization gap.
+
+### Tenant Notifications (TNT)
+
+- [ ] **TNT-01**: All existing `notify()` call sites resolve their copy through the template resolver (callers pass a context object; `copy.ts` survives only as the fallback source).
+- [ ] **TNT-02**: The existing per-category channel preference matrix (in_app/email/whatsapp/sms) keeps working unchanged through the template cutover — proven by the existing preference tests staying green.
+- [ ] **TNT-03**: Tenant proactive WhatsApp notifications are re-enabled: the forced-off gate is lifted, approved HSM templates from the existing registry drive the whatsapp channel, and sends respect the tenant's opt-in preference. (Operational dependency: templates authored + APPROVED in Meta WhatsApp Manager.)
+
+### End-Customer Messaging (CUST)
+
+- [ ] **CUST-01**: The system can send a templated email to an end customer where the sender identity reads as the tenant's business (`{{business_name}} via Xtimator` friendly-from — honest, never deceptive).
+- [ ] **CUST-02**: The system can send a templated SMS to an end customer through a dedicated Twilio Messaging Service (separate from the shared owner-notification number), with the tenant's business name leading the body.
+- [ ] **CUST-03**: End-customer contact records carry consent/suppression state; STOP is honored (Twilio Advanced Opt-Out + a suppression check before EVERY send), and a suppressed recipient can never be messaged by any path — manual or agentic.
+- [ ] **CUST-04**: A platform-wide quiet-hours guard prevents end-customer SMS outside acceptable local hours.
+- [ ] **CUST-05**: Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`.
+
+### Agentic Send (AGENT)
+
+- [ ] **AGENT-01**: The owner can ask the WhatsApp assistant to send an SMS or email to one of their clients; the assistant drafts the message and requires explicit owner confirmation (confirm-gated state machine) before anything is sent.
+- [ ] **AGENT-02**: The same send capability is exposed as an MCP tool with the same confirmation and validation gates as the WhatsApp path.
+- [ ] **AGENT-03**: The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, recipient and body are re-validated server-side at send time (prompt-injection cannot redirect a message), and sends are rate-limited per company.
 
 ## Future Requirements (deferred)
 
-- **FUT-01**: Admin-panel toggle + per-tier gating for structured extraction (env-only in v1).
-- **FUT-02**: Re-analysis backfill of legacy prose-only photos.
-- **FUT-03**: Estimator-side quantity linking — map extraction measurements directly onto line-item quantity/unit suggestions (needs prompt-engineering iteration; v1 delivers the data, not the binding).
-- **FUT-04**: Structured extraction on the refine path.
+- **FUT-01**: WhatsApp HSM body editing in the template editor (positional `{{n}}` parameter model needs its own design pass + Meta API validation research).
+- **FUT-02**: Self-service Telegram chat binding via `/start` deep link (multi-admin registration).
+- **FUT-03**: Delivery-status dashboard (Resend/Twilio webhook ingestion surfaced in admin UI beyond the audit log).
+- **FUT-04**: Template version history / rollback.
+- **FUT-05**: Tenant-level template overrides (revisit only if variables can't express what tenants ask for).
+- **FUT-06**: Two-way end-customer reply threading (WhatsApp stays the only two-way channel by design).
+- **FUT-07**: Per-tenant sender reputation isolation (Twilio subaccounts / dedicated pools) — only if real deliverability degradation is observed.
+- **FUT-08**: Per-tenant configurable quiet hours.
 
 ## Out of Scope (this milestone)
 
-- **Any change to the estimate generation model/prompt beyond the photo-context serialization** — the estimator consumes richer context; its own instructions don't change.
-- **UI for browsing extractions** — the data serves generation; surfacing it in the photo grid is a product decision for later.
-- **The v4.19 operational deferrals** (prod migrations, audio-entitlement recalibration, UAT) — tracked in the v4.19 PROJECT.md entry, not blocked on this milestone.
+- **WhatsApp for end customers** — locked out; owner↔Xtimator conversation only.
+- **Visual drag-and-drop email builder** — plain editor + `{{var}}` insertion + preview is the v1 bar.
+- **Telegram MarkdownV2** — HTML `parse_mode` stays the single formatting convention.
+- **Inbound SMS/email routing** beyond Twilio's automatic STOP handling — no second inbox system.
+- **Marketing/bulk messaging** — end-customer sends are strictly transactional (narrower TCPA bar); campaign features are a different product decision.
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PEXT-01..05 | 171 | Complete |
+| (filled by roadmap) | | |
