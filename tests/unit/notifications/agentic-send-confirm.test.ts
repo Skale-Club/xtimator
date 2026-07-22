@@ -39,6 +39,7 @@ const mockRateLimit = vi.mocked(rateLimit)
 const mockIsRedisAvailable = vi.mocked(isRedisAvailable)
 
 afterEach(() => {
+  vi.clearAllMocks()
   vi.restoreAllMocks()
 })
 
