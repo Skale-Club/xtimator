@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getTwilioConfig, getBranding } from '@/lib/platform-config'
-import { sendSms } from '@/lib/sms/client'
+import { getTwilioCustomerMessagingConfig, getBranding } from '@/lib/platform-config'
+import { assertSendAllowed } from '@/lib/notifications/customer-send-gate'
+import { sendCustomerMessage } from '@/lib/notifications/customer-send'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
@@ -102,9 +103,61 @@ export async function POST(
       return NextResponse.json({ error: 'SMS delivery is not enabled for this company' }, { status: 403 })
     }
 
-    // Load Twilio config
-    const twilio = await getTwilioConfig()
-    if (!twilio) {
+    const svc = requireServiceClient()
+
+    // Phase 177 (CUST-02): resolve the estimate's linked client -- the gate
+    // and the dedicated Messaging Service send are both keyed to a specific
+    // client's consent state, so an unlinked estimate cannot be SMS'd.
+    const { data: project } = await supabase
+      .from('projects')
+      .select('client_id')
+      .eq('id', estimate.project_id)
+      .single()
+
+    if (!project?.client_id) {
+      return NextResponse.json(
+        { error: 'This estimate has no linked client. SMS consent cannot be verified.' },
+        { status: 400 }
+      )
+    }
+
+    const { data: clientRow } = await svc
+      .from('clients')
+      .select('phone_normalized')
+      .eq('id', project.client_id)
+      .eq('company_id', estimate.company_id)
+      .maybeSingle()
+
+    // Phase 177 (CUST-02): the request's destination must match the linked
+    // client's on-file number -- closes the arbitrary-`to` bypass where a
+    // caller could target any number regardless of whose consent was checked.
+    const toLast10 = to.replace(/\D/g, '').slice(-10)
+    if (!clientRow?.phone_normalized || clientRow.phone_normalized !== toLast10) {
+      return NextResponse.json(
+        { error: "The destination number doesn't match this client's number on file." },
+        { status: 400 }
+      )
+    }
+
+    const gateResult = await assertSendAllowed(estimate.company_id, project.client_id, 'sms')
+    if (!gateResult.allowed || !gateResult.permit) {
+      const messages: Record<string, string> = {
+        suppressed: 'This client has opted out of SMS.',
+        no_consent: 'SMS consent has not been recorded for this client.',
+        quiet_hours: "Outside allowed SMS hours for this client's local time. Try again later.",
+        unresolvable_timezone: "Cannot verify SMS quiet hours for this client's location.",
+        client_not_found: 'Client not found.',
+      }
+      return NextResponse.json(
+        { error: messages[gateResult.reason ?? ''] ?? 'This SMS cannot be sent right now.' },
+        { status: 403 }
+      )
+    }
+
+    // Load the dedicated end-customer Messaging Service config -- separate
+    // from the shared owner-notification Twilio config used elsewhere.
+    const twilioCustomer = await getTwilioCustomerMessagingConfig()
+    if (!twilioCustomer) {
       return NextResponse.json(
         { error: "SMS delivery isn't configured. Contact your platform administrator." },
         { status: 503 }
@@ -119,15 +172,19 @@ export async function POST(
       { id: estimate.id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token }
     )}`
 
-    const smsBody = message?.trim() ||
-      `${company.name} sent you an estimate. Review and approve it here: ${shareUrl}`
+    // Dispatch via the gated, dedicated-Messaging-Service customer send path.
+    const sendResult = await sendCustomerMessage({
+      permit: gateResult.permit,
+      companyId: estimate.company_id,
+      clientId: project.client_id,
+      businessName: company.name,
+      triggerSource: 'manual',
+      ...(message?.trim()
+        ? { freeform: { body: message.trim() } }
+        : { template: { eventType: 'estimate.sent' as const, vars: { businessName: company.name, shareUrl } } }),
+    })
 
-    // Send via the shared Twilio REST primitive (never-throw, returns ok/sid/error).
-    const result = await sendSms(to, smsBody)
-
-    const svc = requireServiceClient()
-
-    if (!result.ok) {
+    if (!sendResult.ok) {
       // Log failed delivery
       await svc.from('estimate_deliveries').insert({
         estimate_id: estimate.id,
@@ -137,7 +194,7 @@ export async function POST(
         recipient_phone: to,
         provider: 'twilio',
         status: 'failed',
-        error_message: result.error ?? 'Twilio error',
+        error_message: sendResult.error ?? 'Send failed',
       })
 
       return NextResponse.json(
@@ -154,7 +211,7 @@ export async function POST(
       format: format,
       recipient_phone: to,
       provider: 'twilio',
-      provider_message_id: result.sid ?? null,
+      provider_message_id: sendResult.providerMessageId ?? null,
       status: 'sent',
       sent_at: new Date().toISOString(),
     })
@@ -181,7 +238,7 @@ export async function POST(
       metadata: { channel: 'sms', to },
     })
 
-    return NextResponse.json({ success: true, sid: result.sid })
+    return NextResponse.json({ success: true, sid: sendResult.providerMessageId })
   } catch (error) {
     console.error('Send SMS error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
