@@ -1484,6 +1484,51 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_templates: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          event_type: string
+          id: string
+          is_active: boolean
+          scope: string
+          subject: string | null
+          title: string | null
+          updated_at: string
+          updated_by: string | null
+          variables: Json
+        }
+        Insert: {
+          body: string
+          channel: string
+          created_at?: string
+          event_type: string
+          id?: string
+          is_active?: boolean
+          scope: string
+          subject?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          is_active?: boolean
+          scope?: string
+          subject?: string | null
+          title?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          variables?: Json
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           body: string
