@@ -66,10 +66,11 @@ export async function forceTier(
   // Phase 77 NOTIF-04: admin.tier_changed with force channels — owner must
   // know their tier was changed by support / admin.
   try {
-    const copy = buildNotificationCopy('admin.tier_changed', {
+    const ctx = {
       tierFrom: previous?.tier ?? 'unknown',
       tierTo: tier,
-    })
+    }
+    const copy = buildNotificationCopy('admin.tier_changed', ctx)
     void notify({
       companyId,
       userId: previous?.user_id ?? null,
@@ -79,6 +80,7 @@ export async function forceTier(
       linkUrl: '/settings/billing',
       channels: { inApp: true, email: true },
       metadata: { dedupe_key: `admin-tier-${companyId}-${Date.now()}` },
+      copyContext: ctx,
     })
   } catch {
     /* best-effort */
@@ -141,9 +143,10 @@ export async function grantBonusCredits(
       .eq('id', companyId)
       .single()
     const ownerUserId = (ownerRow as { user_id?: string | null } | null)?.user_id ?? null
-    const copy = buildNotificationCopy('admin.bonus_credits_granted', {
+    const ctx = {
       credits: units,
-    })
+    }
+    const copy = buildNotificationCopy('admin.bonus_credits_granted', ctx)
     void notify({
       companyId,
       userId: ownerUserId,
@@ -153,6 +156,7 @@ export async function grantBonusCredits(
       linkUrl: '/settings/billing',
       channels: { inApp: true, email: true },
       metadata: { dedupe_key: `admin-bonus-${companyId}-${Date.now()}` },
+      copyContext: ctx,
     })
   } catch {
     /* best-effort */

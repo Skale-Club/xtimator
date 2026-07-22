@@ -472,6 +472,12 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
     const params = match![0] as Record<string, unknown>
     expect((params.channels as { email?: boolean } | undefined)?.email).toBe(true)
 
+    // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+    // buildNotificationCopy is also passed to notify()
+    expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.tierFrom).toBe('free')
+    expect((params.copyContext as Record<string, unknown> | undefined)?.tierTo).toBe('pro')
+
     vi.doUnmock('@/lib/auth/admin-context')
     vi.doUnmock('@/lib/admin/audit-log')
     vi.doUnmock('@/lib/supabase/service')
@@ -510,6 +516,12 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
       (c) => (c[0] as { eventType: string }).eventType === 'admin.bonus_credits_granted'
     )
     expect(match).toBeDefined()
+
+    // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+    // buildNotificationCopy is also passed to notify()
+    const params = match![0] as Record<string, unknown>
+    expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.credits).toBe(5)
 
     vi.doUnmock('@/lib/auth/admin-context')
     vi.doUnmock('@/lib/admin/audit-log')

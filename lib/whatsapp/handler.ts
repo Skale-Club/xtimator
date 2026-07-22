@@ -440,9 +440,10 @@ export async function processInboundMessages(
   try {
     const { notify } = await import('@/lib/notifications/dispatch')
     const { buildNotificationCopy } = await import('@/lib/notifications/copy')
-    const copy = buildNotificationCopy('whatsapp.inbound', {
+    const ctx = {
       whatsappFrom: ownerPhone,
-    })
+    }
+    const copy = buildNotificationCopy('whatsapp.inbound', ctx)
     const { data: companyOwner } = await supabase
       .from('companies')
       .select('user_id')
@@ -458,6 +459,7 @@ export async function processInboundMessages(
       resourceType: 'whatsapp_message',
       resourceId: lastMessageId,
       metadata: { dedupe_key: `wa-${lastMessageId}` },
+      copyContext: ctx,
     })
   } catch {
     /* best-effort */
