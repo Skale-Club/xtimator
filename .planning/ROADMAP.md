@@ -2768,7 +2768,11 @@ Plans:
   4. Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data directly from the editor
   5. The locked tenant-neutrality invariant holds through the DB era (e.g., the `admin.bonus_credits_granted` event never exposes a raw credit-count variable) — proven by the `copy-tenant-neutrality` regression test re-pointed at the DB seed/default staying green
 
-**Plans**: TBD
+**Plans**: 2 plans in `.planning/phases/173-super-admin-template-editor/`
+
+Plans:
+- [ ] 173-01-PLAN.md — Data + validation layer: per-event sample-data fixtures, client-safe variable catalog, the unknown-variable rejection gate (TMPL-04, re-points CREDITUI-04 at the DB era), and requireAdmin-gated server actions (list/save/test-send) (TMPL-02, TMPL-04, TMPL-05)
+- [ ] 173-02-PLAN.md — Notification Center UI: /admin/notifications browse-by-audience/event/channel page, the editor (variable chips + live preview + save + 3-target test-send), sidebar nav entry (TMPL-02, TMPL-03, TMPL-04, TMPL-05)
 **Pitfalls addressed**: #5 (cross-audience data leak / CREDITUI-04-class regression — event-scoped variable whitelist, not a global picker; every save is an instant platform-wide production change so preview + test-send are load-bearing)
 **Research flag**: none — direct reuse of the shipped admin-whatsapp-templates CRUD pattern (skip `/gsd:research-phase`)
 **UI hint**: yes
