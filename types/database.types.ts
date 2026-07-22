@@ -840,6 +840,81 @@ export type Database = {
           },
         ]
       }
+      customer_messages: {
+        Row: {
+          body: string
+          channel: string
+          client_id: string | null
+          company_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          is_template: boolean
+          provider: string
+          provider_message_id: string | null
+          recipient_email: string | null
+          recipient_phone: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_event_type: string | null
+          trigger_source: string
+        }
+        Insert: {
+          body: string
+          channel: string
+          client_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_template?: boolean
+          provider: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status: string
+          subject?: string | null
+          template_event_type?: string | null
+          trigger_source: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          client_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          is_template?: boolean
+          provider?: string
+          provider_message_id?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_event_type?: string | null
+          trigger_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_messages_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_config: {
         Row: {
           company_id: string | null

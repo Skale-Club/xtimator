@@ -322,6 +322,46 @@ export async function getTwilioConfig(): Promise<TwilioConfig> {
   return { accountSid, authToken, fromPhone }
 }
 
+export type TwilioCustomerMessagingConfig = {
+  accountSid: string
+  authToken: string
+  messagingServiceSid: string
+} | null
+
+/**
+ * Read the DEDICATED Twilio Messaging Service used for end-customer SMS
+ * (CUST-02). Deliberately separate from `getTwilioConfig()`'s `fromPhone`:
+ * end-customer traffic must never ride the shared owner-notification number
+ * that 6 apps already share (a single reported number keeps carrier
+ * reputation blast-radius contained to end-customer SMS only). Reads the
+ * SAME encrypted 'twilio' key (accountSid/authToken) but a DIFFERENT
+ * metadata field, `metadata.customer_messaging_service_sid`. Returns null
+ * — never `fromPhone` or any other identity — when the SID is unset, so
+ * callers refuse to send rather than silently rerouting onto the shared number.
+ */
+export async function getTwilioCustomerMessagingConfig(): Promise<TwilioCustomerMessagingConfig> {
+  const key = await getIntegrationKey('twilio')
+  if (!key) return null
+
+  const [accountSid, authToken] = key.split(':')
+  if (!accountSid || !authToken) return null
+
+  const svc = createServiceClient()
+  if (!svc) return null
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'twilio')
+    .maybeSingle()
+
+  const messagingServiceSid =
+    (data?.metadata as { customer_messaging_service_sid?: string } | null)
+      ?.customer_messaging_service_sid ?? ''
+  if (!messagingServiceSid) return null
+
+  return { accountSid, authToken, messagingServiceSid }
+}
+
 export type XphereConfig = { apiKey: string; baseUrl: string } | null
 
 /**
