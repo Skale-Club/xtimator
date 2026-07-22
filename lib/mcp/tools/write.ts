@@ -31,7 +31,10 @@ import {
   createProject,
   createPriceBookService,
   addCompanyKnowledge,
+  draftCustomerMessage,
+  confirmSendByToken,
 } from '@/lib/agent-tools'
+import { explainSendGateRefusal } from '@/lib/notifications/agentic-send-confirm'
 import {
   insufficientScope,
   invalidInput,
@@ -170,6 +173,59 @@ const ADD_KNOWLEDGE_DEFINITION = {
   annotations: { ...WRITE_ANNOTATIONS, title: 'Add knowledge' },
 } as const
 
+const DRAFT_CUSTOMER_MESSAGE_DEFINITION = {
+  name: 'draft_customer_message',
+  description:
+    'Step 1 of 2 for texting or emailing a customer. Resolves the client by name, rate-limits, and returns a PREVIEW (the exact recipient + body that would be sent) plus a confirmation_token. This never sends anything. Show the preview to the owner for review, then call send_customer_message with the returned confirmation_token to actually send.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      client_name: {
+        type: 'string',
+        description: 'The customer/client name to look up, e.g. "Jane Smith". Matched against the active company\'s clients.',
+        minLength: 1,
+        maxLength: 200,
+      },
+      channel: {
+        type: 'string',
+        enum: ['sms', 'email'],
+        description: 'How to reach the customer — sms or email.',
+      },
+      body: {
+        type: 'string',
+        description: 'The message body to send (1-2000 chars).',
+        minLength: 1,
+        maxLength: 2000,
+      },
+      subject: {
+        type: 'string',
+        description: 'Optional email subject (ignored for sms).',
+        maxLength: 200,
+      },
+    },
+    required: ['client_name', 'channel', 'body'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Draft customer message' },
+} as const
+
+const SEND_CUSTOMER_MESSAGE_DEFINITION = {
+  name: 'send_customer_message',
+  description:
+    'Step 2 of 2 for texting or emailing a customer. Sends the EXACT message previously previewed by draft_customer_message, identified solely by the confirmation_token it returned. There is no way to change the recipient, channel, or body at this step — only call this after the owner has reviewed and approved the draft_customer_message preview.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      confirmation_token: {
+        type: 'string',
+        description: 'The confirmation_token returned by draft_customer_message.',
+        minLength: 1,
+      },
+    },
+    required: ['confirmation_token'],
+  },
+  annotations: { ...WRITE_ANNOTATIONS, title: 'Send customer message' },
+} as const
+
 const CHECK_JOB_STATUS_DEFINITION = {
   name: 'check_job_status',
   description:
@@ -215,6 +271,17 @@ const addKnowledgeInput = z.object({
 
 const checkJobStatusInput = z.object({
   job_id: z.string().min(1),
+})
+
+const draftCustomerMessageInput = z.object({
+  client_name: z.string().min(1).max(200),
+  channel: z.enum(['sms', 'email']),
+  body: z.string().min(1).max(2000),
+  subject: z.string().max(200).optional(),
+})
+
+const sendCustomerMessageInput = z.object({
+  confirmation_token: z.string().min(1),
 })
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -380,6 +447,79 @@ async function handleAddKnowledge(
   })
 }
 
+// ── draft_customer_message / send_customer_message ──────────────────────────
+//
+// Phase 178 Plan 04 (AGENT-02/03) — the MCP adaptation of the neutral
+// draft/confirm capability (178-02, lib/agent-tools/send-customer-message.ts).
+// A two-call "propose then commit" pair takes the place of an MCP
+// elicitation primitive: draft_customer_message returns a byte-exact
+// preview + an opaque confirmation_token; send_customer_message's schema
+// accepts ONLY that token — no recipient/channel/body field exists on it,
+// so a prompt-injected second turn has no field to redirect a send through.
+// auth.company_id (the trusted OAuth tenant) scopes both calls; never an
+// LLM-suppliable company id.
+
+async function handleDraftCustomerMessage(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(draftCustomerMessageInput, args)
+  const supabase = requireServiceClient()
+  const result = await draftCustomerMessage(supabase, {
+    companyId: auth.company_id,
+    clientQuery: input.client_name,
+    channel: input.channel,
+    body: input.body,
+    ...(input.subject ? { subject: input.subject } : {}),
+    triggerSource: 'agentic-mcp',
+  })
+
+  if (!result.ok) {
+    const msg =
+      result.error === 'client_ambiguous'
+        ? `Multiple clients match "${input.client_name}": ${result.candidates?.join(', ')}. Ask which one, then retry with an exact name.`
+        : {
+            client_not_found: `No client found matching "${input.client_name}".`,
+            no_recipient_email: `${input.client_name} has no email on file.`,
+            no_recipient_phone: `${input.client_name} has no phone on file.`,
+            rate_limited: 'Daily agentic-send limit reached for this company — try again tomorrow.',
+          }[result.error]
+    throw invalidInput(msg ?? 'Could not prepare that message.')
+  }
+
+  return jsonContent({
+    confirmation_token: result.token,
+    client_name: result.clientName,
+    recipient: result.recipient,
+    channel: result.channel,
+    subject: result.subject,
+    body: result.body,
+    message:
+      'Review this preview with the user, then call send_customer_message with confirmation_token to actually send.',
+  })
+}
+
+async function handleSendCustomerMessage(
+  auth: McpAuthContext,
+  args: unknown,
+): Promise<ToolResult> {
+  ensureScope(auth, 'mcp:write')
+  const input = parseInput(sendCustomerMessageInput, args)
+  const supabase = requireServiceClient()
+  const result = await confirmSendByToken(supabase, auth.company_id, input.confirmation_token)
+
+  if (!result.ok) {
+    const msg =
+      result.error === 'not_found'
+        ? 'This confirmation has expired or was already used — draft the message again.'
+        : explainSendGateRefusal(result.error)
+    throw invalidInput(msg)
+  }
+
+  return jsonContent({ ok: true, message: 'Sent.' })
+}
+
 // ── check_job_status ─────────────────────────────────────────────────────────
 
 const INNGEST_CLOUD_API = 'https://api.inngest.com/v1'
@@ -492,6 +632,8 @@ const TOOL_DEFINITIONS = [
   CREATE_PROJECT_DEFINITION,
   ADD_SERVICE_DEFINITION,
   ADD_KNOWLEDGE_DEFINITION,
+  DRAFT_CUSTOMER_MESSAGE_DEFINITION,
+  SEND_CUSTOMER_MESSAGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
 ] as const
 
@@ -519,6 +661,14 @@ export function buildWriteTools(auth: McpAuthContext): ToolDefinitionEntry[] {
       handler: (args) => handleAddKnowledge(auth, args),
     },
     {
+      definition: DRAFT_CUSTOMER_MESSAGE_DEFINITION,
+      handler: (args) => handleDraftCustomerMessage(auth, args),
+    },
+    {
+      definition: SEND_CUSTOMER_MESSAGE_DEFINITION,
+      handler: (args) => handleSendCustomerMessage(auth, args),
+    },
+    {
       definition: CHECK_JOB_STATUS_DEFINITION,
       handler: (args) => handleCheckJobStatus(auth, args),
     },
@@ -533,16 +683,22 @@ export const __testing = {
   CREATE_PROJECT_DEFINITION,
   ADD_SERVICE_DEFINITION,
   ADD_KNOWLEDGE_DEFINITION,
+  DRAFT_CUSTOMER_MESSAGE_DEFINITION,
+  SEND_CUSTOMER_MESSAGE_DEFINITION,
   CHECK_JOB_STATUS_DEFINITION,
   handleCreateEstimate,
   handleCreateProject,
   handleAddService,
   handleAddKnowledge,
+  handleDraftCustomerMessage,
+  handleSendCustomerMessage,
   handleCheckJobStatus,
   createEstimateInput,
   createProjectInput,
   addServiceInput,
   addKnowledgeInput,
+  draftCustomerMessageInput,
+  sendCustomerMessageInput,
   checkJobStatusInput,
   normalizeStatus,
   extractEstimateId,
