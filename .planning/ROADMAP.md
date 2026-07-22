@@ -2800,11 +2800,12 @@ Plans:
   3. Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix
   4. Turning an event off stops its Telegram message while Sentry still records it unconditionally (the toggle gates Telegram only, never the technical record)
 
-**Plans**: 2 plans in `.planning/phases/175-telegram-platform-events-toggles/`
+**Plans**: 3 plans in `.planning/phases/175-telegram-platform-events-toggles/`
 Plans:
 
-- [ ] 175-01-PLAN.md — Platform-event catalog (9-kind union) + platform_notification_preferences migration + isTelegramAlertEnabled() toggle gate wired into notifyOps() (PLAT-01, PLAT-03)
-- [ ] 175-02-PLAN.md — Sibling notifyOps() calls at tenant_signup/tenant_payment_received/tenant_quota_exhausted + admin per-event Telegram toggle matrix UI (PLAT-01, PLAT-02)
+- [ ] 175-01-PLAN.md — Platform-event catalog (10-kind union, incl. distinct tenant_payment_received/subscription_payment_received) + platform_notification_preferences migration (20260721000002 — renumbered off the Phase-172 collision) + isTelegramAlertEnabled() toggle gate wired into notifyOps() (PLAT-01, PLAT-03)
+- [ ] 175-02-PLAN.md — Sibling notifyOps() calls at tenant_signup/tenant_payment_received (Connect)/subscription_payment_received (platform)/tenant_quota_exhausted + revives notifyQuotaThresholds() into the live generate-estimate.ts usage path (dead since Phase 77) (PLAT-01)
+- [ ] 175-03-PLAN.md — Admin per-event Telegram toggle matrix UI in /admin/integrations, parallel with 175-02 (PLAT-02)
 **Pitfalls addressed**: #7 (Telegram two-way/serverless/MarkdownV2 traps — scope explicitly outbound-only, stay on `parse_mode: 'HTML'` with `formatOpsMessage` escaping, no polling/webhook; keep the single-chat model; add lightweight rate-limit/backoff so an incident burst doesn't 429 against the per-chat limit; any new Telegram secret goes in `platform_integrations`, never env)
 **Research flag**: none for v1 outbound-only scope — any future two-way interactivity is a separate deeper-research phase
 **UI hint**: yes
