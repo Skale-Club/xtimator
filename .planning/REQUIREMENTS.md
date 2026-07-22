@@ -108,3 +108,8 @@ Each requirement maps to exactly one roadmap phase.
 | AGENT-01 | Phase 178 | Complete |
 | AGENT-02 | Phase 178 | Complete |
 | AGENT-03 | Phase 178 | Complete |
+| TMPLCOMP-01 | Phase 179 | Planned |
+| TMPLCOMP-02 | Phase 179 | Planned |
+| TMPLCOMP-03 | Phase 179 | Planned |
+| TMPLCOMP-04 | Phase 179 | Planned |
+| TMPLCOMP-05 | Phase 179 | Planned |

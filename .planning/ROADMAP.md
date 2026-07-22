@@ -2720,11 +2720,11 @@ Plans:
 
 **Plans**: 3 of 3 — **Phase 171 COMPLETE 2026-07-17.** 171-01 (PEXT-01: versioned `photoExtractionSchema` zod gate with the `dropInvalid` array-level element-drop preprocess, `photoExtractionToolSchema()` JSON-schema mirror, dormant `photos.ai_extraction` JSONB column, see [171-01-SUMMARY.md](phases/171-structured-photo-extraction/171-01-SUMMARY.md)). 171-02 (PEXT-03/04/05: `analyzePhotoStructuredOR` forced tool-call + `analyzePhotoStructuredGemini` functionDeclarations fallback, both through one shared `validatePhotoExtraction` zod gate with cost-ordering-before-validation; the analyze-photos worker's structured(OR)→structured(Gemini)→prose ladder gated by `PHOTO_STRUCTURED_EXTRACTION`, with every pre-existing v4.19 regression suite left byte-identical, see [171-02-SUMMARY.md](phases/171-structured-photo-extraction/171-02-SUMMARY.md)). 171-03 (PEXT-02: pure `serializePhotoContext` module folding typed extraction data into the generation prompt, byte-identical when no extraction exists, see [171-03-SUMMARY.md](phases/171-structured-photo-extraction/171-03-SUMMARY.md)). PEXT-01..05 all shipped.
 
-## 🚧 v4.21 Notification Center (Phases 172-178) — ROADMAP CREATED 2026-07-21
+## 🚧 v4.21 Notification Center (Phases 172-179) — ROADMAP CREATED 2026-07-21 (Phase 179 added 2026-07-22)
 
 **Milestone Goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (new Telegram channel), tenants (in-app/email/WhatsApp/SMS with per-channel selection), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy. Three structurally-separate pipelines that never share a table: the existing tenant-scoped `notify()`, the existing platform-scoped `notifyOps()`, and a new synchronous confirmation-gated agentic-send capability. Research: `research/{SUMMARY,ARCHITECTURE,PITFALLS,STACK,FEATURES}.md`.
 
-**Coverage:** 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), **0 orphans, 0 duplicates.** Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
+**Coverage:** 26/26 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03, TMPLCOMP-01..05), **0 orphans, 0 duplicates.** Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**. Phase 179 (WhatsApp Template Composer & Meta Approval Panel) is a net-new, owner-requested extension added 2026-07-22 after Phases 172-178 shipped, pulling in the deferred FUT-01.
 
 **Dependency spine (research-backed):** The template-engine foundation (172: schema + resolver + per-channel escaping) is the root for the editor (173), the tenant call-site sweep (174), and ALL end-customer template work (177). The end-customer consent/STOP/quiet-hours gate (176, CUST-03) is a HARD prerequisite that must land before the end-customer send path (177) and agentic send (178) ship to any real tenant. Agentic send (178) depends on the real end-customer send path (177) existing — the tool is a thin wrapper that cannot be built usefully first. The **Telegram track (175, PLAT-*) shares no code with the template-engine track and runs in parallel.** Tenant WhatsApp re-enable (TNT-03, in 174) uses the EXISTING HSM registry and is independent of the new editor. Critical path: **172 → 176 → 177 → 178.** Parallel-friendly starts: 172, 175, and 176 are file-disjoint and can begin together; 173 and 174 follow 172.
 
@@ -2737,6 +2737,7 @@ Plans:
 - [ ] **Phase 176: End-Customer Consent, Opt-Out & Quiet Hours (hard prerequisite gate)** — `clients`-scoped consent/suppression + inbound Twilio STOP/START/HELP webhook + suppression check before every send + platform-wide quiet-hours guard
 - [ ] **Phase 177: End-Customer Email/SMS Send Path & Audit Log** — friendly-from templated email + dedicated Twilio Messaging Service SMS + `customer_messages` audit table
 - [ ] **Phase 178: Agentic Send** — owner asks WhatsApp assistant / MCP to message a client; confirmation-gated state machine, injection-resistant recipient resolution, per-company rate limit
+- [ ] **Phase 179: WhatsApp Template Composer & Meta Approval Panel** — compose HSM body in-system with ordered {{n}} variables, submit REAL components to Meta, verify approval in-panel (webhook + on-demand GET), edit + resubmit rejected templates (owner-requested 2026-07-22, pulls in FUT-01)
 
 ### Phase Details
 
@@ -2892,6 +2893,30 @@ Plans:
 **Pitfalls addressed**: #8 (no confirmation-gate precedent — use the `confirm.ts` session-state-machine shape, not immediate-write), #9 (prompt injection into recipient/amount — resolve `to` from `clients` records and amounts from `estimates`, mismatch triggers explicit confirmation), #6 (agentic volume must ride the dedicated Messaging Service from Phase 177, not the shared number)
 **Research flag**: resolved during planning — MCP elicitation primitive not required; a two-call draft/token/send round-trip achieves the same distinct-propose/distinct-commit guarantee using ordinary tool calls every MCP client already supports
 
+### Phase 179: WhatsApp Template Composer & Meta Approval Panel
+**Goal**: A super-admin can compose a real WhatsApp HSM template body with ordered, labeled variables entirely in-panel, submit it to Meta for real (not the historical `components: []` stub), verify its approval status in-system without waiting on the webhook, and edit + resubmit a rejected template in place — making the Phase 174 `expectedVariableCount` send-time guard live end-to-end for the first time.
+**Depends on**: Phase 174 (TNT-03, the existing HSM registry + `expectedVariableCount` guard this phase makes real) and Phase 104.3 (the existing `whatsapp_notification_templates` table + admin panel this phase extends). Owner-requested extension pulling in the deferred FUT-01 after Phases 172-178 shipped; research completed 2026-07-22 (`179-RESEARCH.md`, HIGH confidence — verified live against `developers.facebook.com`).
+**Requirements**: TMPLCOMP-01, TMPLCOMP-02, TMPLCOMP-03, TMPLCOMP-04, TMPLCOMP-05
+**Success Criteria** (what must be TRUE):
+
+  1. A super-admin composes a body with ordered `{{n}}` variables (label + example) entirely by clicking "Add variable" — never free-typing braces — with one ordered array driving the body text, Meta's `example.body_text`, and `variables_schema` (order-mismatch-by-construction impossible)
+  2. Submitting sends REAL, non-empty `components` to Meta with pre-submit validation mirroring Meta's documented auto-reject rules (sequential variables, no leading/trailing variable, char limits, every variable has an example) — an incomplete or invalid draft is refused before any network call
+  3. Approval status is verifiable in-system via the existing webhook sync AND a "Check status now" button doing a direct Meta GET; the FULL status enum is handled (PAUSED/DISABLED/FLAGGED/LOCKED/etc. resolve to distinct, non-approved statuses, never a silent lowercase fall-through)
+  4. A rejected (or approved) template can be edited and resubmitted in place via `POST /{template_id}` — the SAME Meta template id, re-triggering review — with its rejection reason shown in the panel
+  5. On a successful submission, `variables_schema` is written as a byproduct of that submission (never edited independently), making the Phase 174 `expectedVariableCount` guard live for real approved templates for the first time; `lib/actions/admin-whatsapp-templates.ts` gains the unit coverage the research found missing (Wave 0 gap — the existing test file never exercised a real submission success path)
+
+**Plans**: 4 plans in `.planning/phases/179-whatsapp-template-composer/` (3 waves)
+Plans:
+
+- [ ] 179-01-PLAN.md - TDD: `lib/whatsapp/template-composer.ts` — client-safe ordered-array validation (mirrors Meta's auto-reject rules) + BODY component derivation (TMPLCOMP-01, TMPLCOMP-02)
+- [ ] 179-02-PLAN.md - TDD: `lib/whatsapp/meta-templates-client.ts` — real Meta create/status/update HTTP wrapper + defensive rejection-field reading + widened `mapMetaEventToStatus` full event vocabulary (TMPLCOMP-02, TMPLCOMP-03, TMPLCOMP-04)
+- [ ] 179-03-PLAN.md - `body_text` migration + `lib/actions/admin-whatsapp-templates.ts`: real `submitTemplateToMeta` payload, `variables_schema` write-through, new `checkTemplateStatus`/`updateTemplateAndResubmit` actions, extends the existing test file's Wave-0 gap (TMPLCOMP-02, TMPLCOMP-03, TMPLCOMP-04, TMPLCOMP-05)
+- [ ] 179-04-PLAN.md - Composer UI (`whatsapp-template-composer.tsx`) + panel wiring: full status badge map, Check status now, Edit & Resubmit (TMPLCOMP-01, TMPLCOMP-02, TMPLCOMP-03, TMPLCOMP-04)
+
+**Pitfalls addressed**: #1/#2 (missing/malformed `example.body_text`, leading/trailing variable — Meta auto-reject triggers caught by client-side pre-submit validation before any API call), #3 (order mismatch is silent at Meta's send-time validation — the single-ordered-array design makes it structurally impossible, not just conventionally discouraged), #4 (`mapMetaEventToStatus` only handled 4 of Meta's real event vocabulary — widened to the full documented set with PAUSED/DISABLED/FLAGGED/LOCKED resolving distinctly), #5 (API version pinning drift — reuses the existing `META_WHATSAPP_API_VERSION` env expression, no new hardcoded literal)
+**Research flag**: none — full research completed 2026-07-22 (`179-RESEARCH.md`, HIGH confidence, all load-bearing claims verified live against official Meta docs)
+**UI hint**: yes
+
 ### v4.21 Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -2903,3 +2928,4 @@ Plans:
 | 176. End-Customer Consent, Opt-Out & Quiet Hours | 0/? | Not started | - |
 | 177. End-Customer Email/SMS Send Path & Audit Log | 0/7 | Not started | - |
 | 178. Agentic Send | 0/4 | Not started | - |
+| 179. WhatsApp Template Composer & Meta Approval Panel | 0/4 | Not started | - |
