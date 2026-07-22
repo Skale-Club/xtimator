@@ -36,6 +36,7 @@ export type AuditAction =
   | 'whatsapp.sender.save'
   | 'whatsapp.sender.status'
   | 'whatsapp.sender.remove'
+  | 'platform_event.toggle'
 
 interface LogParams {
   actorId: string

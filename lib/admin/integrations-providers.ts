@@ -47,6 +47,8 @@ export type Category = {
   showBillingConfig?: boolean
   /** Platform Alerts category renders the Telegram chat_id form + test-alert button below. */
   showTelegramConfig?: boolean
+  /** Platform Alerts category renders the per-event Telegram toggle matrix below. */
+  showPlatformEventToggles?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -194,6 +196,7 @@ export const CATEGORIES: ReadonlyArray<Category> = [
     description:
       'System-health alerts (AI down, generation/transcription/vision failures, cron failures) delivered to the platform owner via Telegram. Enter a bot token and chat_id, then send a test alert.',
     showTelegramConfig: true,
+    showPlatformEventToggles: true,
     providers: [
       {
         id: 'telegram' as IntegrationProvider,
