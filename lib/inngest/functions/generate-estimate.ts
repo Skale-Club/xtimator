@@ -78,16 +78,18 @@ export const generateEstimateJob = inngest.createFunction(
         provider: null,
         errorMessage: error instanceof Error ? error.message : String(error),
       })
-      const copy = buildNotificationCopy('ai_job.failed', {
+      const ctx = {
         jobType: 'Estimate generation',
         errorMessage: error instanceof Error ? error.message : String(error),
-      })
+      }
+      const copy = buildNotificationCopy('ai_job.failed', ctx)
       void notify({
         companyId: payload.companyId,
         userId,
         eventType: 'ai_job.failed',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: `/projects/${payload.projectId}`,
         resourceType: 'project',
         resourceId: payload.projectId,
@@ -323,15 +325,17 @@ export const generateEstimateJob = inngest.createFunction(
     // explicitly opt in will see this).
     try {
       const userId = await loadOwnerUserId(companyId)
-      const copy = buildNotificationCopy('ai_job.completed', {
+      const ctx = {
         jobType: 'Estimate generation',
-      })
+      }
+      const copy = buildNotificationCopy('ai_job.completed', ctx)
       void notify({
         companyId,
         userId,
         eventType: 'ai_job.completed',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: `/projects/${projectId}`,
         resourceType: 'project',
         resourceId: projectId,
