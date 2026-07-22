@@ -43,6 +43,12 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { splitReply } from '@/lib/whatsapp/split-reply'
 import { askKnowledge } from '@/lib/agent-tools/ask-knowledge'
+import {
+  resolvePendingByChannelRef,
+  interpretConfirmationReply,
+  explainSendGateRefusal,
+} from '@/lib/notifications/agentic-send-confirm'
+import { confirmSendByChannelRef, cancelSendByChannelRef } from '@/lib/agent-tools'
 
 const HISTORY_LIMIT = 20
 
@@ -383,6 +389,51 @@ RULES
 }
 
 // ---------------------------------------------------------------------------
+// Pending agentic-send confirmation — Phase 178 Plan 03 (AGENT-01).
+//
+// A pending row means the owner was already shown an exact-echo draft
+// (lib/whatsapp/manage-tools.ts draft_customer_message) and this is their
+// NEXT distinct reply. Interprets confirm/cancel/unclear deterministically
+// (no LLM) and NEVER throws — mirrors the never-reply-regression discipline
+// every other dispatch* function in this file already follows, so a bug here
+// can never leave the owner without a reply.
+//
+// PRIORITY NOTE: this pre-check runs in classifyAndRoute BEFORE
+// loadConversationHistory/classify, so if an owner somehow has BOTH a
+// pending agentic-send confirmation AND an awaiting_confirm estimate-draft
+// session active at once, the agentic-send confirmation always resolves
+// first (see also the twin pre-check in handler.ts, which runs even earlier
+// and short-circuits before the whatsapp_sessions query is even consulted).
+// This is intentional: a "yes"/"no" reply that answers a message-send
+// confirmation must never be swallowed by the (unrelated) estimate flow.
+// ---------------------------------------------------------------------------
+async function dispatchPendingSendReply(
+  input: RouteInput,
+  normalizedText: string
+): Promise<void> {
+  try {
+    const verdict = interpretConfirmationReply(normalizedText)
+    if (verdict === 'cancel') {
+      await cancelSendByChannelRef(input.supabase, input.companyId, input.ownerPhone)
+      await sendOwnerReply(input, "Okay, I won't send that.")
+      return
+    }
+    if (verdict === 'unclear') {
+      await sendOwnerReply(
+        input,
+        'Still waiting on your OK — reply YES to send it, or NO to cancel.'
+      )
+      return
+    }
+    const result = await confirmSendByChannelRef(input.supabase, input.companyId, input.ownerPhone)
+    await sendOwnerReply(input, result.ok ? 'Sent!' : explainSendGateRefusal(result.error))
+  } catch (err) {
+    console.error('[WhatsApp] agentic-send confirmation dispatch failed', err)
+    await sendOwnerReply(input, "Sorry, something went wrong confirming that — please try again.")
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
 
@@ -399,6 +450,16 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
           ? "Sorry, I couldn't read your photo. Please describe the job in a text message."
           : 'Sorry, I can only process text, audio, or photo messages. Please describe the job in a text message.'
     await sendOwnerReply(input, body)
+    return
+  }
+
+  // 1.5. Pending agentic-send confirmation pre-check (Phase 178-03, AGENT-01)
+  // — keep in sync with the twin check in lib/whatsapp/handler.ts. Runs
+  // BEFORE history/classification so a bare "yes"/"no" for a pending send
+  // can never be misrouted into the LLM classifier or a new CREATE.
+  const pendingSend = await resolvePendingByChannelRef(supabase, companyId, ownerPhone)
+  if (pendingSend) {
+    await dispatchPendingSendReply(input, normalized.text)
     return
   }
 

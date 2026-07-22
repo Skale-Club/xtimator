@@ -39,6 +39,7 @@ import {
   tryClaimBuffer,
   debounceWait,
 } from '@/lib/whatsapp/buffer'
+import { resolvePendingByChannelRef } from '@/lib/notifications/agentic-send-confirm'
 
 // -------------------------------------------------------------------------
 // Entry point — webhook route calls this fire-and-forget.
@@ -58,6 +59,19 @@ export async function processInboundWithDebounce(
   // UX feedback first — both paths benefit
   await markMessageAsRead(message.id).catch(() => undefined)
   await sendTypingIndicator(message.id).catch(() => undefined)
+
+  // Agentic-send confirmation pending? (Phase 178 AGENT-01) — route through
+  // the intent classifier immediately, exactly like the awaiting_confirm
+  // branch below, bypassing debounce/batching entirely. This is NOT modeled
+  // via whatsapp_sessions (independent of any estimate-draft session), so it
+  // needs its own check here. resolvePendingByChannelRef never throws (fails
+  // closed to null on any error) — safe against this file's existing test
+  // mocks, none of which know about the agentic_send_confirmations table.
+  // keep in sync with the twin check in processInboundMessage below.
+  const pendingSend = await resolvePendingByChannelRef(supabase, companyId, ownerPhone)
+  if (pendingSend) {
+    return dispatchIntentRouter(message, null, companyId, ownerPhone, fromPhone)
+  }
 
   // Check for active session — if found, skip debounce (confirmation flow)
   const { data: existingSession } = await supabase
@@ -174,6 +188,19 @@ export async function processInboundMessage(
   // Meta API failures are swallowed inside markMessageAsRead/sendTypingIndicator.
   await markMessageAsRead(message.id).catch(() => undefined)
   await sendTypingIndicator(message.id).catch(() => undefined)
+
+  // Agentic-send confirmation pending? (Phase 178 AGENT-01) — route through
+  // the intent classifier immediately, exactly like the awaiting_confirm
+  // branch below, bypassing debounce/batching entirely. This is NOT modeled
+  // via whatsapp_sessions (independent of any estimate-draft session), so it
+  // needs its own check here. resolvePendingByChannelRef never throws (fails
+  // closed to null on any error) — safe against this file's existing test
+  // mocks, none of which know about the agentic_send_confirmations table.
+  // keep in sync with the twin check in processInboundWithDebounce above.
+  const pendingSend = await resolvePendingByChannelRef(supabase, companyId, ownerPhone)
+  if (pendingSend) {
+    return dispatchIntentRouter(message, null, companyId, ownerPhone, fromPhone)
+  }
 
   // 1. Check for active awaiting_confirm session — Phase 43 handles confirm/cancel replies
   const { data: existingSession } = await supabase
