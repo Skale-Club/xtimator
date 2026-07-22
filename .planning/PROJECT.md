@@ -14,7 +14,22 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.20 Structured Photo Extraction
+## Current Milestone: v4.21 Notification Center
+
+**Goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (new Telegram channel), tenants (in-app/email/WhatsApp/SMS with per-channel selection), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy.
+
+**Target features:**
+- **Telegram channel (platform → us):** platform-level events (tenant signup, payment, job failures, quota, critical errors) delivered to Xtimator admins via a Telegram bot; bot token stored encrypted in `platform_integrations` via the admin panel (never env — standing rule); ALL platform events covered with per-event toggles in the admin panel
+- **Template editor with variables (super-admin):** the hardcoded copy in `lib/notifications/copy.ts` becomes DB-driven editable templates (`{{client_name}}`, `{{estimate_number}}`, …) with a per-event variable catalog and preview; covers tenant notifications AND end-customer messages. Platform-wide, super-admin-only editing for v1 — NO tenant overrides (locked decision)
+- **Tenant notifications (platform → business owners):** in-app, email, WhatsApp, SMS with per-channel selection fields — extends the existing `notify()` pipeline + preferences (channel keys already in schema)
+- **End-customer messaging (tenant's clients):** email + SMS ONLY — WhatsApp is reserved exclusively for owner↔Xtimator conversation (locked decision)
+- **Agentic send:** the owner can ask via the WhatsApp assistant or via MCP for Xtimator to send an SMS/email to their end customer ("send an SMS to my client about X")
+
+**Key context:** Builds on existing infra — `notify()` dispatch (`lib/notifications/dispatch.ts`), channel preferences (in_app/email/whatsapp/sms keys already in schema), `whatsapp_notification_templates` HSM registry, Twilio SMS, Resend email. Model orchestration for this milestone: Fable orchestrates, Opus validates, Sonnet executes, Haiku does the simplest work. Numbering continues — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
+
+## Last Milestone: v4.20 Structured Photo Extraction ✅ (shipped 2026-07-17)
+
+**Shipped:** Phase 171 complete — 3/3 plans, PEXT-01..05 all shipped (structured extraction providers + worker ladder). Formal `/gsd:complete-milestone` archival pending (housekeeping).
 
 **Goal:** Turn photo analysis from free prose into typed intelligence — a vision tool-call extraction (surfaces, measurements with units + confidence, materials, damage, trade signals) persisted per photo and serialized compactly into the generation prompt, so a "220 sq ft tile floor" photo reaches the estimator as structured quantities instead of a paragraph the model must re-parse. The single biggest estimate-quality lever identified by the v4.19 deep audit (§ E5), deferred there as FUT-02 until the pipeline's correctness/coverage/metering foundation was fixed — which v4.19 completed.
 
@@ -511,4 +526,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-07-08 — Milestone v4.18 Estimate Document & Send Experience Refresh STARTED (SEED-041/042/043/044). Note: PROJECT.md's footer/evolution-review had not been updated since v4.7 (2026-06-24) until the v4.15/v4.16 passes partially caught it up — milestones v4.8 through v4.14 still lack a full retroactive `/gsd:complete-milestone` reconciliation in this file; that backlog remains a housekeeping item for the project owner. Next: define requirements → roadmap.*
+*Last updated: 2026-07-21 — Milestone v4.21 Notification Center STARTED (three-audience notification system: Telegram for platform admins, editable variable templates for tenant notifications over in-app/email/WhatsApp/SMS, end-customer email/SMS + agentic send via WhatsApp assistant/MCP). Note: milestones v4.8-v4.14 still lack a full retroactive `/gsd:complete-milestone` reconciliation in this file; v4.19/v4.20 formal archival also pending — housekeeping backlog. Next: research → requirements → roadmap.*

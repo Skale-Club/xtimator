@@ -1,23 +1,27 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.20
-milestone_name: Structured Photo Extraction
-status: executing
-stopped_at: Completed 171-02-PLAN.md (PEXT-03/04/05 — structured extraction providers + worker ladder). Phase 171 COMPLETE — all 3/3 plans shipped.
-last_updated: "2026-07-17T20:15:00.000Z"
-last_activity: 2026-07-17 - Completed 171-02-PLAN.md (see [171-02-SUMMARY.md](phases/171-structured-photo-extraction/171-02-SUMMARY.md)). Phase 171 COMPLETE, 3/3 plans, PEXT-01..05 all shipped. Milestone v4.20 COMPLETE.
+milestone: v4.21
+milestone_name: Notification Center
+status: defining requirements
+stopped_at: Milestone v4.21 started — PROJECT.md updated, research phase next (4 parallel researchers), then requirements → roadmap.
+last_updated: "2026-07-21T00:00:00.000Z"
+last_activity: 2026-07-21 - Milestone v4.21 Notification Center started. Three audiences (platform admins via Telegram, tenants via in-app/email/WhatsApp/SMS, end customers via email/SMS only), super-admin template editor with variables, agentic send via WhatsApp assistant/MCP. Locked decisions - Telegram all events with per-event toggles; templates super-admin-only v1 (no tenant overrides); WhatsApp reserved for owner-Xtimator conversation. Model orchestration - Fable orchestrates, Opus validates, Sonnet executes, Haiku simple work. Phases start at 172.
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Current Status
 
-- **No active milestone.** v4.19 (Integrity & Reliability Hardening) shipped 2026-07-17 — see "Previous Milestone (shipped)" below for its full record. Awaiting the next roadmap (`/gsd:roadmap` or a new seed) to start v4.20.
+- **Milestone v4.21 Notification Center** — STARTED 2026-07-21. Phase: Not started (defining requirements). Next: research (4 parallel researchers) → REQUIREMENTS.md → roadmap. Phases continue the global counter from **172** (v4.20 ended at 171).
+
+### Previous Milestone (shipped)
+
+- **Milestone**: v4.20 Structured Photo Extraction — SHIPPED 2026-07-17. 1 phase (171), 3/3 plans, PEXT-01..05 all shipped: `photos.ai_extraction` JSONB + versioned zod `PhotoExtraction` schema, structured vision tool-call on the primary OpenRouter path with Gemini functionDeclarations fallback, graceful prose degradation + env kill-switch, compact structured serialization into generation `<photo_description>` blocks, cost attribution via v4.19 costContext. Formal `/gsd:complete-milestone` archival pending (housekeeping).
 
 ### Previous Milestone (shipped)
 
