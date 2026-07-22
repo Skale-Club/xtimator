@@ -50,10 +50,11 @@ export async function logEstimateView(token: string): Promise<void> {
   // client only ping the owner once a day.
   try {
     const ymd = new Date().toISOString().slice(0, 10)
-    const copy = buildNotificationCopy('estimate.viewed', {
+    const ctx = {
       estimateNumber: estimateRow.estimate_number ?? undefined,
       clientName: estimateRow.client_name ?? undefined,
-    })
+    }
+    const copy = buildNotificationCopy('estimate.viewed', ctx)
     void notify({
       companyId: estimateRow.company_id,
       userId: null, // company-wide row — every member sees it
@@ -66,6 +67,7 @@ export async function logEstimateView(token: string): Promise<void> {
       metadata: {
         dedupe_key: `estimate-viewed-${estimateRow.id}-${ymd}`,
       },
+      copyContext: ctx,
     })
   } catch {
     /* best-effort */
@@ -164,10 +166,11 @@ export async function respondToEstimate(
   // Phase 77 NOTIF-04: in-app notification on client response. Best-effort.
   try {
     const eventType = response === 'accepted' ? 'estimate.accepted' : 'estimate.declined'
-    const copy = buildNotificationCopy(eventType, {
+    const ctx = {
       estimateNumber: est.estimate_number ?? undefined,
       clientName: est.client_name ?? undefined,
-    })
+    }
+    const copy = buildNotificationCopy(eventType, ctx)
     void notify({
       companyId: est.company_id,
       userId: null,
@@ -177,6 +180,7 @@ export async function respondToEstimate(
       linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
       resourceType: 'estimate',
       resourceId: est.id,
+      copyContext: ctx,
     })
   } catch {
     /* best-effort */

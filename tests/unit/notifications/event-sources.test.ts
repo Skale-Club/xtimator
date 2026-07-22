@@ -122,6 +122,13 @@ describe('estimate.viewed instrumentation', () => {
     expect(viewedCall).toBeDefined()
     const params = viewedCall![0] as Record<string, unknown>
     expect((params.metadata as { dedupe_key?: string } | undefined)?.dedupe_key).toMatch(/estimate-viewed-est_1/)
+
+    // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+    // buildNotificationCopy is also passed to notify()
+    expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+    expect((params.copyContext as Record<string, unknown> | undefined)?.estimateNumber).toBe('EST-001')
+    expect((params.copyContext as Record<string, unknown> | undefined)?.clientName).toBe('Acme')
+
     vi.doUnmock('@/lib/supabase/service')
     vi.doUnmock('@/lib/platform-config')
   })
@@ -199,6 +206,14 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
         (c) => (c[0] as { eventType: string }).eventType === `estimate.${response}`
       )
       expect(match).toBeDefined()
+
+      // Phase 174 (TNT-01): copyContext wiring — verify the ctx passed to
+      // buildNotificationCopy is also passed to notify()
+      const params = match![0] as Record<string, unknown>
+      expect((params.copyContext as Record<string, unknown> | undefined)).toBeDefined()
+      expect((params.copyContext as Record<string, unknown> | undefined)?.estimateNumber).toBe('EST-002')
+      expect((params.copyContext as Record<string, unknown> | undefined)?.clientName).toBe('Bob')
+
       vi.doUnmock('@/lib/supabase/service')
       vi.doUnmock('@/lib/platform-config')
     })
