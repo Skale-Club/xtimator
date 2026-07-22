@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.21
 milestone_name: Notification Center
-status: defining requirements
-stopped_at: Milestone v4.21 started — PROJECT.md updated, research phase next (4 parallel researchers), then requirements → roadmap.
-last_updated: "2026-07-21T00:00:00.000Z"
-last_activity: 2026-07-21 - Milestone v4.21 Notification Center started. Three audiences (platform admins via Telegram, tenants via in-app/email/WhatsApp/SMS, end customers via email/SMS only), super-admin template editor with variables, agentic send via WhatsApp assistant/MCP. Locked decisions - Telegram all events with per-event toggles; templates super-admin-only v1 (no tenant overrides); WhatsApp reserved for owner-Xtimator conversation. Model orchestration - Fable orchestrates, Opus validates, Sonnet executes, Haiku simple work. Phases start at 172.
+status: roadmap created
+stopped_at: Milestone v4.21 roadmap CREATED — 7 phases (172-178), 21/21 requirements mapped, 0 orphans. Next: /gsd:plan-phase 172 (172, 175, 176 are file-disjoint parallel starts).
+last_updated: "2026-07-21T12:00:00.000Z"
+last_activity: 2026-07-21 - Milestone v4.21 Notification Center ROADMAP CREATED. 7 phases (172-178), 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Mapping - 172 Template Engine Foundation (TMPL-01/06/07); 173 Super-Admin Template Editor UI (TMPL-02/03/04/05); 174 Tenant Notification Cutover & WhatsApp Re-enable (TNT-01/02/03); 175 Telegram Platform-Event Catalog & Per-Event Toggles (PLAT-01/02/03); 176 End-Customer Consent/Opt-Out/Quiet Hours - HARD GATE (CUST-03/04); 177 End-Customer Email/SMS Send Path & Audit (CUST-01/02/05); 178 Agentic Send (AGENT-01/02/03). Dependency spine - template engine 172 is root for 173/174/177; consent gate 176 is a hard prerequisite before 177 and 178; agentic 178 depends on the real send path 177; Telegram 175 is a parallel track sharing no code; TNT-03 WhatsApp re-enable uses the existing HSM registry. Critical path 172 -> 176 -> 177 -> 178; parallel starts 172, 175, 176. Operational gates - Twilio Messaging Service provisioning (CUST-02, Phase 177), Meta HSM template approval (TNT-03, Phase 174). Next: /gsd:plan-phase 172.
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,7 +17,16 @@ progress:
 
 ## Current Status
 
-- **Milestone v4.21 Notification Center** — STARTED 2026-07-21. Phase: Not started (defining requirements). Next: research (4 parallel researchers) → REQUIREMENTS.md → roadmap. Phases continue the global counter from **172** (v4.20 ended at 171).
+- **Milestone v4.21 Notification Center** — ROADMAP CREATED 2026-07-21. **7 phases (172-178)**, **21/21 requirements mapped** (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), **0 orphans, 0 duplicates**. Phases continue the global counter from **172** (v4.20 ended at 171).
+- **Phase map (goal-backward, dependency-ordered):**
+  - **172 Template Engine Foundation** (TMPL-01/06/07) — `notification_templates` table seeded byte-identical to `copy.ts` + CI exhaustiveness diff; hand-rolled `{{var}}` resolver with per-channel escaping (HTML email/Telegram, plain SMS, sanitized ordered WhatsApp HSM params); DB→built-in→never-block fallback wired into `notify()` strictly additive (empty table = byte-identical today). Dependency ROOT. Pitfalls 1/2/4.
+  - **173 Super-Admin Template Editor UI** (TMPL-02/03/04/05) — Notification Center admin page (reuses `whatsapp-templates-panel.tsx` CRUD): browse/edit by audience/event/channel, per-event variable whitelist + live preview, unknown-var rejection, test-send. Depends on 172. Pitfall 5 (event-scoped catalog; `copy-tenant-neutrality` re-pointed).
+  - **174 Tenant Notification Cutover & WhatsApp Re-enable** (TNT-01/02/03) — sweep the 9 `notify()` call sites onto `copyContext` (preference matrix stays green); lift the forced-off WhatsApp gate, drive proactive tenant WhatsApp from the EXISTING HSM registry respecting opt-in; runtime `{{n}}` count/order guard. Depends on 172; TNT-03 independent of the editor. Operational: Meta HSM approval. Pitfall 3 (runtime guard only; body editing deferred FUT-01).
+  - **175 Telegram Platform-Event Catalog & Per-Event Toggles** (PLAT-01/02/03) — typed platform-event union through `notifyOps()` (sibling calls at signup/payment/quota + 6 already covered), `platform_notification_preferences` toggle matrix in admin, `locked` critical events always deliver, toggle gates Telegram only (Sentry unconditional). PARALLEL track — shares no code. Pitfall 7 (outbound-only, HTML, rate-limit/backoff, secrets in `platform_integrations`).
+  - **176 End-Customer Consent, Opt-Out & Quiet Hours — HARD PREREQUISITE GATE** (CUST-03/04) — net-new `clients`-scoped consent/suppression columns; new inbound Twilio STOP/START/HELP webhook; app-level suppression check before EVERY send (independent of carrier filtering); platform-wide quiet-hours guard. Must land before 177 & 178. Pitfall 10 (HIGH/legal). Research flag: TCPA basis + Toll-Free vs A2P = human sign-off.
+  - **177 End-Customer Email/SMS Send Path & Audit Log** (CUST-01/02/05) — friendly-from `{{business_name}} via Xtimator` email via new `sendEmail()` primitive; end-customer SMS via a DEDICATED Twilio Messaging Service (not the shared 6-app number), business name leading the body; `customer_messages` audit table (modeled on `estimate_deliveries`); every send passes the 176 gate. Depends on 172 + 176. Operational: provision the Twilio Messaging Service (CUST-02). Pitfalls 6/4.
+  - **178 Agentic Send** (AGENT-01/02/03) — `lib/agent-tools/send-customer-message.ts` neutral capability (trusted `companyId` closure); confirm-gated state machine (mirrors `confirm.ts`, echoes DB-resolved recipient + body) on WhatsApp MANAGE + `intent-router` update; non-`readOnlyHint` MCP write tool; recipient resolved from `clients` + server-side re-validation (injection-proof) + per-company rate limit; lands in `customer_messages`. Depends on 177 (+176). Highest-risk surface. Pitfalls 8/9/6. Research flag: MCP confirmation/elicitation round-trip.
+- **Dependency spine:** 172 (root) → 173, 174, 177; 176 (hard gate) → 177, 178; 177 → 178; 175 parallel/independent. **Critical path 172 → 176 → 177 → 178.** Parallel-friendly file-disjoint starts: **172, 175, 176.** Next: `/gsd:plan-phase 172`.
 
 ### Previous Milestone (shipped)
 

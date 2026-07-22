@@ -78,5 +78,25 @@ Each requirement maps to exactly one roadmap phase.
 ## Traceability
 
 | Requirement | Phase | Status |
-|-------------|-------|--------|
-| (filled by roadmap) | | |
+|-------------|----------|--------|
+| PLAT-01 | Phase 175 | Pending |
+| PLAT-02 | Phase 175 | Pending |
+| PLAT-03 | Phase 175 | Pending |
+| TMPL-01 | Phase 172 | Pending |
+| TMPL-02 | Phase 173 | Pending |
+| TMPL-03 | Phase 173 | Pending |
+| TMPL-04 | Phase 173 | Pending |
+| TMPL-05 | Phase 173 | Pending |
+| TMPL-06 | Phase 172 | Pending |
+| TMPL-07 | Phase 172 | Pending |
+| TNT-01 | Phase 174 | Pending |
+| TNT-02 | Phase 174 | Pending |
+| TNT-03 | Phase 174 | Pending |
+| CUST-01 | Phase 177 | Pending |
+| CUST-02 | Phase 177 | Pending |
+| CUST-03 | Phase 176 | Pending |
+| CUST-04 | Phase 176 | Pending |
+| CUST-05 | Phase 177 | Pending |
+| AGENT-01 | Phase 178 | Pending |
+| AGENT-02 | Phase 178 | Pending |
+| AGENT-03 | Phase 178 | Pending |

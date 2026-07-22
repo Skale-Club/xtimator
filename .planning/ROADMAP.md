@@ -40,6 +40,7 @@
 - ✅ **v4.18 Estimate Document & Send Experience Refresh** — Phases 160-163 (shipped 2026-07-09) · [archive](milestones/v4.18-ROADMAP.md) · [audit](milestones/v4.18-MILESTONE-AUDIT.md) — 24/24 requirements shipped (PUBURL-01..06 + PRESENT-01..05 + DOCUX-01..07 + SENDHUB-01..06). Per-estimate presentation-settings resolver + gear panel + format-first Send hub + friendly URLs + cross-surface visibility parity across 6 renderers + Bill To pencil affordance + ClientPicker consolidation + mobile line-item doc-native rebuild + 5-file deletion sweep of retired send surfaces. GUARD-03 preserved structurally at every seam.
 - ✅ **v4.19 Integrity & Reliability Hardening** — Phases 164-170 (shipped 2026-07-17) — 32/32 requirements shipped (TRUST-01..03, SAVE-01..07, AIREL-01..05, BILL-01..06, PHOTO-01..04, CAPT-01..05, REFINE-01..02), closing the 10 severity-ranked findings from the six-track adversarial deep audit of the estimate system ([audit](audits/v4.19-ESTIMATE-DEEP-AUDIT.md)): snapshot-on-sign + freeze-on-send trust boundary, transactional atomic save RPC, AI fetch timeouts + truncation visibility + missing tool-schema pricing fields, credit gate on refine + server-derived audio duration + vision cost threading, full photo coverage + captions in the prompt, upload retry + IndexedDB capture persistence, and refine review-before-apply (shared identity-preserving merge/diff util + flush-before-refine + review-before-apply). Pure hardening — no new AI features; GUARD-03 and Inngest durability regression contracts held throughout.
 - ✅ **v4.20 Structured Photo Extraction** — Phase 171 (SHIPPED 2026-07-17) — vision tool-call extraction (surfaces, measurements w/ units+confidence, materials, damage) persisted in photos.ai_extraction JSONB + compact serialization into the generation prompt; two-layer zod gate, prose fallback ladder, env kill-switch, provider parity, costContext attribution; v4.19 audit § E5 / FUT-02
+- 🚧 **v4.21 Notification Center** — Phases 172-178 (roadmap created 2026-07-21) — unify all outbound messaging into one admin-manageable Notification Center serving three audiences: platform admins (Telegram per-event toggles), tenants (in-app/email/WhatsApp/SMS via the existing `notify()` pipeline), and end customers (email/SMS only — WhatsApp reserved for owner↔Xtimator). Hardcoded `copy.ts` becomes DB-driven super-admin-editable `{{var}}` templates with a per-event variable catalog, live preview, unknown-var rejection, test-send, and a DB→built-in→never-block fallback resolver with per-channel escaping (Pitfalls 1/2/4/5). Re-enables proactive tenant WhatsApp via the EXISTING HSM registry (Pitfall 3 runtime guard). New end-customer send path (friendly-from email + dedicated Twilio Messaging Service SMS + `customer_messages` audit) gated behind a hard consent/STOP/quiet-hours prerequisite (CUST-03, Pitfall 10/HIGH-legal). Agentic send (WhatsApp assistant + MCP) is confirmation-gated with injection-resistant recipient resolution + per-company rate limits (Pitfalls 8/9). Three structurally-separate pipelines that never share a table: tenant-scoped `notify()`, platform-scoped `notifyOps()`, and the new synchronous agentic-send capability. 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2718,3 +2719,147 @@ Plans:
   5. Structured vision calls carry the job costContext, their real cost is visible in ai_cost_events, and photo_batch debits keep summing correctly
 
 **Plans**: 3 of 3 — **Phase 171 COMPLETE 2026-07-17.** 171-01 (PEXT-01: versioned `photoExtractionSchema` zod gate with the `dropInvalid` array-level element-drop preprocess, `photoExtractionToolSchema()` JSON-schema mirror, dormant `photos.ai_extraction` JSONB column, see [171-01-SUMMARY.md](phases/171-structured-photo-extraction/171-01-SUMMARY.md)). 171-02 (PEXT-03/04/05: `analyzePhotoStructuredOR` forced tool-call + `analyzePhotoStructuredGemini` functionDeclarations fallback, both through one shared `validatePhotoExtraction` zod gate with cost-ordering-before-validation; the analyze-photos worker's structured(OR)→structured(Gemini)→prose ladder gated by `PHOTO_STRUCTURED_EXTRACTION`, with every pre-existing v4.19 regression suite left byte-identical, see [171-02-SUMMARY.md](phases/171-structured-photo-extraction/171-02-SUMMARY.md)). 171-03 (PEXT-02: pure `serializePhotoContext` module folding typed extraction data into the generation prompt, byte-identical when no extraction exists, see [171-03-SUMMARY.md](phases/171-structured-photo-extraction/171-03-SUMMARY.md)). PEXT-01..05 all shipped.
+
+## 🚧 v4.21 Notification Center (Phases 172-178) — ROADMAP CREATED 2026-07-21
+
+**Milestone Goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (new Telegram channel), tenants (in-app/email/WhatsApp/SMS with per-channel selection), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy. Three structurally-separate pipelines that never share a table: the existing tenant-scoped `notify()`, the existing platform-scoped `notifyOps()`, and a new synchronous confirmation-gated agentic-send capability. Research: `research/{SUMMARY,ARCHITECTURE,PITFALLS,STACK,FEATURES}.md`.
+
+**Coverage:** 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), **0 orphans, 0 duplicates.** Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
+
+**Dependency spine (research-backed):** The template-engine foundation (172: schema + resolver + per-channel escaping) is the root for the editor (173), the tenant call-site sweep (174), and ALL end-customer template work (177). The end-customer consent/STOP/quiet-hours gate (176, CUST-03) is a HARD prerequisite that must land before the end-customer send path (177) and agentic send (178) ship to any real tenant. Agentic send (178) depends on the real end-customer send path (177) existing — the tool is a thin wrapper that cannot be built usefully first. The **Telegram track (175, PLAT-*) shares no code with the template-engine track and runs in parallel.** Tenant WhatsApp re-enable (TNT-03, in 174) uses the EXISTING HSM registry and is independent of the new editor. Critical path: **172 → 176 → 177 → 178.** Parallel-friendly starts: 172, 175, and 176 are file-disjoint and can begin together; 173 and 174 follow 172.
+
+### Phases (summary checklist)
+
+- [ ] **Phase 172: Template Engine Foundation** — DB-driven `notification_templates` + `{{var}}` resolver with per-channel escaping + DB→built-in→never-block fallback, wired into `notify()` as strictly additive (zero day-one behavior change)
+- [ ] **Phase 173: Super-Admin Template Editor UI** — Notification Center admin page: browse/edit every template, per-event variable catalog + live preview, unknown-variable rejection, test-send
+- [ ] **Phase 174: Tenant Notification Cutover & WhatsApp Re-enable** — sweep the 9 `notify()` call sites onto the resolver (preference matrix unchanged) + re-enable proactive tenant WhatsApp via the existing HSM registry
+- [ ] **Phase 175: Telegram Platform-Event Catalog & Per-Event Toggles** — typed platform-event catalog through `notifyOps()`, admin per-event toggle matrix, `locked` critical events always deliver
+- [ ] **Phase 176: End-Customer Consent, Opt-Out & Quiet Hours (hard prerequisite gate)** — `clients`-scoped consent/suppression + inbound Twilio STOP/START/HELP webhook + suppression check before every send + platform-wide quiet-hours guard
+- [ ] **Phase 177: End-Customer Email/SMS Send Path & Audit Log** — friendly-from templated email + dedicated Twilio Messaging Service SMS + `customer_messages` audit table
+- [ ] **Phase 178: Agentic Send** — owner asks WhatsApp assistant / MCP to message a client; confirmation-gated state machine, injection-resistant recipient resolution, per-company rate limit
+
+### Phase Details
+
+### Phase 172: Template Engine Foundation
+**Goal**: DB-driven, super-admin-editable notification copy becomes possible with a bulletproof fallback and per-channel escaping — changing zero behavior on day one (empty table → 100% fallback to today's `copy.ts`).
+**Depends on**: Nothing in-milestone (dependency root). Generalizes the already-shipped `whatsapp-registry.ts` DB→static-fallback pattern to 3 more channels and 2 scopes.
+**Requirements**: TMPL-01, TMPL-06, TMPL-07
+**Success Criteria** (what must be TRUE):
+
+  1. Every existing notification event has a seeded DB template row byte-identical to today's hardcoded copy, and a CI check fails if any `EventType` lacks a template row (closes the lost-exhaustiveness gap)
+  2. A stored template row renders through `notify()`, interpolating `{{variables}}` with per-channel output escaping — HTML-escape for email/Telegram HTML, plain text for SMS, sanitized (newline-stripped) ordered params for WhatsApp HSM (closing the existing `sendWhatsAppTemplate()` sanitization gap)
+  3. When a template row is missing, unpublished, or a variable substitution fails, `notify()` silently falls back to the built-in `copy.ts` and never blocks or blanks the send — proven by a test that corrupts a template and asserts delivery still happens
+  4. A variable value containing `<`, `>`, `&`, or `"` renders escaped in HTML channels and never injects markup — proven with a client literally named `<script>`
+  5. With the `notification_templates` table empty, every notification is byte-identical to pre-milestone behavior (strictly additive rollout, zero call-site changes required)
+
+**Plans**: TBD
+**Pitfalls addressed**: #1 (lost exhaustiveness guard — seed every `EventType` + CI diff), #2 (no missing-template fallback — DB→built-in→skip, never throw/blank), #4 (HTML injection via un-escaped variable substitution — escape values not template text, two renderers by channel type)
+**Research flag**: none — direct generalization of the shipped `whatsapp-registry.ts` pattern (skip `/gsd:research-phase`)
+
+### Phase 173: Super-Admin Template Editor UI
+**Goal**: A super-admin can safely browse, edit, preview, and test every message template from one platform-wide Notification Center admin page, with per-event variable whitelists that make cross-audience data leaks impossible.
+**Depends on**: Phase 172 (the `notification_templates` table + variable catalog must exist). Reuses the shipped `whatsapp-templates-panel.tsx` + `admin-whatsapp-templates.ts` CRUD/server-action pattern.
+**Requirements**: TMPL-02, TMPL-03, TMPL-04, TMPL-05
+**Success Criteria** (what must be TRUE):
+
+  1. Super-admin can browse and edit every template (filtered by audience, event, channel) from a Notification Center admin page
+  2. The editor shows the per-event variable catalog inline (only the whitelisted variables valid for that event — never a global "insert any variable" picker) and renders a live preview with sample data before save
+  3. Saving a template that references an unknown variable (not in that event's catalog) is rejected with a clear error — a template that would render `{{client_name}}` literally can never be activated
+  4. Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data directly from the editor
+  5. The locked tenant-neutrality invariant holds through the DB era (e.g., the `admin.bonus_credits_granted` event never exposes a raw credit-count variable) — proven by the `copy-tenant-neutrality` regression test re-pointed at the DB seed/default staying green
+
+**Plans**: TBD
+**Pitfalls addressed**: #5 (cross-audience data leak / CREDITUI-04-class regression — event-scoped variable whitelist, not a global picker; every save is an instant platform-wide production change so preview + test-send are load-bearing)
+**Research flag**: none — direct reuse of the shipped admin-whatsapp-templates CRUD pattern (skip `/gsd:research-phase`)
+**UI hint**: yes
+
+### Phase 174: Tenant Notification Cutover & WhatsApp Re-enable
+**Goal**: Every tenant notification renders through the template resolver so an admin's DB edit actually takes effect, and proactive tenant WhatsApp is switched back on — with the existing per-category channel-preference matrix untouched.
+**Depends on**: Phase 172 (the call-site sweep needs the resolver's `copyContext` extension). TNT-03 (WhatsApp re-enable) is independent of the new editor — it uses the EXISTING HSM registry.
+**Requirements**: TNT-01, TNT-02, TNT-03
+**Success Criteria** (what must be TRUE):
+
+  1. All existing `notify()` call sites pass a context object into `notify()` instead of pre-computing title/body inline, so an admin's DB template edit takes effect for that event (`copy.ts` survives only as the fallback source)
+  2. The existing per-category channel preference matrix (in_app/email/whatsapp/sms) keeps working unchanged through the cutover — proven by the existing preference tests staying green
+  3. A tenant who has opted in to WhatsApp receives proactive WhatsApp notifications again (the forced-off gate is lifted), driven by approved HSM templates from the existing registry, respecting the tenant's opt-in preference
+  4. A WhatsApp send whose resolved parameter count doesn't match the approved HSM template's `variables_schema` is refused (and logged) rather than delivered garbled
+
+**Plans**: TBD
+**Operational gate**: WhatsApp HSM templates must be authored AND **APPROVED in Meta WhatsApp Manager** before TNT-03's proactive WhatsApp actually delivers (non-code, human/Meta-review-latency task).
+**Pitfalls addressed**: #3 (WhatsApp positional `{{n}}` mismatch — the runtime count/order guard on the send path; note WhatsApp body EDITING in the new editor stays deferred to FUT-01)
+**Research flag**: none — the call-site sweep is mechanical (each site already has `ctx` in scope)
+
+### Phase 175: Telegram Platform-Event Catalog & Per-Event Toggles
+**Goal**: Every platform event reaches Xtimator admins on Telegram, with a per-event admin toggle and unskippable critical alerts — extending the already-shipped `notifyOps()`/`lib/telegram/client.ts` pipeline (never routing Telegram through `notify()`).
+**Depends on**: Nothing in-milestone — depends only on the already-shipped Telegram infra (`getTelegramConfig`, `sendTelegramMessage`). Parallel track, shares no code with 172-174/176-178.
+**Requirements**: PLAT-01, PLAT-02, PLAT-03
+**Success Criteria** (what must be TRUE):
+
+  1. A typed platform-event catalog (tenant signup, payment received, job failure, quota exhaustion, critical platform errors) exists as a new union distinct from the tenant-scoped `EventType`, and every cataloged platform event routes through `notifyOps()` to Telegram (sibling `notifyOps()` calls added at the 3 net-new signup/payment/quota sites alongside the 6 already covered)
+  2. Super-admin can toggle each platform event's Telegram delivery on/off from the admin panel (per-event toggle matrix persisted in `platform_notification_preferences`)
+  3. Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix
+  4. Turning an event off stops its Telegram message while Sentry still records it unconditionally (the toggle gates Telegram only, never the technical record)
+
+**Plans**: TBD
+**Pitfalls addressed**: #7 (Telegram two-way/serverless/MarkdownV2 traps — scope explicitly outbound-only, stay on `parse_mode: 'HTML'` with `formatOpsMessage` escaping, no polling/webhook; keep the single-chat model; add lightweight rate-limit/backoff so an incident burst doesn't 429 against the per-chat limit; any new Telegram secret goes in `platform_integrations`, never env)
+**Research flag**: none for v1 outbound-only scope — any future two-way interactivity is a separate deeper-research phase
+**UI hint**: yes
+
+### Phase 176: End-Customer Consent, Opt-Out & Quiet Hours (hard prerequisite gate)
+**Goal**: An end customer's consent state is tracked and honored so no suppressed or out-of-hours message can ever be sent by any path — the legal gate that must land before any end-customer send ships to a real tenant.
+**Depends on**: Nothing in-milestone (can start early, in parallel with 172/175). Is itself a HARD prerequisite gate before Phase 177 and Phase 178.
+**Requirements**: CUST-03, CUST-04
+**Success Criteria** (what must be TRUE):
+
+  1. End-customer contact records (`clients`) carry consent/suppression state — opt-in provenance, opt-out timestamp, and the consent text shown — as net-new columns (NOT a reuse of the owner-scoped `notification_preferences`)
+  2. A new inbound Twilio webhook processes STOP/START/HELP keyword replies and writes them to that suppression state (there is no inbound Twilio webhook in the codebase today)
+  3. A suppressed recipient can never be messaged by any path — manual or agentic — because an application-level suppression check runs before EVERY send, independent of carrier-level filtering (proven by a test asserting a STOP'd number is never dispatched)
+  4. A platform-wide quiet-hours guard blocks end-customer SMS outside acceptable local hours
+
+**Plans**: TBD
+**Operational/legal gate**: An explicit legal/operator decision on the TCPA consent basis (transactional vs. broadened agentic content), required disclosure language, quiet-hours policy, and the **Toll-Free vs A2P 10DLC registration** path for the end-customer sending number — flagged for human sign-off, not silent resolution. (Carrier-level Twilio Advanced Opt-Out rides the dedicated Messaging Service provisioned in Phase 177; the app-level suppression built here is self-contained and does not depend on it.)
+**Pitfalls addressed**: #10 (HIGH/legal — no end-customer consent/opt-out infra exists today; carrier filtering alone does not discharge the sender's own TCPA obligation)
+**Research flag**: **needs deeper research during planning** — TCPA consent basis, quiet-hours enforcement, and Toll-Free vs A2P 10DLC are legal/operator decisions research could not fully resolve
+
+### Phase 177: End-Customer Email/SMS Send Path & Audit Log
+**Goal**: The system can actually send a templated email or SMS to an end customer — honestly branded as the tenant's business, on a dedicated sending number, with every send audited and gated by the Phase 176 consent/quiet-hours checks.
+**Depends on**: Phase 172 (`scope='customer'` template rows) AND Phase 176 (consent/suppression gate must exist first). No end-customer copy exists anywhere today, so the resolver + consent gate are hard prerequisites, not parallel tracks.
+**Requirements**: CUST-01, CUST-02, CUST-05
+**Success Criteria** (what must be TRUE):
+
+  1. The system sends a templated email to an end customer whose sender identity reads as the tenant's business (`{{business_name}} via Xtimator` friendly-from — honest, never deceptive), via a new generic `sendEmail()` primitive sibling to `sendSms()`
+  2. The system sends a templated SMS to an end customer through a dedicated Twilio Messaging Service (separate from the shared owner-notification number that 6 apps share), with the tenant's business name leading the body
+  3. Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`
+  4. Every end-customer send passes the Phase 176 consent/suppression + quiet-hours gate before dispatch — a suppressed or out-of-hours recipient is never messaged
+
+**Plans**: TBD
+**Operational gate**: **Provision the dedicated Twilio Messaging Service** for end-customer SMS in the Twilio Console (separate from the shared owner-notification number) and configure it via the admin panel (`platform_integrations`, never env) with Advanced Opt-Out enabled — a non-code task that gates CUST-02 shipping to real tenants.
+**Pitfalls addressed**: #6 (shared Twilio number reputation blast-radius across 6 apps — a dedicated `from`/Messaging Service for this new traffic class; explicit owner/operator sign-off on A2P scope before shipping), #4 (the shared HTML-escaping renderer also covers the least-reversible customer-facing email channel)
+**Research flag**: **needs deeper research during planning** — confirm Twilio Advanced Opt-Out's exact dependency on a Messaging Service and re-verify Toll-Free/A2P pricing-timeline against the live Twilio Console before committing
+
+### Phase 178: Agentic Send
+**Goal**: The owner can ask — via the WhatsApp assistant or MCP — for Xtimator to send an SMS/email to one of their clients, with a confirmation gate, injection-resistant recipient resolution, and per-company rate limits. The milestone's highest-risk new surface: the first LLM-authored message sent to a real third party.
+**Depends on**: Phase 177 (the underlying end-customer send capability must be real, not stubbed) AND Phase 176 (consent gate). Binds the same neutral `sendCustomerMessage()` from both channel adapters.
+**Requirements**: AGENT-01, AGENT-02, AGENT-03
+**Success Criteria** (what must be TRUE):
+
+  1. The owner can ask the WhatsApp assistant to send an SMS or email to one of their clients; the assistant drafts the message and requires explicit owner confirmation (confirm-gated state machine mirroring `confirm.ts`, NOT `manage-tools.ts`'s immediate-write) that echoes the DB-resolved recipient and exact body before anything is sent
+  2. The same send capability is exposed as an MCP tool (non-`readOnlyHint`) with the same confirmation and validation gates as the WhatsApp path
+  3. The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, and recipient + body are re-validated server-side at send time so prompt injection cannot redirect a message; any dollar figure is sourced from server-authoritative `estimates`/`compute-totals.ts`, never LLM free text
+  4. Agentic sends are rate-limited per company (companyId-scoped, not user-session-scoped), still pass the Phase 176 consent/suppression gate, and every send lands in the `customer_messages` audit log with its `source` (agentic_whatsapp/agentic_mcp)
+
+**Plans**: TBD
+**Pitfalls addressed**: #8 (no confirmation-gate precedent — use the `confirm.ts` session-state-machine shape, not immediate-write), #9 (prompt injection into recipient/amount — resolve `to` from `clients` records and amounts from `estimates`, mismatch triggers explicit confirmation), #6 (agentic volume must ride the dedicated Messaging Service from Phase 177, not the shared number)
+**Research flag**: **needs deeper research during planning** — MCP-side confirmation/elicitation round-trip mechanics per the current MCP spec
+
+### v4.21 Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 172. Template Engine Foundation | 0/? | Not started | - |
+| 173. Super-Admin Template Editor UI | 0/? | Not started | - |
+| 174. Tenant Notification Cutover & WhatsApp Re-enable | 0/? | Not started | - |
+| 175. Telegram Platform-Event Catalog & Per-Event Toggles | 0/? | Not started | - |
+| 176. End-Customer Consent, Opt-Out & Quiet Hours | 0/? | Not started | - |
+| 177. End-Customer Email/SMS Send Path & Audit Log | 0/? | Not started | - |
+| 178. Agentic Send | 0/? | Not started | - |
