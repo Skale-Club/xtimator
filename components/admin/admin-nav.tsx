@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppIcon } from '@/components/ui/app-icon'
-import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, Inbox, BookOpen } from 'lucide-react'
+import { Settings2, Palette, Users, LayoutDashboard, Globe, Layout, FileText, CreditCard, Building2, Scale, ScrollText, Inbox, BookOpen, Bell } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const TOP_ITEMS = [
@@ -22,6 +22,7 @@ const CONTENT_GROUP_ITEMS = [
 
 const BOTTOM_ITEMS = [
   { href: '/admin/knowledge', label: 'Knowledge', Icon: BookOpen },
+  { href: '/admin/notifications', label: 'Notifications', Icon: Bell },
   {
     href: '/admin/integrations/ai',
     activeBase: '/admin/integrations',
