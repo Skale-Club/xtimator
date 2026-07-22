@@ -358,6 +358,69 @@ export async function saveTwilioFromPhone(
 }
 
 /**
+ * Save the dedicated Twilio Messaging Service SID used ONLY for end-customer
+ * SMS (CUST-02), into the SAME 'twilio' platform_integrations row's metadata
+ * — a DIFFERENT field from from_phone (metadata.customer_messaging_service_sid).
+ * Mirrors saveTwilioFromPhone exactly: preserves the existing encrypted
+ * ciphertext/iv/auth_tag, merges into existing metadata. Empty string is
+ * allowed to clear the field (mirrors saveTelegramChatId's empty-allowed
+ * pattern) — clearing it makes getTwilioCustomerMessagingConfig() return null,
+ * which makes sendCustomerSms() refuse to send (never falls back to
+ * from_phone / the shared owner number).
+ */
+export async function saveTwilioCustomerMessagingServiceSid(
+  sid: string
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = sid.trim()
+  if (trimmed && !/^MG[0-9a-fA-F]{32}$/.test(trimmed)) {
+    return {
+      ok: false,
+      message: 'Must be a Twilio Messaging Service SID (starts with MG, 34 characters).',
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'twilio')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'twilio',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: {
+        ...((existing?.metadata as object) ?? {}),
+        customer_messaging_service_sid: trimmed,
+      },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'twilio_customer_messaging_service_sid',
+    metadata: { customer_messaging_service_sid: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/**
  * Save the Xphere CRM base URL into platform_integrations.xphere metadata.
  * Stored as { base_url: "https://..." } alongside the existing encrypted key.
  * Validates that the value is a well-formed http(s) origin so getXphereConfig()

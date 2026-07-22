@@ -12,6 +12,7 @@ import { OpenRouterModelForm } from './openrouter-model-form'
 import { TranscriptionModelSelector } from './transcription-model-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
+import { TwilioCustomerMessagingForm } from './twilio-customer-messaging-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
@@ -39,6 +40,7 @@ export async function IntegrationCategoryContent({
     ])
 
   let twilioFromPhone = ''
+  let twilioCustomerMessagingServiceSid = ''
   if (category.showFromPhone) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -46,7 +48,13 @@ export async function IntegrationCategoryContent({
       .select('metadata')
       .eq('provider', 'twilio')
       .maybeSingle()
-    twilioFromPhone = (data?.metadata as { from_phone?: string } | null)?.from_phone ?? ''
+    const meta =
+      (data?.metadata as {
+        from_phone?: string
+        customer_messaging_service_sid?: string
+      } | null) ?? {}
+    twilioFromPhone = meta.from_phone ?? ''
+    twilioCustomerMessagingServiceSid = meta.customer_messaging_service_sid ?? ''
   }
 
   let waPhoneNumberId = ''
@@ -164,7 +172,10 @@ export async function IntegrationCategoryContent({
       )}
 
       {category.showFromPhone && (
-        <TwilioFromPhoneForm current={twilioFromPhone} />
+        <>
+          <TwilioFromPhoneForm current={twilioFromPhone} />
+          <TwilioCustomerMessagingForm current={twilioCustomerMessagingServiceSid} />
+        </>
       )}
 
       {category.showXphereConfig && (

@@ -137,7 +137,8 @@ export const CATEGORIES: ReadonlyArray<Category> = [
   {
     slug: 'sms',
     title: 'SMS',
-    description: 'Send estimate share links to clients via SMS.',
+    description:
+      'Send estimate share links and end-customer notifications via SMS. Two separate sending identities: the shared owner number below, and a dedicated Messaging Service reserved for end-customer traffic.',
     showFromPhone: true,
     providers: [
       {
