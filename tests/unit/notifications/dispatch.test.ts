@@ -55,6 +55,13 @@ vi.mock('@/lib/notifications/whatsapp-registry', () => ({
   }),
 }))
 
+// Phase 172 plan 03 (TMPL-06) — the copyContext resolution seam. Mocked here
+// so the new describe block below can assert notify()'s wiring in isolation
+// from resolveNotificationCopy's own (separately-tested) fallback logic.
+vi.mock('@/lib/notifications/template-resolver', () => ({
+  resolveNotificationCopy: vi.fn(),
+}))
+
 type SimpleResp<T = unknown> = { data: T; error: { message: string } | null }
 
 function makeServiceClient(opts: {
@@ -425,6 +432,101 @@ describe('lib/notifications/dispatch — DB-backed WhatsApp template resolver (N
       String((evt as { name?: string })?.name ?? '').includes('whatsapp'),
     )
     expect(whatsappCall).toBeUndefined()
+    warn.mockRestore()
+  })
+})
+
+/**
+ * Phase 172 plan 03 (TMPL-06) — the optional `copyContext` seam on notify().
+ *
+ * Additive-only contract: omitted (every existing call site today) means
+ * `resolveNotificationCopy` is never invoked and notify() is byte-identical
+ * to pre-Phase-172 behavior. Provided, it drives the in_app insert's
+ * title/body. A rejecting resolver is defense-in-depth-guarded — notify()
+ * falls back to the caller-supplied title/body and never throws.
+ */
+describe('lib/notifications/dispatch — copyContext seam (TMPL-06)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('WITHOUT copyContext: resolveNotificationCopy is never called, insert uses params.title/body verbatim', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_1' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 'Estimate viewed',
+      body: 'Acme Co viewed your estimate',
+    })
+
+    expect(resolveNotificationCopy).not.toHaveBeenCalled()
+    const insertCall = (svc.__from.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(insertCall).toMatchObject({
+      title: 'Estimate viewed',
+      body: 'Acme Co viewed your estimate',
+    })
+  })
+
+  it('WITH copyContext: resolveNotificationCopy is called with (tenant, eventType, in_app, copyContext) and its return drives the insert', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_2' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockResolvedValue({
+      title: 'Resolved title',
+      body: 'Resolved body',
+    })
+
+    const copyContext = { clientName: 'Acme Co', estimateNumber: 'EST-1' }
+    await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext,
+    })
+
+    expect(resolveNotificationCopy).toHaveBeenCalledWith(
+      'tenant',
+      'estimate.viewed',
+      'in_app',
+      copyContext,
+    )
+    const insertCall = (svc.__from.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(insertCall).toMatchObject({ title: 'Resolved title', body: 'Resolved body' })
+  })
+
+  it('WITH copyContext, resolver REJECTS: insert falls back to original params.title/body, notify() returns ok:true, never throws', async () => {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { resolveNotificationCopy } = await import('@/lib/notifications/template-resolver')
+    const svc = makeServiceClient({ insertSingle: { data: { id: 'notif_3' }, error: null } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(resolveNotificationCopy as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('resolver exploded'),
+    )
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const result = await notify({
+      companyId: 'co_1',
+      userId: 'user_1',
+      eventType: 'estimate.viewed',
+      title: 'Caller title',
+      body: 'Caller body',
+      copyContext: { clientName: 'Acme Co' },
+    })
+
+    expect(result.ok).toBe(true)
+    const insertCall = (svc.__from.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(insertCall).toMatchObject({ title: 'Caller title', body: 'Caller body' })
     warn.mockRestore()
   })
 })
