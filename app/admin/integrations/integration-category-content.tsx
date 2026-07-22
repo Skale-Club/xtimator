@@ -4,6 +4,7 @@ import {
 } from '@/lib/platform-config'
 import type { Category } from '@/lib/admin/integrations-providers'
 import { loadCategoryInitials } from '@/lib/admin/integrations-providers'
+import { loadPlatformEventToggles } from '@/lib/admin/platform-event-preferences'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
@@ -16,6 +17,7 @@ import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { TelegramChatIdForm } from './telegram-chat-id-form'
+import { PlatformEventTogglesForm } from './platform-event-toggles-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG, getBillingConfig } from '@/lib/billing/billing-config'
 import { aggregateAiCostByOperation, type OpCostStat } from '@/lib/billing/calibration'
@@ -92,6 +94,10 @@ export async function IntegrationCategoryContent({
       .maybeSingle()
     telegramChatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
   }
+
+  const platformEventToggles = category.showPlatformEventToggles
+    ? await loadPlatformEventToggles()
+    : []
 
   let priceResearch = {
     enabled: false,
@@ -170,6 +176,10 @@ export async function IntegrationCategoryContent({
 
       {category.showTelegramConfig && (
         <TelegramChatIdForm current={telegramChatId} />
+      )}
+
+      {category.showPlatformEventToggles && (
+        <PlatformEventTogglesForm initial={platformEventToggles} />
       )}
 
       {category.showWhatsAppConfig && (
