@@ -140,16 +140,18 @@ export const transcribeAudioJob = inngest.createFunction(
       })
 
       if (!companyId) return
-      const copy = buildNotificationCopy('ai_job.failed', {
+      const ctx = {
         jobType: 'Audio transcription',
         errorMessage: error instanceof Error ? error.message : String(error),
-      })
+      }
+      const copy = buildNotificationCopy('ai_job.failed', ctx)
       void notify({
         companyId,
         userId,
         eventType: 'ai_job.failed',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         resourceType: 'recording',
         resourceId: payload.recordingId,
         metadata: { dedupe_key: `ai-fail-transcribe-${payload.recordingId}` },
@@ -400,15 +402,17 @@ export const transcribeAudioJob = inngest.createFunction(
     try {
       const { companyId, userId } = await loadCompanyForRecording(recordingId)
       if (companyId) {
-        const copy = buildNotificationCopy('ai_job.completed', {
+        const ctx = {
           jobType: 'Audio transcription',
-        })
+        }
+        const copy = buildNotificationCopy('ai_job.completed', ctx)
         void notify({
           companyId,
           userId,
           eventType: 'ai_job.completed',
           title: copy.title,
           body: copy.body,
+          copyContext: ctx,
           resourceType: 'recording',
           resourceId: recordingId,
           metadata: { dedupe_key: `ai-ok-transcribe-${recordingId}` },

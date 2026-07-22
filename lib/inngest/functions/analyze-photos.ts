@@ -87,16 +87,18 @@ export const analyzePhotosJob = inngest.createFunction(
         provider: 'openrouter',
         errorMessage: error instanceof Error ? error.message : String(error),
       })
-      const copy = buildNotificationCopy('ai_job.failed', {
+      const ctx = {
         jobType: 'Photo analysis',
         errorMessage: error instanceof Error ? error.message : String(error),
-      })
+      }
+      const copy = buildNotificationCopy('ai_job.failed', ctx)
       void notify({
         companyId: payload.companyId,
         userId,
         eventType: 'ai_job.failed',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: `/projects/${payload.projectId}`,
         resourceType: 'project',
         resourceId: payload.projectId,
@@ -418,15 +420,17 @@ export const analyzePhotosJob = inngest.createFunction(
     // Phase 77 NOTIF-04: opt-in success notification.
     try {
       const userId = await loadOwnerUserId(companyId)
-      const copy = buildNotificationCopy('ai_job.completed', {
+      const ctx = {
         jobType: 'Photo analysis',
-      })
+      }
+      const copy = buildNotificationCopy('ai_job.completed', ctx)
       void notify({
         companyId,
         userId,
         eventType: 'ai_job.completed',
         title: copy.title,
         body: copy.body,
+        copyContext: ctx,
         linkUrl: `/projects/${projectId}`,
         resourceType: 'project',
         resourceId: projectId,
