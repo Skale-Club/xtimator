@@ -94,7 +94,9 @@ None - plan executed exactly as written.
 
 ## Issues Encountered
 
-A sibling executor (175-02) was concurrently modifying `lib/actions/company.ts` and `lib/billing/connect-webhook.ts` in the same working tree (file-disjoint from this plan's admin-UI/actions files, per the concurrency contract). All staging used pathspec-scoped `git add <paths>` targeting only this plan's 6 files; no `index.lock` contention occurred and no unrelated file was staged or committed. `.planning/phases/176-.../176-0{1,4,5}-PLAN.md` were also seen modified by an unrelated concurrent process and were left untouched.
+A sibling executor (175-02) was concurrently modifying `lib/actions/company.ts` and `lib/billing/connect-webhook.ts` in the same working tree (file-disjoint from this plan's admin-UI/actions files, per the concurrency contract). Task-commit staging (`5fdbd7d3`, `84b8b75c`) used pathspec-scoped `git add <paths>` correctly and captured only this plan's 6 files.
+
+**Self-flagged mistake (final metadata commit only):** the final `docs(175-03)` commit (`66612305`) was run as a plain `git commit -m` without a trailing pathspec. At that moment a separate concurrent process (unrelated to 175-02) already had `.planning/phases/176-end-customer-consent-optout-quiet-hours/176-01-PLAN.md`, `176-04-PLAN.md`, and `176-05-PLAN.md` staged in the shared index, and the plain commit swept them in alongside `175-03-SUMMARY.md`. No content was lost or altered — `git status` confirms those 3 files are clean (working tree matches HEAD) with no orphaned diff — but they are now attributed to this commit's message instead of whatever commit the 176 process intended. Not reverted/rewritten per the no-destructive-history-edit constraint; flagging for the orchestrator's awareness. Root cause: the two task commits correctly used pathspec-scoped `git add` + plain `git commit` (safe, since only my staged files were in the index at that point), but the SUMMARY commit should have used `git commit -- .planning/phases/175-telegram-platform-events-toggles/175-03-SUMMARY.md` to stay safe regardless of what else was staged concurrently.
 
 ## User Setup Required
 
