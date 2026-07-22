@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { Fragment, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
@@ -21,14 +21,51 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   createTemplate,
   submitTemplateToMeta,
+  checkTemplateStatus,
+  updateTemplateAndResubmit,
   type TemplateRow,
 } from '@/lib/actions/admin-whatsapp-templates'
+import { WhatsAppTemplateComposer } from './whatsapp-template-composer'
+import type { ComposerParam } from '@/lib/whatsapp/template-composer'
 
-const STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive' | 'default'> = {
-  approved: 'default',
+// Full status map — every status Plan 179-03 (applyTemplateStatusUpdate /
+// checkTemplateStatus's mapMetaEventToStatus) can write. Some statuses share
+// a visual variant on purpose (e.g. draft/archived both 'outline',
+// paused/flagged both 'warning') — distinctness for an admin comes from the
+// always-rendered status TEXT in the badge, not from the variant alone. The
+// `?? 'outline'` fallback below is reserved for a genuinely UNMAPPED future
+// status, not for any of the 10 known ones here.
+const STATUS_VARIANT: Record<
+  string,
+  'secondary' | 'outline' | 'destructive' | 'success' | 'warning' | 'danger'
+> = {
+  approved: 'success',
   pending: 'secondary',
   draft: 'outline',
   rejected: 'destructive',
+  paused: 'warning',
+  disabled: 'danger',
+  flagged: 'warning',
+  in_appeal: 'secondary',
+  locked: 'danger',
+  archived: 'outline',
+}
+
+/**
+ * Defensive parse of a stored `variables_schema` JSONB value into an ordered
+ * `ComposerParam[]` for seeding the Edit & Resubmit composer. Never throws —
+ * mirrors `parseComposerParams` in `lib/actions/admin-whatsapp-templates.ts`.
+ */
+function asComposerParams(raw: unknown): ComposerParam[] {
+  return Array.isArray(raw)
+    ? raw.filter(
+        (p): p is ComposerParam =>
+          !!p &&
+          typeof p === 'object' &&
+          typeof (p as Record<string, unknown>).label === 'string' &&
+          typeof (p as Record<string, unknown>).example === 'string'
+      )
+    : []
 }
 
 export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[] }) {
@@ -36,13 +73,18 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
   const { t } = useTranslation()
   const [pending, startTransition] = useTransition()
   const [submittingId, setSubmittingId] = useState<string | null>(null)
+  const [checkingId, setCheckingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [resubmitting, setResubmitting] = useState(false)
 
   const [name, setName] = useState('')
   const [language, setLanguage] = useState('en_US')
   const [category, setCategory] = useState<string>('billing')
 
-  function onCreate(e: React.FormEvent) {
-    e.preventDefault()
+  // The composer is the SINGLE create entry point — there is no separate
+  // bare-form submit path. handleCreateSubmit is only ever invoked from the
+  // composer's own gated Submit button (already validated client-side).
+  function handleCreateSubmit({ bodyText, params }: { bodyText: string; params: ComposerParam[] }) {
     if (!name.trim()) {
       toast.error(t('Template name is required'))
       return
@@ -52,6 +94,8 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
         template_name: name.trim(),
         language_code: language.trim() || 'en_US',
         event_category: category,
+        body_text: bodyText,
+        variables_schema: params,
       })
       if (res.ok) {
         toast.success(t('Template created'))
@@ -83,19 +127,50 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
     toast.error(res.error ?? t('Submit failed'))
   }
 
+  async function handleCheckStatus(id: string) {
+    setCheckingId(id)
+    const res = await checkTemplateStatus(id)
+    setCheckingId(null)
+    if (res.ok) {
+      toast.success(`${t('Status')}: ${res.status}`)
+      router.refresh()
+      return
+    }
+    toast.error(res.error ?? t('Status check failed'))
+  }
+
+  async function handleResubmit(id: string, input: { bodyText: string; params: ComposerParam[] }) {
+    setResubmitting(true)
+    const res = await updateTemplateAndResubmit(id, {
+      body_text: input.bodyText,
+      variables_schema: input.params,
+    })
+    setResubmitting(false)
+    if (res.ok) {
+      toast.success(t('Resubmitted for approval'))
+      setEditingId(null)
+      router.refresh()
+      return
+    }
+    toast.error(res.error ?? res.errors?.join('; ') ?? t('Resubmit failed'))
+  }
+
   return (
     <div className="space-y-8">
-      <Card variant="glass" className="p-6">
-        <h2 className="text-lg font-semibold mb-1">
-          <T>Create template</T>
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          <T>
-            Register a WhatsApp notification template. The template name + language must match a
-            template authored in Meta WhatsApp Manager under the platform WABA.
-          </T>
-        </p>
-        <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end">
+      <Card variant="glass" className="p-6 space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold mb-1">
+            <T>Create template</T>
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            <T>
+              Register a WhatsApp notification template. The template name + language must match a
+              template authored in Meta WhatsApp Manager under the platform WABA. Compose the body
+              below by clicking &quot;Add variable&quot; — never type raw braces.
+            </T>
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="tpl-name">
               <T>Template name</T>
@@ -133,11 +208,12 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <T>Create</T>
-          </Button>
-        </form>
+        </div>
+        <WhatsAppTemplateComposer
+          submitLabel={t('Create template')}
+          pending={pending}
+          onSubmit={handleCreateSubmit}
+        />
       </Card>
 
       <Card variant="glass" className="p-0 overflow-hidden">
@@ -162,38 +238,76 @@ export function WhatsAppTemplatesPanel({ templates }: { templates: TemplateRow[]
                 </tr>
               ) : (
                 templates.map((row) => (
-                  <tr key={row.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-3 font-mono text-xs">{row.template_name}</td>
-                    <td className="px-4 py-3">{row.language_code}</td>
-                    <td className="px-4 py-3">
-                      {row.event_category ?? (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={STATUS_VARIANT[row.status] ?? 'outline'}>{row.status}</Badge>
-                    </td>
-                    <td className="px-4 py-3 max-w-[240px] truncate text-muted-foreground">
-                      {row.rejection_reason ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {row.status === 'draft' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={submittingId === row.id}
-                          onClick={() => onSubmitToMeta(row.id)}
-                        >
-                          {submittingId === row.id ? (
-                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Send className="mr-2 h-3.5 w-3.5" />
-                          )}
-                          <T>Submit to Meta</T>
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
+                  <Fragment key={row.id}>
+                    <tr className="hover:bg-muted/20">
+                      <td className="px-4 py-3 font-mono text-xs">{row.template_name}</td>
+                      <td className="px-4 py-3">{row.language_code}</td>
+                      <td className="px-4 py-3">
+                        {row.event_category ?? (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge variant={STATUS_VARIANT[row.status] ?? 'outline'}>{row.status}</Badge>
+                      </td>
+                      <td className="px-4 py-3 max-w-[240px] truncate text-muted-foreground">
+                        {row.rejection_reason ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                        {row.status === 'draft' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={submittingId === row.id}
+                            onClick={() => onSubmitToMeta(row.id)}
+                          >
+                            {submittingId === row.id ? (
+                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="mr-2 h-3.5 w-3.5" />
+                            )}
+                            <T>Submit to Meta</T>
+                          </Button>
+                        )}
+                        {row.meta_template_id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={checkingId === row.id}
+                            onClick={() => handleCheckStatus(row.id)}
+                          >
+                            {checkingId === row.id && (
+                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            )}
+                            <T>Check status now</T>
+                          </Button>
+                        )}
+                        {(row.status === 'rejected' || row.status === 'approved') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingId(editingId === row.id ? null : row.id)}
+                          >
+                            <T>Edit & Resubmit</T>
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                    {editingId === row.id && (
+                      <tr className="bg-muted/10">
+                        <td colSpan={6} className="px-4 py-4">
+                          <WhatsAppTemplateComposer
+                            key={row.id}
+                            initialBodyText={row.body_text ?? ''}
+                            initialParams={asComposerParams(row.variables_schema)}
+                            submitLabel={t('Update & Resubmit')}
+                            pending={resubmitting}
+                            onSubmit={(input) => handleResubmit(row.id, input)}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))
               )}
             </tbody>
