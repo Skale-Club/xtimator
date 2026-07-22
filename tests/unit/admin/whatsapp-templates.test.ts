@@ -385,3 +385,211 @@ describe('createTemplate — body_text/variables_schema passthrough (179-03)', (
     })
   })
 })
+
+describe('checkTemplateStatus (179-03)', () => {
+  it('refuses a template that has never been submitted (meta_template_id: null)', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { getMetaTemplateStatus } = await import('@/lib/whatsapp/meta-templates-client')
+    const row = { id: 'tpl_1', meta_template_id: null }
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplatesClientWithRow(row)
+    )
+
+    const result = await checkTemplateStatus('tpl_1')
+
+    expect(result).toMatchObject({ ok: false })
+    expect((result as { error?: string }).error).toEqual(
+      expect.stringContaining('not been submitted')
+    )
+    expect(getMetaTemplateStatus).not.toHaveBeenCalled()
+  })
+
+  it('maps APPROVED to approved and persists the status', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { getMetaTemplateStatus } = await import('@/lib/whatsapp/meta-templates-client')
+    const row = { id: 'tpl_1', meta_template_id: 'meta_1' }
+    const svc = makeTemplatesClientWithRow(row)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(getMetaTemplateStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      result: { status: 'APPROVED', rejectionReason: null },
+    })
+
+    const result = await checkTemplateStatus('tpl_1')
+
+    expect(result).toEqual({ ok: true, status: 'approved', rejectionReason: null })
+    const updateArg = (svc.__from.update as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(updateArg).toMatchObject({ status: 'approved' })
+  })
+
+  it('reuses the SAME widened mapMetaEventToStatus for PAUSED', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { getMetaTemplateStatus } = await import('@/lib/whatsapp/meta-templates-client')
+    const row = { id: 'tpl_1', meta_template_id: 'meta_1' }
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplatesClientWithRow(row)
+    )
+    ;(getMetaTemplateStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      result: { status: 'PAUSED', rejectionReason: null },
+    })
+
+    const result = await checkTemplateStatus('tpl_1')
+
+    expect(result).toMatchObject({ ok: true, status: 'paused' })
+  })
+
+  it('persists rejection_reason when the mapped status is rejected', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { getMetaTemplateStatus } = await import('@/lib/whatsapp/meta-templates-client')
+    const row = { id: 'tpl_1', meta_template_id: 'meta_1' }
+    const svc = makeTemplatesClientWithRow(row)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(getMetaTemplateStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      result: { status: 'REJECTED', rejectionReason: 'INVALID_FORMAT' },
+    })
+
+    await checkTemplateStatus('tpl_1')
+
+    const updateArg = (svc.__from.update as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(updateArg).toMatchObject({ rejection_reason: 'INVALID_FORMAT' })
+  })
+
+  it('surfaces a getMetaTemplateStatus failure and attempts no DB update', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { getMetaTemplateStatus } = await import('@/lib/whatsapp/meta-templates-client')
+    const row = { id: 'tpl_1', meta_template_id: 'meta_1' }
+    const svc = makeTemplatesClientWithRow(row)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(getMetaTemplateStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      error: 'server error',
+    })
+
+    const result = await checkTemplateStatus('tpl_1')
+
+    expect(result.ok).toBe(false)
+    expect((result as { error?: string }).error).toEqual(expect.stringContaining('500'))
+    expect(svc.__from.update).not.toHaveBeenCalled()
+  })
+
+  it('never throws when the read chain throws', async () => {
+    const { checkTemplateStatus } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplatesClientWithRow(null, { readThrows: true })
+    )
+
+    const result = await checkTemplateStatus('tpl_1')
+
+    expect(typeof result).toBe('object')
+    expect(result).not.toBeNull()
+    expect(result.ok).toBe(false)
+  })
+})
+
+describe('updateTemplateAndResubmit (179-03)', () => {
+  it('refuses an invalid body (starts with a variable) before any DB read/update or Meta call', async () => {
+    const { updateTemplateAndResubmit } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { updateMetaTemplate } = await import('@/lib/whatsapp/meta-templates-client')
+    const svc = makeTemplatesClientWithRow({ id: 'tpl_1', meta_template_id: 'meta_1' })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+
+    const result = await updateTemplateAndResubmit('tpl_1', {
+      body_text: '{{1}} is starting soon.',
+      variables_schema: [{ label: 'Job', example: 'Kitchen remodel' }],
+    })
+
+    expect(result.ok).toBe(false)
+    expect((result as { errors?: string[] }).errors?.length).toBeGreaterThan(0)
+    expect(updateMetaTemplate).not.toHaveBeenCalled()
+    expect(svc.__from.select).not.toHaveBeenCalled()
+    expect(svc.__from.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses a valid input when the row has never been submitted (meta_template_id: null)', async () => {
+    const { updateTemplateAndResubmit } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { updateMetaTemplate } = await import('@/lib/whatsapp/meta-templates-client')
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplatesClientWithRow({ id: 'tpl_1', meta_template_id: null })
+    )
+
+    const result = await updateTemplateAndResubmit('tpl_1', {
+      body_text: 'Hi {{1}}.',
+      variables_schema: [{ label: 'Name', example: 'John' }],
+    })
+
+    expect(result.ok).toBe(false)
+    expect((result as { error?: string }).error).toEqual(expect.stringContaining('Submit to Meta'))
+    expect(updateMetaTemplate).not.toHaveBeenCalled()
+  })
+
+  it('calls updateMetaTemplate with the SAME meta_template_id + the real buildBodyComponent output, and persists on success', async () => {
+    const { updateTemplateAndResubmit } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { updateMetaTemplate } = await import('@/lib/whatsapp/meta-templates-client')
+    const svc = makeTemplatesClientWithRow({ id: 'tpl_1', meta_template_id: 'meta_1' })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(updateMetaTemplate as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true })
+    const params = [{ label: 'Name', example: 'John' }]
+
+    const result = await updateTemplateAndResubmit('tpl_1', {
+      body_text: 'Hi {{1}}.',
+      variables_schema: params,
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(updateMetaTemplate).toHaveBeenCalledTimes(1)
+    const [templateIdArg, accessTokenArg, componentsArg] = (
+      updateMetaTemplate as ReturnType<typeof vi.fn>
+    ).mock.calls[0] as [string, string, unknown[]]
+    expect(templateIdArg).toBe('meta_1')
+    expect(accessTokenArg).toBe('tok')
+    expect(componentsArg).toEqual([
+      {
+        type: 'BODY',
+        text: 'Hi {{1}}.',
+        example: { body_text: [['John']] },
+      },
+    ])
+
+    const updateArg = (svc.__from.update as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
+    expect(updateArg).toMatchObject({
+      body_text: 'Hi {{1}}.',
+      variables_schema: params,
+      status: 'pending',
+      rejection_reason: null,
+    })
+  })
+
+  it('does not locally claim success (or write to the DB) when updateMetaTemplate fails', async () => {
+    const { updateTemplateAndResubmit } = await import('@/lib/actions/admin-whatsapp-templates')
+    const { requireServiceClient } = await import('@/lib/supabase/service')
+    const { updateMetaTemplate } = await import('@/lib/whatsapp/meta-templates-client')
+    const svc = makeTemplatesClientWithRow({ id: 'tpl_1', meta_template_id: 'meta_1' })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(svc)
+    ;(updateMetaTemplate as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      error: 'bad request',
+    })
+
+    const result = await updateTemplateAndResubmit('tpl_1', {
+      body_text: 'Hi {{1}}.',
+      variables_schema: [{ label: 'Name', example: 'John' }],
+    })
+
+    expect(result.ok).toBe(false)
+    expect((result as { error?: string }).error).toEqual(expect.stringContaining('400'))
+    expect(svc.__from.update).not.toHaveBeenCalled()
+  })
+})

@@ -32,6 +32,8 @@ import {
 import {
   buildCreatePayload,
   createMetaTemplate,
+  getMetaTemplateStatus,
+  updateMetaTemplate,
   mapMetaEventToStatus,
 } from '@/lib/whatsapp/meta-templates-client'
 
@@ -204,6 +206,130 @@ export async function submitTemplateToMeta(
       .eq('id', id)
 
     return { ok: true, metaTemplateId }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * On-demand Meta status check (Pattern 3) — independent of the async
+ * webhook. Reads the row, guards on a template that was never submitted,
+ * calls `getMetaTemplateStatus`, maps through the SAME widened
+ * `mapMetaEventToStatus` the webhook uses, persists the result, and NEVER
+ * throws.
+ */
+export async function checkTemplateStatus(
+  id: string
+): Promise<
+  | { ok: true; status: string; rejectionReason: string | null }
+  | { ok: false; error?: string }
+> {
+  try {
+    await requireAdmin()
+    const svc = requireServiceClient()
+
+    const { data: row, error: readErr } = await svc
+      .from(TABLE)
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (readErr || !row) {
+      return { ok: false, error: readErr?.message ?? 'Template not found' }
+    }
+    const template = row as TemplateRow
+
+    if (!template.meta_template_id) {
+      return { ok: false, error: 'This template has not been submitted to Meta yet.' }
+    }
+
+    const { accessToken } = await getWhatsAppPlatformConfig()
+    if (!accessToken) {
+      return { ok: false, error: 'Meta access token is not configured.' }
+    }
+
+    const result = await getMetaTemplateStatus(template.meta_template_id, accessToken)
+    if (!result.ok) {
+      return { ok: false, error: `Meta status check failed ${result.status}: ${result.error}` }
+    }
+
+    const status = mapMetaEventToStatus(result.result.status)
+    const patch: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    }
+    if (status === 'rejected') {
+      patch.rejection_reason = result.result.rejectionReason
+    }
+    await svc.from(TABLE).update(patch).eq('id', id)
+
+    return { ok: true, status, rejectionReason: result.result.rejectionReason }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * Edit-and-resubmit (Pattern 4) for a rejected (or any existing) template:
+ * validates the new body/params FIRST — before any DB read — then updates
+ * the SAME Meta template in place (`POST /{template_id}`, not a new
+ * template) and flips local status back to `pending` with the prior
+ * `rejection_reason` cleared. Never throws.
+ */
+export async function updateTemplateAndResubmit(
+  id: string,
+  input: { body_text: string; variables_schema: ComposerParam[] }
+): Promise<{ ok: true } | { ok: false; error?: string; errors?: string[] }> {
+  try {
+    await requireAdmin()
+
+    const bodyText = (input.body_text ?? '').trim()
+    const params = input.variables_schema ?? []
+    const validation = validateComposerTemplate(bodyText, params)
+    if (!validation.valid) {
+      return { ok: false, errors: validation.errors }
+    }
+
+    const svc = requireServiceClient()
+
+    const { data: row, error: readErr } = await svc
+      .from(TABLE)
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (readErr || !row) {
+      return { ok: false, error: readErr?.message ?? 'Template not found' }
+    }
+    const template = row as TemplateRow
+
+    if (!template.meta_template_id) {
+      return { ok: false, error: 'Submit to Meta first before editing/resubmitting.' }
+    }
+
+    const { accessToken } = await getWhatsAppPlatformConfig()
+    if (!accessToken) {
+      return { ok: false, error: 'Meta access token is not configured.' }
+    }
+
+    const bodyComponent = buildBodyComponent(bodyText, params)
+    const result = await updateMetaTemplate(template.meta_template_id, accessToken, [
+      bodyComponent,
+    ])
+    if (!result.ok) {
+      return { ok: false, error: `Meta update failed ${result.status}: ${result.error}` }
+    }
+
+    await svc
+      .from(TABLE)
+      .update({
+        body_text: bodyText,
+        variables_schema: params,
+        status: 'pending',
+        rejection_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
