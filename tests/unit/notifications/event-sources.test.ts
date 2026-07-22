@@ -13,9 +13,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 import type { EventType } from '@/lib/notifications/event-types'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 vi.mock('@/lib/notifications/dispatch', () => ({
   notify: vi.fn().mockResolvedValue({ ok: true, notificationId: 'notif_test' }),
+}))
+
+// Phase 175 (PLAT-01) test-safety: several call sites exercised below now
+// import notifyOps, which carries a dedupeKey and would otherwise attempt a
+// real Upstash SETNX round-trip (this file does not mock @/lib/supabase/service
+// or Redis for these blocks).
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ----------------------------------------------------------------------
@@ -270,6 +279,86 @@ describe('payment.received instrumentation', () => {
     expect((params.metadata as { dedupe_key?: string } | undefined)?.dedupe_key).toBe('evt_stripe_abc')
     expect((params.channels as { email?: boolean } | undefined)?.email).toBe(true)
 
+    // Phase 175 (PLAT-01): additive platform-event sibling — a customer paying
+    // a tenant via Stripe Connect fires tenant_payment_received.
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'tenant_payment_received' })
+    )
+
+    vi.doUnmock('@/lib/email/payment-emails')
+  })
+
+  it('handleConnectEvent(invoice.paid) fires notify({eventType:"payment.received"}) AND notifyOps({kind:"tenant_payment_received"})', async () => {
+    const updatedInvoice = {
+      id: 'inv_row_p1',
+      company_id: 'co_p',
+      estimate_id: 'est_p1',
+      amount_cents: 30000,
+      currency_code: 'usd',
+      project_name: 'Bathroom remodel',
+    }
+    const invoiceSingle = vi.fn().mockResolvedValueOnce({ data: updatedInvoice, error: null })
+    const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle })
+    const invoiceUpdateEq = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate })
+    const invoiceUpdate = vi.fn().mockReturnValue({ eq: invoiceUpdateEq })
+
+    const companiesSingle = vi.fn().mockResolvedValue({
+      data: {
+        email: null,
+        name: 'Acme',
+        stripe_account_display_name: 'Acme Roofing',
+        user_id: 'user_owner',
+        slug: 'acme-co',
+      },
+      error: null,
+    })
+    const estimatesSingle = vi.fn().mockResolvedValue({
+      data: { share_token: 'tok_p', project_id: 'proj_p', public_slug_token: null },
+      error: null,
+    })
+
+    const svc = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'invoices') return { update: invoiceUpdate }
+        if (table === 'companies') return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: companiesSingle }) }) }
+        if (table === 'estimates') return { select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: estimatesSingle }) }) }
+        throw new Error(`Unexpected table: ${table}`)
+      }),
+    }
+
+    vi.doMock('@/lib/email/payment-emails', () => ({
+      sendPaymentReceivedEmail: vi.fn().mockResolvedValue(undefined),
+      sendPaymentReceiptEmail: vi.fn().mockResolvedValue(undefined),
+    }))
+
+    const { handleConnectEvent } = await import('@/lib/billing/connect-webhook')
+    const fakeEvent = {
+      id: 'evt_stripe_invoice_abc',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'in_test_1',
+          metadata: { invoice_id: 'inv_row_p1' },
+          amount_paid: 30000,
+          hosted_invoice_url: null,
+          invoice_pdf: null,
+          customer_email: 'c@x.com',
+          customer_name: 'Cust',
+        },
+      },
+    } as unknown as import('stripe').default.Event
+
+    await handleConnectEvent(fakeEvent, {} as unknown as import('stripe').default, svc as unknown as ReturnType<typeof import('@/lib/supabase/service').requireServiceClient>)
+
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
+    const match = calls.find((c) => (c[0] as { eventType: string }).eventType === 'payment.received')
+    expect(match).toBeDefined()
+
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'tenant_payment_received' })
+    )
+
     vi.doUnmock('@/lib/email/payment-emails')
   })
 })
@@ -319,6 +408,11 @@ describe('quota.80pct + quota.exhausted instrumentation', () => {
     const params = exhausted![0] as Record<string, unknown>
     expect((params.channels as { email?: boolean; inApp?: boolean } | undefined)?.email).toBe(true)
     expect((params.channels as { email?: boolean; inApp?: boolean } | undefined)?.inApp).toBe(true)
+
+    // Phase 175 (PLAT-01): additive platform-event sibling at the 100% threshold.
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'tenant_quota_exhausted' })
+    )
   })
 })
 

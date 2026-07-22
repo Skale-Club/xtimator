@@ -2,6 +2,7 @@ import 'server-only'
 import type Stripe from 'stripe'
 import type { requireServiceClient } from '@/lib/supabase/service'
 import { notify } from '@/lib/notifications/dispatch'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
@@ -159,6 +160,18 @@ async function handleCheckoutSessionCompleted(
       channels: { inApp: true, email: true },
       metadata: { dedupe_key: event.id },
     })
+
+    // Phase 175 (PLAT-01) — a customer paying a tenant via Stripe Connect is a
+    // platform event, DISTINCT from a tenant paying Xtimator itself
+    // (subscription_payment_received in app/api/webhooks/stripe/route.ts's
+    // handlePlatformEvent). Sibling, fire-and-forget — never replaces notify().
+    void notifyOps({
+      kind: 'tenant_payment_received',
+      title: `Payment received - ${company?.name ?? 'Unknown company'}`,
+      message: `${amountUSD ? `$${amountUSD}` : 'Amount unknown'} - ${project?.name ?? 'Untitled project'} - estimate ${updated.id}`,
+      severity: 'warning',
+      dedupeKey: `tenant_payment_received:${event.id}`,
+    })
   } catch {
     /* best-effort */
   }
@@ -306,6 +319,18 @@ async function handleInvoicePaid(
       resourceId: updated.id,
       channels: { inApp: true, email: true },
       metadata: { dedupe_key: event.id },
+    })
+
+    // Phase 175 (PLAT-01) — same tenant_payment_received kind as the checkout
+    // arm above (still the Connect/customer-pays-tenant path, NOT the platform
+    // subscription path handled in app/api/webhooks/stripe/route.ts). Sibling,
+    // fire-and-forget — never replaces notify().
+    void notifyOps({
+      kind: 'tenant_payment_received',
+      title: `Payment received - ${company?.name ?? 'Unknown company'}`,
+      message: `$${amountUSD} - ${updated.project_name ?? 'Untitled project'} - invoice ${updated.id}`,
+      severity: 'warning',
+      dedupeKey: `tenant_payment_received:${event.id}`,
     })
   } catch {
     /* best-effort */

@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 export type QuotaType = 'estimate' | 'photo_batch' | 'audio_minutes' | 'price_research'
 export type EventType =
@@ -277,6 +278,16 @@ export async function notifyQuotaThresholds(
         linkUrl: '/settings/billing',
         channels: { inApp: true, email: true },
         metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },
+      })
+
+      // Phase 175 (PLAT-01) — a tenant hitting its quota is also a platform
+      // event. Sibling call — never replaces the tenant notify() above.
+      void notifyOps({
+        kind: 'tenant_quota_exhausted',
+        title: 'Tenant quota exhausted',
+        message: `company=${companyId} limit=${limit}`,
+        severity: 'warning',
+        dedupeKey: `tenant_quota_exhausted:${companyId}:${month}`,
       })
     }
   } catch {

@@ -19,6 +19,7 @@ import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
 import { captureBackgroundError } from '@/lib/observability/capture'
 import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 interface CompanyFormData {
   companyName?: string
@@ -314,6 +315,15 @@ export async function createOrUpdateCompany(
         error: 'Could not finalize company membership. Please try again.',
       }
     }
+
+    // Phase 175 (PLAT-01) — a brand-new tenant signing up is a platform event.
+    // Sibling call — never routes through notify() (that pipe is company-scoped).
+    void notifyOps({
+      kind: 'tenant_signup',
+      title: 'New tenant signup',
+      message: `${row.name} (${newCompany.id}) - industries: ${resolvedIndustries.join(', ') || 'none'}`,
+      severity: 'warning',
+    })
 
     // Billing v2: one-time signup credit grant — the free tier's allowance.
     // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant

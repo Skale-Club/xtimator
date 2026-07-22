@@ -19,6 +19,10 @@ vi.mock('@/lib/billing/credit-ledger', () => ({
   grantMonthlyCredits: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn(),
+}))
+
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
 }))
@@ -48,6 +52,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { cookies as nextCookies } from 'next/headers'
 import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
+import { notifyOps } from '@/lib/observability/ops-alert'
 // Static import (not a per-test `await import`): the action drags in a heavy
 // module graph (server-only, inngest client, email, price-book seed). Loading it
 // inside the FIRST test's body raced the 5s testTimeout under full-suite CPU
@@ -156,6 +161,10 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     expect('tier_trial_ends_at' in capturedInsertRow!).toBe(false)
     // The free allowance arrives as the one-time signup credit grant instead.
     expect(grantSignupCredits).toHaveBeenCalledWith('company-new')
+    // Phase 175 (PLAT-01): a brand-new tenant signup is also a platform event.
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'tenant_signup' })
+    )
   })
 
   it('UPDATE branch: existing company does NOT get tier_trial_ends_at reset', async () => {

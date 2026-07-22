@@ -42,6 +42,14 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   }),
 }))
 
+// Phase 175 (PLAT-01) test-safety: connect-webhook.ts now imports notifyOps,
+// which carries a dedupeKey and would otherwise attempt a real Upstash SETNX
+// round-trip (getRedis() is unmocked in this file). No new assertions here —
+// see tests/unit/notifications/event-sources.test.ts for the wiring coverage.
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Per-table Supabase mock. Each `.from(table)` returns its own chainable shape.
 const dedupInsert = vi.fn()
 
