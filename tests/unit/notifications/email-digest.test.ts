@@ -152,4 +152,106 @@ describe('sendNotificationDigestEmail (NOTIF-07)', () => {
     expect(errorSpy).toHaveBeenCalled()
     errorSpy.mockRestore()
   })
+
+  // Phase 174 (TNT-01, carry-forward b) — preEscaped flag governs BODY
+  // escaping only; title is always escaped unconditionally.
+  it('does not re-escape body when preEscaped: true (no double-escape)', async () => {
+    vi.mocked(getIntegrationKey).mockResolvedValue('rk_test_x')
+
+    await sendNotificationDigestEmail(
+      ctx({
+        items: [
+          {
+            category: 'estimate',
+            title: 'Estimate viewed',
+            body: '&lt;script&gt;already &amp; escaped&lt;/script&gt;',
+            preEscaped: true,
+            createdAt: '2026-05-20T10:00:00Z',
+          },
+        ],
+      }),
+    )
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    const arg = sendMock.mock.calls[0]![0] as { html: string }
+    expect(arg.html).toContain('&lt;script&gt;already &amp; escaped&lt;/script&gt;')
+    expect(arg.html).not.toContain('&amp;lt;script&amp;gt;')
+    expect(arg.html).not.toContain('&amp;amp;')
+  })
+
+  it('still escapes body normally when preEscaped is false or omitted (regression)', async () => {
+    vi.mocked(getIntegrationKey).mockResolvedValue('rk_test_x')
+
+    await sendNotificationDigestEmail(
+      ctx({
+        items: [
+          {
+            category: 'estimate',
+            title: 'Estimate viewed',
+            body: '<script>alert(1)</script> & more',
+            createdAt: '2026-05-20T10:00:00Z',
+          },
+        ],
+      }),
+    )
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    const arg = sendMock.mock.calls[0]![0] as { html: string }
+    expect(arg.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt; &amp; more')
+  })
+
+  it('always escapes title unconditionally, regardless of the body preEscaped flag', async () => {
+    vi.mocked(getIntegrationKey).mockResolvedValue('rk_test_x')
+
+    await sendNotificationDigestEmail(
+      ctx({
+        items: [
+          {
+            category: 'estimate',
+            title: 'Acme & Co viewed it',
+            body: 'pre-escaped body',
+            preEscaped: true,
+            createdAt: '2026-05-20T10:00:00Z',
+          },
+        ],
+      }),
+    )
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    const arg = sendMock.mock.calls[0]![0] as { html: string }
+    expect(arg.html).toContain('Acme &amp; Co viewed it')
+    expect(arg.html).not.toContain('Acme & Co viewed it<')
+  })
+
+  it('respects per-item body preEscaped in a grouped multi-item digest, while titles are always escaped', async () => {
+    vi.mocked(getIntegrationKey).mockResolvedValue('rk_test_x')
+
+    await sendNotificationDigestEmail(
+      ctx({
+        groupedByCategory: true,
+        items: [
+          {
+            category: 'estimate',
+            title: 'Estimate A & B',
+            body: 'pre-escaped &amp; body',
+            preEscaped: true,
+            createdAt: '2026-05-20T10:00:00Z',
+          },
+          {
+            category: 'estimate',
+            title: 'Estimate C',
+            body: 'plain <b>body</b> & text',
+            createdAt: '2026-05-20T10:05:00Z',
+          },
+        ],
+      }),
+    )
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    const arg = sendMock.mock.calls[0]![0] as { html: string }
+    // preEscaped item's body renders verbatim, not double-escaped
+    expect(arg.html).toContain('pre-escaped &amp; body')
+    expect(arg.html).not.toContain('pre-escaped &amp;amp; body')
+    // plain item's body is escaped normally
+    expect(arg.html).toContain('plain &lt;b&gt;body&lt;/b&gt; &amp; text')
+    // both titles are escaped unconditionally
+    expect(arg.html).toContain('Estimate A &amp; B')
+    expect(arg.html).toContain('Estimate C')
+  })
 })

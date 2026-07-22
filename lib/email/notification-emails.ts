@@ -26,6 +26,16 @@ export interface DigestEmailItem {
   body: string
   linkUrl?: string
   createdAt: string
+  /**
+   * Phase 174 (TNT-01, carry-forward b) — governs BODY escaping ONLY. true
+   * when body already went through resolveNotificationCopy's html-mode
+   * escaping; MUST NOT be re-escaped. Defaults to false/undefined — legacy
+   * plain body values still need escapeHtml here, byte-identical to
+   * pre-Phase-174 behavior. title is NEVER gated by this flag —
+   * resolveNotificationCopy always renders title/subject in TEXT mode
+   * (Plan 174-04), so title is always plain and must always be escaped here.
+   */
+  preEscaped?: boolean
 }
 
 export interface DigestEmailContext {
@@ -62,7 +72,7 @@ function escapeHtml(s: string): string {
 
 function renderItem(item: DigestEmailItem, brandColor: string): string {
   const titleHtml = escapeHtml(item.title)
-  const bodyHtml = escapeHtml(item.body)
+  const bodyHtml = item.preEscaped ? item.body : escapeHtml(item.body)
   const link = item.linkUrl
     ? `<p style="margin:8px 0 0;"><a href="${escapeHtml(
         item.linkUrl,
