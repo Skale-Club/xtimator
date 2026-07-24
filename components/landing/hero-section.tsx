@@ -128,20 +128,18 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 a deliberate tier change). max-w-2xl removed — full-width so the
                 bigger text still wraps in fewer rows. */}
             <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px] lg:text-[clamp(42px,4.5vw,56px)]">
-              {/* Break after word 1 at sm-lg (tablet-stacked); ≥1024px words 1-2 share
-                  the top row → 2-line title (nowrap because at 56px the pair sits right
-                  at the 580px box limit). quick-260723: no longer forced at true mobile
-                  (<640) — the bigger, full-width text wraps on its own more efficiently
-                  than a fixed break point can predict.
-                  Quick-260718-h9x: gate moved xl→lg — desktop windows under 1280px CSS
-                  (common with Windows display scaling) must get the 2-row title too;
-                  the 3-row layout is reserved for real tablets + sub-lg widths. */}
+              {/* quick-260724-t2r: TWO ROWS at EVERY breakpoint (phone, tablet, desktop)
+                  with NO font change — row 1 = first two words, row 2 = the rest.
+                  The old 3-row look on tablet was purely from a FORCED break between
+                  word0 and word1 (that break is now gone). The break after word1 is now
+                  unconditional so phones split the same way instead of wrapping freely.
+                  lg:whitespace-nowrap keeps the pair on one line at desktop (unchanged);
+                  below lg it wraps only if the column is genuinely too narrow. */}
               <span className="lg:whitespace-nowrap">
                 {content.heroHeadline.split(' ')[0]}
-                <br className="hidden sm:block lg:hidden" />
                 {' '}{content.heroHeadline.split(' ')[1]}
               </span>
-              <br className="hidden sm:block" />
+              <br />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
             </h1>
 
@@ -157,7 +155,10 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   // instead of spanning the real column width — added w-full so it's
                   // genuinely centered within the same box as the h1/buttons, not an
                   // independently-sized box based on line-break content.
-                  ? 'w-full sm:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[18px]'
+                  // quick-260724-t2r: sm:max-w-2xl → lg:max-w-2xl so the paragraph box
+                  // is genuinely full-width across phone + tablet (was capped at 672px
+                  // from 640px up); the readability cap is kept only at desktop.
+                  ? 'w-full lg:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[18px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >

@@ -83,8 +83,8 @@
      being height-capped for the old side-by-side layout. */
   .hero-content { align-items: center !important; padding-top: 128px !important; }
   .hero-left { justify-content: center; }
-  .hero-h1 { font-size: clamp(42px, 6.5vw, 60px) !important; width: auto !important; }
-  .hero-left p { font-size: clamp(16px, 2.2vw, 20px); line-height: 1.5; }
+  .hero-h1 { font-size: clamp(42px, 6.5vw, 60px) !important; width: 100% !important; }
+  .hero-left p { font-size: clamp(16px, 2.2vw, 20px); line-height: 1.5; width: 100%; }
   /* quick-260723: was flex-direction:row + width:auto (side-by-side, compact) —
      switched to stacked + full-width to match the explicit full-width request
      for phone AND iPad. A row of two width:100% buttons would squeeze each to
@@ -112,8 +112,8 @@
      — the section grows to fit the now-taller stacked content. */
   .hero-content { flex-direction: column !important; align-items: center !important; gap: 2.5rem !important; padding-top: 128px !important; }
   .hero-left { width: 100% !important; justify-content: center; }
-  .hero-h1 { font-size: 60px !important; width: auto !important; }
-  .hero-left p { font-size: 20px; line-height: 1.5; }
+  .hero-h1 { font-size: 60px !important; width: 100% !important; }
+  .hero-left p { font-size: 20px; line-height: 1.5; width: 100%; }
   /* quick-260723: was flex-direction:row + width:auto (side-by-side, compact) —
      switched to stacked + full-width, matching the explicit full-width request. */
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 0.75rem; margin-top: 10px; }
@@ -148,8 +148,8 @@
   .hero-content { flex-direction: column !important; align-items: center !important; gap: 2.25rem !important; padding-top: 128px !important; }
   .hero-left { width: 100% !important; justify-content: center; }
   /* title 56 keeps the title:text ratio at ~2.8, harmonic with desktop (56/20) */
-  .hero-h1 { font-size: 56px !important; width: auto !important; }
-  .hero-left p { font-size: 20px; line-height: 1.5; }
+  .hero-h1 { font-size: 56px !important; width: 100% !important; }
+  .hero-left p { font-size: 20px; line-height: 1.5; width: 100%; }
   /* quick-260723: was flex-direction:row (side-by-side, compact width) — switched
      to stacked + full-width, matching the explicit full-width request. */
   .hero-left > div:last-child { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 0.75rem; margin-top: 8px; }
