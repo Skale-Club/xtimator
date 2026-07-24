@@ -136,18 +136,17 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 a deliberate tier change). max-w-2xl removed — full-width so the
                 bigger text still wraps in fewer rows. */}
             <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px] lg:text-[clamp(42px,4.5vw,56px)]">
-              {/* quick-260724-t2r: TWO ROWS at EVERY breakpoint (phone, tablet, desktop)
-                  with NO font change — row 1 = first two words, row 2 = the rest.
-                  The old 3-row look on tablet was purely from a FORCED break between
-                  word0 and word1 (that break is now gone). The break after word1 is now
-                  unconditional so phones split the same way instead of wrapping freely.
-                  lg:whitespace-nowrap keeps the pair on one line at desktop (unchanged);
-                  below lg it wraps only if the column is genuinely too narrow. */}
+              {/* quick-260724-t2r-b: below lg the title has NO forced break — it wraps
+                  naturally (greedy: fills row 1, drops to row 2 only once row 1 is truly
+                  full), so words are no longer stranded at a fixed break spot with a
+                  half-empty first row on wider screens. Desktop keeps its deliberate
+                  "Professional estimates" / "in seconds." split via the lg-only break +
+                  lg:whitespace-nowrap span (byte-identical to before). */}
               <span className="lg:whitespace-nowrap">
                 {content.heroHeadline.split(' ')[0]}
                 {' '}{content.heroHeadline.split(' ')[1]}
               </span>
-              <br />
+              <br className="hidden lg:block" />
               {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
             </h1>
 
@@ -180,14 +179,15 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // Quick-260718-h9x: gates moved xl→lg (see h1 comment above).
                 const bd = text.indexOf('and branded')
                 const mid = bd > b1 && bd < b2 ? bd : b2
+                // quick-260724-t2r-b: forced mobile/tablet breaks removed — below lg the
+                // subheadline wraps naturally (fills each line before wrapping) instead
+                // of breaking at fixed word spots. Only the deliberate desktop 2-row
+                // split remains (lg-only).
                 return <>
                   {text.slice(0, b1)}
-                  {/* 3-line break shown 768-1023 (tablet); 640-767 stays natural-wrap */}
-                  <br className="block sm:hidden md:block lg:hidden" />
                   {text.slice(b1, mid)}
                   {mid < b2 && <br className="hidden lg:block" />}
                   {text.slice(mid, b2)}
-                  <br className="block sm:hidden md:block lg:hidden" />
                   {text.slice(b2)}
                 </>
               })()}
