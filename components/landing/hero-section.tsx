@@ -17,14 +17,25 @@ type HeroContent = {
 export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
   const hasImage = !!content.heroImageUrl
 
+  // quick-260723: min-h-0/overflow-hidden (here and on the two inner flex
+  // wrappers below) let a flex item shrink BELOW its content's natural size
+  // — harmless for the old absolute-positioned desktop image (it's out of
+  // normal flow, doesn't need extra height), but with the image now an
+  // in-flow block below the text on phone/iPad, this was clipping it to
+  // nothing. Scoped to lg: only, where the original layout/reasoning still applies unchanged.
   return (
-    <section className="relative isolate flex flex-1 min-h-0 flex-col overflow-hidden border-b border-white/5 bg-transparent min-h-[420px] sm:min-h-0 lg:max-h-[520px]">
+    <section className="relative isolate flex flex-1 flex-col border-b border-white/5 bg-transparent min-h-[420px] lg:min-h-0 lg:overflow-hidden lg:max-h-[520px]">
       <div aria-hidden className="hero-mesh" />
       <div aria-hidden className="hero-dots" />
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
-      <div className="relative mx-auto flex w-full flex-1 min-h-0 flex-col max-w-6xl px-6 sm:px-8 lg:px-10">
+      {/* quick-260723: sm:px-8 removed — it INCREASED side padding right when the
+          request was for MORE usable width on iPad; padding now stays flat (24px)
+          across the whole stacked range and only grows at true desktop (lg:40px,
+          unchanged), maximizing how much of the screen the full-width title/buttons
+          actually get to use. */}
+      <div className="relative mx-auto flex w-full flex-1 flex-col max-w-6xl px-6 lg:px-10 lg:min-h-0">
         <div
           className={
             // quick-260723: below lg (phone + all iPad sizes/orientations — the
@@ -35,7 +46,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             // block below the text, so the section grows to fit both (no more
             // max-height cap below lg) instead of squeezing them side by side.
             hasImage
-              ? 'hero-content flex flex-1 min-h-0 flex-col items-center gap-10 pt-16 lg:flex-row lg:items-center lg:gap-6 lg:pt-0'
+              ? 'hero-content flex flex-1 flex-col items-center gap-10 pt-16 lg:min-h-0 lg:flex-row lg:items-center lg:gap-6 lg:pt-0'
               : 'flex flex-col items-center justify-center gap-6 py-16 text-center'
           }
         >
@@ -123,22 +134,26 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // 12px at 1024 — one clamp grows smoothly across the whole ≥0 range
                 // (its own floor already equals gap-2's 8px below ~684px, so mobile
                 // is unaffected) and reaches 12px by 1024, matching lg:gap-3 exactly.
+                // quick-260723: items-center added to the no-image path too — the
+                // outer wrapper already centers this row as a block, but without
+                // items-center here the buttons themselves weren't centered within it.
                 hasImage
                   ? 'flex flex-col items-center gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:items-center'
-                  : 'flex flex-col gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:justify-center'
+                  : 'flex flex-col items-center gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:justify-center'
               }
             >
               {/* quick-260723: was max-lg:self-start (left-aligned) — removed so this
                   inherits the row's centered alignment below lg; lg:self-auto unchanged.
-                  w-full sm:w-auto: full-width on true mobile phone layout only. */}
-              <div className="cta-glow w-full sm:w-auto max-sm:[box-shadow:none] max-sm:[animation:none] lg:self-auto lg:flex-none">
+                  w-full lg:w-auto: full-width across the WHOLE stacked range (phone
+                  AND iPad, not just <640) — only true desktop reverts to compact width. */}
+              <div className="cta-glow w-full lg:w-auto max-sm:[box-shadow:none] max-sm:[animation:none] lg:self-auto lg:flex-none">
                 {/* quick-260723: mobile+tablet scaled ~20% bigger (each clamp *1.2)
                     per explicit request; each property gets an explicit lg: pin back
                     to its exact original desktop "role model" value now that the
                     unprefixed formula's new ceiling exceeds it (min-w-184, h-46,
                     px-18, text-base/16px, icon size-18 — same values the previous
                     dip-fix pass reached by 1024px, restored here as fixed pins). */}
-                <Button variant="primary" size="default" className="w-full sm:w-auto min-w-[clamp(192px,21.6vw,221px)] lg:min-w-[184px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] px-[clamp(14px,2.11vw,22px)] lg:px-[18px] text-[clamp(17px,1.87vw,19px)] lg:text-base" onClick={() => onOpenAuth?.('signup')}>
+                <Button variant="primary" size="default" className="w-full lg:w-auto min-w-[clamp(192px,21.6vw,221px)] lg:min-w-[184px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] px-[clamp(14px,2.11vw,22px)] lg:px-[18px] text-[clamp(17px,1.87vw,19px)] lg:text-base" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
                   <ArrowRight className="ml-1.5 size-[clamp(19px,2.11vw,22px)] lg:size-[18px]" aria-hidden="true" />
                 </Button>
@@ -176,8 +191,13 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               natural size — the pointer:coarse override in globals.css re-applies these same
               "static, full-width, aspect-ratio" rules for real touch tablets ≥1024px wide,
               since lg: alone can't distinguish those from a resized desktop window. */}
+          {/* quick-260723 BUGFIX: the original had bottom-0 persisting all the way
+              to lg+ (set once, never overridden) — without an explicit bottom value,
+              this absolute box (top set, height:auto) had no way to resolve its own
+              height (which itself depends on its h-full child), collapsing to zero
+              and making the desktop image disappear entirely. Restored as lg:bottom-0. */}
           {hasImage && (
-            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
+            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[36px] lg:bottom-0 lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
               {/* Admin zoom wraps in its own layer (transform) so it multiplies with —
                   rather than overrides — the Tailwind min-[1280px]:scale-110 class below.
                   No-op (plain div, no style) when heroImagePosition is unset. */}
