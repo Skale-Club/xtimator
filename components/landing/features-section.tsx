@@ -120,8 +120,8 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
             </div>
           </div>
         ) : (
-          /* Ticker — halfWidth = 4 slots × (288 + 16)px = 1216px */
-          <Ticker halfWidth={1216}>
+          /* Ticker — halfWidth = N slots × (288 + 16)px, N = features.length (was hardcoded for 4) */
+          <Ticker halfWidth={features.length * 304}>
             {ticker.map((f, i) => (
               <div key={i} className="w-72 shrink-0 px-2 py-1">
                 <FeatureCard feature={f} />

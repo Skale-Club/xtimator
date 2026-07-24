@@ -321,8 +321,8 @@ export function HowItWorksSection({
             </div>
           </div>
         ) : (
-          /* Infinite ticker — halfWidth = 3 slots × (280+16)px = 888px */
-          <Ticker halfWidth={888}>
+          /* Infinite ticker — halfWidth = N slots × (280+16)px, N = steps.length (was hardcoded for 3) */
+          <Ticker halfWidth={steps.length * 296}>
             {ticker.map((step, i) => (
               <div key={i} className="w-[280px] shrink-0 px-2 py-1">
                 <StepCard

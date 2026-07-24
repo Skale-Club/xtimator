@@ -116,7 +116,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
 
   // --- Step images (0-2): convert to WebP, upload, or remove ------------
   const stepImageUrls: Array<string | null | undefined> = []
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < (parsed.data.howItWorksSteps?.length ?? 0); i++) {
     const rawStepFile = formData.get(`stepImageFile_${i}`)
     const stepFile = rawStepFile instanceof File && rawStepFile.size > 0 ? rawStepFile : null
     const stepRemoved = formData.get(`stepImageRemoved_${i}`) === 'true'

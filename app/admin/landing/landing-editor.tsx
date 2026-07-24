@@ -4,7 +4,7 @@ import { useTransition, useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 
 import { landingContentSchema, type LandingContentInput } from '@/lib/schemas/admin'
 import {
@@ -31,6 +31,11 @@ import { ImagePositionEditor } from '@/components/admin/image-position-editor'
 interface LandingEditorProps {
   initial: LandingContentInput
 }
+
+const MIN_STEPS = 3
+const MAX_STEPS = 6
+const MIN_FEATURES = 1
+const MAX_FEATURES = 6
 
 export function LandingEditor({ initial }: LandingEditorProps) {
   const [isPending, startTransition] = useTransition()
@@ -103,6 +108,44 @@ export function LandingEditor({ initial }: LandingEditorProps) {
   function handleFeatureImageRemove(index: number) {
     setFeatureImages(prev => prev.map((s, i) => i === index ? { file: null, removed: true } : s))
     setCurrentFeatureUrls(prev => prev.map((url, i) => i === index ? null : url))
+  }
+
+  function handleAddStep() {
+    if (stepsArray.fields.length >= MAX_STEPS) return
+    const newIndex = stepsArray.fields.length
+    stepsArray.append({ eyebrow: '', title: '', description: '', imageUrl: null, imagePosition: null })
+    setStepImages(prev => [...prev, { file: null, removed: false }])
+    setCurrentStepUrls(prev => [...prev, null])
+    setStepUploaderKey(k => k + 1)
+    setActiveStep(newIndex)
+  }
+
+  function handleRemoveStep(index: number) {
+    if (stepsArray.fields.length <= MIN_STEPS) return
+    stepsArray.remove(index)
+    setStepImages(prev => prev.filter((_, i) => i !== index))
+    setCurrentStepUrls(prev => prev.filter((_, i) => i !== index))
+    setStepUploaderKey(k => k + 1)
+    setActiveStep(prev => Math.min(prev, stepsArray.fields.length - 2))
+  }
+
+  function handleAddFeature() {
+    if (featuresArray.fields.length >= MAX_FEATURES) return
+    const newIndex = featuresArray.fields.length
+    featuresArray.append({ icon: 'BrainCircuit', title: '', description: '', benefit: '', imageUrl: null, imagePosition: null })
+    setFeatureImages(prev => [...prev, { file: null, removed: false }])
+    setCurrentFeatureUrls(prev => [...prev, null])
+    setFeatureUploaderKey(k => k + 1)
+    setActiveFeature(newIndex)
+  }
+
+  function handleRemoveFeature(index: number) {
+    if (featuresArray.fields.length <= MIN_FEATURES) return
+    featuresArray.remove(index)
+    setFeatureImages(prev => prev.filter((_, i) => i !== index))
+    setCurrentFeatureUrls(prev => prev.filter((_, i) => i !== index))
+    setFeatureUploaderKey(k => k + 1)
+    setActiveFeature(prev => Math.min(prev, featuresArray.fields.length - 2))
   }
 
   function onSubmit(values: LandingContentInput) {
@@ -265,7 +308,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                 </FormItem>
               )}
             />
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
               {stepsArray.fields.map((_, index) => (
                 <button
                   key={index}
@@ -280,10 +323,29 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                   {index + 1}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={handleAddStep}
+                disabled={stepsArray.fields.length >= MAX_STEPS}
+                aria-label={t('Add step')}
+                title={stepsArray.fields.length >= MAX_STEPS ? t(`Maximum ${MAX_STEPS} steps`) : t('Add step')}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             </div>
             {stepsArray.fields.map((field, index) => (
               index === activeStep && (
                 <div key={field.id} className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">{t('Step')} {index + 1}</span>
+                    {stepsArray.fields.length > MIN_STEPS && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveStep(index)} className="h-7 gap-1.5 text-destructive hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t('Remove step')}
+                      </Button>
+                    )}
+                  </div>
                   <FormField control={form.control} name={`howItWorksSteps.${index}.eyebrow`}
                     render={({ field: f }) => (
                       <FormItem><FormLabel>{t('Eyebrow')}</FormLabel><FormControl><Input placeholder={`${t('Step')} ${index + 1}`} {...f} /></FormControl><FormMessage /></FormItem>
@@ -333,7 +395,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
 
           {/* Features */}
           <TabsContent value="features" className="mt-0 flex flex-col gap-4">
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
               {featuresArray.fields.map((_, index) => (
                 <button
                   key={index}
@@ -348,10 +410,29 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                   {index + 1}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={handleAddFeature}
+                disabled={featuresArray.fields.length >= MAX_FEATURES}
+                aria-label={t('Add feature')}
+                title={featuresArray.fields.length >= MAX_FEATURES ? t(`Maximum ${MAX_FEATURES} features`) : t('Add feature')}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
             </div>
             {featuresArray.fields.map((field, index) => (
               index === activeFeature && (
                 <div key={field.id} className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">{t('Feature')} {index + 1}</span>
+                    {featuresArray.fields.length > MIN_FEATURES && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFeature(index)} className="h-7 gap-1.5 text-destructive hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t('Remove feature')}
+                      </Button>
+                    )}
+                  </div>
                   <FormField control={form.control} name={`features.${index}.title`}
                     render={({ field: f }) => (
                       <FormItem><FormLabel>{t('Title')}</FormLabel><FormControl><Input placeholder={t('Feature title')} {...f} /></FormControl><FormMessage /></FormItem>

@@ -85,13 +85,18 @@ export const landingContentSchema = z.object({
   heroImagePosition: imagePositionSchema,
   /** Toggle for the animated How It Works card backgrounds. Defaults on. */
   howItWorksAnimations: z.boolean().optional().default(true),
+  /**
+   * 3-6 steps. The first 3 always get their matching animation (waveform /
+   * typing dots / camera — indices 0/1/2, see HowItWorksSection); any step
+   * beyond index 2 renders halo-only (no animation exists for it yet).
+   */
   howItWorksSteps: z.array(z.object({
     eyebrow: z.string().max(30),
     title: z.string().max(60),
     description: z.string().max(300),
     imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
     imagePosition: imagePositionSchema,
-  })).length(3),
+  })).min(3).max(6),
   features: z.array(z.object({
     icon: z.string().max(40),
     title: z.string().max(80),
