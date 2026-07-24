@@ -77,15 +77,18 @@
    pointer: coarse keeps these tablet blocks off desktop windows at the same width. ── */
 @media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
-  section:has(.hero-left) { max-height: 680px !important; }
-  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
+  /* quick-260723: max-height removed and align-items flipped center — the image
+     now stacks below the text (in-flow, no longer absolute) and the whole
+     column centers, so the section needs to grow with its content instead of
+     being height-capped for the old side-by-side layout. */
+  .hero-content { align-items: center !important; padding-top: 128px !important; }
   .hero-left { justify-content: center; }
   .hero-h1 { font-size: clamp(42px, 6.5vw, 60px) !important; width: auto !important; }
   .hero-left p { font-size: clamp(16px, 2.2vw, 20px); line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; width: auto; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
-  .hero-image img { object-fit: contain !important; object-position: bottom; }
+  .hero-image img { object-fit: contain !important; object-position: center; }
   .trust-bar > div { padding-top: 1.25rem; padding-bottom: 1.25rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 30px; }
   .trust-bar .fill-yellow-400 { width: 20px; height: 20px; }
@@ -95,16 +98,25 @@
 /* ── iPad Portrait 1024-1279px (Pro 12.9") — side-by-side; cancels lg: desktop image ── */
 @media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
-  section:has(.hero-left) { max-height: 680px !important; }
-  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
-  .hero-left { width: 55% !important; justify-content: center; }
+  /* quick-260723: this range is ABOVE the lg (1024px) breakpoint, so without an
+     explicit override it would inherit hero-section.tsx's lg: side-by-side
+     desktop layout — force the same stacked (image below text, centered)
+     treatment phones/smaller tablets get below lg. pointer: coarse keeps this
+     off a resized DESKTOP window at the same width (that correctly stays
+     side-by-side, per hero-section.tsx's own lg: classes). max-height removed
+     — the section grows to fit the now-taller stacked content. */
+  .hero-content { flex-direction: column !important; align-items: center !important; gap: 2.5rem !important; padding-top: 128px !important; }
+  .hero-left { width: 100% !important; justify-content: center; }
   .hero-h1 { font-size: 60px !important; width: auto !important; }
   .hero-left p { font-size: 20px; line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; width: auto; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 48px !important; font-size: 17px !important; }
-  .hero-image { top: 64px !important; bottom: 0 !important; left: calc(58% - 100px) !important; right: -2rem !important; }
-  .hero-image img { object-fit: contain !important; object-position: bottom; }
+  /* was absolute-positioned for the old side-by-side layout — now a plain
+     in-flow block (mirrors hero-image's own <lg Tailwind classes) so it sits
+     below the text instead of overlapping it. */
+  .hero-image { position: static !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; top: auto !important; bottom: auto !important; left: auto !important; right: auto !important; }
+  .hero-image img { object-fit: contain !important; object-position: center; }
   .trust-bar > div { padding-top: 1.5rem; padding-bottom: 1.5rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 36px; }
   .trust-bar .fill-yellow-400 { width: 24px; height: 24px; }
@@ -119,9 +131,15 @@
    standard lg: styling from hero-section.tsx instead. */
 @media (min-width: 768px) and (max-width: 1279px) and (orientation: landscape) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
-  section:has(.hero-left) { max-height: 600px !important; }
-  .hero-content { align-items: flex-start !important; padding-top: 128px !important; }
-  .hero-left { justify-content: center; }
+  /* quick-260723: forces the stacked (image below text, centered) layout across
+     this ENTIRE range (768-1279) — redundant-but-harmless below 1024 (already
+     stacked via hero-section.tsx's own base classes) and NECESSARY at 1024+
+     (would otherwise inherit the lg: desktop side-by-side layout; a resized
+     DESKTOP window at the same width correctly keeps that side-by-side layout,
+     since pointer: coarse gates this whole block off non-touch windows).
+     max-height removed — the section grows to fit the now-taller content. */
+  .hero-content { flex-direction: column !important; align-items: center !important; gap: 2.25rem !important; padding-top: 128px !important; }
+  .hero-left { width: 100% !important; justify-content: center; }
   /* title 56 keeps the title:text ratio at ~2.8, harmonic with desktop (56/20) */
   .hero-h1 { font-size: 56px !important; width: auto !important; }
   .hero-left p { font-size: 20px; line-height: 1.5; }
@@ -132,10 +150,10 @@
      matched to that proven 44px/15px pairing. */
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
-  /* top:129px puts the photo top ~64px below the 65px navbar (hero-shell padding is
-     removed here, so the image is otherwise positioned from y=0, behind the navbar) */
-  .hero-image { top: 129px !important; }
-  .hero-image img { object-fit: contain !important; object-position: bottom; }
+  /* was absolute-positioned (top:129px cleared the fixed navbar) for the old
+     side-by-side layout — now a plain in-flow block below the text instead. */
+  .hero-image { position: static !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; top: auto !important; bottom: auto !important; left: auto !important; right: auto !important; }
+  .hero-image img { object-fit: contain !important; object-position: center; }
   .trust-bar > div { padding-top: 1rem; padding-bottom: 1rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 26px; }
   .trust-bar .fill-yellow-400 { width: 18px; height: 18px; }
