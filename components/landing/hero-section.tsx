@@ -103,15 +103,23 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
           {/* Left: headline + CTAs */}
           <div
             className={
-              // quick-260723: full width + centered below lg (stacked layout);
-              // lg: restores the exact previous left-aligned 55%-width column.
+              // quick-260723: full width below lg (stacked layout); lg: restores the
+              // exact previous left-aligned 55%-width column.
+              // quick-260724-t2r-a: phone (<640) stays centered; tablet/iPad (sm+) is
+              // LEFT-aligned so the full-width title/subheadline/badge actually span
+              // from the left edge instead of clustering centered in the middle
+              // ("grouped in the center") — matches the desktop left-aligned look. The
+              // real-tablet pointer:coarse blocks don't force text-align/align-items on
+              // .hero-left, so they inherit this automatically.
               hasImage
-                ? 'hero-left relative z-10 flex min-w-0 w-full flex-col items-center text-center justify-center space-y-4 lg:w-[55%] lg:shrink-0 lg:items-start lg:text-left'
+                ? 'hero-left relative z-10 flex min-w-0 w-full flex-col items-center text-center justify-center space-y-4 sm:items-start sm:text-left lg:w-[55%] lg:shrink-0 lg:items-start lg:text-left'
                 : 'max-w-3xl space-y-4'
             }
             style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
           >
-            <div className={hasImage ? 'flex justify-center lg:justify-start' : 'flex justify-center'}>
+            {/* quick-260724-t2r-a: badge left-aligns on tablet+ (sm), matching the
+                hero-left text; phone stays centered. */}
+            <div className={hasImage ? 'flex justify-center sm:justify-start' : 'flex justify-center'}>
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-secondary backdrop-blur-sm">
                 <Sparkles className="size-3.5" aria-hidden="true" />
                 Built for contractors
