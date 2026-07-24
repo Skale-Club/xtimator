@@ -28,6 +28,7 @@ function makeItem(unit: string): PriceBookItem {
     price_per_unit: null,
     minimum_price: null,
     area_sizes: null,
+    image_position: null,
   }
 }
 
