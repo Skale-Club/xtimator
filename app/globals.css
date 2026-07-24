@@ -85,9 +85,14 @@
   .hero-left { justify-content: center; }
   .hero-h1 { font-size: clamp(42px, 6.5vw, 60px) !important; width: auto !important; }
   .hero-left p { font-size: clamp(16px, 2.2vw, 20px); line-height: 1.5; }
-  .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; width: auto; gap: 0.75rem; margin-top: 10px; }
+  /* quick-260723: was flex-direction:row + width:auto (side-by-side, compact) —
+     switched to stacked + full-width to match the explicit full-width request
+     for phone AND iPad. A row of two width:100% buttons would squeeze each to
+     ~half-width, which isn't "full width" in any useful sense — stacking is
+     the only layout where full-width buttons actually make sense. */
+  .hero-left > div:last-child { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child button,
-  .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
+  .hero-left > div:last-child a { width: 100% !important; height: 44px !important; font-size: 15px !important; }
   .hero-image img { object-fit: contain !important; object-position: center; }
   .trust-bar > div { padding-top: 1.25rem; padding-bottom: 1.25rem; }
   .trust-bar [class*="tabular-nums"] { font-size: 30px; }
@@ -95,7 +100,7 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 13px; }
 }
 
-/* ── iPad Portrait 1024-1279px (Pro 12.9") — side-by-side; cancels lg: desktop image ── */
+/* ── iPad Portrait 1024-1279px (Pro 12.9") — stacked, full-width; cancels lg: desktop image ── */
 @media (min-width: 1024px) and (max-width: 1279px) and (orientation: portrait) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
   /* quick-260723: this range is ABOVE the lg (1024px) breakpoint, so without an
@@ -109,9 +114,11 @@
   .hero-left { width: 100% !important; justify-content: center; }
   .hero-h1 { font-size: 60px !important; width: auto !important; }
   .hero-left p { font-size: 20px; line-height: 1.5; }
-  .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; width: auto; gap: 0.75rem; margin-top: 10px; }
+  /* quick-260723: was flex-direction:row + width:auto (side-by-side, compact) —
+     switched to stacked + full-width, matching the explicit full-width request. */
+  .hero-left > div:last-child { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 0.75rem; margin-top: 10px; }
   .hero-left > div:last-child button,
-  .hero-left > div:last-child a { width: auto !important; height: 48px !important; font-size: 17px !important; }
+  .hero-left > div:last-child a { width: 100% !important; height: 48px !important; font-size: 17px !important; }
   /* was absolute-positioned for the old side-by-side layout — now a plain
      in-flow block (mirrors hero-image's own <lg Tailwind classes) so it sits
      below the text instead of overlapping it. */
@@ -123,7 +130,7 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 15px; }
 }
 
-/* ── iPad Landscape 768-1279px — side-by-side, font/button sizing only ──
+/* ── iPad Landscape 768-1279px — stacked, full-width, font/button sizing ──
    (pointer: coarse) restricts this to real touch tablets: a DESKTOP browser
    window is also landscape in this width range (especially with Windows
    display scaling), and without the pointer guard it inherited the iPad hero
@@ -143,13 +150,15 @@
   /* title 56 keeps the title:text ratio at ~2.8, harmonic with desktop (56/20) */
   .hero-h1 { font-size: 56px !important; width: auto !important; }
   .hero-left p { font-size: 20px; line-height: 1.5; }
-  .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; gap: 0.75rem; margin-top: 8px; }
+  /* quick-260723: was flex-direction:row (side-by-side, compact width) — switched
+     to stacked + full-width, matching the explicit full-width request. */
+  .hero-left > div:last-child { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 0.75rem; margin-top: 8px; }
   /* quick-260723: was height 40px, an outlier vs. the 640-1023-portrait block's
      44px at the SAME 15px font (landscape tablets in this range have at least as
      much width as portrait ones, so a smaller button here had no rationale) —
      matched to that proven 44px/15px pairing. */
   .hero-left > div:last-child button,
-  .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
+  .hero-left > div:last-child a { width: 100% !important; height: 44px !important; font-size: 15px !important; }
   /* was absolute-positioned (top:129px cleared the fixed navbar) for the old
      side-by-side layout — now a plain in-flow block below the text instead. */
   .hero-image { position: static !important; width: 100% !important; height: auto !important; aspect-ratio: 4/3 !important; top: auto !important; bottom: auto !important; left: auto !important; right: auto !important; }

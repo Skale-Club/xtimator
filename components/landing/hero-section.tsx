@@ -151,7 +151,13 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   // quick-260723: mobile+tablet scaled ~20% bigger (16.8->20, clamp
                   // floor/ceiling *1.2); lg pinned back to the exact original 18px
                   // desktop value now that sm's ceiling (22) exceeds it.
-                  ? 'sm:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[18px]'
+                  // quick-260723 FIX (same bug class as the CTA row): this <p> is a
+                  // flex item of .hero-left (items-center) with no explicit width, so
+                  // it was shrink-wrapping to its widest manually-<br>-broken segment
+                  // instead of spanning the real column width — added w-full so it's
+                  // genuinely centered within the same box as the h1/buttons, not an
+                  // independently-sized box based on line-break content.
+                  ? 'w-full sm:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[18px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
