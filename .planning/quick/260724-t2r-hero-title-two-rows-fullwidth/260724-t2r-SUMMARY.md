@@ -113,7 +113,36 @@ Verified (computed style, live server): at 820px `.hero-left`/`h1`/`p` resolve
 `text-align: left`, `align-items: flex-start`; at 390px they stay `center`.
 tsc clean. Local commit, not pushed.
 
+## Second follow-up commit (`2dd41540`) — natural wrap instead of a forced spot
+
+User observation: the title/text "should only go to second row when the first
+row gets filled up … solve the issue with the words being accumulated at a
+certain spot." Correct — the forced `<br>` from the first commit always broke at
+the *same word* regardless of width, so on wider screens row 1 sat half-empty
+with the rest stranded on row 2.
+
+Fix: remove the forced breaks below lg so the browser wraps naturally (greedy —
+fills each row, wraps only when the row is genuinely full).
+- Title: after-word `<br>` → `hidden lg:block` (lg-only). Below lg no forced
+  break → natural wrap; desktop keeps its deliberate "Professional estimates" /
+  "in seconds." split (lg break + `lg:whitespace-nowrap` span) byte-identical.
+- Subheadline: removed the two forced mobile/tablet `<br>`s
+  (`block sm:hidden md:block lg:hidden`); only the lg desktop 2-row split
+  remains. Below lg it wraps naturally.
+
+This also supersedes the earlier hard "exactly two rows everywhere" goal — the
+row count is now width-driven by design (e.g. 1 row on a wide iPad, 2 rows mid,
+3 on the narrowest phone), which is what "fill row 1 first" means.
+
+Verified: served HTML shows the title `<br>` is `hidden lg:block` and the
+subheadline forced-break count is 0; a greedy-wrap simulation using the live
+page's real font metrics confirms row 1 fills before wrapping at every width
+(390–600px → "Professional estimates" / "in seconds."; 768–820px →
+"Professional estimates in" / "seconds."; 360px → 3 rows, each filled). tsc
+clean. Local commit, not pushed.
+
 ## Notes
 
 Local commits only, not pushed. `fix` `58165f76` (two-row + width), `fix`
-`2c10bffa` (tablet left-align); docs in follow-up `docs` commits.
+`2c10bffa` (tablet left-align), `fix` `2dd41540` (natural wrap); docs in
+follow-up `docs` commits.
