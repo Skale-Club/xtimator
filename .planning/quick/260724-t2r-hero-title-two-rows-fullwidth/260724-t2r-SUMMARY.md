@@ -86,7 +86,34 @@ in this environment (documented across the 260723 hero tasks;
 `getClientRects()`/`offsetWidth` return 0), so computed-style + canvas
 measurement is the reliable check.
 
+## Follow-up commit (`2c10bffa`) — the actual "grouped in center" fix
+
+After the width work landed, the user reported tablet views "still look all
+grouped in the center instead of full width." Diagnosed live via computed style
+at 820px: `.hero-left`, `h1`, and `p` were all already `width: 100%` /
+`max-width: none` (the box **was** full-width) but every one was
+`text-align: center` with `align-items: center`. Centered text clusters in the
+middle of a full-width box with equal side gaps regardless of box width — so the
+full-width change was visually invisible. The real lever was **alignment, not
+width**.
+
+Fix: left-align the stacked hero on tablet+ (`sm:`) to match the desktop
+left-aligned look.
+- `.hero-left`: added `sm:items-start sm:text-left` (phone `<640` stays
+  centered — only tablet was flagged; desktop `lg:` unchanged).
+- Badge wrapper: `justify-center lg:justify-start` → `justify-center
+  sm:justify-start`.
+- The 3 real-tablet (`pointer:coarse`) CSS blocks set only `justify-content`
+  (the vertical/main axis for this flex-column) and `align-items` on
+  `.hero-content` (moot — `.hero-left` is `width:100%`); none force
+  `text-align` or `.hero-left`'s `align-items`, so real iPads inherit the
+  left-align from the classes automatically — no CSS change needed.
+
+Verified (computed style, live server): at 820px `.hero-left`/`h1`/`p` resolve
+`text-align: left`, `align-items: flex-start`; at 390px they stay `center`.
+tsc clean. Local commit, not pushed.
+
 ## Notes
 
-Local commits only, not pushed. `fix` commit `58165f76`; this doc in a
-follow-up `docs` commit.
+Local commits only, not pushed. `fix` `58165f76` (two-row + width), `fix`
+`2c10bffa` (tablet left-align); docs in follow-up `docs` commits.
