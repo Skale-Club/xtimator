@@ -2,9 +2,10 @@
 phase: quick-260723-fx1
 status: complete
 date: 2026-07-23
-commit: 3235aea9
+commit: 5e547951
 files_modified:
   - components/landing/hero-section.tsx
+  - app/globals.css
 ---
 
 # Summary: Hero desktop-image regression + full-width scope fixes
@@ -101,6 +102,34 @@ centered text (each line is only as wide as its own characters, unlike a
 solid-color button that visibly fills its whole box) — not the same
 class of bug, and asked what specifically they want if this isn't it
 (bigger font, left-aligned, etc.).
+
+## Third follow-up commit (`5e547951`) — systematic re-audit
+
+User asked to "check all mobile screens, all breakpoints" rather than
+spot-check one more screenshot. Re-traced the full CSS cascade tree at
+multiple viewport tiers (same method that found the CTA-row bug) and
+audited the 3 real-touch-tablet (`pointer: coarse`) CSS blocks. Found two
+more instances of the same underlying bug class:
+
+1. **Subheadline `<p>`** had no explicit width — same trap as the CTA
+   row (flex item of `.hero-left`, which sets `items-center`, so an
+   unsized child shrink-wraps instead of stretching). It was sizing to
+   its widest manually-`<br>`-broken segment rather than the real column
+   width. Subtler than the button bug since text has no visible
+   background box to reveal the discrepancy. Added `w-full`.
+2. **All 3 real-tablet CSS blocks** explicitly forced the CTA row AND
+   its buttons to `width: auto !important` with `flex-direction: row`
+   (side-by-side, compact) — these rules win via CSS specificity
+   regardless of any Tailwind-class fix, meaning an actual iPad would
+   never show full-width buttons no matter what hero-section.tsx said.
+   Since two `width: 100%` buttons in a side-by-side row just squeeze to
+   ~half-width each (not meaningfully "full width"), switched all 3
+   blocks to stacked (`flex-direction: column`) + `width: 100%`, matching
+   the phone/resized-desktop-window layout — the only structure where
+   full-width buttons are visually coherent. This is a real, deliberate
+   change to previously-tuned real-device behavior (buttons go from
+   side-by-side-compact to stacked-full-width on actual iPads), made in
+   direct response to the user's explicit, repeated full-width request.
 
 ## Notes
 
