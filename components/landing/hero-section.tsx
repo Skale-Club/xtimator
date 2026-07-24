@@ -219,13 +219,18 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // so those use the same continuous-clamp treatment as the primary button.
                 // self-start (was unconditional) removed so this inherits the row's
                 // centered alignment below lg, matching the primary button's fix above.
-                // w-full sm:w-fit: full-width on true mobile phone layout only (was w-fit everywhere).
+                // quick-260723 FIX: this was still w-full sm:w-fit (reverting to
+                // fit-content at 640px) while the primary button next to it was
+                // already extended to w-full lg:w-auto — both buttons in the same
+                // row need the SAME width behavior or they'd visibly mismatch
+                // (primary full-width, secondary shrunk) across the whole tablet
+                // range. Now w-full lg:w-fit, matching the primary button exactly.
                 // quick-260723: mobile+tablet scaled ~20% bigger — padding keeps its
                 // monotonic-decrease shape (29px mobile -> 24px tablet -> 18px desktop,
                 // each *1.2 of 24/20/18) rather than a clamp, matching the earlier
                 // dip-fix's approach for this one property; height/font get the same
                 // *1.2-with-lg-pin treatment as the primary button.
-                className="w-full sm:w-fit px-[29px] sm:px-[24px] sm:flex-none lg:self-start border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-[clamp(173px,19.44vw,199px)] lg:min-w-[166px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] text-[clamp(17px,1.87vw,19px)] lg:text-base lg:px-[18px]"
+                className="w-full lg:w-fit px-[29px] sm:px-[24px] sm:flex-none lg:self-start border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-[clamp(173px,19.44vw,199px)] lg:min-w-[166px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] text-[clamp(17px,1.87vw,19px)] lg:text-base lg:px-[18px]"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
