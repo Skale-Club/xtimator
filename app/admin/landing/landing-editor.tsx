@@ -59,6 +59,20 @@ export function LandingEditor({ initial }: LandingEditorProps) {
   const [heroImageFile, setHeroImageFile] = useState<File | null>(null)
   const [heroImageRemoved, setHeroImageRemoved] = useState(false)
 
+  // Background image/video upload state — same lifted-file pattern as hero
+  // image. Both URLs are tracked independently so switching heroBackgroundType
+  // back and forth in the UI doesn't lose whichever asset isn't currently active.
+  const [bgImagePreview, setBgImagePreview] = useState<string | null>(
+    initial.heroBackgroundImageUrl ?? null
+  )
+  const [bgImageFile, setBgImageFile] = useState<File | null>(null)
+  const [bgImageRemoved, setBgImageRemoved] = useState(false)
+  const [bgVideoPreview, setBgVideoPreview] = useState<string | null>(
+    initial.heroBackgroundVideoUrl ?? null
+  )
+  const [bgVideoFile, setBgVideoFile] = useState<File | null>(null)
+  const [bgVideoRemoved, setBgVideoRemoved] = useState(false)
+
   // Per-step image state (3 steps)
   const [stepImages, setStepImages] = useState<Array<{ file: File | null; removed: boolean }>>(
     () => (initial.howItWorksSteps ?? []).map(() => ({ file: null, removed: false }))
@@ -90,6 +104,44 @@ export function LandingEditor({ initial }: LandingEditorProps) {
     setHeroImageFile(null)
     setHeroImagePreview(null)
     setHeroImageRemoved(true)
+  }
+
+  function handleBgImageSelect(file: File, preview: string) {
+    setBgImageFile(file)
+    setBgImagePreview(preview)
+    setBgImageRemoved(false)
+  }
+
+  function handleBgImageRemove() {
+    setBgImageFile(null)
+    setBgImagePreview(null)
+    setBgImageRemoved(true)
+  }
+
+  const MAX_BG_VIDEO_SIZE = 20 * 1024 * 1024
+  const ACCEPTED_BG_VIDEO_TYPES = ['video/mp4', 'video/webm']
+
+  function handleBgVideoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    if (!ACCEPTED_BG_VIDEO_TYPES.includes(file.type)) {
+      toast.error(t('Unsupported format. Please upload MP4 or WebM.'))
+      return
+    }
+    if (file.size > MAX_BG_VIDEO_SIZE) {
+      toast.error(t('Video must be under 20MB.'))
+      return
+    }
+    setBgVideoFile(file)
+    setBgVideoPreview(URL.createObjectURL(file))
+    setBgVideoRemoved(false)
+  }
+
+  function handleBgVideoRemove() {
+    setBgVideoFile(null)
+    setBgVideoPreview(null)
+    setBgVideoRemoved(true)
   }
 
   function handleStepImageSelect(index: number, file: File) {
@@ -156,6 +208,8 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       const payload: LandingContentInput = {
         ...values,
         heroImageUrl: heroImageRemoved ? null : values.heroImageUrl ?? null,
+        heroBackgroundImageUrl: bgImageRemoved ? null : values.heroBackgroundImageUrl ?? null,
+        heroBackgroundVideoUrl: bgVideoRemoved ? null : values.heroBackgroundVideoUrl ?? null,
         // Always send CDN URLs (never blob: URLs) so the server's "no change"
         // branch preserves real URLs rather than overwriting with null.
         howItWorksSteps: values.howItWorksSteps.map((step, i) => ({
@@ -170,6 +224,10 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       fd.set('content', JSON.stringify(payload))
       if (heroImageFile) fd.set('heroImageFile', heroImageFile)
       fd.set('heroImageRemoved', String(heroImageRemoved))
+      if (bgImageFile) fd.set('heroBackgroundImageFile', bgImageFile)
+      fd.set('heroBackgroundImageRemoved', String(bgImageRemoved))
+      if (bgVideoFile) fd.set('heroBackgroundVideoFile', bgVideoFile)
+      fd.set('heroBackgroundVideoRemoved', String(bgVideoRemoved))
       stepImages.forEach((s, i) => {
         if (s.file) fd.set(`stepImageFile_${i}`, s.file)
         fd.set(`stepImageRemoved_${i}`, String(s.removed))
@@ -184,6 +242,10 @@ export function LandingEditor({ initial }: LandingEditorProps) {
         toast.success(t('Landing page updated.'))
         setHeroImageFile(null)
         setHeroImageRemoved(false)
+        setBgImageFile(null)
+        setBgImageRemoved(false)
+        setBgVideoFile(null)
+        setBgVideoRemoved(false)
         setCurrentStepUrls(result.stepImageUrls)
         setStepImages(prev => prev.map(() => ({ file: null, removed: false })))
         setStepUploaderKey(k => k + 1)
@@ -285,6 +347,108 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                   />
                 </FormControl>
                 <FormMessage>{t('Drag to reposition, use the slider to zoom.')}</FormMessage>
+              </FormItem>
+            )}
+
+            {/* Background — full-bleed backdrop behind the WHOLE hero section (text,
+                pill, buttons, and the hero image above all sit on top of it), distinct
+                from the hero image itself. 'none' keeps the existing decorative
+                gradient/dot mesh. */}
+            <FormItem className="border-t border-border pt-4">
+              <FormLabel>{t('Background')}</FormLabel>
+              <FormMessage className="text-muted-foreground">
+                {t('Optional full-bleed backdrop behind the entire hero section. When set to None, the default gradient/dot pattern shows instead.')}
+              </FormMessage>
+              <FormControl>
+                <div className="flex gap-1">
+                  {(['none', 'image', 'video'] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => form.setValue('heroBackgroundType', type, { shouldDirty: true })}
+                      className={`h-8 rounded-md border px-3 text-xs font-semibold transition-colors ${
+                        form.watch('heroBackgroundType') === type
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-muted text-muted-foreground border-border hover:text-foreground'
+                      }`}
+                    >
+                      {t({ none: 'None', image: 'Image', video: 'Video' }[type])}
+                    </button>
+                  ))}
+                </div>
+              </FormControl>
+            </FormItem>
+
+            {form.watch('heroBackgroundType') === 'image' && (
+              <>
+                <FormItem>
+                  <FormLabel>{t('Background image')}</FormLabel>
+                  <FormControl>
+                    <HeroImageUploader
+                      currentUrl={bgImagePreview}
+                      onFileSelect={handleBgImageSelect}
+                      onRemove={handleBgImageRemove}
+                    />
+                  </FormControl>
+                  <FormMessage>
+                    {t('Wide landscape works best. Automatically converted to WebP on save.')}
+                  </FormMessage>
+                </FormItem>
+                {bgImagePreview && (
+                  <FormItem>
+                    <FormLabel>{t('Position')}</FormLabel>
+                    <FormControl>
+                      <ImagePositionEditor
+                        src={bgImagePreview}
+                        alt={t('Background image position preview')}
+                        aspectRatio={16 / 9}
+                        fit="cover"
+                        value={form.watch('heroBackgroundPosition') ?? null}
+                        onChange={(pos) => form.setValue('heroBackgroundPosition', pos, { shouldDirty: true })}
+                      />
+                    </FormControl>
+                    <FormMessage>{t('Drag to reposition, use the slider to zoom.')}</FormMessage>
+                  </FormItem>
+                )}
+              </>
+            )}
+
+            {form.watch('heroBackgroundType') === 'video' && (
+              <FormItem>
+                <FormLabel>{t('Background video')}</FormLabel>
+                <FormControl>
+                  <div className="flex flex-col gap-2">
+                    {bgVideoPreview ? (
+                      <div className="relative w-full max-w-md overflow-hidden rounded-xl border border-border">
+                        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                        <video src={bgVideoPreview} controls muted className="w-full" />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleBgVideoRemove}
+                          className="absolute right-2 top-2"
+                        >
+                          {t('Remove')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <label className="flex h-32 w-full max-w-md cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-muted/30 text-muted-foreground hover:border-muted-foreground">
+                        <span className="text-sm">{t('Upload background video')}</span>
+                        <span className="text-xs opacity-70">{t('MP4 or WebM, under 20MB')}</span>
+                        <input
+                          type="file"
+                          accept="video/mp4,video/webm"
+                          className="hidden"
+                          onChange={handleBgVideoSelect}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </FormControl>
+                <FormMessage>
+                  {t('Plays automatically, muted, looping. Not converted — uploaded as-is.')}
+                </FormMessage>
               </FormItem>
             )}
           </TabsContent>

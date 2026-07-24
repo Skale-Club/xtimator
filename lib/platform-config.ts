@@ -21,10 +21,23 @@ export type LandingContent = {
   heroHeadline: string
   heroSubheadline: string
   ctaLabel: string
-  /** Optional 1:1 hero image. Null hides the right-side column. */
+  /** Optional 1:1 hero image (foreground subject photo). Null hides the right-side column. */
   heroImageUrl: string | null
   /** Zoom/drag display position for heroImageUrl. Null = centered, scale 1. */
   heroImagePosition?: ImagePosition | null
+  /**
+   * Full-bleed backdrop behind the ENTIRE hero section (text, pill, buttons,
+   * and heroImageUrl all sit on top of it) — distinct from heroImageUrl, the
+   * foreground subject photo. 'none' shows the existing decorative
+   * gradient/dot-pattern mesh instead (mutually exclusive with a real
+   * background — a photo/video under an abstract dot pattern looks wrong).
+   */
+  heroBackgroundType: 'none' | 'image' | 'video'
+  heroBackgroundImageUrl: string | null
+  /** Zoom/drag display position for heroBackgroundImageUrl. Null = centered, scale 1. */
+  heroBackgroundPosition?: ImagePosition | null
+  /** MP4/WebM, autoplay+muted+looping when heroBackgroundType is 'video'. */
+  heroBackgroundVideoUrl: string | null
   /**
    * When true, the How It Works cards render their animated backgrounds
    * (waveform bars, typing dots, camera flash) over the halo glow. When
@@ -96,6 +109,9 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
     'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway.',
   ctaLabel: 'Start',
   heroImageUrl: null,
+  heroBackgroundType: 'none',
+  heroBackgroundImageUrl: null,
+  heroBackgroundVideoUrl: null,
   howItWorksAnimations: true,
   howItWorksSteps: [
     {
@@ -202,6 +218,13 @@ export async function getBranding(): Promise<Branding> {
             // Backfill howItWorksAnimations (default on) for rows saved before it existed.
             howItWorksAnimations:
               (data.landing_content as LandingContent).howItWorksAnimations ?? true,
+            // Backfill heroBackgroundType/Url for rows persisted before the field existed.
+            heroBackgroundType:
+              (data.landing_content as LandingContent).heroBackgroundType ?? 'none',
+            heroBackgroundImageUrl:
+              (data.landing_content as LandingContent).heroBackgroundImageUrl ?? null,
+            heroBackgroundVideoUrl:
+              (data.landing_content as LandingContent).heroBackgroundVideoUrl ?? null,
             // imagePosition fields are optional (undefined = "not set yet") — no
             // backfill needed, consumers already treat null/undefined as centered.
           }

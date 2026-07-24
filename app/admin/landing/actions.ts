@@ -9,6 +9,8 @@ import { invalidatePlatformConfig } from '@/lib/platform-config'
 import {
   landingContentSchema,
   heroImageFileSchema,
+  heroBackgroundImageFileSchema,
+  heroBackgroundVideoFileSchema,
   stepImageFileSchema,
   featureImageFileSchema,
   type LandingContentInput,
@@ -19,6 +21,8 @@ export type SaveLandingResult =
   | { ok: false; message: string }
 
 const MANAGED_HERO_PREFIX = '/platform-brand/hero-images/'
+const MANAGED_BG_IMAGE_PREFIX = '/platform-brand/hero-bg-images/'
+const MANAGED_BG_VIDEO_PREFIX = '/platform-brand/hero-bg-videos/'
 const MANAGED_STEP_PREFIX = '/platform-brand/step-images/'
 const MANAGED_FEATURE_PREFIX = '/platform-brand/feature-images/'
 
@@ -113,6 +117,103 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
   let finalHeroUrl: string | null = parsed.data.heroImageUrl ?? null
   if (newHeroUrl) finalHeroUrl = newHeroUrl
   else if (heroImageRemoved) finalHeroUrl = null
+
+  // --- Background image (full-bleed section backdrop, distinct from the
+  // foreground heroImageFile above): convert to WebP, upload, or remove ---
+  const rawBgImageFile = formData.get('heroBackgroundImageFile')
+  const bgImageFile = rawBgImageFile instanceof File && rawBgImageFile.size > 0 ? rawBgImageFile : null
+  const bgImageRemoved = formData.get('heroBackgroundImageRemoved') === 'true'
+
+  let newBgImageUrl: string | null = null
+  if (bgImageFile) {
+    const fileCheck = heroBackgroundImageFileSchema.safeParse(bgImageFile)
+    if (!fileCheck.success) {
+      return { ok: false, message: fileCheck.error.issues[0]?.message ?? 'Invalid file' }
+    }
+    const base = sanitizeBase(bgImageFile.name)
+    const path = `hero-bg-images/${Date.now()}-${base}.webp`
+    try {
+      const webpBuffer = await convertImageToWebp(bgImageFile)
+      const result = await storage.upload('platform-brand', path, webpBuffer, {
+        contentType: 'image/webp',
+        upsert: true,
+      })
+      newBgImageUrl = storage.getPublicUrl('platform-brand', result.path)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Background image upload failed.'
+      return { ok: false, message }
+    }
+  }
+  if (!bgImageFile && bgImageRemoved) {
+    const { data: existing } = await svc
+      .from('platform_branding')
+      .select('landing_content')
+      .eq('id', 1)
+      .maybeSingle()
+    const currentUrl: string | null =
+      (existing?.landing_content as { heroBackgroundImageUrl?: string | null } | null)?.heroBackgroundImageUrl ?? null
+    if (currentUrl && currentUrl.includes(MANAGED_BG_IMAGE_PREFIX)) {
+      const idx = currentUrl.indexOf(MANAGED_BG_IMAGE_PREFIX)
+      const extracted = currentUrl.slice(idx + '/platform-brand/'.length)
+      try {
+        await storage.delete('platform-brand', extracted)
+      } catch (err) {
+        console.warn('[saveLandingContent] background image storage delete failed:', err)
+      }
+    }
+  }
+  let finalBgImageUrl: string | null = parsed.data.heroBackgroundImageUrl ?? null
+  if (newBgImageUrl) finalBgImageUrl = newBgImageUrl
+  else if (bgImageRemoved) finalBgImageUrl = null
+
+  // --- Background video: NOT converted (no video transcoding step in this
+  // stack — would need ffmpeg), stored as-is. Upload, or remove. ----------
+  const rawBgVideoFile = formData.get('heroBackgroundVideoFile')
+  const bgVideoFile = rawBgVideoFile instanceof File && rawBgVideoFile.size > 0 ? rawBgVideoFile : null
+  const bgVideoRemoved = formData.get('heroBackgroundVideoRemoved') === 'true'
+
+  let newBgVideoUrl: string | null = null
+  if (bgVideoFile) {
+    const fileCheck = heroBackgroundVideoFileSchema.safeParse(bgVideoFile)
+    if (!fileCheck.success) {
+      return { ok: false, message: fileCheck.error.issues[0]?.message ?? 'Invalid file' }
+    }
+    const ext = bgVideoFile.type === 'video/webm' ? 'webm' : 'mp4'
+    const base = sanitizeBase(bgVideoFile.name)
+    const path = `hero-bg-videos/${Date.now()}-${base}.${ext}`
+    try {
+      const body = Buffer.from(await bgVideoFile.arrayBuffer())
+      const result = await storage.upload('platform-brand', path, body, {
+        contentType: bgVideoFile.type,
+        upsert: true,
+      })
+      newBgVideoUrl = storage.getPublicUrl('platform-brand', result.path)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Background video upload failed.'
+      return { ok: false, message }
+    }
+  }
+  if (!bgVideoFile && bgVideoRemoved) {
+    const { data: existing } = await svc
+      .from('platform_branding')
+      .select('landing_content')
+      .eq('id', 1)
+      .maybeSingle()
+    const currentUrl: string | null =
+      (existing?.landing_content as { heroBackgroundVideoUrl?: string | null } | null)?.heroBackgroundVideoUrl ?? null
+    if (currentUrl && currentUrl.includes(MANAGED_BG_VIDEO_PREFIX)) {
+      const idx = currentUrl.indexOf(MANAGED_BG_VIDEO_PREFIX)
+      const extracted = currentUrl.slice(idx + '/platform-brand/'.length)
+      try {
+        await storage.delete('platform-brand', extracted)
+      } catch (err) {
+        console.warn('[saveLandingContent] background video storage delete failed:', err)
+      }
+    }
+  }
+  let finalBgVideoUrl: string | null = parsed.data.heroBackgroundVideoUrl ?? null
+  if (newBgVideoUrl) finalBgVideoUrl = newBgVideoUrl
+  else if (bgVideoRemoved) finalBgVideoUrl = null
 
   // --- Step images (0-2): convert to WebP, upload, or remove ------------
   const stepImageUrls: Array<string | null | undefined> = []
@@ -217,6 +318,8 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
   const persisted: LandingContentInput = {
     ...parsed.data,
     heroImageUrl: finalHeroUrl,
+    heroBackgroundImageUrl: finalBgImageUrl,
+    heroBackgroundVideoUrl: finalBgVideoUrl,
     howItWorksSteps: mergedSteps as LandingContentInput['howItWorksSteps'],
     features: mergedFeatures as LandingContentInput['features'],
   }
@@ -248,6 +351,9 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
       hero_image_set: !!finalHeroUrl,
       hero_image_uploaded: !!newHeroUrl,
       hero_image_removed: heroImageRemoved,
+      hero_background_type: parsed.data.heroBackgroundType ?? 'none',
+      hero_background_image_uploaded: !!newBgImageUrl,
+      hero_background_video_uploaded: !!newBgVideoUrl,
     },
   })
 

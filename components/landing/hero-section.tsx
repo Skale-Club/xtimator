@@ -8,14 +8,20 @@ type HeroContent = {
   heroHeadline: string
   heroSubheadline: string
   ctaLabel: string
-  /** Optional 1:1 hero image URL. When null, the hero renders as a single centered column. */
+  /** Optional 1:1 hero image URL (foreground subject photo). When null, the hero renders as a single centered column. */
   heroImageUrl: string | null
   /** Admin-set zoom/drag position. Null/undefined = existing untouched behavior. */
   heroImagePosition?: { scale: number; x: number; y: number } | null
+  /** Full-bleed backdrop behind the whole section — distinct from heroImageUrl. */
+  heroBackgroundType?: 'none' | 'image' | 'video'
+  heroBackgroundImageUrl?: string | null
+  heroBackgroundPosition?: { scale: number; x: number; y: number } | null
+  heroBackgroundVideoUrl?: string | null
 }
 
 export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
   const hasImage = !!content.heroImageUrl
+  const bgType = content.heroBackgroundType ?? 'none'
 
   // quick-260723: min-h-0/overflow-hidden (here and on the two inner flex
   // wrappers below) let a flex item shrink BELOW its content's natural size
@@ -25,9 +31,53 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   // nothing. Scoped to lg: only, where the original layout/reasoning still applies unchanged.
   return (
     <section className="relative isolate flex flex-1 flex-col border-b border-white/5 bg-transparent min-h-[420px] lg:min-h-0 lg:overflow-hidden lg:max-h-[520px]">
-      <div aria-hidden className="hero-mesh" />
-      <div aria-hidden className="hero-dots" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
+      {/* quick-260723: a real background image/video replaces the abstract
+          decorative mesh/dots/gradient — layering both would look wrong (an
+          abstract dot pattern over a real photo). 'none' (the default —
+          matches every existing row) keeps the original decoration exactly. */}
+      {bgType === 'none' ? (
+        <>
+          <div aria-hidden className="hero-mesh" />
+          <div aria-hidden className="hero-dots" />
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
+        </>
+      ) : bgType === 'image' && content.heroBackgroundImageUrl ? (
+        <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden">
+          <Image
+            src={content.heroBackgroundImageUrl}
+            alt=""
+            fill
+            priority
+            unoptimized
+            sizes="100vw"
+            className="object-cover"
+            style={
+              content.heroBackgroundPosition
+                ? {
+                    objectPosition: `${50 + content.heroBackgroundPosition.x}% ${50 + content.heroBackgroundPosition.y}%`,
+                    transform: `scale(${content.heroBackgroundPosition.scale})`,
+                  }
+                : undefined
+            }
+          />
+          <div className="absolute inset-0 bg-black/40" />
+        </div>
+      ) : bgType === 'video' && content.heroBackgroundVideoUrl ? (
+        <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={content.heroBackgroundVideoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            // playsInline is required for iOS Safari — without it, autoplay is
+            // blocked entirely and the video would force fullscreen on tap.
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40" />
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.5),transparent)]" />
 
       {/* quick-260723: sm:px-8 removed — it INCREASED side padding right when the

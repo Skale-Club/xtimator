@@ -83,6 +83,17 @@ export const landingContentSchema = z.object({
    */
   heroImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   heroImagePosition: imagePositionSchema,
+  /**
+   * Full-bleed backdrop behind the whole hero section — 'none' shows the
+   * existing decorative gradient/dot mesh instead. Image and video URLs are
+   * both kept in storage even when the other type is active (switching back
+   * and forth in the admin UI doesn't lose an uploaded asset) — only the
+   * URL matching heroBackgroundType actually renders.
+   */
+  heroBackgroundType: z.enum(['none', 'image', 'video']).optional().default('none'),
+  heroBackgroundImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  heroBackgroundPosition: imagePositionSchema,
+  heroBackgroundVideoUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   /** Toggle for the animated How It Works card backgrounds. Defaults on. */
   howItWorksAnimations: z.boolean().optional().default(true),
   /**
@@ -136,6 +147,33 @@ export const featureImageFileSchema = z
   .refine(
     f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
     'Feature image must be a PNG, JPG, or WebP.'
+  )
+
+/**
+ * Server-side validation for the hero BACKGROUND image upload — a separate
+ * full-bleed layer behind the whole hero section, distinct from heroImageFile
+ * (the foreground subject photo). Bigger cap than the other hero images since
+ * it needs to look good stretched across the full section width.
+ */
+export const heroBackgroundImageFileSchema = z
+  .instanceof(File)
+  .refine(f => f.size <= 8 * 1024 * 1024, 'Background image must be under 8MB.')
+  .refine(
+    f => ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type),
+    'Background image must be a PNG, JPG, or WebP.'
+  )
+
+/**
+ * Server-side validation for the hero background VIDEO upload. NOT converted
+ * to WebP/re-encoded — there's no video transcoding step in this stack
+ * (would need ffmpeg), so the uploaded file is stored as-is.
+ */
+export const heroBackgroundVideoFileSchema = z
+  .instanceof(File)
+  .refine(f => f.size <= 20 * 1024 * 1024, 'Background video must be under 20MB.')
+  .refine(
+    f => ['video/mp4', 'video/webm'].includes(f.type),
+    'Background video must be MP4 or WebM.'
   )
 
 export const blogPostSchema = z.object({
