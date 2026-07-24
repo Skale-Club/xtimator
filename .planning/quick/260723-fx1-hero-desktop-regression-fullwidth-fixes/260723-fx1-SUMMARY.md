@@ -2,7 +2,7 @@
 phase: quick-260723-fx1
 status: complete
 date: 2026-07-23
-commit: 2f912c93
+commit: 3235aea9
 files_modified:
   - components/landing/hero-section.tsx
 ---
@@ -66,6 +66,41 @@ given the matching update — it was still `w-full sm:w-fit`, meaning from
 Fixed to `w-full lg:w-fit`, matching Start exactly. Verified the same way
 (tsc clean, SSR HTML confirms the class, tests 4/5 same flaky unrelated
 test).
+
+## Second follow-up commit (`3235aea9`) — the actual root cause
+
+The user reported still not seeing full-width buttons after both prior
+fixes and asked to "analyze and calculate" rather than re-guess. The
+Browser pane cannot run layout for this route — confirmed for the 4th
+time this session via `getBoundingClientRect()` returning `0x0` for
+every hero element despite `document.readyState: "complete"`, a fully
+populated DOM (25 body children), and correct `getComputedStyle` values
+— so pixel measurement from that tool was a dead end. Instead hand-traced
+the CSS cascade at a 390px viewport, ancestor by ancestor: outer
+container 390-48(px-6)=342px → `.hero-content` gets 342px via default
+flex `align-items: normal` (≈stretch) behavior → `.hero-left` is
+explicitly `w-full` of that → 342px, definite.
+
+The actual bug: the CTA button row (direct parent of both buttons) sits
+inside `.hero-left`, which sets `items-center` (not stretch) — so any
+child WITHOUT its own explicit width shrink-wraps to content instead of
+filling the parent. The row itself never had `w-full`, so it shrank to
+fit its buttons' natural size, and the buttons' `width: 100%` (verified
+correct via `getComputedStyle`) resolved against that already-shrunk box
+— 100% of a content-sized box does nothing visually. Added `w-full
+lg:w-auto` to the row itself. Confirmed via a live user screenshot after
+this landed: both buttons now visibly span full width, edge to edge.
+
+Also verified (same cascade-tracing method) that the H1 was NOT affected
+by this bug — it's a direct child of `.hero-left`, which already has an
+explicit `w-full` with no shrink-wrapping layer in between, so its box
+was already correctly full-width. The user then asked about the title
+"needing to be full width too"; explained that the box is confirmed
+full-width and the visual gap around shorter lines is inherent to large
+centered text (each line is only as wide as its own characters, unlike a
+solid-color button that visibly fills its whole box) — not the same
+class of bug, and asked what specifically they want if this isn't it
+(bigger font, left-aligned, etc.).
 
 ## Notes
 
