@@ -32,6 +32,15 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
 
+// saveBranding now runs the logo through convertImageToWebp (sharp) before
+// upload. This suite verifies saveBranding's ORCHESTRATION (upload → getPublicUrl
+// → upsert → invalidate), not the sharp conversion itself — so mock the WebP
+// helper to a deterministic Buffer. Without this, the tiny fake-PNG fixtures
+// below are undecodable by sharp and the action returns { ok: false }.
+vi.mock('@/lib/image/webp', () => ({
+  convertImageToWebp: vi.fn(async () => Buffer.from([0x01, 0x02, 0x03])),
+}))
+
 // Provide a local copy of brandingSchema so this test does not race Plan 04
 // (which owns lib/schemas/admin.ts). Shape is locked by the 08-CONTEXT D-09 spec
 // and the integration contract in 08-04-PLAN.md <interfaces>.
@@ -168,9 +177,9 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
     expect(client.storage.from).toHaveBeenCalledWith('platform-brand')
     expect(client.upload).toHaveBeenCalledTimes(1)
     const [uploadPath, uploadBody, uploadOpts] = client.upload.mock.calls[0]
-    expect(uploadPath).toMatch(/^logo-\d+\.png$/)
+    expect(uploadPath).toMatch(/^logo-\d+\.webp$/)
     expect(uploadBody).toBeInstanceOf(Buffer)
-    expect(uploadOpts).toMatchObject({ contentType: 'image/png', upsert: true })
+    expect(uploadOpts).toMatchObject({ contentType: 'image/webp', upsert: true })
 
     expect(client.getPublicUrl).toHaveBeenCalledWith('logo-12345.png')
     expect(client.upsert).toHaveBeenCalledTimes(1)
