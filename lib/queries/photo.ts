@@ -9,6 +9,9 @@ export interface Photo {
   ai_description: string | null
   sort_order: number
   created_at: string
+  /** Display-only zoom/drag crop for the grid thumbnail — never affects the
+   * stored bytes; AI photo analysis always reads the full original. */
+  position: { scale: number; x: number; y: number } | null
 }
 
 export async function getProjectPhotos(

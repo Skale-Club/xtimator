@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
@@ -101,6 +102,38 @@ export async function createPhoto(
 
   revalidatePath(`/projects/${projectId}`)
   return { data: photo }
+}
+
+/**
+ * Server-side upload for a job-site photo. The caller (photo-drop-zone.tsx /
+ * capture-recorder.tsx) still does its OWN client-side canvas resize/compress
+ * first (crucial for upload speed on a job-site cellular connection — this
+ * does NOT change) and hands off the already-small compressed blob here for
+ * a WebP re-encode (sharp only runs server-side) before it's stored.
+ */
+export async function uploadProjectPhoto(
+  projectId: string,
+  formData: FormData,
+  sortOrder: number
+) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'No file provided.' }
+
+  const photoId = crypto.randomUUID()
+  const storagePath = `${company.id}/${projectId}/${photoId}.webp`
+  const storage = createStorage(supabase)
+  try {
+    const webpBuffer = await convertImageToWebp(file)
+    await storage.upload('photos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: false })
+  } catch {
+    return { error: 'Failed to upload photo.' }
+  }
+
+  return createPhoto(projectId, storagePath, sortOrder)
 }
 
 export async function updatePhotoCaption(photoId: string, caption: string) {

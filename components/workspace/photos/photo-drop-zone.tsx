@@ -5,9 +5,7 @@ import { Upload, CameraIcon, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
-import { createClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
-import { createPhoto } from '@/lib/actions/photo'
+import { uploadProjectPhoto } from '@/lib/actions/photo'
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -53,8 +51,6 @@ export function PhotoDropZone({
       setIsUploading(true)
       setUploadProgress({ completed: 0, total: fileArray.length })
 
-      const supabase = createClient()
-      const storage = createStorage(supabase)
       const newPhotos: Photo[] = []
 
       for (let i = 0; i < fileArray.length; i++) {
@@ -82,26 +78,13 @@ export function PhotoDropZone({
           continue
         }
 
-        // Generate unique path
-        const photoId = crypto.randomUUID()
-        const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
-
-        // Upload to Supabase Storage
-        try {
-          await storage.upload('photos', storagePath, blob, {
-            contentType: 'image/jpeg',
-            upsert: false,
-          })
-        } catch (err) {
-          const message = err instanceof Error ? err.message : t('unknown error')
-          toast.error(t(`Failed to upload photo ${i + 1}: ${message}`))
-          continue
-        }
-
-        // Create DB record
-        const result = await createPhoto(projectId, storagePath, currentCount + i)
+        // Upload the already-compressed blob — server re-encodes to WebP and
+        // creates the DB record in one round-trip.
+        const fd = new FormData()
+        fd.set('file', blob, `${crypto.randomUUID()}.jpg`)
+        const result = await uploadProjectPhoto(projectId, fd, currentCount + i)
         if ('error' in result) {
-          toast.error(t(`Failed to save photo ${i + 1}`))
+          toast.error(t(`Failed to upload photo ${i + 1}: ${result.error}`))
           continue
         }
 
@@ -115,7 +98,7 @@ export function PhotoDropZone({
         toast.success(t(`${newPhotos.length} photo${newPhotos.length > 1 ? 's' : ''} uploaded`))
       }
     },
-    [projectId, companyId, currentCount, maxPhotos, onPhotosUploaded]
+    [projectId, currentCount, maxPhotos, onPhotosUploaded]
   )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

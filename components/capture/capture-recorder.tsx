@@ -14,7 +14,7 @@ import { CaptureNeedsDetails } from '@/components/capture/capture-needs-details'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { startRecordingPipeline, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
-import { createPhoto, deletePhoto } from '@/lib/actions/photo'
+import { uploadProjectPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { uploadWithRetry } from '@/lib/storage/upload-with-retry'
@@ -41,6 +41,30 @@ export const WARN_AT_MS   =  9 * 60 * 1000   // 540000  D-07 — 60s remaining
 export const AMBER_AT_MS  =  8 * 60 * 1000   // 480000  D-07 — neutral→amber
 export const RED_AT_MS    =  9.5 * 60 * 1000 // 570000  D-07 — amber→red
 const TICK_MS = 250                            // RESEARCH Pattern 4
+
+/**
+ * CAPT-01 self-heal, adapted for the server-action upload path: retries a
+ * transient failure (network flap / 5xx) up to 3x with exponential backoff
+ * before surfacing an error, same intent as lib/storage/upload-with-retry.ts
+ * (which this replaces for photos — that helper is typed against
+ * StorageProvider.upload directly and can't wrap a server action).
+ */
+async function uploadProjectPhotoWithRetry(
+  projectId: string,
+  formData: FormData,
+  sortOrder: number,
+  attempts = 3,
+  baseDelayMs = 1000
+): ReturnType<typeof uploadProjectPhoto> {
+  let last: Awaited<ReturnType<typeof uploadProjectPhoto>> | undefined
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const result = await uploadProjectPhoto(projectId, formData, sortOrder)
+    if (!('error' in result)) return result
+    last = result
+    if (attempt < attempts) await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)))
+  }
+  return last!
+}
 
 // Hard cap on photos attachable to a single capture (popup New Xtimate flow).
 const MAX_PHOTOS = 16
@@ -761,9 +785,6 @@ export function CaptureRecorder({
     }
     const accepted = images.slice(0, take)
 
-    const supabase = createClient()
-    const storage = createStorage(supabase)
-
     // sort_order base: number of already-done photos. Each accepted file gets
     // base + its index among the accepted set, matching the prior semantics.
     const sortBase = photoItemsRef.current.filter(i => i.status === 'done').length
@@ -789,7 +810,6 @@ export function CaptureRecorder({
       }
       const photoId = crypto.randomUUID()
       const previewUrl = URL.createObjectURL(blob)
-      const storagePath = `${companyId}/${projectId}/${photoId}.jpg`
 
       // Show the placeholder immediately (before awaiting upload).
       setPhotoItems(prev => [...prev, { id: photoId, status: 'uploading', previewUrl }])
@@ -797,20 +817,14 @@ export function CaptureRecorder({
       const flip = (status: PhotoItemStatus, photo?: Photo) =>
         setPhotoItems(prev => prev.map(it => it.id === photoId ? { ...it, status, photo } : it))
 
-      try {
-        // CAPT-01: retry wrapper (3 tries, exponential backoff) — self-heals a
-        // transient network flap or 5xx instead of failing the whole photo on
-        // the first blip. Error surface is unchanged (flip('error') is the
-        // same outcome as before for a genuinely terminal failure).
-        await uploadWithRetry(storage, 'photos', storagePath, blob, { contentType: 'image/jpeg', upsert: false })
-      } catch (err) {
-        console.error('[capture] photo upload failed:', err)
-        flip('error')
-        return
-      }
-
-      const result = await createPhoto(projectId, storagePath, sortBase + index)
+      // CAPT-01: retry (3 tries, exponential backoff) — self-heals a transient
+      // network flap or 5xx instead of failing the whole photo on the first
+      // blip. The server re-encodes to WebP and creates the DB record.
+      const fd = new FormData()
+      fd.set('file', blob, `${photoId}.jpg`)
+      const result = await uploadProjectPhotoWithRetry(projectId, fd, sortBase + index)
       if ('error' in result) {
+        console.error('[capture] photo upload failed:', result.error)
         flip('error')
         return
       }
@@ -820,7 +834,7 @@ export function CaptureRecorder({
     }))
 
     if (photoInputRef.current) photoInputRef.current.value = ''
-  }, [companyId, projectId, t])
+  }, [projectId, t])
 
   // Remove a photo from the strip; revoke its preview URL and best-effort
   // delete the server-side row/file once it was successfully created.

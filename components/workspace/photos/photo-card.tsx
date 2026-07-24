@@ -89,6 +89,10 @@ export function PhotoCard({
           alt={photo.caption ?? t('Photo')}
           className="object-cover w-full h-full cursor-pointer"
           onClick={onClick}
+          style={photo.position ? {
+            objectPosition: `${50 + photo.position.x}% ${50 + photo.position.y}%`,
+            transform: `scale(${photo.position.scale})`,
+          } : undefined}
         />
       ) : (
         <Skeleton className="w-full h-full" />
