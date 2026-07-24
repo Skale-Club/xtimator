@@ -38,6 +38,7 @@ export interface PriceBookItem {
   notes: string | null
   created_at: string
   image_url: string | null
+  image_position: { scale: number; x: number; y: number } | null
   pricing_type: 'fixed' | 'area_based' | 'base_plus_addons'
   base_price: number | null
   price_per_unit: number | null
@@ -52,7 +53,7 @@ export async function getPriceBookItems(
   const { data } = await supabase
     .from('company_price_book')
     .select(`
-      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url,
+      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url, image_position,
       pricing_type, base_price, price_per_unit, minimum_price, area_sizes,
       price_book_folders ( name )
     `)
@@ -79,7 +80,7 @@ export async function getDeletedPriceBookItems(
   const { data } = await supabase
     .from('company_price_book')
     .select(`
-      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url,
+      id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url, image_position,
       pricing_type, base_price, price_per_unit, minimum_price, area_sizes, deleted_at,
       price_book_folders ( name )
     `)

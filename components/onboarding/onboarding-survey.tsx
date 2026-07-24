@@ -4,10 +4,8 @@ import { useTransition } from 'react'
 import { toast } from 'sonner'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
 import { SurveyShell } from '@/components/onboarding/survey/survey-shell'
-import { createOrUpdateCompany } from '@/lib/actions/company'
+import { createOrUpdateCompany, uploadOnboardingLogoAction } from '@/lib/actions/company'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
-import { createClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
 const INITIAL: OnboardingValues = {
@@ -53,25 +51,13 @@ export function OnboardingSurvey({
       try {
         let logoUrl: string | undefined
         if (state.logoFile) {
-          try {
-            const supabase = createClient()
-            const { data: userData } = await supabase.auth.getUser()
-            if (userData?.user) {
-              const ext = state.logoFile.name.split('.').pop() || 'png'
-              const path = `${userData.user.id}/logo.${ext}`
-              try {
-                await createStorage(supabase).upload('logos', path, state.logoFile, {
-                  upsert: true,
-                })
-                logoUrl = path
-              } catch {
-                toast.error(
-                  'Logo upload failed. Continuing without a logo.'
-                )
-              }
-            }
-          } catch {
+          const fd = new FormData()
+          fd.set('file', state.logoFile)
+          const result = await uploadOnboardingLogoAction(fd)
+          if (result.error) {
             toast.error('Logo upload failed. Continuing without a logo.')
+          } else {
+            logoUrl = result.data?.url
           }
         }
 

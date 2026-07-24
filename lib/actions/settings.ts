@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
+import { imagePositionSchema } from '@/lib/schemas/admin'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { revalidatePath, updateTag } from 'next/cache'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
@@ -72,12 +74,12 @@ export async function updateCompanySettings(formData: FormData) {
   let logoUrl = existingLogoUrl
   const logoFile = formData.get('logo') as File | null
   if (logoFile && logoFile.size > 0) {
-    const ext = logoFile.name.split('.').pop() ?? 'png'
-    const storagePath = `${company.id}/logo.${ext}`
+    const storagePath = `${company.id}/logo.webp`
 
     const storage = createStorage(supabase)
     try {
-      await storage.upload('logos', storagePath, logoFile, { upsert: true })
+      const webpBuffer = await convertImageToWebp(logoFile)
+      await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })
     } catch (err) {
       console.error('[settings] logo upload error:', err)
       return { error: 'Failed to upload logo. Please try again.' }
@@ -433,18 +435,29 @@ export async function updateProfile(formData: FormData) {
   const fullName = (formData.get('fullName') as string | null)?.trim() || null
   const phone = (formData.get('phone') as string | null)?.trim() || null
 
-  const updateData: Record<string, string | null> = { full_name: fullName, phone }
+  const updateData: Record<string, unknown> = { full_name: fullName, phone }
 
   const avatarFile = formData.get('avatar') as File | null
   if (avatarFile && avatarFile.size > 0) {
-    const ext = avatarFile.name.split('.').pop() ?? 'jpg'
-    const storagePath = `user-avatars/${claims.sub}/avatar.${ext}`
+    const storagePath = `user-avatars/${claims.sub}/avatar.webp`
     const storage = createStorage(supabase)
     try {
-      await storage.upload('logos', storagePath, avatarFile, { upsert: true })
+      const webpBuffer = await convertImageToWebp(avatarFile)
+      await storage.upload('logos', storagePath, webpBuffer, {
+        contentType: 'image/webp',
+        upsert: true,
+      })
       updateData.avatar_url = storage.getPublicUrl('logos', storagePath)
     } catch {
       return { error: 'Failed to upload photo. Please try again.' }
+    }
+  }
+
+  const rawAvatarPosition = formData.get('avatarPosition')
+  if (typeof rawAvatarPosition === 'string' && rawAvatarPosition) {
+    const parsedPosition = imagePositionSchema.safeParse(JSON.parse(rawAvatarPosition))
+    if (parsedPosition.success && parsedPosition.data) {
+      updateData.avatar_position = parsedPosition.data
     }
   }
 

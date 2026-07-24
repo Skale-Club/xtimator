@@ -27,9 +27,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ClientLogoUploader } from '@/components/clients/client-logo-uploader'
 import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
-import { createClientAction, updateClientAction } from '@/lib/actions/client'
+import { createClientAction, updateClientAction, uploadClientLogoAction } from '@/lib/actions/client'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
 import type { ClientDetail } from '@/lib/queries/clients'
 
 interface ClientSheetProps {
@@ -103,48 +102,33 @@ export function ClientSheet({
   }, [client, form])
 
   async function uploadLogo(clientId: string, file: File): Promise<string | null> {
-    const supabase = createBrowserClient()
-    const storage = createStorage(supabase)
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const path = `${companyId}/clients/${clientId}/logo.${ext}`
-
-    try {
-      await storage.upload('logos', path, file, { upsert: true })
-    } catch (err) {
-      console.error('Logo upload error:', err)
+    const fd = new FormData()
+    fd.set('file', file)
+    const result = await uploadClientLogoAction(clientId, fd)
+    if (result.error) {
+      console.error('Logo upload error:', result.error)
       return null
     }
-
-    return storage.getPublicUrl('logos', path)
+    return result.data?.url ?? null
   }
 
   function onSubmit(values: ClientFormValues) {
     startTransition(async () => {
       if (isEditing && client) {
         // Edit mode
-        let logoUrl = client.logo_url
-        if (logoFile) {
-          const url = await uploadLogo(client.id, logoFile)
-          if (url) logoUrl = url
-        }
-        // If logo was removed (preview is null but client had a logo)
-        if (!logoPreview && !logoFile) {
-          logoUrl = null
-        }
-
         const result = await updateClientAction(client.id, values)
         if (result.error) {
           toast.error(result.error)
           return
         }
 
-        // Update logo_url if changed
-        if (logoUrl !== client.logo_url) {
+        if (logoFile) {
+          // uploadClientLogoAction persists logo_url itself (server-side WebP conversion)
+          await uploadLogo(client.id, logoFile)
+        } else if (!logoPreview && client.logo_url) {
+          // Removed, no replacement file — null it out directly (no upload involved)
           const supabase = createBrowserClient()
-          await supabase
-            .from('clients')
-            .update({ logo_url: logoUrl })
-            .eq('id', client.id)
+          await supabase.from('clients').update({ logo_url: null }).eq('id', client.id)
         }
 
         toast.success('Client updated')
@@ -156,16 +140,9 @@ export function ClientSheet({
           return
         }
 
-        // Upload logo if selected
+        // uploadClientLogoAction persists logo_url itself (server-side WebP conversion)
         if (logoFile && result.data?.id) {
-          const url = await uploadLogo(result.data.id, logoFile)
-          if (url) {
-            const supabase = createBrowserClient()
-            await supabase
-              .from('clients')
-              .update({ logo_url: url })
-              .eq('id', result.data.id)
-          }
+          await uploadLogo(result.data.id, logoFile)
         }
 
         toast.success('Client created')

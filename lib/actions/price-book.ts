@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { priceBookItemSchema, type PriceBookItemFormValues, type ItemOption } from '@/lib/schemas/price-book'
 import { createStorage, buildStorageKey } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
+import { imagePositionSchema, type ImagePosition } from '@/lib/schemas/admin'
 import {
   applyDedupeStrategy,
   type DedupeStrategy,
@@ -177,10 +179,14 @@ export async function setItemOptions(
   )
 }
 
+const MAX_ITEM_PHOTO_SIZE = 4 * 1024 * 1024
+const ACCEPTED_ITEM_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+
 export async function createPriceBookItem(
   formData: PriceBookItemFormValues,
   imageFile?: File | null,
-  options?: ItemOption[]
+  options?: ItemOption[],
+  imagePosition?: ImagePosition
 ) {
   const denied = await assertWritable()
   if (denied) return denied
@@ -218,19 +224,22 @@ export async function createPriceBookItem(
 
   // Upload image if provided — create-then-update pattern
   if (imageFile && imageFile.size > 0 && data) {
-    const ext = imageFile.name.split('.').pop() ?? 'jpg'
+    const validPhoto = ACCEPTED_ITEM_PHOTO_TYPES.includes(imageFile.type) && imageFile.size <= MAX_ITEM_PHOTO_SIZE
     const key = buildStorageKey({
       companyId: company.id,
       type: 'price-book',
-      filename: `${data.id}.${ext}`,
+      filename: `${data.id}.webp`,
     })
     const storage = createStorage(supabase)
     try {
-      await storage.upload('photos', key, imageFile, { upsert: true })
+      if (!validPhoto) throw new Error('Invalid item photo (type or size).')
+      const webpBuffer = await convertImageToWebp(imageFile)
+      await storage.upload('photos', key, webpBuffer, { contentType: 'image/webp', upsert: true })
       const imageUrl = storage.getPublicUrl('photos', key)
+      const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
         .from('company_price_book')
-        .update({ image_url: imageUrl })
+        .update({ image_url: imageUrl, image_position: positionCheck.success ? positionCheck.data : null })
         .eq('id', data.id)
     } catch {
       // Non-fatal: item created, image upload failed — return item without image_url
@@ -245,7 +254,8 @@ export async function updatePriceBookItem(
   itemId: string,
   formData: PriceBookItemFormValues,
   imageFile?: File | null,
-  options?: ItemOption[]
+  options?: ItemOption[],
+  imagePosition?: ImagePosition
 ) {
   const denied = await assertWritable()
   if (denied) return denied
@@ -282,22 +292,34 @@ export async function updatePriceBookItem(
 
   // Upload new image if provided
   if (imageFile && imageFile.size > 0 && data) {
-    const ext = imageFile.name.split('.').pop() ?? 'jpg'
+    const validPhoto = ACCEPTED_ITEM_PHOTO_TYPES.includes(imageFile.type) && imageFile.size <= MAX_ITEM_PHOTO_SIZE
     const key = buildStorageKey({
       companyId: company.id,
       type: 'price-book',
-      filename: `${itemId}.${ext}`,
+      filename: `${itemId}.webp`,
     })
     const storage = createStorage(supabase)
     try {
-      await storage.upload('photos', key, imageFile, { upsert: true })
+      if (!validPhoto) throw new Error('Invalid item photo (type or size).')
+      const webpBuffer = await convertImageToWebp(imageFile)
+      await storage.upload('photos', key, webpBuffer, { contentType: 'image/webp', upsert: true })
       const imageUrl = storage.getPublicUrl('photos', key)
+      const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
         .from('company_price_book')
-        .update({ image_url: imageUrl })
+        .update({ image_url: imageUrl, image_position: positionCheck.success ? positionCheck.data : null })
         .eq('id', itemId)
     } catch {
       // Non-fatal — item updated, image optional
+    }
+  } else if (imagePosition !== undefined && data?.image_url) {
+    // Repositioning an existing photo — no new file, just persist the drag/zoom change.
+    const positionCheck = imagePositionSchema.safeParse(imagePosition)
+    if (positionCheck.success) {
+      await supabase
+        .from('company_price_book')
+        .update({ image_position: positionCheck.data })
+        .eq('id', itemId)
     }
   }
 

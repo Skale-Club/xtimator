@@ -8,6 +8,12 @@ import { createStorage } from '@/lib/storage'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { seoSchema } from '@/lib/schemas/admin'
 
+// NOT converted to WebP, unlike other uploads in this app: og:image is read
+// by external social crawlers (Facebook/LinkedIn/Slack/X), not rendered
+// in-app. LinkedIn historically doesn't support WebP og:image and Facebook
+// has known edge-case parse failures — a broken share-link preview is a
+// silent, hard-to-detect regression not worth the modest size savings.
+
 export type SaveSeoResult = { ok: true } | { ok: false; message: string }
 
 const MANAGED_OG_PREFIX = '/platform-brand/og-images/'

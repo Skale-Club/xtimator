@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { cookies } from 'next/headers'
 import {
@@ -78,11 +79,11 @@ export async function createAdminCompany(formData: FormData) {
   // Optional logo upload — runs after INSERT so we have the company ID for the path.
   const logoFile = formData.get('logo') as File | null
   if (logoFile && logoFile.size > 0) {
-    const ext = logoFile.name.split('.').pop() ?? 'png'
-    const storagePath = `${newCompanyId}/logo.${ext}`
+    const storagePath = `${newCompanyId}/logo.webp`
     const storage = createStorage(supabase)
     try {
-      await storage.upload('logos', storagePath, logoFile, { upsert: true })
+      const webpBuffer = await convertImageToWebp(logoFile)
+      await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })
       const logoUrl = storage.getPublicUrl('logos', storagePath)
       await service
         .from('companies')

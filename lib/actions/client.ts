@@ -5,6 +5,11 @@ import { revalidatePath } from 'next/cache'
 import type { ClientFormValues } from '@/lib/schemas/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
+
+const MAX_LOGO_SIZE = 2 * 1024 * 1024
+const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -80,6 +85,42 @@ export async function updateClientAction(clientId: string, formData: ClientFormV
   revalidatePath('/clients')
   revalidatePath(`/clients/${clientId}`)
   return { data: client }
+}
+
+/**
+ * Server-side logo upload for a client — replaces the previous client-side
+ * direct-to-storage upload so the file goes through WebP conversion (sharp
+ * only runs server-side) and the same auth/company-membership + demo-write
+ * gate as every other client mutation in this file.
+ */
+export async function uploadClientLogoAction(clientId: string, formData: FormData) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'No file provided.' }
+  if (!ACCEPTED_LOGO_TYPES.includes(file.type)) return { error: 'Unsupported image format. Please upload a PNG, JPG, or WebP file.' }
+  if (file.size > MAX_LOGO_SIZE) return { error: 'Logo must be under 2MB.' }
+
+  const storage = createStorage(supabase)
+  const path = `${company.id}/clients/${clientId}/logo.webp`
+  let url: string
+  try {
+    const webpBuffer = await convertImageToWebp(file)
+    await storage.upload('logos', path, webpBuffer, { contentType: 'image/webp', upsert: true })
+    url = storage.getPublicUrl('logos', path)
+  } catch (err) {
+    console.error('[uploadClientLogoAction] upload error:', err)
+    return { error: 'Failed to upload logo. Please try again.' }
+  }
+
+  const { error } = await supabase.from('clients').update({ logo_url: url }).eq('id', clientId)
+  if (error) return { error: 'Failed to save logo.' }
+
+  revalidatePath('/clients')
+  revalidatePath(`/clients/${clientId}`)
+  return { data: { url } }
 }
 
 export async function patchClientContactAction(

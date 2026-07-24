@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { brandingSchema } from '@/lib/schemas/admin'
 
@@ -43,13 +44,12 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
   let logoUrl: string | undefined = undefined
   const logoFile = parsed.data.logoFile
   if (logoFile && logoFile.size > 0) {
-    const ext = (logoFile.name.split('.').pop() || 'png').toLowerCase()
-    const path = `logo-${Date.now()}.${ext}`
-    const body = Buffer.from(await logoFile.arrayBuffer())
+    const path = `logo-${Date.now()}.webp`
     let uploadedPath: string
     try {
-      const result = await storage.upload('platform-brand', path, body, {
-        contentType: logoFile.type,
+      const webpBuffer = await convertImageToWebp(logoFile)
+      const result = await storage.upload('platform-brand', path, webpBuffer, {
+        contentType: 'image/webp',
         upsert: true,
       })
       uploadedPath = result.path
@@ -60,7 +60,8 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
     logoUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
-  // Favicon upload — same pattern as logo upload.
+  // Favicon upload — NOT converted to WebP: browsers expect .ico/.png/.svg
+  // for <link rel="icon">, and a WebP favicon isn't universally supported.
   let faviconUrl: string | undefined = undefined
   const rawFavicon = formData.get('faviconFile')
   const faviconFile = rawFavicon instanceof File && rawFavicon.size > 0 ? rawFavicon : null

@@ -18,6 +18,7 @@ export default async function AccountTabPage() {
     fullName: (user?.user_metadata?.full_name as string | undefined) ?? '',
     phone:    (user?.user_metadata?.phone    as string | undefined) ?? '',
     avatarUrl:(user?.user_metadata?.avatar_url as string | undefined) ?? null,
+    avatarPosition: (user?.user_metadata?.avatar_position as { scale: number; x: number; y: number } | undefined) ?? null,
     email:    user?.email ?? '',
   }
 

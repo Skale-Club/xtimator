@@ -70,6 +70,7 @@ export const imagePositionSchema = z.object({
   x: z.number().min(-50).max(50),
   y: z.number().min(-50).max(50),
 }).nullable().optional()
+export type ImagePosition = z.infer<typeof imagePositionSchema>
 
 export const landingContentSchema = z.object({
   heroHeadline: z.string().min(1).max(200),

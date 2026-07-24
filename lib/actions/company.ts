@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
 import { revalidatePath, updateTag } from 'next/cache'
@@ -58,6 +60,39 @@ export interface CreateOrUpdateCompanyOptions {
    *         (D-14, D-15) — no fresh trial for trial-farmers.
    */
   mode?: 'first' | 'add'
+}
+
+const MAX_ONBOARDING_LOGO_SIZE = 2 * 1024 * 1024
+const ACCEPTED_ONBOARDING_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+
+/**
+ * Server-side logo upload for the onboarding survey — replaces the previous
+ * client-side direct-to-storage upload (sharp only runs server-side, so
+ * WebP conversion requires this round-trip). Returns the resolved public
+ * URL; the prior client-side code stored the bare storage PATH as
+ * companies.logo_url instead of a usable URL — fixed here since this
+ * replaces that exact code path.
+ */
+export async function uploadOnboardingLogoAction(formData: FormData) {
+  const supabase = await createClient()
+  const { data: userData } = await supabase.auth.getUser()
+  if (!userData?.user) return { error: 'Not authenticated' }
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'No file provided.' }
+  if (!ACCEPTED_ONBOARDING_LOGO_TYPES.includes(file.type)) return { error: 'Unsupported image format. Please upload a PNG, JPG, or WebP file.' }
+  if (file.size > MAX_ONBOARDING_LOGO_SIZE) return { error: 'Logo must be under 2MB.' }
+
+  const storage = createStorage(supabase)
+  const path = `${userData.user.id}/logo.webp`
+  try {
+    const webpBuffer = await convertImageToWebp(file)
+    await storage.upload('logos', path, webpBuffer, { contentType: 'image/webp', upsert: true })
+    return { data: { url: storage.getPublicUrl('logos', path) } }
+  } catch (err) {
+    console.error('[uploadOnboardingLogoAction] upload error:', err)
+    return { error: 'Logo upload failed.' }
+  }
 }
 
 export async function createOrUpdateCompany(

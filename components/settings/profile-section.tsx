@@ -10,12 +10,14 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { ImagePositionEditor, DEFAULT_IMAGE_POSITION, type ImagePosition } from '@/components/admin/image-position-editor'
 
 interface ProfileSectionProps {
   profile: {
     fullName: string
     phone: string
     avatarUrl: string | null
+    avatarPosition?: ImagePosition | null
     email: string
   }
 }
@@ -23,6 +25,7 @@ interface ProfileSectionProps {
 export function ProfileSection({ profile }: ProfileSectionProps) {
   const [isPending, startTransition] = useTransition()
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarPosition, setAvatarPosition] = useState<ImagePosition>(profile.avatarPosition ?? DEFAULT_IMAGE_POSITION)
   const [phone, setPhone] = useState(profile.phone)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -34,11 +37,13 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
     const file = e.target.files?.[0]
     if (!file) return
     setAvatarPreview(URL.createObjectURL(file))
+    setAvatarPosition(DEFAULT_IMAGE_POSITION)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
+    formData.set('avatarPosition', JSON.stringify(avatarPosition))
     startTransition(async () => {
       const result = await updateProfile(formData)
       if (result.error) {
@@ -64,7 +69,17 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
             <div className="flex items-center gap-5">
               <div className="relative">
                 <Avatar className="h-20 w-20">
-                  {displayAvatar && <AvatarImage src={displayAvatar} alt="Profile photo" className="object-cover" />}
+                  {displayAvatar && (
+                    <AvatarImage
+                      src={displayAvatar}
+                      alt="Profile photo"
+                      className="object-cover"
+                      style={{
+                        objectPosition: `${50 + avatarPosition.x}% ${50 + avatarPosition.y}%`,
+                        transform: `scale(${avatarPosition.scale})`,
+                      }}
+                    />
+                  )}
                   <AvatarFallback className="text-2xl bg-primary text-white font-semibold">{initial}</AvatarFallback>
                 </Avatar>
                 <button
@@ -91,6 +106,20 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
                 onChange={handleAvatarChange}
               />
             </div>
+            {displayAvatar && (
+              <div className="xl:col-start-2">
+                <ImagePositionEditor
+                  src={displayAvatar}
+                  alt="Profile photo position preview"
+                  aspectRatio={1}
+                  shape="circle"
+                  fit="cover"
+                  value={avatarPosition}
+                  onChange={setAvatarPosition}
+                  className="max-w-[240px]"
+                />
+              </div>
+            )}
           </div>
 
           {/* Name */}

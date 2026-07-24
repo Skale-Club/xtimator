@@ -60,6 +60,10 @@ import {
   fetchItemOptions,
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
+import { ImagePositionEditor, DEFAULT_IMAGE_POSITION, type ImagePosition } from '@/components/admin/image-position-editor'
+
+const MAX_ITEM_PHOTO_SIZE = 4 * 1024 * 1024
+const ACCEPTED_ITEM_PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 
 interface PriceBookItemDialogProps {
   open: boolean
@@ -131,6 +135,7 @@ export function PriceBookItemDialog({
   const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imagePosition, setImagePosition] = useState<ImagePosition>(DEFAULT_IMAGE_POSITION)
   const [unit, setUnit] = useState<UnitParts>({ qty: '', measure: '', custom: '' })
   const [pricingType, setPricingType] = useState<PricingType>('fixed')
   const [areaSizes, setAreaSizes] = useState<AreaSize[]>([])
@@ -152,6 +157,7 @@ export function PriceBookItemDialog({
     setOptions([])
     setImageFile(null)
     setImagePreview(item?.image_url ?? null)
+    setImagePosition(item?.image_position ?? DEFAULT_IMAGE_POSITION)
 
     if (item) {
       form.reset({
@@ -254,8 +260,8 @@ export function PriceBookItemDialog({
   function onSubmit(values: PriceBookItemFormValues) {
     startTransition(async () => {
       const result = item
-        ? await updatePriceBookItem(item.id, values, imageFile, options)
-        : await createPriceBookItem(values, imageFile, options)
+        ? await updatePriceBookItem(item.id, values, imageFile, options, imagePosition)
+        : await createPriceBookItem(values, imageFile, options, imagePosition)
 
       if (result.error) {
         toast.error(result.error)
@@ -695,12 +701,23 @@ export function PriceBookItemDialog({
                     <input
                       id="price-book-image-upload"
                       type="file"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp"
                       className="sr-only"
                       onChange={(e) => {
                         const file = e.target.files?.[0] ?? null
+                        if (!file) return
+                        e.target.value = ''
+                        if (!ACCEPTED_ITEM_PHOTO_TYPES.includes(file.type)) {
+                          toast.error('Unsupported format. Please upload PNG, JPG, or WebP.')
+                          return
+                        }
+                        if (file.size > MAX_ITEM_PHOTO_SIZE) {
+                          toast.error('Photo must be under 4MB.')
+                          return
+                        }
                         setImageFile(file)
-                        if (file) setImagePreview(URL.createObjectURL(file))
+                        setImagePreview(URL.createObjectURL(file))
+                        setImagePosition(DEFAULT_IMAGE_POSITION)
                       }}
                     />
                   </label>
@@ -709,13 +726,24 @@ export function PriceBookItemDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => { setImageFile(null); setImagePreview(null) }}
+                      onClick={() => { setImageFile(null); setImagePreview(null); setImagePosition(DEFAULT_IMAGE_POSITION) }}
                     >
                       Remove
                     </Button>
                   )}
                 </div>
               </div>
+              {imagePreview && (
+                <ImagePositionEditor
+                  src={imagePreview}
+                  alt="Item photo position preview"
+                  aspectRatio={1}
+                  fit="cover"
+                  value={imagePosition}
+                  onChange={setImagePosition}
+                  className="max-w-[200px]"
+                />
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isPending}>

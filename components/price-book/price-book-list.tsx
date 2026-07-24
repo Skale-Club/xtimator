@@ -533,6 +533,10 @@ export function PriceBookList({
                                         src={item.image_url}
                                         alt={item.name}
                                         className="h-8 w-8 rounded object-cover shrink-0"
+                                        style={item.image_position ? {
+                                          objectPosition: `${50 + item.image_position.x}% ${50 + item.image_position.y}%`,
+                                          transform: `scale(${item.image_position.scale})`,
+                                        } : undefined}
                                       />
                                     ) : (
                                       <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
@@ -595,6 +599,10 @@ export function PriceBookList({
                                   src={item.image_url}
                                   alt={item.name}
                                   className="h-10 w-10 rounded object-cover shrink-0"
+                                  style={item.image_position ? {
+                                    objectPosition: `${50 + item.image_position.x}% ${50 + item.image_position.y}%`,
+                                    transform: `scale(${item.image_position.scale})`,
+                                  } : undefined}
                                 />
                               ) : (
                                 <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
