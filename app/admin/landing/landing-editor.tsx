@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { saveLandingContent } from './actions'
@@ -228,6 +229,23 @@ export function LandingEditor({ initial }: LandingEditorProps) {
 
           {/* How It Works */}
           <TabsContent value="how-it-works" className="mt-0 flex flex-col gap-4">
+            <FormField
+              control={form.control}
+              name="howItWorksAnimations"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel>{t('Card background animations')}</FormLabel>
+                    <FormMessage className="text-muted-foreground">
+                      {t('Show the animated waveform, typing dots, and camera behind each card image. When off, cards keep the halo glow only.')}
+                    </FormMessage>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
             <div className="flex gap-1">
               {stepsArray.fields.map((_, index) => (
                 <button

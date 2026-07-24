@@ -20,10 +20,163 @@ function HaloBackground() {
   )
 }
 
+// 52 bars × 7px (3.5 bar + 3.5 gap) + 2×18px padding = 400px viewBox
+const WAVEFORM_BARS = (() => {
+  const count = 52
+  return Array.from({ length: count }, (_, i) => {
+    const t = i / (count - 1)
+    // Bell-curve envelope so bars taper at the edges
+    const env = Math.sin(Math.PI * t)
+    // Multi-frequency variation simulates real audio content
+    const detail = 0.52
+      + 0.28 * Math.sin(t * 13 + 0.2)
+      + 0.13 * Math.sin(t * 29 + 1.5)
+      + 0.07 * Math.sin(t * 47 + 2.8)
+    const h = Math.max(0.06, env * Math.abs(detail))
+    // Stagger animation speed + phase so bars pulse independently
+    const dur = (0.65 + 0.7 * Math.abs(Math.sin(i * 1.9 + 0.3))).toFixed(2)
+    const delay = (-Math.abs(Math.sin(i * 0.7 + 1.2)) * 1.4).toFixed(2)
+    return { h, dur, delay }
+  })
+})()
+
+function SoundWaveBackground() {
+  const reduce = useReducedMotion()
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+      <svg viewBox="0 0 400 150" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        {WAVEFORM_BARS.map(({ h, dur, delay }, i) => {
+          const x = 18 + i * 7
+          // Round to 3dp so server and client floating-point serialization matches
+          const halfH = Math.round(h * 62 * 1000) / 1000
+          return (
+            <rect
+              key={i}
+              x={x}
+              y={75 - halfH}
+              width={3.5}
+              height={halfH * 2}
+              rx={1.75}
+              fill="hsl(var(--primary))"
+              fillOpacity={Math.round(Math.min(0.85, 0.22 + h * 0.7) * 10000) / 10000}
+              style={reduce ? undefined : {
+                transformBox: 'fill-box',
+                transformOrigin: 'center',
+                animation: `bar-pulse ${dur}s ease-in-out infinite ${delay}s`,
+              }}
+            />
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function CameraBackground() {
+  const reduce = useReducedMotion()
+  const dur = '2.5s'
+
+  return (
+    <>
+      {/*
+       * Single animated parent drives BOTH the glow and the flash unit.
+       * CSS opacity cascades to all children → perfect sync, zero drift.
+       */}
+      {!reduce && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          aria-hidden
+          style={{ animation: `cam-flash-unit ${dur} ease-out infinite` }}
+        >
+          {/* Glow */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(ellipse at 20% 20%, hsl(var(--primary)) 0%, transparent 60%)',
+              opacity: 0.65,
+            }}
+          />
+          {/* Flash unit — inside small left bump */}
+          <div className="absolute top-[10px] right-[20px] bottom-[30px] left-[20px] flex items-center justify-center">
+            <svg viewBox="0 0 260 190" className="w-full h-full" fill="none" preserveAspectRatio="xMidYMid meet">
+              <rect x="18" y="38" width="22" height="10" rx="2" fill="hsl(var(--primary))" />
+            </svg>
+          </div>
+        </div>
+      )}
+      {/* Camera outline — always visible */}
+      <div className="absolute top-[10px] right-[20px] bottom-[30px] left-[20px] flex items-center justify-center pointer-events-none" aria-hidden>
+        <svg
+          viewBox="0 0 260 190"
+          className="w-full h-full"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <g stroke="hsl(var(--primary))" opacity="0.4" strokeWidth="4">
+            {/*
+             * Two-bump silhouette: small flash bump flush-left (x=5-55, y=36-50),
+             * large viewfinder bump centered (x=75-185, y=22-50), body below.
+             * Single continuous path — no overlapping strokes.
+             */}
+            <path d="M 13 36 H 47 A 8 8 0 0 1 55 44 V 50 H 75 V 34 A 12 12 0 0 1 87 22 H 173 A 12 12 0 0 1 185 34 V 50 H 237 A 18 18 0 0 1 255 68 V 165 A 18 18 0 0 1 237 183 H 23 A 18 18 0 0 1 5 165 V 44 A 8 8 0 0 1 13 36 Z" />
+            {/* Horizontal stripes — just outside lens vertical extent */}
+            <line x1="5" y1="63" x2="255" y2="63" />
+            <line x1="5" y1="170" x2="255" y2="170" />
+            {/* Lens rings — centered on camera body: (5+255)/2 = 130 */}
+            <circle cx="130" cy="117" r="50" />
+            <circle cx="130" cy="117" r="37" />
+          </g>
+          {/* Lens inner — filled glass element */}
+          <circle cx="130" cy="117" r="22" fill="hsl(var(--primary))" stroke="hsl(var(--primary))" strokeWidth="2" opacity="0.4" />
+        </svg>
+      </div>
+    </>
+  )
+}
+
+function SpeechBubbleBackground() {
+  const reduce = useReducedMotion()
+  const dur = '3.6s'
+  return (
+    <div className="absolute top-[25px] right-[20px] bottom-[15px] left-[20px] flex items-center justify-center pointer-events-none" aria-hidden>
+      <svg
+        viewBox="0 0 260 190"
+        className="w-full h-full"
+        fill="none"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Speech bubble outline — rounded rect body + bottom-left tail */}
+        <path
+          d="M 34 12 H 226 A 24 24 0 0 1 250 36 V 132 A 24 24 0 0 1 226 156 H 62 L 26 178 L 50 156 H 34 A 24 24 0 0 1 10 132 V 36 A 24 24 0 0 1 34 12 Z"
+          stroke="hsl(var(--primary))"
+          strokeWidth="4"
+          strokeLinejoin="round"
+          opacity="0.4"
+        />
+        {/* Six typing dots — appear 1→2→3→4→5→6, all disappear together, repeat */}
+        {([45, 79, 113, 147, 181, 215] as const).map((cx, i) => (
+          <circle
+            key={i}
+            cx={cx} cy="84" r="11.7"
+            fill="hsl(var(--primary))"
+            style={reduce ? { opacity: 0.25 } : {
+              animation: `bubble-dot-${i + 1} ${dur} ease-in-out infinite`,
+              transformBox: 'fill-box',
+              transformOrigin: 'center',
+            }}
+          />
+        ))}
+      </svg>
+    </div>
+  )
+}
+
 function StepCard({
-  step, fill = false, imageScale = 1, imageOffsetY = 0,
+  step, fill = false, imageScale = 1, imageOffsetY = 0, showWave = false, showPhotos = false, showCursor = false,
 }: {
-  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number
+  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number; showWave?: boolean; showPhotos?: boolean; showCursor?: boolean
 }) {
   const { title, description, imageUrl } = step
   const hasTransform = imageScale !== 1 || imageOffsetY !== 0
@@ -37,9 +190,13 @@ function StepCard({
         fill ? 'h-full' : '',
       ].join(' ')}
     >
-      {/* Image slot */}
+      {/* Image slot — halo glow always renders; the animated background (when
+          enabled) layers on top of the halo but still behind the z-10 image. */}
       <div className="relative h-44 w-full flex-shrink-0 overflow-hidden bg-[var(--glass-bg)] px-4 pt-4">
         <HaloBackground />
+        {showWave && <SoundWaveBackground />}
+        {showCursor && <SpeechBubbleBackground />}
+        {showPhotos && <CameraBackground />}
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -83,7 +240,14 @@ function StepCard({
   )
 }
 
-export function HowItWorksSection({ steps }: { steps: Step[] }) {
+export function HowItWorksSection({
+  steps,
+  animationsEnabled = true,
+}: {
+  steps: Step[]
+  /** When false, cards show the halo glow only (admin toggle at /admin/landing). */
+  animationsEnabled?: boolean
+}) {
   const reduce = useReducedMotion()
   // Duplicate for seamless infinite loop
   const ticker = [...steps, ...steps]
@@ -120,7 +284,15 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
               transition={{ duration: 0.55, delay: i * 0.12, ease: 'easeOut' }}
               className="h-full"
             >
-              <StepCard step={step} fill imageScale={i === 1 ? 1.15 : 1} imageOffsetY={i === 1 ? -10 : 0} />
+              <StepCard
+                step={step}
+                fill
+                imageScale={i === 1 ? 1.15 : 1}
+                imageOffsetY={i === 1 ? -10 : 0}
+                showWave={animationsEnabled && i === 0}
+                showCursor={animationsEnabled && i === 1}
+                showPhotos={animationsEnabled && i === 2}
+              />
             </motion.div>
           ))}
         </div>
@@ -144,7 +316,15 @@ export function HowItWorksSection({ steps }: { steps: Step[] }) {
           <Ticker halfWidth={888}>
             {ticker.map((step, i) => (
               <div key={i} className="w-[280px] shrink-0 px-2 py-1">
-                <StepCard step={step} fill imageScale={(i % steps.length) === 1 ? 1.15 : 1} imageOffsetY={(i % steps.length) === 1 ? -10 : 0} />
+                <StepCard
+                  step={step}
+                  fill
+                  imageScale={(i % steps.length) === 1 ? 1.15 : 1}
+                  imageOffsetY={(i % steps.length) === 1 ? -10 : 0}
+                  showWave={animationsEnabled && (i % steps.length) === 0}
+                  showCursor={animationsEnabled && (i % steps.length) === 1}
+                  showPhotos={animationsEnabled && (i % steps.length) === 2}
+                />
               </div>
             ))}
           </Ticker>

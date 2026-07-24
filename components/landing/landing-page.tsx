@@ -92,7 +92,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
 
         {/* Snap page 2: how it works — 100dvh only once the desktop grid shows (≥720px); on phone the wrapper is natural height so py-8 = mb-8 = equal spacing */}
         <div className="min-[720px]:min-h-[100dvh] flex flex-col">
-          <HowItWorksSection steps={content.howItWorksSteps} />
+          <HowItWorksSection steps={content.howItWorksSteps} animationsEnabled={content.howItWorksAnimations} />
         </div>
 
         {/* Snap page 3: features — 100dvh only at desktop (≥1024px); below that wrapper is natural height */}

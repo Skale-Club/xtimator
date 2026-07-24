@@ -74,6 +74,8 @@ export const landingContentSchema = z.object({
    * Uploaded via the platform-brand storage bucket under `hero-images/`.
    */
   heroImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  /** Toggle for the animated How It Works card backgrounds. Defaults on. */
+  howItWorksAnimations: z.boolean().optional().default(true),
   howItWorksSteps: z.array(z.object({
     eyebrow: z.string().max(30),
     title: z.string().max(60),

@@ -23,6 +23,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         heroSubheadline: '',
         ctaLabel: '',
         heroImageUrl: null,
+        howItWorksAnimations: true,
         howItWorksSteps: [],
         features: [],
       },

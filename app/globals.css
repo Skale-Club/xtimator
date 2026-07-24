@@ -2,6 +2,52 @@
 @plugin "@tailwindcss/typography";
 @source not "../.planning";
 
+/* How It Works card backgrounds — animated waveform bars (Record audio),
+   camera flash (Upload photos), and speech-bubble typing dots (Describe the
+   job). Gated at render time by the admin "Card background animations" toggle
+   and by prefers-reduced-motion inside each component. */
+@keyframes bar-pulse {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.25); }
+}
+
+@keyframes cam-flash-unit {
+  0%, 55%   { opacity: 0 }
+  60%, 68%  { opacity: 1 }
+  78%, 100% { opacity: 0 }
+}
+
+@keyframes bubble-dot-1 {
+  0%, 2%    { opacity: 0; transform: scale(0.4) }
+  10%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+@keyframes bubble-dot-2 {
+  0%, 12%   { opacity: 0; transform: scale(0.4) }
+  20%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+@keyframes bubble-dot-3 {
+  0%, 22%   { opacity: 0; transform: scale(0.4) }
+  30%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+@keyframes bubble-dot-4 {
+  0%, 32%   { opacity: 0; transform: scale(0.4) }
+  40%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+@keyframes bubble-dot-5 {
+  0%, 42%   { opacity: 0; transform: scale(0.4) }
+  50%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+@keyframes bubble-dot-6 {
+  0%, 52%   { opacity: 0; transform: scale(0.4) }
+  60%, 70%  { opacity: 0.25; transform: scale(1) }
+  80%, 100% { opacity: 0; transform: scale(0.4) }
+}
+
 /* Photo icon swap — ph-show: visible in phase 1 / ph-hide: visible in phase 2 */
 @keyframes ph-show { 0%,38% { opacity:1 } 46%,95% { opacity:0 } 100% { opacity:1 } }
 @keyframes ph-hide { 0%,44% { opacity:0 } 52%,90% { opacity:1 } 98%,100% { opacity:0 } }

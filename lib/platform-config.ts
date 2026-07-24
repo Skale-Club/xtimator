@@ -23,6 +23,12 @@ export type LandingContent = {
   ctaLabel: string
   /** Optional 1:1 hero image. Null hides the right-side column. */
   heroImageUrl: string | null
+  /**
+   * When true, the How It Works cards render their animated backgrounds
+   * (waveform bars, typing dots, camera flash) over the halo glow. When
+   * false, cards show the halo only. Admin-controlled at /admin/landing.
+   */
+  howItWorksAnimations: boolean
   howItWorksSteps: Array<{
     eyebrow: string
     title: string
@@ -82,6 +88,7 @@ export const DEFAULT_LANDING_CONTENT: LandingContent = {
     'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway.',
   ctaLabel: 'Start',
   heroImageUrl: null,
+  howItWorksAnimations: true,
   howItWorksSteps: [
     {
       eyebrow: 'Option 1',
@@ -184,6 +191,9 @@ export async function getBranding(): Promise<Branding> {
             ...(data.landing_content as LandingContent),
             // Backfill heroImageUrl for rows persisted before the field existed.
             heroImageUrl: (data.landing_content as LandingContent).heroImageUrl ?? null,
+            // Backfill howItWorksAnimations (default on) for rows saved before it existed.
+            howItWorksAnimations:
+              (data.landing_content as LandingContent).howItWorksAnimations ?? true,
           }
         : DEFAULT_LANDING_CONTENT,
   }
