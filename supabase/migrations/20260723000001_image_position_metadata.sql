@@ -1,8 +1,11 @@
 -- supabase/migrations/20260723000001_image_position_metadata.sql
--- Quick task 260723: adds nullable JSONB position metadata columns so every
--- image-upload surface can support the new zoom + drag-to-reposition editor.
+-- Quick task 260723: adds nullable JSONB position metadata columns for the
+-- two surfaces where the new zoom + drag-to-reposition editor is actually
+-- wired up (a genuine crop-into-a-fixed-frame use case, unlike logos/OG
+-- images which render via object-contain or aren't displayed in-app at all
+-- — see 260723-img7-SUMMARY.md for the full per-surface reasoning).
 --
--- Shape (all columns): { "scale": number, "x": number, "y": number }
+-- Shape: { "scale": number, "x": number, "y": number }
 --   scale: 1 = fit-to-frame (the browser-computed cover baseline), >1 = zoomed in
 --   x, y: percentage offset from center, roughly -50..50 (drag position)
 -- NULL means "not set" — render code treats NULL as {scale:1, x:0, y:0} (today's
@@ -18,20 +21,9 @@
 -- (see supabase/migrations/20260722000001_...). Apply to prod before the
 -- position-editor UI writes real data — verify via:
 --   select table_name, column_name from information_schema.columns
---   where column_name in ('logo_position', 'image_position', 'og_image_position', 'position')
---   and table_schema = 'public';
+--   where column_name in ('image_position', 'position') and table_schema = 'public';
 
 BEGIN;
-
-ALTER TABLE public.companies
-  ADD COLUMN IF NOT EXISTS logo_position jsonb;
-COMMENT ON COLUMN public.companies.logo_position IS
-  'Zoom/drag display position for logo_url: {scale, x, y}. NULL = centered, scale 1 (quick-260723-image-position).';
-
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS logo_position jsonb;
-COMMENT ON COLUMN public.clients.logo_position IS
-  'Zoom/drag display position for logo_url: {scale, x, y}. NULL = centered, scale 1 (quick-260723-image-position).';
 
 ALTER TABLE public.company_price_book
   ADD COLUMN IF NOT EXISTS image_position jsonb;
@@ -42,13 +34,5 @@ ALTER TABLE public.photos
   ADD COLUMN IF NOT EXISTS position jsonb;
 COMMENT ON COLUMN public.photos.position IS
   'Zoom/drag DISPLAY-ONLY position for the photo thumbnail: {scale, x, y}. NULL = centered, scale 1. Never affects the stored image bytes — AI photo analysis always reads the full original (quick-260723-image-position).';
-
-ALTER TABLE public.platform_branding
-  ADD COLUMN IF NOT EXISTS logo_position jsonb,
-  ADD COLUMN IF NOT EXISTS og_image_position jsonb;
-COMMENT ON COLUMN public.platform_branding.logo_position IS
-  'Zoom/drag display position for logo_url: {scale, x, y}. NULL = centered, scale 1 (quick-260723-image-position).';
-COMMENT ON COLUMN public.platform_branding.og_image_position IS
-  'Zoom/drag display position for og_image_url: {scale, x, y}. NULL = centered, scale 1 (quick-260723-image-position).';
 
 COMMIT;
