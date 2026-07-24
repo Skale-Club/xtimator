@@ -2,7 +2,7 @@
 phase: quick-260723-fx1
 status: complete
 date: 2026-07-23
-commit: 73d43f16
+commit: 2f912c93
 files_modified:
   - components/landing/hero-section.tsx
 ---
@@ -55,6 +55,18 @@ restructuring landed:
 - Live SSR HTML re-fetched and confirmed `lg:bottom-0` present in the
   compiled output, no render/runtime errors.
 
+## Follow-up commit (`2f912c93`)
+
+Re-verifying the full-width work after moving on to other tasks (user:
+"dont forgert about the full width talk") surfaced a gap: the primary
+"Start" button had been extended to `w-full lg:w-auto` (item 2 above), but
+the secondary "See Demo" button right next to it in the same row was never
+given the matching update — it was still `w-full sm:w-fit`, meaning from
+640px onward it would shrink to fit-content while Start stayed full-width.
+Fixed to `w-full lg:w-fit`, matching Start exactly. Verified the same way
+(tsc clean, SSR HTML confirms the class, tests 4/5 same flaky unrelated
+test).
+
 ## Notes
 
-Local commit only, not pushed.
+Local commits only, not pushed.
