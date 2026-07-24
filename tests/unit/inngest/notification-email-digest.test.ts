@@ -141,6 +141,6 @@ describe('buildDigestItem (Phase 174 TNT-01)', () => {
     expect(item.preEscaped).toBe(true)
     expect(item.body).toBe('Resolved &amp; body already escaped')
     expect(item.title).toBe('Resolved Subject & Co')
-    expect((item as Record<string, unknown>).titlePreEscaped).toBeUndefined()
+    expect((item as unknown as Record<string, unknown>).titlePreEscaped).toBeUndefined()
   })
 })

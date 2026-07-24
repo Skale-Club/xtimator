@@ -69,6 +69,7 @@ describe('PhotoThumbnailGrid', () => {
         ai_description: null,
         sort_order: 0,
         created_at: '2026-06-22T00:00:00Z',
+        position: null,
       },
     },
   ]
