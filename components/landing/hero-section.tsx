@@ -187,8 +187,15 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // quick-260723: items-center added to the no-image path too — the
                 // outer wrapper already centers this row as a block, but without
                 // items-center here the buttons themselves weren't centered within it.
+                // quick-260723 FIX (found via hand-calculation, not just class
+                // inspection): this row is the buttons' DIRECT parent, and its own
+                // parent (.hero-left) sets items-center — meaning without an
+                // explicit width THIS row shrink-wraps to its content instead of
+                // stretching, so the buttons' width:100% was resolving against an
+                // already-content-sized box, not the real 342px-at-390px-viewport
+                // column. w-full here is what actually makes "full width" real.
                 hasImage
-                  ? 'flex flex-col items-center gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:items-center'
+                  ? 'flex w-full flex-col items-center gap-[clamp(8px,1.17vw,12px)] lg:w-auto lg:flex-row lg:items-center'
                   : 'flex flex-col items-center gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:justify-center'
               }
             >
