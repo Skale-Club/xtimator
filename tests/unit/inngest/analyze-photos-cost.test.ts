@@ -39,7 +39,7 @@ const mockCheckCredits = vi.fn().mockResolvedValue({ allowed: true, balance: 100
 const mockRecordPipelineEvent = vi.fn().mockResolvedValue(undefined)
 const mockNotify = vi.fn().mockResolvedValue(undefined)
 const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
-const mockBuildNotificationCopy = vi.fn(() => ({ title: 't', body: 'b' }))
+const mockBuildNotificationCopy = vi.fn((..._args: unknown[]) => ({ title: 't', body: 'b' }))
 const mockInngestSend = vi.fn().mockResolvedValue({ ids: ['evt_test'] })
 const mockRecordAICost = vi.fn().mockResolvedValue(undefined)
 
