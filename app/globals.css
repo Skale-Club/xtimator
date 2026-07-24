@@ -126,8 +126,12 @@
   .hero-h1 { font-size: 56px !important; width: auto !important; }
   .hero-left p { font-size: 20px; line-height: 1.5; }
   .hero-left > div:last-child { display: flex; flex-direction: row; align-items: center; gap: 0.75rem; margin-top: 8px; }
+  /* quick-260723: was height 40px, an outlier vs. the 640-1023-portrait block's
+     44px at the SAME 15px font (landscape tablets in this range have at least as
+     much width as portrait ones, so a smaller button here had no rationale) —
+     matched to that proven 44px/15px pairing. */
   .hero-left > div:last-child button,
-  .hero-left > div:last-child a { width: auto !important; height: 40px !important; font-size: 15px !important; }
+  .hero-left > div:last-child a { width: auto !important; height: 44px !important; font-size: 15px !important; }
   /* top:129px puts the photo top ~64px below the 65px navbar (hero-shell padding is
      removed here, so the image is otherwise positioned from y=0, behind the navbar) */
   .hero-image { top: 129px !important; }

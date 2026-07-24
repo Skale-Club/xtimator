@@ -48,7 +48,15 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               </div>
             </div>
 
-            <h1 className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(35px,5.5vw,42px)] md:text-[clamp(32px,4.5vw,46px)] lg:text-[clamp(42px,4.5vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]">
+            {/* quick-260723: sm's floor (49px) picks up exactly where base's own
+                range tops out at 639px (7.7vw*639≈49.2px) and the 4.35vw slope
+                reaches the 56px "role model" cap by ~1244px — same endpoint the
+                old lg segment capped at, but with no dip crossing 640/768/1024
+                (the old sm/md/lg segments each independently maxed lower than
+                the segment before it, so text visibly SHRANK at every one of
+                those boundaries as the viewport grew). One continuous formula
+                for the whole ≥640 range removes the seams entirely. */}
+            <h1 className="hero-h1 text-[clamp(29px,7.7vw,56px)] sm:text-[clamp(49px,4.35vw,56px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px]">
               {/* Break after word 1 below lg; ≥1024px words 1-2 share the top row → 2-line title
                   (nowrap because at 56px the pair sits right at the 580px box limit).
                   Quick-260718-h9x: gate moved xl→lg — desktop windows under 1280px CSS
@@ -66,10 +74,13 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
             <p
               className={
                 hasImage
-                  // lg 18px pairs with the 2-row desktop subheadline on EVERY desktop
+                  // 18px pairs with the 2-row desktop subheadline on EVERY desktop
                   // width (≥1024) — the coarse-gated iPad media queries still force
-                  // their own sizes on real tablets by selector specificity.
-                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[14px] lg:text-[18px]'
+                  // their own sizes on real tablets by selector specificity. quick-260723:
+                  // was sm:14px (a drop below the 16.8px mobile size) then lg:18px (a
+                  // sudden jump) — one continuous clamp reaches 18px by ~900px and holds,
+                  // so it's already at the lg value well before the lg breakpoint itself.
+                  ? 'sm:max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-[clamp(16.8px,2vw,18px)]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
@@ -98,24 +109,39 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
 
             <div
               className={
+                // quick-260723: gap-2->lg:gap-3 was a flat 8px until a sudden jump to
+                // 12px at 1024 — one clamp grows smoothly across the whole ≥0 range
+                // (its own floor already equals gap-2's 8px below ~684px, so mobile
+                // is unaffected) and reaches 12px by 1024, matching lg:gap-3 exactly.
                 hasImage
-                  ? 'flex flex-col gap-2 lg:flex-row lg:gap-3'
-                  : 'flex flex-col gap-2 lg:flex-row lg:gap-3 lg:justify-center'
+                  ? 'flex flex-col gap-[clamp(8px,1.17vw,12px)] lg:flex-row'
+                  : 'flex flex-col gap-[clamp(8px,1.17vw,12px)] lg:flex-row lg:justify-center'
               }
             >
               <div className="cta-glow max-sm:[box-shadow:none] max-sm:[animation:none] max-lg:self-start lg:self-auto lg:flex-none">
-                {/* lg: bumps both CTAs 15% over size=default (40px/14px) on every desktop
-                    width; real tablets keep their media-query !important heights */}
-                <Button variant="primary" size="default" className="min-w-40 lg:h-[46px] lg:min-w-[184px] lg:px-[18px] lg:text-base" onClick={() => onOpenAuth?.('signup')}>
+                {/* quick-260723: was flat at size=default (40px/14px/12px-or-16px-padding)
+                    until a sudden jump to 46px/16px/18px at lg — each clamp's floor
+                    already equals the current mobile/size=default value (verified at
+                    375px), so mobile is unaffected; each reaches its old lg value by
+                    1024px, so the desktop "role model" (56px h1, 46px buttons) is
+                    unchanged too. Only the 640-1024 range (desktop windows below lg,
+                    and non-touch resizes) actually changes — it now grows continuously
+                    instead of sitting flat then jumping. */}
+                <Button variant="primary" size="default" className="min-w-[clamp(160px,18vw,184px)] h-[clamp(40px,4.5vw,46px)] px-[clamp(12px,1.76vw,18px)] text-[clamp(14px,1.56vw,16px)]" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
-                  <ArrowRight className="ml-1.5 size-4 lg:size-[18px]" aria-hidden="true" />
+                  <ArrowRight className="ml-1.5 size-[clamp(16px,1.76vw,18px)]" aria-hidden="true" />
                 </Button>
               </div>
               <Button
                 asChild
                 size="default"
                 variant="outline"
-                className="w-fit px-6 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-36 h-10 text-sm sm:px-4 lg:h-[46px] lg:min-w-[166px] lg:px-[18px] lg:text-base"
+                // quick-260723: px-6(mobile,24px)->sm:px-4(16px)->lg:px-[18px] DROPPED
+                // below the eventual 18px target then climbed back — sm:px-5(20px) is
+                // a gentle monotonic step down (24->20->18) instead of a dip. height/
+                // font/min-width all GROW toward their lg values (unlike padding here)
+                // so those use the same continuous-clamp treatment as the primary button.
+                className="w-fit px-6 sm:px-5 self-start sm:flex-none border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-fit sm:min-w-[clamp(144px,16.2vw,166px)] h-[clamp(40px,4.5vw,46px)] text-[clamp(14px,1.56vw,16px)] lg:px-[18px]"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
