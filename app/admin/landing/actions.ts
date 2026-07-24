@@ -1,10 +1,10 @@
 'use server'
-import sharp from 'sharp'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createStorage } from '@/lib/storage'
+import { convertImageToWebp } from '@/lib/image/webp'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import {
   landingContentSchema,
@@ -74,13 +74,12 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
     if (!fileCheck.success) {
       return { ok: false, message: fileCheck.error.issues[0]?.message ?? 'Invalid file' }
     }
-    const ext = (heroImageFile.name.split('.').pop() || 'png').toLowerCase()
     const base = sanitizeBase(heroImageFile.name)
-    const path = `hero-images/${Date.now()}-${base}.${ext}`
-    const body = Buffer.from(await heroImageFile.arrayBuffer())
+    const path = `hero-images/${Date.now()}-${base}.webp`
     try {
-      const result = await storage.upload('platform-brand', path, body, {
-        contentType: heroImageFile.type,
+      const webpBuffer = await convertImageToWebp(heroImageFile)
+      const result = await storage.upload('platform-brand', path, webpBuffer, {
+        contentType: 'image/webp',
         upsert: true,
       })
       newHeroUrl = storage.getPublicUrl('platform-brand', result.path)
@@ -127,10 +126,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
       if (!fileCheck.success) {
         return { ok: false, message: `Step ${i + 1} image: ${fileCheck.error.issues[0]?.message ?? 'Invalid file'}` }
       }
-      // Convert to WebP with sharp regardless of original format
-      const webpBuffer = await sharp(Buffer.from(await stepFile.arrayBuffer()))
-        .webp({ quality: 85 })
-        .toBuffer()
+      const webpBuffer = await convertImageToWebp(stepFile)
       const path = `step-images/${Date.now()}-step-${i}.webp`
       try {
         const result = await storage.upload('platform-brand', path, webpBuffer, {
@@ -183,9 +179,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
       if (!fileCheck.success) {
         return { ok: false, message: `Feature ${i + 1} image: ${fileCheck.error.issues[0]?.message ?? 'Invalid file'}` }
       }
-      const webpBuffer = await sharp(Buffer.from(await featureFile.arrayBuffer()))
-        .webp({ quality: 85 })
-        .toBuffer()
+      const webpBuffer = await convertImageToWebp(featureFile)
       const path = `feature-images/${Date.now()}-feature-${i}.webp`
       try {
         const result = await storage.upload('platform-brand', path, webpBuffer, {

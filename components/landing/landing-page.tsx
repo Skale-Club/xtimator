@@ -84,6 +84,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
               heroSubheadline: content.heroSubheadline,
               ctaLabel: content.ctaLabel,
               heroImageUrl: content.heroImageUrl ?? null,
+              heroImagePosition: content.heroImagePosition ?? null,
             }}
             onOpenAuth={openAuth}
           />

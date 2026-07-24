@@ -64,6 +64,13 @@ export const seoSchema = z.object({
   ogImageRemoved: z.boolean().optional().default(false),
 })
 
+/** Zoom/drag display position stored alongside any admin-uploaded image. */
+export const imagePositionSchema = z.object({
+  scale: z.number().min(1).max(3),
+  x: z.number().min(-50).max(50),
+  y: z.number().min(-50).max(50),
+}).nullable().optional()
+
 export const landingContentSchema = z.object({
   heroHeadline: z.string().min(1).max(200),
   heroSubheadline: z.string().min(1).max(400),
@@ -74,6 +81,7 @@ export const landingContentSchema = z.object({
    * Uploaded via the platform-brand storage bucket under `hero-images/`.
    */
   heroImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  heroImagePosition: imagePositionSchema,
   /** Toggle for the animated How It Works card backgrounds. Defaults on. */
   howItWorksAnimations: z.boolean().optional().default(true),
   howItWorksSteps: z.array(z.object({
@@ -81,6 +89,7 @@ export const landingContentSchema = z.object({
     title: z.string().max(60),
     description: z.string().max(300),
     imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+    imagePosition: imagePositionSchema,
   })).length(3),
   features: z.array(z.object({
     icon: z.string().max(40),
@@ -88,6 +97,7 @@ export const landingContentSchema = z.object({
     description: z.string().max(300),
     benefit: z.string().max(60),
     imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+    imagePosition: imagePositionSchema,
   })).min(1).max(6),
 })
 

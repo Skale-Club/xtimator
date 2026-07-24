@@ -26,6 +26,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { HeroImageUploader } from '@/components/admin/hero-image-uploader'
 import { StepImageUploader } from '@/components/admin/step-image-uploader'
 import { FeatureImageUploader } from '@/components/admin/feature-image-uploader'
+import { ImagePositionEditor } from '@/components/admin/image-position-editor'
 
 interface LandingEditorProps {
   initial: LandingContentInput
@@ -225,6 +226,24 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                 {t('Optional. Displayed on the right side of the hero (1:1). When empty, the hero collapses to a single column.')}
               </FormMessage>
             </FormItem>
+
+            {heroImagePreview && (
+              <FormItem>
+                <FormLabel>{t('Position')}</FormLabel>
+                <FormControl>
+                  <ImagePositionEditor
+                    src={heroImagePreview}
+                    alt={t('Hero image position preview')}
+                    aspectRatio={1}
+                    fit="contain"
+                    containAnchor="bottom"
+                    value={form.watch('heroImagePosition') ?? null}
+                    onChange={(pos) => form.setValue('heroImagePosition', pos, { shouldDirty: true })}
+                  />
+                </FormControl>
+                <FormMessage>{t('Drag to reposition, use the slider to zoom.')}</FormMessage>
+              </FormItem>
+            )}
           </TabsContent>
 
           {/* How It Works */}
@@ -289,6 +308,24 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                       />
                     </FormControl>
                   </FormItem>
+
+                  {currentStepUrls[index] && (
+                    <FormItem>
+                      <FormLabel>{t('Position')}</FormLabel>
+                      <FormControl>
+                        <ImagePositionEditor
+                          src={currentStepUrls[index]!}
+                          alt={t('Step image position preview')}
+                          aspectRatio={280 / 176}
+                          fit="contain"
+                          containAnchor="top"
+                          value={form.watch(`howItWorksSteps.${index}.imagePosition`) ?? null}
+                          onChange={(pos) => form.setValue(`howItWorksSteps.${index}.imagePosition`, pos, { shouldDirty: true })}
+                        />
+                      </FormControl>
+                      <FormMessage>{t('Drag to reposition, use the slider to zoom.')}</FormMessage>
+                    </FormItem>
+                  )}
                 </div>
               )
             ))}
@@ -339,6 +376,23 @@ export function LandingEditor({ initial }: LandingEditorProps) {
                       />
                     </FormControl>
                   </FormItem>
+
+                  {currentFeatureUrls[index] && (
+                    <FormItem>
+                      <FormLabel>{t('Position')}</FormLabel>
+                      <FormControl>
+                        <ImagePositionEditor
+                          src={currentFeatureUrls[index]!}
+                          alt={t('Card image position preview')}
+                          aspectRatio={3}
+                          fit="cover"
+                          value={form.watch(`features.${index}.imagePosition`) ?? null}
+                          onChange={(pos) => form.setValue(`features.${index}.imagePosition`, pos, { shouldDirty: true })}
+                        />
+                      </FormControl>
+                      <FormMessage>{t('Drag to reposition, use the slider to zoom.')}</FormMessage>
+                    </FormItem>
+                  )}
                 </div>
               )
             ))}

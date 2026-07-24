@@ -5,7 +5,15 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { Card } from '@/components/ui/card'
 import { Ticker } from '@/components/landing/ticker'
 
-type Step = { eyebrow: string; title: string; description: string; imageUrl?: string | null }
+type ImagePosition = { scale: number; x: number; y: number }
+type Step = { eyebrow: string; title: string; description: string; imageUrl?: string | null; imagePosition?: ImagePosition | null }
+
+// Card 2 ("Write it down") has always rendered slightly zoomed/shifted up —
+// a hand-tuned default from the original design, kept as the fallback for
+// any step without an explicit admin-set position.
+function defaultStepPosition(index: number): ImagePosition {
+  return index === 1 ? { scale: 1.15, x: 0, y: -10 } : { scale: 1, x: 0, y: 0 }
+}
 
 function HaloBackground() {
   return (
@@ -174,12 +182,12 @@ function SpeechBubbleBackground() {
 }
 
 function StepCard({
-  step, fill = false, imageScale = 1, imageOffsetY = 0, showWave = false, showPhotos = false, showCursor = false,
+  step, fill = false, imageScale = 1, imageOffsetX = 0, imageOffsetY = 0, showWave = false, showPhotos = false, showCursor = false,
 }: {
-  step: Step; fill?: boolean; imageScale?: number; imageOffsetY?: number; showWave?: boolean; showPhotos?: boolean; showCursor?: boolean
+  step: Step; fill?: boolean; imageScale?: number; imageOffsetX?: number; imageOffsetY?: number; showWave?: boolean; showPhotos?: boolean; showCursor?: boolean
 }) {
   const { title, description, imageUrl } = step
-  const hasTransform = imageScale !== 1 || imageOffsetY !== 0
+  const hasTransform = imageScale !== 1 || imageOffsetX !== 0 || imageOffsetY !== 0
   return (
     <div
       className={[
@@ -209,7 +217,7 @@ function StepCard({
             sizes="(max-width: 719px) 80vw, 280px"
             className="relative z-10 h-full w-full object-contain object-top"
             style={hasTransform ? {
-              transform: `translateY(${imageOffsetY}%) scale(${imageScale})`,
+              transform: `translate(${imageOffsetX}%, ${imageOffsetY}%) scale(${imageScale})`,
               transformOrigin: 'top center',
             } : undefined}
           />
@@ -287,8 +295,9 @@ export function HowItWorksSection({
               <StepCard
                 step={step}
                 fill
-                imageScale={i === 1 ? 1.15 : 1}
-                imageOffsetY={i === 1 ? -10 : 0}
+                imageScale={(step.imagePosition ?? defaultStepPosition(i)).scale}
+                imageOffsetX={(step.imagePosition ?? defaultStepPosition(i)).x}
+                imageOffsetY={(step.imagePosition ?? defaultStepPosition(i)).y}
                 showWave={animationsEnabled && i === 0}
                 showCursor={animationsEnabled && i === 1}
                 showPhotos={animationsEnabled && i === 2}
@@ -319,8 +328,9 @@ export function HowItWorksSection({
                 <StepCard
                   step={step}
                   fill
-                  imageScale={(i % steps.length) === 1 ? 1.15 : 1}
-                  imageOffsetY={(i % steps.length) === 1 ? -10 : 0}
+                  imageScale={(step.imagePosition ?? defaultStepPosition(i % steps.length)).scale}
+                  imageOffsetX={(step.imagePosition ?? defaultStepPosition(i % steps.length)).x}
+                  imageOffsetY={(step.imagePosition ?? defaultStepPosition(i % steps.length)).y}
                   showWave={animationsEnabled && (i % steps.length) === 0}
                   showCursor={animationsEnabled && (i % steps.length) === 1}
                   showPhotos={animationsEnabled && (i % steps.length) === 2}

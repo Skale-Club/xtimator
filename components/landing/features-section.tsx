@@ -8,7 +8,8 @@ import { Ticker } from '@/components/landing/ticker'
 
 const ICON_MAP: Record<string, LucideIcon> = { BrainCircuit, FileBadge2, Link2, Smartphone }
 
-type Feature = { icon: string; title: string; description: string; benefit: string; imageUrl?: string | null }
+type ImagePosition = { scale: number; x: number; y: number }
+type Feature = { icon: string; title: string; description: string; benefit: string; imageUrl?: string | null; imagePosition?: ImagePosition | null }
 
 function FeatureCard({ feature }: { feature: Feature }) {
   const Icon = ICON_MAP[feature.icon] ?? BrainCircuit
@@ -21,16 +22,32 @@ function FeatureCard({ feature }: { feature: Feature }) {
       {/* Full-bleed 3:1 landscape header — always reserved; shows image when set, subtle placeholder otherwise */}
       <div className="relative aspect-[3/1] -mx-5 -mt-5 mb-4 w-[calc(100%+2.5rem)] overflow-hidden rounded-t-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent">
         {feature.imageUrl && (
-          <Image
-            src={feature.imageUrl}
-            alt=""
-            fill
-            // Skip /_next/image — the self-hosted optimizer intermittently fails
-            // (no sharp), which made these feature images vanish.
-            unoptimized
-            sizes="(max-width: 719px) 80vw, (max-width: 1023px) 45vw, 360px"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
+          // Admin zoom wraps in its own layer so it multiplies with — rather than
+          // overrides — the hover scale-105 on the Image itself. No-op when unset.
+          <div
+            className="h-full w-full"
+            style={
+              feature.imagePosition && feature.imagePosition.scale !== 1
+                ? { transform: `scale(${feature.imagePosition.scale})`, transformOrigin: 'center center' }
+                : undefined
+            }
+          >
+            <Image
+              src={feature.imageUrl}
+              alt=""
+              fill
+              // Skip /_next/image — the self-hosted optimizer intermittently fails
+              // (no sharp), which made these feature images vanish.
+              unoptimized
+              sizes="(max-width: 719px) 80vw, (max-width: 1023px) 45vw, 360px"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              style={
+                feature.imagePosition
+                  ? { objectPosition: `${50 + feature.imagePosition.x}% ${50 + feature.imagePosition.y}%` }
+                  : undefined
+              }
+            />
+          </div>
         )}
       </div>
       {/* Icon badge — floats over the top-right corner of the image */}

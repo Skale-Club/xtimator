@@ -10,6 +10,8 @@ type HeroContent = {
   ctaLabel: string
   /** Optional 1:1 hero image URL. When null, the hero renders as a single centered column. */
   heroImageUrl: string | null
+  /** Admin-set zoom/drag position. Null/undefined = existing untouched behavior. */
+  heroImagePosition?: { scale: number; x: number; y: number } | null
 }
 
 export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
@@ -126,19 +128,36 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               so the old negative offset cropped the image flush against the screen. */}
           {hasImage && (
             <div className="hero-image absolute top-[23%] bottom-0 right-[-15px] w-[75%] z-0 sm:h-auto sm:absolute sm:top-[1in] sm:bottom-0 sm:left-[calc(58%_-_100px)] sm:right-[-2rem] sm:w-auto sm:scale-110 sm:origin-bottom md:top-16 lg:top-[36px] lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
-              <Image
-                src={content.heroImageUrl!}
-                alt=""
-                fill
-                priority
-                // Served as-is from Supabase public storage. The /_next/image
-                // optimizer is skipped on purpose: on the self-hosted standalone
-                // container it intermittently fails (no sharp binary), which made
-                // the hero/step images vanish.
-                unoptimized
-                sizes="(max-width: 639px) 75vw, (max-width: 1279px) 52vw, 640px"
-                className="origin-bottom object-contain object-bottom min-[1280px]:scale-110"
-              />
+              {/* Admin zoom wraps in its own layer (transform) so it multiplies with —
+                  rather than overrides — the Tailwind min-[1280px]:scale-110 class below.
+                  No-op (plain div, no style) when heroImagePosition is unset. */}
+              <div
+                className="relative h-full w-full"
+                style={
+                  content.heroImagePosition && content.heroImagePosition.scale !== 1
+                    ? { transform: `scale(${content.heroImagePosition.scale})`, transformOrigin: 'center bottom' }
+                    : undefined
+                }
+              >
+                <Image
+                  src={content.heroImageUrl!}
+                  alt=""
+                  fill
+                  priority
+                  // Served as-is from Supabase public storage. The /_next/image
+                  // optimizer is skipped on purpose: on the self-hosted standalone
+                  // container it intermittently fails (no sharp binary), which made
+                  // the hero/step images vanish.
+                  unoptimized
+                  sizes="(max-width: 639px) 75vw, (max-width: 1279px) 52vw, 640px"
+                  className="origin-bottom object-contain object-bottom min-[1280px]:scale-110"
+                  style={
+                    content.heroImagePosition
+                      ? { objectPosition: `${50 + content.heroImagePosition.x}% ${100 + content.heroImagePosition.y}%` }
+                      : undefined
+                  }
+                />
+              </div>
             </div>
           )}
         </div>

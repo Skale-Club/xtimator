@@ -23,6 +23,8 @@ export type LandingContent = {
   ctaLabel: string
   /** Optional 1:1 hero image. Null hides the right-side column. */
   heroImageUrl: string | null
+  /** Zoom/drag display position for heroImageUrl. Null = centered, scale 1. */
+  heroImagePosition?: ImagePosition | null
   /**
    * When true, the How It Works cards render their animated backgrounds
    * (waveform bars, typing dots, camera flash) over the halo glow. When
@@ -34,14 +36,20 @@ export type LandingContent = {
     title: string
     description: string
     imageUrl?: string | null
+    imagePosition?: ImagePosition | null
   }>
   features: Array<{
     icon: string
     title: string
     description: string
     benefit: string
+    imageUrl?: string | null
+    imagePosition?: ImagePosition | null
   }>
 }
+
+/** Zoom/drag display position stored alongside any admin-uploaded image. */
+export type ImagePosition = { scale: number; x: number; y: number }
 
 export type IntegrationProvider =
   | 'resend'
@@ -194,6 +202,8 @@ export async function getBranding(): Promise<Branding> {
             // Backfill howItWorksAnimations (default on) for rows saved before it existed.
             howItWorksAnimations:
               (data.landing_content as LandingContent).howItWorksAnimations ?? true,
+            // imagePosition fields are optional (undefined = "not set yet") — no
+            // backfill needed, consumers already treat null/undefined as centered.
           }
         : DEFAULT_LANDING_CONTENT,
   }
