@@ -70,6 +70,13 @@ to force the stuck CSS watcher to recompile so these could be verified live):
 Verified live at 900px: hero-left 568px (66.67% of the 852px column)/flex-start,
 button row flex-direction column, image 596px/flex-end/margin-top -20px.
 
+Correction (user: "not the buttons being 2/3"): only the TEXT box is 2/3 — the
+buttons must be COMPACT, not 2/3-wide. Added: button row `align-items:flex-start`
++ `> * { width:auto }` + `button,a { width:auto }` so the buttons (and the
+.cta-glow wrapper) shrink to their own min-width (~194/175), stacked + left,
+inside the 2/3 box. Verified: button width computes `auto`, row align-items
+`flex-start`.
+
 ### Dev-server CSS-HMR is intermittently stuck
 Confirmed the running server serves stale globals.css after in-place edits; a
 `touch app/globals.css` reliably pokes the watcher into recompiling (verified the

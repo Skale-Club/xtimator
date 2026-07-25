@@ -113,8 +113,13 @@
    any 820-1023px-wide viewport (real iPads AND resized windows). Placed after the
    640-1023 portrait block so these overrides win for the overlap. ── */
 @media (min-width: 820px) and (max-width: 1023px) {
-  /* CTA buttons: stacked (vertical), full-width of the 2/3 text box. */
-  .hero-left > div:last-child { flex-direction: column !important; }
+  /* CTA buttons: stacked (vertical) AND compact — shrink to their own width,
+     NOT the 2/3 box width — and left-aligned. Overrides the `w-full` on both the
+     row's children (incl. the .cta-glow wrapper) and the buttons themselves. */
+  .hero-left > div:last-child { flex-direction: column !important; align-items: flex-start !important; }
+  .hero-left > div:last-child > * { width: auto !important; }
+  .hero-left > div:last-child button,
+  .hero-left > div:last-child a { width: auto !important; }
   /* Text box: ~2/3 of the screen, anchored left (was full width). */
   .hero-left { width: 66.6667% !important; align-self: flex-start !important; }
   /* Image: 70% (30% smaller), right-aligned, nudged up 20px. */
@@ -750,3 +755,4 @@
 
 
 [data-testid="app-topbar"]  { border-top-width: 0; border-left-width: 0; border-right-width: 0; }
+
