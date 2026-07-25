@@ -1,10 +1,10 @@
 ---
 id: SEED-045
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-fcp
 trigger_when: Next milestone or quick pass touching landing-page visual polish / features section
 scope: small
 ---

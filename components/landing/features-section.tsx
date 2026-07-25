@@ -51,12 +51,12 @@ function FeatureCard({ feature }: { feature: Feature }) {
         )}
       </div>
       {/* Icon badge — floats over the top-right corner of the image */}
-      <span className="absolute top-3 right-3 inline-flex size-10 items-center justify-center rounded-full gradient-brand text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
+      <span className="absolute top-3 right-3 inline-flex size-10 items-center justify-center rounded-full gradient-brand [filter:saturate(.5)] text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
         <Icon className="size-5" aria-hidden="true" />
       </span>
       <h3 className="mb-2 text-base font-semibold tracking-tight text-white">{feature.title}</h3>
       <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
-      <div className="mt-auto inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-secondary shadow-[0_0_10px_hsl(var(--primary)/0.1)] transition-colors group-hover:bg-primary/20">
+      <div className="mt-auto flex w-fit mx-auto items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-secondary shadow-[0_0_10px_hsl(var(--primary)/0.1)] transition-colors group-hover:bg-primary/20">
         {feature.benefit}
       </div>
     </Card>

@@ -1,6 +1,6 @@
 ---
 id: SEED-049
-status: planted
+status: superseded
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
 harvested:
@@ -10,6 +10,11 @@ scope: medium
 ---
 
 # SEED-049: Persistent side-nav menu on phone (today it only appears in Settings)
+
+> **SUPERSEDED (2026-07-24):** user chose **"bottom nav only"** as the primary
+> phone navigation. No persistent side rail — this seed is dropped. Its intent
+> (account avatar anchored in a rail footer) is absorbed by the avatar dropdown
+> in [[SEED-050-phone-move-trash-settings-to-user-dropdown]]. Kept for history.
 
 ## Why This Matters
 

@@ -1,6 +1,6 @@
 ---
 id: SEED-052
-status: planted
+status: superseded
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
 harvested:
@@ -10,6 +10,13 @@ scope: small
 ---
 
 # SEED-052: Phone — show the account avatar in the settings-rail footer
+
+> **SUPERSEDED (2026-07-24):** user chose **"bottom nav only"** — there is no
+> persistent phone rail (and SEED-051 removes the settings rail), so there's no
+> rail footer to host the avatar. The account avatar stays as the mobile-header
+> dropdown trigger (top-right), and account items (Trash/Settings/Sign Out) live
+> in that dropdown per [[SEED-050-phone-move-trash-settings-to-user-dropdown]].
+> Kept for history.
 
 ## Why This Matters
 
