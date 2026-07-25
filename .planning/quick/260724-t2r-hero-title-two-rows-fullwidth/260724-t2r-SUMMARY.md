@@ -141,8 +141,36 @@ page's real font metrics confirms row 1 fills before wrapping at every width
 "Professional estimates in" / "seconds."; 360px → 3 rows, each filled). tsc
 clean. Local commit, not pushed.
 
+## Third follow-up commit (`972a0d92`) — largest tablet view matches desktop
+
+User (screenshot of a ~1226px tablet view): "this breakpoint in specific, which
+is the largest view of ipad/tablet need to be similar to the desktop view. the
+screens smaller than that leave them the way it is."
+
+The `pointer:coarse` overrides (from m2q) forced the stacked full-width layout
+all the way to 1279px, so the widest iPad/tablet views looked nothing like the
+side-by-side desktop. Threshold chosen: **1024px** (the existing `lg`/desktop
+breakpoint — the principled line for "desktop-class widths").
+
+- Removed the `1024-1279px portrait pointer:coarse` block entirely.
+- Pulled the `768-1279px landscape pointer:coarse` block's upper bound to
+  `1023px`.
+
+Net: both remaining hero coarse blocks now cap at `max-width: 1023px`, so real
+tablets `≥1024` fall through to hero-section.tsx's `lg:` side-by-side layout
+(text-left 55% column + image-right), identical to a desktop window at that
+width; `<1024` tablets/phones are untouched (left stacked as requested).
+
+Verified: computed style at 1226px (pointer:fine — the exact layout tablets now
+inherit) → `hero-content` `flex-direction: row`, `.hero-left` ~55% left-aligned,
+`.hero-image` `position: absolute`; served CSS confirms both coarse blocks end
+at `max-width: 1023px` and none cover `≥1024`. The `pointer:coarse` path itself
+can't be exercised in the Browser pane (reports `pointer: fine`), but the change
+is purely "stop overriding at ≥1024," so coarse devices now get the same
+verified lg layout. tsc N/A (CSS only). Local commit, not pushed.
+
 ## Notes
 
 Local commits only, not pushed. `fix` `58165f76` (two-row + width), `fix`
-`2c10bffa` (tablet left-align), `fix` `2dd41540` (natural wrap); docs in
-follow-up `docs` commits.
+`2c10bffa` (tablet left-align), `fix` `2dd41540` (natural wrap), `fix`
+`972a0d92` (largest tablet → desktop layout); docs in follow-up `docs` commits.
