@@ -25,7 +25,10 @@ import {
   SentrySampler,
   SentryPropagator,
 } from '@sentry/opentelemetry'
-import { isUnreportableServerActionMismatch } from '@/lib/observability/sentry-filters'
+import {
+  isUnreportableRootPageFormDataProbe,
+  isUnreportableServerActionMismatch,
+} from '@/lib/observability/sentry-filters'
 import { validateProductionEnv } from '@/lib/observability/env-check'
 import { maskLangfuseData } from '@/lib/observability/langfuse-mask'
 
@@ -63,6 +66,9 @@ export async function register() {
         // application exception. deploymentId handles legitimate build skew;
         // this keeps scanner probes from reopening XTIMATOR-3.
         if (isUnreportableServerActionMismatch(event)) return null
+        // Malformed multipart probes against the root page are the FormData
+        // twin of the Server Action scanner traffic above (XTIMATOR-2).
+        if (isUnreportableRootPageFormDataProbe(event)) return null
         return event
       },
     })

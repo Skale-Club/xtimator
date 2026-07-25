@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   isBenignDomMutationError,
+  isUnreportableRootPageFormDataProbe,
   isUnreportableServerActionMismatch,
 } from '@/lib/observability/sentry-filters'
 
@@ -81,5 +82,41 @@ describe('isBenignDomMutationError (XTIMATOR-6)', () => {
 
   it('keeps events with no exception values reportable', () => {
     expect(isBenignDomMutationError({ transaction: 'GET /settings/company' })).toBe(false)
+  })
+})
+
+describe('isUnreportableRootPageFormDataProbe (XTIMATOR-2)', () => {
+  it('drops the exact malformed FormData probe on the root page', () => {
+    expect(
+      isUnreportableRootPageFormDataProbe({
+        transaction: 'POST /page',
+        exception: {
+          values: [
+            { value: 'no boundary found in multipart body' },
+            { value: 'Failed to parse body as FormData.' },
+          ],
+        },
+      }),
+    ).toBe(true)
+  })
+
+  it('keeps the same parsing failure reportable on a real API route', () => {
+    expect(
+      isUnreportableRootPageFormDataProbe({
+        transaction: 'POST /api/estimates/[id]/refine',
+        exception: {
+          values: [{ value: 'Failed to parse body as FormData.' }],
+        },
+      }),
+    ).toBe(false)
+  })
+
+  it('keeps unrelated root-page errors reportable', () => {
+    expect(
+      isUnreportableRootPageFormDataProbe({
+        transaction: 'POST /page',
+        exception: { values: [{ value: 'Database unavailable' }] },
+      }),
+    ).toBe(false)
   })
 })
