@@ -44,6 +44,13 @@ the bottom of the rail, the way a desktop sidebar footer shows the user.
 
 - `SettingsLayoutClient` currently takes only `children` — plumb `navUser`
   (email + avatarUrl) down to it (from the app-shell layout that already has it).
+- **User-confirmed scope ("that last one for phone mode too" → "yes"):** the
+  account-avatar footer should anchor the **always-on phone side menu
+  ([[SEED-049-phone-persistent-side-nav-menu]])**, not only the Settings rail —
+  i.e. wherever the persistent phone rail lives, its footer shows the account
+  avatar (like the desktop sidebar footer). If the phone-nav shape ends up
+  bottom-nav-only (no persistent rail), this avatar instead lives in the avatar
+  dropdown per [[SEED-050-phone-move-trash-settings-to-user-dropdown]].
 - Part of the phone-nav rethink — reconcile with
   [[SEED-049-phone-persistent-side-nav-menu]],
   [[SEED-050-phone-move-trash-settings-to-user-dropdown]], and

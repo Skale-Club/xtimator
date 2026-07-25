@@ -45,7 +45,7 @@ export function MobileHeader({ branding, navUser }: MobileHeaderProps) {
       {/* Left: Xtimator logo */}
       <div className="flex items-center gap-2 min-w-0 shrink">
         <Link
-          href="/dashboard"
+          href="/"
           aria-label={branding?.appName ?? 'Xtimator'}
           className="shrink-0 flex items-center gap-2 transition-opacity hover:opacity-80"
         >

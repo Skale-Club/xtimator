@@ -34,6 +34,13 @@ mobile header on top, bottom nav on the bottom.)
 - So the app is inconsistent on phone: no side rail on Dashboard/Projects/etc.,
   but a fixed side rail inside Settings.
 
+## User-confirmed detail
+
+The persistent phone side menu should carry an **account-avatar footer** at its
+bottom (confirmed via "that last one for phone mode too" → "yes") — the
+[[SEED-052-phone-account-avatar-in-settings-rail-footer]] avatar anchors THIS
+rail's footer, not only the Settings rail, mirroring the desktop sidebar footer.
+
 ## Design question to resolve during planning
 
 "Always there" side menu on phone most likely means the **main app nav**

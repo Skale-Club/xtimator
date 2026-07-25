@@ -1,10 +1,10 @@
 ---
 id: SEED-053
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-lgl
 trigger_when: Next nav/app-shell polish pass (trivial — can fold into any nearby task)
 scope: small
 ---
