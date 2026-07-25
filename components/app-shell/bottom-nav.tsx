@@ -37,8 +37,11 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
   }
 
   // Split visible items into the ones shown directly on the bar and the ones
-  // tucked inside the "More" overflow menu (Projects / Price Book / Settings).
-  const visibleItems = NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden))
+  // tucked inside the "More" overflow menu. quick-260724 (SEED-050): userMenu
+  // items (Trash / Settings) live in the top-right avatar dropdown now, so they
+  // are excluded here entirely; Price Book lost its `overflow` flag and is a
+  // normal bar item, which empties the overflow set → the "More" button drops.
+  const visibleItems = NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden) && !item.userMenu)
   const barItems = visibleItems.filter((item) => !item.overflow)
   const overflowItems = visibleItems.filter((item) => item.overflow)
 

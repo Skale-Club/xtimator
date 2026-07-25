@@ -30,9 +30,10 @@ function getTitleFromPathname(pathname: string): string {
 interface MobileHeaderProps {
   branding?: { appName: string; logoUrl: string | null }
   navUser?: { email: string; avatarUrl: string | null } | null
+  isDemo?: boolean
 }
 
-export function MobileHeader({ branding, navUser }: MobileHeaderProps) {
+export function MobileHeader({ branding, navUser, isDemo }: MobileHeaderProps) {
   const pathname = usePathname()
   const title = getTitleFromPathname(pathname)
   const breadcrumbs = useCurrentBreadcrumbs()
@@ -104,7 +105,7 @@ export function MobileHeader({ branding, navUser }: MobileHeaderProps) {
         </Link>
         <ThemeToggle />
         {navUser && (
-          <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} />
+          <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} isDemo={isDemo} />
         )}
       </div>
     </header>

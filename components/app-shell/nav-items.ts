@@ -12,6 +12,8 @@ export interface NavItem {
   demoHidden?: boolean
   /** On mobile, lives inside the bottom-bar "More" overflow menu instead of on the bar. */
   overflow?: boolean
+  /** On mobile, lives in the top-right avatar (user) dropdown instead of the bottom bar. */
+  userMenu?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -19,7 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
   { label: 'Projects',     href: '/projects',     icon: FolderOpen },
   { label: 'Clients',      href: '/clients',      icon: Users },
-  { label: 'Price Book',   href: '/price-book',   icon: BookOpen, overflow: true },
-  { label: 'Trash',        href: '/trash',        icon: Trash2,     demoHidden: true, overflow: true },
-  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true, overflow: true },
+  { label: 'Price Book',   href: '/price-book',   icon: BookOpen },
+  { label: 'Trash',        href: '/trash',        icon: Trash2,     demoHidden: true, userMenu: true },
+  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true, userMenu: true },
 ]

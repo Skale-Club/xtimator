@@ -1,10 +1,10 @@
 ---
 id: SEED-050
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-bnav
 trigger_when: Next phone-nav / app-shell UX pass (plan together with SEED-049 and SEED-051)
 scope: small
 ---
