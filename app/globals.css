@@ -120,10 +120,15 @@
   .hero-left > div:last-child > * { width: auto !important; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; }
-  /* Text box: ~2/3 of the screen, anchored left (was full width). */
+  /* Text box: ~2/3 of the screen, anchored left. No extra left margin — the text
+     must start at the shared container gutter (px-6 sm:px-8 lg:px-10) so it lines
+     up with the navbar logo and every other section's left edge (per user: navbar
+     + sections aligned to the same margin). */
   .hero-left { width: 66.6667% !important; align-self: flex-start !important; }
-  /* Image: 70% (30% smaller), right-aligned, nudged up 20px. */
-  .hero-image { width: 70% !important; align-self: flex-end !important; margin-top: -20px !important; }
+  /* Image: 70% (30% smaller), right-aligned, pulled up ~190px so the subjects'
+     heads rise to about the CTA-button row (per user red-arrow annotation) —
+     the image overlaps up alongside the text/buttons instead of sitting below. */
+  .hero-image { width: 70% !important; align-self: flex-end !important; margin-top: -190px !important; }
 }
 
 /* ── iPad Portrait/large tablet ≥1024px — NO coarse override (block removed).

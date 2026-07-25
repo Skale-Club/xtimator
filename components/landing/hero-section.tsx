@@ -85,7 +85,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
           across the whole stacked range and only grows at true desktop (lg:40px,
           unchanged), maximizing how much of the screen the full-width title/buttons
           actually get to use. */}
-      <div className="relative mx-auto flex w-full flex-1 flex-col max-w-6xl px-6 lg:px-10 lg:min-h-0">
+      <div className="relative mx-auto flex w-full flex-1 flex-col max-w-6xl px-6 sm:px-8 lg:px-10 lg:min-h-0">
         <div
           className={
             // quick-260723: below lg (phone + all iPad sizes/orientations — the
@@ -135,7 +135,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 about SAME-tier segments disagreeing at a shared boundary; this is
                 a deliberate tier change). max-w-2xl removed — full-width so the
                 bigger text still wraps in fewer rows. */}
-            <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[580px] lg:text-[clamp(42px,4.5vw,56px)]">
+            <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[696px] lg:text-[clamp(50px,5.4vw,67px)]">
               {/* quick-260724-t2r-b: below lg the title has NO forced break — it wraps
                   naturally (greedy: fills row 1, drops to row 2 only once row 1 is truly
                   full), so words are no longer stranded at a fixed break spot with a
@@ -165,7 +165,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                   // quick-260724-t2r: sm:max-w-2xl → lg:max-w-2xl so the paragraph box
                   // is genuinely full-width across phone + tablet (was capped at 672px
                   // from 640px up); the readability cap is kept only at desktop.
-                  ? 'w-full lg:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[18px]'
+                  ? 'w-full lg:max-w-2xl text-[20px] leading-[1.5] text-muted-foreground sm:text-[clamp(20px,2.4vw,22px)] lg:text-[22px]'
                   : 'mx-auto max-w-2xl text-[16.8px] leading-[1.5] text-muted-foreground sm:text-base'
               }
             >
@@ -225,9 +225,9 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                     unprefixed formula's new ceiling exceeds it (min-w-184, h-46,
                     px-18, text-base/16px, icon size-18 — same values the previous
                     dip-fix pass reached by 1024px, restored here as fixed pins). */}
-                <Button variant="primary" size="default" className="w-full lg:w-auto min-w-[clamp(192px,21.6vw,221px)] lg:min-w-[184px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] px-[clamp(14px,2.11vw,22px)] lg:px-[18px] text-[clamp(17px,1.87vw,19px)] lg:text-base" onClick={() => onOpenAuth?.('signup')}>
+                <Button variant="primary" size="default" className="w-full lg:w-auto min-w-[clamp(192px,21.6vw,221px)] lg:min-w-[221px] h-[clamp(48px,5.4vw,55px)] lg:h-[55px] px-[clamp(14px,2.11vw,22px)] lg:px-[22px] text-[clamp(17px,1.87vw,19px)] lg:text-[19px]" onClick={() => onOpenAuth?.('signup')}>
                   {content.ctaLabel}
-                  <ArrowRight className="ml-1.5 size-[clamp(19px,2.11vw,22px)] lg:size-[18px]" aria-hidden="true" />
+                  <ArrowRight className="ml-1.5 size-[clamp(19px,2.11vw,22px)] lg:size-[22px]" aria-hidden="true" />
                 </Button>
               </div>
               <Button
@@ -252,7 +252,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // each *1.2 of 24/20/18) rather than a clamp, matching the earlier
                 // dip-fix's approach for this one property; height/font get the same
                 // *1.2-with-lg-pin treatment as the primary button.
-                className="w-full lg:w-fit px-[29px] sm:px-[24px] sm:flex-none lg:self-start border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-[clamp(173px,19.44vw,199px)] lg:min-w-[166px] h-[clamp(48px,5.4vw,55px)] lg:h-[46px] text-[clamp(17px,1.87vw,19px)] lg:text-base lg:px-[18px]"
+                className="w-full lg:w-fit px-[29px] sm:px-[24px] sm:flex-none lg:self-start border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-[clamp(173px,19.44vw,199px)] lg:min-w-[199px] h-[clamp(48px,5.4vw,55px)] lg:h-[55px] text-[clamp(17px,1.87vw,19px)] lg:text-[19px] lg:px-[22px]"
               >
                 <Link href="/demo">See Demo</Link>
               </Button>
@@ -274,7 +274,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               height (which itself depends on its h-full child), collapsing to zero
               and making the desktop image disappear entirely. Restored as lg:bottom-0. */}
           {hasImage && (
-            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[36px] lg:bottom-0 lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
+            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[36px] lg:bottom-0 lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-90 lg:origin-bottom lg:translate-x-[10px] xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
               {/* Admin zoom wraps in its own layer (transform) so it multiplies with —
                   rather than overrides — the Tailwind min-[1280px]:scale-110 class below.
                   No-op (plain div, no style) when heroImagePosition is unset. */}
