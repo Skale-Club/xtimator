@@ -135,7 +135,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 about SAME-tier segments disagreeing at a shared boundary; this is
                 a deliberate tier change). max-w-2xl removed — full-width so the
                 bigger text still wraps in fewer rows. */}
-            <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[696px] lg:text-[clamp(50px,5.4vw,67px)]">
+            <h1 className="hero-h1 w-full text-[clamp(38px,9.75vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[696px] lg:text-[clamp(50px,5.4vw,67px)]">
               {/* quick-260725-id4: phone keeps natural wrapping. From the 820px
                   two-column tier upward, the title follows the requested fixed
                   composition: "Professional" / "estimates in seconds". */}

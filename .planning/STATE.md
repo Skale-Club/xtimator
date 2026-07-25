@@ -5,7 +5,7 @@ milestone_name: Notification Center
 status: complete
 stopped_at: MILESTONE v4.21 COMPLETE incl. Phase 179 extension — 8 phases (172-179), 30 plans, 26/26 requirements, ALL Opus goal-backward verified PASS. All 6 migrations (20260721000001-5 + 20260722000001) APPLIED to prod and schema-verified. Phase 179 delivers the in-system WhatsApp template composer: ordered-array single source, real Meta components submit, full 14-event status vocabulary (fixes the REINSTATED lockout bug), Check-status GET, edit+resubmit, variables_schema write-through arming the 174 send guard. Remaining operational - dedicated Twilio Messaging Service + Advanced Opt-Out (Console); author templates via the NEW composer + Meta approval; Telegram toggles config; live UAT per phase VERIFICATIONs (179: real Meta submit/review/resubmit round-trip).
 last_updated: "2026-07-25T16:20:49.211Z"
-last_activity: 2026-07-25 - Completed quick task 260725-j0q: removed hero headline punctuation and refined the middle-tier composition.
+last_activity: 2026-07-25 - Completed quick task 260725-j0q: removed hero headline punctuation and refined mobile and middle-tier hero typography.
 progress:
   total_phases: 7
   completed_phases: 7
@@ -1500,7 +1500,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260725-esz | Validate, version, and synchronize the reviewed inbox-incident fixes across main, dev, and origin; Stripe follow-up explicitly deferred | 2026-07-25 | 7e5bca87 | [260725-esz-validar-versionar-e-sincronizar-todas-as](.planning/quick/260725-esz-validar-versionar-e-sincronizar-todas-as/) |
 | 260725-gxy | Remove Login from the anonymous landing header, keeping Start as the sole signup CTA | 2026-07-25 | 2bc2b6f4 | [260725-gxy-remover-o-bot-o-login-do-header-da-landi](.planning/quick/260725-gxy-remover-o-bot-o-login-do-header-da-landi/) |
 | 260725-id4 | Format landing hero title as Professional / estimates in seconds. on tablet and desktop | 2026-07-25 | 6ec8a5aa | [260725-id4-format-landing-hero-title-as-professiona](.planning/quick/260725-id4-format-landing-hero-title-as-professiona/) |
-| 260725-j0q | Remove the period from the hero headline everywhere and slightly enlarge the middle-tier title while moving its image left | 2026-07-25 | bb0bc45e | [260725-j0q-remove-the-period-from-the-hero-headline](.planning/quick/260725-j0q-remove-the-period-from-the-hero-headline/) |
+| 260725-j0q | Remove the period from the hero headline everywhere, enlarge mobile and middle-tier typography, and move the middle-tier image left | 2026-07-25 | bb0bc45e | [260725-j0q-remove-the-period-from-the-hero-headline](.planning/quick/260725-j0q-remove-the-period-from-the-hero-headline/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
