@@ -177,8 +177,9 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
 
-              {/* Logo + Brand Color — top two-column row */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Logo + Brand Color — top two-column row (two squares side by
+                  side at all widths, including phone — quick-260725-clr) */}
+              <div className="grid grid-cols-2 gap-4">
 
                 {/* Logo card */}
                 <div className="relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-dashed border-border">
