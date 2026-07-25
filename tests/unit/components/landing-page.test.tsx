@@ -38,6 +38,23 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }))
 
+// LandingPage's contract is the auth query-param state transition, not the
+// 600+ line dialog implementation. Mock the dynamically imported dialog so
+// this suite does not race a large module graph against findByRole's timeout
+// when all 500+ unit/eval files run concurrently in CI.
+vi.mock('@/components/landing/auth-dialog', () => ({
+  AuthDialog: ({
+    open,
+    initialMode = 'login',
+  }: {
+    open: boolean
+    initialMode?: 'login' | 'signup'
+  }) =>
+    open ? (
+      <h2>{initialMode === 'login' ? 'Sign in to Xtimator' : 'Create account'}</h2>
+    ) : null,
+}))
+
 vi.stubGlobal(
   'IntersectionObserver',
   class {
@@ -140,9 +157,9 @@ describe('LandingPage modal auto-open', () => {
     window.history.replaceState(window.history.state, '', '/?auth=login')
     replaceStateSpy.mockClear()
     render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
-    // AuthDialog is loaded via next/dynamic (async import), and the LandingPage
-    // portal also mounts TopNavAuth's own (closed) AuthDialog import — both take
-    // a beat to resolve, so give findByRole more room than the 1000ms default.
+    // next/dynamic still preserves the async boundary; the mocked dialog keeps
+    // that boundary deterministic without importing the production dialog's
+    // large dependency graph in this state-transition unit test.
     const heading = await screen.findByRole('heading', { name: /sign in to/i }, { timeout: 3000 })
     expect(heading).toBeTruthy()
     // window.history.state is null in this jsdom test environment (no prior
