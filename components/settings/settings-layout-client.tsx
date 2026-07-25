@@ -31,8 +31,14 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
   // rail). Desktop (md+): the sub-nav is a sticky vertical rail on the left and
   // the content fills the remaining space (flex-1 → no margin math, and it grows
   // automatically when the rail collapses). Desktop is visually unchanged.
+  //
+  // Sticky-bug fix (quick-260724): on phone this root must be the sticky pill
+  // row's containing block and span the FULL scrollable content — so it is a
+  // plain `flex flex-col` that grows to content height. `flex-1 min-h-0` (which
+  // caps it to ~one viewport and released the bar mid-page) is now md-only, so
+  // the desktop self-scrolling rail is unchanged.
   return (
-    <div className="flex flex-1 min-h-0 flex-col md:flex-row md:gap-0 md:items-start">
+    <div className="flex flex-col md:flex-1 md:min-h-0 md:flex-row md:gap-0 md:items-start">
       <div
         className={cn(
           'relative sticky top-0 z-20 shrink-0',

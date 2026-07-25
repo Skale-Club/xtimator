@@ -26,7 +26,12 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // Phone: `min-h-full` (not `h-full`) so the settings container grows to
+    // content height. A viewport-capped ancestor would confine the sticky
+    // sub-nav's containing block to ~one screen, releasing the bar mid-page
+    // (quick-260724 sticky-bug fix). Desktop keeps `h-full` via `md:h-full` so
+    // the self-scrolling rail (`md:h-[calc(100vh-4rem)]`) is unchanged.
+    <div className="flex min-h-full flex-col md:h-full">
       <SettingsLayoutClient>{children}</SettingsLayoutClient>
     </div>
   )

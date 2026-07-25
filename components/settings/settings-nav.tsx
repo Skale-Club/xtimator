@@ -6,6 +6,7 @@ import {
   Mail, Plug, ShieldCheck, Users,
 } from 'lucide-react'
 import { SubNav, type SubNavItem } from '@/components/ui/sub-nav'
+import { useSubNavScroll } from './use-subnav-scroll'
 
 const ITEMS: SubNavItem[] = [
   { value: 'company',       label: 'Company',       Icon: Building2,   href: '/settings/company'            },
@@ -28,9 +29,13 @@ export function SettingsNav({ collapsed }: { collapsed?: boolean }) {
         pathname === item.href || pathname.startsWith(`${item.href}/`),
     )?.value ?? ''
 
+  // Drag / wheel / auto-scroll for the mobile horizontal pill row. Self-gates
+  // on horizontal overflow, so it is inert on the desktop vertical rail.
+  const navRef = useSubNavScroll(activeValue)
+
   // quick-260724 (SEED-051): dropped `alwaysVertical` so SubNav uses its
   // responsive mode — a horizontal scrollable pill row on phone (full-width,
   // immersive) and a vertical rail on desktop (md+), matching the settings
   // skeleton's long-standing layout.
-  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} />
+  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} navRef={navRef} />
 }
