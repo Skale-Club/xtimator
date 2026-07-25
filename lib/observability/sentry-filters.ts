@@ -1,6 +1,11 @@
 const SERVER_ACTION_MISMATCH =
   'Failed to find Server Action. This request might be from an older or newer deployment.'
 
+const MALFORMED_FORM_DATA_PATTERNS = new Set([
+  'Failed to parse body as FormData.',
+  'no boundary found in multipart body',
+])
+
 // Browsers (and translation extensions) that rewrite React-owned text nodes
 // into `<font>` wrappers corrupt the DOM tree React expects to reconcile
 // against. React's own cleanup/reconciliation then throws one of these two
@@ -38,6 +43,25 @@ export function isUnreportableServerActionMismatch(
     event.transaction === 'POST /_not-found/page' ||
     event.exception?.values?.some(
       ({ value }) => value === SERVER_ACTION_MISMATCH,
+    ) === true
+  )
+}
+
+/**
+ * Current Next.js versions report malformed multipart probes against `/` as
+ * `POST /page` (XTIMATOR-2). Older versions classified the same scanner
+ * traffic as `POST /_not-found/page`, which is already covered above.
+ *
+ * Keep this filter transaction- AND message-scoped: a genuine FormData
+ * parsing failure on an application API route must remain reportable.
+ */
+export function isUnreportableRootPageFormDataProbe(
+  event: SentryExceptionLike,
+): boolean {
+  return (
+    event.transaction === 'POST /page' &&
+    event.exception?.values?.some(
+      ({ value }) => value != null && MALFORMED_FORM_DATA_PATTERNS.has(value),
     ) === true
   )
 }
