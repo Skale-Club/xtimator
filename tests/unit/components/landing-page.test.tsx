@@ -130,6 +130,19 @@ describe('HeroSection (LAND-01)', () => {
     expect(heading.textContent?.toLowerCase()).toContain('5 minutes')
   })
 
+  it('forces Professional / estimates in seconds onto two lines from 820px upward', () => {
+    const { container } = render(<HeroSection content={HERO_CONTENT} />)
+    const primaryLine = container.querySelector('[data-hero-title-line="primary"]')
+    const secondaryLine = container.querySelector('[data-hero-title-line="secondary"]')
+    const responsiveBreak = container.querySelector('[data-hero-title-break]')
+
+    expect(primaryLine?.textContent).toBe('Professional')
+    expect(secondaryLine?.textContent?.trim()).toBe('estimates in 5 minutes.')
+    expect(secondaryLine?.classList.contains('min-[820px]:whitespace-nowrap')).toBe(true)
+    expect(responsiveBreak?.classList.contains('min-[820px]:block')).toBe(true)
+    expect(responsiveBreak?.classList.contains('hidden')).toBe(true)
+  })
+
   it('keeps the desktop foreground image full-size and close to the header', () => {
     const { container } = render(
       <HeroSection content={{ ...HERO_CONTENT, heroImageUrl: 'https://example.com/hero.webp' }} />,

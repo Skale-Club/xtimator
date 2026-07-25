@@ -136,18 +136,19 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 a deliberate tier change). max-w-2xl removed — full-width so the
                 bigger text still wraps in fewer rows. */}
             <h1 className="hero-h1 w-full text-[clamp(35px,9.24vw,67px)] sm:text-[clamp(59px,5.22vw,67px)] font-semibold leading-[1.05] tracking-[-0.03em] lg:w-[696px] lg:text-[clamp(50px,5.4vw,67px)]">
-              {/* quick-260724-t2r-b: below lg the title has NO forced break — it wraps
-                  naturally (greedy: fills row 1, drops to row 2 only once row 1 is truly
-                  full), so words are no longer stranded at a fixed break spot with a
-                  half-empty first row on wider screens. Desktop keeps its deliberate
-                  "Professional estimates" / "in seconds." split via the lg-only break +
-                  lg:whitespace-nowrap span (byte-identical to before). */}
-              <span className="lg:whitespace-nowrap">
+              {/* quick-260725-id4: phone keeps natural wrapping. From the 820px
+                  two-column tier upward, the title follows the requested fixed
+                  composition: "Professional" / "estimates in seconds.". */}
+              <span data-hero-title-line="primary">
                 {content.heroHeadline.split(' ')[0]}
-                {' '}{content.heroHeadline.split(' ')[1]}
               </span>
-              <br className="hidden lg:block" />
-              {' '}{content.heroHeadline.split(' ').slice(2).join(' ')}
+              <br data-hero-title-break className="hidden min-[820px]:block" />
+              <span
+                data-hero-title-line="secondary"
+                className="min-[820px]:whitespace-nowrap"
+              >
+                {' '}{content.heroHeadline.split(' ').slice(1).join(' ')}
+              </span>
             </h1>
 
             <p
