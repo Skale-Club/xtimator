@@ -1,10 +1,18 @@
 ---
 id: SEED-051
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-iset
+harvest_note: >
+  Implemented Option C (full-width content + horizontal top-tab nav on phone),
+  NOT the full Option A drill-down. Rationale: the routing-based drill-down is a
+  large change to a core, auth-gated area that can't be visually verified here
+  without real risk; Option C is the high-value, low-risk, verifiable win and
+  also aligns the real layout with the long-standing settings skeleton. Option A
+  (dedicated section list → full-screen section + back header) remains a
+  documented follow-up to do with auth-verified iteration.
 trigger_when: Next phone-nav / settings UX pass (plan together with SEED-049 and SEED-050)
 scope: medium
 ---

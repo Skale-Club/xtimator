@@ -28,5 +28,9 @@ export function SettingsNav({ collapsed }: { collapsed?: boolean }) {
         pathname === item.href || pathname.startsWith(`${item.href}/`),
     )?.value ?? ''
 
-  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} alwaysVertical />
+  // quick-260724 (SEED-051): dropped `alwaysVertical` so SubNav uses its
+  // responsive mode — a horizontal scrollable pill row on phone (full-width,
+  // immersive) and a vertical rail on desktop (md+), matching the settings
+  // skeleton's long-standing layout.
+  return <SubNav items={ITEMS} activeValue={activeValue} collapsed={collapsed} />
 }

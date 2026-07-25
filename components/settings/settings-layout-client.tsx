@@ -24,31 +24,43 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
     })
   }
 
+  // quick-260724 (SEED-051): reworked from a viewport-fixed left rail + margin
+  // offset to an in-flow flex-row that mirrors the settings skeleton. Phone
+  // (<md): the sub-nav is a full-width sticky horizontal pill row at the top and
+  // the page content spans the FULL width below it (immersive — no cramped side
+  // rail). Desktop (md+): the sub-nav is a sticky vertical rail on the left and
+  // the content fills the remaining space (flex-1 → no margin math, and it grows
+  // automatically when the rail collapses). Desktop is visually unchanged.
   return (
-    <div className="relative flex flex-1 flex-row min-h-0 gap-0 items-start">
-      {/* Sub-sidebar — fixed rail at ALL breakpoints. On mobile sits at left-0
-          below the mobile header; on desktop offset by the primary sidebar. */}
+    <div className="flex flex-1 min-h-0 flex-col md:flex-row md:gap-0 md:items-start">
       <div
         className={cn(
-          'fixed left-0 top-[56px] z-20 h-[calc(100dvh-56px-5rem-env(safe-area-inset-bottom,_0px))]',
-          'md:left-[var(--app-sidebar-width)] md:top-16 md:z-30 md:h-[calc(100vh-4rem)]',
+          'relative sticky top-[56px] z-20 shrink-0',
+          'md:top-16 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:self-start',
           'transition-[width] duration-200 ease-in-out',
-          collapsed ? 'w-14 md:w-14' : 'w-40 md:w-52',
+          collapsed ? 'md:w-14' : 'md:w-52',
         )}
       >
+        {/* Right-edge fade hinting the horizontal scroll on phone only. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
+        />
         <aside
           className={cn(
-            'shrink-0 border-border bg-background h-full flex flex-col',
-            'border-r overflow-y-auto pt-3 pb-0 md:pt-8',
-            collapsed ? 'px-1' : 'px-2 md:px-3',
+            'shrink-0 border-border bg-background h-full w-full flex flex-col',
+            'border-b px-2 py-2 overflow-x-auto scrollbar-none',
+            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:pt-8 md:pb-0',
+            collapsed ? 'md:px-1' : 'md:px-3',
           )}
         >
-          <SettingsNav collapsed={collapsed} />
+          <div className="flex-1">
+            <SettingsNav collapsed={collapsed} />
+          </div>
 
-          {/* Collapse toggle — visible at all breakpoints. Same min-h + vertical
-              centering as the main sidebar footer (--app-rail-footer-h) so the
-              two rail footers line up on desktop. */}
-          <div className="mt-auto flex flex-col justify-center shrink-0 md:h-[var(--app-rail-footer-h)] border-t border-[var(--glass-border)] p-2">
+          {/* Collapse toggle — desktop rail only; the phone horizontal strip has
+              no collapse. Same footer alignment as the primary sidebar. */}
+          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
             {collapsed ? (
               <button
                 type="button"
@@ -76,14 +88,8 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
         </aside>
       </div>
 
-      {/* Page content — offset matches sidebar width */}
-      <div
-        className={cn(
-          'min-w-0 flex-1',
-          'transition-[margin] duration-200 ease-in-out',
-          collapsed ? 'ml-14 md:ml-14' : 'ml-40 md:ml-52',
-        )}
-      >
+      {/* Page content — full width on phone, fills the remaining space on desktop. */}
+      <div className="min-w-0 flex-1">
         {children}
       </div>
     </div>
