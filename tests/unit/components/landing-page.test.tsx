@@ -137,7 +137,7 @@ describe('HeroSection (LAND-01)', () => {
     const responsiveBreak = container.querySelector('[data-hero-title-break]')
 
     expect(primaryLine?.textContent).toBe('Professional')
-    expect(secondaryLine?.textContent?.trim()).toBe('estimates in 5 minutes.')
+    expect(secondaryLine?.textContent?.trim()).toBe('estimates in 5 minutes')
     expect(secondaryLine?.classList.contains('min-[820px]:whitespace-nowrap')).toBe(true)
     expect(responsiveBreak?.classList.contains('min-[820px]:block')).toBe(true)
     expect(responsiveBreak?.classList.contains('hidden')).toBe(true)

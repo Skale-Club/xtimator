@@ -104,7 +104,7 @@ export interface WhatsAppPlatformConfig {
 let whatsAppConfigCache: { value: WhatsAppPlatformConfig; fetchedAt: number } | null = null
 
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
-  heroHeadline: 'Professional estimates in seconds.',
+  heroHeadline: 'Professional estimates in seconds',
   heroSubheadline:
     'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway.',
   ctaLabel: 'Start',
