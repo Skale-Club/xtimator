@@ -30,7 +30,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
   // in-flow block below the text on phone/iPad, this was clipping it to
   // nothing. Scoped to lg: only, where the original layout/reasoning still applies unchanged.
   return (
-    <section className="relative isolate flex flex-1 flex-col border-b border-white/5 bg-transparent min-h-[420px] lg:min-h-0 lg:overflow-hidden lg:max-h-[520px]">
+    <section className="hero-section relative isolate flex flex-1 flex-col border-b border-white/5 bg-transparent min-h-[420px] lg:min-h-0 lg:overflow-hidden">
       {/* quick-260723: a real background image/video replaces the abstract
           decorative mesh/dots/gradient — layering both would look wrong (an
           abstract dot pattern over a real photo). 'none' (the default —
@@ -268,13 +268,11 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
               natural size — the pointer:coarse override in globals.css re-applies these same
               "static, full-width, aspect-ratio" rules for real touch tablets ≥1024px wide,
               since lg: alone can't distinguish those from a resized desktop window. */}
-          {/* quick-260723 BUGFIX: the original had bottom-0 persisting all the way
-              to lg+ (set once, never overridden) — without an explicit bottom value,
-              this absolute box (top set, height:auto) had no way to resolve its own
-              height (which itself depends on its h-full child), collapsing to zero
-              and making the desktop image disappear entirely. Restored as lg:bottom-0. */}
+          {/* Desktop keeps the foreground image grounded at the trust bar. The
+              top offsets plus bottom-origin scaling make the helmet nearly meet
+              the header without cropping it; the middle tier mirrors this in CSS. */}
           {hasImage && (
-            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[36px] lg:bottom-0 lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-90 lg:origin-bottom lg:translate-x-[10px] xl:top-[65px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
+            <div className="hero-image relative w-full aspect-[4/3] z-0 lg:absolute lg:aspect-auto lg:h-auto lg:w-auto lg:top-[8px] lg:bottom-0 lg:left-[calc(35%_+_55px)] lg:right-3 lg:scale-100 lg:origin-bottom lg:translate-x-[10px] xl:top-[55px] xl:left-[calc(35%_+_45px)] xl:right-[-30px]">
               {/* Admin zoom wraps in its own layer (transform) so it multiplies with —
                   rather than overrides — the Tailwind min-[1280px]:scale-110 class below.
                   No-op (plain div, no style) when heroImagePosition is unset. */}

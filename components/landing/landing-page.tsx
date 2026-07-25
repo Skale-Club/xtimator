@@ -75,9 +75,10 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         className="h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none [&::-webkit-scrollbar]:hidden"
         style={{ scrollbarWidth: 'none' }}
       >
-        {/* Snap page 1: hero + trust bar. pt matches TopNav height (4rem) plus the
-            PWA status-bar inset the nav now absorbs (safe-area-inset-top). */}
-        <div className="hero-shell min-h-[100dvh] pt-[calc(4rem_+_env(safe-area-inset-top,_0px))] flex flex-col">
+        {/* Hero + trust bar follow their content height. Desktop hero height is
+            viewport-aware but capped in globals.css, so tall screens never turn
+            spare viewport height into a gap after the trust bar. */}
+        <div className="hero-shell pt-[calc(4rem_+_env(safe-area-inset-top,_0px))] flex flex-col">
           <HeroSection
             content={{
               heroHeadline: content.heroHeadline,
@@ -95,18 +96,19 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
           <TrustBar />
         </div>
 
-        {/* Snap page 2: how it works — 100dvh only once the desktop grid shows (≥720px); on phone the wrapper is natural height so py-8 = mb-8 = equal spacing */}
-        <div className="min-[720px]:min-h-[100dvh] flex flex-col">
+        {/* All content wrappers use natural height; the sections own the shared
+            64px vertical rhythm at every breakpoint. */}
+        <div className="flex flex-col">
           <HowItWorksSection steps={content.howItWorksSteps} animationsEnabled={content.howItWorksAnimations} />
         </div>
 
-        {/* Snap page 3: features — 100dvh only at desktop (≥1024px); below that wrapper is natural height */}
-        <div className="lg:min-h-[100dvh] flex flex-col">
+        {/* Natural-height features section. */}
+        <div className="flex flex-col">
           <FeaturesSection features={content.features} />
         </div>
 
-        {/* Snap page 4: final CTA + footer */}
-        <div className="relative min-h-[100dvh] flex flex-col pb-3 sm:pb-0">
+        {/* Natural-height final CTA + footer. */}
+        <div className="relative flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
           <FinalCtaSection onOpenAuth={openAuth} />
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />

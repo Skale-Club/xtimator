@@ -129,6 +129,18 @@ describe('HeroSection (LAND-01)', () => {
     const heading = screen.getByRole('heading', { level: 1 })
     expect(heading.textContent?.toLowerCase()).toContain('5 minutes')
   })
+
+  it('keeps the desktop foreground image full-size and close to the header', () => {
+    const { container } = render(
+      <HeroSection content={{ ...HERO_CONTENT, heroImageUrl: 'https://example.com/hero.webp' }} />,
+    )
+    const heroImage = container.querySelector('.hero-image')
+
+    expect(heroImage?.classList.contains('lg:scale-90')).toBe(false)
+    expect(heroImage?.classList.contains('lg:scale-100')).toBe(true)
+    expect(heroImage?.classList.contains('lg:top-[8px]')).toBe(true)
+    expect(heroImage?.classList.contains('xl:top-[55px]')).toBe(true)
+  })
 })
 
 // LAND-02: How It Works -- 3-step flow
@@ -138,6 +150,14 @@ describe('HowItWorksSection (LAND-02)', () => {
     expect(container.textContent).toContain('Record audio')
     expect(container.textContent).toContain('Add photos')
     expect(container.textContent).toContain('Get estimate')
+  })
+
+  it('uses the shared 64px section rhythm at every breakpoint', () => {
+    const { container } = render(<HowItWorksSection steps={HOW_IT_WORKS_STEPS} />)
+    const section = container.querySelector('#how-it-works')
+
+    expect(section?.classList.contains('py-16')).toBe(true)
+    expect(section?.classList.contains('lg:py-10')).toBe(false)
   })
 })
 
@@ -171,6 +191,19 @@ describe('LandingPage modal auto-open', () => {
   afterEach(() => {
     replaceStateSpy.mockRestore()
     window.history.replaceState(window.history.state, '', '/')
+  })
+
+  it('does not force below-the-fold section wrappers to viewport height', async () => {
+    const { container } = render(<LandingPage content={LANDING_CONTENT} branding={BRANDING} />)
+    await screen.findByText('How it works')
+
+    const heroShell = container.querySelector('.hero-shell')
+    const howItWorks = container.querySelector('#how-it-works')
+    const features = container.querySelector('#features')
+
+    expect(heroShell?.classList.contains('min-h-[100dvh]')).toBe(false)
+    expect(howItWorks?.parentElement?.classList.contains('min-[720px]:min-h-[100dvh]')).toBe(false)
+    expect(features?.parentElement?.classList.contains('lg:min-h-[100dvh]')).toBe(false)
   })
 
   it('opens the AuthDialog in login mode when ?auth=login and strips the param via history.replaceState', async () => {

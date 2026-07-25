@@ -100,35 +100,28 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 13px; }
 }
 
-/* ── "Middle" tablet tier 820-1023px — a distinct tier BETWEEN the frozen ≤819
-   small view and the frozen ≥1024 desktop layout. Image STAYS stacked below the
-   text. Per user (quick-260725-mid + mid2):
-   1. CTA buttons STACKED (vertical), full-width of the text box.
-   2. Text box (.hero-left) reaches ~2/3 of the screen, anchored LEFT (was full
-      width) — align-self:flex-start overrides the parent's align-items:center.
-   3. Image ~30% smaller (70%), pinned RIGHT (align-self:flex-end), nudged UP 20px.
-   Everything else (text, fonts) inherited, so ≤819 + ≥1024 stay untouched.
-   NOTE: intentionally NOT gated on `pointer: coarse`/orientation — the user tests
-   iPad widths by resizing the desktop browser (pointer: fine), so this applies to
-   any 820-1023px-wide viewport (real iPads AND resized windows). Placed after the
-   640-1023 portrait block so these overrides win for the overlap. ── */
+/* ── Middle tier 820-1023px — desktop-like two-column composition.
+   This applies to touch devices and resized desktop windows. It intentionally
+   follows the smaller-tablet rules so text, CTAs, and foreground media all
+   switch back to the desktop layout language together. ── */
 @media (min-width: 820px) and (max-width: 1023px) {
-  /* CTA buttons: stacked (vertical) AND compact — shrink to their own width,
-     NOT the 2/3 box width — and left-aligned. Overrides the `w-full` on both the
-     row's children (incl. the .cta-glow wrapper) and the buttons themselves. */
-  .hero-left > div:last-child { flex-direction: column !important; align-items: flex-start !important; }
+  .hero-shell { padding-top: calc(4rem + env(safe-area-inset-top, 0px)) !important; }
+  .hero-section { flex: none !important; min-height: 520px !important; height: 520px !important; overflow: hidden !important; }
+  .hero-content { flex-direction: row !important; align-items: center !important; gap: 1rem !important; min-height: 0 !important; padding-top: 0 !important; }
+  .hero-h1 { width: 100% !important; font-size: clamp(42px, 5vw, 46px) !important; }
+  .hero-left p { width: 100% !important; font-size: 18px !important; line-height: 1.5 !important; }
+  /* Compact side-by-side CTAs, matching desktop. */
+  .hero-left > div:last-child { width: auto !important; flex-direction: row !important; align-items: center !important; gap: 0.75rem !important; margin-top: 8px !important; }
   .hero-left > div:last-child > * { width: auto !important; }
   .hero-left > div:last-child button,
   .hero-left > div:last-child a { width: auto !important; }
-  /* Text box: ~2/3 of the screen, anchored left. No extra left margin — the text
-     must start at the shared container gutter (px-6 sm:px-8 lg:px-10) so it lines
-     up with the navbar logo and every other section's left edge (per user: navbar
-     + sections aligned to the same margin). */
-  .hero-left { width: 66.6667% !important; align-self: flex-start !important; }
-  /* Image: 70% (30% smaller), right-aligned, pulled up ~190px so the subjects'
-     heads rise to about the CTA-button row (per user red-arrow annotation) —
-     the image overlaps up alongside the text/buttons instead of sitting below. */
-  .hero-image { width: 70% !important; align-self: flex-end !important; margin-top: -190px !important; }
+  .hero-left > div:last-child > .cta-glow button { min-width: 170px !important; }
+  .hero-left > div:last-child > a { min-width: 150px !important; }
+  /* Text stays on the shared gutter and owns the left column. */
+  .hero-left { width: 48% !important; flex-shrink: 0 !important; align-self: stretch !important; align-items: flex-start !important; justify-content: center !important; text-align: left !important; }
+  /* Foreground media fills the right column and remains grounded at the trust bar. */
+  .hero-image { position: absolute !important; width: auto !important; height: auto !important; aspect-ratio: auto !important; top: 8px !important; bottom: 0 !important; left: 56% !important; right: -60px !important; margin-top: 0 !important; align-self: auto !important; }
+  .hero-image img { object-fit: contain !important; object-position: center bottom !important; transform: scale(1.2) !important; transform-origin: center bottom !important; }
 }
 
 /* ── iPad Portrait/large tablet ≥1024px — NO coarse override (block removed).
@@ -139,13 +132,13 @@
    BELOW 1024px stay stacked (the 640-1023 portrait / 768-1023 landscape blocks
    around this one) — smaller screens are left unchanged. ── */
 
-/* ── iPad Landscape 768-1023px — stacked, full-width, font/button sizing ──
+/* ── iPad Landscape 768-819px — stacked, full-width, font/button sizing ──
    (pointer: coarse) restricts this to real touch tablets: a DESKTOP browser
    window is also landscape in this width range (especially with Windows
    display scaling), and without the pointer guard it inherited the iPad hero
    (56px 3-row title, image flush to the right edge). Desktop gets the
    standard lg: styling from hero-section.tsx instead. */
-@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) and (pointer: coarse) {
+@media (min-width: 768px) and (max-width: 819px) and (orientation: landscape) and (pointer: coarse) {
   .hero-shell { padding-top: 0 !important; }
   /* quick-260724-t2r-c: upper bound pulled 1279 -> 1023 so the LARGEST landscape
      tablets (≥1024) fall through to hero-section.tsx's lg: side-by-side DESKTOP
@@ -174,6 +167,16 @@
   .trust-bar [class*="tabular-nums"] { font-size: 26px; }
   .trust-bar .fill-yellow-400 { width: 18px; height: 18px; }
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 12px; }
+}
+
+/* Desktop hero height follows the viewport only until the 520px composition
+   cap. The outer shell stays natural-height, so tall viewports cannot turn
+   unused hero height into a gap after the trust bar. */
+@media (min-width: 1024px) {
+  .hero-section {
+    flex: none;
+    height: clamp(397px, calc(100dvh - 138px), 520px);
+  }
 }
 
 @layer base {
