@@ -35,7 +35,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
     <div className="flex flex-1 min-h-0 flex-col md:flex-row md:gap-0 md:items-start">
       <div
         className={cn(
-          'relative sticky top-[56px] z-20 shrink-0',
+          'relative sticky top-0 z-20 shrink-0',
           'md:top-16 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:self-start',
           'transition-[width] duration-200 ease-in-out',
           collapsed ? 'md:w-14' : 'md:w-52',
