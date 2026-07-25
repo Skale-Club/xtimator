@@ -1,10 +1,17 @@
 ---
 id: SEED-046
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-spc
+harvest_note: >
+  Root inconsistency was how-it-works `py-6 sm:py-8` vs features/final-cta
+  `py-16`. Harmonized how-it-works to `py-16 lg:py-10` so all three content
+  sections share 64px vertical padding on phone/tablet (verified). The deeper
+  100dvh-wrapper staggering (how-it-works 100dvh ≥720, features ≥1024,
+  final-cta always) was left as-is — changing the snap-scroll structure is a
+  larger, riskier item; flagged as possible follow-up.
 trigger_when: Next milestone or quick pass on responsive/landing-page spacing polish
 scope: medium
 ---
