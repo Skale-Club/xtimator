@@ -8,7 +8,10 @@ import {
   websiteSchema,
 } from '@/lib/seo/structured-data'
 
-export const revalidate = 300
+// Landing media is admin-managed in Supabase. The Docker build intentionally
+// has no service-role secret, so prerendering here bakes the media-free fallback
+// into the image and serves it for the ISR window after every deployment.
+export const dynamic = 'force-dynamic'
 
 export default async function RootPage() {
   const branding = await getBranding()

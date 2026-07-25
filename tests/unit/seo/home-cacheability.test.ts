@@ -13,7 +13,7 @@ const landingPage = readFileSync(
   'utf8',
 )
 
-describe('anonymous homepage cacheability', () => {
+describe('anonymous homepage rendering', () => {
   it('does not read request-bound Supabase auth in the homepage server component', () => {
     expect(rootPage).not.toContain('@/lib/supabase/server')
     expect(rootPage).not.toContain('auth.getUser')
@@ -24,6 +24,11 @@ describe('anonymous homepage cacheability', () => {
     expect(rootPage.match(/\bgetBranding\(\)/g)).toHaveLength(1)
     expect(rootPage).not.toContain('getLandingContent')
     expect(rootPage).toContain('const landingContent = branding.landingContent')
+  })
+
+  it('defers database-backed landing media resolution until runtime', () => {
+    expect(rootPage).toContain("export const dynamic = 'force-dynamic'")
+    expect(rootPage).not.toContain('export const revalidate')
   })
 
   it('does not read cookies in the root layout', () => {

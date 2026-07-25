@@ -1,5 +1,5 @@
 ---
-status: awaiting_human_verify
+status: fixing
 trigger: production-regression
 created: 2026-07-25
 updated: 2026-07-25T11:34:07.0494991-04:00
@@ -26,15 +26,15 @@ slug: landing-images-missing
 ## Current Focus
 
 reasoning_checkpoint:
-  hypothesis: "`app/page.tsx` causes the transient media-free render because it starts `getBranding()` and `getLandingContent()` concurrently; on a cold cache `getLandingContent()` starts a second independent `getBranding()` database query, and either swallowed query failure can substitute `DEFAULT_LANDING_CONTENT`, whose hero/step/feature image URLs are absent."
+  hypothesis: "The Docker build prerenders `/` without the Supabase service-role secret, so `getBranding()` returns media-free fallback content and Next serves that baked response from ISR for five minutes after every deployment."
   confirming_evidence:
-    - "The reported output (copy and CTAs, no media requests) is exactly the render produced by `DEFAULT_LANDING_CONTENT`: its text is the production headline/subheadline while every landing image URL is absent."
-    - "Source inspection directly shows `Promise.all([getBranding(), getLandingContent()])`, while `getLandingContent()` calls `getBranding()` again and the module cache is populated only after a query resolves."
-    - "Fresh Playwright runs at 1440x1000, 1024x768, 900x900, and touch/coarse 820x1180 show nonzero visible hero-image geometry, successful image requests, and zero console errors, ruling out a persistent CSS, DOM, asset, or responsive regression."
-  falsification_test: "If the root page still performs more than one branding resolution after the change, or if it does not pass `branding.landingContent` to `LandingPage`, the hypothesis/fix is wrong."
-  fix_rationale: "Resolve branding exactly once and derive landing content from that same object, removing the cold-cache race and making branding plus media configuration an atomic snapshot without changing any landing layout."
-  blind_spots: "The original browser/profile state is unavailable, so the exact failed Supabase response was not captured; the production issue is no longer reproducible in a fresh browser and could also have involved stale client state."
-next_action: Have the user confirm the landing images remain visible in the original production browser/profile after the fix is deployed through the normal GitHub Actions/Coolify pipeline.
+    - "Playwright against deployed commit `ada60fbb` reproduced the failure: HTTP 200, two total images, no hero image, no hero-media request, and zero console errors."
+    - "The failing response included `x-nextjs-prerender: 1`, `x-nextjs-cache: HIT`, and `cache-control: s-maxage=300`."
+    - "The Dockerfile deliberately excludes the Supabase service-role secret from `next build`; `createServiceClient()` therefore returns null during static generation and `getBranding()` returns `FALLBACK_BRANDING`, whose landing content contains no media URLs."
+  falsification_test: "After making `/` runtime-rendered, the optimized build must classify it as dynamic and a fresh production response must omit prerender-cache headers while Playwright finds decoded, visible hero media."
+  fix_rationale: "Render the database-backed landing page at request time while retaining the existing 30-second server-side branding cache. This preserves SSR/SEO and prevents deployment-time fallback content from being baked into the Docker image."
+  blind_spots: "A cold runtime request can still receive fallback content during a real Supabase outage; unlike the current ISR behavior, that response will no longer be baked into the deployment or cached for five minutes."
+next_action: Build and test the dynamic route, deploy it, then repeat the production Playwright reproduction.
 
 ## Eliminated
 
@@ -97,11 +97,26 @@ next_action: Have the user confirm the landing images remain visible in the orig
   found: HTTP 200; hero image decoded with natural width 2028 and visible 726x449 geometry; hero plus three step image requests were observed; console remained empty.
   implication: The fixed production artifact preserves the intended image props, DOM, styles, and network behavior.
 
+- timestamp: 2026-07-25T11:52:00-04:00
+  checked: Playwright against deployed commit `ada60fbb`
+  found: The production page returned HTTP 200 but contained only two images, no `.hero-image img`, one logo request, and zero console errors.
+  implication: Eliminating the duplicate page-level branding call was insufficient; the original symptom remained reproducible after deployment.
+
+- timestamp: 2026-07-25T11:52:00-04:00
+  checked: Production response cache headers and Docker build environment
+  found: The response was an ISR cache hit (`x-nextjs-prerender: 1`, `x-nextjs-cache: HIT`, `s-maxage=300`), while the Docker build intentionally has no Supabase service-role secret.
+  implication: Build-time static generation necessarily persists the media-free fallback and serves it after rollout.
+
+- timestamp: 2026-07-25T11:56:00-04:00
+  checked: Focused tests and optimized production build after forcing runtime rendering
+  found: The two focused suites passed 11/11 tests, and `next build` classified `/` as `ƒ` dynamic while generating 92 static pages instead of prerendering the root route.
+  implication: The Docker artifact no longer contains a build-time landing snapshot, and the regression guard enforces that contract.
+
 ## Resolution
 
-root_cause: RootPage performs two concurrent branding resolutions on a cold cache, allowing the landing-content branch to silently receive media-free fallback content independently of the branding branch.
-fix: RootPage now awaits `getBranding()` once and derives `landingContent` from `branding.landingContent`; a source-level regression test locks the single-resolution contract.
-verification: Focused tests passed 10/10; strict TypeScript passed; optimized production build passed; Playwright against the local production build returned HTTP 200 with visible hero geometry, successful image requests, and zero console errors. Fresh deployed production also renders hero and supporting images at all tested desktop/tablet viewports.
+root_cause: The Docker build prerenders `/` without the intentionally unavailable Supabase service-role secret. `getBranding()` therefore returns media-free fallback content, which Next bakes into the image and serves from ISR for five minutes after deployment. A duplicate page-level branding query increased fallback risk but was not the complete cause.
+fix: RootPage resolves branding once and is forced dynamic so database-backed landing media is loaded at request time, while the existing server-side branding TTL preserves query efficiency.
+verification: Focused tests passed 11/11 and the optimized build classified `/` as runtime-rendered (`ƒ`). Pending CI, deployment, and fresh production Playwright verification.
 files_changed:
   - app/page.tsx
   - tests/unit/seo/home-cacheability.test.ts
