@@ -11,10 +11,8 @@ import {
 export const revalidate = 300
 
 export default async function RootPage() {
-  const [branding, landingContent] = await Promise.all([
-    getBranding(),
-    import('@/lib/platform-config').then((m) => m.getLandingContent()),
-  ])
+  const branding = await getBranding()
+  const landingContent = branding.landingContent
 
   return (
     <>

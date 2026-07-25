@@ -20,6 +20,12 @@ describe('anonymous homepage cacheability', () => {
     expect(rootPage).not.toContain('auth.getClaims')
   })
 
+  it('derives landing content from one resolved branding snapshot', () => {
+    expect(rootPage.match(/\bgetBranding\(\)/g)).toHaveLength(1)
+    expect(rootPage).not.toContain('getLandingContent')
+    expect(rootPage).toContain('const landingContent = branding.landingContent')
+  })
+
   it('does not read cookies in the root layout', () => {
     expect(rootLayout).not.toContain('readThemeCookie')
     expect(rootLayout).not.toContain('next/headers')
