@@ -6,7 +6,7 @@ import { Bell } from 'lucide-react'
 import { AppIcon } from '@/components/ui/app-icon'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
-import { MobileNavDrawer } from '@/components/app-shell/mobile-nav-drawer'
+import { NavUserDropdown } from '@/components/app-shell/nav-user-dropdown'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -104,7 +104,9 @@ export function MobileHeader({ branding, navUser, isDemo }: MobileHeaderProps) {
           <Bell className="h-4 w-4" />
         </Link>
         <ThemeToggle />
-        <MobileNavDrawer branding={branding} navUser={navUser} isDemo={isDemo} />
+        {navUser && (
+          <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} isDemo={isDemo} />
+        )}
       </div>
     </header>
   )
