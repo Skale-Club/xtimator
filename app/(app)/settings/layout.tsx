@@ -26,12 +26,13 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   }
 
   return (
-    // Phone: `min-h-full` (not `h-full`) so the settings container grows to
-    // content height. A viewport-capped ancestor would confine the sticky
-    // sub-nav's containing block to ~one screen, releasing the bar mid-page
-    // (quick-260724 sticky-bug fix). Desktop keeps `h-full` via `md:h-full` so
-    // the self-scrolling rail (`md:h-[calc(100vh-4rem)]`) is unchanged.
-    <div className="flex min-h-full flex-col md:h-full">
+    // `h-full` at all breakpoints: the settings container fills one scrollport
+    // (`main`'s height) so the left rail's self-scrolling, viewport-height
+    // sticky column (`h-[calc(100vh-4rem)]` + `overflow-y-auto`) has a fixed
+    // containing block — the same model desktop always used, now applied to
+    // phone/tablet too. Page content taller than one screen overflows into
+    // `main` (the app-shell scrollport) and scrolls there.
+    <div className="flex h-full flex-col">
       <SettingsLayoutClient>{children}</SettingsLayoutClient>
     </div>
   )

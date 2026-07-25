@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { type ElementType, type Ref } from 'react'
+import { type ElementType } from 'react'
 import { cn } from '@/lib/utils'
 
 export interface SubNavItem {
@@ -24,9 +24,6 @@ interface SubNavProps {
   /** Render a vertical list at ALL breakpoints (workspace sub-sidebar) instead of
    * the default mobile-horizontal / desktop-vertical responsive behavior. */
   alwaysVertical?: boolean
-  /** Ref forwarded to the scrollable <nav>. Used by the settings mobile row to
-   * wire drag / wheel / auto-scroll (see `useSubNavScroll`). Inert otherwise. */
-  navRef?: Ref<HTMLElement>
 }
 
 /**
@@ -39,10 +36,9 @@ interface SubNavProps {
  *   - Link mode:     provide `href` on each item  → renders <Link>
  *   - Callback mode: provide `onSelect` prop      → renders <button>
  */
-export function SubNav({ items, activeValue, onSelect, className, collapsed, alwaysVertical, navRef }: SubNavProps) {
+export function SubNav({ items, activeValue, onSelect, className, collapsed, alwaysVertical }: SubNavProps) {
   return (
     <nav
-      ref={navRef}
       aria-label="Section navigation"
       className={cn(
         alwaysVertical
@@ -55,7 +51,7 @@ export function SubNav({ items, activeValue, onSelect, className, collapsed, alw
         const isActive = activeValue === value
 
         const itemClass = cn(
-          'relative flex shrink-0 items-center rounded-[var(--radius-md)] font-medium transition-colors',
+          'flex shrink-0 items-center rounded-[var(--radius-md)] font-medium transition-colors',
           alwaysVertical
             ? // Vertical list at all breakpoints; collapsed = icons only
               collapsed
@@ -70,28 +66,13 @@ export function SubNav({ items, activeValue, onSelect, className, collapsed, alw
                   : 'md:flex-row md:gap-3 md:px-3 md:py-2 md:text-sm md:min-w-0 md:justify-start',
               ),
           isActive
-            ? alwaysVertical
-              ? 'bg-[var(--glass-bg-light)] text-foreground'
-              : // Responsive mode: mobile marks the active section with the
-                // underline below (no pill bg); desktop keeps the background
-                // pill exactly as before.
-                'text-foreground md:bg-[var(--glass-bg-light)]'
+            ? 'bg-[var(--glass-bg-light)] text-foreground'
             : 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
         )
 
         const labelEl = (
           <span className={cn('leading-none', collapsed && (alwaysVertical ? 'hidden' : 'md:hidden'))}>{label}</span>
         )
-
-        // Mobile-only active underline that follows the active pill. Hidden on
-        // the desktop rail (md:hidden), where the background pill marks active.
-        const underlineEl =
-          isActive && !alwaysVertical ? (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-2 bottom-0.5 h-[2px] rounded-full bg-[image:var(--gradient-brand)] md:hidden"
-            />
-          ) : null
 
         if (href) {
           return (
@@ -104,7 +85,6 @@ export function SubNav({ items, activeValue, onSelect, className, collapsed, alw
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               {labelEl}
-              {underlineEl}
             </Link>
           )
         }
@@ -120,7 +100,6 @@ export function SubNav({ items, activeValue, onSelect, className, collapsed, alw
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden />
             {labelEl}
-            {underlineEl}
           </button>
         )
       })}

@@ -24,49 +24,42 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
     })
   }
 
-  // quick-260724 (SEED-051): reworked from a viewport-fixed left rail + margin
-  // offset to an in-flow flex-row that mirrors the settings skeleton. Phone
-  // (<md): the sub-nav is a full-width sticky horizontal pill row at the top and
-  // the page content spans the FULL width below it (immersive — no cramped side
-  // rail). Desktop (md+): the sub-nav is a sticky vertical rail on the left and
-  // the content fills the remaining space (flex-1 → no margin math, and it grows
-  // automatically when the rail collapses). Desktop is visually unchanged.
+  // quick-260725: the settings sections render as a LEFT vertical collapsible
+  // rail at EVERY breakpoint — phone, tablet, and desktop — replacing the
+  // previous phone-only horizontal pill strip. The container is an in-flow
+  // flex-row at all widths: a fixed-width rail on the left (w-52 expanded /
+  // w-14 collapsed, default EXPANDED) and the page content filling the rest
+  // (flex-1 min-w-0). The rail is a viewport-height, self-scrolling sticky
+  // column — its own overflow-y-auto lets a tall nav + footer toggle scroll
+  // within it while the page content scrolls independently.
   //
-  // Sticky-bug fix (quick-260724): on phone this root must be the sticky pill
-  // row's containing block and span the FULL scrollable content — so it is a
-  // plain `flex flex-col` that grows to content height. `flex-1 min-h-0` (which
-  // caps it to ~one viewport and released the bar mid-page) is now md-only, so
-  // the desktop self-scrolling rail is unchanged.
+  // Desktop (md+) is byte-for-byte unchanged: every class that used to be
+  // `md:`-gated here is now the unconditional base, so md+ resolves to exactly
+  // the same computed styles it did before. The collapse toggle is now visible
+  // and usable at all breakpoints (previously `hidden md:flex`).
   return (
-    <div className="flex flex-col md:flex-1 md:min-h-0 md:flex-row md:gap-0 md:items-start">
+    <div className="flex min-h-0 flex-1 flex-row items-start">
       <div
         className={cn(
-          'relative sticky top-0 z-20 shrink-0',
-          'md:top-0 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:self-start',
+          'sticky top-0 shrink-0 self-start h-[calc(100vh-4rem)] overflow-y-auto',
           'transition-[width] duration-200 ease-in-out',
-          collapsed ? 'md:w-14' : 'md:w-52',
+          collapsed ? 'w-14' : 'w-52',
         )}
       >
-        {/* Right-edge fade hinting the horizontal scroll on phone only. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
-        />
         <aside
           className={cn(
             'shrink-0 border-border bg-background h-full w-full flex flex-col',
-            'border-b px-2 py-2 overflow-x-auto scrollbar-none',
-            'md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:pt-8 md:pb-0',
-            collapsed ? 'md:px-1' : 'md:px-3',
+            'overflow-y-auto scrollbar-none border-r pt-8 pb-0',
+            collapsed ? 'px-1' : 'px-3',
           )}
         >
           <div className="flex-1">
             <SettingsNav collapsed={collapsed} />
           </div>
 
-          {/* Collapse toggle — desktop rail only; the phone horizontal strip has
-              no collapse. Same footer alignment as the primary sidebar. */}
-          <div className="mt-auto hidden md:flex md:flex-col md:justify-center md:h-[var(--app-rail-footer-h)] md:shrink-0 border-t border-[var(--glass-border)] p-2">
+          {/* Collapse toggle — visible and usable at ALL breakpoints. Same
+              footer alignment as the primary sidebar. */}
+          <div className="mt-auto flex flex-col justify-center h-[var(--app-rail-footer-h)] shrink-0 border-t border-[var(--glass-border)] p-2">
             {collapsed ? (
               <button
                 type="button"
@@ -94,7 +87,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
         </aside>
       </div>
 
-      {/* Page content — full width on phone, fills the remaining space on desktop. */}
+      {/* Page content — fills the space beside the rail at all breakpoints. */}
       <div className="min-w-0 flex-1">
         {children}
       </div>
