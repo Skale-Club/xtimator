@@ -54,8 +54,8 @@ function FeatureCard({ feature }: { feature: Feature }) {
       <span className="absolute top-3 right-3 inline-flex size-10 items-center justify-center rounded-full gradient-brand [filter:saturate(.5)] text-white shadow-[0_4px_14px_rgba(0,0,0,0.45),inset_0_0_20px_hsl(var(--primary)/0.1)] transition-transform duration-500 group-hover:scale-110">
         <Icon className="size-5" aria-hidden="true" />
       </span>
-      <h3 className="mb-2 text-base font-semibold tracking-tight text-white">{feature.title}</h3>
-      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+      <h3 className="mb-2 text-[21px] sm:text-base font-semibold tracking-tight text-white">{feature.title}</h3>
+      <p className="mb-4 text-[18px] sm:text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
       <div className="mt-auto flex w-fit mx-auto items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-secondary shadow-[0_0_10px_hsl(var(--primary)/0.1)] transition-colors group-hover:bg-primary/20">
         {feature.benefit}
       </div>
@@ -81,7 +81,7 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
           className="mb-16 max-w-2xl lg:max-w-3xl text-center sm:mx-auto"
         >
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Why teams switch</p>
-          <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
+          <h2 className="mt-2 text-[clamp(31px,4vw,44px)] sm:text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
             Four pieces that shorten the gap
             <br />
             between{' '}
@@ -89,7 +89,7 @@ export function FeaturesSection({ features }: { features: Feature[] }) {
               site visit and signed work.
             </span>
           </h2>
-          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
+          <p className="mt-2 text-[18px] leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
             Keep the quoting flow simple, fast, and consistent without giving up professionalism.
           </p>
         </motion.div>

@@ -28,6 +28,19 @@ function HaloBackground() {
   )
 }
 
+// Vignette over the halo/animation layer only — sits below the z-10 photo
+// (no z-index of its own, same convention as the other background layers
+// above, so the foreground image always paints on top and stays unaffected).
+function BackgroundShadowOverlay() {
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      aria-hidden
+      style={{ boxShadow: 'inset 0 0 46px 14px rgba(0,0,0,0.55)' }}
+    />
+  )
+}
+
 // 52 bars × 7px (3.5 bar + 3.5 gap) + 2×18px padding = 400px viewBox
 const WAVEFORM_BARS = (() => {
   const count = 52
@@ -205,6 +218,7 @@ function StepCard({
         {showWave && <SoundWaveBackground />}
         {showCursor && <SpeechBubbleBackground />}
         {showPhotos && <CameraBackground />}
+        <BackgroundShadowOverlay />
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -235,10 +249,10 @@ function StepCard({
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="flex flex-col p-4 sm:p-5 lg:p-7">
-            <h3 className="mb-1.5 text-[0.9rem] font-semibold tracking-tight text-white sm:mb-2 sm:text-lg lg:text-[1.35rem]">
+            <h3 className="mb-1.5 text-[1.17rem] font-semibold tracking-tight text-white sm:mb-2 sm:text-lg lg:text-[1.35rem]">
               {title}
             </h3>
-            <p className="text-[0.8rem] leading-relaxed text-muted-foreground sm:text-sm lg:text-base">
+            <p className="text-[1.04rem] leading-relaxed text-muted-foreground sm:text-sm lg:text-base">
               {description}
             </p>
           </div>
@@ -266,7 +280,7 @@ export function HowItWorksSection({
       <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-10">
         <div className="mb-16 max-w-2xl text-center sm:mx-auto">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">How it works</p>
-          <h2 className="mt-2 text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
+          <h2 className="mt-2 text-[clamp(31px,4vw,44px)] sm:text-[clamp(24px,4vw,44px)] lg:text-[clamp(24px,3.8vw,42px)] font-semibold tracking-[-0.02em] sm:mt-3">
             Built around the way
             <br />
             estimates{' '}
@@ -274,7 +288,7 @@ export function HowItWorksSection({
               happen in the field.
             </span>
           </h2>
-          <p className="mt-2 text-sm leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
+          <p className="mt-2 text-[18px] leading-[1.5] text-muted-foreground sm:mt-4 sm:text-base">
             No clipboard rewrite later. Capture the job once and
             <br />
             turn that visit into a professional quote package.

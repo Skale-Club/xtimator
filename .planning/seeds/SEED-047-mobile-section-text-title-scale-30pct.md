@@ -1,10 +1,16 @@
 ---
 id: SEED-047
-status: planted
+status: harvested
 planted: 2026-07-24
 planted_during: v4.21 — Notification Center
-harvested:
-harvested_in:
+harvested: 2026-07-24
+harvested_in: quick-260724-m30
+harvest_note: >
+  Scaled how-it-works + features + final-cta titles/body ~+30% on mobile
+  (base) with sm: pins keeping ≥640 unchanged. HERO skipped (already large +
+  heavily tuned in quick-260724-t2r; scaling would regress the 2-row/natural-
+  wrap work) and trust-bar/eyebrows skipped (compact stat row / micro-labels
+  that would break or look odd). Offer to include the hero if wanted.
 trigger_when: Next milestone or quick pass on mobile/landing typography polish
 scope: small
 ---

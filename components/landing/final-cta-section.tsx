@@ -27,12 +27,12 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
 
           <div className="relative z-10 max-w-2xl space-y-2 sm:space-y-4">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary sm:text-sm">Ready to try it live?</p>
-            <h2 className="text-[24px] font-semibold leading-[1.1] tracking-[-0.02em] text-white sm:text-[clamp(28px,4.5vw,44px)] lg:text-[clamp(27px,4.275vw,42px)]">
+            <h2 className="text-[31px] font-semibold leading-[1.1] tracking-[-0.02em] text-white sm:text-[clamp(28px,4.5vw,44px)] lg:text-[clamp(27px,4.275vw,42px)]">
               Start your next estimate <br />
               before{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">you leave the property.</span>
             </h2>
-            <p className="max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-lg">
+            <p className="max-w-xl text-[18px] leading-relaxed text-muted-foreground sm:text-lg">
               Use the visit you already have to produce a cleaner, faster quote for the customer.
             </p>
           </div>
