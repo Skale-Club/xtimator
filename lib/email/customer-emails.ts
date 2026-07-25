@@ -20,6 +20,11 @@ import { customerEmailFrom } from '@/lib/email/sender'
  *   - Success -> `{ ok: true, id: data.id }`.
  */
 
+export interface CustomerEmailAttachment {
+  filename: string
+  content: Buffer
+}
+
 export interface SendCustomerEmailParams {
   toEmail: string
   toName?: string | null
@@ -27,6 +32,7 @@ export interface SendCustomerEmailParams {
   subject: string
   html: string
   text: string
+  attachments?: CustomerEmailAttachment[]
 }
 
 export interface SendCustomerEmailResult {
@@ -63,6 +69,7 @@ export async function sendCustomerEmail(
       subject: params.subject,
       html: params.html,
       text: params.text,
+      ...(params.attachments?.length ? { attachments: params.attachments } : {}),
     })
 
     if (error) {

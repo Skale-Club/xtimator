@@ -34,7 +34,7 @@ vi.mock('@/lib/observability/langfuse', () => ({
     flushAsync: async () => {},
   },
 }))
-const mockRecordAICost = vi.fn(async () => {})
+const mockRecordAICost = vi.fn(async (..._args: unknown[]) => {})
 vi.mock('@/lib/billing/record-ai-cost', () => ({
   recordAICost: (...args: unknown[]) => mockRecordAICost(...args),
 }))

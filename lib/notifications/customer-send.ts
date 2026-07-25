@@ -2,6 +2,7 @@ import 'server-only'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { SendChannel, SendPermit } from '@/lib/notifications/customer-send-gate'
 import { sendCustomerEmail } from '@/lib/email/customer-emails'
+import type { CustomerEmailAttachment } from '@/lib/email/customer-emails'
 import { sendCustomerSms } from '@/lib/sms/client'
 import { resolveCustomerCopy } from '@/lib/notifications/customer-template-resolver'
 import { logCustomerMessage } from '@/lib/notifications/customer-message-log'
@@ -72,7 +73,7 @@ export interface SendCustomerMessageParams {
   triggerSource: TriggerSource
   /** Exactly one of template | freeform must be provided. */
   template?: { eventType: CustomerEventType; vars: CustomerCopyContext }
-  freeform?: { subject?: string; body: string }
+  freeform?: { subject?: string; body: string; attachments?: CustomerEmailAttachment[] }
 }
 
 export interface SendCustomerMessageResult {
@@ -171,6 +172,7 @@ export async function sendCustomerMessage(
         subject: subject ?? `A message from ${params.businessName}`,
         html: body,
         text: stripHtmlTags(body),
+        ...(params.freeform?.attachments?.length ? { attachments: params.freeform.attachments } : {}),
       })
     } else {
       dispatchResult = await sendCustomerSms(clientRow!.phone!, body)
