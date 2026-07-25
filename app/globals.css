@@ -100,16 +100,18 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 13px; }
 }
 
-/* ── iPad Portrait "middle" 820-1023px (Air / Pro 11", below the ≥1024 desktop
-   cutoff) — quick-260725-mid: a distinct tier BETWEEN the frozen ≤819 small view
-   and the frozen ≥1024 desktop layout. Per user: keep the image STACKED below the
-   text, but (1) make the CTA buttons compact + side-by-side like desktop instead
-   of stacked full-width, and (2) shrink the image ~30% and pin it to the RIGHT
-   instead of full-width/centered. ONLY buttons + image change here; everything
-   else (text, fonts, spacing) inherits the 640-1023 portrait block above, so the
-   ≤819 frozen view and the ≥1024 desktop view are untouched. Placed after that
-   block so these overrides win for the 820-1023 overlap. ── */
-@media (min-width: 820px) and (max-width: 1023px) and (orientation: portrait) and (pointer: coarse) {
+/* ── "Middle" tablet tier 820-1023px — quick-260725-mid: a distinct tier BETWEEN
+   the frozen ≤819 small view and the frozen ≥1024 desktop layout. Per user: keep
+   the image STACKED below the text, but (1) make the CTA buttons compact +
+   side-by-side like desktop instead of stacked full-width, and (2) shrink the
+   image ~30% and pin it to the RIGHT instead of full-width/centered. ONLY buttons
+   + image change here; everything else (text, fonts, spacing) is inherited, so the
+   ≤819 frozen view and the ≥1024 desktop view are untouched.
+   NOTE: intentionally NOT gated on `pointer: coarse`/orientation — the user tests
+   iPad widths by resizing the desktop browser (pointer: fine), so this applies to
+   any 820-1023px-wide viewport (real iPads AND resized windows). Placed after the
+   640-1023 portrait block so these overrides win for the overlap. ── */
+@media (min-width: 820px) and (max-width: 1023px) {
   /* CTA buttons: compact, side-by-side (desktop-like), not stacked full-width. */
   .hero-left > div:last-child { flex-direction: row !important; width: auto !important; }
   .hero-left > div:last-child button,

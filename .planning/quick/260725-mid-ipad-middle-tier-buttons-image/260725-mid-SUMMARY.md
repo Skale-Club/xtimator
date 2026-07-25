@@ -42,5 +42,21 @@ the ≤819 frozen view and the ≥1024 desktop view are byte-for-byte unaffected
   and the Browser pane reports `pointer: fine`, so it can't render this layout.
   **Needs the user's on-device (real iPad portrait, 820-1023px) verification.**
 
+## Follow-up: dropped the pointer:coarse gate
+
+User tests iPad widths by **resizing the desktop browser** (pointer: fine), so
+the original `pointer: coarse` gate meant the rule never fired for them. Changed
+the media query to width-only `@media (min-width: 820px) and (max-width: 1023px)`
+so it applies to any 820-1023px viewport (real iPads AND resized windows). Frozen
+boundaries (≤819, ≥1024) unchanged.
+
+### Discovered: dev server serving stale globals.css
+While verifying, found the running dev server (9633) serves the OLD rule
+(`… orientation: portrait … pointer: coarse`) even after a force-reload, while
+the on-disk file is the new width-only version. So the server's global-CSS HMR is
+stuck — this is why CSS-only changes (this tier + earlier iPad/tablet CSS)
+haven't shown for the user, while .tsx/HMR changes did. Fix = restart the dev
+server (`npm run dev` clears `.next`).
+
 ## Notes
 - Local commit only, not pushed.
