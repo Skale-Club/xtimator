@@ -58,5 +58,23 @@ stuck — this is why CSS-only changes (this tier + earlier iPad/tablet CSS)
 haven't shown for the user, while .tsx/HMR changes did. Fix = restart the dev
 server (`npm run dev` clears `.next`).
 
+## Follow-up (mid2): buttons stacked, text 2/3, image up 20px
+
+User refined the middle tier (the earlier `touch app/globals.css` trick was used
+to force the stuck CSS watcher to recompile so these could be verified live):
+- CTA buttons → **stacked** (`flex-direction: column`), full-width of the text box
+  (replaces the earlier side-by-side).
+- Text box (`.hero-left`) → **~2/3 of the screen** (`width: 66.6667%`), anchored
+  **left** (`align-self: flex-start`), instead of full width.
+- Image → kept 70% + right, and **nudged up 20px** (`margin-top: -20px`).
+Verified live at 900px: hero-left 568px (66.67% of the 852px column)/flex-start,
+button row flex-direction column, image 596px/flex-end/margin-top -20px.
+
+### Dev-server CSS-HMR is intermittently stuck
+Confirmed the running server serves stale globals.css after in-place edits; a
+`touch app/globals.css` reliably pokes the watcher into recompiling (verified the
+served @media condition flips to the fresh one). Real fix if it recurs: restart
+`npm run dev`. Not a service-worker cache (no SW controlling this view).
+
 ## Notes
 - Local commit only, not pushed.

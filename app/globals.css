@@ -100,26 +100,25 @@
   .trust-bar span:not([class*="tabular-nums"]) { font-size: 13px; }
 }
 
-/* ── "Middle" tablet tier 820-1023px — quick-260725-mid: a distinct tier BETWEEN
-   the frozen ≤819 small view and the frozen ≥1024 desktop layout. Per user: keep
-   the image STACKED below the text, but (1) make the CTA buttons compact +
-   side-by-side like desktop instead of stacked full-width, and (2) shrink the
-   image ~30% and pin it to the RIGHT instead of full-width/centered. ONLY buttons
-   + image change here; everything else (text, fonts, spacing) is inherited, so the
-   ≤819 frozen view and the ≥1024 desktop view are untouched.
+/* ── "Middle" tablet tier 820-1023px — a distinct tier BETWEEN the frozen ≤819
+   small view and the frozen ≥1024 desktop layout. Image STAYS stacked below the
+   text. Per user (quick-260725-mid + mid2):
+   1. CTA buttons STACKED (vertical), full-width of the text box.
+   2. Text box (.hero-left) reaches ~2/3 of the screen, anchored LEFT (was full
+      width) — align-self:flex-start overrides the parent's align-items:center.
+   3. Image ~30% smaller (70%), pinned RIGHT (align-self:flex-end), nudged UP 20px.
+   Everything else (text, fonts) inherited, so ≤819 + ≥1024 stay untouched.
    NOTE: intentionally NOT gated on `pointer: coarse`/orientation — the user tests
    iPad widths by resizing the desktop browser (pointer: fine), so this applies to
    any 820-1023px-wide viewport (real iPads AND resized windows). Placed after the
    640-1023 portrait block so these overrides win for the overlap. ── */
 @media (min-width: 820px) and (max-width: 1023px) {
-  /* CTA buttons: compact, side-by-side (desktop-like), not stacked full-width. */
-  .hero-left > div:last-child { flex-direction: row !important; width: auto !important; }
-  .hero-left > div:last-child button,
-  .hero-left > div:last-child a { width: auto !important; }
-  /* Image: still stacked below the text, 30% smaller, aligned to the right
-     (align-self overrides the parent's align-items:center; it's a flex child of
-     .hero-content). */
-  .hero-image { width: 70% !important; align-self: flex-end !important; }
+  /* CTA buttons: stacked (vertical), full-width of the 2/3 text box. */
+  .hero-left > div:last-child { flex-direction: column !important; }
+  /* Text box: ~2/3 of the screen, anchored left (was full width). */
+  .hero-left { width: 66.6667% !important; align-self: flex-start !important; }
+  /* Image: 70% (30% smaller), right-aligned, nudged up 20px. */
+  .hero-image { width: 70% !important; align-self: flex-end !important; margin-top: -20px !important; }
 }
 
 /* ── iPad Portrait/large tablet ≥1024px — NO coarse override (block removed).
