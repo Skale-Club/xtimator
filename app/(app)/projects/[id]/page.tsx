@@ -258,7 +258,7 @@ function ProjectWorkspaceSkeleton({ project }: { project: Awaited<ReturnType<typ
         {/* Floating action bar skeleton — mirrors EstimateFloatingActions pill
             (fixed + viewport-centered on desktop, matching Pill's positioning
             so nothing jumps on hydration) */}
-        <div className="fixed inset-x-0 bottom-2 z-40 hidden md:flex justify-center pointer-events-none">
+        <div className="fixed inset-x-0 bottom-2 z-40 hidden lg:flex justify-center pointer-events-none">
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
             <Skeleton className="h-7 w-24 rounded-full" />
             <Skeleton className="h-7 w-24 rounded-full" />

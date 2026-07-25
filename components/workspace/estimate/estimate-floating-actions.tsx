@@ -32,7 +32,7 @@ interface EstimateFloatingActionsProps {
 // ---------------------------------------------------------------------------
 // Pill — single layout shared by mobile and desktop. Sized to its content
 // (not stretched), so the button sizes stay coherent across breakpoints.
-// Desktop (md+) is `fixed inset-x-0` so the pill centers on the FULL viewport
+// Desktop (lg+) is `fixed inset-x-0` so the pill centers on the FULL viewport
 // width — including the sidebar (w-[213px] expanded / w-16 collapsed) — not
 // the content column, and stays centered when the sidebar collapses. Mobile
 // keeps `sticky` inside the content column (sidebar hidden there, so content
@@ -42,7 +42,7 @@ interface EstimateFloatingActionsProps {
 function Pill({ children }: { children: ReactNode }) {
   return (
     <div
-      className="sticky bottom-3 md:fixed md:inset-x-0 md:bottom-2 z-40 flex justify-center px-4 md:px-0 pointer-events-none"
+      className="sticky bottom-3 lg:fixed lg:inset-x-0 lg:bottom-2 z-40 flex justify-center px-4 lg:px-0 pointer-events-none"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">

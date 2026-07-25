@@ -66,7 +66,7 @@ export function InstallPrompt({ hasProjects = false }: Props) {
   }
 
   return (
-    <div className="fixed bottom-[calc(env(safe-area-inset-bottom,_0px)_+_5rem)] left-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl sm:left-auto sm:right-4 sm:max-w-sm md:bottom-4">
+    <div className="fixed bottom-[calc(env(safe-area-inset-bottom,_0px)_+_5rem)] left-4 right-4 z-50 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-xl sm:left-auto sm:right-4 sm:max-w-sm lg:bottom-4">
       {isIOS ? (
         <Share className="h-5 w-5 shrink-0 text-primary" />
       ) : (

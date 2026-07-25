@@ -134,7 +134,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           onClick={() => void openPanel()}
           aria-label={t('Open chat assistant')}
           className={cn(
-            'fixed bottom-24 right-4 md:bottom-6 md:right-6 z-40',
+            'fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-40',
             'flex h-12 w-12 items-center justify-center rounded-full',
             'bg-primary text-primary-foreground shadow-lg',
             'transition-all hover:scale-105 active:scale-95',
@@ -151,8 +151,8 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           className={cn(
             'fixed z-[60] flex-col overflow-hidden bg-background',
             'inset-0 pt-[env(safe-area-inset-top,_0px)]',
-            'md:inset-auto md:bottom-6 md:right-6 md:h-[min(640px,calc(100dvh-6rem))] md:w-[400px]',
-            'md:rounded-2xl md:border md:border-border md:pt-0 md:shadow-2xl',
+            'lg:inset-auto lg:bottom-6 lg:right-6 lg:h-[min(640px,calc(100dvh-6rem))] lg:w-[400px]',
+            'lg:rounded-2xl lg:border lg:border-border lg:pt-0 lg:shadow-2xl',
             open ? 'flex' : 'hidden',
           )}
         >

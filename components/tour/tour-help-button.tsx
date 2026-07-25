@@ -32,7 +32,7 @@ export function TourHelpButton() {
       onClick={handleClick}
       aria-label={t('Open app tour')}
       className={[
-        'fixed bottom-24 right-4 md:bottom-6 md:right-6',
+        'fixed bottom-24 right-4 lg:bottom-6 lg:right-6',
         'z-50 flex items-center justify-center',
         'h-10 w-10 rounded-full',
         'glass-strong border border-[var(--glass-border)] shadow-glass',
