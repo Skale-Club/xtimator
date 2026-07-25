@@ -6,7 +6,7 @@ import { Bell } from 'lucide-react'
 import { AppIcon } from '@/components/ui/app-icon'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
-import { NavUserDropdown } from '@/components/app-shell/nav-user-dropdown'
+import { MobileAccountMenu } from '@/components/app-shell/mobile-account-menu'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -31,9 +31,22 @@ interface MobileHeaderProps {
   branding?: { appName: string; logoUrl: string | null }
   navUser?: { email: string; avatarUrl: string | null } | null
   isDemo?: boolean
+  /** Membership companies for the profile dropdown's Companies switcher. */
+  memberships?: Array<{ id: string; name: string; logo_url: string | null }>
+  activeCompanyId?: string
+  isAdmin?: boolean
+  userName?: string | null
 }
 
-export function MobileHeader({ branding, navUser, isDemo }: MobileHeaderProps) {
+export function MobileHeader({
+  branding,
+  navUser,
+  isDemo,
+  memberships = [],
+  activeCompanyId = '',
+  isAdmin,
+  userName = null,
+}: MobileHeaderProps) {
   const pathname = usePathname()
   const title = getTitleFromPathname(pathname)
   const breadcrumbs = useCurrentBreadcrumbs()
@@ -105,7 +118,14 @@ export function MobileHeader({ branding, navUser, isDemo }: MobileHeaderProps) {
         </Link>
         <ThemeToggle />
         {navUser && (
-          <NavUserDropdown email={navUser.email} avatarUrl={navUser.avatarUrl} isDemo={isDemo} />
+          <MobileAccountMenu
+            navUser={navUser}
+            memberships={memberships}
+            activeCompanyId={activeCompanyId}
+            isAdmin={isAdmin}
+            userName={userName}
+            isDemo={isDemo}
+          />
         )}
       </div>
     </header>

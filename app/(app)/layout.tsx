@@ -114,6 +114,10 @@ export default async function AppShellLayout({
                   branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
                   navUser={navUser}
                   isDemo={false}
+                  memberships={[]}
+                  activeCompanyId={supportCompany.id}
+                  isAdmin={true}
+                  userName={supportCompany.owner_name ?? null}
                 />
                 <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
                 <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
@@ -233,6 +237,10 @@ export default async function AppShellLayout({
               branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
               navUser={navUser}
               isDemo={isDemo}
+              memberships={memberships}
+              activeCompanyId={activeCompanyId}
+              isAdmin={isAdmin}
+              userName={company.owner_name ?? null}
             />
             {isDemo && <DemoBanner />}
             {trialDaysRemaining !== null && trialDaysRemaining < 3 && (

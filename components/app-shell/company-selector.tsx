@@ -47,6 +47,14 @@ interface CompanySelectorProps {
    * dropdown so the footer is one widget instead of two (2026-05-26 UX fix).
    */
   accountMenuSlot?: React.ReactNode
+  /**
+   * Optional custom trigger. When provided, it replaces the default
+   * company-avatar button as the dropdown trigger (rendered via `asChild`).
+   * Used by the mobile header to open this same dropdown from the user avatar.
+   */
+  trigger?: React.ReactNode
+  /** Alignment of the dropdown content relative to the trigger. Defaults to 'start'. */
+  align?: 'start' | 'end'
 }
 
 function initialOf(name: string): string {
@@ -59,6 +67,8 @@ export function CompanySelector({
   collapsed = false,
   isAdmin = false,
   accountMenuSlot,
+  trigger,
+  align = 'start',
 }: CompanySelectorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -87,7 +97,9 @@ export function CompanySelector({
     <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {collapsed ? (
+        {trigger ? (
+          trigger
+        ) : collapsed ? (
           <button
             type="button"
             aria-label="Switch company"
@@ -125,7 +137,7 @@ export function CompanySelector({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        align="start"
+        align={align}
         className="w-56 glass-strong border border-[var(--glass-border)] shadow-glass"
       >
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
