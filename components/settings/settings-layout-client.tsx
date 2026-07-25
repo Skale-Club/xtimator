@@ -36,7 +36,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
       <div
         className={cn(
           'relative sticky top-0 z-20 shrink-0',
-          'md:top-16 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:self-start',
+          'md:top-0 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:self-start',
           'transition-[width] duration-200 ease-in-out',
           collapsed ? 'md:w-14' : 'md:w-52',
         )}

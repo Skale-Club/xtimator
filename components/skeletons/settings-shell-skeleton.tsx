@@ -16,7 +16,7 @@ export function SettingsShellSkeleton({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 min-h-0 flex-col md:flex-row md:gap-0">
-        <div className="relative sticky top-0 z-20 shrink-0 md:sticky md:top-16 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:w-52 md:self-start">
+        <div className="relative sticky top-0 z-20 shrink-0 md:sticky md:top-0 md:z-auto md:h-[calc(100vh-4rem)] md:overflow-y-auto md:w-52 md:self-start">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
