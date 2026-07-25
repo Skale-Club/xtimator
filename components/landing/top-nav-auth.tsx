@@ -30,7 +30,7 @@ interface TopNavAuthProps {
 
 export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }: TopNavAuthProps) {
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>('signup')
   const [isPending, startTransition] = useTransition()
   const [resolvedUser, setResolvedUser] = useState(navUser)
 
@@ -104,12 +104,6 @@ export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }
     )
   }
 
-  function openLogin() {
-    if (onOpenAuth) { onOpenAuth('login'); return }
-    setMode('login')
-    setOpen(true)
-  }
-
   function openSignup() {
     if (onOpenAuth) { onOpenAuth('signup'); return }
     setMode('signup')
@@ -118,13 +112,7 @@ export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }
 
   return (
     <>
-      <div className="flex items-center gap-4">
-        <button
-          onClick={openLogin}
-          className="text-sm font-medium text-white/60 transition-colors hover:text-white"
-        >
-          Login
-        </button>
+      <div className="flex items-center">
         <Button variant="primary" size="sm" className="px-4" onClick={openSignup}>
           {ctaLabel}
         </Button>

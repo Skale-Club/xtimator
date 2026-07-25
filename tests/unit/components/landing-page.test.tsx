@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { HeroSection } from '@/components/landing/hero-section'
 import { HowItWorksSection } from '@/components/landing/how-it-works-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { LandingPage } from '@/components/landing/landing-page'
+import { TopNavAuth } from '@/components/landing/top-nav-auth'
 
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
@@ -101,6 +102,25 @@ const LANDING_CONTENT = {
 } as unknown as Parameters<typeof LandingPage>[0]['content']
 
 const BRANDING = { appName: 'Xtimator', logoUrl: null }
+
+describe('TopNavAuth', () => {
+  it('shows only the signup CTA for anonymous visitors', () => {
+    const onOpenAuth = vi.fn()
+    render(
+      <TopNavAuth
+        branding={BRANDING}
+        onOpenAuth={onOpenAuth}
+        navUser={null}
+        ctaLabel="Start free"
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Login' })).toBeNull()
+    const startButton = screen.getByRole('button', { name: 'Start free' })
+    fireEvent.click(startButton)
+    expect(onOpenAuth).toHaveBeenCalledWith('signup')
+  })
+})
 
 // LAND-01: Hero section -- headline, subheadline, CTAs
 describe('HeroSection (LAND-01)', () => {
