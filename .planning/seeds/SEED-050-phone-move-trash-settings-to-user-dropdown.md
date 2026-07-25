@@ -9,7 +9,7 @@ trigger_when: Next phone-nav / app-shell UX pass (plan together with SEED-049 an
 scope: small
 ---
 
-# SEED-050: Phone — move Trash + Settings into the user (avatar) dropdown
+# SEED-050: Phone — move Trash + Settings to user dropdown; Price Book becomes the last bottom-nav item (drop "More")
 
 ## Why This Matters
 
@@ -19,21 +19,28 @@ moved into the avatar/user dropdown** (the one opened from the top-right avatar,
 showing the email + Sign Out) — specifically **in the space between the email
 row and the Sign Out item**.
 
-Rationale: those two are account/management destinations that fit more naturally
-next to the account actions (email, Sign Out) than in the primary-nav "More"
-overflow.
+With Trash + Settings gone, the only overflow item left is **Price Book** — so
+(user clarification) **Price Book is promoted to a direct bottom-nav slot as the
+LAST item, and the "More" `…` button is removed entirely**. End-state bottom nav:
+`Dashboard · Projects · New Xtimate (center) · Clients · Price Book`.
+
+Rationale: Trash/Settings are account/management destinations that fit next to
+the account actions (email, Sign Out); and with nothing else overflowing, a
+dedicated Price Book slot is cleaner than hiding it behind "More".
 
 ## Scope Estimate
 
 **Small** — move two nav destinations between two existing menus:
 
 1. **Remove Trash + Settings from the bottom-nav overflow.** They render there
-   because their `NAV_ITEMS` entries carry `overflow: true`. Either drop them
-   from the overflow set (a bottom-nav-specific filter) or add an explicit
-   "show in user menu" flag. (Decide what remains in "More" — if only Price Book
-   is left, consider giving it a real bar slot and removing the "More" button,
-   or keep "More" for future overflow.)
-2. **Add Trash + Settings to `NavUserDropdown`**, inserted **between the email
+   because their `NAV_ITEMS` entries carry `overflow: true`. Drop them from the
+   bottom-nav's item set (they now live in the user dropdown instead).
+2. **Promote Price Book to a direct bar slot (LAST item) and remove "More".**
+   Clear `overflow: true` on the Price Book item so it renders as a normal bar
+   item. With no overflow items remaining, the `overflowItems.length > 0` guard
+   drops the "More" button automatically. The existing center-primary reorder
+   yields `Dashboard · Projects · New Xtimate · Clients · Price Book`.
+3. **Add Trash + Settings to `NavUserDropdown`**, inserted **between the email
    row and the Sign Out item** (i.e. after the email `<div>` / first separator,
    before the Sign Out `DropdownMenuItem`), each as a `DropdownMenuItem` → `Link`
    with its icon (Trash2 / Settings) + label. Add a separator before Sign Out so
