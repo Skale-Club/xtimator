@@ -8,6 +8,7 @@ import { getApprovedTemplateForEvent } from './whatsapp-registry'
 import type { CopyContext } from './copy'
 import { resolveNotificationCopy } from './template-resolver'
 import { buildFullCopyContext } from './copy-context'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
  * Phase 77 (NOTIF-03) — Single fan-out entry point for the notifications system.
@@ -61,6 +62,9 @@ export interface NotifyResult {
 
 export async function notify(params: NotifyParams): Promise<NotifyResult> {
   try {
+    const denied = await assertCompanyWritable(params.companyId)
+    if (denied) return { ok: false }
+
     const resolved = await resolveChannels(
       params.eventType,
       params.userId ?? null,

@@ -12,16 +12,20 @@ import 'server-only'
 import { inngest } from '@/lib/inngest/client'
 import { EVENT_XPHERE_SYNC } from '@/lib/inngest/events'
 import type { XphereSyncEvent } from '@/lib/integrations/xphere/types'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
  * Fire-and-forget Xphere sync dispatch. NEVER awaited by user flows — mirrors the
  * sendWelcomeEmail discipline. Swallows all errors so a queue hiccup never breaks UX.
  */
 export function dispatchXphereSync(companyId: string, event: XphereSyncEvent): void {
-  void inngest
-    .send({
+  void (async () => {
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return
+
+    await inngest.send({
       name: EVENT_XPHERE_SYNC,
       data: { companyId, event, occurredAt: new Date().toISOString() },
     })
-    .catch(() => undefined)
+  })().catch(() => undefined)
 }

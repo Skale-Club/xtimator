@@ -38,7 +38,10 @@ import {
   addCompanyKnowledge,
   createProject,
 } from '@/lib/agent-tools'
-import { DEMO_READONLY_MESSAGE } from '@/lib/demo/guard'
+import {
+  assertCompanyWritable,
+  DEMO_READONLY_MESSAGE,
+} from '@/lib/demo/guard'
 
 export interface ChatToolContext {
   /** Trusted active-company id resolved from the authenticated owner. */
@@ -61,6 +64,16 @@ export interface ChatToolContext {
  * Build the AI-SDK ToolSet for one chat turn, closing over the trusted ctx.
  */
 export function buildChatTools(ctx: ChatToolContext) {
+  const denyWrite = async () => {
+    const denied = await assertCompanyWritable(ctx.companyId)
+    return ctx.isDemo || denied
+      ? {
+          ok: false as const,
+          message: denied?.error ?? DEMO_READONLY_MESSAGE,
+        }
+      : null
+  }
+
   return {
     // CHATBE-03 — async dispatch. Returns the job id immediately; generation
     // runs as an Inngest job (which debits credits per v4.7). Do NOT await it.
@@ -76,6 +89,8 @@ export function buildChatTools(ctx: ChatToolContext) {
       }),
       execute: async ({ projectId, prompts }) => {
         try {
+          const denied = await denyWrite()
+          if (denied) return denied
           const { jobId } = await createEstimate({
             companyId: ctx.companyId,
             projectId,
@@ -163,7 +178,8 @@ export function buildChatTools(ctx: ChatToolContext) {
         clientId: z.string().optional().describe('Optional client id to attach'),
       }),
       execute: async ({ name, clientId }) => {
-        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        const denied = await denyWrite()
+        if (denied) return denied
         return createProject(
           ctx.supabase,
           ctx.companyId,
@@ -183,7 +199,8 @@ export function buildChatTools(ctx: ChatToolContext) {
         notes: z.string().max(2000).optional().describe('Optional internal notes'),
       }),
       execute: async ({ name, unitPrice, unit, notes }) => {
-        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        const denied = await denyWrite()
+        if (denied) return denied
         return createPriceBookService(ctx.supabase, ctx.companyId, {
           name,
           unitPrice,
@@ -201,7 +218,8 @@ export function buildChatTools(ctx: ChatToolContext) {
         body: z.string().min(1).describe('The fact, rule, or preference to remember'),
       }),
       execute: async ({ title, body }) => {
-        if (ctx.isDemo) return { ok: false as const, message: DEMO_READONLY_MESSAGE }
+        const denied = await denyWrite()
+        if (denied) return denied
         return addCompanyKnowledge(ctx.supabase, ctx.companyId, { title, body, source: 'owner via chat' })
       },
     }),

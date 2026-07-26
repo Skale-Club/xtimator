@@ -17,6 +17,7 @@
  */
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { createServiceClient } from '@/lib/supabase/service'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export type ChatRole = 'user' | 'assistant' | 'tool' | 'system'
 
@@ -44,6 +45,15 @@ export interface ChatMessageRow {
 export interface ChatThread {
   conversation: ChatConversationRow
   messages: ChatMessageRow[]
+}
+
+/** Resolve the membership-validated active company and deny demo writes
+ * before constructing the service-role client that bypasses RLS. */
+async function getWritableActiveCompanyId(): Promise<string | null> {
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return null
+  const denied = await assertCompanyWritable(companyId)
+  return denied ? null : companyId
 }
 
 /** All conversations for the active company + current owner, newest-updated first. */
@@ -102,7 +112,7 @@ export async function createConversation(
   userId: string,
   title: string | null = null,
 ): Promise<ChatConversationRow | null> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return null
   const svc = createServiceClient()
   if (!svc) return null
@@ -129,7 +139,7 @@ export async function appendMessage(args: {
   /** UIMessage id from the client/stream — persisted so reloads keep the same ids. */
   clientId?: string | null
 }): Promise<ChatMessageRow | null> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return null
   const svc = createServiceClient()
   if (!svc) return null
@@ -185,7 +195,7 @@ export async function deleteConversation(
   conversationId: string,
   userId: string,
 ): Promise<boolean> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return false
   const svc = createServiceClient()
   if (!svc) return false
@@ -244,7 +254,7 @@ export async function updateMessageParts(
   conversationId: string,
   parts: unknown,
 ): Promise<boolean> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return false
   const svc = createServiceClient()
   if (!svc) return false
@@ -271,7 +281,7 @@ export async function deleteMessagesFrom(args: {
   fromCreatedAt: string
   inclusive: boolean
 }): Promise<boolean> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return false
   const svc = createServiceClient()
   if (!svc) return false
@@ -296,7 +306,7 @@ export async function upsertMessageVote(args: {
   userId: string
   isUpvoted: boolean
 }): Promise<boolean> {
-  const companyId = await getActiveCompanyId()
+  const companyId = await getWritableActiveCompanyId()
   if (!companyId) return false
   const svc = createServiceClient()
   if (!svc) return false

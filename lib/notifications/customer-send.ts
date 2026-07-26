@@ -7,6 +7,7 @@ import { sendCustomerSms } from '@/lib/sms/client'
 import { resolveCustomerCopy } from '@/lib/notifications/customer-template-resolver'
 import { logCustomerMessage } from '@/lib/notifications/customer-message-log'
 import type { CustomerEventType, CustomerCopyContext } from '@/lib/notifications/customer-copy'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
  * Phase 177 Plan 06 (CUST-01/02/05) — the ONE neutral orchestrator every
@@ -118,6 +119,11 @@ export async function sendCustomerMessage(
     // 2. Exactly one content source is required.
     if (!params.template && !params.freeform) {
       return { ok: false, channel, error: 'no_content' }
+    }
+
+    const denied = await assertCompanyWritable(params.companyId)
+    if (denied) {
+      return { ok: false, channel, error: denied.error }
     }
 
     // 3. Tenant-scoped client contact fetch.
