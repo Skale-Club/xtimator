@@ -1,7 +1,8 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getDemoUserEmail } from './config'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { getDemoUserEmail, isDemoCompany } from './config'
 
 /**
  * Read-only enforcement for the public demo (Decisions D04, D05).
@@ -14,14 +15,49 @@ import { getDemoUserEmail } from './config'
  * side effect is attempted.
  */
 
-/** True when the current session belongs to the shared demo user. */
-export async function isDemoSession(): Promise<boolean> {
+export type DemoWriteContext = {
+  userId?: string | null
+  email?: string | null
+  companyId?: string | null
+}
+
+/**
+ * Classifies either an explicit trusted context or the current request.
+ *
+ * Explicit contexts are used by non-cookie channels such as workers and
+ * service-role funnels. With no argument, identity comes from verified Auth
+ * claims and tenant state comes from the membership-validating active-company
+ * resolver. Role metadata is deliberately absent: either demo signal wins.
+ */
+export async function isDemoContext(context?: DemoWriteContext): Promise<boolean> {
+  let resolved = context
+
+  if (resolved === undefined) {
+    const supabase = await createClient()
+    const [{ data }, companyId] = await Promise.all([
+      supabase.auth.getClaims(),
+      getActiveCompanyId(),
+    ])
+    const claims = data?.claims ?? null
+    resolved = {
+      userId: (claims?.sub as string | undefined) ?? null,
+      email: (claims?.email as string | undefined) ?? null,
+      companyId,
+    }
+  }
+
   const demoEmail = getDemoUserEmail()
-  if (!demoEmail) return false
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  const email = data?.claims?.email ?? null
-  return !!email && email.toLowerCase() === demoEmail.toLowerCase()
+  const emailMatches =
+    !!demoEmail &&
+    !!resolved.email &&
+    resolved.email.toLowerCase() === demoEmail.toLowerCase()
+
+  return emailMatches || isDemoCompany(resolved.companyId)
+}
+
+/** Backward-compatible request-session classifier. */
+export async function isDemoSession(): Promise<boolean> {
+  return isDemoContext()
 }
 
 /**
@@ -45,8 +81,17 @@ export type DemoDenied = { error: typeof DEMO_READONLY_MESSAGE }
  * Action files that use a different result shape (e.g. `{ ok: false, error }`)
  * should branch on `isDemoSession()` directly and return their own shape.
  */
-export async function assertWritable(): Promise<DemoDenied | null> {
-  return (await isDemoSession()) ? { error: DEMO_READONLY_MESSAGE } : null
+export async function assertWritable(
+  context?: DemoWriteContext,
+): Promise<DemoDenied | null> {
+  return (await isDemoContext(context)) ? { error: DEMO_READONLY_MESSAGE } : null
+}
+
+/** Explicit company-only guard for trusted worker/service contexts. */
+export async function assertCompanyWritable(
+  companyId: string | null | undefined,
+): Promise<DemoDenied | null> {
+  return assertWritable({ companyId })
 }
 
 /**
@@ -57,11 +102,11 @@ export async function assertWritable(): Promise<DemoDenied | null> {
  *   if (blocked) return blocked
  */
 export async function demoGuardResponse(): Promise<NextResponse | null> {
-  if (await isDemoSession()) {
+  if (await isDemoContext()) {
     return NextResponse.json(
       {
         error: 'demo_readonly',
-        message: 'This is a read-only demo. Create an account to make changes.',
+        message: DEMO_READONLY_MESSAGE,
       },
       { status: 403 }
     )

@@ -386,6 +386,9 @@ export async function changePassword(data: {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
 
+  const denied = await assertWritable()
+  if (denied) return denied
+
   // Verify current password by signing in
   const userEmail = (claims as Record<string, unknown>).email as string | undefined
   if (userEmail) {
@@ -415,6 +418,9 @@ export async function changeEmail(data: { newEmail: string }) {
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
 
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const { error } = await supabase.auth.updateUser({
     email: data.newEmail,
   })
@@ -431,6 +437,9 @@ export async function updateProfile(formData: FormData) {
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   const fullName = (formData.get('fullName') as string | null)?.trim() || null
   const phone = (formData.get('phone') as string | null)?.trim() || null
@@ -480,6 +489,9 @@ export async function deleteAccount() {
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   const serviceClient = requireServiceClient()
   const { error } = await serviceClient.auth.admin.deleteUser(claims.sub as string)

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { assertWritable } from '@/lib/demo/guard'
 
 /**
  * SEAT-04 open-redirect guard. The invite flow threads a `next` formData field so
@@ -159,6 +160,9 @@ export async function resetPassword(formData: FormData) {
 export async function updatePassword(formData: FormData) {
   const supabase = await createClient()
   const password = formData.get('password') as string
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   const { error } = await supabase.auth.updateUser({ password })
 
