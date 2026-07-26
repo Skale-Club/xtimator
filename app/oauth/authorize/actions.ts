@@ -9,6 +9,10 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { findClientByClientId, isRegisteredRedirectUri } from '@/lib/oauth/clients'
 import { issueAuthorizationCode } from '@/lib/oauth/codes'
 import { parseScope, serializeScope } from '@/lib/oauth/types'
+import {
+  assertWritable,
+  DEMO_READONLY_MESSAGE,
+} from '@/lib/demo/guard'
 
 interface AuthorizeFormFields {
   decision: 'authorize' | 'deny'
@@ -82,11 +86,24 @@ export async function handleAuthorize(formData: FormData): Promise<void> {
     redirect('/onboarding')
   }
 
+  const email = claims?.email as string | undefined
+  const denied = await assertWritable({ userId, email, companyId })
+  if (denied) {
+    redirect(
+      appendQuery(fields.redirect_uri, {
+        error: 'access_denied',
+        error_description: DEMO_READONLY_MESSAGE,
+        ...(fields.state ? { state: fields.state } : {}),
+      }),
+    )
+  }
+
   const scopes = parseScope(fields.scope)
 
   const { code } = await issueAuthorizationCode({
     clientId: fields.client_id,
     userId: userId as string,
+    userEmail: email,
     companyId: companyId as string,
     codeChallenge: fields.code_challenge,
     codeChallengeMethod: 'S256',

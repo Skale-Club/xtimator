@@ -39,7 +39,12 @@ export async function POST(req: NextRequest) {
 
   const result = await registerClient(body as Record<string, unknown>)
   if (!result.ok) {
-    const status = result.error === 'server_error' ? 500 : 400
+    const status =
+      result.error === 'demo_readonly'
+        ? 403
+        : result.error === 'server_error'
+          ? 500
+          : 400
     return NextResponse.json(
       { error: result.error, error_description: result.error_description },
       { status },

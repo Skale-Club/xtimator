@@ -3,6 +3,7 @@
 import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { assertWritable } from '@/lib/demo/guard'
 import {
   SUPPORTED_GRANT_TYPES,
   SUPPORTED_RESPONSE_TYPES,
@@ -141,6 +142,15 @@ export function validateRegistrationPayload(
 export async function registerClient(body: RegisterClientInput): Promise<RegisterClientResult | RegisterClientError> {
   const validated = validateRegistrationPayload(body)
   if (!('data' in validated)) return validated
+
+  const denied = await assertWritable()
+  if (denied) {
+    return {
+      ok: false,
+      error: 'demo_readonly',
+      error_description: denied.error,
+    }
+  }
 
   const { data } = validated
   const supabase = requireServiceClient()

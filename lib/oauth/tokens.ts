@@ -7,6 +7,10 @@ import 'server-only'
 import { createHash, randomBytes } from 'node:crypto'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { Scope } from './types'
+import {
+  assertCompanyWritable,
+  assertWritable,
+} from '@/lib/demo/guard'
 
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60 // 1 hour
 export const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days
@@ -29,6 +33,7 @@ export function hashToken(token: string): string {
 export interface IssueTokensInput {
   clientId: string
   userId: string
+  userEmail?: string | null
   companyId: string
   scope: string // space-delimited scope string (already validated upstream)
 }
@@ -45,6 +50,13 @@ export interface IssuedTokenPair {
  * Issue a brand-new (access, refresh) token pair, hash both, persist via service-role client.
  */
 export async function issueTokenPair(input: IssueTokensInput): Promise<IssuedTokenPair> {
+  const denied = await assertWritable({
+    userId: input.userId,
+    email: input.userEmail,
+    companyId: input.companyId,
+  })
+  if (denied) throw new Error(denied.error)
+
   const supabase = requireServiceClient()
 
   const accessToken = generateOpaqueToken()
@@ -108,6 +120,7 @@ export async function resolveRefreshToken(refreshToken: string): Promise<Resolve
   if (error || !data) return null
   if (data.revoked_at) return null
   if (new Date(data.expires_at).getTime() <= Date.now()) return null
+  if (await assertCompanyWritable(data.company_id)) return null
 
   return {
     client_id: data.client_id,
@@ -122,10 +135,20 @@ export async function resolveRefreshToken(refreshToken: string): Promise<Resolve
  */
 export async function revokeRefreshToken(refreshToken: string): Promise<void> {
   const supabase = requireServiceClient()
+  const tokenHash = hashToken(refreshToken)
+  const { data, error } = await supabase
+    .from('oauth_refresh_tokens')
+    .select('company_id')
+    .eq('token_hash', tokenHash)
+    .maybeSingle()
+
+  if (error || !data) return
+  if (await assertCompanyWritable(data.company_id)) return
+
   await supabase
     .from('oauth_refresh_tokens')
     .update({ revoked_at: new Date().toISOString() })
-    .eq('token_hash', hashToken(refreshToken))
+    .eq('token_hash', tokenHash)
 }
 
 /**
@@ -178,6 +201,7 @@ export async function resolveAccessToken(accessToken: string): Promise<ResolvedA
   if (error || !data) return null
   if (data.revoked_at) return null
   if (new Date(data.expires_at).getTime() <= Date.now()) return null
+  if (await assertCompanyWritable(data.company_id)) return null
 
   return {
     client_id: data.client_id,

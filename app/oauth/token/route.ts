@@ -93,6 +93,9 @@ async function handleAuthorizationCodeGrant(body: URLSearchParams) {
 
   const consume = await consumeAuthorizationCode({ code, clientId, redirectUri, codeVerifier })
   if (!consume.ok) {
+    if (consume.reason === 'demo_readonly') {
+      return errorResponse('invalid_grant', 'authorization code is invalid or expired')
+    }
     return errorResponse('invalid_grant', `authorization code rejected: ${consume.reason}`)
   }
 
