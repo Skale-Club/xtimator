@@ -15,10 +15,20 @@ vi.mock('@/lib/ai/openrouter-client', () => ({
   translateTextsOR: vi.fn(),
 }))
 
+vi.mock('@/lib/demo/guard', () => ({
+  demoGuardResponse: vi.fn(),
+}))
+
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
+
 import { POST } from '@/app/api/translate/route'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { translateTextsOR } from '@/lib/ai/openrouter-client'
+import { demoGuardResponse } from '@/lib/demo/guard'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 function makeRequest(body: unknown) {
   return new Request('http://localhost/api/translate', {
@@ -41,6 +51,8 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     vi.mocked(createClient).mockResolvedValue({
       auth: { getClaims: getClaimsMock },
     } as unknown as Awaited<ReturnType<typeof createClient>>)
+    vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+    vi.mocked(demoGuardResponse).mockResolvedValue(null)
 
     // OpenRouter: returns a translation by default
     vi.mocked(translateTextsOR).mockResolvedValue({ 'Rare string': 'Frase rara' })

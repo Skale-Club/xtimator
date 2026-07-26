@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { isDemoCompany } from '@/lib/demo/config'
+import { demoGuardResponse } from '@/lib/demo/guard'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
 import {
   buildSignedContentSnapshot,
@@ -62,6 +62,9 @@ export async function POST(
 
     const estimate = estimateData as unknown as SignEstimateRow
 
+    const blocked = await demoGuardResponse({ companyId: estimate.company_id })
+    if (blocked) return blocked
+
     if (estimate.client_response) {
       return NextResponse.json({ error: 'Estimate already responded to' }, { status: 409 })
     }
@@ -78,10 +81,6 @@ export async function POST(
     }
 
     // Demo estimates are not signable (D06 — demo data never mutated).
-    if (isDemoCompany(estimate.company_id)) {
-      return NextResponse.json({ error: 'Signing is disabled in the demo.' }, { status: 403 })
-    }
-
     // Capture IP and user-agent for audit
     const headersList = await headers()
     const ipAddress = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null

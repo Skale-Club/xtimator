@@ -101,8 +101,10 @@ export async function assertCompanyWritable(
  *   const blocked = await demoGuardResponse()
  *   if (blocked) return blocked
  */
-export async function demoGuardResponse(): Promise<NextResponse | null> {
-  if (await isDemoContext()) {
+export async function demoGuardResponse(
+  context?: DemoWriteContext,
+): Promise<NextResponse | null> {
+  if (await isDemoContext(context)) {
     return NextResponse.json(
       {
         error: 'demo_readonly',

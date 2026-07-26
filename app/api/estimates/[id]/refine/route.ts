@@ -101,6 +101,9 @@ export async function POST(
       )
     }
 
+    const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
+    if (targetBlocked) return targetBlocked
+
     // -------------------------------------------------------------------------
     // TRUST-02 (Phase 164 Plan 02) — freeze-on-send/sign guard. Same lock
     // coverage as saveEstimate (lib/actions/estimate.ts): reject when

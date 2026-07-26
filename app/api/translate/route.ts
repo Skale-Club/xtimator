@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { translateTextsOR } from '@/lib/ai/openrouter-client'
 import { rateLimit } from '@/lib/ratelimit'
+import { demoGuardResponse } from '@/lib/demo/guard'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 export async function POST(request: Request) {
   // 1. Auth check + rate limit
@@ -14,6 +16,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
     userId = claimsData.claims.sub
+    const blocked = await demoGuardResponse({
+      userId,
+      email: (claimsData.claims.email as string | undefined) ?? null,
+      companyId: await getActiveCompanyId(),
+    })
+    if (blocked) return blocked
   } catch {
     return NextResponse.json({ error: 'Auth check failed' }, { status: 401 })
   }

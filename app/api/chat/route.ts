@@ -36,7 +36,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { resolveChatModel } from '@/lib/chat/provider'
 import { buildChatTools } from '@/lib/chat/tools'
-import { isDemoSession } from '@/lib/demo/guard'
+import { demoGuardResponse } from '@/lib/demo/guard'
 import { CHAT_SYSTEM_PROMPT } from '@/lib/chat/system-prompt'
 import {
   createConversation,
@@ -63,6 +63,16 @@ export async function POST(req: Request) {
     return new Response('Unauthorized', { status: 401 })
   }
   const userId = claims.sub as string
+  const companyId = await getActiveCompanyId()
+  if (!companyId) {
+    return new Response('No active company', { status: 400 })
+  }
+  const blocked = await demoGuardResponse({
+    userId,
+    email: (claims.email as string | undefined) ?? null,
+    companyId,
+  })
+  if (blocked) return blocked
 
   // 1b. Rate limit (pre-launch audit fix B9) — runtime-tunable via
   // billing_config.absorbedChatRateLimitPerMin (default 20/min) so it can be
@@ -80,11 +90,6 @@ export async function POST(req: Request) {
   }
 
   // 2. Resolve the ACTIVE company — the trusted tenant (never from the body).
-  const companyId = await getActiveCompanyId()
-  if (!companyId) {
-    return new Response('No active company', { status: 400 })
-  }
-
   // 3. Read the owner's retrieval scope (industries[] + reply language) with the
   //    SERVICE client — same posture as intent-router's company read. The data
   //    reads inside buildChatTools also expect a service-role client.
@@ -129,10 +134,9 @@ export async function POST(req: Request) {
   // 5. Resolve the model (Plan-01 slot resolver) + build the neutral tools with
   //    the trusted companyId + service client + owner scope.
   const model = await resolveChatModel(companyId)
-  // Demo user uses the service client (bypasses demo-blocking RLS), so the write
-  // tools need this flag to refuse mutations explicitly.
-  const isDemo = await isDemoSession()
-  const tools = buildChatTools({ companyId, supabase: svc as never, industries, language, isDemo })
+  // Demo contexts already returned above, so tools receive only a writable
+  // normal-tenant request context.
+  const tools = buildChatTools({ companyId, supabase: svc as never, industries, language, isDemo: false })
 
   const modelMessages = await convertToModelMessages(messages)
   const result = streamText({
