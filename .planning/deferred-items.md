@@ -41,3 +41,13 @@ Operational / scope deferrals surfaced during execution. Each carries forward wi
 **Why deferred (out of scope):** Verified via `git stash -u` that all 7 errors are present identically on the pre-171-01 tree — none are caused by `lib/ai/photo-extraction-schema.ts`, the `photos.ai_extraction` migration, or the `database.types.ts` hand-add. Per the SCOPE BOUNDARY rule, pre-existing failures in files this plan doesn't modify are logged, not fixed.
 
 **Pickup condition:** next time any of the 7 listed test files is touched for an unrelated reason, fix its own drift (spread-argument tuple typing / `unit: null` vs `string` fixture mismatch) as part of that change.
+
+## Phase 180 — Isolated Demo Session & Read-Only Foundation
+
+### Item 1 — pre-existing ambient-guard setup drift in notification event-source tests — OBSERVED, OUT OF SCOPE (180-11)
+
+**What:** A whole-file run of `tests/unit/notifications/event-sources.test.ts` has three existing failures in the anonymous public-estimate cases (`logEstimateView`, accepted response, declined response). Those tests call newly guarded public-estimate actions without a Next request cookie scope, so the real ambient `assertWritable()` reaches `cookies()` and throws. The two Stripe Connect cases relevant to Plan 180-11 pass when selected and now pass the normal trusted company as the handler's fourth argument.
+
+**Why deferred (out of scope):** Plan 180-11 changes signed Stripe/Connect and shared service funnels; it does not own public-estimate action authentication or those three anonymous test setups. The failing stacks stop in `app/estimate/[token]/actions.ts` before notification dispatch and are independent of every file changed by this plan. Focused Plan 180-11 coverage is green (323 tests), and `tsconfig.ci.json` is clean.
+
+**Pickup condition:** when the public-estimate action tests are next maintained, provide the same request/guard mock context used by the dedicated Phase 180 public-estimate boundary suite, then restore the whole `event-sources.test.ts` file to green.
