@@ -72,6 +72,12 @@ export async function POST(
     if (!estimate) {
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
+
+    // The estimate company is trusted server-side. Deny it before entitlement,
+    // account, service-role, or WhatsApp dispatch work can occur.
+    const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
+    if (targetBlocked) return targetBlocked
+
     if (!estimate.share_token) {
       return NextResponse.json({ error: 'Estimate has no share link' }, { status: 400 })
     }

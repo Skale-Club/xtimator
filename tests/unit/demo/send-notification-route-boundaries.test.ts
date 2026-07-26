@@ -1,6 +1,23 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextResponse } from 'next/server'
+
+const getAuthClaims = vi.fn()
+const demoGuardResponse = vi.fn()
+const upsertUserPreferences = vi.fn()
+
+vi.mock('@/lib/queries/auth', () => ({
+  getAuthClaims: (...args: unknown[]) => getAuthClaims(...args),
+}))
+vi.mock('@/lib/demo/guard', () => ({
+  demoGuardResponse: (...args: unknown[]) => demoGuardResponse(...args),
+}))
+vi.mock('@/lib/notifications/preferences', () => ({
+  getUserPreferences: vi.fn(),
+  upsertUserPreferences: (...args: unknown[]) => upsertUserPreferences(...args),
+}))
+vi.mock('@/lib/notifications/event-types', () => ({ DEFAULT_PREFERENCES: {} }))
 
 const routeSource = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 
@@ -36,7 +53,14 @@ function expectGuardBefore(
 }
 
 const ambientGuard = /demoGuardResponse\s*\(\s*\)/
-const targetGuard = /demoGuardResponse\s*\(\s*\{\s*companyId:\s*(?:estimate|company)\.company_id|company\.id\s*\}\s*\)/
+const targetGuard = /demoGuardResponse\s*\(\s*\{\s*companyId:\s*(?:(?:estimate|company)\.company_id|company\.id)\s*\}\s*\)/
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  getAuthClaims.mockResolvedValue({ sub: 'normal-user' })
+  demoGuardResponse.mockResolvedValue(null)
+  upsertUserPreferences.mockResolvedValue(undefined)
+})
 
 describe('SAFE-01/SAFE-02: send and notification routes deny demo contexts before effects', () => {
   it('denies a demo actor and a demo estimate target before email provider or persistence work', () => {
@@ -102,5 +126,22 @@ describe('SAFE-01/SAFE-02: send and notification routes deny demo contexts befor
     expect(unauthorizedIndex).toBeGreaterThan(-1)
     expect(guardIndex).toBeGreaterThan(unauthorizedIndex)
     expect(persistenceIndex).toBeGreaterThan(guardIndex)
+  })
+
+  it('preserves normal 401, demo 403, and normal-tenant preference mutation behavior', async () => {
+    const { PATCH } = await import('@/app/api/notifications/preferences/route')
+
+    getAuthClaims.mockResolvedValueOnce(null)
+    await expect(PATCH(new Request('http://localhost/api/notifications/preferences', { method: 'PATCH' }))).resolves.toMatchObject({ status: 401 })
+    expect(demoGuardResponse).not.toHaveBeenCalled()
+
+    demoGuardResponse.mockResolvedValueOnce(
+      NextResponse.json({ error: 'demo_readonly' }, { status: 403 }),
+    )
+    await expect(PATCH(new Request('http://localhost/api/notifications/preferences', { method: 'PATCH', body: '{}' }))).resolves.toMatchObject({ status: 403 })
+    expect(upsertUserPreferences).not.toHaveBeenCalled()
+
+    await expect(PATCH(new Request('http://localhost/api/notifications/preferences', { method: 'PATCH', body: '{}' }))).resolves.toMatchObject({ status: 204 })
+    expect(upsertUserPreferences).toHaveBeenCalledWith('normal-user', {})
   })
 })

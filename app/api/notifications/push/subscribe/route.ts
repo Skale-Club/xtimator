@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { upsertUserPreferences } from '@/lib/notifications/preferences'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 const PostSchema = z.object({
   subscription: z.unknown().nullable().optional(),
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
     if (!claims?.sub) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
     const json = await req.json().catch(() => ({}))
     const parsed = PostSchema.safeParse(json)
     if (!parsed.success) {
@@ -46,6 +49,8 @@ export async function DELETE() {
     if (!claims?.sub) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
     await upsertUserPreferences(claims.sub as string, {
       push_subscription: null,
     })

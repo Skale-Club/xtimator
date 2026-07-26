@@ -84,6 +84,11 @@ export async function POST(
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
 
+    // Resolve the target company server-side. This blocks a normal actor from
+    // causing any provider or service-role work for the deterministic demo.
+    const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
+    if (targetBlocked) return targetBlocked
+
     if (!estimate.share_token) {
       return NextResponse.json({ error: 'Estimate has no share link' }, { status: 400 })
     }

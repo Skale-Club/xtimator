@@ -90,6 +90,12 @@ export async function POST(
 
     const { estimate, project, company } = result
 
+    // The estimate is a trusted target resolved under the authenticated RLS
+    // scope. A non-demo actor must still never send on behalf of the demo
+    // company, so deny before loading providers or using a service client.
+    const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
+    if (targetBlocked) return targetBlocked
+
     const projectName = project?.name ?? 'Untitled Project'
     const projectType = project?.project_type ?? null
     const projectId = estimate.project_id

@@ -18,6 +18,7 @@ import {
   upsertUserPreferences,
 } from '@/lib/notifications/preferences'
 import { DEFAULT_PREFERENCES } from '@/lib/notifications/event-types'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 const ChannelSchema = z.object({
   in_app: z.boolean().optional(),
@@ -67,6 +68,8 @@ export async function PATCH(req: Request) {
     if (!claims?.sub) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
+    const blocked = await demoGuardResponse()
+    if (blocked) return blocked
     const json = await req.json().catch(() => ({}))
     const parsed = PatchSchema.safeParse(json)
     if (!parsed.success) {

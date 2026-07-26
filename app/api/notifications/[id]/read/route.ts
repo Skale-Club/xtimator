@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * PATCH /api/notifications/[id]/read
@@ -20,10 +21,14 @@ export async function PATCH(
   if (!claims?.sub) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
+  const blocked = await demoGuardResponse()
+  if (blocked) return blocked
   const company = await getActiveCompany()
   if (!company) {
     return NextResponse.json({ error: 'no_company' }, { status: 404 })
   }
+  const targetBlocked = await demoGuardResponse({ companyId: company.id })
+  if (targetBlocked) return targetBlocked
   const { id } = await params
   if (!id) {
     return NextResponse.json({ error: 'missing_id' }, { status: 400 })
