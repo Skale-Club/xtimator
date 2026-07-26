@@ -111,7 +111,9 @@ describe('SAFE-01/SAFE-02: core Server Action boundaries', () => {
 
 const assertWritable = vi.fn()
 const update = vi.fn()
-const eq = vi.fn(() => ({ update }))
+const eq = vi.fn<
+  (...args: unknown[]) => { update: typeof update } | Promise<{ error: null }>
+>(() => ({ update }))
 const from = vi.fn(() => ({ update: (...args: unknown[]) => update(...args), eq }))
 const getClaims = vi.fn()
 const writeThemeCookie = vi.fn()
