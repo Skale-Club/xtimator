@@ -1,13 +1,18 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
 import { getStripeClient } from '@/lib/billing/stripe-client'
-import { handleConnectEvent } from '@/lib/billing/connect-webhook'
+import {
+  connectEventRequiresCompanyResolution,
+  handleConnectEvent,
+  resolveConnectEventCompanyId,
+} from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { grantCredits, monthGrantKey } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -15,9 +20,11 @@ import { notifyOps } from '@/lib/observability/ops-alert'
 // CRITICAL order (same as WhatsApp webhook):
 //   1. request.text() FIRST — get raw body BEFORE any parsing
 //   2. stripe.webhooks.constructEvent() — verifies signature against raw body
-//   3. Idempotency check — insert event_id into processed_stripe_events
-//   4. Handle event — update companies table
-//   5. Return 200 — Stripe stops retrying
+//   3. Resolve trusted company identity from the signed event / server rows
+//   4. Deny demo-company effects
+//   5. Idempotency check — insert event_id into processed_stripe_events
+//   6. Handle event — update companies table
+//   7. Return 200 — Stripe stops retrying
 // ------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   // Step 1: raw body MUST come before any parsing (RESEARCH Pitfall 1)
@@ -61,8 +68,36 @@ export async function POST(request: NextRequest) {
     return new Response(`Webhook error: ${lastErrorMessage}`, { status: 400 })
   }
 
-  // Step 3: idempotency — insert event_id; 23505 = already processed
+  // Step 3: read-only trusted-company resolution after signature verification.
   const svc = requireServiceClient()
+
+  let resolvedCompanyId: string | null
+  try {
+    resolvedCompanyId = event.account
+      ? await resolveConnectEventCompanyId(event, svc)
+      : await resolvePlatformEventCompanyId(event, svc)
+  } catch (err) {
+    console.error('[Stripe] Failed to resolve webhook company:', err)
+    return new Response('Internal error', { status: 500 })
+  }
+
+  const denied = await assertCompanyWritable(resolvedCompanyId)
+  if (denied) {
+    // Acknowledge the signed delivery so Stripe does not retry an event that is
+    // intentionally ineligible for product effects.
+    return new Response('Demo company event ignored', { status: 200 })
+  }
+
+  if (!resolvedCompanyId && requiresCompanyResolution(event)) {
+    console.warn(
+      '[Stripe] Signed tenant event has no trusted company mapping; ignoring:',
+      event.type,
+      event.id,
+    )
+    return new Response('Company not resolved', { status: 200 })
+  }
+
+  // Step 5: idempotency — insert event_id; 23505 = already processed
   const { error: dedupError } = await svc
     .from('processed_stripe_events')
     .insert({ event_id: event.id })
@@ -96,7 +131,7 @@ export async function POST(request: NextRequest) {
   // protection is preserved because the row still exists for the ENTIRE
   // duration of a successful handling — only a genuine failure clears it.
   try {
-    await handleStripeEvent(event, stripe, svc)
+    await handleStripeEvent(event, stripe, svc, resolvedCompanyId)
   } catch (err) {
     console.error('[Stripe] handleStripeEvent failed, clearing dedup row for retry:', err)
     await svc.from('processed_stripe_events').delete().eq('event_id', event.id)
@@ -114,12 +149,115 @@ export async function POST(request: NextRequest) {
 async function handleStripeEvent(
   event: Stripe.Event,
   stripe: Stripe,
-  svc: ReturnType<typeof requireServiceClient>
+  svc: ReturnType<typeof requireServiceClient>,
+  resolvedCompanyId: string | null,
 ): Promise<void> {
   if (event.account) {
-    return handleConnectEvent(event, stripe, svc)
+    return handleConnectEvent(event, stripe, svc, resolvedCompanyId)
   }
   return handlePlatformEvent(event, stripe, svc)
+}
+
+async function readMappedCompanyId(
+  svc: ReturnType<typeof requireServiceClient>,
+  column: 'stripe_subscription_id' | 'stripe_customer_id',
+  value: string,
+): Promise<string | null> {
+  const { data, error } = await svc
+    .from('companies')
+    .select('id')
+    .eq(column, value)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(
+      `[Stripe] company lookup failed for ${column}: ${error.message}`,
+    )
+  }
+
+  return (data as { id?: string | null } | null)?.id ?? null
+}
+
+async function resolvePlatformEventCompanyId(
+  event: Stripe.Event,
+  svc: ReturnType<typeof requireServiceClient>,
+): Promise<string | null> {
+  const object = event.data.object as {
+    id?: string
+    metadata?: Record<string, string> | null
+    subscription?: string | { id?: string } | null
+    customer?: string | { id?: string } | null
+    parent?: {
+      type?: string
+      subscription_details?: {
+        subscription?: string | { id?: string } | null
+      } | null
+    } | null
+  }
+
+  const metadataCompanyId =
+    object.metadata?.companyId ?? object.metadata?.company_id
+  if (metadataCompanyId) return metadataCompanyId
+
+  let subscriptionId: string | null = null
+  if (
+    event.type === 'customer.subscription.updated' ||
+    event.type === 'customer.subscription.deleted'
+  ) {
+    subscriptionId = object.id ?? null
+  } else if (typeof object.subscription === 'string') {
+    subscriptionId = object.subscription
+  } else if (object.subscription?.id) {
+    subscriptionId = object.subscription.id
+  } else {
+    const parentSubscription =
+      object.parent?.type === 'subscription_details'
+        ? object.parent.subscription_details?.subscription
+        : null
+    subscriptionId =
+      typeof parentSubscription === 'string'
+        ? parentSubscription
+        : parentSubscription?.id ?? null
+  }
+
+  if (subscriptionId) {
+    const companyId = await readMappedCompanyId(
+      svc,
+      'stripe_subscription_id',
+      subscriptionId,
+    )
+    if (companyId) return companyId
+  }
+
+  const customerId =
+    typeof object.customer === 'string'
+      ? object.customer
+      : object.customer?.id ?? null
+  return customerId
+    ? readMappedCompanyId(svc, 'stripe_customer_id', customerId)
+    : null
+}
+
+function requiresCompanyResolution(event: Stripe.Event): boolean {
+  if (event.account) {
+    return connectEventRequiresCompanyResolution(event)
+  }
+
+  if (
+    event.type === 'checkout.session.completed' ||
+    event.type === 'invoice.paid' ||
+    event.type === 'customer.subscription.updated' ||
+    event.type === 'customer.subscription.deleted'
+  ) {
+    return true
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent
+    return paymentIntent.metadata?.type === 'auto_topup'
+  }
+
+  return false
 }
 
 // ------------------------------------------------------------------

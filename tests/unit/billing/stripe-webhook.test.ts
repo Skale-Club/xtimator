@@ -28,6 +28,7 @@ const mockInsert = vi.fn()
 // Provide the select chain so the handler doesn't throw "select is not a function".
 const mockMaybeSingle = vi.fn()
 const mockSelect = vi.fn()
+const mockResolutionMaybeSingle = vi.fn()
 // B5 (at-most-once fix): on a thrown handler error, the route deletes the
 // dedup row via .from('processed_stripe_events').delete().eq('event_id', ...).
 const mockDedupDeleteEq = vi.fn()
@@ -82,7 +83,18 @@ beforeEach(() => {
   // Default: select('id').eq(...).maybeSingle() resolves to no matching company
   // (the deleted-subscription pre-lookup); keeps the handler off the CRM path.
   mockMaybeSingle.mockResolvedValue({ data: null })
-  mockSelect.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle }) })
+  // Phase 180: the signed-event company guard performs a read-only mapping
+  // with select('id') before idempotency or handler effects.
+  mockResolutionMaybeSingle.mockResolvedValue({
+    data: { id: 'company-mapped' },
+    error: null,
+  })
+  mockSelect.mockImplementation((columns: string) => ({
+    eq: vi.fn().mockReturnValue({
+      maybeSingle:
+        columns === 'id' ? mockResolutionMaybeSingle : mockMaybeSingle,
+    }),
+  }))
   // Phase 153 Plan 03 defaults.
   mockSetupIntentRetrieve.mockResolvedValue({ payment_method: 'pm_test' })
   mockCustomersUpdate.mockResolvedValue({})

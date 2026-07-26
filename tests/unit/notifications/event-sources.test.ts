@@ -284,7 +284,12 @@ describe('payment.received instrumentation', () => {
       },
     } as unknown as import('stripe').default.Event
 
-    await handleConnectEvent(fakeEvent, {} as unknown as import('stripe').default, svc as unknown as ReturnType<typeof import('@/lib/supabase/service').requireServiceClient>)
+    await handleConnectEvent(
+      fakeEvent,
+      {} as unknown as import('stripe').default,
+      svc as unknown as ReturnType<typeof import('@/lib/supabase/service').requireServiceClient>,
+      'co_p',
+    )
 
     const { notify } = await import('@/lib/notifications/dispatch')
     const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
@@ -369,7 +374,12 @@ describe('payment.received instrumentation', () => {
       },
     } as unknown as import('stripe').default.Event
 
-    await handleConnectEvent(fakeEvent, {} as unknown as import('stripe').default, svc as unknown as ReturnType<typeof import('@/lib/supabase/service').requireServiceClient>)
+    await handleConnectEvent(
+      fakeEvent,
+      {} as unknown as import('stripe').default,
+      svc as unknown as ReturnType<typeof import('@/lib/supabase/service').requireServiceClient>,
+      'co_p',
+    )
 
     const { notify } = await import('@/lib/notifications/dispatch')
     const calls = (notify as ReturnType<typeof vi.fn>).mock.calls

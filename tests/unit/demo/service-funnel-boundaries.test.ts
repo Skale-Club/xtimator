@@ -36,6 +36,11 @@ const mocks = vi.hoisted(() => ({
   inngestSend: vi.fn(),
   getStripeClient: vi.fn(),
   constructEvent: vi.fn(),
+  subscriptionsRetrieve: vi.fn(),
+  subscriptionsCancel: vi.fn(),
+  setupIntentRetrieve: vi.fn(),
+  customersUpdate: vi.fn(),
+  resolveConnectEventCompanyId: vi.fn(),
   handleConnectEvent: vi.fn(),
   grantCredits: vi.fn(),
   monthGrantKey: vi.fn(),
@@ -137,6 +142,16 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 }))
 
 vi.mock('@/lib/billing/connect-webhook', () => ({
+  connectEventRequiresCompanyResolution: (event: { type?: string }) =>
+    [
+      'checkout.session.completed',
+      'invoice.paid',
+      'charge.refunded',
+      'account.application.deauthorized',
+      'account.updated',
+    ].includes(event.type ?? ''),
+  resolveConnectEventCompanyId: (...args: unknown[]) =>
+    mocks.resolveConnectEventCompanyId(...args),
   handleConnectEvent: (...args: unknown[]) =>
     mocks.handleConnectEvent(...args),
 }))
@@ -265,10 +280,14 @@ beforeEach(() => {
   mocks.inngestSend.mockResolvedValue({ ids: ['event-1'] })
   mocks.getStripeClient.mockResolvedValue({
     webhooks: { constructEvent: mocks.constructEvent },
-    subscriptions: { retrieve: vi.fn(), cancel: vi.fn() },
-    setupIntents: { retrieve: vi.fn() },
-    customers: { update: vi.fn() },
+    subscriptions: {
+      retrieve: mocks.subscriptionsRetrieve,
+      cancel: mocks.subscriptionsCancel,
+    },
+    setupIntents: { retrieve: mocks.setupIntentRetrieve },
+    customers: { update: mocks.customersUpdate },
   })
+  mocks.resolveConnectEventCompanyId.mockResolvedValue(null)
   mocks.handleConnectEvent.mockResolvedValue(undefined)
   mocks.grantCredits.mockResolvedValue(undefined)
   mocks.monthGrantKey.mockReturnValue('grant:key')
@@ -454,17 +473,22 @@ describe('SAFE-02: shared service funnels deny trusted demo companies', () => {
 })
 
 describe('SAFE-02: signed Stripe webhook authority order', () => {
-  it('keeps signature verification before idempotency and downstream dispatch in source order', () => {
+  it('keeps signature verification before company guard, idempotency, and downstream dispatch in source order', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'app/api/webhooks/stripe/route.ts'),
       'utf8',
     )
 
     const signature = source.indexOf('stripe.webhooks.constructEvent(')
+    const companyGuard = source.indexOf(
+      'assertCompanyWritable(resolvedCompanyId)',
+    )
     const idempotency = source.indexOf(".from('processed_stripe_events')")
     const connectDispatch = source.indexOf('handleConnectEvent(event')
 
     expect(signature).toBeGreaterThan(-1)
+    expect(companyGuard).toBeGreaterThan(signature)
+    expect(companyGuard).toBeLessThan(idempotency)
     expect(signature).toBeLessThan(idempotency)
     expect(signature).toBeLessThan(connectDispatch)
   })
@@ -478,6 +502,7 @@ describe('SAFE-02: signed Stripe webhook authority order', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.assertCompanyWritable).not.toHaveBeenCalled()
+    expect(mocks.resolveConnectEventCompanyId).not.toHaveBeenCalled()
     expect(mocks.requireServiceClient).not.toHaveBeenCalled()
     expect(mocks.handleConnectEvent).not.toHaveBeenCalled()
     expect(mocks.grantCredits).not.toHaveBeenCalled()
@@ -502,5 +527,246 @@ describe('SAFE-02: signed Stripe webhook authority order', () => {
     expect(
       mocks.constructEvent.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.requireServiceClient.mock.invocationCallOrder[0]!)
+  })
+
+  const metadataEvents = [
+    {
+      name: 'subscription checkout',
+      event: {
+        id: 'evt_demo_subscription',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_demo_subscription',
+            mode: 'subscription',
+            customer: 'cus_demo',
+            subscription: 'sub_demo',
+            metadata: { companyId: DEMO_COMPANY_ID, plan: 'pro' },
+          },
+        },
+      },
+    },
+    {
+      name: 'credit top-up',
+      event: {
+        id: 'evt_demo_topup',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_demo_topup',
+            mode: 'payment',
+            payment_status: 'paid',
+            metadata: {
+              type: 'credit_topup',
+              companyId: DEMO_COMPANY_ID,
+              credits: '100',
+            },
+          },
+        },
+      },
+    },
+    {
+      name: 'auto-top-up setup',
+      event: {
+        id: 'evt_demo_setup',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_demo_setup',
+            mode: 'setup',
+            customer: 'cus_demo',
+            setup_intent: 'seti_demo',
+            metadata: {
+              type: 'autotopup_setup',
+              companyId: DEMO_COMPANY_ID,
+            },
+          },
+        },
+      },
+    },
+    {
+      name: 'automatic top-up charge',
+      event: {
+        id: 'evt_demo_auto_topup',
+        type: 'payment_intent.succeeded',
+        data: {
+          object: {
+            id: 'pi_demo',
+            metadata: {
+              type: 'auto_topup',
+              companyId: DEMO_COMPANY_ID,
+              credits: '100',
+            },
+          },
+        },
+      },
+    },
+  ]
+
+  for (const metadataCase of metadataEvents) {
+    it(`denies a verified demo-company ${metadataCase.name} before idempotency or effects`, async () => {
+      mocks.constructEvent.mockReturnValue(metadataCase.event)
+      const svc = { from: vi.fn(() => makeQuery()) }
+      mocks.requireServiceClient.mockReturnValue(svc)
+
+      const response = await stripeWebhook(makeWebhookRequest())
+
+      expect(response.status).toBe(200)
+      expect(mocks.assertCompanyWritable).toHaveBeenCalledWith(
+        DEMO_COMPANY_ID,
+      )
+      expect(
+        mocks.constructEvent.mock.invocationCallOrder[0],
+      ).toBeLessThan(mocks.assertCompanyWritable.mock.invocationCallOrder[0]!)
+      expect(svc.from).not.toHaveBeenCalled()
+      expect(mocks.grantCredits).not.toHaveBeenCalled()
+      expect(mocks.subscriptionsRetrieve).not.toHaveBeenCalled()
+      expect(mocks.subscriptionsCancel).not.toHaveBeenCalled()
+      expect(mocks.setupIntentRetrieve).not.toHaveBeenCalled()
+      expect(mocks.customersUpdate).not.toHaveBeenCalled()
+      expect(mocks.notifyOps).not.toHaveBeenCalled()
+      expect(mocks.inngestSend).not.toHaveBeenCalled()
+    })
+  }
+
+  it('resolves a subscription mapping after signature verification and denies before writes or dispatch', async () => {
+    mocks.constructEvent.mockReturnValue({
+      id: 'evt_demo_subscription_update',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_demo',
+          items: { data: [] },
+          cancel_at_period_end: false,
+        },
+      },
+    })
+    const resolutionQuery = makeQuery({
+      data: { id: DEMO_COMPANY_ID },
+      error: null,
+    })
+    const svc = {
+      from: vi.fn((table: string) => {
+        if (table !== 'companies') {
+          throw new Error(`unexpected effect table: ${table}`)
+        }
+        return resolutionQuery
+      }),
+    }
+    mocks.requireServiceClient.mockReturnValue(svc)
+
+    const response = await stripeWebhook(makeWebhookRequest())
+
+    expect(response.status).toBe(200)
+    expect(svc.from).toHaveBeenCalledOnce()
+    expect(svc.from).toHaveBeenCalledWith('companies')
+    expect(mocks.assertCompanyWritable).toHaveBeenCalledWith(
+      DEMO_COMPANY_ID,
+    )
+    expect(mocks.resolveTierFromPriceId).not.toHaveBeenCalled()
+    expect(mocks.inngestSend).not.toHaveBeenCalled()
+  })
+
+  for (const connectType of [
+    'checkout.session.completed',
+    'invoice.paid',
+  ]) {
+    it(`denies a verified demo-company Connect ${connectType} before idempotency or handler dispatch`, async () => {
+      const event = {
+        id: `evt_demo_connect_${connectType}`,
+        type: connectType,
+        account: 'acct_demo',
+        data: {
+          object:
+            connectType === 'invoice.paid'
+              ? {
+                  metadata: {
+                    invoice_id: 'invoice-demo',
+                    company_id: DEMO_COMPANY_ID,
+                  },
+                }
+              : {
+                  metadata: {
+                    estimate_id: 'estimate-demo',
+                    company_id: DEMO_COMPANY_ID,
+                  },
+                },
+        },
+      }
+      mocks.constructEvent.mockReturnValue(event)
+      mocks.resolveConnectEventCompanyId.mockResolvedValue(DEMO_COMPANY_ID)
+      const svc = { from: vi.fn(() => makeQuery()) }
+      mocks.requireServiceClient.mockReturnValue(svc)
+
+      const response = await stripeWebhook(makeWebhookRequest())
+
+      expect(response.status).toBe(200)
+      expect(mocks.resolveConnectEventCompanyId).toHaveBeenCalledWith(
+        event,
+        svc,
+      )
+      expect(mocks.assertCompanyWritable).toHaveBeenCalledWith(
+        DEMO_COMPANY_ID,
+      )
+      expect(svc.from).not.toHaveBeenCalled()
+      expect(mocks.handleConnectEvent).not.toHaveBeenCalled()
+    })
+  }
+
+  it('passes the already guarded normal company into Connect handling', async () => {
+    const event = {
+      id: 'evt_normal_connect',
+      type: 'invoice.paid',
+      account: 'acct_normal',
+      data: {
+        object: {
+          metadata: {
+            invoice_id: 'invoice-normal',
+            company_id: NORMAL_COMPANY_ID,
+          },
+        },
+      },
+    }
+    mocks.constructEvent.mockReturnValue(event)
+    mocks.resolveConnectEventCompanyId.mockResolvedValue(NORMAL_COMPANY_ID)
+    const dedupQuery = makeQuery()
+    const svc = { from: vi.fn(() => dedupQuery) }
+    mocks.requireServiceClient.mockReturnValue(svc)
+
+    const response = await stripeWebhook(makeWebhookRequest())
+
+    expect(response.status).toBe(200)
+    expect(mocks.assertCompanyWritable).toHaveBeenCalledWith(
+      NORMAL_COMPANY_ID,
+    )
+    expect(mocks.handleConnectEvent).toHaveBeenCalledWith(
+      event,
+      expect.anything(),
+      svc,
+      NORMAL_COMPANY_ID,
+    )
+  })
+
+  it('requires Connect direct callers to guard a trusted or independently resolved company before event writes', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'lib/billing/connect-webhook.ts'),
+      'utf8',
+    )
+    const handlerStart = source.indexOf(
+      'export async function handleConnectEvent(',
+    )
+    const handler = source.slice(handlerStart)
+    const resolution = handler.indexOf('resolveConnectEventCompanyId(')
+    const guard = handler.indexOf('assertCompanyWritable(companyId)')
+    const failClosed = handler.indexOf(
+      '!companyId && connectEventRequiresCompanyResolution(event)',
+    )
+    const dispatch = handler.indexOf('switch (event.type)')
+
+    expect(handlerStart).toBeGreaterThan(-1)
+    expect(resolution).toBeGreaterThan(-1)
+    expect(guard).toBeGreaterThan(resolution)
+    expect(failClosed).toBeGreaterThan(guard)
+    expect(dispatch).toBeGreaterThan(failClosed)
   })
 })

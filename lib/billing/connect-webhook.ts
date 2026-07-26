@@ -7,6 +7,7 @@ import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
  * Connected-account Stripe webhook handler (Phase 70, plan 70-04).
@@ -32,11 +33,122 @@ import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 
 type ServiceClient = ReturnType<typeof requireServiceClient>
 
+async function readReferencedCompanyId(
+  svc: ServiceClient,
+  table: 'estimates' | 'invoices' | 'companies',
+  column: string,
+  value: string,
+): Promise<string | null> {
+  const { data, error } = await svc
+    .from(table)
+    .select(table === 'companies' ? 'id' : 'company_id')
+    .eq(column, value)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(
+      `[stripe-webhook][connect] failed to resolve company from ${table}.${column}: ${error.message}`,
+    )
+  }
+
+  const row = data as { id?: string | null; company_id?: string | null } | null
+  return row?.company_id ?? row?.id ?? null
+}
+
+/**
+ * Resolve a Connect event using only Stripe-signed metadata/account fields or
+ * referenced rows. Browser cookies are never authority for this machine path.
+ */
+export async function resolveConnectEventCompanyId(
+  event: Stripe.Event,
+  svc: ServiceClient,
+): Promise<string | null> {
+  const object = event.data.object as {
+    metadata?: Record<string, string> | null
+    payment_intent?: string | Stripe.PaymentIntent | null
+  }
+  const metadataCompanyId =
+    object.metadata?.company_id ?? object.metadata?.companyId
+  if (metadataCompanyId) return metadataCompanyId
+
+  if (
+    event.type === 'checkout.session.completed' &&
+    object.metadata?.estimate_id
+  ) {
+    return readReferencedCompanyId(
+      svc,
+      'estimates',
+      'id',
+      object.metadata.estimate_id,
+    )
+  }
+
+  if (event.type === 'invoice.paid' && object.metadata?.invoice_id) {
+    return readReferencedCompanyId(
+      svc,
+      'invoices',
+      'id',
+      object.metadata.invoice_id,
+    )
+  }
+
+  if (event.type === 'charge.refunded') {
+    const paymentIntent =
+      typeof object.payment_intent === 'string'
+        ? object.payment_intent
+        : object.payment_intent?.id
+    if (paymentIntent) {
+      return readReferencedCompanyId(
+        svc,
+        'estimates',
+        'stripe_payment_intent_id',
+        paymentIntent,
+      )
+    }
+  }
+
+  if (
+    (event.type === 'account.application.deauthorized' ||
+      event.type === 'account.updated') &&
+    event.account
+  ) {
+    return readReferencedCompanyId(
+      svc,
+      'companies',
+      'stripe_account_id',
+      event.account,
+    )
+  }
+
+  return null
+}
+
+export function connectEventRequiresCompanyResolution(
+  event: Stripe.Event,
+): boolean {
+  return [
+    'checkout.session.completed',
+    'invoice.paid',
+    'charge.refunded',
+    'account.application.deauthorized',
+    'account.updated',
+  ].includes(event.type)
+}
+
 export async function handleConnectEvent(
   event: Stripe.Event,
   _stripe: Stripe,
-  svc: ServiceClient
+  svc: ServiceClient,
+  trustedCompanyId?: string | null,
 ): Promise<void> {
+  const companyId =
+    trustedCompanyId === undefined
+      ? await resolveConnectEventCompanyId(event, svc)
+      : trustedCompanyId
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) return
+  if (!companyId && connectEventRequiresCompanyResolution(event)) return
+
   switch (event.type) {
     case 'checkout.session.completed':
       await handleCheckoutSessionCompleted(event, svc)
