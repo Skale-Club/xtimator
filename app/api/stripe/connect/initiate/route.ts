@@ -4,7 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
-import { isDemoSession } from '@/lib/demo/guard'
+import { demoGuardResponse } from '@/lib/demo/guard'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 
 /**
@@ -23,11 +23,8 @@ export async function GET(req: NextRequest) {
   if (!claims) return NextResponse.redirect(new URL('/?auth=login', base))
 
   // Read-only demo: never begin Stripe Connect onboarding.
-  if (await isDemoSession()) {
-    return NextResponse.redirect(
-      new URL('/settings/integrations/stripe?error=demo_readonly', base)
-    )
-  }
+  const blocked = await demoGuardResponse()
+  if (blocked) return blocked
 
   const svc = requireServiceClient()
   const { data: company } = await svc

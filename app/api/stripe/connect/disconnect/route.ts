@@ -4,6 +4,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { deauthorize } from '@/lib/billing/connect-oauth'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * POST /api/stripe/connect/disconnect
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
       { status: 401 }
     )
   }
+
+  // Read-only demo: never deauthorize Stripe or persist a disconnect.
+  const blocked = await demoGuardResponse()
+  if (blocked) return blocked
 
   const svc = requireServiceClient()
   const { data: company } = await svc
