@@ -8,6 +8,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { sendInviteEmail } from '@/lib/email/invite-emails'
 import { syncSeatBilling } from '@/lib/billing/seat-billing'
 import { XtimatorError } from '@/lib/errors'
+import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 
 /**
  * SEAT-03 — the team-invite lifecycle server actions.
@@ -62,6 +63,9 @@ export async function inviteMember(
   } catch (e) {
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
+
+  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  if (denied) return denied
 
   // 2. Validate name + email and reject role 'owner' before any DB write.
   const parsed = inviteSchema.safeParse({ displayName, email, role })
@@ -166,6 +170,11 @@ export async function revokeInvite(
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
 
+  const denied =
+    (await assertWritable()) ??
+    (await assertCompanyWritable(invite.company_id as string))
+  if (denied) return denied
+
   // 3. Only pending invites can be revoked (no-op otherwise).
   if (invite.status !== 'pending') {
     return { error: 'Only pending invites can be revoked.' }
@@ -222,6 +231,9 @@ export async function removeMember(
   } catch (e) {
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
+
+  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  if (denied) return denied
 
   const service = requireServiceClient()
 
@@ -281,6 +293,9 @@ export async function changeMemberRole(
   } catch (e) {
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
+
+  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  if (denied) return denied
 
   // 2. Validate the target role — rejects 'owner' (and any non-enum value)
   //    before any DB read/write.

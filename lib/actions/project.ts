@@ -8,6 +8,7 @@ import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -28,6 +29,8 @@ async function getAuthContext() {
 export async function createProjectAction(formData: ProjectFormValues) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
@@ -85,6 +88,8 @@ export async function resumeOrCreateDraftProjectAction(
 ) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   if (savedProjectId) {
@@ -162,6 +167,8 @@ export async function getProjectMinimalAction(
 export async function deleteProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -183,6 +190,8 @@ export async function getMoreProjects(companyId: string, page: number) {
 export async function duplicateProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   // Fetch original project
@@ -219,6 +228,8 @@ export async function duplicateProjectAction(projectId: string) {
 export async function createProjectWithClientAction(clientId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
@@ -256,6 +267,8 @@ export async function createProjectWithClientAction(clientId: string) {
 export async function linkProjectToClient(projectId: string, clientId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -272,6 +285,8 @@ export async function linkProjectToClient(projectId: string, clientId: string) {
 export async function unlinkProjectFromClient(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -296,6 +311,8 @@ export async function renameProjectAction(projectId: string, name: string) {
 
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -325,6 +342,8 @@ export async function renameProjectAction(projectId: string, name: string) {
 export async function archiveProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Setting archived_at moves the row from Active → Archived.
@@ -346,6 +365,8 @@ export async function archiveProjectAction(projectId: string) {
 export async function unarchiveProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -364,6 +385,8 @@ export async function unarchiveProjectAction(projectId: string) {
 export async function softDeleteProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Soft delete: sets deleted_at. Row hides from Active AND Archived; appears in Trash.
@@ -383,6 +406,8 @@ export async function softDeleteProjectAction(projectId: string) {
 export async function restoreProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Restore = clear deleted_at. archived_at is preserved (intentional — see softDelete above).
@@ -402,6 +427,8 @@ export async function restoreProjectAction(projectId: string) {
 export async function hardDeleteProjectAction(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Hard delete: cascades to recordings/photos/estimates/sections/items/activity per FK ON DELETE CASCADE.

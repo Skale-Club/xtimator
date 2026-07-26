@@ -16,6 +16,7 @@ import {
   type SaveEstimateInput,
 } from '@/lib/schemas/estimate'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { assertWritable } from '@/lib/demo/guard'
 
 // ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
@@ -59,6 +60,8 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
 
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   const companyId = company.id as string
 
@@ -326,6 +329,8 @@ export async function savePresentationSettings(
 
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   let updateQuery = supabase
@@ -365,6 +370,8 @@ export async function savePresentationSettings(
 export async function createBlankEstimate(projectId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
@@ -507,6 +514,8 @@ export async function createBlankEstimate(projectId: string) {
 export async function deleteEstimateSection(sectionId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Get section's estimate_id before deletion
@@ -539,6 +548,8 @@ export async function deleteEstimateSection(sectionId: string) {
 export async function deleteEstimateItem(itemId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   // Get item's section_id before deletion
@@ -712,6 +723,8 @@ export async function getEstimateByIdAction(
 export async function markAsSentAction(estimateId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   const companyId = company.id as string
 
@@ -822,6 +835,11 @@ export async function logDeliveryAction(input: {
     const ctx = await getAuthContext()
     if ('error' in ctx) {
       console.error('[163-05] logDeliveryAction: auth failed', ctx.error)
+      return
+    }
+    const denied = await assertWritable()
+    if (denied) {
+      console.error('[163-05] logDeliveryAction: demo write denied')
       return
     }
     const { supabase, company } = ctx

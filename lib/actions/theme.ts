@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { writeThemeCookie, isValidTheme, type ThemePreference } from '@/lib/theme/cookie'
+import { assertWritable } from '@/lib/demo/guard'
 
 type ActionResult = { ok: true } | { ok: false; message: string }
 
@@ -18,6 +19,9 @@ export async function saveThemePreference(theme: ThemePreference): Promise<Actio
 
   const activeCompanyId = await getActiveCompanyId()
   if (!activeCompanyId) return { ok: false, message: 'No company found' }
+
+  const denied = await assertWritable()
+  if (denied) return { ok: false, message: denied.error }
 
   const { error } = await supabase
     .from('companies')
