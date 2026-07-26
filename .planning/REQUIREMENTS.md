@@ -15,10 +15,10 @@
 
 ### Demo Entry and Session Isolation (ENTRY)
 
-- [ ] **ENTRY-01**: A visitor opening the public demo entry on the apex domain is transferred to the configured demo host without changing an existing apex-domain Supabase session.
-- [ ] **ENTRY-02**: The demo host creates a host-only authenticated session for the dedicated demo user, selects the deterministic demo company in a host-only `active_company_id` cookie, and redirects to the real `/dashboard`.
-- [ ] **ENTRY-03**: Re-entering the demo is idempotent and recovers from stale or partial demo cookies without redirect loops.
-- [ ] **ENTRY-04**: Local development supports the same isolated-host flow on the configured localhost port without weakening production cookie rules.
+- [x] **ENTRY-01**: A visitor opening the public demo entry on the apex domain is transferred to the configured demo host without changing an existing apex-domain Supabase session.
+- [x] **ENTRY-02**: The demo host creates a host-only authenticated session for the dedicated demo user, selects the deterministic demo company in a host-only `active_company_id` cookie, and redirects to the real `/dashboard`.
+- [x] **ENTRY-03**: Re-entering the demo is idempotent and recovers from stale or partial demo cookies without redirect loops.
+- [x] **ENTRY-04**: Local development supports the same isolated-host flow on the configured localhost port without weakening production cookie rules.
 
 ### Product Parity (PARITY)
 
@@ -58,10 +58,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENTRY-01 | Phase 180 | Pending |
-| ENTRY-02 | Phase 180 | Pending |
-| ENTRY-03 | Phase 180 | Pending |
-| ENTRY-04 | Phase 180 | Pending |
+| ENTRY-01 | Phase 180 | Complete |
+| ENTRY-02 | Phase 180 | Complete |
+| ENTRY-03 | Phase 180 | Complete |
+| ENTRY-04 | Phase 180 | Complete |
 | PARITY-01 | Phase 181 | Pending |
 | PARITY-02 | Phase 181 | Pending |
 | PARITY-03 | Phase 181 | Pending |
