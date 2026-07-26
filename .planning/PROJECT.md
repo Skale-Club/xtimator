@@ -14,20 +14,18 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.21 Notification Center ✅ (built 2026-07-21/22, verified — formal archival pending)
+## Current Milestone: v4.22 Product-Native Demo
 
-**Shipped:** all 7 phases (172-178), 26 plans, 21/21 requirements (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), every phase Opus goal-backward verified PASS. Template engine + DB-driven editable {{var}} templates with never-block fallback; super-admin Notification Center editor (variable catalog, live preview, save validation, test-send); all 18 tenant notify() call sites cut over; proactive tenant WhatsApp re-enabled (dormant until Meta HSM approval); 10-kind platform-event catalog → Telegram with per-event toggles + locked criticals; end-customer consent/STOP/quiet-hours legal gate (unforgeable SendPermit); gated end-customer email/SMS send path on a dedicated Twilio Messaging Service with customer_messages audit; confirm-gated injection-resistant agentic send via WhatsApp assistant + MCP tool pair (atomic single-use claim, fail-closed rate limit). Executed fully autonomously under the Fable-orchestrates/Opus-validates/Sonnet-executes/Haiku-mechanical split — 6 plan-check verdicts intercepted ~15 real defects (tautological test oracle, migration collisions, double-send race, consent over-granting, email double-escape) before any code shipped. **Operational deferrals:** apply migrations 20260721000001-5 to prod BEFORE pushing; provision dedicated Twilio Messaging Service + Advanced Opt-Out; author+approve WhatsApp HSM templates in Meta Manager; live UAT per phase VERIFICATION frontmatter; follow-up task chip: migrate the estimate EMAIL route onto the customer funnel (177-VERIFICATION observation).
-
-**Goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (new Telegram channel), tenants (in-app/email/WhatsApp/SMS with per-channel selection), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy.
+**Goal:** Replace the separate, visually divergent public demo with a safe, read-only experience inside the real authenticated Xtimator product, while keeping visitors' normal Xtimator sessions isolated.
 
 **Target features:**
-- **Telegram channel (platform → us):** platform-level events (tenant signup, payment, job failures, quota, critical errors) delivered to Xtimator admins via a Telegram bot; bot token stored encrypted in `platform_integrations` via the admin panel (never env — standing rule); ALL platform events covered with per-event toggles in the admin panel
-- **Template editor with variables (super-admin):** the hardcoded copy in `lib/notifications/copy.ts` becomes DB-driven editable templates (`{{client_name}}`, `{{estimate_number}}`, …) with a per-event variable catalog and preview; covers tenant notifications AND end-customer messages. Platform-wide, super-admin-only editing for v1 — NO tenant overrides (locked decision)
-- **Tenant notifications (platform → business owners):** in-app, email, WhatsApp, SMS with per-channel selection fields — extends the existing `notify()` pipeline + preferences (channel keys already in schema)
-- **End-customer messaging (tenant's clients):** email + SMS ONLY — WhatsApp is reserved exclusively for owner↔Xtimator conversation (locked decision)
-- **Agentic send:** the owner can ask via the WhatsApp assistant or via MCP for Xtimator to send an SMS/email to their end customer ("send an SMS to my client about X")
+- **Real product surface:** demo visitors enter the same dashboard, navigation, pages, components, and responsive behavior used by real tenants, backed by the deterministic demo company.
+- **Isolated demo session:** `xtimator.com/demo` hands off to `demo.xtimator.com`, which creates a host-only Supabase session for a dedicated demo user and selects the demo company without touching cookies on the apex domain.
+- **Defense-in-depth read-only mode:** the demo user and demo company are blocked from mutations at the UI, server-action/API, side-effect, and database/RLS boundaries.
+- **Safe cutover:** the existing standalone `/demo/*` implementation remains available until the product-native flow passes automated and browser verification, then public entry points switch and obsolete duplicate pages are removed.
+- **Local and production readiness:** the same host-isolation contract works on the local development host and is documented for the GitHub Actions → Docker/GHCR → Coolify production topology.
 
-**Key context:** Builds on existing infra — `notify()` dispatch (`lib/notifications/dispatch.ts`), channel preferences (in_app/email/whatsapp/sms keys already in schema), `whatsapp_notification_templates` HSM registry, Twilio SMS, Resend email. Model orchestration for this milestone: Fable orchestrates, Opus validates, Sonnet executes, Haiku does the simplest work. Numbering continues — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
+**Key context:** The existing real app shell already recognizes the deterministic demo company and renders `DemoBanner`. The codebase also has a demo-user guard, but the public `/demo/*` pages currently use a separate simplified design and service-role reads. Xkedule provides the reference pattern: a dedicated demo subdomain with host-only cookies entering the real tenant UI. Xtimator must preserve that architecture while avoiding Xkedule's unsafe canonical-admin write exemption. Numbering continues after Phase 179.
 
 ## Last Milestone: v4.20 Structured Photo Extraction ✅ (shipped 2026-07-17)
 
@@ -528,4 +526,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-07-21 — Milestone v4.21 Notification Center STARTED (three-audience notification system: Telegram for platform admins, editable variable templates for tenant notifications over in-app/email/WhatsApp/SMS, end-customer email/SMS + agentic send via WhatsApp assistant/MCP). Note: milestones v4.8-v4.14 still lack a full retroactive `/gsd:complete-milestone` reconciliation in this file; v4.19/v4.20 formal archival also pending — housekeeping backlog. Next: research → requirements → roadmap.*
+*Last updated: 2026-07-26 — Milestone v4.22 Product-Native Demo started. The standalone public demo will be replaced by an isolated, read-only session inside the real product UI. Historical phase directories are intentionally preserved because this legacy roadmap has not archived phases 1-179.*
