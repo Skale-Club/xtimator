@@ -4,6 +4,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {
@@ -42,22 +43,27 @@ export async function GET(request: Request) {
       sessions.map(async (session) => {
         const body =
           '⏰ Your estimate confirmation window has expired.\n\nSend a new audio, text, or photo to create a fresh estimate.'
-        try {
-          await sendWhatsAppMessage(session.phone_number as string, {
-            type: 'text',
-            text: { body },
-          })
-          logOutboundMessage(supabase, {
-            companyId: session.company_id as string,
-            contactPhone: session.phone_number as string,
-            body,
-            msgType: 'text',
-            status: 'sent',
-          }).catch(() => undefined)
-        } catch {
-          // Non-fatal — still delete the session
+        const demoBlocked = await assertCompanyWritable(session.company_id as string)
+        if (!demoBlocked) {
+          try {
+            await sendWhatsAppMessage(session.phone_number as string, {
+              type: 'text',
+              text: { body },
+            })
+            logOutboundMessage(supabase, {
+              companyId: session.company_id as string,
+              contactPhone: session.phone_number as string,
+              body,
+              msgType: 'text',
+              status: 'sent',
+            }).catch(() => undefined)
+          } catch {
+            // The notification is best-effort; maintenance still deletes the session.
+          }
         }
 
+        // Session retention is machine-authorized maintenance; only the
+        // customer-facing notification above is a tenant product effect.
         await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
       })
     )

@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
-  await supabase.auth.signOut()
+  // Demo visitors share an account. Only remove this browser's session so one
+  // visitor cannot revoke every other visitor's refresh token.
+  await supabase.auth.signOut({ scope: 'local' })
   return NextResponse.redirect(new URL('/?auth=login', request.url))
 }

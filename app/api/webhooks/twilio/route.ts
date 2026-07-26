@@ -3,6 +3,7 @@ import { getTwilioConfig } from '@/lib/platform-config'
 import { verifyTwilioSignature } from '@/lib/sms/verify-webhook'
 import { classifyInboundKeyword } from '@/lib/sms/inbound-keywords'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
  * Inbound Twilio SMS webhook (CUST-03) — the ONLY mechanism by which a real
@@ -100,10 +101,18 @@ export async function POST(request: Request) {
       .select('id, company_id, sms_consent_status')
       .eq('phone_normalized', last10)
     const matches = matchRows ?? []
+    const writableMatches: typeof matches = []
+    for (const match of matches) {
+      const demoBlocked = await assertCompanyWritable(match.company_id as string)
+      if (!demoBlocked) writableMatches.push(match)
+    }
+    if (matches.length > 0 && writableMatches.length === 0) {
+      return new Response('OK', { status: 200 })
+    }
 
     if (keyword === 'stop') {
       // Unconditional per-row suppression across every matched company.
-      for (const match of matches) {
+      for (const match of writableMatches) {
         await svc
           .from('clients')
           .update({
@@ -113,7 +122,7 @@ export async function POST(request: Request) {
           .eq('id', match.id)
       }
     } else if (keyword === 'start') {
-      for (const match of matches) {
+      for (const match of writableMatches) {
         // Always clear suppression. Only restore 'granted' when the prior
         // status was 'revoked' (a true re-opt-in) — a bare START keyword is
         // NOT itself an affirmative consent event for a relationship that
@@ -137,8 +146,8 @@ export async function POST(request: Request) {
     // null) when the phone matches no client anywhere — never silently
     // dropped, regardless of keyword type.
     const events =
-      matches.length > 0
-        ? matches.map((match) => ({
+      writableMatches.length > 0
+        ? writableMatches.map((match) => ({
             company_id: match.company_id,
             client_id: match.id,
             from_phone: from,

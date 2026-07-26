@@ -9,6 +9,7 @@ import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
@@ -167,19 +168,6 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       fromLast4: fromPhone.slice(-4),
     })
 
-    // Rate limit per phone (anti-abuse before any DB work or AI cost)
-    const hourly = await rateLimit('whatsappPerHour', fromPhone)
-    if (!hourly.allowed) {
-      // Log only the last 4 digits — never full PII in logs (repo convention).
-      console.warn('[WhatsApp] rate limit hit (hour):', fromPhone.slice(-4), hourly)
-      return
-    }
-    const daily = await rateLimit('whatsappPerDay', fromPhone)
-    if (!daily.allowed) {
-      console.warn('[WhatsApp] rate limit hit (day):', fromPhone.slice(-4), daily)
-      return
-    }
-
     const supabase = requireServiceClient()
 
     // Route 1 (D-13): admin-provisioned authorized sender — the ONLY owner routing path.
@@ -242,6 +230,22 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       })
       return
     }
+    const demoBlocked = await assertCompanyWritable(resolvedCompanyId)
+    if (demoBlocked) return
+
+    // Rate limiting mutates shared counters, so it belongs after the trusted
+    // company guard just like the database and provider effects below.
+    const hourly = await rateLimit('whatsappPerHour', fromPhone)
+    if (!hourly.allowed) {
+      console.warn('[WhatsApp] rate limit hit (hour):', fromPhone.slice(-4), hourly)
+      return
+    }
+    const daily = await rateLimit('whatsappPerDay', fromPhone)
+    if (!daily.allowed) {
+      console.warn('[WhatsApp] rate limit hit (day):', fromPhone.slice(-4), daily)
+      return
+    }
+
     console.info('[WhatsApp] inbound sender resolved', {
       companyId: resolvedCompanyId,
       fromLast4: fromPhone.slice(-4),

@@ -36,7 +36,7 @@ type GuardedCoverage = {
   via?: {
     path: string
     symbol: string
-  }
+  }[]
 }
 
 type ExceptionCoverage = {
@@ -128,6 +128,20 @@ function exportedFunctions(path: string): string[] {
       hasExportModifier(statement)
     ) {
       names.push(statement.name.text)
+      continue
+    }
+
+    if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.initializer &&
+          (ts.isArrowFunction(declaration.initializer) ||
+            ts.isFunctionExpression(declaration.initializer))
+        ) {
+          names.push(declaration.name.text)
+        }
+      }
     }
   }
 
@@ -193,7 +207,7 @@ const ACTION_FILES = [
   resolve(ROOT, 'lib/demo/actions.ts'),
   ...walk('app')
     .map(repoPath)
-    .filter((path) => path.endsWith('/actions.ts'))
+    .filter((path) => path.endsWith('actions.ts'))
     .map((path) => resolve(ROOT, path)),
 ].map(repoPath)
 
@@ -292,6 +306,42 @@ function callsSymbol(path: string, symbol: string, target: string): boolean {
   return search(symbol)
 }
 
+function callExpressions(path: string, symbol: string, target: string): ts.CallExpression[] {
+  const declaration = parseModule(path).declarations.get(symbol)
+  if (!declaration) return []
+
+  const calls: ts.CallExpression[] = []
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node)) {
+      const name = ts.isIdentifier(node.expression)
+        ? node.expression.text
+        : ts.isPropertyAccessExpression(node.expression)
+          ? node.expression.name.text
+          : null
+      if (name === target) calls.push(node)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(declaration)
+  return calls.sort((left, right) => left.getStart() - right.getStart())
+}
+
+function expectCallBefore(
+  path: string,
+  symbol: string,
+  before: string,
+  after: string,
+) {
+  const beforeCall = callExpressions(path, symbol, before)[0]
+  const afterCall = callExpressions(path, symbol, after)[0]
+  expect(beforeCall, `${path}#${symbol} missing ${before}`).toBeTruthy()
+  expect(afterCall, `${path}#${symbol} missing ${after}`).toBeTruthy()
+  expect(
+    beforeCall!.getStart(),
+    `${path}#${symbol} must call ${before} before ${after}`,
+  ).toBeLessThan(afterCall!.getStart())
+}
+
 function manifestDiff(discovered: Boundary[], manifest: Coverage[]) {
   const discoveredIds = new Set(discovered.map((boundary) => boundary.id))
   const manifestIds = new Set(manifest.map((entry) => entry.id))
@@ -304,47 +354,613 @@ function manifestDiff(discovered: Boundary[], manifest: Coverage[]) {
   }
 }
 
+function guarded(
+  path: string,
+  guard: GuardName,
+  symbols: string[],
+  via?: GuardedCoverage['via'],
+): Coverage[] {
+  return symbols.map((symbol) => ({
+    id: `${path}#${symbol}`,
+    disposition: 'guarded',
+    guard,
+    ...(via ? { via } : {}),
+  }))
+}
+
+function excepted(
+  path: string,
+  disposition: ExceptionDisposition,
+  authority: string,
+  reason: string,
+  symbols: string[],
+): Coverage[] {
+  return symbols.map((symbol) => ({
+    id: `${path}#${symbol}`,
+    disposition,
+    authority,
+    reason,
+  }))
+}
+
+const READ_AUTHORITY = 'Authenticated or public query boundary with no tenant product write'
+const READ_REASON =
+  'The executable declaration only resolves or returns data and does not mutate tenant product state.'
+const ADMIN_AUTHORITY = 'Platform administrator authorization enforced before operator mutation'
+const ADMIN_REASON =
+  'This operator-only boundary is unavailable to tenant users and public demo principals.'
+const AUTH_AUTHORITY = 'Anonymous or callback-driven Supabase authentication lifecycle'
+const AUTH_REASON =
+  'This boundary establishes or recovers caller authentication without mutating tenant product data.'
+const MACHINE_AUTHORITY = 'Machine credential or provider signature verified before execution'
+const MACHINE_REASON =
+  'This maintenance or transport boundary is not controlled by a tenant demo browser principal.'
+
 /**
- * RED scaffold: representative rows exercise every allowed disposition and
- * the shared-helper/cross-module guard model. Task 2 completes this explicit
- * table so discovered-set equality becomes the CI drift gate.
+ * Every symbol is an explicit literal. Discovery is mechanically derived from
+ * executable exports, so adding a boundary cannot silently inherit a file-level
+ * classification.
  */
 const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
-  {
-    id: 'lib/actions/company-knowledge.ts#createCompanyEntry',
-    disposition: 'guarded',
-    guard: 'assertWritable',
-  },
-  {
-    id: 'lib/actions/auth.ts#signIn',
-    disposition: 'auth-entry',
-    authority: 'Anonymous Supabase authentication entry',
-    reason: 'Creates a caller session but has no authenticated tenant product mutation.',
-  },
-  {
-    id: 'app/api/health/route.ts#GET',
-    disposition: 'read-only',
-    authority: 'Public operational health probe',
-    reason: 'Reads deployment and dependency health without mutating tenant product state.',
-  },
-  {
-    id: 'app/api/admin/xphere-backfill/route.ts#POST',
-    disposition: 'admin-only',
-    authority: 'requireAdmin platform-admin authorization',
-    reason: 'Operator backfill is unavailable to tenant and public demo principals.',
-  },
-  {
-    id: 'app/api/inngest/route.ts#POST',
-    disposition: 'machine-signed',
-    authority: 'Inngest serve adapter signature verification',
-    reason: 'Dispatch transport has no direct tenant effect; product workers guard trusted company context.',
-  },
-  {
-    id: 'lib/demo/actions.ts#exitDemoToSignup',
-    disposition: 'demo-exit',
-    authority: 'Current host-local Supabase session',
-    reason: 'Only clears the caller local session and redirects to a validated apex signup origin.',
-  },
+  ...excepted('app/(auth)/callback/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
+  ...excepted(
+    'app/.well-known/oauth-authorization-server/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+  ...excepted(
+    'app/.well-known/oauth-protected-resource/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+
+  ...excepted('app/admin/admins/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'addPlatformAdmin',
+    'removePlatformAdmin',
+  ]),
+  ...excepted('app/admin/billing/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'forceTier',
+    'grantBonusCredits',
+  ]),
+  ...excepted('app/admin/blog/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'createPost',
+    'deletePost',
+    'togglePostStatus',
+    'updatePost',
+  ]),
+  ...excepted('app/admin/branding/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'saveBranding',
+  ]),
+  ...excepted('app/admin/companies/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'setByokConfig',
+    'setCompanyModelOverride',
+    'setDemoEstimateQuota',
+  ]),
+  ...excepted(
+    'app/admin/companies/support-mode-actions.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    ['startSupportSessionAction'],
+  ),
+  ...excepted('app/admin/integrations/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'deleteIntegrationKey',
+    'saveBillingConfig',
+    'saveIntegrationKey',
+    'saveTelegramChatId',
+    'saveTwilioCustomerMessagingServiceSid',
+    'saveTwilioFromPhone',
+    'saveWhatsAppConfig',
+    'saveWhatsAppSystemPrompt',
+    'saveXphereBaseUrl',
+    'sendTelegramTestAlert',
+    'setGlobalOpenRouterModel',
+    'setGlobalTranscriptionModel',
+    'setPriceResearchSource',
+    'testIntegrationKey',
+  ]),
+  ...excepted(
+    'app/admin/integrations/platform-event-actions.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    ['savePlatformEventToggle'],
+  ),
+  ...excepted('app/admin/knowledge/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'bulkImportEntries',
+    'createEntry',
+    'deleteEntry',
+    'updateEntry',
+  ]),
+  ...excepted('app/admin/landing/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'saveLandingContent',
+  ]),
+  ...excepted('app/admin/pages/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'saveLegalPage',
+  ]),
+  ...excepted('app/admin/seo/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'saveSeo',
+  ]),
+
+  ...excepted(
+    'app/api/admin/openrouter-models/route.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    ['GET'],
+  ),
+  ...excepted(
+    'app/api/admin/xphere-backfill/route.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    ['POST'],
+  ),
+  ...guarded('app/api/analyze-photos/route.ts', 'demoGuardResponse', ['POST']),
+  ...excepted('app/api/auth/keepalive/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...guarded('app/api/billing/create-autotopup-setup-session/route.ts', 'demoGuardResponse', [
+    'POST',
+  ]),
+  ...guarded('app/api/billing/create-checkout-session/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/billing/create-portal-session/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/billing/create-topup-session/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/chat/route.ts', 'demoGuardResponse', ['POST']),
+  ...excepted('app/api/clients/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted(
+    'app/api/cron/cleanup-orphan-projects/route.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['GET'],
+  ),
+  ...guarded('app/api/cron/cleanup-whatsapp-sessions/route.ts', 'assertCompanyWritable', ['GET']),
+  ...excepted(
+    'app/api/csp-report/route.ts',
+    'read-only',
+    'Public browser security-report telemetry collector',
+    'The declaration records operational CSP telemetry and has no tenant product mutation.',
+    ['POST'],
+  ),
+  ...excepted(
+    'app/api/estimates/[id]/pdf/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+  ...guarded('app/api/estimates/[id]/refine/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/estimates/[id]/send-sms/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/estimates/[id]/send-whatsapp/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/estimates/[id]/send/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/estimates/[id]/sign/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/generate-estimate/route.ts', 'demoGuardResponse', ['POST']),
+  ...excepted('app/api/health/live/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted('app/api/health/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted('app/api/inngest/route.ts', 'machine-signed', MACHINE_AUTHORITY, MACHINE_REASON, [
+    'GET',
+    'POST',
+    'PUT',
+  ]),
+  ...excepted('app/api/jobs/[jobId]/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted(
+    'app/api/logout/route.ts',
+    'demo-exit',
+    'Current browser-local Supabase session',
+    'Local-scope sign-out clears only the caller browser and cannot revoke another demo visitor session.',
+    ['GET'],
+  ),
+  ...excepted('app/api/mcp/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET', 'OPTIONS']),
+  ...excepted(
+    'app/api/mcp/route.ts',
+    'machine-signed',
+    'OAuth bearer authentication at the MCP transport boundary',
+    'The transport dispatches authenticated tools; every tenant write tool guards trusted company context.',
+    ['POST'],
+  ),
+  ...guarded('app/api/notifications/[id]/read/route.ts', 'demoGuardResponse', ['PATCH']),
+  ...excepted('app/api/notifications/list/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...guarded('app/api/notifications/mark-all-read/route.ts', 'demoGuardResponse', ['POST']),
+  ...excepted(
+    'app/api/notifications/preferences/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+  ...guarded('app/api/notifications/preferences/route.ts', 'demoGuardResponse', ['PATCH']),
+  ...guarded('app/api/notifications/push/subscribe/route.ts', 'demoGuardResponse', [
+    'DELETE',
+    'POST',
+  ]),
+  ...guarded('app/api/stripe/connect/callback/route.ts', 'demoGuardResponse', ['GET']),
+  ...guarded('app/api/stripe/connect/disconnect/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/stripe/connect/initiate/route.ts', 'demoGuardResponse', ['GET']),
+  ...guarded('app/api/transcribe/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/translate/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/webhooks/stripe/route.ts', 'assertCompanyWritable', ['POST']),
+  ...guarded('app/api/webhooks/twilio/route.ts', 'assertCompanyWritable', ['POST']),
+  ...excepted(
+    'app/api/webhooks/whatsapp/route.ts',
+    'machine-signed',
+    'Meta verification token challenge authentication',
+    'The GET declaration only completes provider endpoint ownership verification and has no tenant effect.',
+    ['GET'],
+  ),
+  ...guarded('app/api/webhooks/whatsapp/route.ts', 'assertCompanyWritable', ['POST']),
+  ...excepted('app/api/whoami/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted('app/demo/entry/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
+
+  ...guarded('app/estimate/[token]/actions.ts', 'assertWritable', [
+    'logEstimateView',
+    'respondToEstimate',
+  ]),
+  ...guarded('app/oauth/authorize/actions.ts', 'assertWritable', ['handleAuthorize']),
+  ...guarded('app/oauth/register/route.ts', 'assertWritable', ['POST'], [
+    { path: 'lib/oauth/clients.ts', symbol: 'registerClient' },
+  ]),
+  ...guarded('app/oauth/token/route.ts', 'assertCompanyWritable', ['POST'], [
+    { path: 'lib/oauth/codes.ts', symbol: 'consumeAuthorizationCode' },
+    { path: 'lib/oauth/tokens.ts', symbol: 'rotateRefreshToken' },
+  ]),
+
+  ...guarded('lib/actions/active-company.ts', 'assertWritable', ['switchActiveCompany']),
+  ...excepted('lib/actions/admin-company.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'createAdminCompany',
+  ]),
+  ...excepted('lib/actions/admin-handoff.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'handoffDemoCompany',
+  ]),
+  ...excepted(
+    'lib/actions/admin-notification-templates.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    ['listNotificationTemplates', 'saveNotificationTemplate', 'sendTestNotification'],
+  ),
+  ...excepted('lib/actions/admin-whatsapp.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'loadAdminConversationThread',
+  ]),
+  ...excepted(
+    'lib/actions/admin-whatsapp-accounts.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    [
+      'removeWhatsAppSender',
+      'saveWhatsAppAccount',
+      'saveWhatsAppSender',
+      'setWhatsAppSenderStatus',
+    ],
+  ),
+  ...excepted(
+    'lib/actions/admin-whatsapp-templates.ts',
+    'admin-only',
+    ADMIN_AUTHORITY,
+    ADMIN_REASON,
+    [
+      'applyTemplateStatusUpdate',
+      'checkTemplateStatus',
+      'createTemplate',
+      'listTemplates',
+      'submitTemplateToMeta',
+      'updateTemplateAndResubmit',
+    ],
+  ),
+  ...excepted('lib/actions/attempt-outcome.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getAttemptOutcome',
+    'getStepMedians',
+  ]),
+  ...excepted('lib/actions/auth.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, [
+    'resetPassword',
+    'signIn',
+    'signUp',
+  ]),
+  ...excepted(
+    'lib/actions/auth.ts',
+    'demo-exit',
+    'Current authenticated Supabase session',
+    'Sign-out ends the caller authentication lifecycle without mutating tenant product state.',
+    ['signOut'],
+  ),
+  ...guarded('lib/actions/auth.ts', 'assertWritable', ['updatePassword']),
+  ...guarded('lib/actions/auto-topup.ts', 'assertWritable', [
+    'disableAutoTopup',
+    'saveAutoTopupSettings',
+  ]),
+  ...guarded('lib/actions/chat.ts', 'assertWritable', [
+    'createChatConversation',
+    'deleteChatConversation',
+    'editChatMessage',
+    'truncateChatFrom',
+    'voteChatMessage',
+  ]),
+  ...excepted('lib/actions/chat.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getChatThread',
+    'listChatConversations',
+    'normalizeChatInput',
+    'resolveCurrentEstimateId',
+  ]),
+  ...guarded('lib/actions/client.ts', 'assertWritable', [
+    'createClientAction',
+    'deleteClientAction',
+    'patchClientContactAction',
+    'removeClientLogo',
+    'updateClientAction',
+    'uploadClientLogoAction',
+  ]),
+  ...guarded('lib/actions/company-knowledge.ts', 'assertWritable', [
+    'createCompanyEntry',
+    'deleteCompanyEntry',
+    'updateCompanyEntry',
+  ]),
+  ...guarded('lib/actions/company.ts', 'assertWritable', [
+    'createOrUpdateCompany',
+    'uploadOnboardingLogoAction',
+  ]),
+  ...guarded('lib/actions/custom-domain.ts', 'assertWritable', ['saveCustomDomain']),
+  ...guarded('lib/actions/estimate-photo.ts', 'assertWritable', [
+    'addPhotoToEstimate',
+    'removePhotoFromEstimate',
+  ]),
+  ...excepted('lib/actions/estimate-photo.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getAttachedPhotoIdsAction',
+  ]),
+  ...guarded('lib/actions/estimate-template.ts', 'assertWritable', ['saveEstimateTemplate']),
+  ...guarded('lib/actions/estimate.ts', 'assertWritable', [
+    'createBlankEstimate',
+    'deleteEstimateItem',
+    'deleteEstimateSection',
+    'logDeliveryAction',
+    'markAsSentAction',
+    'saveEstimate',
+    'savePresentationSettings',
+  ]),
+  ...excepted('lib/actions/estimate.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getEstimateByIdAction',
+  ]),
+  ...guarded('lib/actions/invite-accept.ts', 'assertWritable', ['acceptInvite']),
+  ...guarded('lib/actions/invoice.ts', 'assertWritable', ['generateInvoice']),
+  ...excepted('lib/actions/invoice.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getInvoicesForEstimate',
+  ]),
+  ...guarded('lib/actions/photo.ts', 'assertWritable', [
+    'createPhoto',
+    'deletePhoto',
+    'reorderPhotos',
+    'updatePhotoCaption',
+    'uploadProjectPhoto',
+  ]),
+  ...guarded('lib/actions/price-book.ts', 'assertWritable', [
+    'bulkAdjustPriceBookFolder',
+    'commitImportChunk',
+    'createFolder',
+    'createPriceBookItem',
+    'deleteFolder',
+    'deleteFolderWithItems',
+    'deletePriceBookItem',
+    'destroyPriceBookItems',
+    'emptyPriceBookTrash',
+    'importPriceBookItems',
+    'resolveOrCreateFolders',
+    'restorePriceBookItems',
+    'setItemOptions',
+    'trashPriceBookItems',
+    'undoLastImport',
+    'updateFolder',
+    'updatePriceBookItem',
+  ]),
+  ...excepted('lib/actions/price-book.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'fetchItemOptions',
+    'getRecentUndoableImport',
+  ]),
+  ...guarded('lib/actions/project.ts', 'assertWritable', [
+    'archiveProjectAction',
+    'createProjectAction',
+    'createProjectWithClientAction',
+    'deleteProjectAction',
+    'duplicateProjectAction',
+    'hardDeleteProjectAction',
+    'linkProjectToClient',
+    'renameProjectAction',
+    'restoreProjectAction',
+    'resumeOrCreateDraftProjectAction',
+    'softDeleteProjectAction',
+    'unarchiveProjectAction',
+    'unlinkProjectFromClient',
+  ]),
+  ...excepted('lib/actions/project.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getMoreProjects',
+    'getProjectMinimalAction',
+  ]),
+  ...guarded('lib/actions/recording.ts', 'assertWritable', [
+    'createRecording',
+    'createTextRecording',
+    'deleteRecording',
+    'reportClientPipelineFailure',
+    'startRecordingPipeline',
+    'transcribeRecording',
+    'updateTranscript',
+  ]),
+  ...guarded('lib/actions/settings.ts', 'assertWritable', [
+    'applyTradeSuggestion',
+    'changeEmail',
+    'changePassword',
+    'deleteAccount',
+    'dismissTradeSuggestion',
+    'updateCompanySettings',
+    'updateDefaults',
+    'updateDeliverySettings',
+    'updateEstimateTerms',
+    'updateNotifications',
+    'updateProfile',
+  ]),
+  ...guarded('lib/actions/team.ts', 'assertWritable', [
+    'changeMemberRole',
+    'inviteMember',
+    'removeMember',
+    'revokeInvite',
+  ]),
+  ...guarded('lib/actions/theme.ts', 'assertWritable', ['saveThemePreference']),
+  ...guarded('lib/actions/tour.ts', 'assertWritable', ['logTourEvent']),
+  ...excepted(
+    'lib/demo/actions.ts',
+    'demo-exit',
+    'Current browser-local Supabase session',
+    'This action clears only the caller session and redirects to a validated signup origin.',
+    ['exitDemoToSignup'],
+  ),
+
+  ...guarded('lib/agent-tools/add-knowledge.ts', 'assertCompanyWritable', [
+    'addCompanyKnowledge',
+  ]),
+  ...excepted('lib/agent-tools/ask-knowledge.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'askKnowledge',
+  ]),
+  ...guarded('lib/agent-tools/create-estimate.ts', 'assertCompanyWritable', ['createEstimate']),
+  ...guarded('lib/agent-tools/create-project.ts', 'assertCompanyWritable', ['createProject']),
+  ...guarded('lib/agent-tools/create-service.ts', 'assertCompanyWritable', [
+    'createPriceBookService',
+  ]),
+  ...excepted('lib/agent-tools/normalize-input.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'normalizeInput',
+  ]),
+  ...excepted(
+    'lib/agent-tools/query-company-data.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    [
+      'findClientByName',
+      'findServiceByName',
+      'getLatestEstimateForClient',
+      'getProjectStatus',
+      'listRecentEstimates',
+      'listServices',
+    ],
+  ),
+  ...guarded('lib/agent-tools/send-customer-message.ts', 'assertCompanyWritable', [
+    'cancelSendByChannelRef',
+    'confirmSendByChannelRef',
+    'confirmSendByToken',
+    'draftCustomerMessage',
+  ]),
+  ...guarded('lib/chat/tools.ts', 'assertCompanyWritable', ['buildChatTools']),
+
+  ...guarded('lib/inngest/functions/analyze-photos.ts', 'assertCompanyWritable', [
+    'analyzePhotosJob',
+  ]),
+  ...excepted(
+    'lib/inngest/functions/cleanup-audio.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['cleanupAudioJob'],
+  ),
+  ...guarded('lib/inngest/functions/generate-estimate.ts', 'assertCompanyWritable', [
+    'generateEstimateJob',
+  ]),
+  ...excepted(
+    'lib/inngest/functions/monthly-credit-grant.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['monthlyCreditGrantJob'],
+  ),
+  ...guarded(
+    'lib/inngest/functions/notification-channel-send.ts',
+    'assertCompanyWritable',
+    ['notificationChannelSend'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/notification-cleanup.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['notificationCleanup'],
+  ),
+  ...guarded(
+    'lib/inngest/functions/notification-email-digest.ts',
+    'assertCompanyWritable',
+    ['notificationEmailDigest'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/pipeline-watchdog.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['pipelineWatchdogJob'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/retention-cleanup.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['retentionCleanupJob'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/storage-orphan-cleanup.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['storageOrphanCleanupJob'],
+  ),
+  ...guarded('lib/inngest/functions/transcribe-audio.ts', 'assertCompanyWritable', [
+    'transcribeAudioJob',
+  ]),
+  ...guarded('lib/inngest/functions/whatsapp-process.ts', 'assertCompanyWritable', [
+    'whatsAppIntentRouterJob',
+    'whatsAppProcessJob',
+  ]),
+  ...guarded('lib/inngest/functions/xphere-sync.ts', 'assertCompanyWritable', ['xphereSyncJob']),
+
+  ...guarded('lib/integrations/xphere/dispatch.ts', 'assertCompanyWritable', [
+    'dispatchXphereSync',
+  ]),
+  ...guarded('lib/mcp/tools/write.ts', 'assertCompanyWritable', ['buildWriteTools']),
+  ...guarded('lib/notifications/customer-send.ts', 'assertCompanyWritable', [
+    'sendCustomerMessage',
+  ]),
+  ...guarded('lib/notifications/dispatch.ts', 'assertCompanyWritable', ['notify']),
+
+  ...excepted('lib/oauth/clients.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'findClientByClientId',
+    'isRegisteredRedirectUri',
+    'validateRegistrationPayload',
+  ]),
+  ...guarded('lib/oauth/clients.ts', 'assertWritable', ['registerClient']),
+  ...guarded('lib/oauth/codes.ts', 'assertCompanyWritable', ['consumeAuthorizationCode']),
+  ...guarded('lib/oauth/codes.ts', 'assertWritable', ['issueAuthorizationCode']),
+  ...excepted('lib/oauth/tokens.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'generateOpaqueToken',
+    'hashToken',
+    'resolveAccessToken',
+    'resolveRefreshToken',
+  ]),
+  ...guarded('lib/oauth/tokens.ts', 'assertWritable', ['issueTokenPair']),
+  ...guarded('lib/oauth/tokens.ts', 'assertCompanyWritable', [
+    'revokeRefreshToken',
+    'rotateRefreshToken',
+  ]),
+
+  ...guarded('lib/queries/chat.ts', 'assertCompanyWritable', [
+    'appendMessage',
+    'createConversation',
+    'deleteConversation',
+    'deleteMessagesFrom',
+    'updateMessageParts',
+    'upsertMessageVote',
+  ]),
+  ...excepted('lib/queries/chat.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'findMessageRow',
+    'getConversationWithMessages',
+    'listConversations',
+    'listMessageVotes',
+    'ownsConversation',
+  ]),
 ]
 
 describe('Phase 180 mutation-boundary census', () => {
@@ -391,14 +1007,16 @@ describe('Phase 180 mutation-boundary census', () => {
       expect(path && symbol, entry.id).toBeTruthy()
 
       if (entry.via) {
-        expect(
-          callsSymbol(path!, symbol!, entry.via.symbol),
-          `${entry.id} does not call ${entry.via.symbol}`,
-        ).toBe(true)
-        expect(
-          reachesGuard(entry.via.path, entry.via.symbol, entry.guard),
-          `${entry.via.path}#${entry.via.symbol} does not reach ${entry.guard}`,
-        ).toBe(true)
+        for (const evidence of entry.via) {
+          expect(
+            callsSymbol(path!, symbol!, evidence.symbol),
+            `${entry.id} does not call ${evidence.symbol}`,
+          ).toBe(true)
+          expect(
+            reachesGuard(evidence.path, evidence.symbol, entry.guard),
+            `${evidence.path}#${evidence.symbol} does not reach ${entry.guard}`,
+          ).toBe(true)
+        }
       } else {
         expect(
           reachesGuard(path!, symbol!, entry.guard),
@@ -406,6 +1024,70 @@ describe('Phase 180 mutation-boundary census', () => {
         ).toBe(true)
       }
     }
+  })
+
+  it('keeps newly discovered guards before product effects in executable order', () => {
+    expectCallBefore(
+      'app/api/stripe/connect/callback/route.ts',
+      'GET',
+      'demoGuardResponse',
+      'exchangeCode',
+    )
+    expectCallBefore(
+      'app/api/webhooks/twilio/route.ts',
+      'POST',
+      'verifyTwilioSignature',
+      'assertCompanyWritable',
+    )
+    expectCallBefore(
+      'app/api/webhooks/twilio/route.ts',
+      'POST',
+      'assertCompanyWritable',
+      'update',
+    )
+    expectCallBefore(
+      'app/api/webhooks/twilio/route.ts',
+      'POST',
+      'assertCompanyWritable',
+      'insert',
+    )
+    expectCallBefore(
+      'app/api/webhooks/whatsapp/route.ts',
+      'handleInboundMessage',
+      'assertCompanyWritable',
+      'rateLimit',
+    )
+    expectCallBefore(
+      'app/api/webhooks/whatsapp/route.ts',
+      'handleInboundMessage',
+      'assertCompanyWritable',
+      'insert',
+    )
+    expectCallBefore(
+      'app/api/cron/cleanup-whatsapp-sessions/route.ts',
+      'GET',
+      'assertCompanyWritable',
+      'sendWhatsAppMessage',
+    )
+  })
+
+  it('keeps shared-demo logout scoped to the current browser session', () => {
+    const signOut = callExpressions('app/api/logout/route.ts', 'GET', 'signOut')[0]
+    expect(signOut, 'logout GET missing Supabase signOut call').toBeTruthy()
+    const options = signOut!.arguments[0]
+    expect(ts.isObjectLiteralExpression(options), 'signOut options must be an object').toBe(true)
+    const scope = ts.isObjectLiteralExpression(options)
+      ? options.properties.find(
+          (property): property is ts.PropertyAssignment =>
+            ts.isPropertyAssignment(property) &&
+            ts.isIdentifier(property.name) &&
+            property.name.text === 'scope',
+        )
+      : undefined
+    expect(scope, 'signOut must declare a scope').toBeTruthy()
+    expect(
+      scope && ts.isStringLiteral(scope.initializer) ? scope.initializer.text : null,
+    ).toBe('local')
   })
 
   it('requires reasoned authority and no-effect rationale for every exception', () => {

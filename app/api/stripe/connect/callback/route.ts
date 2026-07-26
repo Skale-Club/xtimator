@@ -5,6 +5,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
+import { demoGuardResponse } from '@/lib/demo/guard'
 
 /**
  * GET /api/stripe/connect/callback
@@ -45,6 +46,13 @@ export async function GET(req: NextRequest) {
     .eq('user_id', claims.sub as string)
     .single()
   if (!company) return NextResponse.redirect(new URL('/onboarding', base))
+
+  const demoBlocked = await demoGuardResponse({
+    userId: claims.sub as string,
+    email: (claims.email as string | undefined) ?? null,
+    companyId: company.id as string,
+  })
+  if (demoBlocked) return demoBlocked
 
   // Clear cookie immediately — single-use state (Pitfall 3).
   const cookieJar = await cookies()
