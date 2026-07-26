@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getDemoAppOrigin } from '@/lib/demo/config'
+import { classifyDemoEntryRequest } from '@/lib/demo/session'
 
 const PROTECTED_ROUTE_PREFIXES = [
   '/dashboard',
@@ -99,6 +101,19 @@ function isClaimFreeApiRoute(pathname: string): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const demoEntry = classifyDemoEntryRequest(request)
+
+  // The apex handoff must not construct an Auth client or touch apex cookies.
+  if (demoEntry.kind === 'apex') {
+    return NextResponse.redirect(demoEntry.destination, 303)
+  }
+  // The route owns exact demo-host session creation/repair. A malformed entry
+  // reaches the route's terminal 503 without the proxy refreshing any cookies.
+  if (pathname === '/demo/entry') {
+    return NextResponse.next({ request })
+  }
+
   // Perf: short-circuit claim-free machine/public API routes BEFORE constructing
   // the Supabase client + calling getClaims(). These endpoints authenticate
   // themselves (signatures/bearer tokens) or are public probes, so the auth
@@ -140,8 +155,6 @@ export async function proxy(request: NextRequest) {
     claims = null
   }
 
-  const { pathname } = request.nextUrl
-
   // Quick-260718-w4r: authenticated GET / used to 307 to /dashboard here. It now
   // falls through to the landing page — the marketing site must stay reachable
   // when logged in (the landing TopNav resolves the session client-side and
@@ -152,10 +165,15 @@ export async function proxy(request: NextRequest) {
   // Cron routes authenticate with their own CRON_SECRET Bearer token. They
   // must reach the route handler even when there is no Supabase user session.
   if (!claims && isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    url.search = ''
-    url.searchParams.set('auth', 'login')
+    const demoOrigin = getDemoAppOrigin()
+    const url = request.nextUrl.origin === demoOrigin?.origin
+      ? new URL('/demo/entry', demoOrigin)
+      : request.nextUrl.clone()
+    if (request.nextUrl.origin !== demoOrigin?.origin) {
+      url.pathname = '/'
+      url.search = ''
+      url.searchParams.set('auth', 'login')
+    }
     const redirectResponse = NextResponse.redirect(url)
     supabaseResponse.headers.forEach((value, key) => {
       if (key === 'set-cookie') redirectResponse.headers.append(key, value)

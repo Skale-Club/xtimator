@@ -9,6 +9,15 @@ async function loadSession(demoOrigin = 'https://demo.xtimator.com') {
   return import('@/lib/demo/session')
 }
 
+async function loadProxy() {
+  vi.resetModules()
+  process.env.DEMO_APP_ORIGIN = 'https://demo.xtimator.com'
+  const createServerClient = vi.fn()
+  vi.doMock('@supabase/ssr', () => ({ createServerClient }))
+  const proxyModule = await import('@/proxy')
+  return { ...proxyModule, createServerClient }
+}
+
 afterEach(() => {
   vi.resetModules()
   if (originalDemoOrigin === undefined) {
@@ -26,6 +35,16 @@ describe('demo entry host routing', () => {
       kind: 'apex',
       destination: 'https://demo.xtimator.com/demo/entry',
     })
+  })
+
+  it('hands apex entry off before Supabase can refresh or mutate apex cookies', async () => {
+    const { proxy, createServerClient } = await loadProxy()
+    const response = await proxy(new NextRequest('https://xtimator.com/demo/entry'))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('https://demo.xtimator.com/demo/entry')
+    expect(createServerClient).not.toHaveBeenCalled()
+    expect(response.headers.get('set-cookie')).toBeNull()
   })
 
   it.each([
