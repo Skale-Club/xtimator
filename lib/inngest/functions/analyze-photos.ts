@@ -9,6 +9,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { analyzePhotoOR, analyzePhotoStructuredOR } from '@/lib/ai/openrouter-client'
 import { analyzePhotoStructuredGemini } from '@/lib/ai/providers/gemini'
@@ -73,6 +74,8 @@ export const analyzePhotosJob = inngest.createFunction(
       const payload = (event as { data?: { event?: { data?: AnalyzePhotosPayload } } })
         .data?.event?.data
       if (!payload) return
+      const denied = await assertCompanyWritable(payload.companyId)
+      if (denied) return
       const userId = await loadOwnerUserId(payload.companyId)
 
       // Phase 92 (EVENT-02/D-05): terminal failed analyze event via onFailure.
@@ -121,6 +124,8 @@ export const analyzePhotosJob = inngest.createFunction(
   async ({ event, step }) => {
     const data = event.data as AnalyzePhotosPayload
     const { companyId, projectId, requestId } = data
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
     // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
     const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'photo'

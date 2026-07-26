@@ -9,6 +9,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -64,6 +65,8 @@ export const generateEstimateJob = inngest.createFunction(
       const payload = (event as { data?: { event?: { data?: EstimateGeneratePayload } } })
         .data?.event?.data
       if (!payload) return
+      const denied = await assertCompanyWritable(payload.companyId)
+      if (denied) return
       const userId = await loadOwnerUserId(payload.companyId)
 
       // Phase 92 (EVENT-02/D-05): terminal failed generate_estimate event.
@@ -112,6 +115,8 @@ export const generateEstimateJob = inngest.createFunction(
   async ({ event, step }) => {
     const data = event.data as EstimateGeneratePayload
     const { companyId, projectId, requestId, language, prompts, createdByUserId } = data
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
     // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
     const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'manual_text'

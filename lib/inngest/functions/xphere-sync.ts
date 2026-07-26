@@ -14,6 +14,7 @@
  *   - On retry exhaustion, onFailure persists companies.xphere_sync_error.
  */
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { buildSyncPayload } from '@/lib/integrations/xphere/mapping'
 import { syncCompany } from '@/lib/integrations/xphere/client'
@@ -39,6 +40,8 @@ export const xphereSyncJob = inngest.createFunction(
           event as { data?: { event?: { data?: XphereSyncRequestedPayload } } }
         ).data?.event?.data
         if (!payload?.companyId) return
+        const denied = await assertCompanyWritable(payload.companyId)
+        if (denied) return
         const svc = requireServiceClient()
         await svc
           .from('companies')
@@ -52,6 +55,8 @@ export const xphereSyncJob = inngest.createFunction(
   async ({ event, step }) => {
     const data = event.data as XphereSyncRequestedPayload
     const { companyId } = data
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
 
     // Step 1: load company fresh (service role; RLS-bypass; no auth context in worker).
     const company = await step.run('load-company', async () => {

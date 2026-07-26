@@ -16,6 +16,7 @@
  * the platform config — none are passed through the event payload.
  */
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { sendWhatsAppTemplate } from '@/lib/whatsapp/client'
 import { sendSms } from '@/lib/sms/client'
 import {
@@ -34,6 +35,8 @@ export const notificationChannelSend = inngest.createFunction(
   },
   async ({ event, step }) => {
     const data = event.data as NotificationChannelSendPayload
+    const denied = await assertCompanyWritable(data.companyId)
+    if (denied) return { ok: false, error: 'demo_readonly' as const }
 
     if (data.channel === 'whatsapp') {
       try {

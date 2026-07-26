@@ -33,6 +33,7 @@
 import { NonRetriableError } from 'inngest'
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
 import { getTranscriptionModel } from '@/lib/platform-config'
@@ -113,6 +114,10 @@ export const transcribeAudioJob = inngest.createFunction(
         .data?.event?.data
       if (!payload) return
       const { companyId, userId, projectId } = await loadCompanyForRecording(payload.recordingId)
+      const denied = await assertCompanyWritable(companyId)
+      if (denied) return
+      const eventDenied = await assertCompanyWritable(payload.companyId)
+      if (eventDenied) return
 
       // Phase 92 (EVENT-02/D-05): terminal failed transcribe event via onFailure.
       void recordPipelineEvent({
@@ -170,6 +175,10 @@ export const transcribeAudioJob = inngest.createFunction(
     // Phase 167 (BILL-05): also carries the transcript up-front so the
     // short-circuit decision below never needs a second DB round-trip.
     const ident = await loadCompanyForRecording(recordingId)
+    const denied = await assertCompanyWritable(ident.companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
+    const eventDenied = await assertCompanyWritable(data.companyId)
+    if (eventDenied) return { skipped: true, reason: 'demo_readonly' as const }
     void recordPipelineEvent({
       attemptId,
       inputType,

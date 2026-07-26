@@ -9,6 +9,7 @@
  *   - INNGEST-06 (idempotent via event.data.batchKey)
  */
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { sendTypingIndicator, sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -57,7 +58,10 @@ export const whatsAppProcessJob = inngest.createFunction(
     onFailure: async ({ event }) => {
       const payload = (event as { data?: { event?: { data?: WhatsAppProcessPayload } } })
         .data?.event?.data
-      if (payload?.ownerPhone) await sendFallbackReply(payload.ownerPhone, payload.companyId)
+      if (!payload?.ownerPhone) return
+      const denied = await assertCompanyWritable(payload.companyId)
+      if (denied) return
+      await sendFallbackReply(payload.ownerPhone, payload.companyId)
     },
     triggers: [{ event: EVENT_WHATSAPP_PROCESS }],
   },
@@ -66,6 +70,8 @@ export const whatsAppProcessJob = inngest.createFunction(
       messages: WhatsAppMessage[]
     }
     const { companyId, projectId, ownerPhone, messages } = data
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
     // HARD-07: capture a single server-trusted graph-entry timestamp OUTSIDE
     // step.run('orchestrate-estimate') so an Inngest retry of that step reuses the
     // same value — the replay-safety guarantee for the finalize TTL (mirrors
@@ -130,6 +136,8 @@ export const whatsAppIntentRouterJob = inngest.createFunction(
       message: WhatsAppMessage
     }
     const { companyId, ownerPhone, fromPhone, message, session } = data
+    const denied = await assertCompanyWritable(companyId)
+    if (denied) return { skipped: true, reason: 'demo_readonly' as const }
 
     // Refresh typing indicator before the (slower) classify work — best-effort.
     await step.run('refresh-typing', async () => {

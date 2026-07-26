@@ -26,7 +26,9 @@
  * whole never throws (returns counts) to keep the cron retry semantics sane.
  */
 import { inngest } from '@/lib/inngest/client'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
+import type { NotificationEmailQueuedPayload } from '@/lib/inngest/events'
 import { getBranding } from '@/lib/platform-config'
 import {
   sendNotificationDigestEmail,
@@ -118,7 +120,17 @@ export const notificationEmailDigest = inngest.createFunction(
       { cron: '*/15 * * * *' },
     ],
   },
-  async ({ step }) => {
+  async ({ event, step }) => {
+    const eventCompanyId = (
+      event.data as Partial<NotificationEmailQueuedPayload> | undefined
+    )?.companyId
+    if (eventCompanyId) {
+      const denied = await assertCompanyWritable(eventCompanyId)
+      if (denied) {
+        return { sent: 0, groups: 0, skipped: 'demo_readonly' as const }
+      }
+    }
+
     const svc = requireServiceClient()
     const windowStart = new Date(Date.now() - FIFTEEN_MIN_MS).toISOString()
 
@@ -145,12 +157,13 @@ export const notificationEmailDigest = inngest.createFunction(
       return { sent: 0, groups: 0 }
     }
 
-    // Group by (user_id, category).
+    // Group by (company_id, user_id, category). Keeping company in the key
+    // prevents a multi-company owner from mixing demo and writable rows.
     const groups = new Map<string, NotificationRow[]>()
     for (const row of fetched) {
       if (!row.user_id) continue
       const cat = categoryFor(row.event_type)
-      const key = `${row.user_id}|${cat}`
+      const key = `${row.company_id}|${row.user_id}|${cat}`
       const list = groups.get(key) ?? []
       list.push(row)
       groups.set(key, list)
@@ -160,7 +173,9 @@ export const notificationEmailDigest = inngest.createFunction(
     let totalSent = 0
 
     for (const [key, items] of groups) {
-      const [userId, cat] = key.split('|') as [string, EventCategory]
+      const [, userId, cat] = key.split('|') as [string, string, EventCategory]
+      const denied = await assertCompanyWritable(items[0]?.company_id)
+      if (denied) continue
       try {
         // Look up the user email via service-role admin API.
         const userResp = await step.run(`lookup-user-${userId}`, async () => {
