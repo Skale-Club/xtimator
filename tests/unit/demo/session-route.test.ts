@@ -22,7 +22,10 @@ async function loadSession(scenario: SupabaseScenario) {
 
   const signOut = vi.fn().mockResolvedValue({ error: null })
   const signInWithPassword = vi.fn().mockResolvedValue(
-    scenario.signIn ?? { user: { id: 'demo-user-id', email: 'demo@example.com' }, error: null }
+    {
+      data: scenario.signIn ?? { user: { id: 'demo-user-id', email: 'demo@example.com' }, error: null },
+      error: scenario.signIn?.error ?? null,
+    }
   )
   const getClaims = vi.fn().mockResolvedValue({ data: { claims: scenario.claims ?? null } })
   const maybeSingle = vi.fn()
@@ -86,7 +89,11 @@ describe('establishDemoSession', () => {
       password: 'server-only-password',
     })
     expect(response.headers.getSetCookie().join('\n')).toMatch(/sb-demo-auth-token\.0=.*Max-Age=0/i)
-    expect(response.headers.getSetCookie().join('\n')).toMatch(/active_company_id=.*Max-Age=0/i)
+    // NextResponse coalesces a cleared cookie with the deterministic final
+    // value; the repaired response must therefore end with the demo company.
+    expect(response.headers.getSetCookie().join('\n')).toContain(
+      'active_company_id=0000de00-0000-0000-0000-000000000001'
+    )
   })
 
   it('fails closed without a dashboard redirect when the configured identity has platform authority', async () => {

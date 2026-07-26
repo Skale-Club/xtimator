@@ -45,6 +45,50 @@ export function isDemoConfigured(): boolean {
   return Boolean(getDemoUserEmail() && getDemoUserPassword())
 }
 
+/**
+ * Returns the only origin allowed to host the public demo session.
+ *
+ * This is deliberately server-only configuration: request headers, query
+ * parameters, and public environment variables must never influence a demo
+ * redirect destination or the cookie security policy.
+ */
+export function getDemoAppOrigin(): URL | null {
+  const raw = process.env.DEMO_APP_ORIGIN?.trim()
+  if (!raw) return null
+
+  let origin: URL
+  try {
+    origin = new URL(raw)
+  } catch {
+    return null
+  }
+
+  if (
+    (origin.protocol !== 'https:' && origin.protocol !== 'http:') ||
+    origin.username ||
+    origin.password ||
+    origin.search ||
+    origin.hash ||
+    origin.pathname !== '/' ||
+    origin.origin !== raw.replace(/\/$/, '')
+  ) {
+    return null
+  }
+
+  // HTTP is intentionally limited to the explicit local-development host. A
+  // production deployment cannot accidentally lose Secure cookies by changing
+  // only an environment value.
+  if (origin.protocol === 'http:' && origin.hostname !== 'demo.localhost') {
+    return null
+  }
+
+  if (origin.protocol === 'https:' && origin.hostname !== 'demo.xtimator.com') {
+    return null
+  }
+
+  return origin
+}
+
 /** True when the given company id is the dedicated demo company. */
 export function isDemoCompany(companyId: string | null | undefined): boolean {
   return !!companyId && companyId === DEMO_COMPANY_ID
