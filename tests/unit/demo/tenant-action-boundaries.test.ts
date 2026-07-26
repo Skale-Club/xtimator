@@ -58,7 +58,24 @@ function functionBody(source: string, name: string) {
   const start = source.indexOf(`export async function ${name}`)
   expect(start, `${name} must remain an exported Server Action`).toBeGreaterThan(-1)
 
-  const openingBrace = source.indexOf('{', source.indexOf(')', start))
+  const paramsOpen = source.indexOf('(', start)
+  let paramsDepth = 0
+  let paramsClose = -1
+  for (let index = paramsOpen; index < source.length; index += 1) {
+    if (source[index] === '(') paramsDepth += 1
+    if (source[index] === ')') paramsDepth -= 1
+    if (paramsDepth === 0) {
+      paramsClose = index
+      break
+    }
+  }
+  let openingBrace = -1
+  for (let index = paramsClose + 1; index < source.length; index += 1) {
+    if (source[index] === '{' && /^\{\s*\r?\n/.test(source.slice(index))) {
+      openingBrace = index
+      break
+    }
+  }
   expect(openingBrace, `${name} must have a function body`).toBeGreaterThan(-1)
 
   let depth = 0

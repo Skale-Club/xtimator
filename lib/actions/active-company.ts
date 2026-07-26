@@ -7,6 +7,7 @@ import {
   ACTIVE_COMPANY_COOKIE,
   ACTIVE_COMPANY_COOKIE_OPTIONS,
 } from '@/lib/queries/active-company'
+import { assertWritable } from '@/lib/demo/guard'
 
 /**
  * Phase 81 — Switch the active company for the current request.
@@ -34,6 +35,9 @@ export async function switchActiveCompany(
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
   if (!claims?.sub) return { error: 'unauthenticated' }
+
+  const denied = await assertWritable()
+  if (denied) return { error: 'forbidden' }
 
   const { data: membership } = await supabase
     .from('company_members')

@@ -41,6 +41,8 @@ async function getAuthContext() {
 export async function createFolder(name: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   const { data, error } = await supabase
     .from('price_book_folders')
@@ -55,6 +57,8 @@ export async function createFolder(name: string) {
 export async function updateFolder(folderId: string, name: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
   const { error } = await supabase
     .from('price_book_folders')
@@ -68,6 +72,8 @@ export async function updateFolder(folderId: string, name: string) {
 export async function deleteFolder(folderId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   // Guard: deny delete if any items reference this folder
   const { count, error: countErr } = await supabase
@@ -92,10 +98,10 @@ export async function deleteFolder(folderId: string) {
  *  rows, so everything in Trash stays restorable — restored items land in
  *  Uncategorized. */
 export async function deleteFolderWithItems(folderId: string) {
-  const denied = await assertWritable()
-  if (denied) return denied
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { error: trashErr } = await supabase
@@ -123,6 +129,8 @@ export async function resolveOrCreateFolders(
 ): Promise<{ data: Map<string, string> } | { error: string }> {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   if (names.length === 0) return { data: new Map() }
   // Fetch existing
@@ -165,6 +173,8 @@ export async function setItemOptions(
   companyId: string,
   options: ItemOption[]
 ) {
+  const denied = await assertWritable({ companyId })
+  if (denied) return denied
   await supabase.from('price_book_item_options').delete().eq('item_id', itemId)
   if (options.length === 0) return
   await supabase.from('price_book_item_options').insert(
@@ -188,11 +198,10 @@ export async function createPriceBookItem(
   options?: ItemOption[],
   imagePosition?: ImagePosition
 ) {
-  const denied = await assertWritable()
-  if (denied) return denied
-
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { data, error } = await supabase
@@ -257,11 +266,10 @@ export async function updatePriceBookItem(
   options?: ItemOption[],
   imagePosition?: ImagePosition
 ) {
-  const denied = await assertWritable()
-  if (denied) return denied
-
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { data, error } = await supabase
@@ -348,6 +356,8 @@ export async function fetchItemOptions(itemId: string): Promise<
 export async function deletePriceBookItem(itemId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -364,10 +374,10 @@ export async function deletePriceBookItem(itemId: string) {
 
 /** Bulk soft delete — moves the given items to Trash (quick-260718-t7d). */
 export async function trashPriceBookItems(itemIds: string[]) {
-  const denied = await assertWritable()
-  if (denied) return denied
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -386,10 +396,10 @@ export async function trashPriceBookItems(itemIds: string[]) {
 
 /** Restore trashed items back into the price book (quick-260718-t7d). */
 export async function restorePriceBookItems(itemIds: string[]) {
-  const denied = await assertWritable()
-  if (denied) return denied
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -410,10 +420,10 @@ export async function restorePriceBookItems(itemIds: string[]) {
  *  (deleted_at set) can be destroyed — an active item can never be hard-deleted
  *  through this path (quick-260718-t7d). */
 export async function destroyPriceBookItems(itemIds: string[]) {
-  const denied = await assertWritable()
-  if (denied) return denied
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -432,10 +442,10 @@ export async function destroyPriceBookItems(itemIds: string[]) {
 
 /** Permanently delete EVERYTHING in the company's Trash (quick-260718-t7d). */
 export async function emptyPriceBookTrash() {
-  const denied = await assertWritable()
-  if (denied) return denied
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { error, count } = await supabase
@@ -459,6 +469,8 @@ export async function importPriceBookItems(
 > {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   // Server-side re-validate every row (defense in depth)
@@ -534,6 +546,8 @@ export async function bulkAdjustPriceBookFolder(
 ): Promise<{ data: { updated: number } } | { error: string }> {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   // Fetch all items in the folder for this company (full row for upsert).
@@ -639,6 +653,8 @@ export async function commitImportChunk(
 ): Promise<{ data: CommitChunkResult } | { error: string }> {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { data: claimsData } = await supabase.auth.getClaims()
@@ -922,6 +938,8 @@ export async function undoLastImport(
 ): Promise<{ data: UndoResult } | { error: string }> {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error as string }
+  const denied = await assertWritable()
+  if (denied) return denied
   const { supabase, company } = ctx
 
   const { data: imp, error: impErr } = await supabase

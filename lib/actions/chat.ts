@@ -36,6 +36,7 @@ import {
 import { toUIMessages } from '@/lib/chat/history-mapper'
 import { getCurrentEstimate } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { assertWritable } from '@/lib/demo/guard'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { UIMessage } from 'ai'
 
@@ -58,6 +59,9 @@ export async function normalizeChatInput(
   if (!companyId) {
     return { ok: false, text: '', reason: 'no_active_company' }
   }
+
+  const denied = await assertWritable()
+  if (denied) return { ok: false, text: '', reason: 'demo_readonly' }
 
   if (arg.kind === 'audio') {
     const bytes = Buffer.from(arg.base64, 'base64')
@@ -90,6 +94,9 @@ export async function createChatConversation(
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return null
+
+  const denied = await assertWritable()
+  if (denied) return null
 
   // Title = the first user message, truncated — mirrors the Vercel AI Chatbot's
   // auto-title so the history list never shows a wall of "Untitled chat".
@@ -154,6 +161,9 @@ export async function deleteChatConversation(conversationId: string): Promise<bo
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return false
 
+  const denied = await assertWritable()
+  if (denied) return false
+
   return deleteConversation(conversationId, userId)
 }
 
@@ -170,6 +180,9 @@ export async function voteChatMessage(args: {
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return false
+
+  const denied = await assertWritable()
+  if (denied) return false
   if (!(await ownsConversation(args.conversationId, userId))) return false
 
   return upsertMessageVote({
@@ -198,6 +211,9 @@ export async function editChatMessage(args: {
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return false
+
+  const denied = await assertWritable()
+  if (denied) return false
   if (!(await ownsConversation(args.conversationId, userId))) return false
 
   const row = await findMessageRow(args.conversationId, args.messageId)
@@ -231,6 +247,9 @@ export async function truncateChatFrom(args: {
   const { data: claimsData } = await supabase.auth.getClaims()
   const userId = claimsData?.claims?.sub as string | undefined
   if (!userId) return false
+
+  const denied = await assertWritable()
+  if (denied) return false
   if (!(await ownsConversation(args.conversationId, userId))) return false
 
   const row = await findMessageRow(args.conversationId, args.messageId)

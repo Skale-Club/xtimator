@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { switchActiveCompany } from '@/lib/actions/active-company'
 import { syncSeatBilling } from '@/lib/billing/seat-billing'
+import { assertWritable } from '@/lib/demo/guard'
 
 /**
  * SEAT-04 — acceptInvite(token): the token-authority join action.
@@ -34,6 +35,9 @@ export async function acceptInvite(
   if (!claims?.sub) {
     return { error: 'You must be signed in to accept this invite.' }
   }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   const service = requireServiceClient()
 

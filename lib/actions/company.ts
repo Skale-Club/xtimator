@@ -22,6 +22,7 @@ import { resolveIndustries } from '@/lib/industries'
 import { captureBackgroundError } from '@/lib/observability/capture'
 import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { assertWritable } from '@/lib/demo/guard'
 
 interface CompanyFormData {
   companyName?: string
@@ -78,6 +79,9 @@ export async function uploadOnboardingLogoAction(formData: FormData) {
   const { data: userData } = await supabase.auth.getUser()
   if (!userData?.user) return { error: 'Not authenticated' }
 
+  const denied = await assertWritable()
+  if (denied) return denied
+
   const file = formData.get('file')
   if (!(file instanceof File) || file.size === 0) return { error: 'No file provided.' }
   if (!ACCEPTED_ONBOARDING_LOGO_TYPES.includes(file.type)) return { error: 'Unsupported image format. Please upload a PNG, JPG, or WebP file.' }
@@ -107,6 +111,9 @@ export async function createOrUpdateCompany(
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
   if (!claims) return { error: 'Not authenticated' }
+
+  const denied = await assertWritable()
+  if (denied) return denied
 
   // Resolve services: replace the 'other' sentinel with the custom text and
   // dedupe. `industry` (singular) keeps the primary (= industries[0]) for
