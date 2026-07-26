@@ -1,115 +1,68 @@
-# Requirements: Xtimator — Milestone v4.21 Notification Center
+# Requirements: Xtimator — Milestone v4.22 Product-Native Demo
 
-**Defined:** 2026-07-21
+**Defined:** 2026-07-26
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Unify all outbound messaging into a single admin-manageable Notification Center serving three distinct audiences — platform admins (Telegram), tenants (in-app/email/WhatsApp/SMS), and end customers (email/SMS only) — with every message template editable with variables from the super-admin panel instead of hardcoded copy. Research: [research/SUMMARY.md](research/SUMMARY.md) (+ STACK/FEATURES/ARCHITECTURE/PITFALLS).
+**Milestone goal:** Replace the standalone public demo with an isolated, read-only session that renders the real authenticated Xtimator product.
 
-> **Locked decisions (owner-confirmed 2026-07-21):**
-> - **Telegram scope:** ALL platform events, each with a per-event toggle in the admin panel; select critical events carry a `locked` flag and always deliver. Outbound-only, HTML `parse_mode`, single admin chat (multi-admin binding deferred). Extends the EXISTING `lib/telegram/client.ts` + `notifyOps()` pipe — not a new integration.
-> - **Template editing is super-admin-only for v1** — NO tenant-level template overrides. Tenant identity flows through variables (`{{business_name}}` etc.) in global templates.
-> - **WhatsApp is reserved exclusively for owner↔Xtimator conversation.** End customers NEVER receive WhatsApp. Tenant proactive WhatsApp notifications ARE re-enabled this milestone via the EXISTING HSM registry (Meta-approved templates required — operational task); WhatsApp body editing in the new template editor is deferred (positional `{{n}}` mismatch).
-> - **Dedicated Twilio Messaging Service for end-customer SMS** — separate from the shared owner-notification number (which 6 apps share); Advanced Opt-Out handles STOP/START/HELP. Operational task: provision in Twilio Console, config via admin panel (`platform_integrations`, never env).
-> - **No templating library** — hand-rolled ~40-line `{{var}}` interpolator with per-channel output escaping (HTML-escape for email/Telegram, plain for SMS, sanitized ordered params for WhatsApp HSM). Handlebars rejected: helper-execution CVE surface against admin-editable DB templates.
-> - **Fallback discipline:** DB template → static built-in copy → never block a send (generalizes the proven `whatsapp-registry.ts` pattern). The resolver ships before or atomically with the editor.
-> - **Tenant-scoped `notify()` and platform-scoped `notifyOps()` remain parallel pipelines** — they never share a table.
-> - **Agentic send is confirmation-gated** (the `confirm.ts` state-machine pattern, NOT `manage-tools.ts` immediate-write) with injection-resistant recipient validation. Synchronous send (agent needs same-turn success/failure).
-> - **End-customer consent/STOP infra is a hard prerequisite gate** before any end-customer or agentic SMS ships — HIGH/legal severity per PITFALLS.md.
-> - **Model orchestration:** Fable orchestrates, Opus validates, Sonnet executes, Haiku does the simplest work.
+> **Locked decisions (owner-confirmed through the implementation discussion):**
+> - The demo uses the real app shell and real product routes; no second demo design is maintained.
+> - Production isolation uses `demo.xtimator.com` so host-only Supabase and active-company cookies cannot overwrite a real session on `xtimator.com`.
+> - The dedicated demo user and deterministic demo company are always read-only. Canonical admin/provider exemptions must never make the public demo writable.
+> - The existing standalone demo remains available until the replacement passes automated and browser verification.
+> - Production is GitHub Actions → Docker/GHCR → Coolify. Vercel artifacts in the repository are not production configuration.
 
-## v1 Requirements
+## v4.22 Requirements
 
-Each requirement maps to exactly one roadmap phase.
+### Demo Entry and Session Isolation (ENTRY)
 
-### Platform Alerts — Telegram (PLAT)
+- [ ] **ENTRY-01**: A visitor opening the public demo entry on the apex domain is transferred to the configured demo host without changing an existing apex-domain Supabase session.
+- [ ] **ENTRY-02**: The demo host creates a host-only authenticated session for the dedicated demo user, selects the deterministic demo company in a host-only `active_company_id` cookie, and redirects to the real `/dashboard`.
+- [ ] **ENTRY-03**: Re-entering the demo is idempotent and recovers from stale or partial demo cookies without redirect loops.
+- [ ] **ENTRY-04**: Local development supports the same isolated-host flow on the configured localhost port without weakening production cookie rules.
 
-- [x] **PLAT-01**: A typed platform-event catalog (tenant signup, payment received, job failure, quota exhaustion, critical platform errors) exists as a new union distinct from the tenant-scoped `EventType`, and every cataloged platform event routes through `notifyOps()` to Telegram.
-- [x] **PLAT-02**: Super-admin can toggle each platform event's Telegram delivery on/off from the admin panel (per-event toggle matrix persisted in DB).
-- [x] **PLAT-03**: Events flagged `locked` (critical) always deliver to Telegram regardless of the toggle matrix.
+### Product Parity (PARITY)
 
-### Template System (TMPL)
+- [ ] **PARITY-01**: A demo visitor sees the same authenticated app layout, navigation, responsive behavior, components, and styling used by a real tenant.
+- [ ] **PARITY-02**: The demo visitor can navigate the core read surfaces—dashboard, projects, clients, price book, estimates, and settings surfaces intentionally exposed to the demo—using the deterministic demo tenant's data.
+- [ ] **PARITY-03**: The shared app shell visibly identifies demo/read-only mode and removes or disables controls that would otherwise initiate a mutation or paid/external side effect.
 
-- [x] **TMPL-01**: A `notification_templates` table models event_type × channel × audience with subject/body containing `{{var}}` placeholders, seeded from the current hardcoded copy so day-one behavior is byte-equivalent.
-- [x] **TMPL-02**: Super-admin can browse and edit every template (by audience, event, channel) from a Notification Center admin page.
-- [x] **TMPL-03**: The editor shows the per-event variable catalog inline and renders a live preview with sample data before save.
-- [x] **TMPL-04**: Saving a template with an unknown variable (not in that event's catalog) is rejected with a clear error — a template that would render `{{client_name}}` literally can never be activated.
-- [x] **TMPL-05**: Super-admin can test-send any template to themselves (email/SMS/Telegram) with sample data from the editor.
-- [x] **TMPL-06**: A fallback resolver renders the DB template when present and valid, and falls back to the built-in copy on any miss/parse error — a broken template NEVER blocks a send (proven by tests that corrupt a template and assert delivery).
-- [x] **TMPL-07**: Template rendering escapes output per channel — HTML-escape for email/Telegram HTML, plain text for SMS, sanitized (newline-stripped) ordered params for WhatsApp HSM — closing the existing `sendWhatsAppTemplate()` sanitization gap.
+### Read-Only Security (SAFE)
 
-### Tenant Notifications (TNT)
+- [ ] **SAFE-01**: Every server action and API route reachable from the demo denies mutations when either the authenticated session is the dedicated demo user or the active company is the deterministic demo company.
+- [ ] **SAFE-02**: External side effects—including AI generation, uploads, email/SMS/WhatsApp sends, billing, background jobs, and webhooks initiated from the UI—cannot be triggered by the public demo.
+- [ ] **SAFE-03**: Database/RLS policy provides a final deny-write boundary for the demo user/company even if a UI or server guard is missed.
+- [ ] **SAFE-04**: Automated tests prove allowed read navigation, denied mutation paths, host-only cookie isolation, stale-cookie recovery, and absence of redirect loops.
 
-- [x] **TNT-01**: All existing `notify()` call sites resolve their copy through the template resolver (callers pass a context object; `copy.ts` survives only as the fallback source).
-- [x] **TNT-02**: The existing per-category channel preference matrix (in_app/email/whatsapp/sms) keeps working unchanged through the template cutover — proven by the existing preference tests staying green.
-- [x] **TNT-03**: Tenant proactive WhatsApp notifications are re-enabled: the forced-off gate is lifted, approved HSM templates from the existing registry drive the whatsapp channel, and sends respect the tenant's opt-in preference. (Operational dependency: templates authored + APPROVED in Meta WhatsApp Manager.)
+### Cutover and Operations (CUTOVER)
 
-### End-Customer Messaging (CUST)
+- [ ] **CUTOVER-01**: Landing-page demo entry points use the product-native flow after verification, and the obsolete standalone `/demo/*` UI is removed without leaving broken internal links.
+- [ ] **CUTOVER-02**: Environment and deployment documentation specifies the demo host, Supabase redirect allow-list requirements, DNS/Coolify domain setup, and local host setup without treating Vercel as production.
+- [ ] **CUTOVER-03**: Browser verification demonstrates that a real apex session remains intact before and after visiting the demo host and that the demo renders the real product at desktop and responsive widths.
 
-- [x] **CUST-01**: The system can send a templated email to an end customer where the sender identity reads as the tenant's business (`{{business_name}} via Xtimator` friendly-from — honest, never deceptive).
-- [x] **CUST-02**: The system can send a templated SMS to an end customer through a dedicated Twilio Messaging Service (separate from the shared owner-notification number), with the tenant's business name leading the body.
-- [x] **CUST-03**: End-customer contact records carry consent/suppression state; STOP is honored (Twilio Advanced Opt-Out + a suppression check before EVERY send), and a suppressed recipient can never be messaged by any path — manual or agentic.
-- [x] **CUST-04**: A platform-wide quiet-hours guard prevents end-customer SMS outside acceptable local hours.
-- [x] **CUST-05**: Every end-customer message is logged in a `customer_messages` audit table (company, recipient, channel, provider, template/free-form, trigger source, status) — modeled on `estimate_deliveries`.
+## Future Requirements
 
-### Agentic Send (AGENT)
+- **DEMO-FUT-01**: Periodically reset demo data to a canonical fixture after scheduled intervals.
+- **DEMO-FUT-02**: Provide scenario-specific demo tenants for multiple service industries.
+- **DEMO-FUT-03**: Capture privacy-safe demo funnel analytics across landing, entry, and product exploration.
 
-- [x] **AGENT-01**: The owner can ask the WhatsApp assistant to send an SMS or email to one of their clients; the assistant drafts the message and requires explicit owner confirmation (confirm-gated state machine) before anything is sent.
-- [x] **AGENT-02**: The same send capability is exposed as an MCP tool with the same confirmation and validation gates as the WhatsApp path.
-- [x] **AGENT-03**: The agentic recipient must resolve to an existing client of the owner's company — arbitrary phone numbers/emails are rejected, recipient and body are re-validated server-side at send time (prompt-injection cannot redirect a message), and sends are rate-limited per company.
+## Out of Scope
 
-### WhatsApp Template Composer — Phase 179 extension (owner-requested 2026-07-22, pulls in FUT-01)
-
-- [x] **TMPLCOMP-01**: Super-admin can compose a WhatsApp HSM template BODY in the panel with positional `{{n}}` variables, each position carrying a label + example value — one single ordered array drives the body text, Meta's `example.body_text`, and `variables_schema` (order-mismatch-by-construction impossible; research: Meta validates param COUNT at send time but never ORDER).
-- [x] **TMPLCOMP-02**: Submit sends REAL components to Meta (BODY + mandatory `example.body_text`), with pre-submit validation mirroring Meta's auto-reject rules (sequential variables, no leading/trailing variable, char limits) so avoidable rejections are caught before the API call.
-- [x] **TMPLCOMP-03**: Approval status is verifiable in-system — the existing webhook sync plus a "Check status now" button doing a direct Meta GET; the FULL status enum is handled (PAUSED/DISABLED/FLAGGED etc. resolve to non-approved states, never a silent lowercase fall-through).
-- [x] **TMPLCOMP-04**: Super-admin can edit and resubmit a rejected (or approved) template in place via `POST /{template_id}` — rejection reason displayed in the panel.
-- [x] **TMPLCOMP-05**: The event→template mapping writes the populated `variables_schema` so Phase 174's `expectedVariableCount` send guard is live end-to-end; `lib/actions/admin-whatsapp-templates.ts` gains its missing unit coverage (Wave 0 gap found by research).
-
-## Future Requirements (deferred)
-
-- **FUT-01**: WhatsApp HSM body editing in the template editor (positional `{{n}}` parameter model needs its own design pass + Meta API validation research).
-- **FUT-02**: Self-service Telegram chat binding via `/start` deep link (multi-admin registration).
-- **FUT-03**: Delivery-status dashboard (Resend/Twilio webhook ingestion surfaced in admin UI beyond the audit log).
-- **FUT-04**: Template version history / rollback.
-- **FUT-05**: Tenant-level template overrides (revisit only if variables can't express what tenants ask for).
-- **FUT-06**: Two-way end-customer reply threading (WhatsApp stays the only two-way channel by design).
-- **FUT-07**: Per-tenant sender reputation isolation (Twilio subaccounts / dedicated pools) — only if real deliverability degradation is observed.
-- **FUT-08**: Per-tenant configurable quiet hours.
-
-## Out of Scope (this milestone)
-
-- **WhatsApp for end customers** — locked out; owner↔Xtimator conversation only.
-- **Visual drag-and-drop email builder** — plain editor + `{{var}}` insertion + preview is the v1 bar.
-- **Telegram MarkdownV2** — HTML `parse_mode` stays the single formatting convention.
-- **Inbound SMS/email routing** beyond Twilio's automatic STOP handling — no second inbox system.
-- **Marketing/bulk messaging** — end-customer sends are strictly transactional (narrower TCPA bar); campaign features are a different product decision.
+| Feature | Reason |
+|---------|--------|
+| A second demo-only design system | The milestone exists specifically to eliminate visual and behavioral divergence. |
+| Public visitors receiving a real admin/provider identity | It creates an unsafe mutation path and is unnecessary for product exploration. |
+| Production deployment, DNS mutation, or Coolify domain creation from local code | These are operator actions; the repository will provide exact configuration requirements and remain deploy-ready. |
+| Demo data editing with periodic rollback | Read-only is the safer first release; resettable sandboxes can be considered later. |
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|----------|--------|
-| PLAT-01 | Phase 175 | Complete |
-| PLAT-02 | Phase 175 | Complete |
-| PLAT-03 | Phase 175 | Complete |
-| TMPL-01 | Phase 172 | Complete |
-| TMPL-02 | Phase 173 | Complete |
-| TMPL-03 | Phase 173 | Complete |
-| TMPL-04 | Phase 173 | Complete |
-| TMPL-05 | Phase 173 | Complete |
-| TMPL-06 | Phase 172 | Complete |
-| TMPL-07 | Phase 172 | Complete |
-| TNT-01 | Phase 174 | Complete |
-| TNT-02 | Phase 174 | Complete |
-| TNT-03 | Phase 174 | Complete |
-| CUST-01 | Phase 177 | Complete |
-| CUST-02 | Phase 177 | Complete |
-| CUST-03 | Phase 176 | Complete |
-| CUST-04 | Phase 176 | Complete |
-| CUST-05 | Phase 177 | Complete |
-| AGENT-01 | Phase 178 | Complete |
-| AGENT-02 | Phase 178 | Complete |
-| AGENT-03 | Phase 178 | Complete |
-| TMPLCOMP-01 | Phase 179 | Planned |
-| TMPLCOMP-02 | Phase 179 | Planned |
-| TMPLCOMP-03 | Phase 179 | Planned |
-| TMPLCOMP-04 | Phase 179 | Planned |
-| TMPLCOMP-05 | Phase 179 | Planned |
+Roadmap creation will map each requirement to exactly one phase.
+
+**Coverage:**
+- v4.22 requirements: 14 total
+- Mapped to phases: 0
+- Unmapped: 14
+
+---
+*Requirements defined: 2026-07-26*
+*Last updated: 2026-07-26 after autonomous milestone scoping*
