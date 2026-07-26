@@ -61,6 +61,8 @@ liveDescribe(
     let normalProjectId = ''
     let demoObjectPath = ''
     let normalObjectPath = ''
+    let blockedDemoObjectPath = ''
+    let blockedNormalObjectPath = ''
 
     beforeAll(async () => {
       const mapping = await service
@@ -133,11 +135,20 @@ liveDescribe(
       if (demoObjectPath) {
         await service.storage.from('photos').remove([demoObjectPath])
       }
-      if (normalObjectPath) {
-        await service.storage.from('photos').remove([normalObjectPath])
+      const otherOwnedObjects = [
+        normalObjectPath,
+        blockedDemoObjectPath,
+        blockedNormalObjectPath,
+      ].filter(Boolean)
+      if (otherOwnedObjects.length > 0) {
+        await service.storage.from('photos').remove(otherOwnedObjects)
       }
       if (demoProjectId) {
-        await service.from('projects').delete().eq('id', demoProjectId)
+        await service
+          .from('projects')
+          .delete()
+          .eq('company_id', demoCompanyId)
+          .like('name', `${prefix}%`)
       }
       if (normalCompanyId) {
         await service.from('projects').delete().eq('company_id', normalCompanyId)
@@ -242,9 +253,10 @@ liveDescribe(
     })
 
     it('denies demo and cross-principal Storage writes under the demo-company prefix', async () => {
+      blockedDemoObjectPath = `${demoCompanyId}/${prefix}-blocked-demo.png`
       const demoInsert = await demo.storage
         .from('photos')
-        .upload(`${demoCompanyId}/${prefix}-blocked-demo.png`, onePixelPng, {
+        .upload(blockedDemoObjectPath, onePixelPng, {
           contentType: 'image/png',
           upsert: false,
         })
@@ -258,9 +270,10 @@ liveDescribe(
       const demoDelete = await demo.storage.from('photos').remove([demoObjectPath])
       expectRlsDenial(demoDelete.error)
 
+      blockedNormalObjectPath = `${demoCompanyId}/${prefix}-blocked-normal.png`
       const normalInsert = await normal.storage
         .from('photos')
-        .upload(`${demoCompanyId}/${prefix}-blocked-normal.png`, onePixelPng, {
+        .upload(blockedNormalObjectPath, onePixelPng, {
           contentType: 'image/png',
           upsert: false,
         })

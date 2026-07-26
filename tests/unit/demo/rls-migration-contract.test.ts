@@ -157,6 +157,12 @@ describe('demo read-only foundation migration contract', () => {
     expect(sql).toMatch(
       /demo_company_block_insert[\s\S]*NOT public\.is_demo_company[\s\S]*storage\.foldername/i,
     )
+
+    const uuidPattern = source.match(/~\*\s*'([^']+)'/)?.[1]
+    expect(uuidPattern).toBeDefined()
+    const uuidRegex = new RegExp(uuidPattern!, 'i')
+    expect('0000de00-0000-0000-0000-000000000001').toMatch(uuidRegex)
+    expect('not-a-uuid').not.toMatch(uuidRegex)
   })
 
   it('ends with catalog assertions for public, companies, and storage coverage', () => {
