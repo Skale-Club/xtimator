@@ -27,7 +27,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/demo/guard', () => ({
-  DEMO_READONLY_MESSAGE: READONLY_MESSAGE,
+  DEMO_READONLY_MESSAGE:
+    'This is a read-only demo. Create a free account to make changes.',
   assertCompanyWritable: (...args: unknown[]) =>
     mocks.assertCompanyWritable(...args),
 }))

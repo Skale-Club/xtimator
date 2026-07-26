@@ -22,6 +22,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export type CreateServiceInput = {
   name: string
@@ -47,6 +48,9 @@ export async function createPriceBookService(
   companyId: string,
   input: CreateServiceInput,
 ): Promise<CreateServiceResult> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   // Validate through the SAME schema the dashboard form uses (defense in depth).
   const parsed = priceBookItemSchema.safeParse({
     name: input.name,

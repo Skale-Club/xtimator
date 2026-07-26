@@ -26,6 +26,7 @@ import { z } from 'zod'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 import { requireScope } from '@/lib/mcp/scope'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import {
   createEstimate,
   createProject,
@@ -312,6 +313,11 @@ function jsonContent(payload: unknown): ToolResult {
   }
 }
 
+async function ensureCompanyWritable(auth: McpAuthContext): Promise<void> {
+  const denied = await assertCompanyWritable(auth.company_id)
+  if (denied) throw invalidInput(denied.error)
+}
+
 // ── create_estimate ──────────────────────────────────────────────────────────
 
 async function handleCreateEstimate(
@@ -320,6 +326,7 @@ async function handleCreateEstimate(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(createEstimateInput, args)
+  await ensureCompanyWritable(auth)
 
   // Verify the project belongs to the active company. Use service client (we
   // bypass RLS — the OAuth consent screen already authorized this exact
@@ -378,6 +385,7 @@ async function handleCreateProject(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(createProjectInput, args)
+  await ensureCompanyWritable(auth)
 
   const supabase = requireServiceClient()
   const result = await createProject(
@@ -403,6 +411,7 @@ async function handleAddService(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(addServiceInput, args)
+  await ensureCompanyWritable(auth)
 
   // Service client bypasses RLS — tenancy is enforced by passing the trusted
   // auth.company_id (never an LLM field) into the neutral capability.
@@ -432,6 +441,7 @@ async function handleAddKnowledge(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(addKnowledgeInput, args)
+  await ensureCompanyWritable(auth)
 
   const supabase = requireServiceClient()
   const result = await addCompanyKnowledge(supabase, auth.company_id, {
@@ -465,6 +475,7 @@ async function handleDraftCustomerMessage(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(draftCustomerMessageInput, args)
+  await ensureCompanyWritable(auth)
   const supabase = requireServiceClient()
   const result = await draftCustomerMessage(supabase, {
     companyId: auth.company_id,
@@ -506,6 +517,7 @@ async function handleSendCustomerMessage(
 ): Promise<ToolResult> {
   ensureScope(auth, 'mcp:write')
   const input = parseInput(sendCustomerMessageInput, args)
+  await ensureCompanyWritable(auth)
   const supabase = requireServiceClient()
   const result = await confirmSendByToken(supabase, auth.company_id, input.confirmation_token)
 

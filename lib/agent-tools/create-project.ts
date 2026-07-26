@@ -17,6 +17,7 @@ import 'server-only'
  * Channel-neutral (ENGINE-01): imports no channel package.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export type CreateProjectInput = { name: string; clientId?: string | null }
 
@@ -30,6 +31,9 @@ export async function createProject(
   input: CreateProjectInput,
   channel?: 'web' | 'mcp',
 ): Promise<CreateProjectResult> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   const name = input.name.trim()
   if (!name) return { ok: false, message: 'Project name is required.' }
   if (name.length > 200) {

@@ -35,6 +35,7 @@ import {
 import { requireServiceClient } from '@/lib/supabase/service'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /** Thrown by createEstimate when the company's credit balance is spent. */
 export const INSUFFICIENT_CREDITS_MESSAGE =
@@ -47,6 +48,9 @@ export async function createEstimate(args: {
   language?: 'en' | 'pt' | 'es'
   channel?: 'web' | 'mcp'
 }): Promise<{ jobId: string }> {
+  const denied = await assertCompanyWritable(args.companyId)
+  if (denied) throw new Error(denied.error)
+
   // Billing v2 credit gate — the SAME wall the web route enforces, applied here
   // so every channel that dispatches through this neutral fn (chat, MCP) is
   // covered. BYOK bypass + the enforcement flag live inside checkCredits.

@@ -23,6 +23,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { embed } from '@/lib/knowledge/embed'
 import { companyKnowledgeEntrySchema } from '@/lib/schemas/knowledge'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export type AddKnowledgeInput = { title: string; body: string; source?: string | null }
 
@@ -33,6 +34,9 @@ export async function addCompanyKnowledge(
   companyId: string,
   input: AddKnowledgeInput,
 ): Promise<AddKnowledgeResult> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   const parsed = companyKnowledgeEntrySchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }

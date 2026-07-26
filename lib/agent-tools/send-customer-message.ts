@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { assertSendAllowed } from '@/lib/notifications/customer-send-gate'
 import type { TriggerSource } from '@/lib/notifications/customer-send'
 import { sendCustomerMessage as dispatchCustomerMessage } from '@/lib/notifications/customer-send'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import {
   createSendConfirmation,
   resolvePendingByChannelRef,
@@ -139,6 +140,9 @@ export async function draftCustomerMessage(
   supabase: SupabaseClient,
   params: DraftSendParams,
 ): Promise<DraftSendResult> {
+  const denied = await assertCompanyWritable(params.companyId)
+  if (denied) throw new Error(denied.error)
+
   const rateOk = await checkAgenticSendRateLimit(params.companyId)
   if (!rateOk) {
     return { ok: false, error: 'rate_limited' }
@@ -251,6 +255,9 @@ export async function confirmSendByChannelRef(
   companyId: string,
   channelRef: string,
 ): Promise<ConfirmSendResult> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   const pending = await resolvePendingByChannelRef(supabase, companyId, channelRef)
   if (!pending) {
     return { ok: false, error: 'not_found' }
@@ -263,6 +270,9 @@ export async function confirmSendByToken(
   companyId: string,
   token: string,
 ): Promise<ConfirmSendResult> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   const pending = await resolveByToken(supabase, companyId, token)
   if (!pending) {
     return { ok: false, error: 'not_found' }
@@ -275,6 +285,9 @@ export async function cancelSendByChannelRef(
   companyId: string,
   channelRef: string,
 ): Promise<{ ok: boolean }> {
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) throw new Error(denied.error)
+
   const pending = await resolvePendingByChannelRef(supabase, companyId, channelRef)
   if (!pending) {
     return { ok: false }
