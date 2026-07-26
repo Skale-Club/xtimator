@@ -28,8 +28,8 @@
 
 ### Read-Only Security (SAFE)
 
-- [ ] **SAFE-01**: Every server action and API route reachable from the demo denies mutations when either the authenticated session is the dedicated demo user or the active company is the deterministic demo company.
-- [ ] **SAFE-02**: External side effects—including AI generation, uploads, email/SMS/WhatsApp sends, billing, background jobs, and webhooks initiated from the UI—cannot be triggered by the public demo.
+- [x] **SAFE-01**: Every server action and API route reachable from the demo denies mutations when either the authenticated session is the dedicated demo user or the active company is the deterministic demo company.
+- [x] **SAFE-02**: External side effects—including AI generation, uploads, email/SMS/WhatsApp sends, billing, background jobs, and webhooks initiated from the UI—cannot be triggered by the public demo.
 - [ ] **SAFE-03**: Database/RLS policy provides a final deny-write boundary for the demo user/company even if a UI or server guard is missed.
 - [ ] **SAFE-04**: Automated tests prove allowed read navigation, denied mutation paths, host-only cookie isolation, stale-cookie recovery, and absence of redirect loops.
 
@@ -65,8 +65,8 @@
 | PARITY-01 | Phase 181 | Pending |
 | PARITY-02 | Phase 181 | Pending |
 | PARITY-03 | Phase 181 | Pending |
-| SAFE-01 | Phase 180 | Pending |
-| SAFE-02 | Phase 180 | Pending |
+| SAFE-01 | Phase 180 | Complete |
+| SAFE-02 | Phase 180 | Complete |
 | SAFE-03 | Phase 180 | Pending |
 | SAFE-04 | Phase 180 | Pending |
 | CUTOVER-01 | Phase 181 | Pending |
