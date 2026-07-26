@@ -58,7 +58,7 @@ afterEach(() => {
   process.env.DEMO_USER_PASSWORD = originalEnv.demoPassword
 })
 
-describe('establishDemoSession', () => {
+describe('ENTRY-02 and ENTRY-03: establishDemoSession', () => {
   it('reuses only the verified dedicated principal and writes a host-only active company cookie', async () => {
     const session = await loadSession({ claims: { sub: 'demo-user-id', email: 'demo@example.com' } })
     const response = await session.establishDemoSession(

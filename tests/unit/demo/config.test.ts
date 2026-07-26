@@ -21,7 +21,7 @@ afterEach(() => {
   }
 })
 
-describe('getDemoAppOrigin', () => {
+describe('ENTRY-04: getDemoAppOrigin', () => {
   it('accepts the configured localhost host and port without weakening production cookies', async () => {
     const { getDemoAppOrigin } = await loadConfig('http://demo.localhost:9633')
 

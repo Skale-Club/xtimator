@@ -27,7 +27,7 @@ afterEach(() => {
   }
 })
 
-describe('demo entry host routing', () => {
+describe('ENTRY-01: demo entry host routing', () => {
   it('routes only the apex entry to the fixed demo-host entry', async () => {
     const { classifyDemoEntryRequest } = await loadSession()
 
@@ -81,5 +81,14 @@ describe('demo entry host routing', () => {
     expect(classifyDemoEntryRequest(new NextRequest('https://xtimator.com/demo'))).toEqual({
       kind: 'reject',
     })
+  })
+
+  it('rejects hostile token, email, and company input instead of selecting an identity or destination', async () => {
+    const { classifyDemoEntryRequest } = await loadSession()
+    const request = new NextRequest(
+      'https://demo.xtimator.com/demo/entry?token=attacker-token&email=attacker%40example.com&company_id=attacker-company'
+    )
+
+    expect(classifyDemoEntryRequest(request)).toEqual({ kind: 'reject' })
   })
 })
