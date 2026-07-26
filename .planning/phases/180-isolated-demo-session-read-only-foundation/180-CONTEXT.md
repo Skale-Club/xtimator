@@ -15,7 +15,7 @@ Establish the secure entry and identity foundation for a product-native public d
 ## Implementation Decisions
 
 ### Host and session isolation
-- [D-01] Production demo traffic uses `demo.xtimator.com`; the apex `/demo` entry performs a cross-host handoff rather than authenticating the demo user on `xtimator.com`.
+- [D-01] Production demo traffic uses `demo.xtimator.com`. Phase 180 exposes an apex `/demo/entry` handoff for direct verification without changing the legacy `/demo` experience; Phase 181 switches the public `/demo` entry and landing CTA to that verified handoff.
 - [D-02] Supabase auth cookies and `active_company_id` created on the demo host are host-only. No `.xtimator.com` domain cookie is introduced.
 - [D-03] The demo entry is idempotent: a valid existing demo session reuses the demo identity; stale, wrong-user, wrong-company, or partial demo cookies are cleared/repaired without redirect loops.
 - [D-04] Local development uses a configured demo host (for example `demo.localhost`) and the actual configured port; production secure-cookie behavior is not weakened to make local development work.
@@ -32,7 +32,7 @@ Establish the secure entry and identity foundation for a product-native public d
 - [D-11] RLS/database protection is the final boundary. The dedicated demo user/company cannot write through direct Supabase client access even if an application guard is missed.
 
 ### Cutover safety
-- [D-12] The current standalone `/demo/*` pages remain intact throughout Phase 180. Public CTA cutover and duplicate-page removal happen only in Phase 181 after automated and browser verification.
+- [D-12] The current standalone `/demo/*` pages remain intact throughout Phase 180, except for the additive `/demo/entry` handoff route. The legacy `/demo` index and its CTA behavior do not change until Phase 181; duplicate-page removal happens only after verification.
 
 ### the agent's Discretion
 - Exact route names for the cross-host entry/callback.
@@ -71,7 +71,8 @@ Establish the secure entry and identity foundation for a product-native public d
 <specifics>
 ## Specific Ideas
 
-- Intended production flow: `https://xtimator.com/demo` → `https://demo.xtimator.com/<demo-entry>` → host-only demo session + host-only `active_company_id` → `/dashboard`.
+- Phase 180 verification flow: `https://xtimator.com/demo/entry` → `https://demo.xtimator.com/demo/entry` → host-only demo session + host-only `active_company_id` → `/dashboard`.
+- Phase 181 cutover flow: `https://xtimator.com/demo` and landing CTAs use the verified `/demo/entry` handoff.
 - The replacement must render the real authenticated application, not a service-role-powered replica.
 - Automated coverage must include an existing apex session before and after visiting the demo host.
 

@@ -569,17 +569,17 @@ if (blocked) return blocked
 | A2 | Coolify overwrites/sanitizes `X-Forwarded-Host` rather than forwarding an arbitrary client-supplied value. [ASSUMED] | Host validation | If false, host classification could be spoofed; operator/deployment validation must confirm proxy behavior before production enablement. |
 | A3 | Production `demo_config` contains exactly the seeded user/company mapping and can accept a `company_id NOT NULL`/FK hardening change. [ASSUMED] | RLS | Migration must preflight and fail safely rather than guessing or deleting data. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which external host header is canonical behind the current Coolify proxy?**
+1. **RESOLVED — Which external host header is canonical behind the current Coolify proxy?**
    - What we know: current URL utilities prefer `X-Forwarded-Host` because the request URL can expose an internal bind origin. [VERIFIED: `lib/utils/site-url.ts`]
    - What's unclear: the proxy's exact sanitization behavior was not tested in this local-only research. [ASSUMED]
-   - Recommendation: implement exact allowlisted comparison and add an operator/browser verification in Phase 181; never use the header to construct a destination.
+   - Resolution: Phase 180 parses the configured `DEMO_APP_ORIGIN`, compares requests against an exact allowlist, and never constructs a destination from `Host` or `X-Forwarded-Host`. If the trusted external host cannot be proven, the route fails closed. Phase 181 separately verifies Coolify forwarding before production cutover.
 
-2. **Can `demo_config.company_id` be hardened immediately?**
+2. **RESOLVED — Can `demo_config.company_id` be hardened immediately?**
    - What we know: the seed always writes user and company, but the schema currently permits null. [VERIFIED: seed and migration]
    - What's unclear: live production rows were not queried by instruction. [VERIFIED: research scope]
-   - Recommendation: migration preflight raises a clear exception if null/orphan/multiple mappings exist; planner includes a safe operator repair checkpoint only if preflight fails.
+   - Resolution: Phase 180 migration preflight raises a clear exception on null, orphaned, or ambiguous mappings before adding any constraint/policy. It never deletes or guesses live data. A production repair/push requires an exact-target operator checkpoint only if preflight or local/live integration evidence cannot prove safety.
 
 No design-choice blocker remains for planning; both questions have fail-closed implementation paths. [VERIFIED: analysis]
 

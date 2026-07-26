@@ -42,7 +42,7 @@ created: 2026-07-26
 
 | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| ENTRY-01 | T-01, T-02 | Fixed demo-origin handoff; apex cookies unchanged | unit + e2e | `npx vitest run tests/unit/demo/host-routing.test.ts && npx playwright test tests/e2e/demo-session-isolation.spec.ts --project=chromium` | ❌ W0 | ⬜ pending |
+| ENTRY-01 | T-01, T-02 | Additive apex `/demo/entry` uses a fixed demo-origin handoff; apex cookies stay unchanged while legacy `/demo` remains intact | unit + e2e | `npx vitest run tests/unit/demo/host-routing.test.ts && npx playwright test tests/e2e/demo-session-isolation.spec.ts --project=chromium` | ❌ W0 | ⬜ pending |
 | ENTRY-02 | T-01, T-03 | Exact demo host creates only host-scoped demo session/company cookies | unit + e2e | `npx vitest run tests/unit/demo/session-route.test.ts` | ❌ W0 | ⬜ pending |
 | ENTRY-03 | T-04, T-05 | Wrong/partial state repairs once; terminal failures never loop | unit + e2e | `npx vitest run tests/unit/demo/session-route.test.ts` | ❌ W0 | ⬜ pending |
 | ENTRY-04 | T-01, T-02 | Local host/port supported without relaxing production cookie policy | unit | `npx vitest run tests/unit/demo/config.test.ts tests/unit/demo/host-routing.test.ts` | ❌ W0 | ⬜ pending |
