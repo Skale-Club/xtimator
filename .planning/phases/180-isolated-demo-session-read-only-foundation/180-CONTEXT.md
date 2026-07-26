@@ -15,24 +15,24 @@ Establish the secure entry and identity foundation for a product-native public d
 ## Implementation Decisions
 
 ### Host and session isolation
-- [D-01] Production demo traffic uses `demo.xtimator.com`. Phase 180 exposes an apex `/demo/entry` handoff for direct verification without changing the legacy `/demo` experience; Phase 181 switches the public `/demo` entry and landing CTA to that verified handoff.
-- [D-02] Supabase auth cookies and `active_company_id` created on the demo host are host-only. No `.xtimator.com` domain cookie is introduced.
-- [D-03] The demo entry is idempotent: a valid existing demo session reuses the demo identity; stale, wrong-user, wrong-company, or partial demo cookies are cleared/repaired without redirect loops.
-- [D-04] Local development uses a configured demo host (for example `demo.localhost`) and the actual configured port; production secure-cookie behavior is not weakened to make local development work.
+- D-01: Production demo traffic uses `demo.xtimator.com`. Phase 180 exposes an apex `/demo/entry` handoff for direct verification without changing the legacy `/demo` experience; Phase 181 switches the public `/demo` entry and landing CTA to that verified handoff.
+- D-02: Supabase auth cookies and `active_company_id` created on the demo host are host-only. No `.xtimator.com` domain cookie is introduced.
+- D-03: The demo entry is idempotent: a valid existing demo session reuses the demo identity; stale, wrong-user, wrong-company, or partial demo cookies are cleared/repaired without redirect loops.
+- D-04: Local development uses a configured demo host (for example `demo.localhost`) and the actual configured port; production secure-cookie behavior is not weakened to make local development work.
 
 ### Demo identity and tenant
-- [D-05] Reuse `lib/demo/config.ts` as the canonical source for `DEMO_COMPANY_ID`, `DEMO_USER_EMAIL`, and `DEMO_USER_PASSWORD`.
-- [D-06] The demo host authenticates only the dedicated demo user and sets the deterministic demo company as active before redirecting to the real `/dashboard`.
-- [D-07] Never grant or reuse a canonical platform-admin/provider identity for public visitors. Xkedule's admin-exemption write hole is explicitly rejected.
+- D-05: Reuse `lib/demo/config.ts` as the canonical source for `DEMO_COMPANY_ID`, `DEMO_USER_EMAIL`, and `DEMO_USER_PASSWORD`.
+- D-06: The demo host authenticates only the dedicated demo user and sets the deterministic demo company as active before redirecting to the real `/dashboard`.
+- D-07: Never grant or reuse a canonical platform-admin/provider identity for public visitors. Xkedule's admin-exemption write hole is explicitly rejected.
 
 ### Read-only enforcement
-- [D-08] A request is treated as demo/read-only if either the authenticated session matches the dedicated demo user or the resolved active company matches `DEMO_COMPANY_ID`. Guards must fail closed on either signal.
-- [D-09] UI suppression is convenience only. Server actions, API routes, upload/generation/send/billing/background-job entry points, and database/RLS policies independently deny demo mutations and external effects.
-- [D-10] Existing `lib/demo/guard.ts`, `assertWritable`, and `demoGuardResponse` remain the shared server contract and are strengthened rather than replaced by a parallel guard system.
-- [D-11] RLS/database protection is the final boundary. The dedicated demo user/company cannot write through direct Supabase client access even if an application guard is missed.
+- D-08: A request is treated as demo/read-only if either the authenticated session matches the dedicated demo user or the resolved active company matches `DEMO_COMPANY_ID`. Guards must fail closed on either signal.
+- D-09: UI suppression is convenience only. Server actions, API routes, upload/generation/send/billing/background-job entry points, and database/RLS policies independently deny demo mutations and external effects.
+- D-10: Existing `lib/demo/guard.ts`, `assertWritable`, and `demoGuardResponse` remain the shared server contract and are strengthened rather than replaced by a parallel guard system.
+- D-11: RLS/database protection is the final boundary. The dedicated demo user/company cannot write through direct Supabase client access even if an application guard is missed.
 
 ### Cutover safety
-- [D-12] The current standalone `/demo/*` pages remain intact throughout Phase 180, except for the additive `/demo/entry` handoff route. The legacy `/demo` index and its CTA behavior do not change until Phase 181; duplicate-page removal happens only after verification.
+- D-12: The current standalone `/demo/*` pages remain intact throughout Phase 180, except for the additive `/demo/entry` handoff route. The legacy `/demo` index and its CTA behavior do not change until Phase 181; duplicate-page removal happens only after verification.
 
 ### the agent's Discretion
 - Exact route names for the cross-host entry/callback.
