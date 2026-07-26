@@ -5,6 +5,7 @@ import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { emailFrom } from '@/lib/email/sender'
+import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 
 export async function logEstimateView(token: string): Promise<void> {
   const supabase = requireServiceClient()
@@ -27,6 +28,9 @@ export async function logEstimateView(token: string): Promise<void> {
     estimate_number?: string | null
     client_name?: string | null
   }
+
+  const denied = (await assertWritable()) ?? await assertCompanyWritable(estimateRow.company_id)
+  if (denied) return
 
   // Update viewed_at only on first view
   if (!estimateRow.viewed_at) {
@@ -134,6 +138,9 @@ export async function respondToEstimate(
     estimate_number?: string | null
     client_name?: string | null
   }
+
+  const denied = (await assertWritable()) ?? await assertCompanyWritable(est.company_id)
+  if (denied) return { success: false, error: denied.error }
 
   if (est.client_response) {
     return { success: false, error: 'This estimate has already been responded to' }

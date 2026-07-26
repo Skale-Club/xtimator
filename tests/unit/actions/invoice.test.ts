@@ -11,9 +11,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * await import() throws and every case fails loudly (Nyquist gate).
  */
 
-const isDemoCompany = vi.fn()
-vi.mock('@/lib/demo/config', () => ({
-  isDemoCompany: (...args: unknown[]) => isDemoCompany(...args),
+const assertWritable = vi.fn()
+const assertCompanyWritable = vi.fn()
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: (...args: unknown[]) => assertWritable(...args),
+  assertCompanyWritable: (...args: unknown[]) => assertCompanyWritable(...args),
 }))
 
 const getAuthContext = vi.fn()
@@ -94,7 +96,8 @@ function configureSupabase(opts: {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  isDemoCompany.mockReturnValue(false)
+  assertWritable.mockResolvedValue(null)
+  assertCompanyWritable.mockResolvedValue(null)
   getAuthContext.mockResolvedValue({ userId: 'u_1', companyId: 'co_1' })
   getBillingConfig.mockResolvedValue({ estimateFeePct: 0.01, estimateFeeMinCents: 1 })
   createConnectInvoice.mockResolvedValue({
@@ -109,7 +112,9 @@ beforeEach(() => {
 
 describe('INVOICE-03: generateInvoice action', () => {
   it('blocks the demo company and never calls Stripe', async () => {
-    isDemoCompany.mockReturnValue(true)
+    assertCompanyWritable.mockResolvedValue({
+      error: 'This is a read-only demo. Create a free account to make changes.',
+    })
     configureSupabase({})
     const { generateInvoice } = await import('@/lib/actions/invoice')
 

@@ -17,7 +17,21 @@ function functionBody(source: string, name: string): string {
   const start = source.indexOf(`export async function ${name}`)
   expect(start, `${name} must remain an exported action`).toBeGreaterThan(-1)
 
-  const openingBrace = source.indexOf('{', start)
+  const paramsOpen = source.indexOf('(', start)
+  let paramsDepth = 0
+  let paramsClose = -1
+  for (let index = paramsOpen; index < source.length; index += 1) {
+    if (source[index] === '(') paramsDepth += 1
+    if (source[index] === ')') paramsDepth -= 1
+    if (paramsDepth === 0) {
+      paramsClose = index
+      break
+    }
+  }
+
+  const signature = source.slice(paramsClose).match(/^\)\s*(?::.*)?\s*\{/)
+  const openingBrace =
+    signature === null ? -1 : paramsClose + signature[0].lastIndexOf('{')
   expect(openingBrace, `${name} must have a function body`).toBeGreaterThan(-1)
 
   let depth = 0
@@ -80,9 +94,14 @@ describe('SAFE-01/SAFE-02: invoice, client, and public estimate mutation boundar
     expectGuardBefore(body, /resend\.emails\.send\s*\(/, 'respondToEstimate')
   })
 
-  it('keeps public actions anonymous while guarding only after a trusted estimate target resolves', () => {
-    expect(publicEstimateSource).not.toMatch(/assertWritable\s*\(/)
-    expect(publicEstimateSource).toMatch(/assertCompanyWritable\s*\(/)
+  it('keeps public actions anonymous while applying session and target guards after estimate lookup', () => {
+    const viewBody = functionBody(publicEstimateSource, 'logEstimateView')
+    const responseBody = functionBody(publicEstimateSource, 'respondToEstimate')
+
+    for (const body of [viewBody, responseBody]) {
+      expect(body.search(/assertWritable\s*\(/)).toBeGreaterThan(body.search(/\.single\s*\(\)/))
+      expect(body).toMatch(/assertCompanyWritable\s*\(/)
+    }
   })
 
   it('routes client-logo removal through the guarded Server Action, never browser Supabase', () => {

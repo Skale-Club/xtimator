@@ -87,6 +87,23 @@ export async function updateClientAction(clientId: string, formData: ClientFormV
   return { data: client }
 }
 
+export async function removeClientLogo(clientId: string) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase } = ctx
+
+  const { error } = await supabase
+    .from('clients')
+    .update({ logo_url: null })
+    .eq('id', clientId)
+
+  if (error) return { error: 'Failed to remove logo.' }
+
+  revalidatePath('/clients')
+  revalidatePath(`/clients/${clientId}`)
+  return { data: { removed: true } }
+}
+
 /**
  * Server-side logo upload for a client — replaces the previous client-side
  * direct-to-storage upload so the file goes through WebP conversion (sharp

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthContext } from '@/lib/auth/context'
-import { isDemoCompany } from '@/lib/demo/config'
+import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeApplicationFee } from '@/lib/billing/estimate-fee'
@@ -66,6 +66,9 @@ export async function generateInvoice(
   if ('error' in ctx) return { error: ctx.error }
   const { companyId } = ctx
 
+  const sessionDenied = await assertWritable()
+  if (sessionDenied) return sessionDenied
+
   // Validate input early.
   const parsed = generateInvoiceSchema.safeParse(opts)
   if (!parsed.success) {
@@ -86,10 +89,10 @@ export async function generateInvoice(
   if (estimateError || !estimate) return { error: 'Estimate not found' }
   if (estimate.company_id !== companyId) return { error: 'Unauthorized' }
 
-  // 3. Demo guard — MUST be before any Stripe call (Pitfall 6).
-  if (isDemoCompany(companyId)) {
-    return { error: 'Invoices are disabled in the demo.' }
-  }
+  // 3. The estimate's persisted company is trusted after the ownership check.
+  // Guard it explicitly before any Stripe or invoice persistence work.
+  const targetDenied = await assertCompanyWritable(estimate.company_id)
+  if (targetDenied) return targetDenied
 
   // 4. Connect-active check. The auth context does not carry Connect status, so
   //    read it explicitly (mirror pay route). The gate calls the single

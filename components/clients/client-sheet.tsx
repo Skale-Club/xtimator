@@ -27,8 +27,12 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ClientLogoUploader } from '@/components/clients/client-logo-uploader'
 import { clientSchema, type ClientFormValues } from '@/lib/schemas/client'
-import { createClientAction, updateClientAction, uploadClientLogoAction } from '@/lib/actions/client'
-import { createClient as createBrowserClient } from '@/lib/supabase/client'
+import {
+  createClientAction,
+  removeClientLogo,
+  updateClientAction,
+  uploadClientLogoAction,
+} from '@/lib/actions/client'
 import type { ClientDetail } from '@/lib/queries/clients'
 
 interface ClientSheetProps {
@@ -126,9 +130,11 @@ export function ClientSheet({
           // uploadClientLogoAction persists logo_url itself (server-side WebP conversion)
           await uploadLogo(client.id, logoFile)
         } else if (!logoPreview && client.logo_url) {
-          // Removed, no replacement file — null it out directly (no upload involved)
-          const supabase = createBrowserClient()
-          await supabase.from('clients').update({ logo_url: null }).eq('id', client.id)
+          const removeResult = await removeClientLogo(client.id)
+          if (removeResult.error) {
+            toast.error(removeResult.error)
+            return
+          }
         }
 
         toast.success('Client updated')
