@@ -56,13 +56,29 @@
 
 ## Traceability
 
-Roadmap creation will map each requirement to exactly one phase.
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ENTRY-01 | Phase 180 | Pending |
+| ENTRY-02 | Phase 180 | Pending |
+| ENTRY-03 | Phase 180 | Pending |
+| ENTRY-04 | Phase 180 | Pending |
+| PARITY-01 | Phase 181 | Pending |
+| PARITY-02 | Phase 181 | Pending |
+| PARITY-03 | Phase 181 | Pending |
+| SAFE-01 | Phase 180 | Pending |
+| SAFE-02 | Phase 180 | Pending |
+| SAFE-03 | Phase 180 | Pending |
+| SAFE-04 | Phase 180 | Pending |
+| CUTOVER-01 | Phase 181 | Pending |
+| CUTOVER-02 | Phase 181 | Pending |
+| CUTOVER-03 | Phase 181 | Pending |
 
 **Coverage:**
 - v4.22 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14
+- Mapped to phases: 14
+- Unmapped: 0
+- Duplicate mappings: 0
 
 ---
 *Requirements defined: 2026-07-26*
-*Last updated: 2026-07-26 after autonomous milestone scoping*
+*Last updated: 2026-07-26 after roadmap creation*

@@ -42,6 +42,8 @@
 - ✅ **v4.20 Structured Photo Extraction** — Phase 171 (SHIPPED 2026-07-17) — vision tool-call extraction (surfaces, measurements w/ units+confidence, materials, damage) persisted in photos.ai_extraction JSONB + compact serialization into the generation prompt; two-layer zod gate, prose fallback ladder, env kill-switch, provider parity, costContext attribution; v4.19 audit § E5 / FUT-02
 - 🚧 **v4.21 Notification Center** — Phases 172-178 (roadmap created 2026-07-21) — unify all outbound messaging into one admin-manageable Notification Center serving three audiences: platform admins (Telegram per-event toggles), tenants (in-app/email/WhatsApp/SMS via the existing `notify()` pipeline), and end customers (email/SMS only — WhatsApp reserved for owner↔Xtimator). Hardcoded `copy.ts` becomes DB-driven super-admin-editable `{{var}}` templates with a per-event variable catalog, live preview, unknown-var rejection, test-send, and a DB→built-in→never-block fallback resolver with per-channel escaping (Pitfalls 1/2/4/5). Re-enables proactive tenant WhatsApp via the EXISTING HSM registry (Pitfall 3 runtime guard). New end-customer send path (friendly-from email + dedicated Twilio Messaging Service SMS + `customer_messages` audit) gated behind a hard consent/STOP/quiet-hours prerequisite (CUST-03, Pitfall 10/HIGH-legal). Agentic send (WhatsApp assistant + MCP) is confirmation-gated with injection-resistant recipient resolution + per-company rate limits (Pitfalls 8/9). Three structurally-separate pipelines that never share a table: tenant-scoped `notify()`, platform-scoped `notifyOps()`, and the new synchronous agentic-send capability. 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
 
+- 🚧 **v4.22 Product-Native Demo** — Phases 180-181 (roadmap created 2026-07-26) — replace the divergent standalone public demo with a host-isolated, defense-in-depth read-only session inside the real authenticated product. Phase 180 establishes the dedicated demo session and deny-write boundaries while the legacy demo stays live; Phase 181 verifies real-product parity, cuts public entry points over, removes duplicate demo UI, and documents the GitHub Actions → Docker/GHCR → Coolify production topology. 14/14 requirements mapped, 0 orphans, 0 duplicates.
+
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
 ## Phases
@@ -2929,3 +2931,57 @@ Plans:
 | 177. End-Customer Email/SMS Send Path & Audit Log | 0/7 | Not started | - |
 | 178. Agentic Send | 0/4 | Not started | - |
 | 179. WhatsApp Template Composer & Meta Approval Panel | 0/4 | Not started | - |
+
+## 🚧 v4.22 Product-Native Demo (Phases 180-181) — ROADMAP CREATED 2026-07-26
+
+**Milestone Goal:** Replace the separate public demo with a safe, host-isolated, read-only experience inside the real authenticated Xtimator product, without touching a visitor's normal apex-domain session.
+
+**Coverage:** 14/14 requirements mapped (ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03), **0 orphans, 0 duplicates.** Numbering continues directly after Phase 179 at **Phase 180**; parking-lot and legacy entries 999.1/1000/1001 are ignored for sequencing.
+
+**Dependency spine:** Phase 180 establishes the isolated demo identity, host-only cookies, local-host parity, and deny-write boundaries. Phase 181 depends on that foundation, moves the demo onto the shared product surfaces, runs the automated/browser cutover gate, switches public entry points, and removes the duplicate standalone UI. The existing standalone `/demo/*` implementation remains available until Phase 181's verification gate passes.
+
+**Production topology:** GitHub Actions → Docker/GHCR → Coolify. The stale `.vercel/project.json` is not production configuration. DNS, Supabase redirect allow-list changes, and Coolify domain creation remain explicit operator actions rather than repository mutations.
+
+### Phases (summary checklist)
+
+- [ ] **Phase 180: Isolated Demo Session & Read-Only Foundation** — establish host-only demo authentication and active-company selection with deny-write enforcement at server, side-effect, and RLS boundaries
+- [ ] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface
+
+### Phase Details
+
+### Phase 180: Isolated Demo Session & Read-Only Foundation
+**Goal**: Visitors can enter a dedicated demo-host session that is isolated from their normal Xtimator login and cannot mutate data or trigger external effects.
+**Depends on**: Nothing in-milestone; sequencing follows Phase 179 in the global counter.
+**Requirements**: ENTRY-01, ENTRY-02, ENTRY-03, ENTRY-04, SAFE-01, SAFE-02, SAFE-03, SAFE-04
+**Success Criteria** (what must be TRUE):
+
+  1. Opening the public demo entry transfers a visitor to the configured demo host without changing an existing Supabase session on the apex domain.
+  2. The demo host creates a host-only session for the dedicated demo user, selects the deterministic demo company in a host-only `active_company_id` cookie, and reaches the real `/dashboard`; repeat entry and stale or partial cookies recover without loops.
+  3. The same isolated-host contract works on the configured local development host and port without relaxing production cookie rules.
+  4. Any attempted demo mutation is denied when either the demo user or demo company is active, no AI/upload/send/billing/job/webhook side effect is triggered, and database/RLS remains the final deny-write boundary even if an upstream guard is missed.
+  5. Automated tests prove allowed read navigation, denied mutation and side-effect paths, host-only cookie isolation, stale-cookie recovery, and absence of redirect loops.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 181: Real-Product Cutover & Verification
+**Goal**: Demo visitors can explore the real Xtimator product safely, and the verified product-native flow becomes the only public demo experience.
+**Depends on**: Phase 180
+**Requirements**: PARITY-01, PARITY-02, PARITY-03, CUTOVER-01, CUTOVER-02, CUTOVER-03
+**Success Criteria** (what must be TRUE):
+
+  1. A demo visitor sees the same authenticated layout, navigation, components, styling, and responsive behavior as a real tenant.
+  2. The visitor can navigate the exposed dashboard, projects, clients, price book, estimates, and settings surfaces using deterministic demo-tenant data, while a visible demo/read-only state removes or disables mutation and paid/external-effect controls.
+  3. After the verification gate passes, every landing-page demo entry uses the product-native flow and the obsolete standalone `/demo/*` UI is removed without broken internal links.
+  4. An operator can configure local and production demo hosts from repository documentation covering environment values, Supabase redirect allow-list entries, DNS, and Coolify domains without treating Vercel as production.
+  5. Browser verification at desktop and responsive widths proves the real product renders on the demo host and that an existing apex-domain session remains intact before and after the visit.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 180. Isolated Demo Session & Read-Only Foundation | 0/? | Not started | - |
+| 181. Real-Product Cutover & Verification | 0/? | Not started | - |

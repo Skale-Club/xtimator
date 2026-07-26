@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v4.22
 milestone_name: Product-Native Demo
-status: planning
-last_updated: "2026-07-26T15:06:09.074Z"
+status: roadmap_ready
+last_updated: "2026-07-26T15:08:32.820Z"
 last_activity: 2026-07-26
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,16 +17,11 @@ progress:
 
 ## Current Status
 
-- **Milestone v4.21 Notification Center** — ROADMAP CREATED 2026-07-21. **7 phases (172-178)**, **21/21 requirements mapped** (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), **0 orphans, 0 duplicates**. Phases continue the global counter from **172** (v4.20 ended at 171).
+- **Milestone v4.22 Product-Native Demo** — ROADMAP CREATED 2026-07-26. **2 phases (180-181)**, **14/14 requirements mapped** (ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03), **0 orphans, 0 duplicates**. Phases continue directly after Phase 179; legacy parking-lot entries 999.1/1000/1001 do not affect sequencing.
 - **Phase map (goal-backward, dependency-ordered):**
-  - **172 Template Engine Foundation** (TMPL-01/06/07) — `notification_templates` table seeded byte-identical to `copy.ts` + CI exhaustiveness diff; hand-rolled `{{var}}` resolver with per-channel escaping (HTML email/Telegram, plain SMS, sanitized ordered WhatsApp HSM params); DB→built-in→never-block fallback wired into `notify()` strictly additive (empty table = byte-identical today). Dependency ROOT. Pitfalls 1/2/4.
-  - **173 Super-Admin Template Editor UI** (TMPL-02/03/04/05) — Notification Center admin page (reuses `whatsapp-templates-panel.tsx` CRUD): browse/edit by audience/event/channel, per-event variable whitelist + live preview, unknown-var rejection, test-send. Depends on 172. Pitfall 5 (event-scoped catalog; `copy-tenant-neutrality` re-pointed).
-  - **174 Tenant Notification Cutover & WhatsApp Re-enable** (TNT-01/02/03) — sweep the 9 `notify()` call sites onto `copyContext` (preference matrix stays green); lift the forced-off WhatsApp gate, drive proactive tenant WhatsApp from the EXISTING HSM registry respecting opt-in; runtime `{{n}}` count/order guard. Depends on 172; TNT-03 independent of the editor. Operational: Meta HSM approval. Pitfall 3 (runtime guard only; body editing deferred FUT-01).
-  - **175 Telegram Platform-Event Catalog & Per-Event Toggles** (PLAT-01/02/03) — typed platform-event union through `notifyOps()` (sibling calls at signup/payment/quota + 6 already covered), `platform_notification_preferences` toggle matrix in admin, `locked` critical events always deliver, toggle gates Telegram only (Sentry unconditional). PARALLEL track — shares no code. Pitfall 7 (outbound-only, HTML, rate-limit/backoff, secrets in `platform_integrations`).
-  - **176 End-Customer Consent, Opt-Out & Quiet Hours — HARD PREREQUISITE GATE** (CUST-03/04) — net-new `clients`-scoped consent/suppression columns; new inbound Twilio STOP/START/HELP webhook; app-level suppression check before EVERY send (independent of carrier filtering); platform-wide quiet-hours guard. Must land before 177 & 178. Pitfall 10 (HIGH/legal). Research flag: TCPA basis + Toll-Free vs A2P = human sign-off.
-  - **177 End-Customer Email/SMS Send Path & Audit Log** (CUST-01/02/05) — friendly-from `{{business_name}} via Xtimator` email via new `sendEmail()` primitive; end-customer SMS via a DEDICATED Twilio Messaging Service (not the shared 6-app number), business name leading the body; `customer_messages` audit table (modeled on `estimate_deliveries`); every send passes the 176 gate. Depends on 172 + 176. Operational: provision the Twilio Messaging Service (CUST-02). Pitfalls 6/4.
-  - **178 Agentic Send** (AGENT-01/02/03) — `lib/agent-tools/send-customer-message.ts` neutral capability (trusted `companyId` closure); confirm-gated state machine (mirrors `confirm.ts`, echoes DB-resolved recipient + body) on WhatsApp MANAGE + `intent-router` update; non-`readOnlyHint` MCP write tool; recipient resolved from `clients` + server-side re-validation (injection-proof) + per-company rate limit; lands in `customer_messages`. Depends on 177 (+176). Highest-risk surface. Pitfalls 8/9/6. Research flag: MCP confirmation/elicitation round-trip.
-- **Dependency spine:** 172 (root) → 173, 174, 177; 176 (hard gate) → 177, 178; 177 → 178; 175 parallel/independent. **Critical path 172 → 176 → 177 → 178.** Parallel-friendly file-disjoint starts: **172, 175, 176.** Next: `/gsd:plan-phase 172`.
+  - **180 Isolated Demo Session & Read-Only Foundation** (ENTRY-01..04, SAFE-01..04) — configured demo-host handoff; host-only dedicated-user Supabase session + deterministic active-company cookie; idempotent stale-cookie recovery; matching local-host contract; demo user/company deny-write enforcement across server actions/APIs, external side effects, and RLS; automated isolation/security coverage. The standalone demo remains live during this phase.
+  - **181 Real-Product Cutover & Verification** (PARITY-01..03, CUTOVER-01..03) — shared authenticated app shell and core read surfaces over deterministic demo data; visible read-only state and mutation-control suppression; desktop/responsive browser isolation verification; landing-entry cutover and duplicate `/demo/*` removal; local/Supabase/DNS/Coolify setup documentation.
+- **Dependency spine:** 180 → 181. Phase 181 cannot cut over until Phase 180's isolation and deny-write test gate passes. Production is **GitHub Actions → Docker/GHCR → Coolify**, never Vercel. Next: `/gsd:plan-phase 180`.
 
 ### Previous Milestone (shipped)
 
@@ -73,10 +68,12 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 180 of 181 (Isolated Demo Session & Read-Only Foundation)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-26 — Milestone v4.22 started
+Status: Ready to plan
+Last activity: 2026-07-26 — v4.22 roadmap created with 14/14 requirements mapped across Phases 180-181
+
+Progress: [░░░░░░░░░░] 0%
 
 ### Previous Position (v4.18, for continuity)
 
@@ -1288,10 +1285,10 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-13)
+See: .planning/PROJECT.md (updated 2026-07-26)
 
 **Core value:** Business owner → job site audio recording → sent professional estimate in under 5 minutes
-**Current focus:** Phase 162 — estimate-document-consolidated-pass
+**Current focus:** Phase 180 — Isolated Demo Session & Read-Only Foundation
 
 ## Notes
 
