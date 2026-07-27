@@ -23,5 +23,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Clients',      href: '/clients',      icon: Users },
   { label: 'Price Book',   href: '/price-book',   icon: BookOpen },
   { label: 'Trash',        href: '/trash',        icon: Trash2,     demoHidden: true, userMenu: true },
-  { label: 'Settings',     href: '/settings',     icon: Settings,   demoHidden: true, userMenu: true },
+  // Phase 181: Settings IS reachable in demo (filtered to Company/Team/Notifications
+  // by settings-nav.tsx). No `demoHidden` here — it would contradict that, and the
+  // account-menu entry points render it for demo sessions on purpose.
+  { label: 'Settings',     href: '/settings',     icon: Settings,   userMenu: true },
 ]

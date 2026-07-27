@@ -214,8 +214,11 @@ filtered to exactly three tabs:
 | Account, Estimates, Plans, Message Template, Knowledge, Integrations (+ their sub-pages) | no | hidden from `SettingsNav` **and** guarded at the URL level — each page redirects a demo session to `/settings/company`, so a bookmarked or guessed URL discloses nothing |
 
 `Trash` stays hidden from the demo in both the sidebar and the mobile account
-menu (`demoHidden` in `components/app-shell/nav-items.ts`, filtered by
-`sidebar.tsx` and `bottom-nav.tsx`).
+menu. The gate actually in force is the explicit `{!isDemo && (` wrapper around
+each entry (`sidebar.tsx:119`, `mobile-account-menu.tsx:88`) — Trash also carries
+`demoHidden: true` in `components/app-shell/nav-items.ts`, but that flag is inert
+for it, since both list consumers filter `userMenu` items out of the main nav
+before the `demoHidden` check ever applies.
 
 The banner's CTA calls `exitDemoToSignup()` (`lib/demo/actions.ts`), which signs
 out locally and sends the visitor to `DEMO_APEX_ORIGIN` + `/?auth=signup`.
