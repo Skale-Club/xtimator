@@ -21,6 +21,16 @@ vi.mock('@/lib/queries/auth', () => ({
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
+// Phase 181: the page now redirects demo sessions before rendering. The real
+// getActiveCompanyId() reads cookies(), unavailable outside a request scope in
+// this render-only test — mock the resolved value directly so Stripe-status
+// assertions (unrelated to demo gating) stay isolated from that dependency.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(async () => 'company-123'),
+}))
+vi.mock('@/lib/demo/config', () => ({
+  isDemoCompany: vi.fn(() => false),
+}))
 
 const { getAuthClaims } = await import('@/lib/queries/auth')
 const { requireServiceClient } = await import('@/lib/supabase/service')
