@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDemoAppOrigin } from '@/lib/demo/config'
-import { classifyDemoEntryRequest } from '@/lib/demo/session'
+import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
 
 const PROTECTED_ROUTE_PREFIXES = [
   '/dashboard',
@@ -166,10 +166,11 @@ export async function proxy(request: NextRequest) {
   // must reach the route handler even when there is no Supabase user session.
   if (!claims && isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
     const demoOrigin = getDemoAppOrigin()
-    const url = request.nextUrl.origin === demoOrigin?.origin
+    const requestOrigin = getRequestOrigin(request)
+    const url = requestOrigin === demoOrigin?.origin
       ? new URL('/demo/entry', demoOrigin)
       : request.nextUrl.clone()
-    if (request.nextUrl.origin !== demoOrigin?.origin) {
+    if (requestOrigin !== demoOrigin?.origin) {
       url.pathname = '/'
       url.search = ''
       url.searchParams.set('auth', 'login')

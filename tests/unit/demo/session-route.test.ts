@@ -11,6 +11,7 @@ type SupabaseScenario = {
   claims?: { sub: string; email?: string } | null
   membership?: { company_id: string } | null
   platformAdmin?: { user_id: string } | null
+  generateLink?: { error: unknown }
   signIn?: { user: { id: string; email?: string } | null; error: unknown }
 }
 
@@ -21,7 +22,16 @@ async function loadSession(scenario: SupabaseScenario) {
   process.env.DEMO_USER_PASSWORD = 'server-only-password'
 
   const signOut = vi.fn().mockResolvedValue({ error: null })
-  const signInWithPassword = vi.fn().mockResolvedValue(
+  // Admin API (service role) — mints a one-time magic-link token server-side.
+  // No CAPTCHA gate applies here (unlike signInWithPassword).
+  const generateLink = vi.fn().mockResolvedValue(
+    scenario.generateLink?.error
+      ? { data: null, error: scenario.generateLink.error }
+      : { data: { properties: { hashed_token: 'fake-hashed-token' } }, error: null }
+  )
+  const requireServiceClient = vi.fn(() => ({ auth: { admin: { generateLink } } }))
+  // The request-scoped client redeems the token_hash and writes real session cookies.
+  const verifyOtp = vi.fn().mockResolvedValue(
     {
       data: scenario.signIn ?? { user: { id: 'demo-user-id', email: 'demo@example.com' }, error: null },
       error: scenario.signIn?.error ?? null,
@@ -42,13 +52,14 @@ async function loadSession(scenario: SupabaseScenario) {
     }),
   }))
   const createServerClient = vi.fn(() => ({
-    auth: { getClaims, signOut, signInWithPassword },
+    auth: { getClaims, signOut, verifyOtp },
     from,
   }))
 
   vi.doMock('@supabase/ssr', () => ({ createServerClient }))
+  vi.doMock('@/lib/supabase/service', () => ({ requireServiceClient }))
   const session = await import('@/lib/demo/session')
-  return { ...session, createServerClient, from, getClaims, signInWithPassword, signOut }
+  return { ...session, createServerClient, from, getClaims, generateLink, verifyOtp, signOut }
 }
 
 afterEach(() => {
@@ -67,7 +78,8 @@ describe('ENTRY-02 and ENTRY-03: establishDemoSession', () => {
 
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('https://demo.xtimator.com/dashboard')
-    expect(session.signInWithPassword).not.toHaveBeenCalled()
+    expect(session.generateLink).not.toHaveBeenCalled()
+    expect(session.verifyOtp).not.toHaveBeenCalled()
     expect(session.signOut).not.toHaveBeenCalled()
     expect(response.headers.get('set-cookie')).toContain('active_company_id=0000de00-0000-0000-0000-000000000001')
     expect(response.headers.get('set-cookie')).toContain('Secure')
@@ -84,9 +96,13 @@ describe('ENTRY-02 and ENTRY-03: establishDemoSession', () => {
 
     expect(response.status).toBe(303)
     expect(session.signOut).toHaveBeenCalledWith({ scope: 'local' })
-    expect(session.signInWithPassword).toHaveBeenCalledWith({
+    expect(session.generateLink).toHaveBeenCalledWith({
+      type: 'magiclink',
       email: 'demo@example.com',
-      password: 'server-only-password',
+    })
+    expect(session.verifyOtp).toHaveBeenCalledWith({
+      type: 'magiclink',
+      token_hash: 'fake-hashed-token',
     })
     expect(response.headers.getSetCookie().join('\n')).toMatch(/sb-demo-auth-token\.0=.*Max-Age=0/i)
     // NextResponse coalesces a cleared cookie with the deterministic final

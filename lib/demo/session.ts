@@ -9,11 +9,31 @@ import {
   getDemoUserPassword,
 } from '@/lib/demo/config'
 import { ACTIVE_COMPANY_COOKIE, ACTIVE_COMPANY_COOKIE_OPTIONS } from '@/lib/queries/active-company'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 type DemoEntryClassification =
   | { kind: 'apex'; destination: string }
   | { kind: 'demo-host' }
   | { kind: 'reject' }
+
+/**
+ * The real incoming origin for this request.
+ *
+ * `request.nextUrl.origin` reflects Vercel-injected per-request host info on
+ * Vercel, but this app is self-hosted (GitHub Actions -> Docker/GHCR ->
+ * Coolify) — under `next start` / the standalone server, `nextUrl.origin`
+ * is always the server's own bind address (e.g. 0.0.0.0:9633), identical
+ * for every Host. Apex vs demo-host classification must read the actual
+ * `Host` (or a trusted proxy's `x-forwarded-host`) instead, or every
+ * demo-host request misclassifies as apex and /demo/entry redirects to
+ * itself forever.
+ */
+export function getRequestOrigin(request: NextRequest): string {
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+  if (!host) return request.nextUrl.origin
+  const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol.replace(':', '')
+  return `${proto}://${host}`
+}
 
 function getApexOrigin(demoOrigin: URL): URL | null {
   if (demoOrigin.hostname === 'demo.localhost') {
@@ -34,12 +54,14 @@ export function classifyDemoEntryRequest(request: NextRequest): DemoEntryClassif
     return { kind: 'reject' }
   }
 
-  if (request.nextUrl.origin === demoOrigin.origin) {
+  const requestOrigin = getRequestOrigin(request)
+
+  if (requestOrigin === demoOrigin.origin) {
     return { kind: 'demo-host' }
   }
 
   const apexOrigin = getApexOrigin(demoOrigin)
-  if (apexOrigin && request.nextUrl.origin === apexOrigin.origin) {
+  if (apexOrigin && requestOrigin === apexOrigin.origin) {
     return {
       kind: 'apex',
       destination: new URL('/demo/entry', demoOrigin).toString(),
@@ -67,7 +89,7 @@ export async function establishDemoSession(request: NextRequest): Promise<NextRe
   const email = getDemoUserEmail()
   const password = getDemoUserPassword()
 
-  if (!demoOrigin || request.nextUrl.origin !== demoOrigin.origin || !email || !password) {
+  if (!demoOrigin || getRequestOrigin(request) !== demoOrigin.origin || !email || !password) {
     return terminalFailure()
   }
 
@@ -137,9 +159,38 @@ export async function establishDemoSession(request: NextRequest): Promise<NextRe
       }
     })
 
-    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
-    const signedInUser = signInData?.user
-    if (error || !signedInUser?.id || !isExpectedDemoEmail(signedInUser.email, email)) {
+    // signInWithPassword() is subject to this project's Auth-level CAPTCHA
+    // protection (Cloudflare Turnstile) — there is no browser widget in this
+    // server-side handoff to solve it. Mint the session via the Admin API
+    // (service role) instead: generateLink() issues a one-time magic-link
+    // token for the known demo email server-side, then verifyOtp() on the
+    // request-scoped client redeems it and writes real session cookies to
+    // `response`. Neither admin.generateLink() nor verifyOtp() are subject to
+    // the password-grant CAPTCHA gate.
+    //
+    // One bounded retry: verifyOtp has been observed to transiently reject a
+    // just-issued token as expired/invalid immediately after a prior local
+    // signOut() on the same identity (read-replica lag on Supabase's side,
+    // not a code defect — reproduced independently of this request). A single
+    // retry stays inside this one response (no extra client-visible redirect,
+    // no loop) and resolves it.
+    let signedInUser: { id: string; email?: string | null } | undefined
+    for (let attempt = 0; attempt < 2 && !signedInUser; attempt++) {
+      const { data: linkData, error: linkError } = await requireServiceClient().auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+      })
+      if (linkError || !linkData?.properties?.hashed_token) continue
+
+      const { data: signInData } = await supabase.auth.verifyOtp({
+        type: 'magiclink',
+        token_hash: linkData.properties.hashed_token,
+      })
+      if (signInData?.user && isExpectedDemoEmail(signInData.user.email, email)) {
+        signedInUser = signInData.user
+      }
+    }
+    if (!signedInUser) {
       return terminalFailure()
     }
     if (!await verifyDemoPrincipal(signedInUser.id)) {
