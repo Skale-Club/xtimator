@@ -16,6 +16,10 @@ import { describe, expect, it } from 'vitest'
  *   two look-alike survivors stay: `app/demo/entry/route.ts` (the handoff
  *   route) and `components/demo/demo-banner.tsx` (the in-app read-only banner
  *   still rendered by `app/(app)/layout.tsx`).
+ * - DEMO-WORKSPACE.md carries the structural markers of the host-isolated
+ *   architecture and none of the pre-Phase-180 stale claims. (Full narrative
+ *   accuracy is a manual review item — these are drift tripwires, not a proof
+ *   of correctness.)
  */
 
 const root = resolve(__dirname, '..', '..', '..')
@@ -81,6 +85,34 @@ describe('Demo cutover (181-05)', () => {
   describe('the live demo surfaces survive', () => {
     it.each(SURVIVING_DEMO_FILES)('%s still exists', (path) => {
       expect(existsSync(resolve(root, path))).toBe(true)
+    })
+  })
+
+  describe('DEMO-WORKSPACE.md documents the host-isolated architecture', () => {
+    const doc = read('DEMO-WORKSPACE.md')
+
+    it('does not reference the never-existing app/demo/route.ts', () => {
+      expect(doc).not.toContain('app/demo/route.ts')
+    })
+
+    it('names the real handoff route', () => {
+      expect(doc).toContain('app/demo/entry/route.ts')
+    })
+
+    it('documents the demo hostname', () => {
+      expect(doc).toContain('demo.xtimator.com')
+    })
+
+    it('documents the DEMO_APP_ORIGIN env var', () => {
+      expect(doc).toContain('DEMO_APP_ORIGIN')
+    })
+
+    it('states the real production pipeline', () => {
+      expect(doc).toContain('GitHub Actions')
+    })
+
+    it('does not present Vercel as a deployment target alongside Coolify', () => {
+      expect(doc).not.toContain('Coolify / Vercel')
     })
   })
 })
