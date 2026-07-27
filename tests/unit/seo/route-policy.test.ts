@@ -6,7 +6,7 @@ import {
 } from '@/lib/seo/route-policy'
 
 describe('SEO route policy', () => {
-  it.each(['/admin', '/dashboard', '/estimate/token', '/oauth/authorize', '/demo/projects'])(
+  it.each(['/admin', '/dashboard', '/estimate/token', '/oauth/authorize', '/demo/entry'])(
     'classifies %s as private',
     (pathname) => expect(isPrivateRoute(pathname)).toBe(true),
   )

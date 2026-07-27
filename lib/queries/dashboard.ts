@@ -86,14 +86,14 @@ export async function getProjects(
   // N+1 round-trip (Phase 70-05 polish — CONTEXT.md "Claude's Discretion"
   // green-lit this micro-feature).
   //
-  // Intentionally UNBOUNDED (no .limit()): getProjects is shared by two
-  // consumers that both need the full active set —
-  //   1. the dashboard "Recent projects" list (components/dashboard/project-list.tsx)
-  //      filters by status and paginates ENTIRELY client-side over this array, so a
-  //      server-side cap would silently hide older projects from "Sent"/"Paid" filters;
-  //   2. app/demo/projects/page.tsx renders every row in one table (no pagination).
-  // A .limit() would break both, so the full active set is returned; the real
-  // /projects page uses the separately-paginated getProjectsForListPage instead.
+  // Intentionally UNBOUNDED (no .limit()): the dashboard "Recent projects" list
+  // (components/dashboard/project-list.tsx) filters by status and paginates
+  // ENTIRELY client-side over this array, so a server-side cap would silently
+  // hide older projects from the "Sent"/"Paid" filters. The full active set is
+  // returned; the /projects page uses the separately-paginated
+  // getProjectsForListPage instead.
+  // (A second consumer, the standalone app/demo/projects/page.tsx, also relied
+  // on this; it was deleted in Phase 181 when the demo moved onto the real app.)
   const { data } = await supabase
     .from('projects')
     .select(

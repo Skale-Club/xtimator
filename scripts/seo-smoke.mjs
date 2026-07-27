@@ -55,8 +55,17 @@ for (const pathname of ['/', '/industries/general-contractors']) {
   check(!/private|no-store/i.test(cacheControl), `${pathname} is not private/no-store`)
 }
 
-const demo = await fetchPage('/demo')
-check(/name="robots" content="noindex, nofollow/.test(demo.body), '/demo emits noindex, nofollow')
+// Spot-check that a private, anonymously-reachable route really emits the
+// noindex directive. This used to probe /demo, but Phase 181 retired the
+// standalone /demo UI — the demo now runs on the real (already-noindexed) app
+// behind app/demo/entry/route.ts, a route handler that returns a redirect and
+// no HTML at all. /offline is the equivalent surface: private robots metadata,
+// renders for anonymous visitors, not behind the auth middleware.
+const privatePage = await fetchPage('/offline')
+check(
+  /name="robots" content="noindex, nofollow/.test(privatePage.body),
+  '/offline emits noindex, nofollow',
+)
 
 if (failures.length) {
   console.error(`\n${failures.length} SEO smoke check(s) failed.`)
