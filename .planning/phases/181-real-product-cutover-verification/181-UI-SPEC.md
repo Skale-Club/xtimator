@@ -19,6 +19,8 @@ This phase introduces **zero new visual components, zero new colors, zero new ty
 
 Every value below is pre-populated from `181-CONTEXT.md`'s locked decisions (D-15 through D-19), `181-RESEARCH.md`'s direct file reads, and this session's own direct reads of `components/demo/demo-banner.tsx`, `lib/demo/guard.ts`, `components/settings/company-info-form.tsx`, `components/settings/team-section.tsx`, `components/settings/notifications-form.tsx`, `components/settings/settings-nav.tsx`, `components/settings/settings-layout-client.tsx`, `components/app-shell/nav-items.ts`, `components/app-shell/mobile-account-menu.tsx`, and `app/globals.css`. No question required user input this session — CONTEXT.md's auto-mode decisions plus RESEARCH.md's Open Question 1 recommendation resolve every design-contract question below without re-asking.
 
+**Visual focal point:** on each newly-reachable settings surface, the eye lands first on the `SettingsNav` rail's active-tab state (existing accent-colored indicator, unchanged), then on the swapped footer note ("This is a read-only demo...") as the confirmation signal that the form is intentionally non-editable — no new visual anchor is introduced; both are the codebase's existing patterns applied verbatim.
+
 ---
 
 ## Design System
