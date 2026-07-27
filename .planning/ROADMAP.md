@@ -2945,7 +2945,7 @@ Plans:
 ### Phases (summary checklist)
 
 - [x] **Phase 180: Isolated Demo Session & Read-Only Foundation** — establish host-only demo authentication and active-company selection with deny-write enforcement at server, side-effect, and RLS boundaries (completed 2026-07-27)
-- [ ] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface
+- [x] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface (completed 2026-07-27)
 
 ### Phase Details
 
@@ -2983,7 +2983,7 @@ Plans:
 - [x] 181-02-PLAN.md — Wire read-only rendering into Company/Team/Notifications tabs (new NotificationsForm readOnly prop; reuse existing CompanyInfoForm/TeamSection props)
 - [x] 181-03-PLAN.md — Add isDemoCompany redirect guards to the 15 settings pages not exposed to the demo
 - [x] 181-04-PLAN.md — Verify demo data richness (Supabase MCP) and extend the e2e isolation spec with PARITY-01..03/CUTOVER-03 browser assertions
-- [ ] 181-05-PLAN.md — Switch landing CTAs to /demo/entry, delete the standalone /demo/* UI, rewrite DEMO-WORKSPACE.md
+- [x] 181-05-PLAN.md — Switch landing CTAs to /demo/entry, delete the standalone /demo/* UI, rewrite DEMO-WORKSPACE.md
 
 **UI hint**: yes
 
@@ -2992,4 +2992,4 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 180. Isolated Demo Session & Read-Only Foundation | 15/15 | Complete    | 2026-07-27 |
-| 181. Real-Product Cutover & Verification | 4/5 | In Progress|  |
+| 181. Real-Product Cutover & Verification | 5/5 | Complete   | 2026-07-27 |

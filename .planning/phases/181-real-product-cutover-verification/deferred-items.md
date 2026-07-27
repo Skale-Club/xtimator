@@ -72,3 +72,42 @@ separate, dedicated audit item outside this milestone's scope, per the recommend
 Do not bulk-apply it without individual review; the `migration list --linked` output shows
 duplicate/interleaved timestamps suggesting some "local-only" entries may already be applied to
 remote under different migration file names, which makes a blind `db push` risky.
+
+---
+
+## 2026-07-27 — Full-suite unit tests are load-flaky on this machine (out of scope for 181-05)
+
+**Found during:** 181-05 final verification (`npx vitest run tests/unit tests/eval`).
+
+**Symptom:** 2-4 tests fail per full-suite run with `Error: Test timed out in 15000ms` — never
+an assertion failure. The failing set is **not stable across runs of identical code**:
+
+| Run | Failures |
+| --- | -------- |
+| 1 | `mcp-route-contract`, `actions/team-invite` |
+| 2 | `mcp-route-contract`, `actions/team-invite`, `billing/seat-billing-wiring` (×2) |
+| 3 | `mcp-route-contract`, `actions/team-invite` |
+
+All of them pass in isolation (`npx vitest run tests/unit/mcp-route-contract.test.ts
+tests/unit/actions/team-invite.test.ts tests/unit/billing/seat-billing-wiring.test.ts` →
+3 files / 29 tests green, 10s).
+
+**Not caused by 181-05.** This plan's changes are: 3 landing `href` string swaps, deletion of
+11 standalone-demo files, one comment-only edit in `lib/queries/dashboard.ts`, one probe path
+in `scripts/seo-smoke.mjs`, one example string in `tests/unit/seo/route-policy.test.ts`, and a
+Markdown rewrite. None of the flaky files import any of them. `tsc --noEmit -p tsconfig.ci.json`
+is clean.
+
+**Likely cause:** machine load — the full run reports ~1900s of cumulative `import` time and
+~3000s of `environment` time across workers against a 15s per-test timeout, so slow workers
+trip the timeout nondeterministically. Deleting files also shifts worker file distribution,
+which is enough to change *which* tests lose the race.
+
+**Risk:** this is the classic silent red-lock class — CI runs the same
+`vitest run tests/unit tests/eval` gate, and `Build and Deploy` is gated on `Test` passing, so
+a flaky timeout can block every deploy with nothing actually broken.
+
+**Recommended follow-up (not done here — outside this plan's scope):** raise `testTimeout` for
+the suite (or for the specific dynamic-`import()`-heavy files), and/or cap worker concurrency,
+so a slow worker cannot masquerade as a failing assertion. Should be its own task with a
+before/after measurement, not a drive-by change during a cutover plan.

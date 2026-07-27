@@ -35,9 +35,9 @@
 
 ### Cutover and Operations (CUTOVER)
 
-- [ ] **CUTOVER-01**: Landing-page demo entry points use the product-native flow after verification, and the obsolete standalone `/demo/*` UI is removed without leaving broken internal links.
-- [ ] **CUTOVER-02**: Environment and deployment documentation specifies the demo host, Supabase redirect allow-list requirements, DNS/Coolify domain setup, and local host setup without treating Vercel as production.
-- [ ] **CUTOVER-03**: Browser verification demonstrates that a real apex session remains intact before and after visiting the demo host and that the demo renders the real product at desktop and responsive widths.
+- [x] **CUTOVER-01**: Landing-page demo entry points use the product-native flow after verification, and the obsolete standalone `/demo/*` UI is removed without leaving broken internal links.
+- [x] **CUTOVER-02**: Environment and deployment documentation specifies the demo host, Supabase redirect allow-list requirements, DNS/Coolify domain setup, and local host setup without treating Vercel as production.
+- [x] **CUTOVER-03**: Browser verification demonstrates that a real apex session remains intact before and after visiting the demo host and that the demo renders the real product at desktop and responsive widths.
 
 ## Future Requirements
 
@@ -69,9 +69,9 @@
 | SAFE-02 | Phase 180 | Complete |
 | SAFE-03 | Phase 180 | Complete |
 | SAFE-04 | Phase 180 | Complete |
-| CUTOVER-01 | Phase 181 | Pending |
-| CUTOVER-02 | Phase 181 | Pending |
-| CUTOVER-03 | Phase 181 | Pending |
+| CUTOVER-01 | Phase 181 | Complete |
+| CUTOVER-02 | Phase 181 | Complete |
+| CUTOVER-03 | Phase 181 | Complete |
 
 **Coverage:**
 - v4.22 requirements: 14 total
