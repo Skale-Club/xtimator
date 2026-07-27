@@ -267,20 +267,36 @@ test.describe('Demo session isolation (ENTRY-01..04, SAFE-01, SAFE-02)', () => {
     // data (Phase 181 Plans 01-03).
     // ----------------------------------------------------------------------
     await test.step('PARITY-01/02: core read surfaces render the deterministic demo data', async () => {
+      // These list surfaces render BOTH a desktop table and a mobile card list,
+      // hiding one via CSS at each breakpoint — so a bare `.first()` would pick
+      // whichever DOM order puts first, which is the hidden one on phone
+      // viewports. `.filter({ visible: true })` asserts against whichever layout
+      // this project's viewport actually renders, which is precisely what
+      // PARITY-01/02 ("same responsive behavior as a real tenant") means. This
+      // spec runs on chromium (desktop), mobile-safari, and mobile-chrome.
+      const visibleText = (text: string) =>
+        page.getByText(text).filter({ visible: true }).first()
+
       await page.goto(`${demoOrigin}/dashboard`, { waitUntil: 'load' })
       await expect(page.getByText(/read-only Xtimator demo/i)).toBeVisible({ timeout: 10_000 })
 
       await page.goto(`${demoOrigin}/clients`, { waitUntil: 'load' })
-      await expect(page.getByText('Maple Street Residence').first()).toBeVisible({ timeout: 10_000 })
+      await expect(visibleText('Maple Street Residence')).toBeVisible({ timeout: 10_000 })
 
       await page.goto(`${demoOrigin}/price-book`, { waitUntil: 'load' })
-      await expect(page.getByText('Carpet cleaning — per room').first()).toBeVisible({ timeout: 10_000 })
+      await expect(visibleText('Carpet cleaning — per room')).toBeVisible({ timeout: 10_000 })
 
       await page.goto(`${demoOrigin}/projects`, { waitUntil: 'load' })
-      await expect(page.getByText('Whole-Home Carpet Cleaning').first()).toBeVisible({ timeout: 10_000 })
-      await page.getByText('Whole-Home Carpet Cleaning').first().click()
+      await expect(visibleText('Whole-Home Carpet Cleaning')).toBeVisible({ timeout: 10_000 })
+      // Project rows/cards use a full-bleed `absolute inset-0` overlay <Link>
+      // (components/projects/project-table.tsx) as the real click target, with
+      // the visible name text purely decorative on top of it — a native click
+      // at the text's coordinates is correctly intercepted by that overlay.
+      // `force: true` still dispatches a real browser click at those
+      // coordinates, which the overlay link receives, exactly like a user tap.
+      await visibleText('Whole-Home Carpet Cleaning').click({ force: true })
       await page.waitForURL(/\/projects\/[0-9a-f-]+/, { timeout: 10_000 })
-      await expect(page.getByText('Whole-Home Carpet Cleaning').first()).toBeVisible({ timeout: 10_000 })
+      await expect(visibleText('Whole-Home Carpet Cleaning')).toBeVisible({ timeout: 10_000 })
     })
 
     // ----------------------------------------------------------------------
@@ -299,8 +315,18 @@ test.describe('Demo session isolation (ENTRY-01..04, SAFE-01, SAFE-02)', () => {
       await expect(nav.getByText('Integrations', { exact: true })).toHaveCount(0)
       await expect(nav.getByText('Knowledge', { exact: true })).toHaveCount(0)
 
+      // The hidden-tab guards (Plan 03) call Next's `redirect()` from inside the
+      // page component, which — because the settings layout shell has already
+      // begun streaming by then — is delivered as a soft redirect in the RSC
+      // payload (HTTP 200 + NEXT_REDIRECT) rather than a 307. A real browser
+      // follows it, but `page.goto()` resolves on the initial `load`, before the
+      // client-side hop completes, so the URL must be awaited — same pattern as
+      // the `/settings` -> `/settings/company` hop asserted above.
+      // Verified out-of-band that this leaks nothing: the guard throws before
+      // any billing query runs, and the pre-redirect payload contains no billing
+      // data (no stripe/customer/price ids, no credit balance) and no settings nav.
       await page.goto(`${demoOrigin}/settings/billing`, { waitUntil: 'load' })
-      expect(page.url()).toBe(`${demoOrigin}/settings/company`)
+      await page.waitForURL(`${demoOrigin}/settings/company`, { timeout: 10_000 })
     })
 
     // ----------------------------------------------------------------------
