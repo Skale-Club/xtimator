@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
 import { getActiveCompany } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { resolveIssuer } from '@/lib/oauth/issuer'
 
 import {
@@ -37,6 +38,7 @@ export default async function McpSettingsPage() {
   // No active company → user has zero memberships. Send to onboarding (same
   // pattern the rest of the settings sub-pages use).
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   const mcpUrl = `${issuer}/api/mcp`
   const claudeCodeCmd = `claude mcp add xtimator ${mcpUrl}`

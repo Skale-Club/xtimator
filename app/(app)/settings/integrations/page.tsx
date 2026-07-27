@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { CreditCard, Plug, ChevronRight } from 'lucide-react'
 
 import { T } from '@/components/i18n/t'
@@ -11,6 +12,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { requireServiceClient } from '@/lib/supabase/service'
 
 export const metadata = { title: 'Integrations | Settings' }
@@ -24,6 +27,9 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default async function SettingsIntegrationsPage() {
+  const companyId = await getActiveCompanyId()
+  if (isDemoCompany(companyId)) redirect('/settings/company')
+
   const claims = await getAuthClaims()
 
   let stripeConnected = false

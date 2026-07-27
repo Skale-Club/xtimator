@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCustomDomainSettings } from '@/lib/queries/company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { CustomDomainForm } from '@/components/settings/custom-domain-form'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -15,6 +16,7 @@ export default async function CustomDomainPage() {
   const supabase = await createClient()
   const settings = await getCustomDomainSettings(supabase, claims.sub as string)
   if (!settings) redirect('/onboarding')
+  if (isDemoCompany(settings.id)) redirect('/settings/company')
 
   return (
     <div className="space-y-8 p-6">

@@ -4,6 +4,7 @@ import { CreditCard, TrendingUp } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { getCreditOverview } from '@/lib/queries/credits'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
@@ -48,6 +49,8 @@ export default async function BillingPage() {
   if (!company) {
     redirect('/onboarding')
   }
+
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
