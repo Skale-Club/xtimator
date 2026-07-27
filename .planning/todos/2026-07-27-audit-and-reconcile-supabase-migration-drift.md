@@ -1,12 +1,41 @@
 ---
 created: 2026-07-27T07:15:00.000Z
+completed: 2026-07-27T09:10:00.000Z
+status: audited — one item left needing operator approval
 title: Audit and reconcile the full Supabase migration drift backlog
 area: database
 priority: high
 files:
   - supabase/migrations/
+  - scripts/audit-migration-drift.mjs
+  - .planning/audits/2026-07-27-migration-drift-audit.md
   - .planning/phases/181-real-product-cutover-verification/deferred-items.md
 ---
+
+> **AUDIT DONE 2026-07-27 — see [.planning/audits/2026-07-27-migration-drift-audit.md](../audits/2026-07-27-migration-drift-audit.md) for the full report.**
+>
+> **Result: production's schema is essentially complete.** The "68 migrations behind"
+> appearance is almost entirely bookkeeping noise — migrations applied via the Supabase
+> MCP/dashboard get recorded under a fresh auto-generated timestamp, so the same change
+> shows as both "local-only" and "remote-only". All 21 tables, 9 functions, 55 RLS
+> policies, 1 trigger, 82/86 indexes and 47/50 columns declared by the local-only
+> migrations were verified present in production. Every genuine absence traced to a table
+> or policy a later migration deliberately dropped.
+>
+> Two real gaps existed, not forty:
+> 1. `company_price_book.image_position` — **FIXED** (had Price Book 500ing for every
+>    tenant in production).
+> 2. `ai_cost_events_attempt_op_unique` — **STILL OPEN**, needs operator approval: the
+>    migration must `DELETE` 3 duplicate cost rows before the unique index can be created,
+>    and an automated production `DELETE` was (correctly) blocked by the safety classifier.
+>
+> A blanket `supabase migration repair` was deliberately **not** run — it would convert
+> "unknown" into "verified" for the 26 migrations carrying data/grant/constraint effects
+> that an existence check cannot confirm. `scripts/audit-migration-drift.mjs` was added
+> instead: re-runnable, checks schema truth rather than bookkeeping, and reports what it
+> cannot verify rather than hiding it.
+>
+> The original analysis below is kept for context.
 
 ## Problem
 
