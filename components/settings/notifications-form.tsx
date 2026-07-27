@@ -82,6 +82,8 @@ export interface NotificationsFormProps {
   verifiedPhone?: string | null
   /** Whether the owner has already recorded explicit paid-SMS consent (TCPA). */
   smsOptIn?: boolean
+  /** Render every Switch/Button disabled and show the read-only footer note (public demo). */
+  readOnly?: boolean
 }
 
 type ChannelState = Record<VisibleCategory, ChannelPrefs>
@@ -108,6 +110,7 @@ export function NotificationsForm({
   defaults,
   verifiedPhone = null,
   smsOptIn = false,
+  readOnly = false,
 }: NotificationsFormProps) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -216,7 +219,8 @@ export function NotificationsForm({
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <fieldset disabled={readOnly} className="space-y-6 border-0 p-0 m-0">
       <Card className="w-full rounded-[var(--radius-md)]">
         <CardContent className="space-y-6 py-6">
           <div className="flex items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
@@ -372,6 +376,12 @@ export function NotificationsForm({
           </Button>
         </CardContent>
       </Card>
-    </div>
+      </fieldset>
+      {readOnly && (
+        <p className="mt-6 text-sm text-muted-foreground">
+          {t('This is a read-only demo. Create a free account to manage your notification settings.')}
+        </p>
+      )}
+    </>
   )
 }

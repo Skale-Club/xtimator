@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { DeliverySettingsForm } from '@/components/settings/delivery-settings-form'
 import { T } from '@/components/i18n/t'
 
@@ -14,6 +15,7 @@ export default async function DeliveryTabPage() {
   const supabase = await createClient()
   const company = await getCompanySettings(supabase, claims.sub as string)
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   return (
     <div className="space-y-6">

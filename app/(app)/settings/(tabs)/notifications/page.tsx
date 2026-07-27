@@ -3,6 +3,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getUserPreferences } from '@/lib/notifications/preferences'
 import { resolveOwnerPhone } from '@/lib/notifications/owner-phone'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { DEFAULT_PREFERENCES } from '@/lib/notifications/event-types'
 import { NotificationsForm } from '@/components/settings/notifications-form'
 import { T } from '@/components/i18n/t'
@@ -46,6 +47,7 @@ export default async function NotificationsTabPage() {
         defaults={DEFAULT_PREFERENCES}
         verifiedPhone={verifiedPhone}
         smsOptIn={!!prefs?.sms_opt_in_at}
+        readOnly={isDemoCompany(companyId)}
       />
     </div>
   )

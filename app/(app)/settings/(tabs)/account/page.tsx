@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { createClient } from '@/lib/supabase/server'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { ProfileSection } from '@/components/settings/profile-section'
 import { AccountSection } from '@/components/settings/account-section'
 import { T } from '@/components/i18n/t'
@@ -10,6 +12,9 @@ export const metadata = { title: 'Account | Settings' }
 export default async function AccountTabPage() {
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
+
+  const companyId = await getActiveCompanyId()
+  if (isDemoCompany(companyId)) redirect('/settings/company')
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

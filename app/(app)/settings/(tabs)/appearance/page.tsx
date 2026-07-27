@@ -1,9 +1,15 @@
+import { redirect } from 'next/navigation'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { ThemeToggleRadioGroup } from '@/components/app-shell/theme-toggle'
 import { Card } from '@/components/ui/card'
 
 export const metadata = { title: 'Appearance | Settings' }
 
-export default function AppearanceTabPage() {
+export default async function AppearanceTabPage() {
+  const companyId = await getActiveCompanyId()
+  if (isDemoCompany(companyId)) redirect('/settings/company')
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-1">
