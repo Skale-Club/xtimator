@@ -31,6 +31,16 @@ vi.mock('@/lib/email/invite-emails', () => ({
 // ─── next/cache ─────────────────────────────────────────────────────────────
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+// ─── demo guard (Phase 180) ─────────────────────────────────────────────────
+// inviteMember/revokeInvite call assertWritable() ambiently; the real ambient
+// path resolves cookies() + getActiveCompanyId() independently of this file's
+// own mocks. Mocked directly so this suite stays isolated to SEAT-03, not
+// demo-guard internals (covered separately in tests/unit/demo/*).
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+  assertCompanyWritable: vi.fn(async () => null),
+}))
+
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 const membersSelectResult = { data: null as Record<string, unknown>[] | null, error: null as unknown }
 const pendingInviteResult = { data: null as Record<string, unknown>[] | null, error: null as unknown }

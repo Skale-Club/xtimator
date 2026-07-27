@@ -37,6 +37,14 @@ vi.mock('next/cache', () => ({
   updateTag: vi.fn(),
 }))
 
+// ─── demo guard (Phase 180) ─────────────────────────────────────────────────
+// acceptInvite calls assertWritable() ambiently; mocked directly so this suite
+// stays isolated to SEAT-04, not demo-guard internals (covered separately in
+// tests/unit/demo/*).
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+}))
+
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // invite lookup: .select(...).eq('token', ...).maybeSingle()
 const inviteLookupResult = { data: null as Record<string, unknown> | null, error: null as unknown }

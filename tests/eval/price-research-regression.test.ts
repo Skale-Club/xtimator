@@ -70,7 +70,13 @@ vi.mock('@/lib/queries/recording', () => ({ getProjectRecordings: vi.fn() }))
 vi.mock('@/lib/queries/photo', () => ({ getProjectPhotos: vi.fn() }))
 
 // --- next/cache: revalidatePath is a no-op in tests --------------------------
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+// Phase 180: the real graph transitively imports lib/demo/guard.ts (via
+// price-research/orchestrator -> quota -> notifications/dispatch), which pulls
+// in auth.ts's module-scope unstable_cache() call.
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+}))
 
 // --- Service client: chainable mock + persisted-estimate capture -------------
 vi.mock('@/lib/supabase/service', () => ({

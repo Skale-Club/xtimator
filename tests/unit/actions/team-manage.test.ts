@@ -22,6 +22,15 @@ vi.mock('@/lib/auth/require-company-role', () => ({
 // ─── next/cache ─────────────────────────────────────────────────────────────
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+// ─── demo guard (Phase 180) ─────────────────────────────────────────────────
+// changeMemberRole/removeMember call assertWritable() ambiently; mocked
+// directly so this suite stays isolated to SEAT-05, not demo-guard internals
+// (covered separately in tests/unit/demo/*).
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+  assertCompanyWritable: vi.fn(async () => null),
+}))
+
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // The target-role lookup: .select('role').eq().eq().maybeSingle()
 const targetLookupResult = { data: null as Record<string, unknown> | null, error: null as unknown }

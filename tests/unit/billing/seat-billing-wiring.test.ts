@@ -57,6 +57,14 @@ vi.mock('next/cache', () => ({
   updateTag: vi.fn(),
 }))
 
+// ─── demo guard (Phase 180) ─────────────────────────────────────────────────
+// acceptInvite/changeMemberRole/removeMember call assertWritable() ambiently;
+// mocked directly so this wiring suite stays isolated to SEAT-07.
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+  assertCompanyWritable: vi.fn(async () => null),
+}))
+
 // ─── service-role Supabase per-table mock ───────────────────────────────────
 // acceptInvite path: invite lookup (maybeSingle), guarded flip (update→eq→eq→select),
 // member upsert. team.ts path: target-role lookup (select→eq→eq→maybeSingle),

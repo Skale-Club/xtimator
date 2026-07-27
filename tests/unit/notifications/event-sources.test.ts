@@ -27,6 +27,16 @@ vi.mock('@/lib/observability/ops-alert', () => ({
   notifyOps: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Phase 180: logEstimateView/respondToEstimate (app/estimate/[token]/actions.ts)
+// now call assertWritable()/assertCompanyWritable() before their own logic. The
+// ambient path resolves real request cookies independently of anything this file
+// mocks — mock the guard directly so these pre-existing instrumentation-wiring
+// tests stay isolated from demo-guard internals (covered separately in tests/unit/demo/*).
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+  assertCompanyWritable: vi.fn(async () => null),
+}))
+
 // ----------------------------------------------------------------------
 // Block A — copy module catalog completeness (NOTIF-04)
 // ----------------------------------------------------------------------

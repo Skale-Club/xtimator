@@ -28,6 +28,9 @@ vi.mock('@/lib/queries/photo', () => ({
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
+  // Phase 180: transitively imports lib/demo/guard.ts (via price-research/orchestrator
+  // -> quota -> notifications/dispatch), which pulls in auth.ts's module-scope unstable_cache().
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
 }))
 
 vi.mock('@/lib/ai', () => ({

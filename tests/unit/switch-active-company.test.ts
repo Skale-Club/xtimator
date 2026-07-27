@@ -19,6 +19,14 @@ vi.mock('next/cache', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))
+// Phase 180: switchActiveCompany now calls assertWritable() (ambient demo guard)
+// before its own logic. That ambient path resolves cookies()/getActiveCompanyId()
+// independently of this file's own createClient/cookies mocks — mock the guard
+// directly so these pre-existing membership/cookie tests stay isolated to what
+// they actually cover (SWITCH-06/08), not demo-guard internals (tests/unit/demo/*).
+vi.mock('@/lib/demo/guard', () => ({
+  assertWritable: vi.fn(async () => null),
+}))
 
 import { cookies } from 'next/headers'
 import { revalidatePath, updateTag } from 'next/cache'
