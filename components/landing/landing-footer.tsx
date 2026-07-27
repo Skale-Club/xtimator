@@ -59,7 +59,7 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
                   <Link href="/terms-of-service" className="transition-colors hover:text-white">Terms of Service</Link>
                 </li>
                 <li>
-                  <Link href="/demo" className="transition-colors hover:text-white">See Demo</Link>
+                  <Link href="/demo/entry" className="transition-colors hover:text-white">See Demo</Link>
                 </li>
               </ul>
             </div>

@@ -255,7 +255,7 @@ export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onO
                 // *1.2-with-lg-pin treatment as the primary button.
                 className="w-full lg:w-fit px-[29px] sm:px-[24px] sm:flex-none lg:self-start border-white/10 bg-white/5 font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-[clamp(173px,19.44vw,199px)] lg:min-w-[199px] h-[clamp(48px,5.4vw,55px)] lg:h-[55px] text-[clamp(17px,1.87vw,19px)] lg:text-[19px] lg:px-[22px]"
               >
-                <Link href="/demo">See Demo</Link>
+                <Link href="/demo/entry">See Demo</Link>
               </Button>
             </div>
           </div>
