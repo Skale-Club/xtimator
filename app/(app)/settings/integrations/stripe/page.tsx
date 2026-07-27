@@ -3,6 +3,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { isDemoCompany } from '@/lib/demo/config'
 import {
   StripeConnectCard,
   type ConnectState,
@@ -29,6 +30,7 @@ export default async function StripeIntegrationPage({
     .eq('user_id', claims.sub as string)
     .single()
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   const clientId = await getIntegrationKey('stripe_connect_client_id')
 

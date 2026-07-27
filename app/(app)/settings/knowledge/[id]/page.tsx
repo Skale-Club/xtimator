@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { createClient } from '@/lib/supabase/server'
 import { EditEntryWrapper } from './edit-entry-wrapper'
 import { Card } from '@/components/ui/card'
@@ -24,6 +25,7 @@ export default async function EditCompanyKnowledgeEntryPage({
   if (!claims) redirect('/?auth=login')
   const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   const { id } = await params
   const supabase = await createClient()

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { createClient } from '@/lib/supabase/server'
 import { EntryActions } from './entry-actions'
 import { Card } from '@/components/ui/card'
@@ -24,6 +25,7 @@ export default async function CompanyKnowledgePage() {
   if (!claims) redirect('/?auth=login')
   const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   const supabase = await createClient()
   const { data } = await supabase

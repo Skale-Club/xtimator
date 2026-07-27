@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { EntryFormWrapper } from '../entry-form-wrapper'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -12,6 +13,7 @@ export default async function NewCompanyKnowledgeEntryPage() {
   if (!claims) redirect('/?auth=login')
   const company = await getActiveCompany()
   if (!company) redirect('/onboarding')
+  if (isDemoCompany(company.id)) redirect('/settings/company')
 
   return (
     <div className="space-y-8 p-6">
