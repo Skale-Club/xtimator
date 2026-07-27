@@ -24,7 +24,7 @@
 
 - [x] **PARITY-01**: A demo visitor sees the same authenticated app layout, navigation, responsive behavior, components, and styling used by a real tenant.
 - [x] **PARITY-02**: The demo visitor can navigate the core read surfaces—dashboard, projects, clients, price book, estimates, and settings surfaces intentionally exposed to the demo—using the deterministic demo tenant's data.
-- [ ] **PARITY-03**: The shared app shell visibly identifies demo/read-only mode and removes or disables controls that would otherwise initiate a mutation or paid/external side effect.
+- [x] **PARITY-03**: The shared app shell visibly identifies demo/read-only mode and removes or disables controls that would otherwise initiate a mutation or paid/external side effect.
 
 ### Read-Only Security (SAFE)
 
@@ -64,7 +64,7 @@
 | ENTRY-04 | Phase 180 | Complete |
 | PARITY-01 | Phase 181 | Complete |
 | PARITY-02 | Phase 181 | Complete |
-| PARITY-03 | Phase 181 | Pending |
+| PARITY-03 | Phase 181 | Complete |
 | SAFE-01 | Phase 180 | Complete |
 | SAFE-02 | Phase 180 | Complete |
 | SAFE-03 | Phase 180 | Complete |
