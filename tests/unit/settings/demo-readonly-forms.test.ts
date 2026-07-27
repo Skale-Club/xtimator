@@ -50,4 +50,28 @@ describe('PARITY-02/03: demo read-only wiring across Company/Team/Notifications 
       expect(src).toContain('readOnly={isDemoCompany(companyId)}')
     })
   })
+
+  describe('company tab page wires isDemoCompany into CompanyInfoForm', () => {
+    const src = readFileSync(
+      resolve(ROOT, 'app/(app)/settings/(tabs)/company/page.tsx'),
+      'utf8',
+    )
+
+    it('passes readOnly={isDemoCompany(company.id)} to CompanyInfoForm', () => {
+      expect(src).toContain('readOnly={isDemoCompany(company.id)}')
+    })
+  })
+
+  describe('team tab page forces canManage off for the demo company', () => {
+    const src = readFileSync(
+      resolve(ROOT, 'app/(app)/settings/(tabs)/team/page.tsx'),
+      'utf8',
+    )
+
+    it('gates canManage on !isDemoCompany(companyId)', () => {
+      expect(src).toContain(
+        "canManage = !isDemoCompany(companyId) && (role === 'owner' || role === 'admin')",
+      )
+    })
+  })
 })

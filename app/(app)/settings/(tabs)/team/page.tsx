@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyRole, type CompanyRole } from '@/lib/auth/require-company-role'
+import { isDemoCompany } from '@/lib/demo/config'
 import { listCompanyRoster } from '@/lib/queries/team'
 import { buildSeatCostSummary, type SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 import { TeamSection } from '@/components/settings/team-section'
@@ -24,7 +25,7 @@ export default async function TeamTabPage() {
   } catch {
     redirect('/settings')
   }
-  const canManage = role === 'owner' || role === 'admin'
+  const canManage = !isDemoCompany(companyId) && (role === 'owner' || role === 'admin')
 
   const roster = await listCompanyRoster(companyId)
   if ('error' in roster) {

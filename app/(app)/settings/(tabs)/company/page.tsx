@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings, getTradeSuggestion } from '@/lib/queries/company'
+import { isDemoCompany } from '@/lib/demo/config'
 import { CompanyInfoForm } from '@/components/settings/company-info-form'
 import { TradeSuggestionBanner } from '@/components/settings/trade-suggestion-banner'
 import { T } from '@/components/i18n/t'
@@ -37,7 +38,7 @@ export default async function CompanyTabPage() {
           occurrences={tradeSuggestion.occurrences}
         />
       )}
-      <CompanyInfoForm company={company} />
+      <CompanyInfoForm company={company} readOnly={isDemoCompany(company.id)} />
     </div>
   )
 }
