@@ -7,7 +7,7 @@ import { SettingsNav } from './settings-nav'
 
 const STORAGE_KEY = 'xtimator:settings-nav-collapsed'
 
-export function SettingsLayoutClient({ children }: { children: ReactNode }) {
+export function SettingsLayoutClient({ children, isDemo }: { children: ReactNode; isDemo?: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export function SettingsLayoutClient({ children }: { children: ReactNode }) {
           )}
         >
           <div className="flex-1">
-            <SettingsNav collapsed={collapsed} />
+            <SettingsNav collapsed={collapsed} isDemo={isDemo} />
           </div>
 
           {/* Collapse toggle — visible and usable at ALL breakpoints. Same
