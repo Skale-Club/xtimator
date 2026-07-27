@@ -76,3 +76,31 @@ checksum above.
 - The pre-existing trailing-newline-only `.planning/config.json` change was not
   edited or staged.
 - No `180-14-SUMMARY.md` was created.
+
+## Session 2 — Environment Investigation (2026-07-26)
+
+Attempted to unblock Task 1's live environment requirement two ways; both are
+genuinely unavailable right now, not a retry-able flake.
+
+1. **Local Docker.** Docker Desktop was not running. Launched it manually;
+   it crashed on startup with `initializing Inference manager: listening on
+   unix://...dockerInference: remove ...dockerInference: The file cannot be
+   accessed by the system (listener: The filename, directory, or volume label
+   syntax is incorrect.)` — a stale/locked socket file blocking Desktop's own
+   startup. Left unfixed at the operator's request ("segue sem ele"); the
+   Supabase CLI's local stack (`supabase start`, `db lint` without `--linked`,
+   disposable reset) has no non-Docker alternative on this stack.
+2. **Supabase preview branch (cloud, no Docker needed).** `create_branch` is
+   reachable via MCP and CLI (`supabase branches create`) once authenticated
+   with the project-scoped `SUPABASE_ACCESS_TOKEN` from `.env.local` — the
+   global CLI login on this machine is a *different* Supabase account that
+   cannot even see project `prmqgcrnpuvpzruyzvuv`. With the correct token,
+   `supabase branches create --project-ref prmqgcrnpuvpzruyzvuv` returned
+   **HTTP 402** — `Branching is supported only on the Pro plan or above`
+   (org `tsybxxlhruvgviewclbl` is not on that plan). No branch was created,
+   nothing was charged.
+
+**Operator decision (2026-07-26):** park this plan as-is. Revisit once either
+Docker Desktop is repaired locally, or the Supabase org is upgraded to a plan
+with branching — operator's choice, to be made later. No further attempts
+should be made to route around this without a new explicit decision.
