@@ -82,4 +82,18 @@ describe('Demo tab visibility (181-01)', () => {
       expect(client).toContain('SettingsNav collapsed={collapsed} isDemo={isDemo}')
     })
   })
+
+  describe('Settings entry point reachable for demo; Trash stays hidden', () => {
+    it('sidebar.tsx has exactly one remaining {!isDemo && ( guard (Trash only)', () => {
+      const sidebar = read('components/app-shell/sidebar.tsx')
+      const matches = sidebar.match(/\{!isDemo && \(/g) ?? []
+      expect(matches.length).toBe(1)
+    })
+
+    it('mobile-account-menu.tsx has exactly one remaining {!isDemo && ( guard (Trash only)', () => {
+      const mobileMenu = read('components/app-shell/mobile-account-menu.tsx')
+      const matches = mobileMenu.match(/\{!isDemo && \(/g) ?? []
+      expect(matches.length).toBe(1)
+    })
+  })
 })

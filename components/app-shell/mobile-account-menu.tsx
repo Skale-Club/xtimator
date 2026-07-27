@@ -80,13 +80,11 @@ export function MobileAccountMenu({
         <p className="text-xs text-muted-foreground truncate">{navUser.email}</p>
       </div>
       <DropdownMenuSeparator />
-      {!isDemo && (
-        <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/settings" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />{t('Settings')}
-          </Link>
-        </DropdownMenuItem>
-      )}
+      <DropdownMenuItem asChild className="cursor-pointer">
+        <Link href="/settings" className="flex items-center gap-2">
+          <Settings className="h-4 w-4" />{t('Settings')}
+        </Link>
+      </DropdownMenuItem>
       {!isDemo && (
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/trash" className="flex items-center gap-2">
