@@ -2976,7 +2976,15 @@ Plans:
   4. An operator can configure local and production demo hosts from repository documentation covering environment values, Supabase redirect allow-list entries, DNS, and Coolify domains without treating Vercel as production.
   5. Browser verification at desktop and responsive widths proves the real product renders on the demo host and that an existing apex-domain session remains intact before and after the visit.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 181-01-PLAN.md — Filter SettingsNav for demo, render the real SettingsLayoutClient shell unconditionally, un-hide the Settings entry point
+- [ ] 181-02-PLAN.md — Wire read-only rendering into Company/Team/Notifications tabs (new NotificationsForm readOnly prop; reuse existing CompanyInfoForm/TeamSection props)
+- [ ] 181-03-PLAN.md — Add isDemoCompany redirect guards to the 15 settings pages not exposed to the demo
+- [ ] 181-04-PLAN.md — Verify demo data richness (Supabase MCP) and extend the e2e isolation spec with PARITY-01..03/CUTOVER-03 browser assertions
+- [ ] 181-05-PLAN.md — Switch landing CTAs to /demo/entry, delete the standalone /demo/* UI, rewrite DEMO-WORKSPACE.md
+
 **UI hint**: yes
 
 ### Progress
@@ -2984,4 +2992,4 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 180. Isolated Demo Session & Read-Only Foundation | 15/15 | Complete    | 2026-07-27 |
-| 181. Real-Product Cutover & Verification | 0/? | Not started | - |
+| 181. Real-Product Cutover & Verification | 0/5 | Not started | - |
