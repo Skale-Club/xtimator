@@ -4,6 +4,14 @@ import { test, expect, type Page } from '@playwright/test'
  * Phase 180 (ENTRY-01..ENTRY-04, SAFE-01, SAFE-02) — isolated demo session &
  * read-only foundation, cross-host Chromium proof.
  *
+ * Extended by Phase 181 Plan 04 (PARITY-01..03, CUTOVER-03) with 4 additional
+ * test.step()s appended to the SAME test, after Phase 180's steps: real
+ * product-surface data-rendering assertions, settings-nav filtering + hidden-tab
+ * redirects, mutation-control suppression, and an extra tablet-viewport check.
+ * Runs across all 3 configured Playwright projects (chromium/mobile-safari/
+ * mobile-chrome) — this is the gate CUTOVER-01 (Plan 05's landing-CTA/dead-code
+ * cutover) may not proceed past.
+ *
  * Everything below runs in ONE browser context (the default per-test
  * `page`/`context` fixtures Playwright already gives a single test) so the
  * apex-before → demo-excursion → apex-after narrative shares one real cookie
@@ -73,7 +81,7 @@ test.describe('Demo session isolation (ENTRY-01..04, SAFE-01, SAFE-02)', () => {
     page,
     context,
   }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
 
     // ----------------------------------------------------------------------
     // Phase 0: establish an apex "before" state.
@@ -252,6 +260,74 @@ test.describe('Demo session isolation (ENTRY-01..04, SAFE-01, SAFE-02)', () => {
       // Repaired session re-establishes host-only auth cookies.
       const repairedCookies = await context.cookies(demoOrigin)
       expect(repairedCookies.some((c) => c.name.startsWith('sb-'))).toBe(true)
+    })
+
+    // ----------------------------------------------------------------------
+    // PARITY-01/PARITY-02: core read surfaces render the deterministic demo
+    // data (Phase 181 Plans 01-03).
+    // ----------------------------------------------------------------------
+    await test.step('PARITY-01/02: core read surfaces render the deterministic demo data', async () => {
+      await page.goto(`${demoOrigin}/dashboard`, { waitUntil: 'load' })
+      await expect(page.getByText(/read-only Xtimator demo/i)).toBeVisible({ timeout: 10_000 })
+
+      await page.goto(`${demoOrigin}/clients`, { waitUntil: 'load' })
+      await expect(page.getByText('Maple Street Residence').first()).toBeVisible({ timeout: 10_000 })
+
+      await page.goto(`${demoOrigin}/price-book`, { waitUntil: 'load' })
+      await expect(page.getByText('Carpet cleaning — per room').first()).toBeVisible({ timeout: 10_000 })
+
+      await page.goto(`${demoOrigin}/projects`, { waitUntil: 'load' })
+      await expect(page.getByText('Whole-Home Carpet Cleaning').first()).toBeVisible({ timeout: 10_000 })
+      await page.getByText('Whole-Home Carpet Cleaning').first().click()
+      await page.waitForURL(/\/projects\/[0-9a-f-]+/, { timeout: 10_000 })
+      await expect(page.getByText('Whole-Home Carpet Cleaning').first()).toBeVisible({ timeout: 10_000 })
+    })
+
+    // ----------------------------------------------------------------------
+    // PARITY-02: settings nav shows exactly Company/Team/Notifications;
+    // hidden tabs redirect (Phase 181 Plans 01 + 03).
+    // ----------------------------------------------------------------------
+    await test.step('PARITY-02: settings nav shows exactly Company/Team/Notifications; hidden tabs redirect', async () => {
+      await page.goto(`${demoOrigin}/settings`, { waitUntil: 'load' })
+      await page.waitForURL(`${demoOrigin}/settings/company`, { timeout: 10_000 })
+
+      const nav = page.locator('nav[aria-label="Section navigation"]')
+      await expect(nav.getByText('Company', { exact: true })).toBeVisible()
+      await expect(nav.getByText('Team', { exact: true })).toBeVisible()
+      await expect(nav.getByText('Notifications', { exact: true })).toBeVisible()
+      await expect(nav.getByText('Plans', { exact: true })).toHaveCount(0)
+      await expect(nav.getByText('Integrations', { exact: true })).toHaveCount(0)
+      await expect(nav.getByText('Knowledge', { exact: true })).toHaveCount(0)
+
+      await page.goto(`${demoOrigin}/settings/billing`, { waitUntil: 'load' })
+      expect(page.url()).toBe(`${demoOrigin}/settings/company`)
+    })
+
+    // ----------------------------------------------------------------------
+    // PARITY-03: mutation controls are suppressed on the exposed demo tabs
+    // (Phase 181 Plan 02).
+    // ----------------------------------------------------------------------
+    await test.step('PARITY-03: mutation controls are suppressed on the exposed demo tabs', async () => {
+      await page.goto(`${demoOrigin}/settings/team`, { waitUntil: 'load' })
+      await expect(page.getByRole('button', { name: 'Invite' })).toHaveCount(0)
+
+      await page.goto(`${demoOrigin}/settings/notifications`, { waitUntil: 'load' })
+      await expect(page.getByTestId('master-email-digest')).toBeDisabled()
+      await expect(page.getByTestId('save-prefs')).toBeDisabled()
+      await expect(
+        page.getByText('This is a read-only demo. Create a free account to manage your notification settings.')
+      ).toBeVisible()
+    })
+
+    // ----------------------------------------------------------------------
+    // CUTOVER-03: demo product renders correctly at an in-between tablet
+    // viewport (chromium/mobile-safari/mobile-chrome already cover
+    // desktop/phone).
+    // ----------------------------------------------------------------------
+    await test.step('CUTOVER-03: demo product renders correctly at an in-between tablet viewport', async () => {
+      await page.setViewportSize({ width: 768, height: 1024 })
+      await page.goto(`${demoOrigin}/dashboard`, { waitUntil: 'load' })
+      await expect(page.getByText(/read-only Xtimator demo/i)).toBeVisible({ timeout: 10_000 })
     })
   })
 })
