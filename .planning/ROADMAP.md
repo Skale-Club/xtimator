@@ -2944,7 +2944,7 @@ Plans:
 
 ### Phases (summary checklist)
 
-- [ ] **Phase 180: Isolated Demo Session & Read-Only Foundation** — establish host-only demo authentication and active-company selection with deny-write enforcement at server, side-effect, and RLS boundaries
+- [x] **Phase 180: Isolated Demo Session & Read-Only Foundation** — establish host-only demo authentication and active-company selection with deny-write enforcement at server, side-effect, and RLS boundaries (completed 2026-07-27)
 - [ ] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface
 
 ### Phase Details
@@ -2983,5 +2983,5 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 180. Isolated Demo Session & Read-Only Foundation | 14/15 | In Progress|  |
+| 180. Isolated Demo Session & Read-Only Foundation | 15/15 | Complete    | 2026-07-27 |
 | 181. Real-Product Cutover & Verification | 0/? | Not started | - |
