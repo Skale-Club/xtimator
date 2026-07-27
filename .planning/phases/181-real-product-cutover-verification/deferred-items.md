@@ -57,3 +57,18 @@ demo company, and this plan's `PARITY-01/02` price-book assertion can pass unmod
 `181-04-CHECKPOINT` context in the executor's final message for the two ways to proceed (apply
 the migration, or temporarily narrow the test's price-book assertion and re-open this item
 separately).
+
+---
+
+**RESOLVED 2026-07-27:** Operator authorized applying the migration. Applied
+`20260723000001_image_position_metadata.sql` to production via Supabase MCP (`apply_migration`,
+same mechanism used for Phase 180's RLS migration). Verified via
+`information_schema.columns`: both `company_price_book.image_position` and `photos.position`
+now exist on production. `/price-book` should render normally for every tenant. Task 2 may
+resume — the price-book assertion no longer needs narrowing.
+
+The larger ~40-migration drift backlog was deliberately **not** touched — that remains a
+separate, dedicated audit item outside this milestone's scope, per the recommendation above.
+Do not bulk-apply it without individual review; the `migration list --linked` output shows
+duplicate/interleaved timestamps suggesting some "local-only" entries may already be applied to
+remote under different migration file names, which makes a blind `db push` risky.
