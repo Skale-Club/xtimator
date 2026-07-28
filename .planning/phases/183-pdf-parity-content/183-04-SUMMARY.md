@@ -79,6 +79,7 @@ Each task was committed atomically:
 1. **Task 1: PdfHeader + PdfInfoGrid + PdfFooter — extract and wire into both templates** - `899e781e` (feat)
 2. **Task 2: PdfTitleBanner + PdfSectionBlock (Classic banner fix, Correction 1) — extract and wire** - `39601c2a` (feat)
 3. **Task 3: PdfTermsSection — extract and wire into both templates** - `74ba1419` (feat)
+4. **Post-completion: type shared-component styles with react-pdf `Style`** - `366a67a3` (fix) — requested by the orchestrator after the wave-2 boundary `tsc` gate caught bare-`object` style props; see Deviation 3 below
 
 _No TDD RED/GREEN split — these are refactor-and-fix tasks per the plan's `type="auto"` designation, not `tdd="true"`._
 
@@ -119,10 +120,18 @@ _No TDD RED/GREEN split — these are refactor-and-fix tasks per the plan's `typ
 - **Verification:** Both files still compile and all scoped tests pass; no remaining references to the removed identifiers (confirmed via grep)
 - **Committed in:** 899e781e (Task 1 commit)
 
+**3. [Rule 1 - Bug] Typed shared-component style props with react-pdf's `Style` instead of bare `object`**
+- **Found during:** Wave-2 boundary gate (`npx tsc -p tsconfig.ci.json --noEmit`, run by the orchestrator after both 183-04 and 183-05 completed)
+- **Issue:** All 6 `components/pdf/shared/*.tsx` files declared their `styles: {...}` prop fields as the bare TypeScript `object` type. `object` does not satisfy react-pdf's `Text`/`View`/`Link`/`Image` `style?: Style | Style[]` prop type, producing TS2769 ("Type 'object' is not assignable to type 'Style'") at every call site across all 6 files once the scoped `tsconfig.ci.json` gate ran.
+- **Fix:** Imported `type { Style } from '@react-pdf/types'` (a real, declared dependency of `@react-pdf/renderer`, confirmed resolvable — not an incidental hoist) and replaced every `object`-typed style field with `Style` across `PdfHeaderStyles`, `PdfInfoGridStyles`, `PdfFooterStyles`, `PdfTitleBannerStyles`, `PdfSectionBlockStyles`, `PdfTermsSectionStyles`. No call-site changes were needed in `estimate-pdf.tsx`/`estimate-pdf-modern.tsx` — their `StyleSheet.create()` output already structurally satisfies `Style`.
+- **Files modified:** components/pdf/shared/pdf-header.tsx, pdf-info-grid.tsx, pdf-footer.tsx, pdf-title-banner.tsx, pdf-section-block.tsx, pdf-terms-section.tsx
+- **Verification:** `npx tsc -p tsconfig.ci.json --noEmit` exits clean (0 errors); `npx vitest run tests/unit/pdf tests/unit/estimate/document-engine-boundary.test.ts` stays green (25/25) — types only, zero behavior/output change
+- **Committed in:** `366a67a3`
+
 ---
 
-**Total deviations:** 2 auto-fixed (1 blocking-tests fix, 1 dead-code cleanup)
-**Impact on plan:** Both changes were necessary to satisfy the plan's own "baseline-order test stays green" and "delete dead inline JSX, no leftover commented-out code" requirements. No scope creep — no file outside this plan's declared `files_modified` list was touched.
+**Total deviations:** 3 auto-fixed (1 blocking-tests fix, 1 dead-code cleanup, 1 post-hoc type fix requested at the wave-2 boundary gate)
+**Impact on plan:** All three changes were necessary for correctness (types) or to satisfy the plan's own explicit requirements (baseline-order test green, no dead code). No scope creep — no file outside this plan's declared `files_modified` list (plus the wave-boundary type fix, still scoped to `components/pdf/shared/*`) was touched.
 
 ## Issues Encountered
 
@@ -145,4 +154,4 @@ None - no external service configuration required.
 
 ## Self-Check: PASSED
 
-All 10 key files verified present on disk (6 shared components, 1 new test, 2 modified templates, this SUMMARY). All 3 task commits (899e781e, 39601c2a, 74ba1419) verified present in `git log`.
+All 10 key files verified present on disk (6 shared components, 1 new test, 2 modified templates, this SUMMARY). All 4 commits (899e781e, 39601c2a, 74ba1419, 366a67a3) verified present in `git log`. Final `npx tsc -p tsconfig.ci.json --noEmit` exits 0; final `npx vitest run tests/unit/pdf tests/unit/estimate/document-engine-boundary.test.ts` is 25/25 green.
