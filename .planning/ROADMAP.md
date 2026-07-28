@@ -3080,11 +3080,11 @@ Plans:
 **Plans**: 5 plans across 3 waves
 
 Plans:
-- [ ] 184-01-PLAN.md — Measurement-drift spike (fontkit vs real Chromium) + SAFETY_MARGIN_LINES + hand-calculated arithmetic proof
-- [ ] 184-02-PLAN.md — Pure pagination type contracts + computePageBreaks() engine + rules (fake measurement provider)
-- [ ] 184-03-PLAN.md — Server-only fontkit/linebreak estimator + blocksFromModel() (empty-description filter)
-- [ ] 184-04-PLAN.md — Component restructure: split PdfSectionBlock; row-chunk PdfPhotoGrid; per-card-atomic PdfTermsSection
-- [ ] 184-05-PLAN.md — Wire both PDF templates to N explicit <Page>s; repeated continuation headers; determinism + renderToBuffer smoke; manual visual checkpoint
+- [ ] 184-01-PLAN.md — Wave 1: measurement-drift spike + SAFETY_MARGIN_LINES (stated per-page semantics) + hand-calculated arithmetic proof + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY tokens
+- [ ] 184-02-PLAN.md — Wave 2: pure pagination type contracts (PageBlockRef, safetyMarginPt) + computePageBreaks() engine (maximal keep-together chains, per-page margin) + rules (fake measurement provider)
+- [ ] 184-04-PLAN.md — Wave 2: component restructure (split PdfSectionBlock; row-chunk PdfPhotoGrid + photosPerRow; per-card-atomic PdfTermsSection + PdfTermsCard; totals wrap={false} fix)
+- [ ] 184-03-PLAN.md — Wave 3: server-only fontkit/linebreak estimator + blocksFromModel() (empty-description filter, visibility gates, ref population, token-sourced geometry)
+- [ ] 184-05-PLAN.md — Wave 4: wire both PDF templates to N explicit <Page>s via one uniform block dispatcher; repeated continuation headers; real-PDF-byte page count + determinism + renderToBuffer smoke; durable UAT artifacts + manual visual checkpoint
 
 ### Phase 185: Paginated Editable Editor Mode
 **Goal**: The workspace estimate editor gains a paginated view mode — letter-size pages styled like a PDF preview, mirroring the PDF's page breaks — that stays fully editable, alongside the existing full-width mode, with the legacy width/page toggle retired.
