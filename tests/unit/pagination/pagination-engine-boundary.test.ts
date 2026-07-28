@@ -6,6 +6,11 @@ import { readFileSync } from 'node:fs'
 // Plan 184-03 ADDS `blocks-from-model.ts` below, confirming it stays
 // client-safe (no react-pdf/react/components/fontkit/linebreak imports) even
 // though it turns a real document model into PageBlock[].
+//
+// Phase 185 Plan 01 additionally EXCLUDES `measure/line-packer.ts` (imports
+// 'linebreak' — the isomorphic core shared by both estimator.ts AND the new
+// measure/browser-estimator.ts) and `measure/browser-estimator.ts` (imports
+// 'fontkit') from this list, for the same reason estimator.ts already is.
 const ENGINE_FILES = [
   'lib/estimate/pagination/types.ts',
   'lib/estimate/pagination/rules.ts',
@@ -25,4 +30,15 @@ describe('lib/estimate/pagination/* core has zero framework/measurement imports'
       expect(source).not.toMatch(/from ['"]linebreak['"]/)
     })
   }
+})
+
+describe('lib/estimate/pagination/measure/browser-estimator.ts is client-safe (inverse assertion)', () => {
+  it('contains zero node:fs / node:path / server-only imports', () => {
+    const source = readFileSync('lib/estimate/pagination/measure/browser-estimator.ts', 'utf8')
+    expect(source).not.toMatch(/from ['"]node:fs['"]/)
+    expect(source).not.toMatch(/from ['"]node:path['"]/)
+    expect(source).not.toMatch(/require\(['"]node:fs['"]\)/)
+    expect(source).not.toMatch(/require\(['"]node:path['"]\)/)
+    expect(source).not.toMatch(/^import ['"]server-only['"]/m)
+  })
 })

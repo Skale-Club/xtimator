@@ -15,7 +15,7 @@ import path from 'node:path'
 // mirrors what `require('fontkit')` returns (Plan 184-01's Decision, see
 // 184-01-SUMMARY.md's key-decisions).
 import * as fontkit from 'fontkit'
-import LineBreaker from 'linebreak'
+import { packLines } from './line-packer'
 import type { MeasurementProvider } from './types'
 
 const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
@@ -63,15 +63,15 @@ function getFont(fontFamily: string): fontkit.Font {
 }
 
 /**
- * The EXACT greedy line-packer Plan 184-01 hand-validated against the real
- * vendored Inter-Regular.ttf (tests/unit/pagination/measure/
- * fontkit-arithmetic.test.ts's local reference copy) — no reinterpretation,
- * NO margin term (the safety margin is applied per-page by Plan 184-05's
- * caller via SAFETY_MARGIN_LINES, never here).
- *
  * Signature matches MeasurementProvider.lineCount exactly: `fontFamily` here
  * IS the `styleKey` the engine/rules pass through opaquely (Inter,
- * Inter-Bold, Lora, or Lora-Bold).
+ * Inter-Bold, Lora, or Lora-Bold). The empty-text guard MUST stay here,
+ * BEFORE getFont() — an empty-text measurement must never trigger a font
+ * parse (Phase 185 Plan 01 preserved this exact ordering; moving the check
+ * "inside packLines only" would eagerly open/parse a font on every call
+ * regardless of text length). The actual greedy line-packing loop now lives
+ * in the isomorphic lib/estimate/pagination/measure/line-packer.ts, shared
+ * with the browser measurement provider (measure/browser-estimator.ts).
  */
 export function estimateLineCount(
   text: string,
@@ -82,27 +82,7 @@ export function estimateLineCount(
   if (text.length === 0) return 0
 
   const font = getFont(fontFamily)
-  const scale = fontSizePt / font.unitsPerEm
-  const breaker = new LineBreaker(text)
-  let lineWidthPt = 0
-  let lines = 1
-  let last = 0
-  let bk: { position: number } | null
-
-  while ((bk = breaker.nextBreak())) {
-    const chunk = text.slice(last, bk.position)
-    const { advanceWidth } = font.layout(chunk)
-    const chunkWidthPt = advanceWidth * scale
-    if (lineWidthPt + chunkWidthPt > maxWidthPt && lineWidthPt > 0) {
-      lines += 1
-      lineWidthPt = chunkWidthPt
-    } else {
-      lineWidthPt += chunkWidthPt
-    }
-    last = bk.position
-  }
-
-  return lines
+  return packLines(font, text, fontSizePt, maxWidthPt)
 }
 
 export function createFontkitMeasurementProvider(): MeasurementProvider {
