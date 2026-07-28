@@ -11,9 +11,7 @@ import { freezeAnimations, setLang, viewports, langs } from './_helpers'
  * Coverage matrix:
  *   3 viewports (desktop/tablet/mobile) x 3 langs (en/pt/es) = 9 baselines
  *   + 1 brand-override smoke (RESEARCH G6 tenant brand cascade)
- *   + 1 success banner branch (?stripe=success)
- *   + 1 canceled banner branch (?stripe=canceled)
- *   = 12 baselines total
+ *   = 10 baselines total
  */
 
 const seedToken = process.env.SEED_ESTIMATE_TOKEN
@@ -45,31 +43,17 @@ test.describe('@visual share', () => {
     }
   }
 
-  test('share — payment success banner (?stripe=success)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const resp = await page.goto(`/estimate/${seedToken}?stripe=success`, {
-      waitUntil: 'networkidle',
-    })
-    test.skip(!resp || resp.status() >= 400, 'seed token does not resolve')
-    await freezeAnimations(page)
-    await expect(page).toHaveScreenshot('share-payment-success.png', {
-      fullPage: true,
-      maxDiffPixelRatio: 0.02,
-    })
-  })
-
-  test('share — payment canceled banner (?stripe=canceled)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const resp = await page.goto(`/estimate/${seedToken}?stripe=canceled`, {
-      waitUntil: 'networkidle',
-    })
-    test.skip(!resp || resp.status() >= 400, 'seed token does not resolve')
-    await freezeAnimations(page)
-    await expect(page).toHaveScreenshot('share-payment-canceled.png', {
-      fullPage: true,
-      maxDiffPixelRatio: 0.02,
-    })
-  })
+  // Phase 186 Plan 02 (POLISH-01) — intentional removal, not silent: the two
+  // payment success/canceled banner visual baselines (each keyed off a
+  // "stripe" query param) that used to sit below this comment were deleted.
+  // Confirmed during planning that neither `app/estimate/[token]/page.tsx`
+  // nor `app/estimate/[token]/actions.ts` ever reads that query param (grep
+  // returned zero matches) — these banners were pure no-ops, superseded by
+  // the Phase 94 issued-invoice pay-link UI that
+  // `components/share/estimate-view.tsx` already renders unconditionally.
+  // The tests were redundant with the 9-baseline viewport x lang matrix
+  // above and asserted dead behavior. See the corrected coverage matrix in
+  // this file's top docblock.
 
   test('share — tenant brand override cascade (G6 smoke)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })

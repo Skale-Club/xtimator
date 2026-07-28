@@ -50,7 +50,7 @@
 
 ### Webview Design Polish (POLISH)
 
-- [ ] **POLISH-01**: The benchmark webview receives a design refinement pass (both templates, mobile included) and the refinements propagate to the PDF through the shared engine — the surfaces stay unified after polish.
+- [x] **POLISH-01**: The benchmark webview receives a design refinement pass (both templates, mobile included) and the refinements propagate to the PDF through the shared engine — the surfaces stay unified after polish.
 
 ## v2 Requirements (deferred)
 
@@ -91,13 +91,14 @@
 | PGMODE-03 | Phase 185 | Complete |
 | PGMODE-04 | Phase 185 | Complete |
 | PGMODE-05 | Phase 185 | Complete (185-04: `share-webview-pagination-boundary.test.ts` — an automated recursive-directory-walk grep guard, static AND dynamic `import(...)` forms both covered — proves `app/estimate/[token]/**` and `components/share/**` never import any pagination module) |
-| POLISH-01 | Phase 186 | Pending |
+| POLISH-01 | Phase 186 | Complete (Phase 186) — webview-only polish + one geometry-safe PDF token; PDF font/box propagation deferred — requires lockstep blocks-from-model formula updates. |
 
 **Coverage:**
 - v1 requirements: 18 total
 - Mapped to phases: 18
+- Complete: 18/18 ✓
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-27*
-*Last updated: 2026-07-27 after roadmap creation — 18/18 requirements mapped to Phases 182-186, 0 orphans, 0 duplicates*
+*Last updated: 2026-07-28 after Phase 186 completion — 18/18 v1 requirements mapped to Phases 182-186 and complete, 0 orphans, 0 duplicates*
