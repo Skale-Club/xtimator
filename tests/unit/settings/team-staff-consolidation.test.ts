@@ -35,9 +35,10 @@ describe('Team and Staff consolidation', () => {
   })
 
   it('keeps PDF attribution scoped to the creating team member and company', () => {
-    const pdfRoute = read('app/api/estimates/[id]/pdf/route.ts')
-    expect(pdfRoute).toContain(".select('display_name')")
-    expect(pdfRoute).toContain(".eq('user_id', estimate.created_by_user_id)")
-    expect(pdfRoute).toContain(".eq('company_id', estimate.company_id)")
+    // Attribution moved from the route into the shared resolver in Phase 182
+    const resolver = read('lib/pdf/render-estimate-pdf.ts')
+    expect(resolver).toContain(".select('display_name')")
+    expect(resolver).toContain(".eq('user_id', estimate.created_by_user_id)")
+    expect(resolver).toContain(".eq('company_id', estimate.company_id)")
   })
 })
