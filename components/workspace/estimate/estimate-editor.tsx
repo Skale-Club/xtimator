@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Lock, History } from 'lucide-react'
@@ -32,6 +32,7 @@ import {
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
+import { usePaginatedPreview } from './use-paginated-preview'
 import { LETTER_HEIGHT_PX, LETTER_WIDTH_PX } from '@/lib/estimate/document/tokens'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
@@ -292,6 +293,27 @@ export function EstimateEditor({
   const handleViewModeChange = useCallback((mode: EstimateViewMode) => {
     setViewMode(mode)
   }, [])
+
+  // Phase 185 Plan 03 (PGMODE-02) — memoized so stateToDocumentData(state)
+  // only produces a NEW reference on a genuine reducer dispatch (state is a
+  // useReducer value, stable across unrelated re-renders) — load-bearing for
+  // usePaginatedPreview's dependency array below, not cosmetic: an inline
+  // stateToDocumentData(state) call would produce a brand-new object
+  // reference on every render, making "did the data actually change"
+  // comparisons meaningless.
+  const documentData = useMemo(() => stateToDocumentData(state), [state])
+
+  // Phase 185 Plan 03 (PGMODE-02/03) — called UNCONDITIONALLY every render
+  // (rules-of-hooks safe); `enabled` internally gates all work (font fetch +
+  // engine compute) to when paginated mode is actually active.
+  const { pages: paginatedPages } = usePaginatedPreview({
+    data: documentData,
+    company,
+    templateId: estimateTemplateId,
+    preparedBy,
+    language: (estimate.language ?? 'en') as EstimateLanguage,
+    enabled: viewMode === 'page',
+  })
 
   // Quick-260718-w4k — page mode fits the WHOLE letter sheet in the visible
   // viewport (print-preview fit) via CSS zoom. Measured, not fixed: available
@@ -727,7 +749,7 @@ export function EstimateEditor({
       {/* WYSIWYG document surface */}
       <EstimateDocument
         mode="edit"
-        data={stateToDocumentData(state)}
+        data={documentData}
         company={company}
         companyDefaults={companyDefaults}
         brandColor={companyBrandColor ?? undefined}
