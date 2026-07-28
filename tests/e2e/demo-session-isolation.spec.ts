@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Request } from '@playwright/test'
 
 /**
  * Phase 180 (ENTRY-01..ENTRY-04, SAFE-01, SAFE-02) — isolated demo session &
@@ -61,7 +61,7 @@ async function collectRedirectChain(
 ): Promise<RedirectHop[]> {
   if (!startResponse) return []
   const hops: RedirectHop[] = []
-  let current = startResponse.request()
+  let current: Request | null = startResponse.request()
   while (current) {
     const res = await current.response()
     hops.unshift({ url: current.url(), status: res ? res.status() : -1 })
