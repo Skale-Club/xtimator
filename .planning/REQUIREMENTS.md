@@ -30,7 +30,7 @@
 - [ ] **PDFPAR-01**: The PDF (both templates) matches the webview benchmark's structure and design — company header/branding, title, project/bill-to, summary, sections with per-section subtotals, items tables, totals block (subtotal → discount → tax → total → deposit → balance due), terms, and photos.
 - [ ] **PDFPAR-02**: A signed estimate renders a signature block (signer name, signed date, signature image) on the webview AND in the PDF — net-new on all surfaces.
 - [ ] **PDFPAR-03**: Photo captions render in the webview photo grid AND in the PDF photo grid.
-- [ ] **PDFPAR-04**: All three PDF paths (download route, email attachment, WhatsApp document) resolve through one shared in-process renderer that honors the tenant's template choice, the signed snapshot (TRUST-01), preparedBy, and attached photos — eliminating the hardcoded-Classic + live-rows defects in `send/route.ts` and `pdf-delivery.ts`.
+- [x] **PDFPAR-04**: All three PDF paths (download route, email attachment, WhatsApp document) resolve through one shared in-process renderer that honors the tenant's template choice, the signed snapshot (TRUST-01), preparedBy, and attached photos — eliminating the hardcoded-Classic + live-rows defects in `send/route.ts` and `pdf-delivery.ts`.
 
 ### Consolidated Page-Break Rule (PGBRK)
 
@@ -77,7 +77,7 @@
 | ENGINE-01 | Phase 182 | Pending |
 | ENGINE-02 | Phase 182 | Pending |
 | ENGINE-03 | Phase 182 | Pending |
-| PDFPAR-04 | Phase 182 | Pending |
+| PDFPAR-04 | Phase 182 | Complete |
 | PDFPAR-01 | Phase 183 | Pending |
 | PDFPAR-02 | Phase 183 | Pending |
 | PDFPAR-03 | Phase 183 | Pending |
