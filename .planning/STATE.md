@@ -1046,6 +1046,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 184]: SAFETY_MARGIN_LINES = 1, derived from a real Chromium-vs-fontkit spike (4/5 samples zero drift; single-long-token showed |drift|=1) — applied as a FLAT PER-PAGE pt reserve (PageConstraints.safetyMarginPt), never added per-block, to avoid over-conservative pagination on text-dense pages while still bounding worst-case underflow.
 - [Phase 184]: photosPerRow lives in lib/estimate/document/tokens.ts, NOT components/pdf/*, so the client-safe pagination core (blocks-from-model.ts, Plan 184-03) never needs to import from components/pdf/*.
 - [Phase 184]: 184-04 split PdfSectionBlock into 4 sectionId-keyed pieces, row-chunked PdfPhotoGrid via the shared photosPerRow token, added exported PdfTermsCard (per-card wrap=false), and made PdfTotalsBlock's outer container wrap=false
+- [Phase 184]: 184-03 shipped createFontkitMeasurementProvider() (server-only, byte-identical to 184-01's hand-validated formula) + blocksFromModel() (DocumentSection[]/terms/photos/signature/preparedBy -> PageBlock[], pinned terms-card order, ref population, first-block height bonuses); PGBRK-01 intentionally left un-marked in REQUIREMENTS.md (matches 184-02's own precedent) until 184-05 + Phase 185 both actually consume this module
 
 ## Performance Metrics
 
@@ -1390,6 +1391,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 183-pdf-parity-content P07 | 20min | 3 tasks | 3 files |
 | Phase 184 P01 | 21min | 3 tasks | 10 files |
 | Phase 184 P04 | 20 min | 3 tasks | 8 files |
+| Phase 184 P03 | 42min | 2 tasks | 8 files |
 
 ## Project Reference
 
