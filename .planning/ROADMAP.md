@@ -2946,7 +2946,8 @@ Plans:
 ### Phases (summary checklist)
 
 - [x] **Phase 180: Isolated Demo Session & Read-Only Foundation** — establish host-only demo authentication and active-company selection with deny-write enforcement at server, side-effect, and RLS boundaries (completed 2026-07-27)
-- [x] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface (completed 2026-07-27)
+- [x] **Phase 181: Real-Product Cutover & Verification** — expose deterministic demo data through the shared app UI, prove session isolation across responsive browsers, cut entry points over, and retire the duplicate demo surface
+ (completed 2026-07-27)
 
 ### Phase Details
 
@@ -3012,8 +3013,10 @@ Plans:
 
 ### Phases (summary checklist)
 
-- [x] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot (completed 2026-07-28)
-- [x] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces (completed 2026-07-28)
+- [x] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot
+ (completed 2026-07-28)
+- [x] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
+ (completed 2026-07-28)
 - [ ] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
 - [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
 - [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
@@ -3074,7 +3077,14 @@ Plans:
   4. The browser-vs-fontkit measurement-drift spike has run, produced a documented go/no-go decision, and its resulting safety margin is applied in the shipped height-estimation formula.
   5. For the same estimate and template, the pagination module (`lib/estimate/pagination/`) is the one function both the PDF renderer and the web measurement provider call — verified by fixture/unit tests that the same block inputs always produce the same page/block assignment regardless of which renderer invokes it.
 
-**Plans**: TBD
+**Plans**: 5 plans across 3 waves
+
+Plans:
+- [ ] 184-01-PLAN.md — Measurement-drift spike (fontkit vs real Chromium) + SAFETY_MARGIN_LINES + hand-calculated arithmetic proof
+- [ ] 184-02-PLAN.md — Pure pagination type contracts + computePageBreaks() engine + rules (fake measurement provider)
+- [ ] 184-03-PLAN.md — Server-only fontkit/linebreak estimator + blocksFromModel() (empty-description filter)
+- [ ] 184-04-PLAN.md — Component restructure: split PdfSectionBlock; row-chunk PdfPhotoGrid; per-card-atomic PdfTermsSection
+- [ ] 184-05-PLAN.md — Wire both PDF templates to N explicit <Page>s; repeated continuation headers; determinism + renderToBuffer smoke; manual visual checkpoint
 
 ### Phase 185: Paginated Editable Editor Mode
 **Goal**: The workspace estimate editor gains a paginated view mode — letter-size pages styled like a PDF preview, mirroring the PDF's page breaks — that stays fully editable, alongside the existing full-width mode, with the legacy width/page toggle retired.
