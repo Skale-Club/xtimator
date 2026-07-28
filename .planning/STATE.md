@@ -76,7 +76,7 @@ progress:
 Phase: 184
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-07-28
+Last activity: 2026-07-28 - Completed quick task 260728-6ts: Fix discount_type mapping in estimate save path so AI 'amount'/'percent' discounts survive manual save
 
 Progress: [█████████░] 93%
 
@@ -1581,6 +1581,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260725-gxy | Remove Login from the anonymous landing header, keeping Start as the sole signup CTA | 2026-07-25 | 2bc2b6f4 | [260725-gxy-remover-o-bot-o-login-do-header-da-landi](.planning/quick/260725-gxy-remover-o-bot-o-login-do-header-da-landi/) |
 | 260725-id4 | Format landing hero title as Professional / estimates in seconds. on tablet and desktop | 2026-07-25 | 6ec8a5aa | [260725-id4-format-landing-hero-title-as-professiona](.planning/quick/260725-id4-format-landing-hero-title-as-professiona/) |
 | 260725-j0q | Remove the period from the hero headline everywhere, enlarge mobile and middle-tier typography, and move the middle-tier image left | 2026-07-25 | bb0bc45e | [260725-j0q-remove-the-period-from-the-hero-headline](.planning/quick/260725-j0q-remove-the-period-from-the-hero-headline/) |
+| 260728-6ts | Fix discount_type mapping in estimate save path so AI 'amount'/'percent' discounts survive manual save | 2026-07-28 | 238d7fa6 | [260728-6ts-fix-discount-type-mapping-in-estimate-sa](.planning/quick/260728-6ts-fix-discount-type-mapping-in-estimate-sa/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
