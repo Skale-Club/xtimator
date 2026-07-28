@@ -8,6 +8,8 @@ import {
   LINE_HEIGHT,
   ESTIMATE_PAGE_GEOMETRY,
   photosPerRow,
+  cardTintFill,
+  CARD_TINT_ALPHA_HEX,
 } from '@/lib/estimate/document/tokens'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import type { DocumentSection, DocumentItem } from '@/lib/estimate/document/model'
@@ -105,5 +107,16 @@ describe('visibleSectionItems (Plan-checker warning 11 — the ONE canonical fil
     expect(result).toEqual([item1, item2])
     expect(result[0]).toBe(item1)
     expect(result[1]).toBe(item2)
+  })
+})
+
+describe('cardTintFill (Phase 186, POLISH-01)', () => {
+  it('returns brandColor + CARD_TINT_ALPHA_HEX for a valid 6-digit hex brandColor', () => {
+    const brandColor = '#2563eb'
+    expect(cardTintFill(brandColor)).toBe(`${brandColor}${CARD_TINT_ALPHA_HEX}`)
+  })
+
+  it('returns undefined for a malformed/non-hex brandColor', () => {
+    expect(cardTintFill('not-a-color')).toBeUndefined()
   })
 })

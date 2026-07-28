@@ -243,7 +243,9 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
     class="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4"
   >
     <div
+      class="rounded-lg border border-border/50 p-4"
       data-page-block-id="terms-payment"
+      style="background-color: rgba(64, 110, 241, 0.05);"
     >
       <div>
         <div

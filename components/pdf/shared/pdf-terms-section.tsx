@@ -53,18 +53,28 @@ export interface PdfTermsCardProps {
   titleColor?: string
   /** Extra marginTop on this card's own wrap={false} View — used ONLY for the first-emitted card (Plan 184-03's height-bonus rule). */
   topMarginPt?: number
+  /** Phase 186 Plan 02 (POLISH-01) — optional subtle brand-tint background,
+   * sourced from lib/estimate/document/tokens.ts's cardTintFill(). Classic
+   * only; Modern's call sites never pass this, keeping Modern fill-free by
+   * omission. background-color ONLY — never touches padding/margin/border-
+   * width/font-size (those drive lib/estimate/pagination/blocks-from-model.ts's
+   * termsCardBaseHeightPt formula; this prop must stay geometry-inert). */
+  cardFill?: string
   styles: Pick<PdfTermsSectionStyles, 'termsTitle' | 'termsText'>
 }
 
 /** One atomic terms card — never splits across a page boundary. Exported for
  * direct per-card rendering by Plan 184-05's dispatcher; PdfTermsSection
  * composes it internally below for single-page reproduction. */
-export function PdfTermsCard({ title, text, titleColor, topMarginPt, styles }: PdfTermsCardProps) {
+export function PdfTermsCard({ title, text, titleColor, topMarginPt, cardFill, styles }: PdfTermsCardProps) {
   return (
     <View
       key={title}
       wrap={false}
-      style={topMarginPt ? { marginTop: topMarginPt } : undefined}
+      style={{
+        ...(topMarginPt ? { marginTop: topMarginPt } : {}),
+        ...(cardFill ? { backgroundColor: cardFill } : {}),
+      }}
     >
       <Text style={titleColor ? [styles.termsTitle, { color: titleColor }] : styles.termsTitle}>
         {title}

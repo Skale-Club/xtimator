@@ -375,7 +375,7 @@ export function EstimateDocumentModern({
       {hasTerms && (
         <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
           {isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null && (
-            <div>
+            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.paymentTerms}
               </p>
@@ -385,7 +385,7 @@ export function EstimateDocumentModern({
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null && (
-            <div>
+            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.timeline}
               </p>
@@ -395,7 +395,7 @@ export function EstimateDocumentModern({
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null && (
-            <div>
+            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.warranty}
               </p>
@@ -405,7 +405,7 @@ export function EstimateDocumentModern({
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'notes') && data.notes != null && (
-            <div>
+            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.notes}
               </p>
@@ -422,19 +422,21 @@ export function EstimateDocumentModern({
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
         <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
-            {L.signedBy}
-          </p>
-          <div className="flex items-start gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={data.signature.signatureDataUrl}
-              alt={L.signedBy}
-              className="h-16 w-auto max-w-[240px] object-contain"
-            />
-            <div>
-              <p className="text-base font-semibold">{data.signature.signerName}</p>
-              <p className="text-base text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+          <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+              {L.signedBy}
+            </p>
+            <div className="flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.signature.signatureDataUrl}
+                alt={L.signedBy}
+                className="h-16 w-auto max-w-[240px] object-contain"
+              />
+              <div>
+                <p className="text-base font-semibold">{data.signature.signerName}</p>
+                <p className="text-base text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+              </div>
             </div>
           </div>
         </div>

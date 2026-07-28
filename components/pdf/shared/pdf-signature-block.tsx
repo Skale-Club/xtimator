@@ -28,14 +28,21 @@ export interface PdfSignatureBlockProps {
   signature: DocumentSignature | null
   L: DocumentLabels
   fmtDate: (s: string) => string
+  /** Phase 186 Plan 02 (POLISH-01) — optional subtle brand-tint background,
+   * sourced from lib/estimate/document/tokens.ts's cardTintFill(). Classic
+   * only; Modern's call site never passes this, keeping Modern fill-free by
+   * omission. background-color ONLY — never touches margin/font-size (those
+   * drive lib/estimate/pagination/blocks-from-model.ts's signatureBaseHeightPt
+   * formula; this prop must stay geometry-inert). */
+  cardFill?: string
   styles: PdfSignatureBlockStyles
 }
 
-export function PdfSignatureBlock({ signature, L, fmtDate, styles }: PdfSignatureBlockProps) {
+export function PdfSignatureBlock({ signature, L, fmtDate, cardFill, styles }: PdfSignatureBlockProps) {
   if (!signature) return null
 
   return (
-    <View style={{ marginTop: 16 }} wrap={false}>
+    <View style={{ marginTop: 16, ...(cardFill ? { backgroundColor: cardFill } : {}) }} wrap={false}>
       <Text style={styles.termsTitle}>{L.signedBy}</Text>
       {/* eslint-disable-next-line jsx-a11y/alt-text */}
       <Image

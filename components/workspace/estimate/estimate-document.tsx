@@ -53,7 +53,7 @@ import {
 } from '@/lib/estimate/presentation-settings'
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
 import { formatAddress, formatDate } from '@/lib/estimate/document/format'
-import { LETTER_HEIGHT_PX } from '@/lib/estimate/document/tokens'
+import { LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
 import type {
   DocumentCompany,
   CompanyDefaults,
@@ -1731,7 +1731,11 @@ export function EstimateDocument({
               content order (estimate-terms -> payment/timeline/warranty/
               notes). Absent when companyTerms is omitted (share webview). */}
           {hasCompanyTerms && (
-            <div data-page-block-id="terms-estimate">
+            <div
+              data-page-block-id="terms-estimate"
+              className="rounded-lg border border-border/50 p-4"
+              style={{ backgroundColor: cardTintFill(brandColor) }}
+            >
               <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
                 {L.estimateTerms}
               </p>
@@ -1742,7 +1746,11 @@ export function EstimateDocument({
           )}
           {isSectionVisible(resolvedSettings, 'payment_terms') &&
             (isEditable || data.payment_terms != null) && (
-            <div data-page-block-id="terms-payment">
+            <div
+              data-page-block-id="terms-payment"
+              className="rounded-lg border border-border/50 p-4"
+              style={{ backgroundColor: cardTintFill(brandColor) }}
+            >
               <TermsBlock
                 label={L.paymentTerms}
                 value={data.payment_terms}
@@ -1757,7 +1765,11 @@ export function EstimateDocument({
           )}
           {isSectionVisible(resolvedSettings, 'timeline') &&
             (isEditable || data.timeline != null) && (
-            <div data-page-block-id="terms-timeline">
+            <div
+              data-page-block-id="terms-timeline"
+              className="rounded-lg border border-border/50 p-4"
+              style={{ backgroundColor: cardTintFill(brandColor) }}
+            >
               <TermsBlock
                 label={L.timeline}
                 value={data.timeline}
@@ -1771,7 +1783,11 @@ export function EstimateDocument({
           )}
           {isSectionVisible(resolvedSettings, 'warranty_terms') &&
             (isEditable || data.warranty_terms != null) && (
-            <div data-page-block-id="terms-warranty">
+            <div
+              data-page-block-id="terms-warranty"
+              className="rounded-lg border border-border/50 p-4"
+              style={{ backgroundColor: cardTintFill(brandColor) }}
+            >
               <TermsBlock
                 label={L.warranty}
                 value={data.warranty_terms}
@@ -1786,7 +1802,11 @@ export function EstimateDocument({
           )}
           {isSectionVisible(resolvedSettings, 'notes') &&
             (isEditable || data.notes != null) && (
-            <div data-page-block-id="terms-notes">
+            <div
+              data-page-block-id="terms-notes"
+              className="rounded-lg border border-border/50 p-4"
+              style={{ backgroundColor: cardTintFill(brandColor) }}
+            >
               <TermsBlock
                 label={L.notes}
                 value={data.notes}
@@ -1806,19 +1826,24 @@ export function EstimateDocument({
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
         <div data-page-block-id="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
-            {L.signedBy}
-          </p>
-          <div className="flex items-start gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={data.signature.signatureDataUrl}
-              alt={L.signedBy}
-              className="h-16 w-auto max-w-[240px] object-contain"
-            />
-            <div>
-              <p className="text-base font-semibold">{data.signature.signerName}</p>
-              <p className="text-sm text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+          <div
+            className="rounded-lg border border-border/50 p-4"
+            style={{ backgroundColor: cardTintFill(brandColor) }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+              {L.signedBy}
+            </p>
+            <div className="flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.signature.signatureDataUrl}
+                alt={L.signedBy}
+                className="h-16 w-auto max-w-[240px] object-contain"
+              />
+              <div>
+                <p className="text-base font-semibold">{data.signature.signerName}</p>
+                <p className="text-sm text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+              </div>
             </div>
           </div>
         </div>

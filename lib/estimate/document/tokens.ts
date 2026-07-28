@@ -115,3 +115,25 @@ const PHOTO_TILE_GAP_PT = 8
 export function photosPerRow(contentWidthPt: number): number {
   return Math.floor(contentWidthPt / (PHOTO_TILE_WIDTH_PT + PHOTO_TILE_GAP_PT))
 }
+
+// Phase 186 Plan 02 (POLISH-01) — the ONE shared, guarded source for the
+// subtle brand-tint background behind terms/signature cards. Both the
+// Classic webview (estimate-document.tsx) and the Classic PDF
+// (estimate-pdf.tsx's PdfTermsCard/PdfSignatureBlock call sites) derive
+// this color from here — never two independently hand-typed hex-alpha
+// literals or validity guards (ROADMAP Phase 186 success criterion #2).
+// Modern stays fill-free by design (ESTIMATE_DESIGN_TOKENS.modern
+// .solidHeaderFill: false) and simply never calls this helper.
+export const CARD_TINT_ALPHA_HEX = '0D' // ~5% opacity, appended as a hex-alpha suffix
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+
+/** Returns `${brandColor}${CARD_TINT_ALPHA_HEX}` when `brandColor` is a
+ * well-formed 6-digit hex string, otherwise `undefined` — so a malformed or
+ * missing brandColor (bad tenant data) safely omits the fill entirely
+ * (backgroundColor/cardFill unset) rather than rendering a garbage color
+ * value. Defensively typed-safe against non-string input even though the
+ * declared param type is `string`. */
+export function cardTintFill(brandColor: string): string | undefined {
+  if (typeof brandColor !== 'string' || !HEX_COLOR_RE.test(brandColor)) return undefined
+  return `${brandColor}${CARD_TINT_ALPHA_HEX}`
+}

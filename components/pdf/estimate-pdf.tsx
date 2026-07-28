@@ -29,7 +29,7 @@ import {
 
 import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
 import { formatDate } from '@/lib/estimate/document/format'
-import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
+import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY, cardTintFill } from '@/lib/estimate/document/tokens'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import { PdfHeader } from './shared/pdf-header'
@@ -580,6 +580,7 @@ export default function EstimatePDF({
               text: card.text,
               titleColor: card.titleColor,
               topMarginPt: block.id === firstTermsCardBlockId ? 24 : undefined,
+              cardFill: cardTintFill(brandColor),
               styles: { termsTitle: styles.termsTitle, termsText: styles.termsText },
             })}
           </Fragment>
@@ -592,6 +593,7 @@ export default function EstimatePDF({
               signature: signature ?? null,
               L,
               fmtDate,
+              cardFill: cardTintFill(brandColor),
               styles: { termsTitle: styles.termsTitle },
             })}
           </Fragment>
