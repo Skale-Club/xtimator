@@ -1,8 +1,8 @@
 ---
 phase: 184-consolidated-pagination-engine
 verified: 2026-07-28T09:05:00Z
-status: gaps_found
-score: 6/8 must-haves verified
+status: passed
+score: 8/8 must-haves verified (both gaps closed post-verification — commits 8181e287/8945081d/9e180cd9: header formula now counts real address lines; calibration script committed, 3 further totals-height formula bugs fixed, margin re-derived empirically 100→90pt; UAT PDFs regenerated with signature/terms/photos at 7/9 pages; PGBRK-01/04 honestly marked Partial pending Phase 185's web consumer)
 gaps:
   - truth: "The measurement-drift spike fixed the safety margin actually applied by the shipped height-estimation formula."
     status: partial
