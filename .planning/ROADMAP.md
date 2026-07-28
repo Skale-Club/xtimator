@@ -3060,7 +3060,7 @@ Plans:
 - [x] 183-04-PLAN.md — PDF shared components pt1 (header/info-grid/footer/section+Classic banner fix/terms)
 - [x] 183-05-PLAN.md — Webview signature block + photo captions (Classic + Modern)
 - [x] 183-06-PLAN.md — PDF shared components pt2 (totals variant/photos+captions/signature block)
-- [ ] 183-07-PLAN.md — Cross-surface integration test + baseline update + manual visual checkpoint
+- [x] 183-07-PLAN.md — Cross-surface integration test + baseline update + manual visual checkpoint
 
 ### Phase 184: Consolidated Pagination Engine
 **Goal**: One deterministic pagination module computes page-break decisions from the shared document model, is the single source of truth consumed by the PDF renderer (and, in Phase 185, the web paginated preview), and is validated by an early measurement-drift spike before being finalized.
