@@ -31,6 +31,7 @@ import {
   PHOTO_WITH_CAPTION,
   PHOTO_NO_CAPTION,
 } from './fixtures/document-fixtures'
+import { buildPagesForFixture } from '../pdf/_pages-for-fixture'
 
 const EXPECTED_SIGNED_DATE = formatDate(SIGNATURE_FIXTURE.signedAt, 'en')
 
@@ -53,6 +54,7 @@ function renderAllFourSurfaces(
       language: 'en',
       signature,
       attachedPhotos,
+      pages: buildPagesForFixture(estimate, FIXTURE_COMPANY, 'classic', { signature, attachedPhotos }),
     }),
     classicPdfTexts,
   )
@@ -71,6 +73,7 @@ function renderAllFourSurfaces(
       language: 'en',
       signature,
       attachedPhotos,
+      pages: buildPagesForFixture(estimate, FIXTURE_COMPANY, 'modern', { signature, attachedPhotos }),
     }),
     modernPdfTexts,
   )

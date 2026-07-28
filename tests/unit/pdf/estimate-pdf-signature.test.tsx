@@ -30,14 +30,20 @@ import {
   PHOTO_WITH_CAPTION,
   PHOTO_NO_CAPTION,
 } from '../estimate/fixtures/document-fixtures'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 const EXPECTED_SIGNED_DATE = formatDate(SIGNATURE_FIXTURE.signedAt, 'en')
 
 describe('EstimatePDF signature block (PDFPAR-02)', () => {
   it('signed estimate: signer name + formatted date rendered, ordered Terms -> Signature -> Photos', () => {
+    const estimate = buildFixtureEstimate({})
+    const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, 'classic', {
+      signature: SIGNATURE_FIXTURE,
+      attachedPhotos: [PHOTO_WITH_CAPTION, PHOTO_NO_CAPTION],
+    })
     const tree = EstimatePDF({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      estimate: buildFixtureEstimate({}) as any,
+      estimate: estimate as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       company: FIXTURE_COMPANY as any,
       client: null,
@@ -46,6 +52,7 @@ describe('EstimatePDF signature block (PDFPAR-02)', () => {
       language: 'en',
       signature: SIGNATURE_FIXTURE,
       attachedPhotos: [PHOTO_WITH_CAPTION, PHOTO_NO_CAPTION],
+      pages,
     })
     const texts: string[] = []
     collectTextNodes(tree, texts)
@@ -72,9 +79,11 @@ describe('EstimatePDF signature block (PDFPAR-02)', () => {
   })
 
   it('unsigned estimate: no signer name / signed date rendered', () => {
+    const estimate = buildFixtureEstimate({})
+    const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, 'classic', { signature: null, attachedPhotos: [] })
     const tree = EstimatePDF({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      estimate: buildFixtureEstimate({}) as any,
+      estimate: estimate as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       company: FIXTURE_COMPANY as any,
       client: null,
@@ -83,6 +92,7 @@ describe('EstimatePDF signature block (PDFPAR-02)', () => {
       language: 'en',
       signature: null,
       attachedPhotos: [],
+      pages,
     })
     const texts: string[] = []
     collectTextNodes(tree, texts)
@@ -92,8 +102,13 @@ describe('EstimatePDF signature block (PDFPAR-02)', () => {
   })
 
   it('renderToBuffer smoke test: real render with a genuine base64 PNG signature succeeds', async () => {
+    const estimate = buildFixtureEstimate({})
+    const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, 'classic', {
+      signature: SIGNATURE_FIXTURE,
+      attachedPhotos: [PHOTO_WITH_CAPTION, PHOTO_NO_CAPTION],
+    })
     const element = createElement(EstimatePDF, {
-      estimate: buildFixtureEstimate({}) as unknown as EstimateWithSections,
+      estimate: estimate as unknown as EstimateWithSections,
       company: FIXTURE_COMPANY,
       client: null,
       projectName: 'Test',
@@ -101,6 +116,7 @@ describe('EstimatePDF signature block (PDFPAR-02)', () => {
       language: 'en',
       signature: SIGNATURE_FIXTURE,
       attachedPhotos: [PHOTO_WITH_CAPTION, PHOTO_NO_CAPTION],
+      pages,
     })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buffer = await renderToBuffer(element as any)

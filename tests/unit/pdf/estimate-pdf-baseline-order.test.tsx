@@ -33,10 +33,17 @@ import {
   SIGNATURE_FIXTURE,
   PHOTO_WITH_CAPTION,
 } from '../estimate/fixtures/document-fixtures'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 type PDFComponent = typeof EstimatePDF
 
+function templateIdFor(component: PDFComponent): 'classic' | 'modern' {
+  return component === EstimatePDF ? 'classic' : 'modern'
+}
+
 function renderTexts(component: PDFComponent, estimate: Record<string, unknown>): string[] {
+  const templateId = templateIdFor(component)
+  const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, templateId)
   const tree = component({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
@@ -46,6 +53,7 @@ function renderTexts(component: PDFComponent, estimate: Record<string, unknown>)
     projectName: 'Baseline Test Project',
     projectType: null,
     language: 'en',
+    pages,
   })
   const out: string[] = []
   collectTextNodes(tree, out)
@@ -55,6 +63,11 @@ function renderTexts(component: PDFComponent, estimate: Record<string, unknown>)
 // Plan 183-07 — same rendering path as renderTexts(), plus signature +
 // captioned photo, to assert the intentional post-refactor content order.
 function renderTextsSignedWithPhoto(component: PDFComponent, estimate: Record<string, unknown>): string[] {
+  const templateId = templateIdFor(component)
+  const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, templateId, {
+    signature: SIGNATURE_FIXTURE,
+    attachedPhotos: [PHOTO_WITH_CAPTION],
+  })
   const tree = component({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
@@ -66,6 +79,7 @@ function renderTextsSignedWithPhoto(component: PDFComponent, estimate: Record<st
     language: 'en',
     signature: SIGNATURE_FIXTURE,
     attachedPhotos: [PHOTO_WITH_CAPTION],
+    pages,
   })
   const out: string[] = []
   collectTextNodes(tree, out)

@@ -20,6 +20,7 @@ import { View, Image } from '@react-pdf/renderer'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { buildFixtureEstimate, FIXTURE_COMPANY } from '../estimate/fixtures/document-fixtures'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 type PDFComponent = typeof EstimatePDF
 type PropsElement = ReactElement<{ wrap?: boolean; children?: ReactNode }>
@@ -36,6 +37,8 @@ const SEVEN_PHOTOS = Array.from({ length: 7 }, (_, i) => ({
 
 function renderTree(component: PDFComponent) {
   const estimate = buildFixtureEstimate({})
+  const templateId = component === EstimatePDF ? 'classic' : 'modern'
+  const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, templateId, { attachedPhotos: SEVEN_PHOTOS })
   return component({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
@@ -46,6 +49,7 @@ function renderTree(component: PDFComponent) {
     projectType: null,
     language: 'en',
     attachedPhotos: SEVEN_PHOTOS,
+    pages,
   })
 }
 

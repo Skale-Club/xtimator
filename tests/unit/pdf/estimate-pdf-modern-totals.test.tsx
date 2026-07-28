@@ -12,6 +12,7 @@ import { isValidElement } from 'react'
 import { Text } from '@react-pdf/renderer'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 // Walk a React element tree and return the flattened text content of every <Text> primitive,
 // in depth-first document order. Each entry is the concatenation of that Text node's string/
@@ -47,27 +48,35 @@ function flattenText(children: unknown): string {
   return ''
 }
 
+const MODERN_TOTALS_TEST_COMPANY = {
+  name: 'Acme Co',
+  owner_name: null,
+  phone: null,
+  email: null,
+  website: null,
+  address: null,
+  city: null,
+  state: null,
+  zip: null,
+  logo_url: null,
+  brand_primary_color: null,
+}
+
 function renderTexts(estimate: EstimateWithSections): string[] {
+  const pages = buildPagesForFixture(
+    estimate as unknown as Record<string, unknown>,
+    MODERN_TOTALS_TEST_COMPANY,
+    'modern'
+  )
   // EstimatePDFModern is a plain function component — call it to get the element tree, then walk it.
   const tree = EstimatePDFModern({
     estimate,
-    company: {
-      name: 'Acme Co',
-      owner_name: null,
-      phone: null,
-      email: null,
-      website: null,
-      address: null,
-      city: null,
-      state: null,
-      zip: null,
-      logo_url: null,
-      brand_primary_color: null,
-    },
+    company: MODERN_TOTALS_TEST_COMPANY,
     client: null,
     projectName: 'Test Project',
     projectType: null,
     language: 'en',
+    pages,
   })
   const out: string[] = []
   collectTextNodes(tree, out)

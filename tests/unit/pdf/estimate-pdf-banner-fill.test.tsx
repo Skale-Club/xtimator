@@ -31,6 +31,7 @@ import { View, Text } from '@react-pdf/renderer'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { buildFixtureEstimate, FIXTURE_COMPANY } from '../estimate/fixtures/document-fixtures'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 type PDFComponent = typeof EstimatePDF
 type StyledElement = ReactElement<{ style?: unknown; children?: ReactNode }>
@@ -39,6 +40,8 @@ const BRAND_COLOR = FIXTURE_COMPANY.brand_primary_color // '#2563eb'
 const TITLE_TEXT = 'ESTIMATE' // PDF_LABELS.en.estimate
 
 function renderTree(component: PDFComponent, estimate: Record<string, unknown>) {
+  const templateId = component === EstimatePDF ? 'classic' : 'modern'
+  const pages = buildPagesForFixture(estimate, FIXTURE_COMPANY, templateId)
   return component({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
@@ -48,6 +51,7 @@ function renderTree(component: PDFComponent, estimate: Record<string, unknown>) 
     projectName: 'Banner Fill Test Project',
     projectType: null,
     language: 'en',
+    pages,
   })
 }
 

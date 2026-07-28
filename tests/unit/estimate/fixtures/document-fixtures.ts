@@ -225,3 +225,85 @@ export const PHOTO_NO_CAPTION = {
   caption: null,
   url: 'https://signed.example.test/photo-2.jpg',
 }
+
+/**
+ * Phase 184 Plan 05 (PGBRK-01/03/04) — forces a genuinely multi-page PDF
+ * under Classic/Modern's REAL page geometry via the real blocksFromModel() +
+ * computePageBreaks() pipeline (tests/unit/pdf/_pages-for-fixture.ts's
+ * buildPagesForFixture): 4 sections x 10 items, medium-length descriptions
+ * (long enough to wrap to 2 lines at the item table's ~9pt font / ~213pt
+ * description column width), tuned empirically to yield pages.length >= 3.
+ * No signature/photos/terms — purely a pagination stress fixture, not a
+ * content-parity fixture (see buildFixtureEstimate for that).
+ */
+export function buildMultiPageFixtureEstimate(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const sectionTitles = ['Demolition', 'Framing', 'Electrical', 'Finishing']
+  const sections = sectionTitles.map((title, sIdx) => {
+    const items = Array.from({ length: 10 }, (_, iIdx) => {
+      const n = sIdx * 10 + iIdx + 1
+      return {
+        id: `mp-item-${sIdx}-${iIdx}`,
+        section_id: `mp-sec-${sIdx}`,
+        company_id: 'fixture-co-1',
+        description: `Line item ${n}: detailed scope of work covering labor and materials for this phase of the project, including site prep and cleanup`,
+        quantity: 1,
+        unit: 'ea',
+        unit_price: 100,
+        total: 100,
+        sort_order: iIdx + 1,
+        price_source: null,
+      }
+    })
+    return {
+      id: `mp-sec-${sIdx}`,
+      estimate_id: 'mp-est-1',
+      company_id: 'fixture-co-1',
+      title,
+      sort_order: sIdx + 1,
+      subtotal: items.reduce((sum, item) => sum + item.total, 0),
+      items,
+    }
+  })
+  const total = sections.reduce((sum, s) => sum + s.subtotal, 0)
+
+  return {
+    id: 'mp-est-1',
+    project_id: 'mp-proj-1',
+    company_id: 'fixture-co-1',
+    currency_code: 'USD',
+    version: 1,
+    estimate_seq: 1,
+    estimate_number: null,
+    estimate_date: null,
+    is_current: true,
+    share_token: 'mp-share-tok',
+    public_slug_token: null,
+    status: 'draft',
+    language: 'en',
+    summary: null,
+    notes: null,
+    timeline: null,
+    payment_terms: null,
+    warranty_terms: null,
+    subtotal: total,
+    discount_type: null,
+    discount_value: 0,
+    discount_amount: 0,
+    tax_rate: 0,
+    tax_amount: 0,
+    total,
+    deposit_type: 'none',
+    deposit_value: null,
+    balance_due: null,
+    sent_at: null,
+    viewed_at: null,
+    responded_at: null,
+    client_response: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    presentation_settings: null,
+    sections,
+    attachedPhotos: [],
+    ...overrides,
+  }
+}

@@ -21,6 +21,7 @@ import { View, Text } from '@react-pdf/renderer'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { buildFixtureEstimate, FIXTURE_COMPANY } from '../estimate/fixtures/document-fixtures'
+import { buildPagesForFixture } from './_pages-for-fixture'
 
 type PDFComponent = typeof EstimatePDF
 type PropsElement = ReactElement<{ wrap?: boolean; style?: unknown; children?: ReactNode }>
@@ -42,6 +43,8 @@ function renderTree(component: PDFComponent) {
     timeline: '2-3 weeks from start date',
     notes: 'Please call ahead before arrival.',
   })
+  const templateId = component === EstimatePDF ? 'classic' : 'modern'
+  const pages = buildPagesForFixture(estimate, COMPANY_WITH_ESTIMATE_TERMS, templateId)
   return component({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
@@ -51,6 +54,7 @@ function renderTree(component: PDFComponent) {
     projectName: 'Terms Atomicity Test',
     projectType: null,
     language: 'en',
+    pages,
   })
 }
 

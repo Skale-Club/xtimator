@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import {
   Document,
   Page,
@@ -7,7 +8,7 @@ import {
 } from '@react-pdf/renderer'
 import '@/lib/pdf/register-fonts'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
-import type { DocumentSignature } from '@/lib/estimate/document/model'
+import type { DocumentSignature, DocumentSection } from '@/lib/estimate/document/model'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMoney } from '@/lib/money/currency'
@@ -30,7 +31,7 @@ import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/la
 import { formatDate } from '@/lib/estimate/document/format'
 import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
-import type { PageAssignment } from '@/lib/estimate/pagination/types'
+import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import { PdfHeader } from './shared/pdf-header'
 import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
@@ -41,10 +42,72 @@ import {
   PdfSectionRows,
   PdfSectionSubtotal,
 } from './shared/pdf-section-block'
-import { PdfTermsSection } from './shared/pdf-terms-section'
+import { PdfTermsCard } from './shared/pdf-terms-section'
 import { PdfTotalsBlock } from './shared/pdf-totals-block'
 import { PdfPhotoGrid } from './shared/pdf-photo-grid'
 import { PdfSignatureBlock } from './shared/pdf-signature-block'
+
+/** Plan-checker blocker 3 — the EXACT dispatch map (mirrors
+ *  pdf-terms-section.tsx:88-163's Fragment order/title lookup verbatim). A
+ *  literal lookup by `block.ref.termsKey`, never `L[block.ref.termsKey]`
+ *  (which breaks 2/5 keys — `payment` is NOT a property literally named
+ *  `payment` on `L`, it's `L.paymentTerms`). */
+function buildTermsCardMap(
+  company: { estimate_terms_text?: string | null },
+  estimate: { payment_terms: string | null; timeline: string | null; warranty_terms: string | null; notes: string | null },
+  L: ReturnType<typeof resolveLabels>,
+  brandText: string
+): Record<'estimate' | 'payment' | 'timeline' | 'warranty' | 'notes', { title: string; text: string; titleColor?: string }> {
+  return {
+    estimate: { title: 'Estimate Terms', text: company.estimate_terms_text ?? '', titleColor: brandText },
+    payment: { title: L.paymentTerms, text: estimate.payment_terms ?? '' },
+    timeline: { title: L.timeline, text: estimate.timeline ?? '' },
+    warranty: { title: L.warranty, text: estimate.warranty_terms ?? '' },
+    notes: { title: L.notes, text: estimate.notes ?? '' },
+  }
+}
+
+function resolveLabels(language: EstimateLanguage) {
+  return PDF_LABELS[language] ?? PDF_LABELS.en
+}
+
+/** Groups contiguous 'item-row' blocks sharing the same ref.sectionId (a
+ *  single page's blocks only — a section's rows spanning 2 pages produce 2
+ *  separate per-page groups, per PGBRK-03's repeated-table-header rule) into
+ *  ONE PdfSectionRows call's worth of data. Returns, per FIRST block id in a
+ *  run, the items slice + startIndex to render; every OTHER block id in that
+ *  same run maps to 'skip' (already covered by the first block's render). */
+function buildItemRowGroups(
+  pageBlocks: PageBlock[],
+  sectionsById: Map<string, DocumentSection>
+): Map<string, { items: ReturnType<typeof visibleSectionItems>; startIndex: number } | 'skip'> {
+  const map = new Map<string, { items: ReturnType<typeof visibleSectionItems>; startIndex: number } | 'skip'>()
+  let i = 0
+  while (i < pageBlocks.length) {
+    const block = pageBlocks[i]
+    if (block.kind !== 'item-row') {
+      i += 1
+      continue
+    }
+    const sectionId = block.ref?.sectionId ?? ''
+    let j = i + 1
+    while (
+      j < pageBlocks.length &&
+      pageBlocks[j].kind === 'item-row' &&
+      pageBlocks[j].ref?.sectionId === sectionId
+    ) {
+      j += 1
+    }
+    const startIndex = block.ref?.itemIndex ?? 0
+    const endIndex = (pageBlocks[j - 1].ref?.itemIndex ?? startIndex) + 1
+    const section = sectionsById.get(sectionId)
+    const items = section ? visibleSectionItems(section).slice(startIndex, endIndex) : []
+    map.set(block.id, { items, startIndex })
+    for (let k = i + 1; k < j; k++) map.set(pageBlocks[k].id, 'skip')
+    i = j
+  }
+  return map
+}
 
 interface CompanyInfo {
   name: string
@@ -86,8 +149,8 @@ export interface EstimatePDFProps {
   attachedPhotos?: { url: string; caption: string | null }[]
   /** PDFPAR-02 — signature-display data (signer name, signed date, signature image). null = unsigned estimate: no signature block rendered at all. */
   signature?: DocumentSignature | null
-  /** Phase 184 Plan 05 (PGBRK-01/03/04) — deterministic page assignments computed by lib/estimate/pagination/engine.ts's computePageBreaks(). Optional here (Task 1, type-only, additive no-op); Task 2 wires the actual N-explicit-<Page> composition consuming this. */
-  pages?: PageAssignment[]
+  /** Phase 184 Plan 05 (PGBRK-01/03/04) — deterministic page assignments computed by lib/estimate/pagination/engine.ts's computePageBreaks(). Every caller (lib/pdf/render-estimate-pdf.ts + every direct-call test) computes this via the shared blocksFromModel()+computePageBreaks() pipeline before calling this component. */
+  pages: PageAssignment[]
 }
 
 const styles = StyleSheet.create({
@@ -330,11 +393,20 @@ export default function EstimatePDF({
   preparedBy,
   attachedPhotos,
   signature,
+  pages,
 }: EstimatePDFProps) {
   // SENDHUB-04 (Phase 163): resolve once at the render boundary. Cast-with-fallback
   // mirrors components/share/estimate-view.tsx:157-161 — the query type may lag the
   // dormant-first Phase 161 column, so we defensively cast without breaking
   // EstimateWithSections's stable type surface.
+  //
+  // Phase 184 Plan 05 (PGBRK-01/03/04): section/summary/photos VISIBILITY is
+  // now authoritatively encoded by block PRESENCE in `pages` (blocksFromModel
+  // already applied every isSectionVisible() gate before computing `pages`)
+  // — resolvedSettings is kept here only as a redundant, always-consistent
+  // (same estimate, same function) belt-and-suspenders guard on 'summary'/
+  // 'photo-row' below, matching every other document surface's structural
+  // convention of importing resolvePresentationSettings directly.
   const resolvedSettings = resolvePresentationSettings(
     (estimate as { presentation_settings?: unknown }).presentation_settings
   )
@@ -345,7 +417,7 @@ export default function EstimatePDF({
   //   brandOnFill → black/white foreground with max contrast over a brand fill
   const brandText = ensureReadableOnWhite(brandColor)
   const brandOnFill = readableTextColor(brandColor)
-  const L = PDF_LABELS[language] ?? PDF_LABELS.en
+  const L = resolveLabels(language)
   const fmt = (v: number) => formatMoney(v, estimate.currency_code)
   // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
   // never recompute). showDeposit is false for legacy / deposit_type 'none' rows.
@@ -353,94 +425,71 @@ export default function EstimatePDF({
   const fmtDate = (s: string) => formatDate(s, language)
   const langLabel = LANG_INDICATOR[language] ?? 'EN'
 
-  return (
-    <Document>
-      <Page size="LETTER" style={styles.page}>
-        {/* Header - fixed on every page. Called as a plain function (not JSX) —
-            see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfHeader({
-          company,
-          headerBorderColor: brandColor,
-          companyNameColor: brandText,
-          langLabel,
-          styles: {
-            header: styles.header,
-            headerLeft: styles.headerLeft,
-            headerRight: styles.headerRight,
-            logo: styles.logo,
-            companyName: styles.companyName,
-            companyContact: styles.companyContact,
-            contactLink: styles.contactLink,
-            nameLink: styles.nameLink,
-            langBadge: styles.langBadge,
-          },
-        })}
+  const sectionsById = new Map(estimate.sections.map((section) => [section.id, section]))
+  const termsCardMap = buildTermsCardMap(company, estimate, L, brandText)
+  // Plan-checker warning 9 — computed ONCE across ALL pages (not per-page):
+  // the id of the first 'terms-card' block anywhere gets the removed
+  // termsSection.marginTop bonus; every other terms-card gets none.
+  const firstTermsCardBlockId = pages.flatMap((page) => page.blocks).find((block) => block.kind === 'terms-card')?.id
 
-        {/* Title. Called as a plain function (not JSX) — see
-            components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfTitleBanner({
-          label: L.estimate,
-          solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
-          brandColor,
-          brandText,
-          brandOnFill,
-          styles: { estimateTitle: styles.estimateTitle },
-        })}
-
-        {/* Project & Client Info. Called as a plain function (not JSX) —
-            see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfInfoGrid({
-          L,
-          projectName,
-          projectType,
-          estimate,
-          client,
-          fmtDate,
-          clientNameFontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
-          styles: {
-            infoRow: styles.infoRow,
-            infoBlock: styles.infoBlock,
-            infoLabel: styles.infoLabel,
-            infoValue: styles.infoValue,
-            infoValueLink: styles.infoValueLink,
-          },
-        })}
-
-        {/* Summary — SENDHUB-04 (Phase 163): resolver-gated */}
-        {isSectionVisible(resolvedSettings, 'summary') && estimate.summary && (
-          <View style={{ marginBottom: 16 }}>
+  function renderBlockForKind(block: PageBlock, itemRowGroups: ReturnType<typeof buildItemRowGroups>) {
+    switch (block.kind) {
+      case 'title-banner':
+        return (
+          <Fragment key={block.id}>
+            {PdfTitleBanner({
+              label: L.estimate,
+              solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
+              brandColor,
+              brandText,
+              brandOnFill,
+              styles: { estimateTitle: styles.estimateTitle },
+            })}
+          </Fragment>
+        )
+      case 'info-grid':
+        return (
+          <Fragment key={block.id}>
+            {PdfInfoGrid({
+              L,
+              projectName,
+              projectType,
+              estimate,
+              client,
+              fmtDate,
+              clientNameFontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
+              styles: {
+                infoRow: styles.infoRow,
+                infoBlock: styles.infoBlock,
+                infoLabel: styles.infoLabel,
+                infoValue: styles.infoValue,
+                infoValueLink: styles.infoValueLink,
+              },
+            })}
+          </Fragment>
+        )
+      case 'summary':
+        return isSectionVisible(resolvedSettings, 'summary') && estimate.summary ? (
+          <View key={block.id} style={{ marginBottom: 16 }}>
             <Text style={styles.infoLabel}>{L.summary}</Text>
             <Text style={styles.termsText}>{estimate.summary}</Text>
           </View>
-        )}
-
-        {/* Sections with Line Items — SENDHUB-04 (Phase 163): resolver-gated.
-            Phase 184 Plan 04 (PGBRK-02): each section now renders as 4
-            independently-placeable, individually-keyed pieces (header,
-            table header, rows, subtotal) instead of one monolithic block —
-            reproduces today's single-page tree byte-for-byte (startIndex: 0).
-            Called as plain functions (not JSX) per section — see
-            components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {isSectionVisible(resolvedSettings, 'sections') && estimate.sections
-          .map((section) => ({
-            ...section,
-            items: visibleSectionItems(section),
-          }))
-          .filter((section) => section.items.length > 0)
-          .map((section) => [
-            PdfSectionHeader({
-              sectionId: section.id,
-              title: section.title,
+        ) : null
+      case 'section-header': {
+        const sectionId = block.ref?.sectionId ?? ''
+        const section = sectionsById.get(sectionId)
+        return (
+          <Fragment key={block.id}>
+            {PdfSectionHeader({
+              sectionId,
+              title: section?.title ?? '',
               solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
               brandColor,
               brandOnFill,
-              styles: {
-                sectionHeader: styles.sectionHeader,
-                sectionTitle: styles.sectionTitle,
-              },
-            }),
-            PdfTableHeaderOnly({
-              sectionId: section.id,
+              styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
+            })}
+            {PdfTableHeaderOnly({
+              sectionId,
               L,
               styles: {
                 tableHeader: styles.tableHeader,
@@ -451,11 +500,19 @@ export default function EstimatePDF({
                 colUnitPrice: styles.colUnitPrice,
                 colTotal: styles.colTotal,
               },
-            }),
-            PdfSectionRows({
-              sectionId: section.id,
-              items: section.items,
-              startIndex: 0,
+            })}
+          </Fragment>
+        )
+      }
+      case 'item-row': {
+        const group = itemRowGroups.get(block.id)
+        if (!group || group === 'skip') return null
+        return (
+          <Fragment key={block.id}>
+            {PdfSectionRows({
+              sectionId: block.ref?.sectionId ?? '',
+              items: group.items,
+              startIndex: group.startIndex,
               fmt,
               styles: {
                 tableRow: styles.tableRow,
@@ -467,96 +524,166 @@ export default function EstimatePDF({
                 colTotal: styles.colTotal,
                 tableCellText: styles.tableCellText,
               },
-            }),
-            PdfSectionSubtotal({
-              sectionId: section.id,
+            })}
+          </Fragment>
+        )
+      }
+      case 'section-subtotal': {
+        const sectionId = block.ref?.sectionId ?? ''
+        const section = sectionsById.get(sectionId)
+        return (
+          <Fragment key={block.id}>
+            {PdfSectionSubtotal({
+              sectionId,
               label: L.sectionSubtotal,
-              value: fmt(section.subtotal),
+              value: fmt(section?.subtotal ?? 0),
               styles: {
                 sectionSubtotal: styles.sectionSubtotal,
                 sectionSubtotalLabel: styles.sectionSubtotalLabel,
                 sectionSubtotalValue: styles.sectionSubtotalValue,
               },
-            }),
-          ])}
-
-        {/* Totals. Called as a plain function (not JSX) — see
-            components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfTotalsBlock({
-          variant: 'classic',
-          estimate,
-          dep,
-          L,
-          brandText,
-          fmt,
-          styles: {
-            totalsContainer: styles.totalsContainer,
-            totalsBlock: styles.totalsBlock,
-            totalsRow: styles.totalsRow,
-            totalsLabel: styles.totalsLabel,
-            totalsValue: styles.totalsValue,
-            grandTotalRow: styles.grandTotalRow,
-            grandTotalLabel: styles.grandTotalLabel,
-            grandTotalValue: styles.grandTotalValue,
-          },
-        })}
-
-        {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes.
-            SENDHUB-04 (Phase 163): each block gated on its resolver key; the
-            outer wrapper stays hidden when every gated term is invisible OR
-            null. Called as a plain function (not JSX) — see
-            components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfTermsSection({
-          company,
-          estimate,
-          resolvedSettings,
-          L,
-          brandText,
-          topMarginPt: 24,
-          styles: {
-            termsSection: styles.termsSection,
-            termsTitle: styles.termsTitle,
-            termsText: styles.termsText,
-          },
-        })}
-
-        {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
-            presentation_settings key exists for it, per CONTEXT.md's locked
-            rule). Position: Terms -> Signature -> Photos, matching the
-            webview's Plan 183-05 placement. Called as a plain function (not
-            JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfSignatureBlock({
-          signature: signature ?? null,
-          L,
-          fmtDate,
-          styles: { termsTitle: styles.termsTitle },
-        })}
-
-        {/* Attached photos — SENDHUB-04 (Phase 163): resolver-gated. Called
-            as a plain function (not JSX) — see
-            components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {isSectionVisible(resolvedSettings, 'photos') && attachedPhotos && attachedPhotos.length > 0 &&
-          PdfPhotoGrid({
-            photos: attachedPhotos,
-            L,
-            topMargin: 16,
-            contentWidthPt: ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt,
-            showLabel: true,
-            styles: { termsTitle: styles.termsTitle },
-          })}
-
-        {/* Prepared by */}
-        {preparedBy && (
-          <View style={{ marginTop: 16 }}>
+            })}
+          </Fragment>
+        )
+      }
+      case 'totals':
+        return (
+          <Fragment key={block.id}>
+            {PdfTotalsBlock({
+              variant: 'classic',
+              estimate,
+              dep,
+              L,
+              brandText,
+              fmt,
+              styles: {
+                totalsContainer: styles.totalsContainer,
+                totalsBlock: styles.totalsBlock,
+                totalsRow: styles.totalsRow,
+                totalsLabel: styles.totalsLabel,
+                totalsValue: styles.totalsValue,
+                grandTotalRow: styles.grandTotalRow,
+                grandTotalLabel: styles.grandTotalLabel,
+                grandTotalValue: styles.grandTotalValue,
+              },
+            })}
+          </Fragment>
+        )
+      case 'terms-card': {
+        const termsKey = block.ref?.termsKey
+        if (!termsKey) return null
+        const card = termsCardMap[termsKey]
+        return (
+          <Fragment key={block.id}>
+            {PdfTermsCard({
+              title: card.title,
+              text: card.text,
+              titleColor: card.titleColor,
+              topMarginPt: block.id === firstTermsCardBlockId ? 24 : undefined,
+              styles: { termsTitle: styles.termsTitle, termsText: styles.termsText },
+            })}
+          </Fragment>
+        )
+      }
+      case 'signature':
+        return (
+          <Fragment key={block.id}>
+            {PdfSignatureBlock({
+              signature: signature ?? null,
+              L,
+              fmtDate,
+              styles: { termsTitle: styles.termsTitle },
+            })}
+          </Fragment>
+        )
+      case 'photo-row': {
+        const range = block.ref?.photoRange
+        if (!range) return null
+        const isFirst = range[0] === 0
+        return isSectionVisible(resolvedSettings, 'photos') ? (
+          <Fragment key={block.id}>
+            {PdfPhotoGrid({
+              photos: (attachedPhotos ?? []).slice(range[0], range[1]),
+              L,
+              topMargin: isFirst ? 16 : 0,
+              contentWidthPt: ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt,
+              showLabel: isFirst,
+              styles: { termsTitle: styles.termsTitle },
+            })}
+          </Fragment>
+        ) : null
+      }
+      case 'prepared-by':
+        return preparedBy ? (
+          <View key={block.id} style={{ marginTop: 16 }}>
             <Text style={styles.infoLabel}>{L.preparedBy}</Text>
             <Text style={styles.infoValue}>{preparedBy}</Text>
           </View>
-        )}
+        ) : null
+      default:
+        return null
+    }
+  }
 
-        {/* Footer - Page numbers on every page. Called as a plain function
-            (not JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-        {PdfFooter({ styles: { footer: styles.footer }, L })}
-      </Page>
+  return (
+    <Document>
+      {pages.map((page) => {
+        const itemRowGroups = buildItemRowGroups(page.blocks, sectionsById)
+        return (
+          <Page key={page.pageIndex} size="LETTER" style={styles.page}>
+            {/* Header - fixed on every page. Called as a plain function (not JSX) —
+                see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+            {PdfHeader({
+              company,
+              headerBorderColor: brandColor,
+              companyNameColor: brandText,
+              langLabel,
+              styles: {
+                header: styles.header,
+                headerLeft: styles.headerLeft,
+                headerRight: styles.headerRight,
+                logo: styles.logo,
+                companyName: styles.companyName,
+                companyContact: styles.companyContact,
+                contactLink: styles.contactLink,
+                nameLink: styles.nameLink,
+                langBadge: styles.langBadge,
+              },
+            })}
+
+            {/* PGBRK-03 — repeated items-table column header, ONE MORE time
+                at the very top of a page whose FIRST block continues a
+                section's rows from an earlier page. Mutually exclusive with
+                the section-header case's own PdfTableHeaderOnly call below
+                (continuesTable is defined as blocks[0].kind === 'item-row',
+                which a page starting with a section-header can never be). */}
+            {page.continuesTable &&
+              PdfTableHeaderOnly({
+                sectionId: `continuation-${page.blocks[0]?.ref?.sectionId ?? page.pageIndex}`,
+                L,
+                styles: {
+                  tableHeader: styles.tableHeader,
+                  tableHeaderText: styles.tableHeaderText,
+                  colDescription: styles.colDescription,
+                  colQty: styles.colQty,
+                  colUnit: styles.colUnit,
+                  colUnitPrice: styles.colUnitPrice,
+                  colTotal: styles.colTotal,
+                },
+              })}
+
+            {/* Every block kind (title-banner/info-grid/summary/sections/totals/
+                terms/signature/photos/prepared-by) dispatches through this ONE
+                uniform, keyed renderBlockForKind — no special-casing, no
+                `i === 0` literal, matching `page.blocks`' own order exactly. */}
+            {page.blocks.map((block) => renderBlockForKind(block, itemRowGroups))}
+
+            {/* Footer - Page numbers on every page. Called as a plain function
+                (not JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+            {PdfFooter({ styles: { footer: styles.footer }, L })}
+          </Page>
+        )
+      })}
     </Document>
   )
 }
