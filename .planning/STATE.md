@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.22
-milestone_name: Product-Native Demo
-status: verifying
-stopped_at: Completed 181-05-PLAN.md
-last_updated: "2026-07-27T12:46:40.446Z"
+milestone: v4.23
+milestone_name: Unified Estimate Document Engine
+status: defining-requirements
+stopped_at: Milestone v4.23 started — defining requirements
+last_updated: "2026-07-27T15:30:00.000Z"
 last_activity: 2026-07-27
 progress:
   total_phases: 125
@@ -18,7 +18,11 @@ progress:
 
 ## Current Status
 
-- **Milestone v4.22 Product-Native Demo** — ROADMAP CREATED 2026-07-26. **2 phases (180-181)**, **14/14 requirements mapped** (ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03), **0 orphans, 0 duplicates**. Phases continue directly after Phase 179; legacy parking-lot entries 999.1/1000/1001 do not affect sequencing.
+- **Milestone v4.23 Unified Estimate Document Engine** — STARTED 2026-07-27. Unify the estimate webview and PDF onto one shared document structure/design (webview = benchmark, PDF copies it, both templates classic + modern); consolidate ONE deterministic page-break rule shared by a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI": full-width default + paginated PDF-preview mode) and the react-pdf renderer; public share webview stays single-page scroll; fix email/WhatsApp PDF send paths (hardcoded Classic + skipped signed snapshot); webview design polish. Pending external input: user will send a reference preview image for the paginated-mode UI. Position: defining requirements → roadmap. Numbering continues after Phase 181 → v4.23 starts at **Phase 182**.
+
+### Previous Milestone (shipped)
+
+- **Milestone v4.22 Product-Native Demo** — SHIPPED 2026-07-27 (phases 180-181 complete, 14/14 requirements ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03; formal `/gsd:complete-milestone` archival pending). Originally: ROADMAP CREATED 2026-07-26. **2 phases (180-181)**, **14/14 requirements mapped** (ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03), **0 orphans, 0 duplicates**. Phases continue directly after Phase 179; legacy parking-lot entries 999.1/1000/1001 do not affect sequencing.
 - **Phase map (goal-backward, dependency-ordered):**
   - **180 Isolated Demo Session & Read-Only Foundation** (ENTRY-01..04, SAFE-01..04) — configured demo-host handoff; host-only dedicated-user Supabase session + deterministic active-company cookie; idempotent stale-cookie recovery; matching local-host contract; demo user/company deny-write enforcement across server actions/APIs, external side effects, and RLS; automated isolation/security coverage. The standalone demo remains live during this phase.
   - **181 Real-Product Cutover & Verification** (PARITY-01..03, CUTOVER-01..03) — shared authenticated app shell and core read surfaces over deterministic demo data; visible read-only state and mutation-control suppression; desktop/responsive browser isolation verification; landing-entry cutover and duplicate `/demo/*` removal; local/Supabase/DNS/Coolify setup documentation.

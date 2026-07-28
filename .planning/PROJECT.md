@@ -14,7 +14,23 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.22 Product-Native Demo
+## Current Milestone: v4.23 Unified Estimate Document Engine
+
+**Goal:** Unify the estimate webview and PDF into one shared document structure/design — the webview is the benchmark, the PDF copies it — with a single deterministic page-break rule powering a new fully-editable paginated editor mode that mirrors the PDF.
+
+**Target features:**
+- **Shared document engine:** one shared structure/design source (design tokens, labels, section composition, formatting helpers) consumed by the webview documents AND both PDF templates (classic + modern) — replacing today's zero-shared-layout duplication (`components/pdf/estimate-pdf.tsx` + `estimate-pdf-modern.tsx` are ~860 lines each, duplicated between themselves and diverging from the webview).
+- **PDF parity with the webview benchmark:** the webview (`components/share/estimate-document-modern.tsx` + `components/workspace/estimate/estimate-document.tsx`) is the most-finished surface and is the design benchmark; the PDF copies its features/design for BOTH templates — including the signature block (signed estimates currently produce PDFs indistinguishable from unsigned ones), photo captions (resolved but dropped today), and visual structure.
+- **Consolidated page-break rule:** ONE deterministic pagination module decides where page breaks fall (never split a line item, section header keeps with first row, subtotal keeps with last row, totals/photos blocks keep together, etc.), shared by the web paginated preview and the react-pdf renderer so the two mirror each other for both templates. This is the milestone's central open question, now consolidated in a single place.
+- **Paginated editor mode:** two icon buttons to the LEFT of "Edit with AI" in the workspace estimate editor — (1) full-width mode (current default) and (2) a paginated mode that renders the estimate as letter-size pages like a PDF preview, fully functional AND editable inline (all existing editing keeps working). The public share webview stays a normal single-page scroll — pagination never applies there.
+- **Send-path correctness:** email/WhatsApp PDF paths respect the tenant's chosen template and the signed snapshot (today they hardcode Classic and render live rows, violating TRUST-01).
+- **Webview design polish:** a general design refinement pass on the benchmark webview itself.
+
+**Key context:** PDF stack is `@react-pdf/renderer` only (no puppeteer; Alpine container). Pagination is a PDF / paginated-editor-mode concern only. The user will supply a reference preview image for the paginated-mode UI — treat as a pending design reference; structure the paginated-mode UI work so the reference can be applied when it arrives. Numbering continues the global counter — v4.22 ended at Phase 181, so v4.23 starts at **Phase 182**.
+
+## Last Milestone: v4.22 Product-Native Demo ✅ (shipped 2026-07-27)
+
+**Shipped:** both phases (180-181), 14/14 requirements (ENTRY-01..04, PARITY-01..03, SAFE-01..04, CUTOVER-01..03). Host-isolated demo session (dedicated demo user + host-only cookies on the demo host), deny-write enforcement at server/side-effect/RLS boundaries, real-product demo surfaces over deterministic demo data, landing-entry cutover, and standalone `/demo/*` UI removal. Formal `/gsd:complete-milestone` archival pending (housekeeping).
 
 **Goal:** Replace the separate, visually divergent public demo with a safe, read-only experience inside the real authenticated Xtimator product, while keeping visitors' normal Xtimator sessions isolated.
 
@@ -526,4 +542,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context
 
 ---
-*Last updated: 2026-07-26 — Milestone v4.22 Product-Native Demo started. The standalone public demo will be replaced by an isolated, read-only session inside the real product UI. Historical phase directories are intentionally preserved because this legacy roadmap has not archived phases 1-179.*
+*Last updated: 2026-07-27 — Milestone v4.23 Unified Estimate Document Engine started. Webview + PDF unify onto one shared document structure (webview is the benchmark); one deterministic page-break rule shared by the new editable paginated editor mode and the react-pdf renderer. Historical phase directories are intentionally preserved because this legacy roadmap has not archived phases 1-179.*
