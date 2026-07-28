@@ -42,10 +42,10 @@
 
 ### Paginated Editor Mode (PGMODE)
 
-- [ ] **PGMODE-01**: The estimate editor header shows two icon toggle buttons to the left of "Edit with AI" — full-width (default) and paginated — switching the document view instantly.
+- [x] **PGMODE-01**: The estimate editor header shows two icon toggle buttons to the left of "Edit with AI" — full-width (default) and paginated — switching the document view instantly.
 - [ ] **PGMODE-02**: Paginated mode renders letter-size pages styled like a PDF preview (centered pages, gaps, shadows) mirroring the PDF's page breaks for the active template.
 - [ ] **PGMODE-03**: All editing works inside paginated mode — inline field edits, add/remove items and sections, drag-reorder — with page membership as a derived read-only projection (never persisted), immediate repagination on structural changes, debounced repagination while typing, and no focus loss when content moves across pages.
-- [ ] **PGMODE-04**: The legacy `viewMode: 'width' | 'page'` CSS-zoom toggle is consolidated into the new control — one "page" concept in the UI, no colliding icons/wording.
+- [x] **PGMODE-04**: The legacy `viewMode: 'width' | 'page'` CSS-zoom toggle is consolidated into the new control — one "page" concept in the UI, no colliding icons/wording.
 - [ ] **PGMODE-05**: The public share webview remains a single-page scroll, byte-compatible with today's URLs and behavior.
 
 ### Webview Design Polish (POLISH)
@@ -86,10 +86,10 @@
 | PGBRK-03 | Phase 184 | Complete |
 | PGBRK-04 | Phase 184 | Partial (184: engine + PDF side complete; web paginated preview consumes it in Phase 185) |
 | PGBRK-05 | Phase 184 | Complete |
-| PGMODE-01 | Phase 185 | Pending |
+| PGMODE-01 | Phase 185 | Complete |
 | PGMODE-02 | Phase 185 | Pending |
 | PGMODE-03 | Phase 185 | Pending |
-| PGMODE-04 | Phase 185 | Pending |
+| PGMODE-04 | Phase 185 | Complete |
 | PGMODE-05 | Phase 185 | Pending |
 | POLISH-01 | Phase 186 | Pending |
 
