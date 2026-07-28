@@ -1,210 +1,173 @@
 # Feature Research
 
-**Domain:** Notification Center — three-audience outbound messaging (platform-admin Telegram alerts, super-admin DB-driven template editor, end-customer email/SMS) for a B2B2C service-business SaaS
-**Researched:** 2026-07-21
-**Confidence:** MEDIUM-HIGH — grounded in the existing Xtimator codebase (HIGH) + WebSearch findings cross-referenced against official docs (Postmark, Customer.io, Resend, Twilio, Telegram) where fetched directly (MEDIUM-HIGH); a few ecosystem claims are WebSearch-only (flagged LOW below). Context7 MCP tools were not available in this session — Resend/Twilio/Telegram claims were instead verified via direct WebFetch of official doc pages.
+**Domain:** Paginated document editors / PDF-preview modes for estimate & invoice documents (comparable products: PandaDoc, Proposify, QuickBooks Online, Invoice2go, Canva Docs, Google Docs, Notion PDF export, CKEditor 5 Pagination)
+**Researched:** 2026-07-27
+**Confidence:** MEDIUM-HIGH (page-break mechanics and toggle-UX conventions are well-documented across multiple independent sources; live-reflow-while-typing internals are sparsely documented by vendors and are triangulated from general WYSIWYG-editor performance guidance — flagged LOW where relevant)
 
-**Audience legend:** `[PA]` = Platform-Admin (Xtimator ops team, via Telegram) · `[TN]` = Tenant (business owner, via in-app/email/WhatsApp/SMS) · `[EC]` = End-Customer (tenant's client, via email/SMS only) · `[ALL]` = spans multiple audiences (the template editor itself)
+**Scope note:** This research is scoped to the v4.23 "Unified Estimate Document Engine" milestone's THREE new capabilities only: (1) unified webview/PDF design, (2) a new paginated editor mode toggle in the workspace, (3) one consolidated deterministic page-break rule shared by web preview and PDF. It assumes — and does not re-research — everything already shipped (editor, AI generation, public share webview, PDF send, two templates, presentation settings, signatures, Stripe invoices).
 
-## Existing Foundation (do not re-spec, but load-bearing for every feature below)
+## Grounding in the existing codebase
 
-| Capability | File(s) | What it already does |
-|---|---|---|
-| Telegram outbound client | `lib/telegram/client.ts` | Single bot token + single `chat_id` from `platform_integrations`, HTML `parse_mode`, throws `[Telegram] not configured` when dormant |
-| Ops-alert fan-out | `lib/observability/ops-alert.ts` | `notifyOps()` — Redis SETNX dedupe (fail-open) → Sentry → Telegram, each stage independently swallowed; **today scoped to system-health only** (AI down, cron failures), not general platform events (signup/payment/quota) |
-| Telegram admin config UI | `lib/admin/integrations-providers.ts` (`showTelegramConfig`) | Bot token + chat_id form + "send test alert" button already exists in `/admin/integrations` — precedent for test-send UX, but **no per-event toggle, single recipient only, chat_id found manually via `getUpdates`** |
-| Tenant notification dispatch | `lib/notifications/dispatch.ts` (`notify()`) | Single fan-out entry point: resolves channel prefs → dedupe → in_app insert → email/whatsapp/sms via Inngest, every branch best-effort/never-throw |
-| Tenant event catalog | `lib/notifications/event-types.ts` | Typed `EventType` union + `EVENT_CATEGORIES` (estimate/billing/system) + `DEFAULT_PREFERENCES` per category — **tenant-scoped only, no platform-level event catalog exists yet** |
-| Tenant copy (hardcoded) | `lib/notifications/copy.ts` | `buildNotificationCopy()` — the exact thing this milestone converts from hardcoded switch/case to DB-driven templates |
-| WhatsApp template registry (precedent for the fallback pattern) | `lib/notifications/whatsapp-registry.ts` | `getApprovedTemplateForEvent()` — DB row (`whatsapp_notification_templates`, name/language/status only) wins, falls back to a static in-code map on any DB miss/error. **This exact fallback shape is the one to reuse/generalize for the new template resolver.** |
-| Email send | `lib/email/*` (Resend) | `notification-emails.ts`, `payment-emails.ts`, `invite-emails.ts`, `account-emails.ts` — existing hardcoded-copy senders |
-| SMS send | `lib/sms/client.ts` (Twilio) | Bare REST-over-fetch `sendSms(to, body)`, creds from `platform_integrations`, never-throw |
-| Encrypted credential pattern | `lib/platform-config.ts`, `lib/admin/integrations-providers.ts` | The `platform_integrations` table + admin UI is the established home for ANY new provider secret (Telegram bot token already lives here — no new pattern needed) |
-| Channel-neutral agent tools | `lib/agent-tools/`, `lib/whatsapp/agent.ts`, MCP server (v4.9/v4.10) | WhatsApp assistant + MCP already share one neutral tool-calling core — the "agentic send" feature is a NEW tool added to this existing layer, not a new channel integration |
+Two facts from the codebase materially shape what's realistic here and are referenced throughout:
+
+1. **`@react-pdf/renderer` lays out with Yoga (flexbox) + its own font-metrics engine (fontkit) — not the browser's CSS engine.** The webview/web-preview renders with normal browser CSS layout. These are two independent measurement pipelines. They can be made to agree on *where content breaks* (the page-break decisions) but cannot be made to agree on *pixel-for-pixel rendering* (subpixel text metrics differ by engine). This directly answers question (d) below.
+2. **An analogous toggle already exists** in `components/workspace/estimate/estimate-floating-actions.tsx`: `viewMode: 'width' | 'page'`, rendered with `File` ("Full page") / `StretchHorizontal` ("Full width") lucide icons in the floating action pill. That toggle only constrains column WIDTH to letter-width — it does not paginate with page breaks. It is a different feature from this milestone's paginated mode, but it establishes an existing icon/label vocabulary ("Full page" wording, `File` icon) that the new toggle risks colliding with. Flagged as a dependency/naming risk below.
+3. **The estimate document's actual block structure** (from `components/share/estimate-document-modern.tsx`): company header/logo, Bill To, one or more line-item **sections** (each with a section header, its rows, and a section subtotal), an overall totals block (Subtotal → Discount → Tax → Total → Deposit → Balance Due), a Terms area (payment terms / timeline / warranty terms / notes — plain text, each optional), a Photos block, and a signature block. Break rules below are written against these real blocks, not generic invoice theory.
 
 ## Feature Landscape
 
 ### Table Stakes (Users Expect These)
 
-| Feature | Audience | Why Expected | Complexity | Notes |
-|---|---|---|---|---|
-| Per-event Telegram toggle matrix | `[PA]` | Locked decision: "ALL platform events, toggleable" | LOW | Extends `notifyOps`/admin-integrations UI; needs a NEW platform-event catalog (today's `EventType` is tenant-scoped) |
-| Variable placeholder catalog per event, documented in the editor | `[ALL]` | Every template editor (Postmark, Customer.io) shows "available variables" alongside the edit box — users can't write `{{x}}` they can't see | LOW-MEDIUM | Postmark uses Mustache; Customer.io uses Liquid (`{{customer.first_name}}`) with sample data shown inline — reuse Xtimator's existing `{{var}}` convention from the milestone spec, don't adopt a new templating DSL |
-| Live preview with sample data | `[ALL]` | Table stakes across Postmark/Customer.io — editing raw `{{var}}` text blind is error-prone | MEDIUM | Needs a per-event sample-context object (e.g., `{client_name: "Jane Doe", estimate_number: "EST-1042"}`) to render before save |
-| Test-send | `[PA]` `[TN]` `[EC]` | Already precedented for Telegram ("send a test alert" button exists); Postmark/Customer.io both let you send a test email to yourself before activating | LOW | For Telegram: reuse existing button pattern. For email/SMS: new, but same shape (send to admin's own address/phone with sample data) |
-| Fallback when template missing/broken | `[ALL]` | Never block a send because of a bad DB edit — this is a SAFETY property, not a nice-to-have | LOW | Precedented TWICE already (`whatsapp-registry.ts` DB→static fallback; `notify()`'s never-throw philosophy) — generalize the SAME pattern, don't invent a new one |
-| Template save validation (no unresolved `{{var}}`, no unknown variable names) | `[ALL]` | Prevents shipping a template that silently renders `{{client_name}}` literally to a real customer | LOW-MEDIUM | Validate against the per-event variable catalog at save time |
-| STOP / opt-out compliance for end-customer SMS | `[EC]` | Legally mandated (TCPA/CTIA, A2P 10DLC campaign registration terms) — reply STOP must be honored immediately with an automated confirmation, non-negotiable | LOW (if using Twilio Messaging Service's built-in Advanced Opt-Out) / MEDIUM (if hand-rolled) | Twilio's Advanced Opt-Out auto-handles STOP/START/HELP keywords when messages route through a Messaging Service — verify Xtimator's existing SMS sending already uses one before building custom STOP logic |
-| Sender identity that reads as the tenant's business, not "Xtimator" | `[EC]` | The entire point of "on behalf of" messaging — a customer receiving "Your estimate from Xtimator" instead of "Your estimate from Jane's Plumbing" breaks trust in the tenant's brand | LOW-MEDIUM | Email: `From: {{business_name}} via Xtimator <notify@xtimator.com>` or similar friendly-from pattern (Gmail now penalizes deceptive friendly-from, so include "via Xtimator" honesty). SMS: body should open with the business name since there's no separate from-name field on a shared long code |
-| Delivery status at least logged (sent/delivered/bounced/failed) | `[PA]` mainly, `[TN]` optionally | Any transactional-messaging system needs to know when a send silently failed | LOW (webhook receipt + log) / MEDIUM (surfaced in UI) | Resend webhooks: `email.sent/delivered/bounced/failed/complained/delivery_delayed`. Twilio status callbacks: `queued/sent/delivered/undelivered/failed` (out-of-order arrival possible — handlers must not assume ordering) |
-| Respect the existing per-category channel matrix for tenant notifications | `[TN]` | Not new work but a HARD dependency — new DB-driven tenant templates must still resolve through `in_app/email/whatsapp/sms` per-category prefs already shipped | LOW | Just don't break `lib/notifications/preferences.ts` — the template layer replaces COPY, not the channel-resolution logic |
+Features/behaviors every comparable paginated business-document editor gets right — missing these makes the paginated mode feel broken, not just unpolished.
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Never split a line-item row across a page break | Universal across QuickBooks, invoicing tools, and general CSS-to-PDF guidance: a row's qty/description/price/amount must stay on one page. `break-inside: avoid` (web) / `wrap={false}` on the row `View` (react-pdf) is the direct mechanism | LOW | Both engines support this natively; the work is making ONE module decide row placement so both obey the same decision, not each independently avoiding mid-row splits |
+| Section header stays with its first row ("keep-with-next") | An orphaned section title alone at the bottom of a page, with all its rows starting the next page, is the single most commonly cited page-break defect in invoice/table PDF guidance | LOW-MEDIUM | Standard `break-after: avoid` on the header / no native react-pdf equivalent — must be encoded as a rule in the shared module ("if header + row 1 don't both fit, push both to next page") |
+| Section subtotal stays with its section's last row | A lone subtotal number at the top of a new page, disconnected from the rows it totals, is confusing and matches nobody's expectation of "the subtotal is the section's own line" | LOW-MEDIUM | Same "keep-with-previous" pattern as above, applied at the tail of a section instead of the head |
+| Totals block (Subtotal→Discount→Tax→Total→Deposit→Balance Due) is one atomic, never-split unit | This is the money the customer is agreeing to — splitting it across pages is jarring and, unlike a table row, actively damages trust in the document. No comparable invoicing tool splits this block | LOW | `wrap={false}` / `break-inside: avoid` treats the whole block as indivisible; if it doesn't fit remaining space, it moves to a fresh page entirely (not "shrink to fit") |
+| Repeating column header row on every continuation page of a multi-page line-items table | Confirmed as "the single most important CSS rule for long tables in PDFs" in general HTML-to-PDF guidance (`display: table-header-group` / `<thead>` repetition); QuickBooks/invoicing forums cite reader confusion without it | MEDIUM | `react-pdf` has NO native `<thead>` repeat-on-continuation semantics — its `fixed` prop repeats a view on literally every page of the whole document, not just "while this table continues." Must be hand-built: only render the repeated header when the shared pagination module says a section's rows actually span a page boundary |
+| Toggle between continuous (full-width, current default) and paginated (letter-size pages) view, via an icon+label button | Exactly the Word "Print Layout ⇄ Web Layout" / Google Docs "Pages ⇄ Pageless" pattern; already scoped in PROJECT.md as two icon buttons left of "Edit with AI" | LOW (UX is already decided by the milestone) | Use icon + text label, not icon-only — no competitor uses a universally recognizable icon-only glyph for this toggle (Word/Google Docs pair the icon with a menu label or tooltip); matches Xtimator's own existing convention on the width toggle |
+| Full inline editing keeps working inside paginated mode | The milestone's explicit, non-negotiable requirement; CKEditor 5's Pagination feature (the closest general-purpose analog) is built specifically so editing stays live inside the paginated view, not a separate read-only preview | HIGH | The hard part of the whole milestone — see reflow discussion under Differentiators/dependencies |
+| Page 1 always carries letterhead (logo, company info) + Bill To; these never repeat or re-flow onto later pages | Universal convention in every invoicing tool surveyed (QuickBooks, generic invoice templates) — only the line-items table and totals continue past page 1 | LOW | Encode explicitly as "always-page-1, non-repeating" blocks in the shared module, distinct from the repeating table header |
+| Same page-break DECISIONS (same content on the same page) between web preview and PDF | This is the milestone's central ask ("one deterministic module... shared by the web paginated preview and the react-pdf renderer") | HIGH | See Fidelity section below — this is achievable; pixel-identical rendering is not, and should not be the bar |
 
 ### Differentiators (Competitive Advantage)
 
-| Feature | Audience | Value Proposition | Complexity | Notes |
-|---|---|---|---|---|
-| Agentic send ("send an SMS to my client about X") | `[TN]` → `[EC]` | Voice/chat-first value prop extended to messaging — no competitor field-service SaaS lets the owner just ASK the assistant to text a client; this is Xtimator's core differentiation applied to notifications | MEDIUM | New tool on the EXISTING `lib/agent-tools/` neutral layer (WhatsApp assistant + MCP already share it per v4.9/v4.10) — the send primitive (Twilio/Resend) already exists, this is a thin tool wrapper + confirmation UX |
-| One unified template repository for BOTH tenant AND end-customer messages | `[ALL]` | Most vendors (Customer.io, Intercom) serve ONE audience; Xtimator's super-admin manages tenant notifications AND end-customer copy from a single screen — genuinely less common | MEDIUM | Straightforward once the schema models `audience` as a dimension alongside `event_type`/`channel` |
-| Non-toggleable "critical" Telegram events (e.g., platform outage) that always fire regardless of the toggle matrix | `[PA]` | Prevents an admin from accidentally silencing a page-me-now event while decluttering routine noise | LOW | A simple `locked: boolean` flag on select platform events; small but meaningfully safer than a flat toggle-everything design |
-| Inline variable insert-picker (click to insert `{{client_name}}` vs. copy-pasting from a legend) | `[PA]` (editor UX) | Customer.io's code editor shows available attributes alongside a Liquid editor; a picker beats a static legend for editing speed | LOW-MEDIUM | Pure UX polish — safe to defer past v1 without harming the core feature |
+Features that go beyond bare correctness and set the paginated mode apart — valuable, not required for MVP.
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Live, debounced reflow while typing (not full-document read-only preview) | Most direct estimate/invoice competitors (QuickBooks, Invoice2go) only show a static PDF preview AFTER generation — no live in-app paginated editing. Matching PandaDoc/Proposify/CKEditor-5-Pagination's "edit live inside the paginated view" differentiates Xtimator from the QuickBooks-class competitors specifically named in the milestone's comparable-product set | HIGH | See "editing inside a paginated view" analysis below — debounce, don't recompute per keystroke |
+| "Page X of Y" footer + page numbers | Standard on printed multi-page business documents; several invoicing-tool user threads specifically request it when missing | LOW | Trivial via `fixed` in react-pdf + a sticky/absolute footer on web; genuinely low-value for the common 1-2 page estimate but cheap to add once the module tracks total page count |
+| "Continued" indicator when a section's rows span a page boundary | Referenced in multi-page-invoice discussions as reducing reader confusion, distinct from the repeating header (signals mid-section continuation, not just "here's the table again") | LOW | Optional micro-copy driven off the same per-page item-range data the repeating header already needs |
+| Smart totals placement: push the whole totals block to a fresh page rather than letting it half-fit awkwardly at a page bottom | Beyond bare atomicity (never split) — actively choosing a full-page-break over a cramped near-fit reads as more deliberate/professional | LOW-MEDIUM | A refinement rule layered on top of the base "totals block is atomic" table-stakes rule |
+| Cursor/scroll-position preservation across a live repagination pass | The most commonly cited UX complaint about paginated WYSIWYG editors in general engineering discussion is the view "jumping" when content shifts pages mid-edit | MEDIUM | Real but second-order polish; do after the base toggle ships, not blocking it |
+| Orphan/widow-aware wrapping in free-text blocks (terms, notes) | Standard word-processor courtesy (never leave 1 line alone at a page top/bottom) | LOW | Lowest priority of all break rules — Xtimator's terms/notes blocks are short; this matters far less than table/totals integrity |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-| Feature | Audience | Why Requested | Why Problematic | Alternative |
-|---|---|---|---|---|
-| Tenant-level template overrides | `[TN]` | "Typical" template editors (Customer.io, Intercom) let each account customize its own copy — feels like an obvious ask | **Explicitly locked OUT for v1** — doubles the editing surface, RLS/authorization complexity, and conflicts with the milestone's single-source-of-truth goal | Ship the `{{business_name}}`/`{{brand_color}}`-style variables so tenant identity still shows through a GLOBAL template; revisit per-tenant overrides only if multiple tenants explicitly ask for copy beyond what variables can express |
-| WhatsApp as an end-customer channel | `[EC]` | WhatsApp already exists in the stack and has the richest formatting/interactivity — tempting to reuse for customer messaging too | **Explicitly locked OUT** — WhatsApp is reserved exclusively for owner↔Xtimator conversation; mixing it into customer-facing sends would blur that boundary and risks HSM-template compliance issues on a channel not built for it | Email + SMS only, per locked scope |
-| Full drag-and-drop visual email builder (MailMason/Postmark-style WYSIWYG) | `[PA]` (editor) | "Real" template editors look like this — feels like the professional bar | Heavy build (rich-text/DnD engine, HTML sanitization, cross-client rendering testing) for a v1 that only needs transactional variable substitution, not marketing-grade design | A plain rich-text-lite editor (or even markdown-to-HTML) with `{{var}}` insertion + live preview is sufficient; defer a visual builder until template volume/design needs justify it |
-| Per-tenant sender reputation isolation (Twilio subaccounts, dedicated IP pools per tenant) | `[EC]` infra | The "correct" architecture for large multi-tenant email/SMS platforms per current best-practice writeups (MailChannels, MailerSend) | Significant operational lift (subaccount provisioning, per-tenant DNS/SPF/DKIM, monitoring) with no evidence yet that Xtimator's current volume creates shared-reputation risk | Shared platform sender (current Resend/Twilio setup) with tenant identity carried in From-name/body copy; revisit isolation only if real deliverability degradation from one tenant's behavior is observed |
-| Two-way end-customer conversation threading for SMS/email replies | `[EC]` | "Why can't the client just reply and it becomes a conversation" feels natural once messaging exists | Explicitly out of scope — WhatsApp is the ONLY two-way channel by design; building inbound SMS/email handling means a second inbox/routing system this milestone doesn't need | End-customer messages should close with a clear "call/text {{business_phone}}" or similar, not invite a reply-and-continue flow |
-| Per-tenant custom quiet-hours scheduling UI | `[EC]` (sending) | Feels like a natural "let each business set their own send window" config | Scope creep for v1 — a single sane platform-wide quiet-hours guard (avoid sending 9pm–8am recipient-local time) already satisfies the compliance-risk reason this matters | Hardcode/derive one platform-wide default guard (from area code or company timezone); expose per-tenant configurability only if requested later |
-| Telegram MarkdownV2 formatting | `[PA]` | MarkdownV2 supports spoilers/underline that HTML parse_mode doesn't | MarkdownV2 requires escaping 18 special characters — far more error-prone than HTML (which only needs `<`, `>`, `&` escaped) — and the existing `ops-alert.ts` already uses HTML successfully | Keep `parse_mode: 'HTML'` (existing convention in `lib/telegram/client.ts`/`ops-alert.ts`) for the new event alerts too — don't introduce a second formatting mode |
+Features that look reasonable by analogy to word processors or other document tools but actively fight this milestone's design principle or this document type's needs.
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|------------------|-------------|
+| Per-keystroke full repagination | "Live preview should update instantly" | Causes visible jank/flicker; no surveyed competitor does this; estimate content is structured (discrete rows/sections), not free-flowing prose where every keystroke can shift a line-wrap — the cost/benefit is upside-down | Repaginate on structural change (item add/remove/reorder, section toggle) immediately; for free-text fields whose line-wrap can change (description, notes, terms), debounce ~300-500ms after typing pauses — the general WYSIWYG-editor norm |
+| Byte-for-byte / pixel-identical rendering between webview/web-preview and the PDF | "Unified design" in the milestone name sounds like it implies visual identity down to the pixel | Impossible without abandoning `@react-pdf/renderer`'s Yoga+fontkit pipeline in favor of the browser's CSS engine (or vice versa) — the two are architecturally different renderers; chasing pixel parity is an unbounded, never-done scope trap | Target "same breaks, same content per page" — verify structurally (e.g., "page 2 starts at item index 7," same page count) rather than via visual pixel-diffing, which is fragile across font-rendering differences anyway |
+| User-insertable manual page breaks (à la PandaDoc's Page Break content block) | PandaDoc offers exactly this, and it feels like "give the user control" | Directly undermines the milestone's core design principle of ONE deterministic, consolidated rule — manual overrides reintroduce per-document special-casing that the milestone exists to eliminate, and a manual break inserted in the web preview has no obvious analog to force in the independently-computed PDF | If a specific document genuinely needs a forced break in the future, that's a scoped v2 decision layered ON TOP of the deterministic module (e.g., an explicit "force new page before this section" flag persisted in data, evaluated BY the shared module) — not a free-floating editor insertion |
+| A bindable keyboard shortcut for the continuous/paginated toggle | Power-user expectation carried over from word processors | Word and Google Docs — the two products with the most mature version of this exact toggle — do NOT expose a bindable shortcut for it (menu/status-bar only); PandaDoc/Canva/Notion don't either. Not a real competitive gap | Icon+label button only, as already scoped by the milestone; revisit only if users explicitly ask |
+| Pagination applied to the public share webview | Consistency instinct ("shouldn't the customer-facing page paginate too?") | Explicitly out of scope per PROJECT.md — "the public share webview stays a normal single-page scroll — pagination never applies there." Customers reading on a phone/desktop scroll; only the internal editor's paginated-preview mode and the PDF need page semantics | Keep pagination logic entirely inside the workspace editor's new mode + the PDF renderer; the shared module's OUTPUT (page-break decisions) is irrelevant to the webview's single-scroll rendering |
+| Adopting a general-purpose HTML pagination library (e.g., Paged.js) for the web side while the PDF continues using react-pdf's own layout independently | Paged.js is a legitimate, well-regarded library specifically built to paginate HTML content in the browser for print/PDF-like output | Using it ONLY on the web side re-creates exactly the "two engines independently guessing where breaks fall" problem this milestone is designed to eliminate — Paged.js would compute its own breaks from live DOM measurement, react-pdf would compute its own breaks from Yoga measurement, and nothing guarantees they agree | If a browser-side pagination *rendering* helper is wanted, it should be driven BY the shared deterministic module's page-break decisions (told where to cut), not used to independently DECIDE where to cut |
+| Full word-processor-grade pagination features: running headers derived from content, footnotes, left/right (verso/recto) page styling | "Complete" pagination feature parity with Word/Google Docs/CSS Paged Media spec | Estimates are short (1-3 pages), structured, tabular business documents — not books or long-form prose. These features have essentially zero utility for this document type and would add real engineering surface for no user value | Skip entirely; the table-stakes list above already covers everything an estimate/invoice document needs |
 
 ## Feature Dependencies
 
 ```
-[Platform-event catalog (NEW)] (PA)
-    └──requires──> [none — new typed union, sibling to lib/notifications/event-types.ts]
-    └──enables────> [Telegram per-event toggle matrix] (PA)
+[Shared document engine: design tokens, labels, section composition]
+    └──precedes/parallels──> [Consolidated page-break module]
+                                  └──requires──> [Paginated editor mode toggle]
+                                  └──requires──> [PDF repeating table header]
+                                  └──requires──> [PDF/web totals-block atomicity]
 
-[Telegram per-event toggle matrix] (PA)
-    └──requires──> [Platform-event catalog (NEW)]
-    └──requires──> [Existing Telegram client + platform_integrations config] (already shipped)
-    └──enhances──> [Telegram chat registration/binding flow] (PA, v1.x — multi-admin)
+[PDF parity with webview benchmark — incl. signature block, photo captions]
+    └──feeds──> [Consolidated page-break module]
+         (the module needs the signature block defined as an atomic
+          break-unit, so signature-block PDF parity should land at or
+          before the module's block inventory is finalized)
 
-[notification_templates schema + per-event variable catalog] (ALL)
-    └──requires──> [none — new table]
-    └──enables───> [Super-admin template editor (edit/preview/test-send)]
-    └──enables───> [End-customer email/SMS templates]
-    └──enables───> [Tenant template migration off lib/notifications/copy.ts]
+[Paginated editor mode toggle]
+    └──conflicts-in-naming-with (not a hard dependency, a UX risk)──> [existing viewMode: 'width'|'page' toggle in estimate-floating-actions.tsx]
 
-[Fallback-to-default resolver] (ALL)
-    └──requires──> [notification_templates schema]
-    └──reuses────> [Pattern already proven in lib/notifications/whatsapp-registry.ts]
-    └──gates─────> [Every send path — nothing may send without this safety net in place]
-
-[Super-admin template editor] (PA editing, serves TN + EC copy)
-    └──requires──> [notification_templates schema + variable catalog]
-    └──requires──> [Fallback-to-default resolver] (must exist before templates go live, or a bad edit blocks sends)
-    └──enables───> [Test-send] (PA/TN/EC)
-
-[End-customer email/SMS templates + send path] (EC)
-    └──requires──> [Super-admin template editor] (no end-customer copy exists today — must be authored)
-    └──requires──> [Existing lib/email/* (Resend) + lib/sms/client.ts (Twilio)]
-    └──requires──> [STOP/opt-out + sender-identity resolution] (NEW logic)
-
-[Agentic send tool] (TN → EC)
-    └──requires──> [End-customer email/SMS templates + send path] (the underlying capability it invokes)
-    └──requires──> [lib/agent-tools/ neutral tool layer] (already shipped, v4.9/v4.10)
-
-[Tenant-level template overrides] ──conflicts──> [Locked v1 scope: super-admin-only editing, no tenant overrides]
-[WhatsApp end-customer channel] ──conflicts──> [Locked scope: WhatsApp reserved for owner↔Xtimator conversation]
+[Live in-editor reflow while typing]
+    └──requires──> [Consolidated page-break module]
+    └──requires──> [Debounce strategy for free-text fields]
 ```
 
 ### Dependency Notes
 
-- **Platform-event catalog must exist before the Telegram toggle matrix:** today's `EventType`/`EVENT_CATEGORIES` in `lib/notifications/event-types.ts` models TENANT-facing categories (estimate/billing/system). The milestone's "tenant signup, payment, job failures, quota, critical errors" are Xtimator-ops-facing events — a distinct catalog dimension that doesn't exist yet. Building the toggle UI before this catalog exists has nothing to bind toggles to.
-- **Fallback resolver must ship before (or atomically with) the template editor going live:** the moment templates become the source of truth for a send, an admin typo/broken edit becomes a production incident unless the resolver degrades gracefully. `whatsapp-registry.ts`'s DB-row-falls-back-to-static-map is the proven shape to generalize — do not treat this as optional polish.
-- **End-customer templates require the editor, not just the schema:** unlike tenant notifications (which have `copy.ts` to migrate FROM), there is no existing end-customer copy anywhere in the codebase — it must be authored net-new through the editor, which makes the editor a hard prerequisite rather than a parallel-track feature.
-- **Agentic send depends on the send path being real, not stubbed:** the WhatsApp assistant/MCP tool is a thin wrapper: it cannot be built usefully before end-customer email/SMS actually sends via real templates — sequence it after, not alongside.
-- **STOP/opt-out logic depends on knowing whether Twilio Advanced Opt-Out already applies:** if Xtimator's SMS sends already route through a Twilio Messaging Service, STOP/START/HELP may already be auto-handled at the platform level — verify before building custom compliance logic (avoids duplicate/conflicting opt-out state).
+- **Consolidated page-break module requires the shared document engine (or at least a stable block inventory) first:** the module needs to know the definitive list of atomic blocks (line-item row, section header, section subtotal, totals block, signature block, photo tile, terms paragraph) before it can encode break rules for them. Building the module against the CURRENT duplicated webview/PDF structure risks re-deriving the rules twice.
+- **PDF repeating table header requires the consolidated module's per-page item ranges:** react-pdf has no native `<thead>`-repeat-on-continuation behavior (only a document-wide `fixed`), so "repeat the header only when a table actually continues" must be computed from the same page-assignment data the module already produces for the web side — this is a genuine shared-dependency, not two separate features.
+- **Signature-block PDF parity (an already-known gap per PROJECT.md) feeds the page-break module:** the module treats the signature block as one atomic never-split unit; if the PDF doesn't yet render a signature block at all, the module's rule for it can't be validated end-to-end until that parity gap closes.
+- **Naming/icon collision risk (not a blocking dependency, a planning flag):** the existing `viewMode: 'width' | 'page'` toggle already uses "Full page" wording and a `File` icon for a WIDTH constraint, unrelated to this milestone's new pagination toggle. The roadmap/plan should pick visually and semantically distinct icon/label choices for the new continuous/paginated toggle (e.g., pairing a rows/stack-style icon with explicit "Paginated"/"Continuous" or "PDF preview"/"Full width" labeling) to avoid two different "page" concepts confusing users in the same toolbar area.
+- **Live reflow while typing requires a debounce strategy, which requires the module to expose an incremental/cheap re-layout path** — not a full document re-measure on every field edit. This should be scoped explicitly in planning as its own sub-requirement, since it's the highest-complexity item in the whole milestone.
 
 ## MVP Definition
 
 ### Launch With (v1)
 
-- [ ] Platform-event catalog (NEW typed union) covering tenant signup, payment, job failures, quota, critical errors `[PA]` — essential, nothing else in the Telegram feature has anything to bind to without it
-- [ ] Telegram per-event toggle matrix in admin panel `[PA]` — essential, this is the locked "ALL platform events, toggleable" requirement
-- [ ] `notification_templates` table (event_type × channel × audience, body/subject with `{{var}}` placeholders) + per-event variable catalog `[ALL]` — essential foundation for everything else
-- [ ] Super-admin template editor: list by event, edit body/subject, live preview with sample data `[ALL]` — essential, the core deliverable
-- [ ] Test-send from the editor (email/SMS/Telegram) `[PA]` `[TN]` `[EC]` — essential; Telegram precedent already exists, extend to the other two channels
-- [ ] Fallback-to-default resolver (DB template missing/broken → safe default, never block a send) `[ALL]` — essential safety net, generalizes the existing WhatsApp-registry pattern
-- [ ] End-customer email templates (client_name, business_name, estimate_number, link, etc.) wired to a real send path `[EC]` — essential per locked scope
-- [ ] End-customer SMS templates + STOP/opt-out compliance verified against existing Twilio setup `[EC]` — essential, legally required
-- [ ] Sender-identity resolution for end-customer messages (business name surfaces, not just "Xtimator") `[EC]` — essential for the messaging to feel legitimately from the tenant
-- [ ] Agentic send tool exposed to WhatsApp assistant + MCP `[TN]`→`[EC]` — essential, explicit locked target feature
+The floor the milestone's own description already sets — a paginated mode that is correct, not just present.
+
+- [ ] Never split a line-item row across pages — the most basic correctness bar; anything else fails visibly on the first multi-page estimate
+- [ ] Section header keep-with-first-row; section subtotal keep-with-last-row
+- [ ] Totals block (Subtotal→Discount→Tax→Total→Deposit→Balance Due) as one atomic, never-split unit
+- [ ] Repeating line-items column header on continuation pages
+- [ ] Page 1 always carries letterhead + Bill To, non-repeating
+- [ ] Continuous/paginated toggle (icon + label) left of "Edit with AI," full inline editing preserved in paginated mode
+- [ ] Identical page-break DECISIONS between web preview and PDF (same content lands on the same page in both), verified structurally
 
 ### Add After Validation (v1.x)
 
-- [ ] Self-service Telegram chat binding via `/start` deep link (multiple admins register themselves without manual `getUpdates` lookup) `[PA]` — trigger: more than 1-2 platform admins need alerts, current manual chat_id lookup becomes a support burden
-- [ ] Delivery-status surfaced in admin UI (Resend/Twilio webhook ingestion beyond raw logging) `[PA]` — trigger: need visibility into bounce/failure rates once template send volume grows
-- [ ] Inline variable-picker/autocomplete in the template editor `[PA]` — trigger: editor UX friction reported by whoever maintains templates
-- [ ] Template version history / rollback `[PA]` — trigger: a bad template edit ships and there's no fast undo
+- [ ] Page numbers / "Page X of Y" footer — trigger: once multi-page estimates are common enough in real usage to justify it (many estimates will still be 1 page)
+- [ ] "Continued" section-continuation indicator — trigger: user feedback that mid-section page breaks are confusing without it
+- [ ] Cursor/scroll-position preservation across live repagination — trigger: if the debounced-reflow v1 approach produces a visibly jarring jump in practice
+- [ ] Orphan/widow control in terms/notes text — trigger: only if real estimates start carrying long enough terms/notes text for it to matter
 
 ### Future Consideration (v2+)
 
-- [ ] Tenant-level template overrides `[TN]` — locked out for v1; defer until tenants explicitly request copy beyond what variables (`{{business_name}}`, etc.) can express
-- [ ] Per-tenant sender reputation isolation (Twilio subaccounts / dedicated pools) `[EC]` infra — defer until real deliverability degradation is observed at scale
-- [ ] Two-way end-customer SMS/email reply threading `[EC]` — defer; WhatsApp stays the only two-way channel by design
-- [ ] Per-tenant configurable quiet-hours `[EC]` — defer; ship one platform-wide guard first
+- [ ] Explicit, data-persisted "force new page before this section" flag (a scoped, deliberate escape hatch — NOT a freeform manual page-break insertion) — defer until a real business case surfaces (e.g., legal boilerplate that must start on its own page)
+- [ ] Smart totals-block "push to fresh page vs cramped near-fit" refinement — nice-to-have polish layered on the base atomicity rule
 
 ## Feature Prioritization Matrix
 
-| Feature | Audience | User Value | Implementation Cost | Priority |
-|---|---|---|---|---|
-| Platform-event catalog | PA | HIGH | LOW | P1 |
-| Telegram per-event toggle matrix | PA | HIGH | LOW | P1 |
-| `notification_templates` schema + variable catalog | ALL | HIGH | MEDIUM | P1 |
-| Super-admin template editor + preview | ALL | HIGH | MEDIUM | P1 |
-| Test-send | PA/TN/EC | MEDIUM | LOW | P1 |
-| Fallback-to-default resolver | ALL | HIGH | LOW | P1 |
-| End-customer email templates + send | EC | HIGH | MEDIUM | P1 |
-| End-customer SMS templates + STOP compliance | EC | HIGH | MEDIUM | P1 |
-| Sender-identity resolution | EC | HIGH | LOW-MEDIUM | P1 |
-| Agentic send tool (WhatsApp/MCP) | TN→EC | HIGH | MEDIUM | P1 |
-| Self-service Telegram binding flow | PA | MEDIUM | MEDIUM | P2 |
-| Delivery-status dashboard | PA | MEDIUM | MEDIUM | P2 |
-| Inline variable-picker UX | PA | LOW | LOW | P2 |
-| Template version history | PA | LOW | MEDIUM | P3 |
-| Tenant-level template overrides | TN | MEDIUM | HIGH | P3 (locked out v1) |
-| Per-tenant sender isolation | EC infra | LOW today | HIGH | P3 |
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Never split a line-item row | HIGH | LOW | P1 |
+| Section header/subtotal keep-with rules | HIGH | LOW-MEDIUM | P1 |
+| Totals block atomicity | HIGH | LOW | P1 |
+| Repeating table header on continuation pages | HIGH | MEDIUM | P1 |
+| Continuous/paginated toggle UX | HIGH | LOW | P1 |
+| Live editable paginated mode (debounced reflow) | HIGH | HIGH | P1 |
+| Web/PDF page-break decision parity | HIGH | HIGH | P1 |
+| Page numbers / footer | MEDIUM | LOW | P2 |
+| "Continued" indicator | LOW-MEDIUM | LOW | P2 |
+| Cursor/scroll preservation on reflow | MEDIUM | MEDIUM | P2 |
+| Orphan/widow control in text blocks | LOW | LOW | P3 |
+| Manual forced-page-break data flag | LOW (no known current demand) | MEDIUM | P3 (v2+, only if requested) |
 
 **Priority key:**
-- P1: Must have for launch (this milestone)
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
+- P1: Must have for this milestone
+- P2: Should have, add when possible in this milestone or a fast follow
+- P3: Nice to have, defer to a future milestone with an explicit trigger
 
 ## Competitor Feature Analysis
 
-| Feature | Postmark / Customer.io | Intercom | Xtimator's Approach |
-|---|---|---|---|
-| Variable placeholder syntax | Postmark: Mustache. Customer.io: Liquid (`{{customer.first_name}}`), code editor shows sample data + available attributes inline | Merge-tag picker UI | Keep the existing `{{var}}` convention already used in `copy.ts`/milestone spec — no new templating engine dependency, server-resolved with a per-event sample-data preview |
-| Test send | Postmark: edit JSON test variables (not saved with template), send test email, switch HTML/text | Preview + test send to admin | Reuse the EXISTING Telegram "send test alert" button pattern; extend the same UX shape to email/SMS from the same editor screen |
-| Per-account customization | Both support per-customer/workspace template overrides as a core feature | Yes | Explicitly NOT included in v1 (locked decision) — single global template per event, template variables carry tenant identity instead |
-| Fallback on missing/broken template | Not always graceful — a bad Liquid reference can break the send | Falls back to a default | Xtimator's existing `whatsapp-registry.ts` DB-falls-back-to-static-map pattern is a stronger baseline than what was found documented for the competitors above — generalize it, don't weaken it |
-| Sender identity for multi-tenant sends | MailerSend/MailChannels writeups stress platform-published guides for tenants on DNS/SPF/DKIM + honest friendly-from naming (Gmail now penalizes deceptive friendly-from) | N/A (single-tenant product) | Friendly-from with an honest "via Xtimator" qualifier + business name leading the SMS body — avoids the deceptive-friendly-from trap while still reading as the tenant's business |
+| Feature | PandaDoc | Proposify | QuickBooks Online | Google Docs | CKEditor 5 Pagination | Xtimator's Plan |
+|---------|----------|-----------|--------------------|--------------|------------------------|------------------|
+| Continuous ⇄ paginated toggle | No true toggle — content flows continuously with optional manually-inserted page-break blocks | Not documented in sources found (page-based editor by default) | N/A — estimates aren't live-edited in a paginated view; only static PDF export | Format menu "Switch to Pageless" — no toolbar icon prior to 2024, now a quick-access toggle, no keyboard shortcut | Toolbar buttons for page navigation + page count display | Icon+label toggle in the toolbar (already scoped), no shortcut — matches Google Docs/Word convention, not PandaDoc's block-insertion model |
+| Live editing inside paginated view | Yes, but breaks are driven by manual page-break blocks + estimated-break markers, not deterministic auto-layout | Yes (page-based by design) | No — static PDF only | Yes (mature, general-purpose word processor) | Yes — explicit design goal, "intelligent algorithms... on-screen exactly as it will appear in exported documents" | Yes — required by the milestone; closest analog is CKEditor 5's design goal, scoped down to Xtimator's much simpler structured-table content model |
+| Never-split table rows | Not specifically documented | Not specifically documented | N/A | N/A (general prose editor, not table-centric) | Explicitly "avoids breaking table cells" | Table stakes — P1 |
+| Repeating table header on continuation pages | Not confirmed in sources found | Not confirmed | Not confirmed for QBO specifically | N/A | Not confirmed in sources found | Build explicitly — general HTML-to-PDF guidance calls this the single most important long-table rule; react-pdf needs it hand-built |
+| Manual page-break insertion | Yes (a first-class content block) | Likely (page-based editor) | N/A | Yes (Insert > Break > Page break) | Yes (dedicated Page Break feature, alongside automatic breaks) | Explicitly rejected as an anti-feature for v1 — conflicts with "one deterministic rule" |
+| Pixel/byte-identical preview-vs-output | Not applicable/claimed | Not applicable/claimed | N/A | Preview IS the same rendering engine (no separate export renderer) | Claims WYSIWYG accuracy but is a single-engine web editor (no separate PDF-generation engine to diverge from) | NOT the bar — Xtimator has two genuinely different rendering engines (browser CSS vs react-pdf/Yoga); target same-breaks/same-content parity instead |
 
 ## Sources
 
-**Codebase (HIGH confidence, verified directly):**
-- `lib/telegram/client.ts`, `lib/observability/ops-alert.ts`, `lib/admin/integrations-providers.ts`, `lib/platform-config.ts`
-- `lib/notifications/{dispatch,copy,event-types,whatsapp-registry,preferences}.ts`
-- `lib/email/*` (Resend), `lib/sms/client.ts` (Twilio)
-
-**Official docs (verified via WebFetch, HIGH-MEDIUM confidence):**
-- [Resend webhook event types](https://resend.com/docs/dashboard/webhooks/event-types)
-- [Twilio outbound message status tracking](https://www.twilio.com/docs/messaging/guides/track-outbound-message-status)
-- [Telegram deep links (official)](https://core.telegram.org/api/links)
-- [Postmark transactional email best practices 2026](https://postmarkapp.com/guides/transactional-email-best-practices)
-- [Postmark MailMason template toolset](https://postmarkapp.com/mailmason)
-- [Customer.io transactional email docs](https://docs.customer.io/journeys/send/transactional/email/)
-- [Customer.io email code editor (Liquid variables)](https://docs.customer.io/journeys/email-code-editor/)
-
-**WebSearch, cross-referenced (MEDIUM confidence):**
-- [Telegram MarkdownV2 escape guide](https://botnamefinder.com/blog/telegram-markdownv2-escape-characters)
-- [grammY ParseMode reference](https://grammy.dev/ref/types/parsemode)
-- [Telegram deep linking (aiogram docs)](https://docs.aiogram.dev/en/latest/utils/deep_linking.html)
-- [A2P 10DLC compliance guide 2026 (Textbolt)](https://textbolt.com/blog/10dlc-compliance/)
-- [A2P 10DLC compliance guide (Sakari)](https://sakari.io/blog/meeting-10dlc-compliance-with-opt-ins)
-- [TCPA quiet hours guide (ReadySMS)](https://readysms.io/blog/quiet-hours-sms-rules)
-- [SMS quiet hours 2026 (MessageBlink)](https://www.messageblink.com/sms-quiet-hours-what-they-are-in-2026/)
-- [Multi-tenant transactional email guide (MailerSend)](https://www.mailersend.com/blog/multi-tenant-email-sending)
-- [Multi-tenant email deliverability 2026 (MailChannels)](https://www.mailchannels.com/multi-tenant-email-deliverability/)
-
-**LOW confidence (single-source WebSearch summaries, not independently fetched — flag for validation if load-bearing):**
-- Twilio Advanced Opt-Out auto-handling of STOP/START/HELP specifically requiring a Messaging Service — WebSearch summaries did not confirm this explicitly; verify against Twilio's own Advanced Opt-Out docs before relying on it instead of custom STOP logic
-- Gmail's stricter stance against deceptive "friendly-from" names — sourced from a WebSearch summary of a MailerSend blog post, not Google's own sender guidelines page
+- [How to Control Page Breaks in HTML to PDF Output — DEV Community](https://dev.to/accreditly/how-to-control-page-breaks-in-html-to-pdf-output-1maj) — MEDIUM confidence (aggregated web guidance, cross-checked against MDN CSS Paged Media)
+- [CSS paged media — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Paged_media) — HIGH confidence (official spec documentation)
+- [PandaDoc: Document design — Help Center](https://support.pandadoc.com/en/articles/9714603-document-design) — HIGH confidence (official vendor docs)
+- [PandaDoc: Content builder blocks — Help Center](https://support.pandadoc.com/en/articles/9714573-content-builder-blocks) — HIGH confidence (official vendor docs)
+- [How to Turn Off Pageless in Google Docs — Adazing](https://www.adazing.com/how-to-turn-off-pageless-in-google-docs/) — MEDIUM confidence (third-party but consistent across multiple independent write-ups)
+- [Google Docs makes it easier to switch to Pageless mode — 9to5Google](https://9to5google.com/2024/01/31/google-docs-pageless-mode/) — MEDIUM confidence (tech press, consistent with vendor behavior)
+- [react-pdf: Page Wrapping documentation](https://github.com/diegomura/react-pdf-site/blob/master/docs/page-wrapping.md) — HIGH confidence (official library source docs — `wrap`, `break`, `fixed` props verified directly)
+- [react-pdf GitHub Issue #2099: Repeated Headers on Tables](https://github.com/diegomura/react-pdf/issues/2099) — MEDIUM confidence (maintainer/community issue thread; confirms no native repeat-on-continuation support as of investigation)
+- [react-pdf GitHub Issue #827: Page break controlled](https://github.com/diegomura/react-pdf/issues/827) — MEDIUM confidence (community issue thread)
+- [Word: Document Views — TeachUcomp / Word status bar guidance](https://www.teachucomp.com/document-views-in-word/) — MEDIUM confidence (third-party training material, consistent across multiple sources on Print Layout vs Web Layout)
+- [CKEditor 5 Pagination feature announcement](https://ckeditor.com/blog/How-to-create-ready-to-print-documents-with-page-structure-in-WYSIWYG-editor---CKEditor-5-pagination-feature/) — MEDIUM confidence (official vendor blog; internals of reflow-timing not disclosed, flagged LOW for that specific sub-claim)
+- [Paged.js — GitHub](https://github.com/pagedjs/pagedjs/) — HIGH confidence (official project README, referenced as an architectural precedent, not necessarily an adoption recommendation)
+- [Canva: Page view settings — Help Center](https://www.canva.com/help/page-view-settings/) — HIGH confidence (official vendor docs)
+- [Canva: Adjust your Canva Docs page set up — Help Center](https://www.canva.com/help/adjust-canva-docs-page-setup/) — HIGH confidence (official vendor docs)
+- [QuickBooks Community: Lines broken on PDF invoice export](https://quickbooks.intuit.com/learn-support/en-us/other-questions/lines-broken-on-pdf-invoice-export/00/1508164) — LOW-MEDIUM confidence (user forum, illustrates real-world pain point rather than authoritative spec)
+- Xtimator codebase (`components/workspace/estimate/estimate-floating-actions.tsx`, `components/share/estimate-document-modern.tsx`, `components/pdf/estimate-pdf.tsx`, `components/pdf/estimate-pdf-modern.tsx`) — HIGH confidence, direct inspection, 2026-07-27
 
 ---
-*Feature research for: Notification Center (three-audience) — Xtimator v4.21*
-*Researched: 2026-07-21*
+*Feature research for: Paginated document editor / PDF-preview mode, estimate & invoice documents*
+*Researched: 2026-07-27*

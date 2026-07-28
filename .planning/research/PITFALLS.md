@@ -1,248 +1,288 @@
 # Pitfalls Research
 
-**Domain:** Multi-audience notification center (Telegram platform-ops bot + DB-driven editable templates + end-customer email/SMS + agentic send) added to a live, multi-tenant SaaS notification pipeline
-**Milestone:** v4.21 Notification Center
-**Researched:** 2026-07-21
-**Confidence:** HIGH — every pitfall below is grounded in direct inspection of the current Xtimator codebase (file/line citations included), not generic domain knowledge. Where a claim relies on general TCPA/A2P/Telegram-API domain knowledge rather than a codebase fact, it is flagged MEDIUM and called out in Sources.
+**Domain:** Unifying a DOM webview and `@react-pdf/renderer` PDF engine onto one shared document structure with deterministic, mirrored pagination, plus a new editable paginated editor mode (Xtimator v4.23 Unified Estimate Document Engine)
+**Researched:** 2026-07-27
+**Confidence:** MEDIUM-HIGH (codebase evidence is HIGH confidence — read directly from the repo; react-pdf/Yoga internals are MEDIUM — WebSearch + training knowledge, Context7 was unavailable in this research session)
+
+## Codebase Baseline (grounds every pitfall below)
+
+- `components/pdf/estimate-pdf.tsx` (860 lines) and `components/pdf/estimate-pdf-modern.tsx` (861 lines) are independent, duplicated `@react-pdf/renderer` trees — zero shared layout code with each other or with the webview.
+- `components/workspace/estimate/estimate-document.tsx` is **2037 lines**, is the editable webview, uses a custom `useEstimateReducer`/`dispatch` model (NOT react-hook-form), has **zero `useMemo`/`useCallback`** anywhere in the file, and already has two separate `dnd-kit` `DndContext`/`SortableContext` pairs (one for sections, one for items-within-a-section at lines 838 and 1875).
+- `components/share/estimate-document-modern.tsx` (579 lines) is the read-only share webview and design benchmark.
+- An existing `pageView?: boolean` prop ("Quick-260718-p3v", `estimate-document.tsx:404-407, 1664-1665`) already renders a "print-preview letter sheet" — but it is **cosmetic only**: a single continuous `min-h-[1056px]` / implied `max-w-[816px]` box at **96dpi CSS px** (11in × 96 = 1056, 8.5in × 96 = 816). It does not compute real page breaks.
+- `estimate-pdf.tsx:491` uses `<Page size="LETTER">`, which react-pdf resolves to **612 × 792pt at 72dpi** — a **1.333× (96/72) unit mismatch** against the webview's existing 816/1056px approximation. Any shared numeric design token must convert through this ratio explicitly.
+- Fixed header/footer already exist in the classic PDF (`estimate-pdf.tsx:492-495` header `fixed`, `~852` footer `fixed`).
+- `app/api/estimates/[id]/pdf/route.ts` is the **only one of three PDF call sites already done right**: it resolves `templateId` from `company.estimate_template_style`, applies `applySignedSnapshot()` over `loadLatestSignedSnapshot()` (TRUST-01), and resolves photo signed URLs (1-hour TTL) server-side before constructing the element tree.
+- `app/api/estimates/[id]/send/route.ts:7,192-200` (email attach) **hardcodes `EstimatePDF`** (Classic only) and renders straight from the **live** `estimate` object — no `applySignedSnapshot`, no template lookup. This is a live, confirmed bug today, not a hypothetical.
+- `lib/whatsapp/pdf-delivery.ts:15,48-56` **also hardcodes `EstimatePDF`**, also skips `applySignedSnapshot`, and its own header comment explicitly forbids calling the `/api/estimates/[id]/pdf` route internally because the webhook/Inngest caller context has no auth cookies (`createClient()` would fail). Its signed photo-URL TTL is 24h (86400s) vs. the download route's 1h (3600s) — an existing inconsistency, not yet a bug, but a trap for anyone assuming the two are interchangeable.
+- Some non-visual logic is already correctly shared across DOM and PDF today (`SYSTEM_COLORS`, `formatMoney`, `deriveDepositDisplay`, `resolvePresentationSettings`/`isSectionVisible`) — proof that pure-data/pure-function sharing works; the milestone's job is to extend this pattern to structure/layout decisions, not to invent it from scratch.
+- `lib/estimate/compute-totals.ts` is the GUARD-03 server-authoritative math module — no financial arithmetic should ever move into `estimate-document.tsx`, the PDF templates, or the new pagination module.
 
 ## Critical Pitfalls
 
-### Pitfall 1: The DB template lookup silently drops TypeScript's exhaustiveness safety net
+### Pitfall 1: Chasing Pixel-Perfect Dual-Engine WYSIWYG Is a Doomed Goal
 
 **What goes wrong:**
-`lib/notifications/copy.ts`'s `buildNotificationCopy` is a `switch` over the `EventType` union with **no `default` case** — if a new `EventType` is added to the union without a matching `case`, `tsc` fails the build. That is the only thing today preventing a "new event, forgotten copy" bug. The moment `copy.ts` becomes a DB lookup (`SELECT body FROM notification_templates WHERE event_type = ...`), that compile-time guarantee disappears — a missing row is now a **runtime** condition, not a build failure. `tests/unit/notifications/event-sources.test.ts` and `copy-tenant-neutrality.test.ts` currently assert against the hardcoded strings; both silently stop testing anything meaningful once `copy.ts` becomes a thin DB-fetch shim, unless they're rewritten to seed/assert against the DB-driven path.
+Trying to make the browser (CSS text layout, subpixel font hinting, kerning tables from the *installed/loaded webfont*) and react-pdf (Yoga flexbox + its own glyph-metrics text engine reading embedded TTF/AFM data) independently compute the **exact same line-wrap and page-break points** for the same content. They almost never will, even at identical font-size/line-height/width, because the two are different text-layout implementations reading different metric sources.
 
 **Why it happens:**
-Moving from a compiled switch to a DB table trades a compile-time contract for a runtime one, and it's easy to ship the DB read path without also shipping (a) a seed migration populating a row for every existing `EventType`, and (b) a CI check that every `EventType` has a corresponding seeded template row.
+It's the intuitive first approach — "render both from the same JSX-like structure and they'll agree" — because both use flexbox-shaped APIs (`<View>`≈`<div>`, `<Text>`≈`<span>`), which hides how different their line-breaking algorithms actually are underneath.
 
 **How to avoid:**
-- Ship one migration that seeds a template row for **every** current `EventType` (source the copy from the current `copy.ts` switch verbatim — a byte-identical seed, not a rewrite) before the dispatch path is switched to read from the DB.
-- Add a CI-run test (in the already-configured `vitest run tests/unit` scope per `tsconfig.ci.json`) that diffs `Object.keys(EVENT_CATEGORIES)` (still a compiled TS source) against the seeded DB template rows, so a new `EventType` with no template is a red CI, not a silent runtime gap.
-- Keep the hardcoded `copy.ts` strings as the **fallback** (see Pitfall 2), not delete them.
+Don't let either engine be the source of truth for **where breaks fall**. Build ONE shared, deterministic pagination module that decides break points from a conservative height estimation model (per-row/per-block height budget with safety margin) or, better, from precomputed explicit break indices baked into the document's rendered structure. Both the DOM paginated preview and the react-pdf renderer then *place* content according to that single precomputed plan — they don't each run their own layout engine to *discover* breaks. Treat "the two engines emergently agree" as an anti-goal.
 
 **Warning signs:**
-- Any new `EventType` added to `lib/notifications/event-types.ts` without a paired template-editor row.
-- `notify()` sending a blank/undefined title or body in production logs.
+Any design that says "we'll fine-tune CSS and react-pdf styles until they line up" without a single arbiter module; a spec that asks for `<1px` pixel parity between the two renders instead of "same items on the same page, in the same order."
 
 **Phase to address:**
-Schema/foundation phase (the phase that introduces `notification_templates` and migrates `copy.ts` off the hardcoded switch) — this is a day-one guard, not late polish.
+The Consolidated Page-Break Rule phase (the milestone's own "central open question") — must ship BEFORE the paginated editor mode and PDF parity phases, since both consume its output.
 
 ---
 
-### Pitfall 2: No missing-template fallback means a bad admin edit blocks or blanks a live send
+### Pitfall 2: px vs pt Unit Confusion Corrupts the Page Canvas Itself
 
 **What goes wrong:**
-`notify()` is explicitly designed to **never throw and never block the business operation that triggered it** (its own doc comment: "A failure to write a notification MUST NOT break the business operation"). If the new DB template lookup returns `null` (row deleted, unpublished, or a variable substitution throws on a malformed `{{ref}}`) and there's no fallback, two bad outcomes are equally likely depending on how the migration is written: (a) the whole `notify()` call throws inside a `try/catch` that was written assuming `buildNotificationCopy` is synchronous and total (it always returns something today — see the guideline in `copy.ts`'s own header: "even when `ctx` fields are missing the function still returns a coherent sentence... never throws"), or (b) it silently sends an empty-subject/empty-body email or SMS to a real end customer.
+`estimate-pdf.tsx` already uses `<Page size="LETTER">` → **612 × 792pt at 72dpi**. The existing `pageView` webview toggle approximates Letter at **816 × 1056 CSS px at 96dpi** (`estimate-document.tsx:1664-1665`). 96/72 = 1.333. If a shared design-token value (padding, row height, font size) is copied 1:1 between the two without converting through this ratio, the *page itself* is a different physical size in the two renderers before a single line of content is even measured — every downstream break calculation is then comparing apples to oranges.
 
 **Why it happens:**
-`copy.ts`'s current contract — "defensive defaults, never throws, always coherent" — is easy to lose the moment the function becomes `async` and DB-backed, because the natural implementation (`const row = await getTemplate(eventType); return { title: row.title, body: interpolate(row.body, ctx) }`) has no defined behavior for `row === null`.
+Both APIs accept bare numbers with no unit suffix in the style object, so `padding: 24` "looks" portable between a Tailwind/CSS `<div>` and a react-pdf `<View>` even though CSS resolves it as 24px (96dpi) and react-pdf resolves it as 24pt (72dpi) — a silent 33% size difference with no compiler warning.
 
 **How to avoid:**
-Mirror the fallback pattern this codebase **already built and shipped** for exactly this problem: `lib/notifications/whatsapp-registry.ts`'s `getApprovedTemplateForEvent()` — DB row missing/unapproved → falls back to the static `REGISTRY` map → `null` is a safe, silent no-op branch upstream. Do the same for the new generalized template system: DB row missing/malformed → fall back to the **retained** hardcoded `copy.ts` switch (don't delete it, demote it to `DEFAULT_COPY`) → only if that somehow also fails, skip the channel rather than send blank content or throw.
+Centralize a single conversion constant (`PT_PER_PX = 72/96` or its inverse) in the shared design-token module, and pick ONE canonical unit for the token source (recommend pt, since that's what defines the actual page geometry: 612×792). Every consumer — the DOM paginated preview's inline styles/CSS variables AND the react-pdf `StyleSheet` — derives from that same source through the same conversion function, never a hand-copied literal.
 
 **Warning signs:**
-- Any end-customer or admin-facing message that arrives with an empty body/subject.
-- `notify()`'s try/catch swallowing an error that used to be impossible (synchronous, total function) and is now possible (async DB read that can reject).
+Any PR that hardcodes a raw number in both a Tailwind class/inline style AND a react-pdf `StyleSheet.create` value without going through a shared token; visually "close but subtly larger/smaller" PDF output compared to the paginated preview during side-by-side review.
 
 **Phase to address:**
-Template-engine phase (same phase as Pitfall 1) — the fallback discipline has to exist before ANY channel is cut over to DB-sourced copy, tenant-facing or customer-facing.
+Shared Document Engine / design-token phase — this is foundational and blocks the page-break rule phase, since page-break math is meaningless if the two renderers disagree on page dimensions.
 
 ---
 
-### Pitfall 3: Editable `{{var}}` templates break the WhatsApp HSM's positional `{{n}}` contract
+### Pitfall 3: Text-Wrapping and Hyphenation Differences Break Line-Level Mirroring
 
 **What goes wrong:**
-`lib/notifications/whatsapp-registry.ts` already shows the exact seam where this breaks: every WhatsApp send goes through a `variables: (payload) => string[]` **projector function** that turns named fields into an **ordered** array (`titleBodyVars` → `[title, body]`) matching Meta's positional `{{1}}`, `{{2}}` placeholders in the pre-approved HSM template. Meta's API has no concept of named variables — it is strictly positional, and a WhatsApp template edit/approval is a slow, external, human-reviewed process (Meta Business Manager), unlike the same-request DB writes for email/SMS/in-app. If the new template editor lets a super-admin edit an event's variable list (add/remove/reorder `{{client_name}}`, `{{estimate_number}}`, …) as if it applies uniformly across all four channels, one of two things breaks silently for WhatsApp specifically: (a) the ordered array sent to Meta no longer matches what the *already-approved* HSM template expects (right count, wrong order → the wrong values land in the wrong slots of a real customer/owner message, with **no error from Meta** — a reordering send doesn't fail, it just says something wrong), or (b) the count changes (a variable added/removed) and Meta **rejects** the send outright because the approved template's `{{n}}` count doesn't match.
+Even with identical page dimensions and font sizes, the browser's Unicode/ICU line-breaking (plus whatever webfont is actually loaded in that browser) and react-pdf's own text-layout engine (reading the *registered* TTF/AFM font) can wrap a long line differently — especially on long unbroken tokens (URLs in notes, SKUs, long client addresses, long line-item descriptions). One engine hyphenates or breaks a word the other doesn't.
 
 **Why it happens:**
-Email/SMS/in-app template bodies are freeform strings where `{{var}}` can appear anywhere, any number of times, in any order — trivially editable. WhatsApp HSM bodies are **not editable at all** post-approval; only the *values* plugged into the fixed `{{n}}` slots can change. Building one "generic template editor" UI without modeling this distinction lets someone edit a WhatsApp-backed event's variable list as freely as an email one.
+`@react-pdf/renderer`'s text layout converts characters to glyphs using the *specific font it has registered* (via `Font.register`) — if that isn't the *exact same font file/weight* the browser is using (not just the same font-family name — different subsetted webfont vs. desktop-installed vs. bundled TTF can have different kerning/width tables), glyph widths differ, so wrap points differ even at identical content and container width.
 
 **How to avoid:**
-- Treat WhatsApp as structurally different in the schema: the template editor's variable list for a WhatsApp-mapped event should be **read-only / order-locked**, sourced from `variables_schema` (the column that already exists on `whatsapp_notification_templates` but is currently unused by `getApprovedTemplateForEvent`, which still hardcodes `titleBodyVars`) — not from the same free-text `{{var}}` body editor used for email/SMS.
-- Any change to a WhatsApp event's variable *set* must be gated on "has a matching Meta-approved template been registered with this exact `{{n}}` count," not just saved to the DB.
-- Add a runtime guard in the WhatsApp send path: if the resolved `variables()` array length doesn't match the DB template's `variables_schema.length`, refuse the send and log/alert rather than fire a garbled message.
+Register the SAME font files (same TTF, same weights) in react-pdf that the DOM preview loads via `next/font` or `@font-face`, not a same-named-but-different-source font. Add a safety margin to the shared pagination module's per-line width estimate rather than trusting exact character-width equality between engines. For any field prone to long unbroken tokens (URLs, SKUs), apply an explicit break-opportunity strategy (word-break/overflow-wrap equivalent) consistently in both renderers rather than relying on hyphenation to save the day.
 
 **Warning signs:**
-- A WhatsApp send succeeding (200 from Meta) but the delivered message showing values in the wrong field (e.g., estimate number where the client name should be).
-- Meta returning a template-parameter-count error after an "unrelated" template-editor save.
+A long client address or item description that wraps to a different number of lines in the paginated preview vs. the PDF — this cascades into different page-break positions for everything after it.
 
 **Phase to address:**
-The phase that generalizes the template editor to cover WhatsApp (should be scoped as its own sub-phase, later than the email/SMS/in-app editor, precisely because of this structural mismatch) — flag for deeper research (Meta Cloud API template parameter validation behavior) before implementation.
+PDF Parity phase (font registration) in coordination with the Page-Break Rule phase (safety-margin estimation) — flag both PDF templates for a font audit (are Classic and Modern currently registering the same fonts as each other, let alone as the webview?).
 
 ---
 
-### Pitfall 4: Template-body HTML injection through un-escaped variable substitution
+### Pitfall 4: Non-Deterministic Font Registration / Hyphenation Breaks the "Preview Mirrors PDF" Contract Across Requests
 
 **What goes wrong:**
-The existing email renderer (`lib/email/notification-emails.ts`) hand-rolls `escapeHtml()` and calls it on every piece of dynamic content (`item.title`, `item.body`, `ctx.toName`, `ctx.branding.businessName`) **before** splicing it into the HTML string. That discipline is easy to lose once template *bodies themselves* become admin-authored strings containing `{{client_name}}`-style placeholders: a naive `template.replace(/\{\{(\w+)\}\}/g, (_, k) => String(vars[k] ?? ''))` executed on the final HTML string does NOT escape the substituted *values* — and those values include tenant/customer-supplied free text (`clientName`, `projectName`, `errorMessage`) that can legitimately contain `<`, `>`, `&`, or a stray `"` (e.g., a client literally named `<script>` in a CRM demo, or an AI-classified `jobType`/`errorMessage` string echoing raw content). Because the *template* is trusted (super-admin authored) but the *variable values* are not, the injection point is specifically the value-substitution step, not the template text.
+If `Font.register` or a custom `hyphenationCallback` is set up per-request (inside the route handler) instead of once at module scope, or if the hyphenation logic depends on non-pinned locale data or any non-pure input, two renders of the identical estimate content can produce *different* line breaks on different requests. That silently breaks the core promise of this milestone (deterministic, mirrored pagination) — a customer viewing the paginated preview then downloading the PDF a minute later could see the pages disagree even though nothing about the estimate changed.
 
 **Why it happens:**
-It's natural to treat "the template editor is admin-only, so it's trusted" as license to skip escaping — but the vulnerable step isn't the template, it's the values plugged in at send time, which can originate from tenant or end-customer input.
+It's easy to colocate registration with the render call "for locality," and to reach for `Intl`-based or environment-dependent word-break heuristics without realizing they aren't guaranteed stable across Node versions/ICU data.
 
 **How to avoid:**
-- Build one shared `renderTemplate(body: string, vars: Record<string,string>): string` used by every HTML-emitting channel (email digest, future customer-facing email), where the substitution step HTML-escapes every value the same way `notification-emails.ts` already escapes computed fields today.
-- Keep plain-text channels (SMS, Telegram body) on a *different*, non-HTML-escaping substitution path — escaping HTML entities into an SMS would show literal `&amp;` to a customer. Two renderers, not one, driven by channel type.
-- For Telegram specifically, `lib/telegram/client.ts` and `lib/observability/ops-alert.ts` already use `parse_mode: 'HTML'` with hand-rolled `&`/`<`/`>` escaping (see `formatOpsMessage`) — the new template system's Telegram renderer must reuse that exact escaping, not a fresh implementation, and must NOT switch to MarkdownV2 without also escaping MarkdownV2's much larger reserved-character set (`` _*[]()~`>#+-=|{}.! ``) — a common Telegram-bot mistake (see Pitfall 7).
+Register fonts and any hyphenation callback exactly once at module load (top-level, outside the request handler), and keep the callback a pure function of the input word only (no environment/locale lookups beyond a hardcoded, pinned rule set). Add a regression test that renders the same estimate content twice and asserts byte-identical (or break-index-identical) output.
 
 **Warning signs:**
-- Any customer-supplied or tenant-supplied field (`clientName`, `projectName`) rendering literally instead of escaped in a saved-template preview.
-- A support/admin report of a malformed or broken-looking email where a client name contained a special character.
+Flaky PDF-vs-preview parity tests that fail intermittently rather than deterministically; font registration code living inside `app/api/estimates/[id]/pdf/route.ts`'s request handler instead of a shared module-scope initializer.
 
 **Phase to address:**
-Template-rendering-engine phase, before any customer-facing (end-customer email) template goes live — this is the highest-severity item in that phase's own scope because end-customer emails are the least-monitored, least-reversible channel (once sent, it's sent).
+Shared Document Engine phase (font/hyphenation setup should be a single shared initializer imported by both PDF templates) — add a determinism test as an explicit success criterion, not an afterthought.
 
 ---
 
-### Pitfall 5: Cross-audience template editing leaks internal data or breaks a locked tenant-neutrality invariant
+### Pitfall 5: Reflow Thrash on Every Keystroke in the Paginated Editor
 
 **What goes wrong:**
-The milestone explicitly puts platform-admin (Telegram), tenant (in-app/email/WhatsApp/SMS), and end-customer (email/SMS) templates in **one shared, platform-wide, super-admin-only editor** with **no tenant overrides** (a locked decision). Two concrete existing invariants are easy to violate through this shared surface:
-1. `tests/unit/notifications/copy-tenant-neutrality.test.ts` locks in that `admin.bonus_credits_granted`'s body **must never contain a digit**, regardless of `ctx.credits` — a real, already-shipped business rule (CREDITUI-04: tenants never see raw credit counts, only a % bar). A DB-editable template with a `{{credits}}` variable exposed in that event's variable catalog would let a future super-admin trivially reintroduce the exact regression that shipped-and-was-fixed in v4.15/v4.17.
-2. A shared variable catalog across audiences risks a platform-admin event's internal fields (real $ cost, internal company UUID, AI error stack trace) being copy-pasted into an end-customer-facing template body, leaking data that should never leave the platform-admin/Telegram channel.
+`estimate-document.tsx` today has **zero memoization** across its 2037 lines and re-renders the whole tree on every controlled-input `onChange` via `dispatch`. Layering "recompute page breaks" on top of that (measuring row heights or re-running the shared pagination module) on every keystroke will make typing in the paginated mode visibly laggy or freeze on larger estimates, because a single-character edit in one item can cascade into a full re-pagination of every page after it.
 
 **Why it happens:**
-One editor UI for three audiences is efficient to build but erases the audience boundary that used to be enforced by separate hardcoded functions/files. Nothing in a generic `{{var}}` textarea stops an admin from typing a variable name that happens to resolve to sensitive data for that event.
+The natural implementation is "repaginate whenever content changes" wired directly to the same `dispatch` that already drives every input's `onChange` — with no debouncing or decoupling between "the value the user is typing" and "the value that feeds pagination."
 
 **How to avoid:**
-- Scope the variable catalog **per event type**, not globally — the editor should only ever offer the whitelisted variable names valid for that specific event (mirroring how `CopyContext` today is one big optional-fields interface, but each `case` in `copy.ts` only reaches into 2-3 of them). Never expose a global "insert any variable" picker.
-- For any event with a locked business-rule constraint (like `admin.bonus_credits_granted`), simply never add the sensitive field to that event's variable catalog at all — the safest enforcement is "the variable doesn't exist to insert," not a runtime content filter.
-- Keep the existing test as a live regression gate — since the value now comes from a DB row instead of a compiled string, the test needs to be re-pointed at whatever the DB seed/default for that event is, so it keeps failing CI if that default (or the catalog) regresses.
-- Since this is a single platform-wide edit with no tenant override and no staging, treat every save as an instant production change across every tenant and every future send — a preview + "send test to myself" step (per the milestone context's own PITFALLS-relevant framing) is materially more important here than in a per-tenant-scoped feature.
+Decouple live input value (updates instantly, no repagination) from the pagination-triggering value (debounced/deferred, e.g., on blur, on a `useDeferredValue`/idle-callback boundary, or throttled). Memoize per-item/per-section height inputs so an edit in item 40 doesn't force height recalculation of items 1-39. This is also the moment to introduce the memoization this component currently lacks entirely — don't let pagination be the second missing-memoization debt layered onto the first.
 
 **Warning signs:**
-- A pull request adding a new variable to an existing event's catalog without a corresponding audience-boundary review.
-- The `copy-tenant-neutrality` test (or its DB-era successor) going red.
+Visible input lag or dropped keystrokes when typing in the paginated mode on an estimate with many line items; the whole page-break plan being recalculated from scratch on every render in DevTools Profiler.
 
 **Phase to address:**
-Template-editor UI phase — the variable-catalog design (event-scoped, not global) is a schema/data-model decision that should be locked in the same phase the `notification_templates` table is designed, not retrofitted after the editor ships.
+Paginated Editor Mode phase — should budget explicit performance testing against a large (many-item, many-section, many-photo) estimate before shipping, not just a demo-sized one.
 
 ---
 
-### Pitfall 6: The shared, platform-wide Twilio number's reputation is one blast radius for six unrelated apps
+### Pitfall 6: Focus Loss When Repagination Moves the Edited Item to Another Page
 
 **What goes wrong:**
-`getTwilioConfig()` reads exactly **one row** from `platform_integrations` (`provider = 'twilio'`) — one Account SID, one Auth Token, one `from_phone` — used for every tenant's every SMS send today (`app/api/estimates/[id]/send-sms/route.ts`). Per project memory, this same Twilio account is **already shared across 6 apps and 3 databases** (Xtimator, Xphere×2, Xkedule, skaleclub-websites×2). This milestone adds (a) end-customer SMS as a first-class, template-driven feature and (b) **agentic send** — an LLM-triggered, ad-hoc SMS send path with no fixed message catalog. Both multiply the volume and unpredictability of traffic through that single shared number. US carriers (via A2P 10DLC or toll-free verification) evaluate spam/complaint signals **per sending number/campaign**, not per tenant or per app — a spike in complaint rate or unregistered use-case drift from Xtimator's agentic-send traffic can get that shared number throttled or blocked by carriers, silently breaking SMS for Xtimator's other tenants AND for the five other unrelated apps sharing the same Twilio account.
+When an edit grows an item's height enough to push it (and everything after it) onto the next page box, if the paginated layout re-renders that item as a *new* DOM node in a different page container (rather than the same node being visually relocated), the input loses focus and cursor position mid-keystroke — a jarring, data-loss-feeling bug (the user's next keystrokes go nowhere or into the wrong field).
 
 **Why it happens:**
-The current architecture (one platform-level Twilio config, no per-tenant or per-purpose number) was fine when SMS was a single templated "here's your estimate link" send. Agentic, freeform, higher-volume end-customer SMS is a materially different traffic profile riding the same infrastructure without anyone re-evaluating the shared-resource risk.
+Naive pagination implementations map "which page does item N belong to" freshly on every render and key/render page contents by page-index-then-item-index, so React sees a different key path for the same logical item once its page assignment changes, and re-mounts it.
 
 **How to avoid:**
-- Flag explicitly for the owner/operator: agentic SMS send volume needs A2P 10DLC campaign registration (or a dedicated Messaging Service) that reflects the *actual* new use-case (conversational/agentic business messaging, not just "estimate delivery notifications") — the existing registration (if any) may not legally or technically cover this new pattern.
-- Consider (as a design question to raise, not a decision to make silently) whether end-customer/agentic SMS should ride a **separate** `from_phone` / Messaging Service SID from the existing owner-notification SMS path, so a reputation hit on one doesn't take down the other — this only requires a second `metadata` field on the same `platform_integrations` row or a second provider key, consistent with the existing pattern.
-- Do not treat this as purely a code problem — it needs an explicit owner decision + Twilio Console action before agentic SMS ships to any real tenant.
+Key every editable row by a STABLE item id (not by page+index), independent of which page box it currently renders inside, so React's reconciliation preserves the DOM node (and hence focus) across a page-boundary move. Consider deferring the *visual* page reassignment slightly (e.g., only re-slot on blur, not on every keystroke) so an in-progress edit isn't visually relocated while the user is still typing in it.
 
 **Warning signs:**
-- Twilio delivery status callbacks (if added) showing a rising `undelivered`/`failed` rate.
-- Any of the other 5 apps sharing the account reporting SMS delivery problems that coincide with an Xtimator SMS volume change.
+Cursor jumps to the start/end of a field, or focus drops to the document body, when a user's edit causes a nearby page break to shift while they're still typing.
 
 **Phase to address:**
-Should be raised and decided in the phase that builds end-customer SMS + agentic send — this is a "needs deeper research + an explicit human decision" flag, not something to default silently. **Severity: HIGH.**
+Paginated Editor Mode phase — this should be an explicit test case ("type a long value that pushes the item across a page boundary; verify focus/cursor position survive"), not something caught only in manual QA.
 
 ---
 
-### Pitfall 7: Telegram bot built as two-way (webhook + commands) inherits serverless/polling and MarkdownV2 traps if copied naively
+### Pitfall 7: Drag-and-Drop Across Page Boundaries Has No Existing Primitive to Reuse
 
 **What goes wrong:**
-Xtimator already has a **one-way, fire-and-forget** Telegram integration (`lib/telegram/client.ts` + `lib/observability/ops-alert.ts`): single bot token, single hardcoded `chat_id`, outbound `sendMessage` only, `parse_mode: 'HTML'` with manual escaping. This milestone's "ALL platform events covered with per-event toggles in the admin panel" is an extension of that outbound-only model, and does NOT by itself require inbound webhook handling. But if implementation reaches for two-way interactivity (admins replying/acting from Telegram, or a `/start` binding flow to register a chat_id) without deliberate design, several concrete traps apply to THIS deployment (a persistent Docker container on Coolify — not Vercel edge, but also not a bot-framework-managed process):
-- **Polling mode is architecturally wrong here.** There is no long-running "start a polling loop at boot" slot in a Next.js App Router server — the only durable background-execution mechanism in this codebase is Inngest (used for every async fan-out today: `notification-channel-send`, cron jobs). Reaching for a library's default `bot.startPolling()` either does nothing (no process ever calls it) or, if force-fit into a route handler, can register duplicate `getUpdates` pollers across container restarts/replicas and trigger Telegram's `409: terminated by other getUpdates request` conflict.
-- **Webhook is the correct model** and there's a direct precedent to mirror: `app/api/webhooks/whatsapp/route.ts` verifies `x-hub-signature-256` against `META_WHATSAPP_APP_SECRET`. Telegram's equivalent is `setWebhook`'s `secret_token` parameter, checked against the `X-Telegram-Bot-Api-Secret-Token` header on every inbound POST — skipping this leaves `/api/webhooks/telegram` (once built) as an open POST endpoint anyone can spoof to inject fake bot updates.
-- **The precedent itself is a trap for this project's own hard rule:** the existing WhatsApp webhook secret (`META_WHATSAPP_APP_SECRET`, `META_WHATSAPP_VERIFY_TOKEN`) is stored as a plain **env var**, not in `platform_integrations` — inconsistent with the project's stated rule ("provider credentials live encrypted in the DB... NEVER env vars"). Copying that pattern verbatim for a new Telegram webhook secret repeats the inconsistency; the bot token already correctly lives in `platform_integrations` via `getTelegramConfig()` (with an explicit env fallback marked "dev only") — any new webhook `secret_token` should follow that same DB-encrypted pattern, not the WhatsApp webhook's env-var precedent.
-- **MarkdownV2 escaping hell** only applies if/when the renderer switches from `parse_mode: 'HTML'` (current, simple 3-character escape set: `&<>`) to `MarkdownV2` (a much larger reserved set), which is often reached for because it looks nicer for bold/links — every dynamic value (client names, error messages, estimate numbers containing `.` or `-`) then needs full MarkdownV2 escaping or Telegram returns a 400 `can't parse entities`. **Recommendation: stay on HTML `parse_mode`** (already proven, already escaped correctly in `formatOpsMessage`) rather than introduce MarkdownV2 for the richer per-event template system.
-- **Chat-id binding is fragile.** The current single hardcoded `chat_id` in `metadata` assumes one admin/one chat. If a group chat is used and later "upgraded" to a Telegram supergroup, Telegram issues a **new** negative chat_id (`-100xxxxxxxx`) — the old stored id starts failing silently (Telegram returns `chat not found`, and `sendTelegramMessage` throws — currently swallowed by `notifyOps`'s catch, meaning delivery could go dark with no visible failure signal for weeks). If the milestone moves to multiple admins/chat_ids, this needs an explicit re-verification step surfaced in the admin panel, not just "save and hope."
-- **Rate limits.** Telegram's Bot API caps outbound messages to roughly 30/sec globally and ~1/sec per chat_id (lower for groups). Fanning out many platform events (tenant signups, job failures, quota alerts) through per-event toggles into ONE chat with no batching/queueing can hit `429 Too Many Requests` under a burst (e.g., a mass failure incident generating many alerts at once — precisely the moment reliable delivery matters most).
+The existing `dnd-kit` setup has two independent `DndContext`/`SortableContext` pairs (sections; items-within-a-section). Pagination adds a THIRD grouping axis — visual page membership — that is *derived* from content, not stored data. A naive port would try to make page-scoped `SortableContext`s, which breaks reordering across a page boundary (dropping the last item of page 1 onto page 2) because dnd-kit's sortable strategy assumes a stable list per context, and page membership changes as a side effect of *any* edit, not user intent.
 
 **Why it happens:**
-The existing dormant Telegram integration was scoped narrowly (ops alerts only, one admin, outbound only) and its simplicity hides all of the above until the surface area grows (more events, more admins, interactivity).
+It's tempting to mirror the visual page layout in the data structure (e.g., "sections grouped by page") because that's how the UI looks — but the underlying section/item order is the single source of truth, and page assignment must be a pure, recomputed *projection* of that order plus the shared pagination module, never something dnd-kit's drop targets are allowed to mutate directly.
 
 **How to avoid:**
-- Keep the bot outbound-only (matches the milestone's literal scope — "platform events delivered to Xtimator admins") unless two-way interactivity is explicitly required; this sidesteps the webhook/polling/signature questions entirely for v1.
-- If/when interactivity is added: webhook route + `secret_token` stored in `platform_integrations` (not env) + dispatch through Inngest, exactly mirroring the WhatsApp webhook + `notification-channel-send` pattern already proven in this codebase.
-- Stay on `parse_mode: 'HTML'`, reuse `formatOpsMessage`'s escaping.
-- Add a lightweight send queue/backoff (even a simple per-chat token-bucket, since Inngest already provides retry/backoff primitives used elsewhere) before fanning many per-event toggles into a burst of individual `sendMessage` calls.
-- Surface chat_id health in the admin panel (last successful send timestamp) so a silently-broken binding is visible, not just swallowed by `notifyOps`'s catch-all.
+Keep the SAME single flat/nested ordering data model (sections → items) that drives both the full-width and paginated views; the pagination module computes page assignment as a derived read-only property for rendering only. Drag targets stay scoped to the logical (unpaginated) order — dropping "near the bottom of what's visually page 1" should insert at the correct logical position, and the next repagination pass naturally reflows the pages. Do not add a `page_number` column/field to items or sections.
 
 **Warning signs:**
-- `notifyOps`/Telegram send logs showing repeated swallowed errors (currently invisible — nothing surfaces them today).
-- A burst of platform events (e.g., a mass job failure) correlating with missing Telegram alerts.
+Any schema or reducer-action change that persists a page number on an item/section; drag interactions that work fine within a page but silently fail or reorder incorrectly when dragged across a visual page boundary.
 
 **Phase to address:**
-The Telegram-channel phase — scope it explicitly as outbound-only + per-event-toggle first; flag two-way interactivity as a separate, deeper-research phase if it's ever pursued.
+Paginated Editor Mode phase, in explicit coordination with the Page-Break Rule phase (which owns "what page is item N on" as a pure function of order + content, not stored state).
 
 ---
 
-### Pitfall 8: Agentic send has no confirmation-gate precedent to inherit, and the existing "write-immediately" pattern is the wrong one to copy
+### Pitfall 8: `renderToBuffer` Blocks the Node.js Event Loop — and This Milestone Makes Renders Bigger
 
 **What goes wrong:**
-This codebase has TWO existing patterns for LLM-triggered writes, and they are **not interchangeable**:
-1. `lib/whatsapp/manage-tools.ts` (`add_service`, `add_knowledge`) — writes immediately, no confirmation turn, because the action is internal, reversible, and same-tenant (adding a price-book entry).
-2. `lib/whatsapp/confirm.ts` + `agent.ts` + `confirm-actions.ts`'s `actionSend` — sending an estimate to an **external party** (the client) goes through a dedicated `awaiting_confirm` session state machine: the estimate must reach a confirmed draft state before `actionSend` ever fires, and even then it only fires from within that gated flow.
-
-"Send an SMS/email to my client about X" (the new agentic-send feature) is squarely in the second category — external recipient, real cost, real reputational/compliance exposure (TCPA), irreversible once sent — yet it's a brand-new capability being added at the same time as the general "LLM writes tools" pattern is being extended, making it easy for an implementer to reach for the *simpler*, already-familiar `manage-tools.ts`-style immediate-write pattern (less code, fewer states to manage) rather than the *correct*, heavier `confirm.ts`-style gated pattern. There is no existing single "send a message to an external party via natural-language request" tool to copy from directly — `actionSend` sends a *pre-existing estimate*, not an arbitrary agent-composed message, so the new tool also needs its own confirmation UX designed, not just wired.
+`@react-pdf/renderer`'s `renderToBuffer` (used today in all three PDF call sites: `pdf/route.ts`, `send/route.ts`, `pdf-delivery.ts`) is CPU-bound and runs on the single Node.js thread — it's a documented upstream limitation (diegomura/react-pdf issue trackers describe it hogging the main thread and causing request timeouts under concurrent load). This milestone is adding MORE content per render (signature images, photo captions, unified/richer layout) and a NEW consumer (the send-path fix routes both email and WhatsApp through the same converged renderer), which raises both per-render CPU cost and concurrent-render frequency at exactly the same time.
 
 **Why it happens:**
-The two patterns coexist in the same file family with no enforced convention distinguishing "internal, reversible" from "external, cost-bearing, irreversible" — the distinction lives only in code comments and the specific choices made in `confirm-actions.ts`, not in a reusable abstraction.
+It's invisible in local dev (one request at a time) and only shows up under real concurrent traffic (multiple estimates being emailed/sent/downloaded around the same moment), so it's easy to ship without noticing.
 
 **How to avoid:**
-- Explicitly classify the new send-SMS/send-email agentic tool as an "external-party, confirm-required" action from the design phase, and reuse the `confirm.ts`/session-state-machine shape (or, for the MCP channel, an equivalent explicit `confirm: true` round-trip / `elicitation` step per the MCP spec) rather than the `manage-tools.ts` immediate-write shape.
-- The confirmation echo must show the **actual resolved recipient (phone/email) and message body** before send, not just "yes I'll send it" — because the recipient identity itself can be attacker/hallucination-influenced (see Pitfall 9).
-- For the MCP channel, mark the send tool with an explicit non-`readOnlyHint` and require a confirmation step distinct from the existing read-only query tools (`ask_knowledge`, `find_client`, etc., which are `readOnlyHint: true` and rightly need none).
+Don't treat this as something this milestone must fully solve (offloading to worker threads is a bigger infrastructure change), but DO: (1) avoid making renders unnecessarily larger than needed (e.g., don't re-render a PDF from scratch when the existing ETag/cache logic in `pdf/route.ts` already avoids it — extend that caching discipline to the new send-path resolver rather than bypassing it), and (2) flag this as a known scaling constraint in the phase that converges all 3 PDF paths, so a future milestone has a paper trail if concurrent-send volume becomes a real bottleneck.
 
 **Warning signs:**
-- A send-SMS/send-email tool implementation that fires on the first LLM tool-call with no intermediate "confirm?" turn.
-- No audit trail entry distinguishing "owner explicitly confirmed this send" from "agent inferred and sent."
+Slow or timed-out unrelated API requests during a burst of estimate sends/downloads; production latency spikes correlated with PDF generation volume.
 
 **Phase to address:**
-The agentic-send phase itself — this is core to that phase's design, not a follow-up hardening pass.
+Send-Path Correctness phase (don't triple the blocking cost by wiring three converging call sites to a heavier unified template without reusing the existing caching pattern).
 
 ---
 
-### Pitfall 9: Prompt injection can put a wrong recipient or a wrong dollar amount into a real send
+### Pitfall 9: One Failed Remote Image Fails the Entire PDF Render
 
 **What goes wrong:**
-The codebase's established security discipline (`T-lrf-01`, enforced in `manage-tools.ts`'s header comment) protects the **tenant boundary** — `companyId` is a closure parameter, never an LLM-controllable field, so a malicious message can't make the agent write into another company's data. It does **not**, by itself, protect the **content** of an agentic send: the recipient phone/email and the dollar amount/message body are exactly the kind of free-text fields an LLM tool schema would naturally expose (`z.object({ to: z.string(), message: z.string() })`), and those ARE influenceable by adversarial input. Two concrete injection surfaces exist for this exact feature:
-1. **Inbound WhatsApp text is untrusted content the agent reads.** If a scammer texts the owner's WhatsApp number (or the owner forwards/pastes suspicious text) containing something like "also text +1-555-0100 that the deposit account changed to X," an agent with a send-SMS tool and no re-validation could act on attacker-supplied instructions embedded in what looks like ordinary conversation — the same class of risk the v4.8 knowledge base work already named and defended against ("curated ≠ trusted as LLM context," `sanitizeField` + `<knowledge>` tag hardening) for a *different* input surface (RAG retrieval). Agentic send is a new surface with no equivalent hardening yet.
-2. **Dollar amounts must never be freely typed by the model.** This project has a hard, repeatedly-enforced rule that the AI never computes/originates money math (GUARD-03, and the v4.11 "AI gained ZERO arithmetic" design principle for the pricing engine) — any agentic-send message that mentions an amount ("your balance due is $X") must pull that number from the server-authoritative `estimates.total`/`balance_due` field, never let the LLM state a number from its own context window.
+react-pdf's `<Image>` component fetching a remote URL (a signed Supabase Storage URL for a photo or, newly, a signature image) that 404s, times out, or hits a transient network blip throws and **aborts the whole `renderToBuffer` call** — not just that one image. Today this risk is scoped to attached photos; this milestone adds signature images as a NEW remote-image source, doubling the surface area, and the signed-URL TTLs are already inconsistent across paths (1h in `pdf/route.ts`, 24h in `pdf-delivery.ts`) — meaning a signature/photo whose signed URL happens to be closer to expiry (or resolved with a shorter TTL) is more likely to trip this failure mode in one call site than another.
 
 **Why it happens:**
-Extending "the agent can write things" naturally extends to "the agent can compose message text," and unlike DB writes (which go through typed columns with constraints), free-text message bodies have no structural check that a number or a phone/email actually corresponds to a real system record.
+It's natural to pass the storage row's signed URL straight into `<Image src={url}>` and assume "if it worked in the browser preview, it'll work here" — but react-pdf's fetch has no visibility into the same CORS/network context.
 
 **How to avoid:**
-- The send tool's recipient should be resolved from the **system's own client record** (`clients.phone`/email on the associated project), not a phone/email number typed fresh into the tool call by the LLM from conversation text — if the request names a different number, treat it as a mismatch requiring explicit owner confirmation ("this isn't the phone number on file for this client — send anyway?"), not silent pass-through.
-- Any dollar figure interpolated into an agentic-send message must be sourced from the authoritative `estimates`/`compute-totals.ts` fields, never emitted as free text by the model.
-- The confirmation echo (Pitfall 8) is the actual enforcement point — showing the resolved-from-DB recipient and amount before send makes a mismatch visible to the human in the loop.
+`pdf/route.ts` already resolves photo signed URLs server-side, in a `Promise.all`, BEFORE constructing the element tree (`pdf/route.ts:124-132`) — extend this exact pattern to signature images in all 3 call sites, and wrap each per-image resolution so an individual failure degrades gracefully (omit that one image, log it) rather than throwing out of the whole render. Standardize the signed-URL TTL across all 3 PDF paths as part of the send-path convergence work, rather than leaving 1h vs 24h as an accident of which file was written first.
 
 **Warning signs:**
-- A send tool whose zod schema accepts an arbitrary `to` string with no cross-check against `clients` records.
-- Any agentic message template that string-interpolates a number the model produced rather than one read from a DB column.
+A signed estimate PDF that intermittently fails to generate/send with no clear pattern; error logs showing `renderToBuffer` throwing on an image-fetch error rather than a template/data error.
 
 **Phase to address:**
-Agentic-send phase — same phase as Pitfall 8, this is the content-integrity half of the same confirmation-gate design.
+PDF Parity phase (signature image block) and Send-Path Correctness phase (converging the 3 call sites) — both must inherit the pre-resolve-then-render pattern, not just the download route.
 
 ---
 
-### Pitfall 10: End-customer SMS has zero consent/opt-out infrastructure to build on — this is new legal surface, not an extension of existing TCPA work
+### Pitfall 10: `minPresenceAhead` / `fixed` / `wrap` Have Known Upstream Combinatorial Bugs — Don't Depend on Emergent Behavior
 
 **What goes wrong:**
-The project already has real, working TCPA-consent scaffolding — but it is scoped **entirely to the tenant/owner**: `notification_preferences.sms_opt_in_at` / `whatsapp_opt_in_at` / `sms_opt_in_consent_text` (migration `20260621000002_notification_opt_in_consent.sql`, enforced in `resolveChannels()`) gate whether *Xtimator sends SMS/WhatsApp to a business owner*. There is **no equivalent column anywhere on `clients`** (the end-customer table) and **no inbound Twilio webhook** in the codebase at all — the only Twilio integration today is the outbound `sendSms()` primitive. That means:
-- There is currently no mechanism to capture, store, or honor a `STOP` reply from an end customer. Twilio's carrier-level auto-block (via Advanced Opt-Out on a registered number/Messaging Service) is a separate, external layer from Xtimator's own application logic — even if Twilio blocks future carrier delivery, Xtimator's own retry/reminder/agentic-send logic has no application-level suppression list and could keep *attempting* sends (burning API calls, and legally the business — not just Twilio — is on the hook for TCPA compliance, which requires the *sender* to honor opt-out, not just rely on carrier filtering).
-- "Prior express consent" for informational/transactional SMS tied to a service the customer already requested (an estimate) is a materially different legal footing than marketing SMS, but the agentic-send feature broadens *what* gets sent (open-ended "send an SMS about X") in a way that can drift from narrow transactional content toward something needing stronger consent — and there's no design decision recorded yet about which bucket end-customer messages fall into.
-- Quiet-hours (many states restrict unsolicited texts to certain hours) and message-frequency norms have no enforcement point today — `sendSms()` is a pure passthrough with no time-of-day or frequency gate.
+react-pdf's own widow/orphan-control primitives have open, documented bugs: `minPresenceAhead` combined with `fixed` elements doesn't work as expected (diegomura/react-pdf #2238), and certain combinations of padding/margin/`break` with `minPresenceAhead` have caused infinite-loop hangs in the layout pass (#2659). The milestone's explicit rules ("never split a line item," "section header keeps with first row," "subtotal keeps with last row," "totals/photos blocks keep together") map naturally onto these props — but leaning on them as the *primary* mechanism risks inheriting upstream instability, especially once fixed headers/footers (already present) interact with new fixed elements this milestone might add (e.g., a fixed footer beneath a keep-together totals block).
 
 **Why it happens:**
-End-customer messaging is genuinely new (today's only end-customer SMS is the manual "send my estimate link" action, a single one-off, low-risk send) — the existing consent infrastructure was correctly scoped to the *owner* channel (paid/proactive, TCPA-relevant) and was never meant to cover the *customer* channel, but it's easy to assume "we already solved TCPA" when only half the surface was solved.
+These props look purpose-built for exactly this milestone's break rules, so it's the obvious first reach — but they're heuristics inside react-pdf's own layout pass, which is precisely the "emergent per-engine layout" this milestone is trying to move away from (see Pitfall 1).
 
 **How to avoid:**
-- Treat end-customer SMS/email consent as a **net-new data model decision**, not a reuse of `notification_preferences` — needs its own column(s) on `clients` (or a join table) for opt-in provenance, opt-out timestamp, and consent text shown.
-- Build the inbound Twilio webhook (there is none today) specifically to capture `STOP`/`START`/`HELP` keyword replies and write them to that new suppression state — and gate every outbound end-customer SMS send (including agentic ones) on checking it first, independent of whatever Twilio/carrier-level filtering may or may not be active.
-- Flag this explicitly for legal/compliance review before end-customer SMS ships broadly — this file can name the technical gaps but the actual consent-basis decision (transactional vs. marketing framing, required disclosure language, quiet-hours policy) is a business/legal decision, not a pure engineering one.
-- Email has a materially lower bar (CAN-SPAM vs. TCPA) but still needs an unsubscribe path if end-customer email becomes template-driven and recurring rather than one-off transactional.
+Prefer explicit break decisions computed by the SHARED pagination module (which page each block starts on, e.g., forcing a manual page break before a section that must start fresh) over relying on `minPresenceAhead`'s heuristic. Where `wrap={false}`/`fixed` are still used (e.g., today's fixed header/footer), keep them isolated from `minPresenceAhead` on the same subtree, and add a render-time smoke test for every "keep together" rule against a deliberately awkward test estimate (an item long enough to nearly-but-not-quite fit before a break) to catch pathological combinations before they ship.
 
 **Warning signs:**
-- Any end-customer SMS send path that doesn't check a suppression flag before sending.
-- No inbound SMS webhook existing at all (true today — confirm this gap is closed before end-customer SMS volume grows).
+A PDF render that hangs or times out on a specific estimate shape; a "keep together" block that works in isolation but splits or overlaps once combined with the fixed header/footer.
 
 **Phase to address:**
-Should be its own early phase (or a hard prerequisite gate before the end-customer-SMS and agentic-send phases) — this is exactly the kind of item that's cheap to get right in the schema/foundation phase and expensive (legal exposure, not just a bug) to retrofit later. **Severity: HIGH / legal.**
+Page-Break Rule phase — the break-rule module's design should explicitly decide, per rule, whether it's implemented as an explicit precomputed break vs. a react-pdf native prop, rather than defaulting to native props everywhere.
+
+---
+
+### Pitfall 11: react-pdf Leaking Into Client Bundles, or DOM Assumptions Leaking Into the Server PDF Path
+
+**What goes wrong:**
+Two symmetric failure modes: (a) a "shared" module (design tokens, the pagination engine, or a literally-shared component) that imports anything from `@react-pdf/renderer` gets pulled into a `'use client'` file (e.g., `estimate-document.tsx`, the new paginated editor) — react-pdf's layout/font engine is not meant for browser bundling in this way and will bloat or break the client bundle; (b) conversely, a "shared" component written assuming `document`/`window`/Tailwind class names is imported into a PDF template, where react-pdf's `<View>`/`<Text>` tree has no DOM, no CSS cascade, and no React context (already noted in-repo: `estimate-pdf.tsx`'s own comment says "react-pdf runs server-side with no React context — plain lookups").
+
+**Why it happens:**
+"Shared structure" is easy to interpret as "share the literal JSX/component," which works for neither direction — `<div>`/`<span>` and `<View>`/`<Text>` are not interchangeable, and Yoga's default `flex-direction: column` (vs. the browser default `row`) means even superficially similar flex code behaves differently.
+
+**How to avoid:**
+Make the truly shared layer DATA, not JSX: a typed tree of section/row/block descriptors plus pure formatting/token functions (following the precedent already in place — `SYSTEM_COLORS`, `formatMoney`, `resolvePresentationSettings` are shared today with zero react-pdf or DOM imports). Each renderer (the DOM paginated preview, and each PDF template) has its own thin interpreter that turns that data into `<div>`s or `<View>`s respectively. Enforce the boundary with either a lint rule / import restriction (e.g., ESLint `no-restricted-imports` banning `@react-pdf/renderer` from client-marked files and vice versa) or at minimum a code-review checklist item, since Next.js won't always catch this at build time for shared utility modules that don't declare `'use client'`/`'use server'` themselves.
+
+**Warning signs:**
+Client bundle size jump after a refactor touching PDF templates; a new PDF template import failing to build with Yoga/native-binding resolution errors; a webview component suddenly needing `next/dynamic`+`ssr:false` to avoid pulling in server-only PDF code.
+
+**Phase to address:**
+Shared Document Engine phase — this is the architectural decision that determines whether every later phase (page-break rule, PDF parity, paginated editor) is buildable without cross-contamination. Get the data-vs-JSX boundary right here or every subsequent phase inherits the mistake.
+
+---
+
+### Pitfall 12: The 3 PDF Call Sites Are Already at Divergent Parity — Converging Them Wrong Reproduces the Same Bug in a New Place
+
+**What goes wrong:**
+Today, `pdf/route.ts` correctly resolves `templateId` and applies `applySignedSnapshot()`; `send/route.ts` and `pdf-delivery.ts` do neither (both hardcode `EstimatePDF`/Classic, both render from the live, possibly-post-signature-edited `estimate`). If the send-path fix is implemented as "copy `pdf/route.ts`'s logic into the other two files" rather than "extract `pdf/route.ts`'s resolve-template + apply-snapshot + resolve-signed-URLs logic into one shared helper function used by all three," the milestone will ship 3 near-identical-but-independently-maintained copies of trust-critical logic — the next person to add a 4th PDF surface (or to fix a bug in one) will silently miss the other two, exactly reproducing today's problem one refactor later.
+
+**Why it happens:**
+The three call sites have different function signatures and different available context (route handler with `createClient()` cookies vs. Inngest/webhook context with only a service client) — copy-paste feels like the path of least resistance to avoid touching call-site-specific auth/plumbing.
+
+**How to avoid:**
+Extract a single shared function — e.g., `resolveEstimatePdfElement(estimateId, supabase, { source: 'download' | 'send' | 'whatsapp' })` — that does exactly what `pdf/route.ts` does today (template lookup, `loadLatestSignedSnapshot` + `applySignedSnapshot`, signed photo/signature URL resolution) and returns the `createElement(...)` tree ready for `renderToBuffer`. All 3 call sites call this ONE function, differing only in how they obtain their Supabase client and what they do with the resulting buffer. Add a shared regression test that asserts all 3 call sites produce byte-identical PDF bytes for the same signed estimate (proving true convergence, not just "looks similar").
+
+**Warning signs:**
+A code review that adds template/signature logic to `send/route.ts` and `pdf-delivery.ts` as separate, similar-but-not-identical blocks rather than a shared import; any future PDF-affecting bug fix that touches only one of the three files.
+
+**Phase to address:**
+Send-Path Correctness phase — this is the phase's actual acceptance bar: not "email now supports templates" but "all 3 call sites call the same resolver function."
+
+---
+
+### Pitfall 13: Deduplicating pdf-delivery.ts Into the HTTP Route Silently Breaks Production Webhook Sends
+
+**What goes wrong:**
+`lib/whatsapp/pdf-delivery.ts`'s header comment is explicit: it must NEVER call `/api/estimates/[id]/pdf` internally, because that route's `createClient()` requires auth cookies that don't exist in the Inngest/webhook execution context that calls this file. When converging the 3 PDF paths (Pitfall 12), a plausible-looking simplification is "just have all 3 call the existing route via `fetch()`" — this will pass every test run from an authenticated browser/dev session and fail (401) only in production webhook-triggered sends, which is exactly the kind of gap that reaches prod undetected (this project has prior history with silent Inngest-context failures — see `.planning/debug/whatsapp-inbound-no-reply-recurrence.md`).
+
+**Why it happens:**
+Route handlers are the natural, DRY-looking place to centralize logic in a Next.js app, and the cookie-dependency failure mode is invisible unless you specifically test from a cookie-less/service-role-only context.
+
+**How to avoid:**
+The shared resolver from Pitfall 12 must be a plain importable function (not an HTTP endpoint), taking an explicit `SupabaseClient` parameter (as `pdf-delivery.ts` already does) so both cookie-authenticated route handlers AND service-role webhook contexts can call it directly in-process. Never introduce an internal `fetch()` to `/api/estimates/[id]/pdf` from server code. Keep the existing header-comment warning (or a stronger lint/test guard) attached to whatever new shared module replaces `pdf-delivery.ts`'s direct-render logic.
+
+**Warning signs:**
+Any PR that adds a `fetch('/api/estimates/...')` call inside `lib/whatsapp/` or an Inngest function; WhatsApp PDF delivery working in manual/local testing but failing silently (or with a caught-and-swallowed error falling back to `share_link`, per the function's own doc comment) in production.
+
+**Phase to address:**
+Send-Path Correctness phase — should be called out explicitly as a non-negotiable constraint in that phase's plan, not left to be rediscovered.
+
+---
+
+### Pitfall 14: Refactoring the 2037-Line Editable Document Component Risks Reintroducing Client-Side Math
+
+**What goes wrong:**
+`estimate-document.tsx` is large and renders totals/subtotals/tax/discount/deposit values that must ALL originate from `lib/estimate/compute-totals.ts` (the GUARD-03 server-authoritative math engine) — never be recomputed inline during a UI refactor. A large structural refactor (splitting the file, extracting the shared document-tree data model, wiring in pagination) creates many opportunities to "helpfully" inline a derived value (e.g., recompute a section subtotal from visible rows for a paginated sub-view) that silently diverges from the server-computed total once any filtering/pagination view is involved.
+
+**Why it happens:**
+Once content is split across page boxes, there's a natural temptation to compute a per-page or per-section running total for display purposes locally, rather than always reading the pre-computed values threaded down as props — especially if the pagination module operates on a filtered/sliced view of the item list.
+
+**How to avoid:**
+Treat `compute-totals.ts` output as the ONLY source for every money value anywhere in the refactored tree, including inside the new pagination-aware rendering paths — the pagination module's job is to decide *where the pre-computed row/section values are drawn*, never to derive new ones. Keep (or add) an explicit regression test suite asserting the refactored component renders byte-identical totals to the pre-refactor component for the existing golden-value test estimates the project already has from prior GUARD-03-related milestones (e.g., the v4.11 pricing-model goldens). Run that suite as a gate before and after each incremental extraction step of the 2037-line file, not just once at the end.
+
+**Warning signs:**
+Any new `Math.round`/multiplication/addition of money fields appearing inside `estimate-document.tsx`, the paginated editor, or a PDF template during this milestone's diffs; a pagination-scoped subtotal that doesn't trace back to a `compute-totals.ts` field.
+
+**Phase to address:**
+Should be a standing constraint across every phase that touches `estimate-document.tsx` (Shared Document Engine extraction AND Paginated Editor Mode), verified by a goal-verifier / regression-test gate at the end of each phase, not a single "final" phase.
 
 ---
 
@@ -250,94 +290,97 @@ Should be its own early phase (or a hard prerequisite gate before the end-custom
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|-----------------|------------------|
-| Ship the DB template editor for email/SMS/in-app first, defer WhatsApp's structural `{{n}}` mismatch (Pitfall 3) to "later" | Faster v1 ship | WhatsApp stays on the static registry, or someone "generalizes" it without noticing the positional-vs-named mismatch and ships a silent garbled-message bug | Acceptable if explicitly scoped as a separate later phase, NOT if the same editor UI is reused unmodified for WhatsApp |
-| Reuse `manage-tools.ts`'s immediate-write pattern for agentic send instead of building a confirm-gate (Pitfall 8) | Less code, faster ship | Real cost-bearing sends to real external parties with no undo, no confirmation, higher fraud/injection exposure | Never acceptable for the send-to-end-customer tool |
-| Skip building end-customer STOP/opt-out infra for the first end-customer SMS rollout, relying on Twilio's registered-number-level filtering alone (Pitfall 10) | Ships faster | TCPA exposure is a per-sender legal obligation, not fully discharged by carrier-level filtering; also no app-level suppression means agentic-send could re-attempt indefinitely | Only acceptable for a very narrow, fixed-content, one-off transactional send (today's manual "send estimate link" SMS) — NOT acceptable once agentic/open-ended send ships |
-| Keep the Telegram bot outbound-only for v1, defer webhook/interactivity | Sidesteps the whole webhook-secret/polling/signature-verification problem set (Pitfall 7) | None if genuinely deferred — this is the recommended path, not a debt | Always acceptable; this is the RECOMMENDED default for v1 |
-| Let the super-admin template editor expose every `CopyContext` field as a variable for every event, rather than a per-event whitelist (Pitfall 5) | Simpler UI, less schema design | Reintroduces fixed business-rule regressions (CREDITUI-04-class bugs) and cross-audience data leaks | Never acceptable |
+| Reusing the existing `pageView` CSS toggle (96dpi px box) as the paginated editor's page container | Saves building new page-frame styling from scratch | Its dimensions are wrong for a real page-break engine (px vs pt mismatch, single continuous box not discrete pages) unless explicitly re-derived from the shared pt-based token source | Only as a visual/cosmetic starting point for page *chrome* (border, shadow), never as the source of page-break math |
+| Relying on react-pdf's native `minPresenceAhead`/`wrap`/`break` props for ALL keep-together rules instead of explicit precomputed breaks | Less code, faster to prototype | Inherits documented upstream combinatorial bugs (hangs, unexpected interaction with `fixed`); non-portable to the DOM engine, which has no equivalent primitive | Acceptable for simple, isolated cases (e.g., a single `wrap={false}` block) that don't interact with `fixed` elements; never for the milestone's core cross-engine break contract |
+| Estimating text-wrap height with a simple `lines = ceil(charCount / charsPerLine)` heuristic instead of true font-metric measurement | Fast, framework-agnostic, works identically in both engines | Inaccurate for variable-width fonts / mixed content (numbers, currency symbols, bold labels) — risks off-by-one-line break errors | Acceptable ONLY if paired with a generous safety margin and validated against real font metrics for the specific registered font, not blindly trusted |
+| Copy-pasting the classic PDF template's structure into the modern template (as happened historically — both are ~860 lines, already diverged) | Fast to ship a second template | Every future fix must be applied twice, and the two silently drift (exactly the state PROJECT.md describes today) | Never acceptable going forward once the shared engine exists — this milestone's whole point is eliminating this pattern |
+| Debouncing repagination on a fixed timer (e.g., 300ms) rather than a content-aware trigger | Simple to implement, avoids reflow thrash | Can feel laggy (breaks don't reflect the latest edit for up to 300ms) or, if too short, doesn't actually solve the thrash problem under fast typing | Acceptable as a v1 shipped behavior if paired with an on-blur/explicit "commit" repagination for correctness, not as the only mechanism |
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|-----------------|-------------------|
-| Meta WhatsApp HSM templates | Treating the new template editor's variable list as freely reorderable/editable, same as email | Lock WhatsApp variable order/count to the Meta-approved template's `variables_schema`; any change requires re-approval in Meta Business Manager first |
-| Telegram Bot API | Reaching for `bot.startPolling()` inside a Next.js route/server with no persistent worker slot; or switching to MarkdownV2 for richer formatting without full escaping | Webhook + `secret_token` + Inngest dispatch (mirrors the existing WhatsApp webhook pattern); stay on `parse_mode: 'HTML'` with the existing `formatOpsMessage`-style escaping |
-| Twilio SMS (shared platform-level account) | Assuming the current single global `from_phone`/Account SID can absorb new, higher-volume, unpredictable agentic-send traffic without any carrier-registration or reputation review | Flag explicitly for A2P 10DLC/Messaging-Service review before agentic SMS ships; consider a dedicated `from_phone`/Messaging Service for this new traffic class, separate from the existing owner-notification SMS |
-| Resend email | Interpolating admin-authored template `{{var}}` placeholders into the final HTML string without escaping the *substituted values* | Reuse the existing `escapeHtml()` discipline from `notification-emails.ts` in the new generic template renderer, applied to values, not template text |
-| `platform_integrations` (encrypted credential store) | Copying the WhatsApp webhook precedent (`META_WHATSAPP_APP_SECRET` in env) for a new Telegram webhook secret | Any new secret — including webhook `secret_token`s, not just API keys — goes in `platform_integrations`, following `getTelegramConfig()`'s existing pattern, not the WhatsApp webhook's env-var precedent |
-| MCP send tool | Registering the agentic send tool with `readOnlyHint: true` (copy-pasted from the existing read-only query tools) or with no confirmation step at all | Explicitly non-read-only, with a confirmation/elicitation round-trip before the actual send fires |
+| `@react-pdf/renderer` `<Image>` with Supabase signed URLs | Passing a signed URL straight into `<Image src>` and letting a fetch failure abort the whole render | Pre-resolve all signed URLs server-side in a `Promise.all` before constructing the element tree (already the pattern in `pdf/route.ts:124-132`); degrade a single failed image gracefully rather than throwing |
+| `@react-pdf/renderer` `Font.register` | Registering fonts/hyphenation callback inside the request handler | Register once at module scope; keep the hyphenation callback a pure function with no environment-dependent lookups |
+| `dnd-kit` `SortableContext` | Creating a page-scoped sortable context that mirrors the visual pagination | Keep sortable contexts scoped to the LOGICAL (unpaginated) order; page assignment is a derived read-only projection, never a drop target's source of truth |
+| Supabase signed URL TTLs across the 3 PDF paths | Assuming the 1h TTL in `pdf/route.ts` and the 24h TTL in `pdf-delivery.ts` are interchangeable when converging the paths | Standardize the TTL as part of the shared resolver (Pitfall 12); pick a TTL long enough for the slowest realistic delivery path (WhatsApp/email queuing), not the fastest |
+| Next.js App Router server/client boundary | Importing the new shared pagination/design-token module without verifying it has zero `@react-pdf/renderer` or DOM-only dependencies before it's imported by a `'use client'` editor component | Keep the shared module free of both React DOM globals and react-pdf imports; add an import-boundary lint rule |
+| Inngest/webhook execution context (WhatsApp send) | Calling an internal Next.js API route via `fetch()` from webhook-triggered server code (no auth cookies available) | Call shared logic in-process as a plain function taking an explicit `SupabaseClient`, never via an internal HTTP round-trip (Pitfall 13) |
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|-----------------|
-| Fanning many per-event Telegram toggles into individual `sendMessage` calls with no batching | `429 Too Many Requests` from Telegram during incident bursts (exactly when alerting matters most) | Queue/backoff via Inngest (already the durable-job layer in this codebase) rather than calling `sendTelegramMessage` inline per event | A burst of more than ~1/sec to the same chat_id, or more than ~30/sec globally |
-| `sendPerMinute` rate limit (`lib/ratelimit.ts`, keyed on Supabase `claims.sub`) not applying to WhatsApp-agent-triggered or MCP-triggered sends (those channels have no `claims.sub`) | Agentic send from WhatsApp/MCP has no rate limit at all, unlike the web-app send-SMS route | Add a companyId-scoped (not user-session-scoped) rate limit specifically for the agentic-send tool, reusing `lib/ratelimit.ts`'s existing limit-config shape | As soon as the agentic-send tool ships without its own explicit rate-limit key |
-| Template-render cost: re-fetching/re-parsing a DB template row on every single `notify()` call instead of caching | Added DB round-trip latency on every notification fan-out (today `copy.ts` is a pure in-memory function call) | Apply the same 30s TTL in-memory cache pattern already used for `platform-config.ts` (`brandingCache`, `integrationCache`) to template rows | Noticeable once notification volume is meaningful; low risk at current scale but cheap to prevent now by following the existing cache convention |
+| Un-memoized 2037-line `estimate-document.tsx` re-rendering entirely on every keystroke, now with pagination math layered on top | Visible input lag, dropped keystrokes, slow typing in the paginated editor | Memoize per-item/per-section height/content inputs; decouple live typing value from the (debounced) pagination-triggering value | Noticeable on estimates with roughly a dozen+ line items or multiple sections; severe on larger/multi-page estimates |
+| `renderToBuffer` blocking the single Node.js event loop, now handling bigger documents (signature images, captions) from 3 converged call sites | Unrelated API requests slow down or time out during concurrent estimate sends | Keep/extend the existing ETag caching in `pdf/route.ts` to avoid redundant re-renders; avoid needlessly larger documents; consider flagging worker-thread offload as a future item if volume grows | Breaks under concurrent send bursts (multiple business owners emailing/WhatsApp-ing estimates around the same time), not single-user local testing |
+| Recomputing the full page-break plan from scratch on every render instead of incrementally | Editor stutters as estimates grow past a handful of sections | Memoize per-block height/estimate computations keyed by content hash or item id; only recompute the tail of the plan from the first changed block forward | Scales badly past a few dozen line items / several photo blocks; fine for typical small estimates |
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Un-escaped `{{var}}` substitution into email HTML (Pitfall 4) | HTML injection in owner/admin inboxes; potential stored-XSS if a template preview ever renders unescaped in the admin panel itself | Shared, escaping-by-default `renderTemplate()` for HTML channels; separate plain renderer for SMS/Telegram |
-| Telegram webhook route (if built) with no `secret_token` verification | Anyone can POST fake "Telegram updates" to the endpoint, potentially triggering agent actions if it's ever wired to trigger anything beyond logging | `X-Telegram-Bot-Api-Secret-Token` header check against a DB-stored secret, mirroring the WhatsApp `x-hub-signature-256` pattern (but store the secret correctly this time — see Integration Gotchas) |
-| Recipient/amount for agentic send taken from LLM free text instead of DB records (Pitfall 9) | Prompt-injection-driven message to a wrong number/email, or a hallucinated dollar amount reaching a real customer | Resolve recipient from `clients` records, resolve amounts from `estimates`/`compute-totals.ts`; mismatch triggers explicit confirmation, not silent pass-through |
-| Template editor exposing internal/sensitive variables (real cost, internal IDs, stack traces) in a catalog shared across platform-admin and end-customer event types (Pitfall 5) | Data leak to a tenant or end customer via an incorrectly-scoped template edit | Per-event-type variable whitelist, never a global "any variable" picker |
-| Telegram bot token or webhook secret placed in an env var "for convenience" during implementation | Violates the project's standing rule (never env for provider credentials) and creates a second, inconsistent credential-storage pattern to maintain | All Telegram secrets — bot token AND any webhook secret — via `platform_integrations`, following the already-correct `getTelegramConfig()` precedent |
+| Resolving signature image signed URLs with an overly long TTL "to be safe" (mirroring `pdf-delivery.ts`'s existing 24h pattern) | A leaked/logged PDF URL grants extended access to a legally-significant signature image | Scope signature-image signed URLs to the shortest TTL that reliably covers the actual delivery window per channel, and standardize per-channel TTLs deliberately (not by copying whichever file was written first) |
+| Treating the paginated editor's client-side page-break computation as authoritative for anything security/trust-relevant | None directly (it's a rendering concern), but conflating "what page it's on" with "what data is allowed" could leak into access-control thinking if pagination and permissions are implemented in the same reducer pass | Keep pagination purely a rendering/derived concern with no bearing on which fields are editable/visible — that stays governed by existing `isReadOnly`/signed-snapshot/presentation-settings logic, unchanged by this milestone |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-------------------|
-| No preview/test-send before saving a template edit that's instantly live for every tenant (platform-wide, no staging — a locked decision) | A typo'd `{{var}}` reference or a broken layout goes out to real customers on the very next triggered event | Require a live preview (rendered with sample data) + a "send test to myself" action in the super-admin template editor before save takes effect |
-| Agentic send confirming with a vague "OK, I'll send that" instead of echoing the resolved recipient + exact message body | Owner can't catch a wrong number/amount before an irreversible external send | Echo the fully-resolved recipient and message text in the confirmation turn (Pitfall 8/9) |
-| Telegram delivery failures swallowed silently by `notifyOps`'s catch-all with no visible health signal | An admin believes they're covered by Telegram alerts for weeks while the chat_id binding is actually broken (e.g., after a group→supergroup migration) | Surface last-successful-send timestamp / failure count for the Telegram channel in the admin panel |
-| Reusing the same variable name across audiences with different meaning (e.g. `{{amount}}` meaning "credits" for one event, "estimate total $" for another) confuses template authors | Wrong value substituted despite a "correct-looking" template | Event-scoped variable catalogs with clear, disambiguated names in the picker UI (ties to Pitfall 5) |
+| A page break falling in the middle of the new signature block or a photo-caption pair | Looks broken/unprofessional on a document meant to be sent to a paying client | Treat signature block and each photo+caption pair as explicit "keep together" units in the shared break-rule module, tested against edge-case estimate shapes |
+| An input visually relocating to a different page box while the user is still typing in it | Feels like data loss/a bug, erodes trust in the editor | Defer visual re-slotting until blur/idle (see Pitfall 6); keep stable React keys by item id, not by page position |
+| The paginated mode silently diverging from what will actually print/send (if the break rule and renderer drift even slightly) | Owner sends an estimate expecting what they saw in the editor, PDF looks different — a real business-facing trust break, mirroring the milestone's TRUST-01 lineage | Make the shared break-rule module + regression test (preview pages == PDF pages, same items per page) a hard gate, not just a visual QA pass |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **DB-driven templates:** Often missing a seeded row for every existing `EventType` — verify a CI check fails if any `EventType` lacks a template row (Pitfall 1).
-- [ ] **Template fallback:** Often missing the "DB row null/malformed → fall back to hardcoded default" branch — verify by deleting a template row in a test environment and confirming `notify()` still degrades gracefully, never throws, never sends blank content (Pitfall 2).
-- [ ] **WhatsApp template editing:** Often looks generalized (same UI as email) but silently breaks positional `{{n}}` order — verify by editing a WhatsApp-mapped event's variable order and confirming the send either gets blocked (count/order guard) or is proven still correct against the actual Meta-approved template (Pitfall 3).
-- [ ] **End-customer SMS opt-out:** Often shipped as "we already handle TCPA" by reusing owner-scoped `notification_preferences` logic — verify there's an actual `clients`-scoped consent/suppression column AND an inbound Twilio webhook processing STOP/START before any end-customer SMS goes to a real number (Pitfall 10).
-- [ ] **Agentic send confirmation:** Often looks safe because "the LLM tool schema requires a phone number" — verify the phone number/email is cross-checked against the client record on file, not just whatever string the model produced (Pitfall 9).
-- [ ] **Telegram per-event toggles:** Often looks complete once the admin panel checkbox exists — verify a burst of several simultaneous events (e.g., a mass job-failure) doesn't 429 against Telegram's per-chat rate limit (Pitfall 7).
-- [ ] **Template HTML escaping:** Often looks fine in manual testing (normal names, no special characters) — verify with a client/project name containing `<`, `>`, `&`, or `"` that the rendered email doesn't break or inject (Pitfall 4).
-- [ ] **WhatsApp end-customer wall-off:** Often looks enforced because "we just don't build a WhatsApp option for customer templates" — verify the schema itself (a CHECK constraint or enum) makes it *impossible* to select WhatsApp as a channel for an end-customer-audience event type, not just an editor UI omission that a future change could bypass.
+- [ ] **The existing `pageView` toggle:** Looks like "pagination already exists" — verify it's still cosmetic-only (single 96dpi box, no real page breaks) before assuming it's a foundation to build on rather than replace.
+- [ ] **PDF template selection:** `pdf/route.ts` already does template lookup — verify `send/route.ts` and `pdf-delivery.ts` ACTUALLY route through the same resolver after this milestone, not just "support templates" via a second, separately-written lookup.
+- [ ] **Signed-snapshot correctness:** A signed estimate rendering correctly via "Download PDF" does NOT mean it renders correctly via email/WhatsApp send — verify all 3 call sites independently (a shared regression test, per Pitfall 12, is the only reliable check).
+- [ ] **PDF/preview parity:** "The pages look similar in a quick side-by-side glance" is not the bar — verify same item count per page, same break positions, across at least one edge-case estimate (long descriptions, many photos, a near-boundary item length), not just a typical demo estimate.
+- [ ] **Signature block in PDF:** Confirm both templates (Classic AND Modern) render it, not just the one that was tested — the two PDF templates have a documented history of silently diverging.
+- [ ] **Drag-and-drop in paginated mode:** Confirm dragging an item FROM the bottom of one page TO the top of the next (and vice versa) actually works, not just reordering within a single visible page.
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
-|---------|-----------------|------------------|
-| Missing template row causes blank sends in prod (Pitfall 1/2) | LOW | Re-seed the missing row from the retained hardcoded `copy.ts` fallback; add the CI guard retroactively |
-| WhatsApp template variable mismatch sends garbled content (Pitfall 3) | MEDIUM | Immediately revert the WhatsApp event's variable mapping to the last-known-good `variables_schema`; audit recently sent messages for that event/template for wrong-content exposure; re-verify against Meta's actual approved template before re-enabling |
-| HTML injection shipped in a template (Pitfall 4) | LOW–MEDIUM | Patch the shared renderer to escape values; audit recently sent emails for injected content; no data-store fix needed since this is a render-time issue, not a stored-data issue |
-| Shared Twilio number gets carrier-throttled from agentic-send volume (Pitfall 6) | HIGH | Requires external Twilio/carrier remediation (support ticket, campaign re-registration), not just a code fix; may need to cut over to a new number/Messaging Service and coordinate with the other 5 apps sharing the account |
-| Telegram chat_id silently broken after a group→supergroup migration (Pitfall 7) | LOW | Re-fetch the correct chat_id from a fresh bot interaction and update `platform_integrations.telegram.metadata.chat_id` |
-| Agentic send fires to a wrong recipient (Pitfall 9) | HIGH (external, irreversible) | No code-only recovery — requires manual outreach/correction to the affected recipient and an audit-log review of what was sent; this is exactly why prevention (Pitfall 8/9) is non-negotiable rather than "acceptable risk" |
-| End-customer SMS sent after a STOP reply, no suppression list existed (Pitfall 10) | HIGH (legal) | Build the missing suppression infra immediately, backfill from Twilio's own opt-out records where available, and treat as a compliance incident requiring legal review, not just a bug fix |
+|---------|----------------|------------------|
+| Pixel-perfect WYSIWYG chased and failed (Pitfall 1) | MEDIUM | Reframe the acceptance bar from "identical pixels" to "identical item-to-page assignment" (the shared break-rule module's actual contract); this is a scope/spec fix, not a rewrite |
+| 3 PDF paths converged via HTTP fetch and broke prod webhook sends (Pitfall 13) | LOW-MEDIUM | Revert the fetch-based call, restore the in-process shared function pattern (git history/this document provides the correct pattern) |
+| Client-side money math crept back into `estimate-document.tsx` during refactor (Pitfall 14) | MEDIUM-HIGH | Diff the refactor against `compute-totals.ts` output field-by-field; replace any inline derivation with a prop read; re-run the GUARD-03 golden-value regression suite |
+| Un-memoized paginated editor shipped with severe input lag (Pitfall 5) | LOW-MEDIUM | Add memoization incrementally (item-level first, then section-level) guided by a profiler flame graph rather than a rewrite |
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|-------------------|----------------|
-| 1. Lost exhaustiveness guard | Template schema/foundation phase | CI test diffing `EventType` union against seeded template rows |
-| 2. No missing-template fallback | Template schema/foundation phase (same as #1) | Delete a template row in test/staging; confirm `notify()` degrades gracefully |
-| 3. WhatsApp positional `{{n}}` mismatch | WhatsApp-specific template editor sub-phase (later than email/SMS/in-app) | Editing a WhatsApp event's variables triggers a count/order guard; cross-check against Meta's approved template |
-| 4. HTML injection via variable substitution | Template rendering engine phase | Test render with `<`, `>`, `&`, `"` in a variable value |
-| 5. Cross-audience data leak / locked-invariant regression | Template editor UI + schema design phase | `copy-tenant-neutrality`-style test re-pointed at DB source stays green in CI |
-| 6. Shared Twilio number reputation risk | End-customer SMS + agentic-send phase | Explicit owner/operator sign-off on A2P 10DLC scope before shipping; flagged as a human decision, not auto-resolved |
-| 7. Telegram webhook/polling/MarkdownV2 traps | Telegram-channel phase | Scope v1 as outbound-only explicitly; any future interactivity gets its own deeper-research phase |
-| 8. No confirmation gate for agentic send | Agentic-send phase | Manual test: agent proposes a send, confirms with full recipient+body echo, requires explicit yes before firing |
-| 9. Prompt-injection into recipient/amount | Agentic-send phase (same as #8) | Test: conversation contains a phone number NOT on the client record; system requires confirmation rather than silent send |
-| 10. No end-customer consent/opt-out infra | Early phase / hard prerequisite gate before end-customer SMS + agentic-send phases | Inbound Twilio webhook exists and processes STOP/START; `clients`-scoped suppression checked before every send |
+| 1. Pixel-perfect dual-engine WYSIWYG is doomed | Page-Break Rule | Spec explicitly defines the contract as "same items per page," not "identical pixels" |
+| 2. px vs pt unit confusion | Shared Document Engine | A single conversion constant exists and is used everywhere; no raw numeric literal appears in both a Tailwind/CSS value and a react-pdf `StyleSheet` value |
+| 3. Text-wrap/hyphenation divergence | PDF Parity + Page-Break Rule | Same font files registered in react-pdf as loaded in the DOM preview; safety margin present in height estimation |
+| 4. Non-deterministic font/hyphenation setup | Shared Document Engine | Determinism regression test: render same content twice, assert identical break output |
+| 5. Reflow thrash on keystroke | Paginated Editor Mode | Profiler-verified no full-tree repagination per keystroke on a large test estimate |
+| 6. Focus loss on repagination | Paginated Editor Mode | Explicit test: edit causes cross-page move, cursor position/focus preserved |
+| 7. Drag-and-drop across page boundaries | Paginated Editor Mode | Explicit test: drag item across a page boundary in both directions |
+| 8. `renderToBuffer` blocks event loop | Send-Path Correctness | Existing ETag caching pattern extended to converged resolver, not bypassed |
+| 9. Remote image fetch fails whole render | PDF Parity + Send-Path Correctness | Signed URLs pre-resolved server-side in all 3 call sites; single-image failure degrades gracefully |
+| 10. `minPresenceAhead`/`fixed`/`wrap` combinatorial bugs | Page-Break Rule | Each "keep together" rule's implementation choice (native prop vs. explicit break) documented and tested against an adversarial estimate shape |
+| 11. react-pdf in client bundle / DOM in server path | Shared Document Engine | Shared module is data-only (no react-pdf, no DOM globals); import-boundary lint or review checklist in place |
+| 12. 3 PDF paths diverge silently | Send-Path Correctness | Regression test asserts byte-identical PDF bytes from all 3 call sites for the same signed estimate |
+| 13. pdf-delivery.ts calling the HTTP route | Send-Path Correctness | Shared resolver is a plain function taking an explicit `SupabaseClient`; no internal `fetch()` to the PDF route exists anywhere in `lib/whatsapp/` or Inngest functions |
+| 14. GUARD-03 math regression during refactor | Shared Document Engine + Paginated Editor Mode (every phase touching `estimate-document.tsx`) | GUARD-03 golden-value regression suite green after every incremental extraction step, not just at milestone end |
 
 ## Sources
 
-- Direct repository inspection (HIGH confidence, primary source for all project-specific findings): `lib/notifications/copy.ts`, `dispatch.ts`, `event-types.ts`, `preferences.ts`, `whatsapp-registry.ts`; `lib/telegram/client.ts`; `lib/observability/ops-alert.ts`; `lib/platform-config.ts`; `lib/sms/client.ts`; `lib/inngest/functions/notification-channel-send.ts`; `lib/email/notification-emails.ts`; `lib/whatsapp/confirm.ts`, `manage-tools.ts`, `confirm-actions.ts`; `app/api/mcp/route.ts`; `app/api/webhooks/whatsapp/route.ts`; `app/api/estimates/[id]/send-sms/route.ts`; `lib/ratelimit.ts`; `supabase/migrations/20260621000002_notification_opt_in_consent.sql`, `20260621000003_whatsapp_notification_templates.sql`; `tests/unit/notifications/copy-tenant-neutrality.test.ts`; `.planning/PROJECT.md` (milestone context + prior-milestone locked decisions, e.g. CREDITUI-04, D-15 WhatsApp-owner-only, GUARD-03 never-trust-LLM-math).
-- General domain knowledge (MEDIUM confidence — training-data-derived, not verified against fresh official docs this session; recommend a dedicated deeper-research pass before implementation): Meta WhatsApp Cloud API HSM template positional-parameter behavior; Telegram Bot API rate limits, MarkdownV2 reserved-character set, `secret_token` webhook verification; TCPA prior-express-consent distinctions for transactional vs. marketing SMS; A2P 10DLC campaign/use-case registration scope.
-- Project memory (user-provided, HIGH confidence): Twilio account shared across 6 apps/3 databases; migrations applied manually to prod, never by deploy; red CI blocks all deploys; provider credentials must never live in env vars, only encrypted `platform_integrations`.
+- Direct codebase evidence (HIGH confidence, read 2026-07-27): `components/pdf/estimate-pdf.tsx`, `components/pdf/estimate-pdf-modern.tsx`, `components/share/estimate-document-modern.tsx`, `components/workspace/estimate/estimate-document.tsx`, `app/api/estimates/[id]/pdf/route.ts`, `app/api/estimates/[id]/send/route.ts`, `lib/whatsapp/pdf-delivery.ts`, `lib/estimate/compute-totals.ts`, `lib/estimate/templates/registry.ts`, `.planning/PROJECT.md` (v4.23 milestone section).
+- [diegomura/react-pdf Issue #2659 — infinite loop hanging megathread (minPresenceAhead, margin, break)](https://github.com/diegomura/react-pdf/issues/2659)
+- [diegomura/react-pdf Issue #2238 — `fixed` in conjunction with `minPresenceAhead` does not work as expected](https://github.com/diegomura/react-pdf/issues/2238)
+- [diegomura/react-pdf Issue #955 — minPresenceAhead calculating the meaning of "presence" on next sibling element](https://github.com/diegomura/react-pdf/issues/955)
+- [diegomura/react-pdf Issue #2595 — minPresenceAhead with Row and Column Layout, children break](https://github.com/diegomura/react-pdf/issues/2595)
+- [react-pdf.org — Advanced usage docs (`fixed`, `break`, `minPresenceAhead` semantics)](https://react-pdf.org/advanced)
+- [diegomura/react-pdf discussion — Support non-blocking rendering (Node/Web Workers), Issue #464](https://github.com/diegomura/react-pdf/issues/464)
+- [diegomura/react-pdf Issue #2460 / #3074 — renderToBuffer/renderToStream issues under Next.js App Router](https://github.com/diegomura/react-pdf/issues/2460)
+- [diegomura/react-pdf Issue #2651 / #1253 — Image component failing to render / CORS issues with remote URLs](https://github.com/diegomura/react-pdf/issues/2651)
+- [react-pdf.org — Rendering process docs (Yoga layout, points-based units, text-layout glyph process)](https://react-pdf.org/rendering-process)
+- `.planning/debug/whatsapp-inbound-no-reply-recurrence.md` (referenced in project context re: silent Inngest-context failure history — informs Pitfall 13's severity)
 
 ---
-*Pitfalls research for: Xtimator v4.21 Notification Center*
-*Researched: 2026-07-21*
+*Pitfalls research for: Xtimator v4.23 Unified Estimate Document Engine (dual-engine DOM/react-pdf pagination, editable paginated editor mode)*
+*Researched: 2026-07-27*

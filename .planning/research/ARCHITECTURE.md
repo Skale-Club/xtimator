@@ -1,429 +1,261 @@
-# Architecture Research — v4.21 Notification Center
+# Architecture Research — v4.23 Unified Estimate Document Engine
 
-**Domain:** Brownfield integration study — three-audience Notification Center (platform admins / tenants / end customers) on top of an existing tenant-scoped `notify()` fan-out
-**Researched:** 2026-07-21
-**Confidence:** HIGH (every claim below is grounded in a specific file read from the current `main` branch, cited inline)
+**Domain:** Integration research (subsequent milestone) — unifying Xtimator's estimate webview + PDF rendering into one shared document engine, plus a new paginated editable editor mode.
+**Researched:** 2026-07-27
+**Confidence:** HIGH — every claim below is grounded by reading the actual files (paths + line evidence cited throughout), not inferred from the milestone description. Two places where the milestone's own framing is corrected by the code are called out explicitly.
 
-## Headline Finding
+## Correction to the milestone framing (read this first)
 
-This is not a greenfield feature. It is **three separate integration seams onto two already-shipped pipelines**, plus one genuinely new pipeline:
+PROJECT.md's v4.23 section says the PDF must copy the webview's "signature block (signed estimates currently produce PDFs indistinguishable from unsigned ones)". **The webview does not render a signature block either.** Grepped the entire `components/` and `lib/` trees for `signature_data`/`signer_name`/`estimate_signatures` outside the sign-flow itself (`components/share/estimate-view.tsx`'s `SignaturePad` capture UI and `app/api/estimates/[id]/sign/route.ts`'s insert) — **zero renderers** display the drawn signature (`estimate_signatures.signature_data`, a base64 PNG), the signer name, or the signed date anywhere. Post-acceptance, `estimate-view.tsx:443-454` shows only a generic "Estimate Accepted ... on {date}" message with no signature image. So this is **net-new functionality for both surfaces**, not a "copy an existing webview feature into the PDF" task. Plan accordingly — it needs new data plumbing (see Q1/Q3) in addition to new rendering.
 
-1. **Tenant pipeline** (`notify()` → `lib/notifications/dispatch.ts`) — EXISTS, company-scoped, gains DB-template resolution.
-2. **Platform-ops pipeline** (`notifyOps()` → `lib/observability/ops-alert.ts` + `lib/telegram/client.ts`) — EXISTS AND ALREADY SENDS TELEGRAM. The milestone's "Telegram channel" bullet is ~70% pre-built (quick-task `260705-c1y`, shipped 2026-07-05). The remaining work is a per-event toggle gate + widening the event catalog, not building a Telegram integration from scratch.
-3. **End-customer agentic-send pipeline** — GENUINELY NEW. No table, no neutral capability, no tool exists today. `estimate_deliveries` (Phase-19-era) is the closest prior art (email/sms delivery logging) but is scoped to estimate-send receipts, not arbitrary agentic messages.
+Second correction: photo captions are not "resolved but silently dropped" only in the PDF — the **webview also never displays caption text**, it only sets it as `alt={photo.caption ?? ''}` (`components/workspace/estimate/estimate-document.tsx:1546`, `components/share/estimate-document-modern.tsx:568`). The PDF route (`app/api/estimates/[id]/pdf/route.ts:127-132`) already resolves and passes `{ url, caption }` per photo, but neither `components/pdf/estimate-pdf.tsx` nor `estimate-pdf-modern.tsx` reads `photo.caption` in JSX — only `photo.url`. So captions need to be added to **all four** surfaces, with the webview equally lacking it today.
 
-Getting the roadmap right depends on NOT conflating these three — they have different scope keys (`company_id` vs none vs `company_id` again but a different table), different RLS postures, and different trust boundaries (system-authored copy vs LLM-authored copy sent to a real third party).
-
-## System Overview
+## System Overview — current state (before this milestone)
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  TENANT-SCOPED (company_id required)              PLATFORM-SCOPED (no company)│
-│                                                                                 │
-│  event source (9 call sites)                      event source (6 call sites) │
-│  e.g. connect-webhook.ts, quota.ts        ┌──────► with-fallback.ts,          │
-│         │                                 │        cron routes,               │
-│         │ buildNotificationCopy(ctx)      │        pipeline-watchdog,         │
-│         ▼                                 │        transcribe/analyze/        │
-│  notify({companyId, eventType, ...}) ─────┘        generate-estimate failures │
-│         │  lib/notifications/dispatch.ts                    │                 │
-│         │                                          notifyOps({kind,title,msg})│
-│         ├─► resolveChannels() (preferences.ts)     lib/observability/         │
-│         ├─► NEW: resolveNotificationCopy()          ops-alert.ts             │
-│         │     DB notification_templates                     │                 │
-│         │     ↳ fallback copy.ts                    ┌────────┴────────┐       │
-│         ├─► notifications row (in_app)              │                 │       │
-│         ├─► Inngest notification/email.queued   Redis dedupe    Sentry       │
-│         ├─► Inngest notification/whatsapp.send       │                        │
-│         │     (unchanged — HSM registry)             ▼                        │
-│         └─► Inngest notification/sms.send      lib/telegram/client.ts        │
-│                                                  (sendTelegramMessage)         │
-│                                                       │                        │
-│                                                  NEW: gate on                  │
-│                                                  platform_notification_        │
-│                                                  preferences[kind]             │
-└──────────────────────────────────────────────────────────────────────────────┘
+                         ┌────────────────────────────┐
+                         │ lib/estimate/templates/     │
+                         │ registry.ts (classic|modern)│  ← already shared, keep
+                         └──────────────┬───────────────┘
+                                        │ templateId
+              ┌─────────────────────────┼─────────────────────────┐
+              ▼                                                   ▼
+   WEBVIEW (components/share/estimate-view.tsx, next/dynamic)     PDF (app/api/estimates/[id]/pdf/route.ts,
+              │                                                    PDF_TEMPLATE_COMPONENTS map)
+   ┌──────────┴──────────┐                              ┌──────────┴──────────┐
+   │ estimate-document.tsx│                              │ estimate-pdf.tsx     │  Classic
+   │ (Classic, mode=view/ │                              │ (~860 lines)         │
+   │  edit — 2038 lines)  │                              └──────────────────────┘
+   ├───────────────────────┤                             ┌──────────────────────┐
+   │ estimate-document-    │                              │ estimate-pdf-modern  │  Modern
+   │ modern.tsx (view-only,│                              │ .tsx (~862 lines)    │
+   │  579 lines)           │                              └──────────────────────┘
+   └───────────────────────┘
+        ▲ ZERO shared layout/label/format code with the PDF column.
+        Each of the 4 files independently defines: label map, formatAddress(),
+        formatDate()+DATE_LOCALE, and its own section/totals JSX.
 
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  END-CUSTOMER AGENTIC SEND (NEW — company_id-scoped, LLM-authored content)     │
-│                                                                                 │
-│  Owner: "send an SMS to Sarah about the delay"                                │
-│    │                                                                           │
-│    ▼ WhatsApp inbound                          ▼ Claude.ai / MCP client       │
-│  lib/whatsapp/intent-router.ts  ─── MANAGE ──►  lib/mcp/tools/write.ts        │
-│  lib/whatsapp/manage-tools.ts   (NEW tool)      (NEW send_customer_message)   │
-│    │                                                  │                        │
-│    └───────────────────┬────────────────────────────┘                        │
-│                         ▼                                                      │
-│         NEW: lib/agent-tools/send-customer-message.ts                         │
-│         (trusted companyId closure param, mirrors create-estimate.ts)         │
-│                         │                                                      │
-│         ├─► clients row ownership check (company_id === trusted companyId)    │
-│         ├─► optional template resolve (scope='customer', notification_templates)│
-│         ├─► sendSms() [lib/sms/client.ts, UNCHANGED]                          │
-│         │      or sendEmail() [NEW lib/email/send-raw.ts, same shape as sendSms]│
-│         └─► NEW customer_messages row (audit log, mirrors estimate_deliveries)│
-└──────────────────────────────────────────────────────────────────────────────┘
+   ALREADY SHARED across all 4 (do not touch, keep as-is):
+   lib/money/currency.ts (formatMoney), lib/color/contrast.ts
+   (ensureReadableOnWhite/readableTextColor), lib/estimate/deposit-display.ts
+   (deriveDepositDisplay — locked order Subtotal→Discount→Tax→Total→Deposit→
+   BalanceDue), lib/estimate/presentation-settings.ts (resolvePresentationSettings/
+   isSectionVisible — the ONE section-visibility gate all 4 files already call).
+
+   SEND PATHS THAT BYPASS THE REGISTRY ENTIRELY (confirmed by grep, zero matches
+   for the registry/snapshot symbols in either file):
+   app/api/estimates/[id]/send/route.ts:7,192        → hardcoded `EstimatePDF` (Classic)
+   lib/whatsapp/pdf-delivery.ts:15,48                 → hardcoded `EstimatePDF` (Classic)
+   Neither loads `loadLatestSignedSnapshot`/`applySignedSnapshot` — both violate
+   TRUST-01 (render live rows even after a snapshot-freezing signature exists).
+   app/api/estimates/[id]/pdf/route.ts already does both correctly (lines 22-25
+   template registry map, lines 60-66 snapshot load+apply) — the send paths just
+   need to copy that existing, already-proven pattern.
 ```
 
-## Component Responsibilities
+## Q1 — Shared "document model + design tokens + labels" module
 
-| Component | Status | Responsibility |
-|---|---|---|
-| `lib/notifications/dispatch.ts` (`notify()`) | MODIFIED | Tenant-scoped fan-out choke point; gains DB-template resolution ahead of in_app write + email/sms dispatch |
-| `lib/notifications/copy.ts` (`buildNotificationCopy`) | MODIFIED (kept, not deleted) | Becomes the permanent last-resort fallback when no active DB template row exists |
-| `lib/notifications/whatsapp-registry.ts` | UNCHANGED | Owner-WhatsApp HSM template registry — stays the only source for the `whatsapp` channel (Meta requires pre-approved templates; free-text DB templates cannot apply here) |
-| `lib/observability/ops-alert.ts` (`notifyOps()`) | MODIFIED | Platform-scoped (no `company_id`) fan-out choke point for Telegram; gains a per-`kind` toggle gate read from `platform_notification_preferences` |
-| `lib/telegram/client.ts` | UNCHANGED | `sendTelegramMessage()` — already reads bot token + chat_id from `platform_integrations` (provider `'telegram'`) via `getTelegramConfig()`. No new Telegram integration work needed. |
-| `lib/platform-config.ts` (`getTelegramConfig`) | UNCHANGED | Already dormant-until-configured, already the standing "no keys in env" pattern the project requires |
-| `lib/agent-tools/*` | ADDS ONE FILE | Channel-neutral capability layer (`createEstimate`, `createProject`, `createPriceBookService`, `addCompanyKnowledge`, ...) gains `sendCustomerMessage` |
-| `lib/whatsapp/manage-tools.ts` (MANAGE intent) | MODIFIED | Already the general-purpose, non-session-scoped write-tool bucket reached from any conversation state via `intent-router.ts`'s classifier — the natural home for "message my client" |
-| `lib/whatsapp/agent-tools.ts` (confirmation agent) | NOT the right home | Scoped to one active `session.draft_estimate_id`; do not bolt customer-send here |
-| `lib/mcp/tools/write.ts` | MODIFIED | Gains `send_customer_message` write tool, same annotation tier as `create_estimate`/`add_service` |
-| `lib/sms/client.ts` (`sendSms`) | UNCHANGED | Reused as-is by both the tenant `notify()` sms branch and the new agentic-send path |
-| `lib/email/sender.ts` | MODIFIED (additive) | Currently only exports `emailFrom()`; needs a sibling generic `sendEmail()` primitive (see below) |
-| **NEW** `lib/notifications/template-resolver.ts` | NEW | `resolveNotificationCopy(scope, eventType, channel, vars)` — DB-first, `copy.ts`-fallback, mirrors the proven `getApprovedTemplateForEvent` pattern |
-| **NEW** `notification_templates` table | NEW | DB-editable per-(scope, event_type, channel) copy with `{{variables}}` |
-| **NEW** `platform_notification_preferences` table | NEW | Per-platform-event-`kind` Telegram toggle |
-| **NEW** `customer_messages` table | NEW | Audit log for every end-customer email/SMS send (agentic or manual) |
-| **NEW** `lib/notifications/platform-events.ts` | NEW | Code catalog of platform alert `kind`s (mirrors `event-types.ts`'s `EventType`/`EVENT_CATEGORIES` split of code-catalog vs DB-toggle-state) |
-| **NEW** `lib/agent-tools/send-customer-message.ts` | NEW | Neutral capability, trusted-`companyId` closure param (T-lrf-01 pattern), calls `sendSms`/`sendEmail` directly (synchronous — see Data Flow) |
+### What exists today (the 4 independent copies)
 
-## The Tenant-Scope vs Platform-Scope Split (addressed head-on)
+| Concern | Classic webview<br>`components/workspace/estimate/estimate-document.tsx` | Modern webview<br>`components/share/estimate-document-modern.tsx` | Classic PDF<br>`components/pdf/estimate-pdf.tsx` | Modern PDF<br>`components/pdf/estimate-pdf-modern.tsx` |
+|---|---|---|---|---|
+| Label map | `DOC_LABELS` (L63-196), full edit+view superset (incl. `discountNone`, `depositPct`, `addItem`, etc.) | `DOC_LABELS` (L66-142), a **view-only trimmed subset** — file's own comment (L36-37) says "trimmed to only the keys this view-only document renders" | `PDF_LABELS` (L57-142) | `PDF_LABELS` (L60-145) — **byte-identical** to Classic PDF's map (confirmed diff) |
+| `formatAddress()` | L414-427 | L155-168 (comment L151-153: "duplicated verbatim... small, self-contained") | L198-215 | L201-218 — same body as Classic PDF |
+| `formatDate()` + `DATE_LOCALE` | L429-441 (has the local-midnight `T00:00:00` normalization fix) | L144-148, L170-177 (lacks the local-midnight fix) | L144-148, L217-224 | same as Classic PDF |
+| Design tokens (colors/fonts/spacing) | inline Tailwind classes + `SYSTEM_COLORS`/brand-color computed via `ensureReadableOnWhite`/`readableTextColor` | same mechanism, different Tailwind classes (serif, hairlines) | `StyleSheet.create()` object literal, Helvetica, brand-fill headers (L226-452) | separate `StyleSheet.create()` object literal, Times-Roman, hairline headers (L229-464) — no shared source with Classic PDF's numbers |
+| Data model type | `EstimateDocumentData`/`DocumentCompany`/`DocumentClient`/`DocumentItem`/`DocumentSection`/`DocumentPhoto` (exported, L266-374) | imports the same types from `estimate-document.tsx` (type-only import, L12-16) — good precedent, reuse this pattern | `EstimatePDFProps` wrapping `EstimateWithSections` (`lib/queries/estimate.ts`) + local `CompanyInfo`/`ClientInfo` (L158-196) | same shape, separately declared (L161-199) |
 
-The orchestrator's framing is correct and load-bearing: **`notify()` cannot be the Telegram channel's entry point**, for structural reasons visible in the code, not just convention:
+**No `lib/estimate/document/` (or similar) module exists yet** — greenfield extraction, not a rename of something that's half-there.
 
-- `NotifyParams.companyId` is a **required** field (`lib/notifications/dispatch.ts:26`).
-- The dedupe check queries `.eq('company_id', params.companyId)` (`dispatch.ts:92`).
-- The `notifications` table has `company_id UUID NOT NULL REFERENCES public.companies(id)` and RLS keyed on `(auth.jwt() ->> 'company_id')::uuid` (`supabase/migrations/20260520000002_notifications_system.sql:7,42`).
-- `resolveChannels()` reads `notification_preferences` keyed by `user_id` (a company member), not a platform concept (`lib/notifications/preferences.ts`).
+### Recommended module: `lib/estimate/document/`
 
-Platform events — a new tenant signing up, a payment landing, a cron job dying, an AI provider falling back — are either **zero-company** (cron failure, ai fallback) or **about a company from the platform's outside perspective** (a specific tenant's signup/payment is itself the subject of the alert, not a message addressed to that tenant's own users). Forcing these through `notify()` would require making `companyId` optional everywhere downstream (dedupe, RLS, the notifications feed itself) — a structural regression to a table that 15+ call sites and the entire in-app notification UI depend on being company-scoped.
+New files (all new, pure, no React/react-pdf import so both renderer families can use them):
 
-The codebase already independently arrived at this same conclusion: `lib/observability/ops-alert.ts`'s own doc comment states *"Company-agnostic: alerts carry only the kind/title/message — never a companyId."* This is not a gap to fix — it is the correct existing seam. **The architecture recommendation is: keep two parallel, independently-triggered pipelines that share only a call site, never a table or a function.**
+- **`lib/estimate/document/model.ts`** — the canonical `DocumentModel` type. Should be a superset of today's `EstimateDocumentData` (webview) that also covers what the PDF route already resolves server-side (`preparedBy`, per-photo `{url, caption}`) plus the two genuinely new fields: a `signature` block (`signerName`, `signedAt`, `signatureImageDataUrl`) and nothing else new — everything else (sections/items/totals/terms) is already structurally identical across all 4 files. Keep `EstimateDocumentData` as a type alias/subset of `DocumentModel` rather than rewriting `estimate-editor.tsx`'s `stateToDocumentData()` — minimizes blast radius.
+- **`lib/estimate/document/labels.ts`** — one canonical label record, a union of all 3 current label sets (edit-mode extras from Classic webview's `DOC_LABELS`, plus PDF-only `page`/`of`/`preparedBy`, plus new `signedBy`/`signedOn`/`photoCaption`-adjacent keys if needed). Both webview files and both PDF files import from here; each keeps only the keys it renders (unused keys are harmless).
+- **`lib/estimate/document/format.ts`** — single `formatAddress()`, single `formatDate()` + `DATE_LOCALE`. **Use the Classic webview's version** (`estimate-document.tsx:429-441`) as the source of truth — it's the only one of the 4 with the local-midnight `T00:00:00` normalization fix; the other 3 copies are missing it and are a latent timezone bug for date-only strings.
+- **`lib/estimate/document/tokens.ts`** — `Record<EstimateTemplateId, DesignTokens>` (keyed off the **existing** `EstimateTemplateId` from `lib/estimate/templates/registry.ts` — do not invent a second id enum). `DesignTokens` must be plain values (hex colors, point/px numbers, font family strings) — **not Tailwind class strings** — because `@react-pdf/renderer`'s `StyleSheet.create()` cannot consume Tailwind at all; the webview then either maps token values to inline `style={}` (as it already does for `brandColor`/`brandText` today) or through a small resolver. This is the only design that lets one token source feed both a Tailwind-class-based DOM tree and a `StyleSheet.create()` object.
 
-Concretely, for events that have BOTH a tenant-facing and a platform-facing angle (e.g. payment received), the SAME business call site fires **two independent calls**:
+### Exhaustive parity checklist — what the PDF (and, per the corrections above, in two cases the webview too) must gain
 
-```typescript
-// lib/billing/connect-webhook.ts (illustrative — both calls already-pattern-consistent)
-await notify({ companyId, userId, eventType: 'payment.received', title, body, ... })   // tenant sees it
-void notifyOps({ kind: 'tenant_payment_received', title: `Payment: ${company.name}`, message, severity: 'warning' }) // platform admin sees it
-```
+| Element | Classic webview | Modern webview | Classic PDF | Modern PDF | Action needed |
+|---|---|---|---|---|---|
+| Signature block (image + signer + date) | **Missing** | **Missing** | **Missing** | **Missing** | **New everywhere.** Data source: `estimate_signatures.signer_name`/`signature_data`/`signed_at`, currently only read by `lib/queries/share.ts:loadLatestSignedSnapshot()` (which selects `signed_content`/`signed_total`, NOT the display fields) and `app/api/estimates/[id]/sign/route.ts` (insert). Needs a new/extended query. |
+| Photo caption text | Alt-text only (L1546) | Alt-text only (L568) | Not rendered (data present, JSX ignores it) | Not rendered (data present, JSX ignores it) | **New everywhere.** No new data plumbing needed — `caption` is already threaded through `DocumentPhoto`/`app/api/estimates/[id]/pdf/route.ts:127-132`. |
+| Estimate Terms (`company.estimate_terms_enabled/text`) | Rendered **outside** the document card, as a sibling `<Card>` in `components/share/estimate-view.tsx:322-336` (applies to both templates since it's in the page wrapper, not the doc component) | same (page wrapper) | Rendered **inside** `termsSection`, `estimate-pdf.tsx:783-792` | Rendered **inside** `termsSection`, `estimate-pdf-modern.tsx:784-792` | Structural divergence, not a missing-feature gap — content is present everywhere. Decide once: does Estimate Terms belong inside `DocumentModel`'s terms block, or stay a page-level wrapper concern? Recommend keeping it a page-level concern (webview) mirrored by a terms-block append (PDF) — avoids moving it into the new paginated flow unnecessarily. |
+| "Prepared by" (staff/owner name) | **Missing** (no equivalent field in `EstimateDocumentData`) | **Missing** | Present, `estimate-pdf.tsx:842-847` | Present, `estimate-pdf-modern.tsx:843-848` | PDF-only today. Not explicitly required by the milestone's parity list — flag as an open scope question rather than assume it must be added to webview. |
+| Section header / item table / mobile cards / section subtotal | Present | Present | Present (single fixed-width table, no responsive concept — PDF has no viewport) | Present | Already structurally parallel across all 4 — formalize into the shared model's section-block shape but no missing content. |
+| Totals order (Subtotal→Discount→Tax→Total→Deposit→BalanceDue) | Present, `DocumentTotals` (L991-1255) | Present (L450-507) | Present (L708-772), comment literally states the locked order | Present (L714-773), same locked order | Already consistent via `deriveDepositDisplay` — no gap, keep as-is. |
+| Section-visibility gating | `isSectionVisible(resolvedSettings, ...)` throughout | same | same | same | Already the single shared gate (`lib/estimate/presentation-settings.ts`) — do not duplicate, extend its `SectionKey` union only if signature/captions need independent visibility toggles (open product question, not required by the milestone text). |
 
-This is not a new pattern — `with-fallback.ts` and the cron routes already call `notifyOps()` standalone, with zero relationship to `notify()`. The only new work is adding sibling `notifyOps()` calls at the ~3 business call sites the milestone names (signup, payment, quota) that don't yet emit a platform alert, alongside the 6 that already do (reliability alerts).
+### What stays untouched
 
-## (a) Where Template Resolution Slots In
+`lib/estimate/templates/registry.ts`, `lib/estimate/presentation-settings.ts`, `lib/money/currency.ts`, `lib/color/contrast.ts`, `lib/estimate/deposit-display.ts`, `lib/estimate/compute-totals.ts` (GUARD-03 math — the document engine only ever *reads* persisted totals, never recomputes; no changes belong here at all).
 
-**Per event, resolved per channel, inside `notify()` — not at the 9 call sites.**
+## Q2 — Where the pagination engine lives, and its contract
 
-Today, call sites (`lib/quota.ts`, `lib/inngest/functions/{transcribe-audio,analyze-photos,generate-estimate}.ts`, `lib/whatsapp/handler.ts`, `lib/billing/{connect-webhook,credit-ledger}.ts`, `app/admin/billing/actions.ts`, `app/estimate/[token]/actions.ts`) call `buildNotificationCopy(eventType, ctx)` themselves, THEN pass the resulting `{title, body}` into `notify()`. `notify()` itself never touches `copy.ts` — this is the key discovery that shapes the integration.
+### Location
 
-**Recommendation:** extend `NotifyParams` with an optional `copyContext?: CopyContext` (the same shape callers already build for `buildNotificationCopy`). Inside `notify()`, before building the in_app row / queuing email / building the sms body, resolve copy per channel:
+`lib/estimate/pagination/` — matches the existing `lib/estimate/*` module convention (`compute-totals.ts`, `presentation-settings.ts`, `deposit-display.ts`, `templates/registry.ts` all live flat under `lib/estimate/`). Confirmed via repo-wide grep that **no pagination code of any kind exists yet** — the ~24 files matching `pagination` are all unrelated (admin table pagination, MCP list pagination). This is greenfield.
 
-```typescript
-// lib/notifications/template-resolver.ts (NEW)
-export async function resolveNotificationCopy(
-  scope: 'tenant' | 'customer',
-  eventType: string,
-  channel: 'in_app' | 'email' | 'sms',
-  vars: CopyContext,
-): Promise<NotificationCopy | null> {
-  // DB lookup: notification_templates WHERE scope, event_type, channel, is_active
-  // → interpolate {{var}} tokens from `vars`
-  // → return null on any miss/error (never throws)
+### Why this can't be one trivial shared function — and what the real contract is
+
+`@react-pdf/renderer` and the DOM are different layout engines with fundamentally different measurement mechanisms:
+
+- **DOM (paginated editor mode)**: block heights can be measured for real, live, against actually-mounted elements (`ResizeObserver`/`getBoundingClientRect()`), at the existing 816px/1056px US-Letter proxy the codebase already established (`min-h-[1056px]`/`max-w-[816px]`, Quick-260718-p3v, `estimate-document.tsx:1663-1670`, `estimate-editor.tsx:714-715`).
+- **react-pdf (server-side, Alpine container per PROJECT.md)**: there is no cheap way to pre-measure real DOM text wrapping before render. react-pdf itself already does implicit reflow via `wrap`/`fixed`/`break` — but that's exactly what the milestone wants to REPLACE with one deterministic rule engine, because implicit reflow can't be told "never split a line item" or "keep section header with its first row" in a way that's guaranteed to match the DOM preview's breaks.
+
+**Conclusion: byte-identical pixel output between the two engines was never actually achievable** (they use different fonts — Helvetica/Times-Roman built-ins in react-pdf vs. the DOM's system `font-sans`/serif stack — so text wraps differently regardless). The real, achievable contract is: **the same deterministic RULES, applied to each engine's own best-effort block-height measurements.**
+
+### Proposed contract
+
+```ts
+// lib/estimate/pagination/types.ts
+interface PageBlock {
+  id: string
+  kind: 'section-header' | 'item-row' | 'section-subtotal' | 'totals'
+      | 'terms-block' | 'photos-grid' | 'signature-block'
+  height: number          // normalized unit (points); SUPPLIED by the caller's
+                           // measurement provider — this module never measures anything itself
+  keepWithNext?: boolean    // e.g. section-header keeps with its first item-row
+  keepWithPrevious?: boolean // e.g. section-subtotal keeps with its section's last row
+  groupId?: string          // rows sharing a groupId avoid an orphaned header at a page bottom
 }
-```
 
-`notify()`'s resolution order per channel becomes: **DB template (if `copyContext` was passed by the caller) → caller-supplied `title`/`body` (unchanged fallback) → nothing changes for un-migrated callers.** This is the exact precedent already proven in this codebase for WhatsApp: `getApprovedTemplateForEvent()` (`lib/notifications/whatsapp-registry.ts:83-113`) resolves an approved DB row from `whatsapp_notification_templates`, falling back to the static `REGISTRY` map, called from inside `notify()`'s whatsapp branch (`dispatch.ts:187`). The new work generalizes this ONE-channel pattern to THREE more channels (in_app/email/sms) and TWO scopes (tenant/customer) — it is not a new architectural idea, it is the same idea applied more broadly.
-
-**Zero-regression rollout is two steps, and they can be two different phases:**
-1. Ship the resolver + wire it into `notify()` as strictly additive (`copyContext` optional, defaults to `undefined` → 100% fallback to current behavior, since `notification_templates` starts empty). Zero call-site changes required.
-2. Sweep the 9 call sites to pass `copyContext: ctx` instead of pre-computing `buildNotificationCopy(eventType, ctx)` inline — mechanical, low-risk, each site already has `ctx` in scope. This is what actually lets an admin's DB edit take effect for that event.
-
-**Per-channel divergence detail (why "per channel" is the right axis, not "per event"):**
-- **in_app**: title + body (existing shape, unchanged).
-- **email**: subject + body. Today the email digest worker (`lib/inngest/functions/notification-email-digest.ts`) re-reads `notifications.title`/`.body` straight from the row — it does NOT re-derive copy, because it runs later/batched. To let email wording diverge from in_app wording, `notify()` should stash a resolved email-specific copy into `notifications.metadata.email_copy = {subject, body}` (metadata is already JSONB, already used for `dedupe_key`/`email_sent_at` — no schema migration beyond the new table). The digest worker prefers `metadata.email_copy` when present, else falls back to `title`/`body` exactly as today.
-- **sms**: today `dispatch.ts:224` inlines `body: `${params.title}: ${params.body}`` directly in the Inngest payload. New: resolve an sms-channel template if present, else keep that exact fallback string.
-- **whatsapp**: intentionally untouched — Meta HSM templates can't be free-text edited, so `whatsapp_notification_templates` stays the sole source for that one channel.
-
-## (b) New Tables
-
-### `notification_templates` (NEW — the DB-editable copy engine)
-
-```sql
-CREATE TABLE public.notification_templates (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  scope        text NOT NULL CHECK (scope IN ('tenant','customer')),
-  event_type   text NOT NULL,
-  channel      text NOT NULL CHECK (channel IN ('in_app','email','sms')),
-  subject      text,               -- email only
-  title        text,               -- in_app only
-  body         text NOT NULL,
-  variables    jsonb NOT NULL DEFAULT '[]'::jsonb,  -- catalog for the admin preview UI
-  is_active    boolean NOT NULL DEFAULT true,
-  updated_by   uuid,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (scope, event_type, channel)
-);
--- RLS: service-role-only, mirrors whatsapp_notification_templates (20260621000003) —
--- ENABLE RLS, zero anon/authenticated policies. Structurally enforces the locked
--- "no tenant overrides" decision: there is no company_id column at all.
-```
-
-One row per channel (not one row per event with per-channel JSONB columns) because email genuinely needs `subject`+`body` while in_app needs `title`+`body` while sms needs `body`-only — forcing these into one row produces an awkward, mostly-null shape. Row-per-channel also gives the admin editor UI a natural "list, filter by scope/channel, edit one" surface, matching the existing `whatsapp-templates-panel.tsx` UX precedent.
-
-`scope='customer'` rows serve the agentic-send flow's *templated* case (e.g. "appointment reminder") — free-form agentic sends (owner dictates exact wording) skip this table entirely; the LLM composes the body directly.
-
-### `platform_notification_preferences` (NEW — Telegram per-event toggle)
-
-```sql
-CREATE TABLE public.platform_notification_preferences (
-  event_kind   text PRIMARY KEY,          -- matches OpsAlert.kind
-  telegram_enabled boolean NOT NULL DEFAULT true,  -- default ON = zero regression vs today's always-on notifyOps
-  updated_by   uuid,
-  updated_at   timestamptz NOT NULL DEFAULT now()
-);
--- RLS: service-role-only. No company_id — genuinely platform-scoped.
-```
-
-The **event catalog itself stays code**, not DB — a new `lib/notifications/platform-events.ts` exporting a `PlatformEventKind` union + human labels, mirroring the existing code/DB split already used for tenant events (`EVENT_CATEGORIES`/`DEFAULT_PREFERENCES` are code in `event-types.ts`; only the per-user override lives in `notification_preferences`). The DB table only stores the admin-editable toggle *state*, keyed by the code-defined string. This lets the roadmap add new alert kinds without a migration.
-
-**No new table for the bot token / chat_id** — `platform_integrations` (provider `'telegram'`, `metadata.chat_id`) already exists and is already wired end-to-end via `getTelegramConfig()`. Recommend keeping the existing single-chat-id model (one ops Telegram group) rather than adding per-admin-recipient fan-out — that would be a materially bigger schema change (a recipient list + per-recipient delivery tracking) not clearly asked for by the milestone bullet ("Telegram bot token stored encrypted... delivered to Xtimator admins"), and every current call site already assumes one destination.
-
-### `customer_messages` (NEW — end-customer send audit log)
-
-```sql
-CREATE TABLE public.customer_messages (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id          uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  client_id           uuid REFERENCES public.clients(id) ON DELETE SET NULL,
-  channel             text NOT NULL CHECK (channel IN ('email','sms')),
-  recipient_email     text,
-  recipient_phone     text,
-  subject             text,                 -- email only
-  body                text NOT NULL,
-  template_event_type text,                 -- NULL for free-form agentic sends
-  source              text NOT NULL CHECK (source IN ('manual','agentic_whatsapp','agentic_mcp')),
-  provider             text NOT NULL CHECK (provider IN ('resend','twilio')),
-  provider_message_id  text,
-  status               text NOT NULL DEFAULT 'pending'
-                        CHECK (status IN ('pending','sent','delivered','failed','bounced')),
-  error_message         text,
-  sent_by_user_id       uuid,               -- the owner/staff whose conversation triggered it
-  created_at            timestamptz NOT NULL DEFAULT now(),
-  sent_at                timestamptz
-);
--- RLS: tenant-scoped SELECT via company_members (mirrors estimate_deliveries' pattern),
--- INSERT/UPDATE service-role only.
-```
-
-This is modeled directly on **`estimate_deliveries`** (`supabase/migrations/20260519000003_estimate_deliveries.sql`), which already logs exactly this shape (channel CHECK email/sms, provider CHECK resend/twilio, status lifecycle, RLS via `company_id IN (SELECT id FROM companies WHERE ...)`) for estimate-send receipts. Recommend a **new, separate table** rather than widening `estimate_deliveries` — the latter has a `NOT NULL` FK to `estimates` and is a proven, currently-shipping table; do not touch it. `customer_messages` reuses its conventions but is not tied to any estimate, and carries the extra `source`/`sent_by_user_id`/`template_event_type` columns that matter for auditing an LLM-authored send to a real third party — the first time this codebase lets that happen.
-
-## (c) Telegram Channel Integration
-
-**Extend the existing `notifyOps()`/`ops-alert.ts` pipeline. Do not add a Telegram branch to `notify()`.** (Full rationale in the Tenant-vs-Platform section above.)
-
-Concrete changes to `lib/observability/ops-alert.ts`:
-
-```typescript
-export async function notifyOps(alert: OpsAlert): Promise<void> {
-  try {
-    if (alert.dedupeKey) { /* unchanged Redis SETNX */ }
-    try { Sentry.captureMessage(...) } catch {}   // unchanged — always fires regardless of toggle
-
-    // NEW: per-kind toggle gate — Sentry stays the unconditional technical record;
-    // Telegram becomes admin-toggleable. Defaults to enabled (fail-open) so an
-    // unconfigured/errored preferences read never silently kills alerting.
-    const telegramEnabled = await isTelegramAlertEnabled(alert.kind) // reads platform_notification_preferences, defaults true
-    if (telegramEnabled) {
-      try { await sendTelegramMessage(formatOpsMessage(alert)) } catch {}
-    }
-  } catch {}
+interface PageConstraints {
+  pageHeight: number       // same normalized unit as block.height
+  headerHeight: number     // repeated per-page chrome (react-pdf `fixed` header / DOM sticky page header)
+  footerHeight: number
 }
+
+function computePageBreaks(blocks: PageBlock[], constraints: PageConstraints): PageAssignment[]
 ```
 
-Widen the event catalog by adding `notifyOps()` calls at the 3 net-new business call sites the milestone names, as SIBLING calls next to existing tenant `notify()` calls (not replacing them):
+- **`lib/estimate/pagination/engine.ts`** — the pure `computePageBreaks()` rule engine (never split a line item, section header keeps with first row, subtotal keeps with last row, totals/photos/signature blocks are atomic). Zero DOM/react-pdf dependency — trivially unit-testable with plain fixtures. **This is the single deterministic module the milestone asks for.**
+- **`lib/estimate/pagination/blocks-from-model.ts`** — `DocumentModel` → `PageBlock[]` **without heights** (structure only; heights are always injected by the caller).
+- **`lib/estimate/pagination/measure-dom.ts`** — client-only measurement provider (`ResizeObserver` against the mounted, currently-unpaginated DOM tree) feeding `engine.ts`.
+- **`lib/estimate/pagination/measure-pdf.ts`** — server-only measurement provider using constant/estimated heights derived from `lib/estimate/document/tokens.ts`'s point sizes (row height, header height, subtotal footer height are fixed per template; multi-line description wrapping is estimated via a column-width ÷ average-glyph-width heuristic — avoid pulling in a canvas/text-measurement native dependency, which is fragile to build on the Alpine container PROJECT.md flags). Feeds `engine.ts`, whose output then drives explicit `break` props on react-pdf `View`s — replacing react-pdf's implicit reflow rather than layering on top of it.
 
-| Platform event | New `kind` | Call site to add sibling `notifyOps()` |
-|---|---|---|
-| Tenant signup | `tenant_signup` | wherever onboarding/`createOrUpdateCompany` completes (new call site — no existing `notify()`/`notifyOps()` fires today on signup) |
-| Payment received | `tenant_payment_received` | `lib/billing/connect-webhook.ts` (already calls tenant `notify('payment.received', ...)`) |
-| Quota exhausted | `tenant_quota_exhausted` | `lib/quota.ts` (already calls tenant `notify('quota.exhausted', ...)`) |
-| Job failures | *(already covered)* | `estimate_generation_failed`/`transcription_failed`/`vision_failed`/`ai_fallback` already fire via existing `notifyOps()` calls in `generate-estimate.ts`, `transcribe-audio.ts`, `analyze-photos.ts`, `with-fallback.ts` |
-| Critical errors | *(already covered)* | `pipeline_stuck` (`pipeline-watchdog.ts`), `cron_failed` (both cron routes) |
+Both the DOM paginated preview and the react-pdf renderer call the **same** `computePageBreaks()` with **different** measurement providers. That's the mechanism that lets "the two mirror each other."
 
-Admin UI: extend the existing `/admin/integrations` Telegram card (`app/admin/integrations/telegram-chat-id-form.tsx`) — or a new `/admin/notifications` platform tab — with a per-`kind` toggle list bound to `platform_notification_preferences`, following the exact `requireAdmin` + `requireServiceClient` server-action pattern already used in `lib/actions/admin-whatsapp-templates.ts`.
+## Q3 — How the two PDF templates and two webview docs restructure
 
-**What is explicitly NOT new work:** the Telegram HTTP client, the bot-token/chat-id admin field, the encrypted-credential storage, the dedupe layer, the Sentry co-fan-out, and 6 of the ~9 needed event sources. All shipped 2026-07-05 (quick-task `260705-c1y`) and are proven in production use by `with-fallback.ts` and 5 other call sites.
+### New
 
-## (d) Agentic End-Customer Send Flow
+| File | Purpose |
+|---|---|
+| `lib/estimate/document/model.ts`, `labels.ts`, `format.ts`, `tokens.ts` | Shared model/labels/formatters/tokens (Q1) |
+| `lib/estimate/pagination/types.ts`, `engine.ts`, `blocks-from-model.ts`, `measure-dom.ts`, `measure-pdf.ts` | Pagination engine + measurement providers (Q2) |
+| A signature-display data helper (e.g. `lib/queries/share.ts` addition or a new `lib/estimate/signature-display.ts`) | Resolves `estimate_signatures.signer_name`/`signature_data`/`signed_at` for both the webview and PDF, mirroring how `deriveDepositDisplay` is the one shared read-seam for deposit data |
+| A shared signature-block renderer per family (one React component for webview, one react-pdf JSX fragment for PDF — cannot be literally the same component across the two renderer families) | Renders signer name, signed date, and the base64 PNG (`<img>` in DOM, `<Image src="data:image/png;base64,...">` in react-pdf) |
+| `components/workspace/estimate/estimate-document-paginated.tsx` (or a `paginated` branch inside the existing file — see Q5) | The new paginated, editable layout wrapper |
+| Two toggle-icon components/markup inside `components/workspace/project-header.tsx` | UI toggle (Q4) |
 
-**New neutral capability, called synchronously (not via Inngest) from two channel adapters (WhatsApp MANAGE tool + MCP write tool), hitting the same `sendSms`/`sendEmail` primitives `notify()` uses — with tenant-scoped ownership guardrails mirroring the MCP `create_estimate` project-ownership preflight.**
+### Modified
 
-### Why synchronous, not Inngest-queued
-`notify()`'s email/whatsapp/sms branches go through Inngest because they are proactive, nobody-is-waiting system notifications. The agentic send is the opposite: the owner is mid-conversation and the agent's reply THIS TURN needs to say "sent" or "couldn't send, no phone on file." The established precedent for a user-initiated, response-this-turn external send is `app/api/estimates/[id]/send-sms/route.ts`, which calls `sendSms()` directly, synchronously, with no Inngest hop. The new tool follows that precedent, not the `notify()` precedent.
+| File | Change |
+|---|---|
+| `components/workspace/estimate/estimate-document.tsx` | Swap local `DOC_LABELS`/`formatAddress`/`formatDate`/`DATE_LOCALE` for the shared module; add signature block + photo caption rendering (both `view` and `edit` mode — a signed estimate is already locked read-only via `state.hasSignature` in `estimate-editor.tsx:322-325`, so the signature block in edit mode is naturally display-only). |
+| `components/share/estimate-document-modern.tsx` | Same swap; same additions; optionally add Estimate-Terms rendering for parity with the wrapper's Classic-path behavior (currently absent — Q1 table). |
+| `components/pdf/estimate-pdf.tsx` | Swap inline `PDF_LABELS`/`formatAddress`/`formatDate`/`DATE_LOCALE`/color-and-font literals for the shared `labels.ts`/`format.ts`/`tokens.ts` (`'classic'` token set); add signature block + captions; JSX/`StyleSheet` stays react-pdf-specific (cannot be literally shared with DOM JSX) but every **value** it uses becomes shared. |
+| `components/pdf/estimate-pdf-modern.tsx` | Same, `'modern'` token set. |
+| `app/api/estimates/[id]/pdf/route.ts` | Add signature-row fetch (currently only `loadLatestSignedSnapshot` selects `signed_content`/`signed_total`, not `signer_name`/`signature_data`/`signed_at`) and thread it into the PDF component props. |
+| `app/api/estimates/[id]/send/route.ts` | **Copy the existing `PDF_TEMPLATE_COMPONENTS` registry pattern + `loadLatestSignedSnapshot`/`applySignedSnapshot` calls verbatim from `app/api/estimates/[id]/pdf/route.ts`** — currently hardcodes `EstimatePDF` (L7, L192) and never loads a snapshot. Self-contained, no dependency on the rest of this milestone. |
+| `lib/whatsapp/pdf-delivery.ts` | Same fix as the send route — hardcodes `EstimatePDF` (L15, L48), no snapshot loading. |
 
-### Neutral capability
+## Q4 — Toolbar toggle placement and view-mode state flow
 
-```typescript
-// lib/agent-tools/send-customer-message.ts (NEW)
-// Mirrors lib/agent-tools/create-estimate.ts: companyId is a CLOSURE/trusted
-// param resolved upstream — NEVER an LLM tool-input field (T-lrf-01).
-export async function sendCustomerMessage(args: {
-  companyId: string
-  clientId: string
-  channel: 'email' | 'sms'
-  body: string            // LLM-authored (free-form) or template-rendered
-  subject?: string        // email only
-  eventType?: string      // optional — for template-resolved sends + audit
-}): Promise<{ ok: boolean; error?: string }> {
-  // 1. Ownership check: clients row WHERE id = clientId AND company_id = companyId
-  //    (mirrors handleCreateEstimate's project.company_id === auth.company_id check
-  //    in lib/mcp/tools/write.ts)
-  // 2. Resolve `to` from clients.email / clients.phone
-  // 3. sendSms(to, body)  or  sendEmail({to, subject, body})  [NEW lib/email/send-raw.ts]
-  // 4. Insert customer_messages row (audit trail) regardless of outcome
-}
-```
+### Exact component
 
-### WhatsApp side — extend the MANAGE intent, not the confirmation agent
+`components/workspace/project-header.tsx` is confirmed as the component owning the header with "Edit with AI": it renders `<EditEstimateHeaderButton projectId={project.id} />` at **L53**, inside a `div.flex.items-center.gap-2.shrink-0` (L44) that already holds the autosave-status text. Insert the two new icon-toggle buttons in that same flex row, **before** `<EditEstimateHeaderButton />` (i.e., between the autosave status and the button — "to the LEFT of Edit with AI").
 
-`lib/whatsapp/manage-tools.ts` is already the general-purpose, non-session-scoped write-tool bucket — reached from ANY conversation state via `lib/whatsapp/intent-router.ts`'s classifier (`MANAGE` intent, alongside `add_service`/`add_knowledge`). This is architecturally the right home: "send an SMS to my client about X" is a standalone command, not part of reviewing one pending estimate draft (which is what `lib/whatsapp/agent-tools.ts`'s confirmation agent is scoped to via `session.draft_estimate_id`).
+### Pre-existing precedent this milestone should consolidate, not duplicate
 
-Required changes:
-- Add a `sendCustomerMessageTool` to `makeManageTools()` (`lib/whatsapp/manage-tools.ts`), resolving the client via the existing `findClientByName` (`lib/agent-tools/query-company-data.ts`, already bound as a QUERY tool) before calling the new neutral function.
-- Update the intent classifier's `MANAGE:` system-prompt bullet in `intent-router.ts` (currently scoped to "SAVE something to their account") to also cover "message/text/email a client" — otherwise the classifier will misroute these requests to `CREATE` or `QUERY`.
+A "Full page" / "Full width" toggle **already exists today**, but in the wrong place and doing less than what's needed:
 
-### MCP side — new write tool, same neutral core
+- State: `viewMode: 'width' | 'page'` local `useState` in `estimate-editor.tsx:280`, persisted to `localStorage['estimate-view-mode']` (`estimate-editor.tsx:175,283,288`).
+- UI: rendered inside the **floating actions pill** (`components/workspace/estimate/estimate-floating-actions.tsx:112-131`), not the header — a "Full page"/"Full width" text+icon button.
+- Effect: only toggles the `pageView` boolean prop on `EstimateDocument` (`estimate-editor.tsx:737`), which just swaps CSS (square corners, `min-h-[1056px]`, paper shadow, `estimate-document.tsx:1663-1689`) and applies a whole-page `zoom` CSS trick to fit one long "sheet" into the viewport (`estimate-editor.tsx:291-315`) — **there is no real pagination, no page breaks, just one continuously-tall styled sheet.**
 
-Add `send_customer_message` to `lib/mcp/tools/write.ts`, following the exact `handleCreateEstimate`/`handleAddService` shape: `WRITE_ANNOTATIONS`, `ensureScope(auth, 'mcp:write')`, a service-client ownership preflight, then delegate to `sendCustomerMessage()`. This closes the loop on the project's own standing principle, stated explicitly in `PROJECT.md`'s v4.9/v4.10 milestone history: *"WhatsApp = CHAT = MCP, three siblings over the SAME neutral core."* The agentic-send capability should be the newest instance of that pattern, not a one-off.
+**Recommendation:** retire this mechanism's UI (remove the button + `viewMode`/`onViewModeChange` props from `estimate-floating-actions.tsx`) and replace it with the new header toggle, reusing the *state* (rename semantics from "width/page" to "width/paginated" as needed) rather than adding a second, competing toggle. Keeping both risks drift (two controls disagreeing about the same visual mode).
 
-### Guardrails (this is the first LLM-authored message sent to a real third party)
+### State flow mechanism
 
-- **Tenant ownership**: `clientId` must resolve to a row where `company_id === companyId` (trusted closure param) — identical shape to the MCP `create_estimate` project check.
-- **Audit log**: every send (success or failure) writes a `customer_messages` row — this is the reviewability/revocability surface for an autonomous send, and the compliance record.
-- **Consent**: the codebase already has a TCPA-driven consent gate for tenant-facing SMS (`notification_preferences.sms_opt_in_at`, enforced in `resolveChannels()`, `lib/notifications/preferences.ts:90`). End-customer SMS has no equivalent today — `clients` has no opt-in timestamp column. **Flag as an open product/legal question for the roadmap phase, not resolved by this research**: sending unsolicited SMS to a tenant's customers carries real TCPA exposure that the existing owner-facing consent pattern does not cover.
-- **Abuse/rate limiting**: unlike AI generation, SMS/email cost is trivial, so the existing credit ledger (`checkCredits`) is the wrong gate. Recommend a lightweight per-company rate limit (reuse `lib/redis.ts`'s `getRedis()`, already used for `notifyOps` dedupe) to prevent a runaway agent loop from spamming a client.
-- **Never-throw at the primitive, but NOT at the tool layer**: `sendSms`/`sendEmail` stay never-throw (`{ok, error?}`), matching the existing contract — but the LangChain/MCP tool WRAPPING them should surface failure into the agent's reply text this turn ("Couldn't send — no phone on file for Sarah"), unlike `notify()`'s fire-and-forget swallow-everything posture, because here a human is actively waiting on this turn's answer.
+Not Zustand (no global store precedent found in this codebase for editor UI state) and not a URL param (view mode is a per-session preference already persisted via `localStorage`, and the public share page — `app/estimate/[token]` route consuming `components/share/estimate-view.tsx` — must **never** pick up pagination; a URL param risks that boundary leaking if code is ever refactored carelessly, whereas a React Context scoped to the authenticated workspace tree cannot leak there structurally).
 
-## Data Flow
+Reuse the **exact existing "slot" Context pattern** that already bridges `ProjectHeader` ↔ `EstimateEditor` for `saveStatus`/`projectName`:
 
-### Tenant notification with template resolution (modified)
-```
-event source (9 call sites)
-  → notify({ companyId, eventType, copyContext, ... })
-      → resolveNotificationCopy('tenant', eventType, 'in_app', copyContext)
-          → DB hit? render {{vars}} : buildNotificationCopy(eventType, copyContext)
-      → INSERT notifications row (title/body from above)
-      → Inngest notification/email.queued (carries copyContext or resolved title/body;
-         digest worker later resolves 'email' channel copy, falls back to row title/body)
-      → Inngest notification/whatsapp.send (UNCHANGED — HSM registry only)
-      → Inngest notification/sms.send (body resolved via 'sms' channel template, else
-         `${title}: ${body}` fallback — UNCHANGED shape)
-```
+- `components/workspace/estimate-version-context.tsx`'s `VersionSlot` interface (currently `currentVersionId`, `versions`, `version`, `isDirty`, `isReadOnly`, `onVersionChange`, `projectName`, `onProjectRenamed`, `saveStatus`) gains `viewMode` and `onViewModeChange`.
+- `estimate-editor.tsx` keeps owning the real state (the existing `useState`/`localStorage` mechanism, `L280-289`) and publishes it into the slot via its existing `setSlot(...)` effect (`L648-661`), which already re-runs on every relevant dependency change — no new plumbing pattern needed, just two more fields on an object that's already threaded.
+- `project-header.tsx` reads `slot?.viewMode` / calls `slot?.onViewModeChange` exactly as it already reads `slot?.saveStatus` (L45-51) and calls `slot?.onProjectRenamed` (L39).
 
-### Platform Telegram alert with toggle (modified)
-```
-reliability call site OR new signup/payment/quota sibling call
-  → notifyOps({ kind, title, message, severity, dedupeKey })
-      → Redis SETNX dedupe (fail-open, UNCHANGED)
-      → Sentry.captureMessage (UNCHANGED, unconditional)
-      → NEW: platform_notification_preferences[kind].telegram_enabled ?? true
-          → true: sendTelegramMessage(formatOpsMessage(alert))  [UNCHANGED client]
-          → false: skip Telegram, Sentry record still exists
-```
+## Q5 — Reusing existing inline editing components in paginated mode without forking
 
-### Agentic end-customer send (new)
-```
-Owner (WhatsApp or Claude.ai/MCP): "send Sarah an SMS about the delay"
-  → WhatsApp: intent-router classifies MANAGE → makeManageTools() ReAct agent
-     MCP: send_customer_message tool call
-  → sendCustomerMessage({ companyId [trusted], clientId, channel, body })
-      → clients ownership check (company_id match)
-      → resolve `to` (clients.email / clients.phone)
-      → sendSms() / sendEmail()  [existing / new primitive, synchronous]
-      → INSERT customer_messages row (audit, regardless of outcome)
-  → tool returns success/failure text THIS TURN → agent composes reply
-```
+All of the current edit-mode primitives — `DocumentSectionBlock`, `SortableDocumentSection`, `SortableDocumentItemRow`, `DocumentTotals`, `TermsBlock`, `AttachedPhotoThumb`, `InlineProjectName`, `DatePopover` — are private (non-exported) functions inside `estimate-document.tsx`, but every one of them already takes the same layout-agnostic props (`section`/`item`/`dispatch`/`L`/`lang`/`currencyCode`/etc.) regardless of surrounding chrome. Paginated mode doesn't need different editing logic; it needs the **same rows in different container chrome**.
 
-## Suggested Build Order (dependency spine)
+Two viable strategies, evaluated:
 
-The three pipelines are independently shippable in parallel (they share no code), but within each there is a real dependency order. Recommended phase spine, in dependency order:
+**(a) Re-parent rows into discrete `<Page>` DOM containers** driven by the pagination engine's per-block page assignment. Works, but `dnd-kit`'s `SortableContext` for a section's items would need to span physically-split DOM parents (all children still register into one `SortableContext` id list even if visually split across page `<div>`s — dnd-kit supports this since it tracks IDs, not DOM adjacency) — technically feasible but adds real complexity to every drag-and-drop interaction crossing a page boundary mid-drag.
 
-1. **Template engine foundation** — `notification_templates` table (migration) + `lib/notifications/template-resolver.ts` + wiring into `notify()` as strictly additive (Step 1 of the (a) rollout above). Ships with zero call-site changes and zero visible behavior change (DB starts empty → 100% `copy.ts` fallback). This is the dependency root for everything template-related, including the customer-scope rows the agentic-send flow will optionally use.
-2. **Super-admin template editor UI** — CRUD screen over `notification_templates` (list/edit/preview with the `variables` catalog), reusing the `whatsapp-templates-panel.tsx` + `admin-whatsapp-templates.ts` server-action pattern. Depends on (1)'s table existing.
-3. **Call-site sweep** — migrate the 9 `buildNotificationCopy()` call sites to pass `copyContext` instead of pre-built title/body (Step 2 of the (a) rollout). Depends on (1); can ship any time after, low risk, mechanical.
-4. **Telegram per-event toggle** — `platform_notification_preferences` table + `lib/notifications/platform-events.ts` catalog + the gate inside `notifyOps()` + admin toggle UI. Independent of (1)-(3); depends only on the already-shipped Telegram infra (`lib/telegram/client.ts`, `getTelegramConfig`).
-5. **Widen platform event catalog** — add `notifyOps()` sibling calls at signup/payment/quota call sites. Depends on (4) existing (so new kinds are toggleable from day one) but is otherwise independent of (1)-(3).
-6. **`customer_messages` table + `sendCustomerMessage` neutral capability + `lib/email/send-raw.ts`** — the foundation the agentic-send tools bind to. Can start in parallel with (1)-(5); depends on nothing upstream in this milestone, only on existing `sendSms`/`clients` schema.
-7. **WhatsApp MANAGE tool integration** — `sendCustomerMessageTool` in `manage-tools.ts` + classifier prompt update in `intent-router.ts`. Depends on (6).
-8. **MCP `send_customer_message` write tool**. Depends on (6); independent of (7) (both bind the same neutral function, ship in either order or in parallel).
-9. **(Optional, template-dependent) customer-scope templates** — `scope='customer'` rows in `notification_templates` for semi-fixed customer messages (e.g. appointment-reminder). Depends on both (1) and (6); can be deferred past MVP since the free-form (LLM-authored body) path in (6)-(8) doesn't require it.
+**(b) Recommended: keep the existing continuous DOM tree completely intact, and make "paginated" a pure visual overlay.** Compute page-break y-offsets via `lib/estimate/pagination/measure-dom.ts` + `engine.ts`, then inject fixed-height "page gap" spacer elements (plus repeated header/footer chrome) at those offsets — without re-parenting any row. This is the same technique Google Docs/Word Online use for their paginated web views, is exactly the direction the *existing* `pageView` prop already started down (one fake "sheet" — Quick-260718-p3v), and means **zero forking**: `dispatch`, `EditorItem`, `DocumentSectionBlock`, `SortableDocumentItemRow` are reused completely unchanged. The only new code is an outer layout pass (`estimate-document-paginated.tsx` or a `paginated` prop branch on the existing component) that measures the already-rendered tree and decorates it with computed spacers/chrome. It also stays print-CSS-compatible if that's ever wanted later (`break-inside: avoid` at the same computed offsets).
 
-Critical path for an MVP slice: **1 → 6 → 7/8**. Steps 2-3 (editor polish, call-site sweep) and 4-5 (Telegram breadth) can trail without blocking the headline "agentic send" capability, and vice versa — a roadmap that ships (1)+(6)+(7) before (4)+(5) is equally valid, since the two pipelines never share code.
+Recommend (b) as the primary strategy; only fall back to (a) if product later requires literal separate page `<div>` DOM nodes (e.g., for some other consumer that needs to address "page 3" as a discrete container).
 
-## Anti-Patterns to Avoid
+## Q6 — Suggested build order
 
-### Anti-Pattern 1: Routing Telegram through `notify()`
-**What people might do:** add a `telegram?: boolean` to `NotifyParams.channels` and a Telegram branch inside `dispatch.ts`, since it looks like "just another channel" next to whatsapp/sms.
-**Why it's wrong:** every layer of `notify()` — the required `companyId`, the dedupe query, the `notifications` table FK/RLS — assumes a tenant. Platform alerts (cron failures, ai fallback) have no tenant at all. Bending `notify()` to accept `companyId: null` would ripple into the in-app feed, RLS, and every existing consumer of `notifications`.
-**Instead:** extend `notifyOps()` (already company-agnostic, already sends Telegram) as shown in (c).
+Dependency-ordered; steps within the same phase are independent of each other and can run in parallel.
 
-### Anti-Pattern 2: Deleting `copy.ts` once DB templates ship
-**What people might do:** treat the DB template table as the sole source of truth and remove `buildNotificationCopy` once the admin panel is live.
-**Why it's wrong:** every event needs a working default from day one (before an admin has authored anything), and a DB read can fail/be empty. `copy.ts` is the safety net, mirroring how `whatsapp-registry.ts`'s static `REGISTRY` map was never deleted after the DB-backed resolver shipped in Phase 104.3.
-**Instead:** keep `copy.ts` permanently as the fallback tier.
+**Phase A — Shared foundation + a standalone, already-provable bugfix (no visible behavior change to ship; retrocompat-tested)**
+1. Extract `lib/estimate/document/{model,labels,format,tokens}.ts` from the 4 existing files; repoint `estimate-document.tsx`, `estimate-document-modern.tsx`, `estimate-pdf.tsx`, `estimate-pdf-modern.tsx` at the shared module. Byte-identical output required (golden-snapshot style tests, mirroring the discipline already used for `compute-totals.ts`).
+2. **Ship independently, first, lowest risk:** fix `app/api/estimates/[id]/send/route.ts` and `lib/whatsapp/pdf-delivery.ts` by copying the existing, already-proven `PDF_TEMPLATE_COMPONENTS` registry + `loadLatestSignedSnapshot`/`applySignedSnapshot` pattern verbatim from `app/api/estimates/[id]/pdf/route.ts`. Zero dependency on anything else in this milestone — it's a self-contained TRUST-01 fix using code that already exists elsewhere in the repo.
 
-### Anti-Pattern 3: Queuing the agentic send through Inngest "for consistency with `notify()`"
-**What people might do:** dispatch an `EVENT_CUSTOMER_MESSAGE_SEND` Inngest event from the WhatsApp/MCP tool, mirroring `notification/sms.send`.
-**Why it's wrong:** the agent's reply for THIS conversational turn needs to know whether the send succeeded; queuing makes that a fire-and-forget the tool can't report on, producing a confidently-wrong "Sent!" reply before the async worker has even run.
-**Instead:** synchronous call, matching the `app/api/estimates/[id]/send-sms/route.ts` precedent.
+**Phase B — Parity content (signature + captions), still non-paginated — depends on Phase A step 1**
+3. New signature-display data plumbing (extend `lib/queries/share.ts`'s signature query, or add a sibling helper, to select `signer_name`/`signature_data`/`signed_at`) + new signature-block renderers (webview component + PDF JSX fragment); wire into all 4 document surfaces **and** both send paths (route + WhatsApp delivery) since they render PDFs too.
+4. Photo captions: render `photo.caption` text under thumbnails in all 4 surfaces — no new data plumbing required.
+5. *(Optional, flag as an open product decision, not required by the milestone text)* Estimate-Terms parity in the Modern webview + reconciling where Estimate Terms structurally lives (page wrapper vs. terms-block).
 
-### Anti-Pattern 4: Adding the customer-send tool to the estimate-confirmation agent
-**What people might do:** add `sendCustomerMessage` to `lib/whatsapp/agent-tools.ts` since it already has a resolved client in scope.
-**Why it's wrong:** that agent only runs while `session.draft_estimate_id` is set (an active pending-confirm session) — "send an SMS to my client" as a standalone command outside that flow would be unreachable.
-**Instead:** the MANAGE intent (`manage-tools.ts`), which is reachable from any session state.
+**Phase C — Pagination engine (foundation for D) — depends on Phase A step 1, independent of Phase B**
+6. `lib/estimate/pagination/{types,engine,blocks-from-model}.ts` — pure rule engine, fixture-tested (never split a row; header keeps with first row; subtotal keeps with last row; totals/photos/signature blocks atomic).
+7. `lib/estimate/pagination/measure-pdf.ts`, wired into both PDF templates via explicit `break` props at the engine's computed boundaries — replacing react-pdf's implicit reflow. This is the step that actually delivers "PDF and paginated web preview mirror each other."
 
-## Integration Points
+**Phase D — Paginated editable editor mode — depends on Phase C**
+8. `lib/estimate/pagination/measure-dom.ts` + the spacer/chrome-overlay paginated layout wrapper (Q5 strategy b).
+9. Toggle UI: extend `VersionSlot`, add the two header icon buttons (`project-header.tsx`), retire the old floating-pill "Full page/Full width" toggle and the old CSS-zoom single-sheet mechanism in `estimate-editor.tsx`/`estimate-floating-actions.tsx`.
+10. Apply the pending user-supplied reference design image once available (explicitly deferred per PROJECT.md's key context) — visual polish only, no further architecture change.
 
-### Internal Boundaries
+**Phase E — Webview design polish — independent, best done after Phase A so it inherits the shared tokens**
+11. General visual refinement pass on `estimate-document.tsx`/`estimate-document-modern.tsx`.
 
-| Boundary | Communication | Notes |
-|---|---|---|
-| `notify()` ↔ `notification_templates` | Direct Supabase read (service client) | New — mirrors `getApprovedTemplateForEvent`'s DB-then-fallback shape |
-| `notifyOps()` ↔ `platform_notification_preferences` | Direct Supabase read (service client) | New — same TTL-cache-optional posture as `platform-config.ts` reads |
-| `notification-email-digest.ts` ↔ `notifications.metadata.email_copy` | JSONB field, no schema change | New — lets email wording diverge from in_app without touching the digest worker's query shape |
-| `lib/whatsapp/manage-tools.ts` ↔ `lib/agent-tools/send-customer-message.ts` | Direct function call, `companyId` closure param | New — T-lrf-01 pattern (never an LLM-suppliable field) |
-| `lib/mcp/tools/write.ts` ↔ `lib/agent-tools/send-customer-message.ts` | Direct function call, `auth.company_id` preflight-checked | New — same neutral function as the WhatsApp side |
-| `sendCustomerMessage` ↔ `sendSms` / `sendEmail` | Direct function call | `sendSms` unchanged; `sendEmail` is a new sibling primitive in `lib/email/` |
+## Anti-Patterns to avoid
 
-### External Services
+### Anti-Pattern: trusting react-pdf's implicit `wrap`/`fixed` reflow as the source of truth for page breaks
+**Why it's wrong:** it can't express the milestone's business rules (never split a row, keep header with first row, keep subtotal with last row) in a way that's guaranteed to match the DOM preview's independently-computed breaks — the two would silently drift.
+**Instead:** the shared `lib/estimate/pagination/engine.ts` output must drive explicit `break` props on react-pdf `View`s; react-pdf's own reflow is only a fallback for content the engine didn't explicitly break.
 
-| Service | Integration Pattern | Notes |
-|---|---|---|
-| Telegram Bot API | `lib/telegram/client.ts`, credentials via `platform_integrations` (`getTelegramConfig`) | Already shipped — no new integration work |
-| Twilio (SMS) | `lib/sms/client.ts`, credentials via `platform_integrations` (`getTwilioConfig`) | Reused as-is for both tenant `notify()` sms and agentic customer sms |
-| Resend (email) | Currently one-off per email type (`payment-emails.ts`, `notification-emails.ts`, ...) via `getIntegrationKey('resend')` | New: extract a generic `sendEmail()` primitive so the agentic-send path and future channel-templated email don't each hand-roll a Resend call |
+### Anti-Pattern: forking the edit-mode sub-components into a paginated-only duplicate
+**Why it's wrong:** `estimate-document.tsx` is already 2038 lines with drag-and-drop, price-book autocomplete, inline validation, and locking logic; a fork doubles the maintenance surface and guarantees future drift between "normal" and "paginated" editing.
+**Instead:** the spacer/chrome-overlay strategy (Q5, option b) reuses `dispatch`/`EditorItem`/`DocumentSectionBlock` completely unchanged.
+
+### Anti-Pattern: adding a second competing view-mode toggle
+**Why it's wrong:** the floating-pill "Full page/Full width" button already exists and does something similar but weaker; leaving both live risks two controls that disagree about the current mode.
+**Instead:** retire the floating-pill toggle and its `viewMode` props when the header toggle ships (Phase D step 9).
 
 ## Sources
 
-All findings grounded in direct reads of the current `main` branch (no external documentation needed — this is an internal integration study):
-
-- `lib/notifications/dispatch.ts`, `event-types.ts`, `copy.ts`, `preferences.ts`, `whatsapp-registry.ts`
-- `lib/observability/ops-alert.ts`, `lib/telegram/client.ts`, `lib/platform-config.ts` (`getTelegramConfig`, `getTwilioConfig`)
-- `lib/inngest/functions/notification-channel-send.ts`, `notification-email-digest.ts`
-- `lib/email/notification-emails.ts`, `sender.ts`
-- `lib/sms/client.ts`
-- `lib/whatsapp/agent.ts`, `agent-tools.ts`, `manage-tools.ts`, `query-tools.ts`, `intent-router.ts`
-- `lib/agent-tools/index.ts`, `create-estimate.ts`, `query-company-data.ts`
-- `lib/mcp/tools/registry.ts`, `write.ts`
-- `lib/actions/admin-whatsapp-templates.ts`
-- `supabase/migrations/20260520000002_notifications_system.sql`, `20260621000003_whatsapp_notification_templates.sql`, `20260519000003_estimate_deliveries.sql`
-- `types/database.types.ts` (`clients` row shape — confirms `email`/`phone` columns)
-- `.planning/PROJECT.md` (v4.21 milestone definition; v4.8-v4.10 "WhatsApp = CHAT = MCP" neutral-core principle)
-- `.planning/quick/260705-c1y-telegram-ops-alerting-system-for-the-pla/` (prior-art quick task that shipped the existing Telegram infra, 2026-07-05)
+All findings are grounded in direct reads of the actual repository files (with line numbers cited inline throughout), not external documentation:
+- `.planning/PROJECT.md` (v4.23 milestone section, lines 17-30)
+- `components/share/estimate-view.tsx`
+- `components/share/estimate-document-modern.tsx`
+- `components/workspace/estimate/estimate-document.tsx`
+- `components/pdf/estimate-pdf.tsx`, `components/pdf/estimate-pdf-modern.tsx`
+- `lib/estimate/templates/registry.ts`, `lib/estimate/presentation-settings.ts`, `lib/estimate/deposit-display.ts`, `lib/estimate/compute-totals.ts`
+- `app/api/estimates/[id]/pdf/route.ts`, `app/api/estimates/[id]/send/route.ts`, `lib/whatsapp/pdf-delivery.ts`
+- `lib/queries/share.ts`
+- `supabase/migrations/20260519000002_digital_signature_and_estimate_terms.sql`
+- `components/workspace/project-header.tsx`, `components/workspace/edit-estimate-header-button.tsx`, `components/workspace/estimate-version-context.tsx`
+- `components/workspace/estimate/estimate-editor.tsx`, `components/workspace/estimate/estimate-floating-actions.tsx`, `components/workspace/estimate/use-estimate-reducer.ts`
+- `tests/unit/estimate/document-page-view.test.tsx`
 
 ---
-*Architecture research for: Xtimator v4.21 Notification Center*
-*Researched: 2026-07-21*
+*Architecture research for: v4.23 Unified Estimate Document Engine (Xtimator)*
+*Researched: 2026-07-27*
