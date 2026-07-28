@@ -3017,7 +3017,8 @@ Plans:
  (completed 2026-07-28)
 - [x] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
  (completed 2026-07-28)
-- [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates (completed 2026-07-28)
+- [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
+ (completed 2026-07-28)
 - [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
 - [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
 
@@ -3098,7 +3099,14 @@ Plans:
   4. The old floating-pill "Full page/Full width" toggle and its CSS-zoom mechanism no longer appear anywhere in the editor — there is exactly one page-view control, in the header.
   5. The public share webview for the same estimate is unchanged — still a normal single-page scroll, at the same URL, with no pagination controls.
 
-**Plans**: TBD
+**Plans**: 4 plans across 3 waves
+
+Plans:
+- [ ] 185-01-PLAN.md — Mirror foundation: shared computeEstimatePageConstraints() + browser-safe fontkit estimator + deep-equal parity test (wave 1)
+- [ ] 185-02-PLAN.md — Header view-mode toggle (PGMODE-01) + legacy floating-pill toggle retirement (PGMODE-04) (wave 1)
+- [ ] 185-03-PLAN.md — Paginated canvas: usePaginatedPreview hook + PaginatedDocumentOverlay, server data threading (wave 2)
+- [ ] 185-04-PLAN.md — Repagination triggers (immediate/debounced), focus + dnd-kit regression proof, PGMODE-05 boundary guard, PGBRK-01/04 closure (wave 3)
+
 **UI hint**: yes
 
 ### Phase 186: Webview Design Polish

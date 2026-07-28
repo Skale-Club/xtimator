@@ -24,21 +24,24 @@ created: 2026-07-28
 - After every wave: full suite (orchestrator, authoritative)
 - Max feedback latency: 190s
 
-## Requirement → Proof Map
+## Requirement → Proof Map (finalized against the 4 created plans)
 
-| Requirement | Proof |
-|-------------|-------|
-| PGMODE-01 | Component test: two icon buttons render left of "Edit with AI" in the header; clicking toggles VersionSlot viewMode; aria-pressed/labels per UI-SPEC |
-| PGMODE-02 | Component test: paginated mode renders N page boxes with letter geometry (px from ESTIMATE_PAGE_GEOMETRY), page chrome "Page N of M"; page count equals the engine's PageAssignment[].length for the same fixture |
-| PGMODE-03 | Component tests: inline edit inside a page box updates state; structural change (add item) triggers immediate repagination; typing repagination debounced (~400ms, fake timers); focus preserved across a repagination that moves the focused item to another page (stable keys) |
-| PGMODE-04 | Static + component: legacy viewMode/'Full page' buttons removed from estimate-floating-actions.tsx; no colliding "page" concept; updated tests green |
-| PGMODE-05 | Boundary test: components/share/** imports nothing from the new paginated modules; share tests untouched and green |
-| PGBRK-01/04 closure | PARITY test (the phase's most important): same fixture document model → client-side estimator pipeline produces PageAssignment[] DEEP-EQUAL to the server/PDF path's (same blocksFromModel + computePageBreaks + SAME PageConstraints incl. PDF_RENDER_SAFETY_MARGIN_PT via shared computeEstimatePageConstraints()) |
+| Requirement | Proof | Plan / Task |
+|-------------|-------|-------------|
+| PGBRK-01 / PGBRK-04 (mirror foundation) | Deep-equal `PageAssignment[]` between the server (fs+fontkit.openSync) and browser (fetch+fontkit.create) measurement providers, same fixture, same `computeEstimatePageConstraints()` | 185-01 Task 3 (`tests/unit/pagination/measure/browser-estimator-parity.test.ts`) |
+| PGBRK-01 / PGBRK-04 (constraints parity) | `computeEstimatePageConstraints()` matches `render-estimate-pdf.ts`'s original inline derivation exactly, both templates | 185-01 Task 1 (`tests/unit/pagination/page-constraints.test.ts`) |
+| PGBRK-01 / PGBRK-04 (client-safety boundary) | `browser-estimator.ts`/`line-packer.ts` excluded from the react-pdf/react/components-free core; `browser-estimator.ts` proven to have zero node:fs/node:path/server-only imports | 185-01 Task 2 (`tests/unit/pagination/pagination-engine-boundary.test.ts`) |
+| PGMODE-01 | Two icon buttons render left of "Edit with AI"; `aria-pressed`/`aria-label`/tooltip copy per UI-SPEC; click calls `onModeChange` | 185-02 Task 1 (`tests/unit/components/view-mode-toggle.test.tsx`) |
+| PGMODE-04 | Legacy `viewMode`/"Full page"/"Full width" buttons + localStorage persistence fully removed from estimate-floating-actions.tsx/estimate-editor.tsx | 185-02 Task 2 (`tests/unit/components/estimate-floating-actions.test.tsx`, updated) |
+| PGMODE-02 | Paginated canvas renders N page boxes matching the engine's `PageAssignment[].length`; letter geometry from tokens; Page N of M chrome; continuation table header only where `continuesTable` | 185-03 Task 2 (`tests/unit/estimate/paginated-preview-canvas.test.tsx`) |
+| PGMODE-03 (editing continues to work) | Same editable `EstimateDocument` tree reused unforked, sliced via decoration overlay only | 185-03 Task 2 (component structure, verified via paginated-preview-canvas.test.tsx + manual checkpoint) |
+| PGMODE-03 (repagination triggers + focus) | Structural change -> immediate recompute; text change -> 400ms debounce, collapsed; focus/key-stability survives a cross-page structural edit; dnd-kit stays document-order-only | 185-04 Task 1 (`tests/unit/estimate/use-paginated-preview.test.ts`) + Task 2 (`tests/unit/estimate/paginated-editing-preserved.test.tsx`) |
+| PGMODE-05 | `app/estimate/[token]/**` and `components/share/**` never import `lib/estimate/pagination/*` or the new paginated-editor modules | 185-04 Task 2 (`tests/unit/estimate/share-webview-pagination-boundary.test.ts`) |
 
 ## Wave 0 Requirements
 
-- [ ] Shared `computeEstimatePageConstraints()` extraction (single constraints source for PDF + web paths)
-- [ ] Browser-shell estimator (fetch→ArrayBuffer→fontkit.create) with a Node-side unit test proving measurement parity with the server estimator (same font bytes → identical line counts)
+- [x] Shared `computeEstimatePageConstraints()` extraction (single constraints source for PDF + web paths) — 185-01 Task 1
+- [x] Browser-shell estimator (fetch→ArrayBuffer→fontkit.create) with a deep-equal parity test proving measurement parity with the server estimator (same font bytes → identical PageAssignment[]) — 185-01 Task 2 + Task 3
 
 ## Manual-Only Verifications
 
@@ -49,9 +52,11 @@ created: 2026-07-28
 
 ## Validation Sign-Off
 
-- [x] All tasks must carry `<automated>` verify (planner contract)
-- [x] Wave 0 = constraints extraction + browser-estimator parity (the mirror-critical items first)
+- [x] All tasks must carry `<automated>` verify (planner contract) — confirmed present on all 9 tasks across 185-01..04
+- [x] Wave 0 = constraints extraction + browser-estimator parity (the mirror-critical items first) — 185-01, Wave 1
 - [x] No watch-mode flags; feedback latency < 190s
 - [x] `nyquist_compliant: true`
 
 **Approval:** approved (orchestrator, from 185-RESEARCH.md Validation Architecture)
+
+**Plans created:** 185-01 (Mirror Foundation, wave 1), 185-02 (Toggle, wave 1), 185-03 (Paginated View, wave 2), 185-04 (Editing Integration, wave 3).
