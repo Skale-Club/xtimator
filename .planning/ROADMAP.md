@@ -3012,7 +3012,7 @@ Plans:
 
 ### Phases (summary checklist)
 
-- [ ] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot
+- [x] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot (completed 2026-07-28)
 - [ ] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
 - [ ] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
 - [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
@@ -3038,7 +3038,7 @@ Plans:
 - [x] 182-01-PLAN.md — Shared document engine module (model/labels/format/tokens) + Wave-0 validation tests
 - [x] 182-02-PLAN.md — Adopt shared module in all 4 renderers, delete duplicate label/format/geometry copies
 - [x] 182-03-PLAN.md — Shared in-process PDF resolver (lib/pdf/render-estimate-pdf.ts) + acceptance test
-- [ ] 182-04-PLAN.md — Wire download/email/WhatsApp PDF paths to the resolver + send-hub attachPdf fix
+- [x] 182-04-PLAN.md — Wire download/email/WhatsApp PDF paths to the resolver + send-hub attachPdf fix
 
 ### Phase 183: PDF Parity Content
 **Goal**: The PDF (both templates) matches the webview benchmark's full document structure, and both the webview and PDF gain the signature block and visible photo captions neither surface renders today.
@@ -3099,7 +3099,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 182. Shared Document Engine + Send-Path Fix | 3/4 | In Progress|  |
+| 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete   | 2026-07-28 |
 | 183. PDF Parity Content | 0/? | Not started | - |
 | 184. Consolidated Pagination Engine | 0/? | Not started | - |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
