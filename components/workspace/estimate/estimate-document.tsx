@@ -907,9 +907,12 @@ function DocumentTotals({
         ) : null}
 
         {/* Grand total */}
-        <div className="flex justify-between items-baseline pt-3 border-t-2 border-foreground">
-          <span className="text-2xl font-bold select-none">{L.grandTotal}</span>
-          <span className="text-2xl font-bold tabular-nums" style={{ color: brandText }}>
+        <div
+          className="flex justify-between items-baseline pt-3 border-t-2"
+          style={{ borderTopColor: brandText }}
+        >
+          <span className="text-3xl font-extrabold select-none">{L.grandTotal}</span>
+          <span className="text-3xl font-extrabold tabular-nums" style={{ color: brandText }}>
             {fmt(data.total)}
           </span>
         </div>
