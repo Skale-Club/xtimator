@@ -205,6 +205,26 @@ export function PaginatedDocumentOverlay({
     [templateId]
   )
 
+  // Phase 185 Plan 04 (PGMODE-03, plan-checker Blocker 5) — derivePageOffsets()
+  // is a genuinely pure function of (measurement, reservations); bundling its
+  // second argument into ONE memoized object here (instead of a fresh object
+  // literal on every measureAndApply invocation) gives it a referentially
+  // stable identity across re-renders where the reservations haven't
+  // actually changed. Combined with the effect below being keyed on
+  // `[pages, topReservationPx, bottomReservationPx, continuationHeaderPx]`
+  // (all of which are themselves memoized/primitive), an UNRELATED re-render
+  // of this component that leaves `pages` and these reservations untouched
+  // never re-enters the effect at all — so derivePageOffsets() is never
+  // re-invoked for it. The effect's own imperative re-measurement path
+  // (mount / a genuine `pages` change / a REAL ResizeObserver-detected DOM
+  // resize) is deliberately left untouched by this memo — those are the
+  // legitimate cases that must always remeasure, even when `pages` itself
+  // hasn't changed (e.g., late font-load reflow).
+  const offsetsOptions = useMemo(
+    () => ({ topReservationPx, bottomReservationPx, continuationHeaderPx, pageGapPx: PAGE_GAP_PX }),
+    [topReservationPx, bottomReservationPx, continuationHeaderPx]
+  )
+
   useLayoutEffect(() => {
     const container = containerRef.current
 
@@ -227,7 +247,7 @@ export function PaginatedDocumentOverlay({
       // Phase B — pure arithmetic (zero DOM reads), then ONE batched write
       const offsets = derivePageOffsets(
         { naturalOffsetsPx, naturalScrollHeightPx, continuesTableByPage },
-        { topReservationPx, bottomReservationPx, continuationHeaderPx, pageGapPx: PAGE_GAP_PX }
+        offsetsOptions
       )
       setPageOffsets(offsets) // drives the decorative sheet render (React state — fine, no read follows)
       offsets.forEach((o, i) => {
@@ -252,7 +272,7 @@ export function PaginatedDocumentOverlay({
     })
     ro.observe(container)
     return () => ro.disconnect()
-  }, [pages, topReservationPx, bottomReservationPx, continuationHeaderPx])
+  }, [pages, offsetsOptions])
 
   // 185-UI-SPEC.md §3's fail-soft rule — first paint before the first
   // computePageBreaks() result resolves (pages === null): render children

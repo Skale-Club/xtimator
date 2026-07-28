@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import React from 'react'
 import { PaginatedDocumentOverlay } from '@/components/workspace/estimate/paginated-document-overlay'
@@ -95,5 +95,38 @@ describe('PaginatedDocumentOverlay — structure/chrome/fail-soft (jsdom-provabl
     )
     expect(container.querySelectorAll('[data-page-sheet]').length).toBe(0)
     expect(screen.getByText('Unwrapped content')).toBeTruthy()
+  })
+
+  // Phase 185 Plan 04 (PGMODE-03, plan-checker Blocker 5) — derivePageOffsets()
+  // is memoized (via the offsetsOptions useMemo bundle feeding the
+  // useLayoutEffect's own dependency array): an unrelated re-render that
+  // leaves the `pages` array reference (and company/templateId/language)
+  // untouched must NOT re-enter the measurement effect at all. Proven here
+  // by spying on the measurement container's own querySelector (the first
+  // DOM read `measureAndApply` performs) — a re-measurement always calls it,
+  // so a spy that stays uncalled across a same-`pages` re-render proves the
+  // effect (and therefore derivePageOffsets) never re-ran.
+  it('re-rendering with the SAME `pages` array reference never re-measures/recomputes offsets', () => {
+    const pages = buildPages(2)
+    const { container, rerender } = render(
+      <PaginatedDocumentOverlay pages={pages} company={company} templateId="classic" language="en">
+        <div data-page-block-id="block-0" />
+        <div data-page-block-id="block-1" />
+      </PaginatedDocumentOverlay>
+    )
+
+    const measurementContainer = container.querySelector('.relative.z-10') as HTMLElement
+    expect(measurementContainer).toBeTruthy()
+    const querySpy = vi.spyOn(measurementContainer, 'querySelector')
+
+    rerender(
+      <PaginatedDocumentOverlay pages={pages} company={company} templateId="classic" language="en">
+        <div data-page-block-id="block-0" />
+        <div data-page-block-id="block-1" />
+      </PaginatedDocumentOverlay>
+    )
+
+    expect(querySpy).not.toHaveBeenCalled()
+    querySpy.mockRestore()
   })
 })

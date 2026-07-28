@@ -309,6 +309,7 @@ export function EstimateEditor({
   // engine compute) to when paginated mode is actually active.
   const { pages: paginatedPages } = usePaginatedPreview({
     data: documentData,
+    structuralEpoch: state.structuralEditEpoch,
     company,
     templateId: estimateTemplateId,
     preparedBy,

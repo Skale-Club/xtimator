@@ -74,6 +74,13 @@ export interface EstimateEditorState {
    *  equals this counter — a keystroke landing mid-save bumps it again, so a
    *  stale MARK_SAVED can never falsely mark the editor clean. */
   editEpoch: number
+  /** Phase 185 Plan 04 (PGMODE-03) — bumped ONLY by actions that change WHICH
+   *  pagination blocks exist or their order (never by pure text edits) —
+   *  read by usePaginatedPreview to trigger an IMMEDIATE repagination,
+   *  bypassing the 400ms text-debounce. Documented exhaustively below; a new
+   *  action type defaults to NOT bumping this (opt-in, not opt-out) — if a
+   *  future action changes block presence/order, it must be added here. */
+  structuralEditEpoch: number
   /** Phase 161 (PRESENT-01/03): dormant-first -- NULL = today's behavior (all
    *  visible, no overrides). Never read by recalculate() (GUARD-03: visibility
    *  and override STATE never affect totals math here). */
@@ -197,6 +204,21 @@ function dirty(state: EstimateEditorState): Pick<EstimateEditorState, 'isDirty' 
   return { isDirty: true, editEpoch: state.editEpoch + 1 }
 }
 
+/**
+ * Phase 185 Plan 04 (PGMODE-03) — the SAME centralized-bump pattern as
+ * dirty() above, widened to ALSO bump structuralEditEpoch. Used ONLY by
+ * reducer cases classified STRUCTURAL (they change WHICH pagination blocks
+ * exist or their order) — see this plan's <interfaces> classification table.
+ * ATTACH_PHOTO/DETACH_PHOTO deliberately do NOT use this helper (they bump
+ * structuralEditEpoch directly, without dirty()'s isDirty/editEpoch bump —
+ * preserving their existing non-dirty behavior).
+ */
+function structuralDirty(
+  state: EstimateEditorState
+): Pick<EstimateEditorState, 'isDirty' | 'editEpoch' | 'structuralEditEpoch'> {
+  return { ...dirty(state), structuralEditEpoch: state.structuralEditEpoch + 1 }
+}
+
 // ---------------------------------------------------------------------------
 // Recalculation helper
 // ---------------------------------------------------------------------------
@@ -296,6 +318,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       presentation_settings: null,
       isDirty: false,
       editEpoch: 0,
+      structuralEditEpoch: 0,
       updated_at: new Date(0).toISOString(),
       sent_at: null,
       client_response: null,
@@ -361,6 +384,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       .sort((a, b) => a.sort_order - b.sort_order),
     isDirty: false,
     editEpoch: 0,
+    structuralEditEpoch: 0,
     updated_at: estimate.updated_at,
     sent_at: estimate.sent_at,
     client_response: estimate.client_response,
@@ -445,7 +469,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ],
           }
         }),
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -460,7 +484,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             items: s.items.filter((i) => i.id !== action.itemId),
           }
         }),
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -493,7 +517,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ],
           },
         ],
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -502,7 +526,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       const updated = {
         ...state,
         sections: state.sections.filter((s) => s.id !== action.sectionId),
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -520,7 +544,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             .filter(Boolean) as EditorItem[]
           return { ...s, items: reordered }
         }),
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return updated
     }
@@ -532,7 +556,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
           return section ? { ...section, sort_order: idx } : null
         })
         .filter(Boolean) as EditorSection[]
-      return { ...state, sections: reordered, ...dirty(state) }
+      return { ...state, sections: reordered, ...structuralDirty(state) }
     }
 
     case 'UPDATE_DISCOUNT': {
@@ -540,7 +564,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         ...state,
         discount_type: action.discount_type,
         discount_value: action.discount_value,
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -550,7 +574,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         ...state,
         deposit_type: action.deposit_type,
         deposit_value: action.deposit_value,
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -559,13 +583,13 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       const updated = {
         ...state,
         tax_rate: action.tax_rate,
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
 
     case 'UPDATE_PRESENTATION_SETTINGS':
-      return { ...state, presentation_settings: action.presentation_settings, ...dirty(state) }
+      return { ...state, presentation_settings: action.presentation_settings, ...structuralDirty(state) }
 
     case 'MARK_SAVED': {
       // SAVE-03: remap every temp- section/item id to its server-assigned uuid
@@ -621,18 +645,26 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       if (state.attachedPhotos.some((p) => p.id === action.photo.id)) {
         return state
       }
+      // Phase 185 Plan 04 (PGMODE-03) — bumps structuralEditEpoch ONLY
+      // (photo-row block/chunk count changes) — deliberately does NOT call
+      // dirty()/structuralDirty() here: ATTACH_PHOTO has never set
+      // isDirty/bumped editEpoch, an existing, deliberate design choice this
+      // plan must not disturb.
       return {
         ...state,
         attachedPhotos: [...state.attachedPhotos, action.photo],
+        structuralEditEpoch: state.structuralEditEpoch + 1,
       }
     }
 
     case 'DETACH_PHOTO':
+      // Same rationale as ATTACH_PHOTO above.
       return {
         ...state,
         attachedPhotos: state.attachedPhotos.filter(
           (p) => p.id !== action.photoId
         ),
+        structuralEditEpoch: state.structuralEditEpoch + 1,
       }
 
     case 'APPLY_REFINEMENT': {
@@ -666,7 +698,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         payment_terms: r.payment_terms ?? state.payment_terms,
         warranty_terms: r.warranty_terms ?? state.warranty_terms,
         sections: mergedSections,
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }
@@ -691,7 +723,7 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             }),
           }
         }),
-        ...dirty(state),
+        ...structuralDirty(state),
       }
       return recalculate(updated)
     }

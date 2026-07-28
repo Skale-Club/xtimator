@@ -14,7 +14,7 @@
 // linebreak load ONLY via the dynamic import below, gated on enabled===true).
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -30,6 +30,11 @@ import { ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
 
 export interface UsePaginatedPreviewInput {
   data: EstimateDocumentData
+  /** Phase 185 Plan 04 (PGMODE-03) — state.structuralEditEpoch, threaded from
+   *  estimate-editor.tsx's reducer. A change here (vs. an unchanged epoch with
+   *  only `data` differing by reference) is what decides IMMEDIATE vs.
+   *  400ms-debounced recomputation below. */
+  structuralEpoch: number
   company: DocumentCompany
   templateId: EstimateTemplateId
   preparedBy: string | null
@@ -37,6 +42,11 @@ export interface UsePaginatedPreviewInput {
   /** false = do no work at all (no font fetch, no compute) — pages stays null. */
   enabled: boolean
 }
+
+/** Phase 185 Plan 04 (PGMODE-03) — named constant (never an inline magic
+ *  number): a pure text edit (structuralEpoch unchanged) recomputes only
+ *  after this many ms with no further change. */
+const TEXT_DEBOUNCE_MS = 400
 
 export interface UsePaginatedPreviewResult {
   pages: PageAssignment[] | null
@@ -69,58 +79,85 @@ function getMeasurementProvider(templateId: EstimateTemplateId): Promise<Measure
 }
 
 export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginatedPreviewResult {
-  const { data, company, templateId, preparedBy, language, enabled } = input
+  const { data, structuralEpoch, company, templateId, preparedBy, language, enabled } = input
   const [pages, setPages] = useState<PageAssignment[] | null>(null)
+
+  // Phase 185 Plan 04 (PGMODE-03) — the last structuralEpoch this hook
+  // actually recomputed for. `null` means "never activated yet" (or just
+  // reset by a disable), so first activation is ALWAYS treated as a change
+  // (immediate recompute, per this plan's <interfaces> block).
+  const lastStructuralEpochRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!enabled) {
       setPages(null)
+      lastStructuralEpochRef.current = null
       return
     }
 
     let cancelled = false
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-    getMeasurementProvider(templateId).then((provider) => {
-      if (cancelled) return
-      const L = DOC_LABELS[language] ?? DOC_LABELS.en
-      const blocks = blocksFromModel({
-        sections: data.sections,
-        summary: data.summary,
-        timeline: data.timeline,
-        payment_terms: data.payment_terms,
-        warranty_terms: data.warranty_terms,
-        notes: data.notes,
-        company,
-        discount_amount: data.discount_amount,
-        tax_amount: data.tax_amount,
-        dep: deriveDepositDisplay({
-          total: data.total,
-          deposit_type: data.deposit_type,
-          deposit_value: data.deposit_value,
-          balance_due: data.balance_due,
-        }),
-        signature: data.signature ?? null,
-        // url never read by height math (185-RESEARCH.md, verified) — no
-        // signed-URL resolution needed just to compute page breaks.
-        photos: (data.attachedPhotos ?? []).map((p) => ({ url: '', caption: p.caption })),
-        resolvedSettings: resolvePresentationSettings(data.presentation_settings),
-        preparedBy,
-        L,
-        templateId,
+    function recompute() {
+      getMeasurementProvider(templateId).then((provider) => {
+        if (cancelled) return
+        const L = DOC_LABELS[language] ?? DOC_LABELS.en
+        const blocks = blocksFromModel({
+          sections: data.sections,
+          summary: data.summary,
+          timeline: data.timeline,
+          payment_terms: data.payment_terms,
+          warranty_terms: data.warranty_terms,
+          notes: data.notes,
+          company,
+          discount_amount: data.discount_amount,
+          tax_amount: data.tax_amount,
+          dep: deriveDepositDisplay({
+            total: data.total,
+            deposit_type: data.deposit_type,
+            deposit_value: data.deposit_value,
+            balance_due: data.balance_due,
+          }),
+          signature: data.signature ?? null,
+          // url never read by height math (185-RESEARCH.md, verified) — no
+          // signed-URL resolution needed just to compute page breaks.
+          photos: (data.attachedPhotos ?? []).map((p) => ({ url: '', caption: p.caption })),
+          resolvedSettings: resolvePresentationSettings(data.presentation_settings),
+          preparedBy,
+          L,
+          templateId,
+        })
+        const constraints = computeEstimatePageConstraints(company, templateId)
+        const computed = computePageBreaks(blocks, constraints, provider)
+        if (!cancelled) setPages(computed)
       })
-      const constraints = computeEstimatePageConstraints(company, templateId)
-      const computed = computePageBreaks(blocks, constraints, provider)
-      if (!cancelled) setPages(computed)
-    })
+    }
+
+    // Phase 185 Plan 04 (PGMODE-03) — structuralEpoch differing from the last
+    // one this hook recomputed for (including first activation) triggers an
+    // IMMEDIATE recompute. Any OTHER dependency change below (data/company/
+    // templateId/preparedBy/language, with structuralEpoch unchanged — a
+    // pure text edit is the common case) debounces at TEXT_DEBOUNCE_MS.
+    // Either way, this effect's own cleanup (below) ALWAYS clears a pending
+    // debounce timer before the next run — so a structural change landing
+    // while a text-debounce timer is pending never gets masked by it: React
+    // cleans up the stale timer first, then this branch recomputes with zero
+    // delay.
+    const structuralChanged =
+      lastStructuralEpochRef.current === null || lastStructuralEpochRef.current !== structuralEpoch
+    lastStructuralEpochRef.current = structuralEpoch
+
+    if (structuralChanged) {
+      recompute()
+    } else {
+      debounceTimer = setTimeout(recompute, TEXT_DEBOUNCE_MS)
+    }
 
     return () => {
       cancelled = true
+      if (debounceTimer) clearTimeout(debounceTimer)
     }
-    // Recompute on every genuine change to the document, company, template,
-    // preparedBy, or language. No immediate-vs-debounce distinction yet
-    // (Plan 185-04 adds that refinement) — this task's bar is correctness on
-    // every real change, not yet efficiency.
-  }, [enabled, data, company, templateId, preparedBy, language])
+  }, [enabled, data, structuralEpoch, company, templateId, preparedBy, language])
 
   return { pages }
 }
