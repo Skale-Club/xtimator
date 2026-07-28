@@ -2,6 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Photo } from './photo'
 import { getEstimatePhotos } from './estimate-photo'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
 
 export interface Estimate {
   id: string
@@ -90,6 +93,11 @@ export interface EstimateWithSections extends Estimate {
    *  DB column, so existing manual EstimateWithSections literals elsewhere
    *  (tests, etc.) are unaffected. */
   hasSignature?: boolean
+  /** Phase 183 Plan 02 (PDFPAR-02) — signature-display data (signer name,
+   *  signed date, signature image), sourced from the same widened
+   *  loadLatestSignedSnapshot query as hasSignature above. Optional, same
+   *  discipline: computed here, not a raw DB column. null = unsigned. */
+  signature?: DocumentSignature | null
 }
 
 export async function getProjectEstimates(
@@ -172,14 +180,16 @@ async function fetchEstimateWithSections(
   // estimate_items.section_id FK, replacing the prior N+1 (one items query per
   // section). Both levels are ordered by sort_order.
   //
-  // Phase 164 Plan 02 (TRUST-02): the hasSignature lookup runs CONCURRENTLY
-  // in the same Promise.all — a single indexed EXISTS-style query
-  // (idx_estimate_signatures_estimate_id), so it adds no wall-clock latency
-  // to this already-parallel fetch. Every caller of getEstimateById /
-  // getCurrentEstimate gets the field for free, matching the "one shared
-  // query, no duplicated logic" discipline Plan 01 established for the
-  // signed-content overlay.
-  const [{ data: sectionsData }, attachedPhotos, { data: signatureRows }] = await Promise.all([
+  // Phase 164 Plan 02 (TRUST-02) / Phase 183 Plan 02 (PDFPAR-02): the
+  // signature lookup runs CONCURRENTLY in the same Promise.all — an indexed
+  // query (idx_estimate_signatures_estimate_id) via the same shared, widened
+  // loadLatestSignedSnapshot the PDF resolver and share.ts use, so it adds
+  // no wall-clock latency to this already-parallel fetch and never drifts
+  // from those other 2 surfaces. Every caller of getEstimateById /
+  // getCurrentEstimate gets both hasSignature and the full signature-display
+  // fields for free, matching the "one shared query, no duplicated logic"
+  // discipline Plan 01 established for the signed-content overlay.
+  const [{ data: sectionsData }, attachedPhotos, signatureSnapshotRow] = await Promise.all([
     supabase
       .from('estimate_sections')
       .select('*, items:estimate_items(*)')
@@ -187,7 +197,10 @@ async function fetchEstimateWithSections(
       .order('sort_order', { ascending: true })
       .order('sort_order', { foreignTable: 'estimate_items', ascending: true }),
     getEstimatePhotos(supabase, estimate.id),
-    supabase.from('estimate_signatures').select('id').eq('estimate_id', estimate.id).limit(1),
+    // requireServiceClient() (not this function's `supabase` param, which may
+    // be an authenticated non-service client) — mirrors
+    // render-estimate-pdf.ts's exact pattern for the same query.
+    loadLatestSignedSnapshot(requireServiceClient(), estimate.id),
   ])
 
   const sections = (sectionsData ?? []) as unknown as (EstimateSection & {
@@ -201,6 +214,14 @@ async function fetchEstimateWithSections(
       items: (section.items ?? []) as EstimateItem[],
     })),
     attachedPhotos,
-    hasSignature: !!signatureRows && signatureRows.length > 0,
+    hasSignature: signatureSnapshotRow != null,
+    signature:
+      signatureSnapshotRow?.signer_name && signatureSnapshotRow?.signature_data
+        ? {
+            signerName: signatureSnapshotRow.signer_name,
+            signedAt: signatureSnapshotRow.signed_at,
+            signatureDataUrl: signatureSnapshotRow.signature_data,
+          }
+        : null,
   }
 }

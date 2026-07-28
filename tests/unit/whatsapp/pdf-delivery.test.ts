@@ -22,7 +22,7 @@ vi.mock('@/components/pdf/estimate-pdf', () => ({
 // resolver (lib/pdf/render-estimate-pdf.ts), which transitively imports these
 // modules — mirrors tests/unit/pdf/render-estimate-pdf-resolver.test.ts's
 // mocking shape from Plan 182-03.
-vi.mock('@/lib/queries/share', () => ({
+vi.mock('@/lib/queries/estimate-signature', () => ({
   loadLatestSignedSnapshot: vi.fn().mockResolvedValue(null),
 }))
 vi.mock('@/lib/supabase/service', () => ({

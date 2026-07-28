@@ -20,15 +20,16 @@
 // does the full, expensive render and accepts an optional pre-resolved
 // `context` to avoid re-fetching when the caller already has one.
 
-import { createElement } from 'react'
+import { createElement, type ComponentType } from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext, type EstimateWithSections } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { loadLatestSignedSnapshot } from '@/lib/queries/share'
+import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { createStorage } from '@/lib/storage'
-import EstimatePDF from '@/components/pdf/estimate-pdf'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
+import EstimatePDF, { type EstimatePDFProps } from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { isSupportedLanguage, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import {
@@ -53,6 +54,10 @@ export interface EstimatePdfContext {
   contentKey: string
   /** Live row with the TRUST-01 signed-snapshot overlay already applied. */
   estimate: EstimateWithSections
+  /** PDFPAR-02 — signature-display data (signer name, signed date, signature
+   *  image), threaded from the widened loadLatestSignedSnapshot query.
+   *  null = unsigned estimate: renderers must show NO signature block. */
+  signature: DocumentSignature | null
   project: EstimateContextResult['project']
   /** NonNullable: the `if (!result || !result.company) return null` guard in
    * resolveEstimatePdfContext already makes this sound at runtime, but that
@@ -92,6 +97,18 @@ export async function resolveEstimatePdfContext(
   const signedContent = signedSnapshotRow?.signed_content ?? null
   const estimate = applySignedSnapshot(liveEstimate, signedContent)
 
+  // PDFPAR-02 — both signer_name/signature_data are NOT NULL on the table, so
+  // any existing signature row always has them; the `&&` guard here only
+  // ever trips to null when signedSnapshotRow itself is null (no signature).
+  const signature: DocumentSignature | null =
+    signedSnapshotRow?.signer_name && signedSnapshotRow?.signature_data
+      ? {
+          signerName: signedSnapshotRow.signer_name,
+          signedAt: signedSnapshotRow.signed_at,
+          signatureDataUrl: signedSnapshotRow.signature_data,
+        }
+      : null
+
   const rawTemplateId = (company as { estimate_template_style?: string }).estimate_template_style
   const templateId: EstimateTemplateId = isEstimateTemplateId(rawTemplateId)
     ? rawTemplateId
@@ -107,6 +124,7 @@ export async function resolveEstimatePdfContext(
     estimateLanguage,
     contentKey,
     estimate,
+    signature,
     project,
     company,
     projectName: project?.name ?? 'Untitled Project',
@@ -127,7 +145,7 @@ export async function renderEstimatePdf(
 ): Promise<RenderEstimatePdfResult | null> {
   const context = opts?.context ?? (await resolveEstimatePdfContext(estimateId, supabase))
   if (!context) return null
-  const { estimate, company, project, templateId, estimateLanguage, contentKey, projectName } = context
+  const { estimate, signature, company, project, templateId, estimateLanguage, contentKey, projectName } = context
 
   const clientRaw = project?.client
   const client = Array.isArray(clientRaw) ? (clientRaw[0] ?? null) : (clientRaw ?? null)
@@ -161,17 +179,27 @@ export async function renderEstimatePdf(
     }))
   )
 
+  // `EstimatePDFProps` does not yet declare `signature` (Plan 183-06 adds the
+  // real, permanent field once it owns these 2 component files, Wave 3) — a
+  // plain createElement(PDFComponent, { ..., signature }) would fail tsc's
+  // excess-property check. Widen via an explicit cast on PDFComponent
+  // instead, so neither PDF template file needs to be touched by this plan
+  // (Plan 183-03 restructures both in this same wave).
   const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
-  const element = createElement(PDFComponent, {
-    estimate,
-    company,
-    client,
-    projectName,
-    projectType,
-    language: estimateLanguage,
-    preparedBy,
-    attachedPhotos,
-  })
+  const element = createElement(
+    PDFComponent as ComponentType<EstimatePDFProps & { signature?: DocumentSignature | null }>,
+    {
+      estimate,
+      company,
+      client,
+      projectName,
+      projectType,
+      language: estimateLanguage,
+      preparedBy,
+      attachedPhotos,
+      signature,
+    }
+  )
   const pdfBuffer = await renderToBuffer(element as any)
 
   return { buffer: Buffer.from(pdfBuffer), templateId, contentKey, projectName }

@@ -10,8 +10,7 @@ import { createStorage } from '@/lib/storage'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
-import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites — PERMANENT
-export { loadLatestSignedSnapshot } // TRANSITIONAL re-export, deleted in Task 3
+import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites
 
 // Internal fields never sent to the public browser payload: share_token is a
 // bearer credential the viewer already holds. attachedPhotos is also omitted

@@ -10,7 +10,7 @@ vi.mock('react', async (importOriginal) => {
 vi.mock('@/components/pdf/estimate-pdf', () => ({ default: vi.fn(() => null) }))
 vi.mock('@/components/pdf/estimate-pdf-modern', () => ({ default: vi.fn(() => null) }))
 vi.mock('@/lib/queries/estimate', () => ({ getEstimateWithContext: vi.fn() }))
-vi.mock('@/lib/queries/share', () => ({ loadLatestSignedSnapshot: vi.fn() }))
+vi.mock('@/lib/queries/estimate-signature', () => ({ loadLatestSignedSnapshot: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
@@ -24,7 +24,7 @@ vi.mock('@/lib/supabase/service', () => ({
 import { createElement } from 'react'
 import { resolveEstimatePdfContext, renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
-import { loadLatestSignedSnapshot } from '@/lib/queries/share'
+import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { renderToBuffer } from '@react-pdf/renderer'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -151,5 +151,39 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
     mockGetEstimate.mockResolvedValue(null)
     const result = await renderEstimatePdf('missing', makeSupabase())
     expect(result).toBeNull()
+  })
+
+  it('resolveEstimatePdfContext returns signature: null when the snapshot has no signer_name (PDFPAR-02)', async () => {
+    mockGetEstimate.mockResolvedValue(baseContext() as never)
+    mockLoadSnapshot.mockResolvedValue({
+      id: 'sig-1',
+      signed_at: '2026-02-01T00:00:00Z',
+      signed_total: 1000,
+      signed_content: null,
+    } as never)
+
+    const context = await resolveEstimatePdfContext('est-1', makeSupabase())
+
+    expect(context?.signature).toBeNull()
+  })
+
+  it('resolveEstimatePdfContext returns a populated DocumentSignature when the snapshot has signer_name/signature_data (PDFPAR-02)', async () => {
+    mockGetEstimate.mockResolvedValue(baseContext() as never)
+    mockLoadSnapshot.mockResolvedValue({
+      id: 'sig-1',
+      signer_name: 'Jane Client',
+      signature_data: 'data:image/png;base64,AAA',
+      signed_at: '2026-02-01T00:00:00Z',
+      signed_total: 1000,
+      signed_content: null,
+    } as never)
+
+    const context = await resolveEstimatePdfContext('est-1', makeSupabase())
+
+    expect(context?.signature).toEqual({
+      signerName: 'Jane Client',
+      signedAt: '2026-02-01T00:00:00Z',
+      signatureDataUrl: 'data:image/png;base64,AAA',
+    })
   })
 })
