@@ -21,9 +21,9 @@
 
 ### Shared Document Engine (ENGINE)
 
-- [ ] **ENGINE-01**: All four document renderers (workspace editor doc, share webview doc, classic PDF, modern PDF) consume one shared source for the document model, label maps (en/pt/es), design tokens, and formatting helpers (money, date with local-midnight fix, address) — no per-surface duplicated copies remain.
-- [ ] **ENGINE-02**: Page geometry (LETTER 612×792pt) and the pt↔px conversion (1.333× at 96dpi) are defined in exactly one shared module consumed by both renderers.
-- [ ] **ENGINE-03**: Classic and modern render from the shared structure with template-specific styling only (per-template tokens), replacing the current byte-duplicated ~860-line PDF template pair.
+- [x] **ENGINE-01**: All four document renderers (workspace editor doc, share webview doc, classic PDF, modern PDF) consume one shared source for the document model, label maps (en/pt/es), design tokens, and formatting helpers (money, date with local-midnight fix, address) — no per-surface duplicated copies remain.
+- [x] **ENGINE-02**: Page geometry (LETTER 612×792pt) and the pt↔px conversion (1.333× at 96dpi) are defined in exactly one shared module consumed by both renderers.
+- [x] **ENGINE-03**: Classic and modern render from the shared structure with template-specific styling only (per-template tokens), replacing the current byte-duplicated ~860-line PDF template pair.
 
 ### PDF Parity with the Webview Benchmark (PDFPAR)
 
@@ -74,9 +74,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENGINE-01 | Phase 182 | Pending |
-| ENGINE-02 | Phase 182 | Pending |
-| ENGINE-03 | Phase 182 | Pending |
+| ENGINE-01 | Phase 182 | Complete |
+| ENGINE-02 | Phase 182 | Complete |
+| ENGINE-03 | Phase 182 | Complete |
 | PDFPAR-04 | Phase 182 | Complete |
 | PDFPAR-01 | Phase 183 | Pending |
 | PDFPAR-02 | Phase 183 | Pending |
