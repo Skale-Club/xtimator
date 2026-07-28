@@ -1,84 +1,88 @@
-# Requirements: Xtimator — Milestone v4.22 Product-Native Demo
+# Requirements: Xtimator — Milestone v4.23 Unified Estimate Document Engine
 
-**Defined:** 2026-07-26
+**Defined:** 2026-07-27
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Replace the standalone public demo with an isolated, read-only session that renders the real authenticated Xtimator product.
+**Milestone goal:** Unify the estimate webview and PDF onto one shared document structure/design (webview is the benchmark), with a single deterministic page-break rule powering a fully-editable paginated editor mode that mirrors the PDF.
 
-> **Locked decisions (owner-confirmed through the implementation discussion):**
-> - The demo uses the real app shell and real product routes; no second demo design is maintained.
-> - Production isolation uses `demo.xtimator.com` so host-only Supabase and active-company cookies cannot overwrite a real session on `xtimator.com`.
-> - The dedicated demo user and deterministic demo company are always read-only. Canonical admin/provider exemptions must never make the public demo writable.
-> - The existing standalone demo remains available until the replacement passes automated and browser verification.
-> - Production is GitHub Actions → Docker/GHCR → Coolify. Vercel artifacts in the repository are not production configuration.
+> **Locked decisions (owner-confirmed):**
+> - The **webview is the benchmark** — it is the most-finished surface; the PDF copies its features/design. Both templates (classic + modern) are covered.
+> - The **public share webview stays a normal single-page scroll** — pagination never applies there.
+> - The workspace editor gains **two icon buttons to the LEFT of "Edit with AI"**: (1) full-width mode (current default), (2) paginated mode that mirrors the PDF like a PDF preview.
+> - The paginated mode is **fully functional AND editable** — all existing inline editing keeps working inside pages.
+> - **ONE consolidated deterministic page-break rule** decides where breaks fall, shared by the web paginated preview and the react-pdf renderer so they mirror each other.
+> - **Fidelity bar (research-locked):** "same page-break decisions, same content per page" — pixel-perfect parity between DOM and react-pdf is architecturally impossible and explicitly rejected as an anti-feature.
+> - **No manual user-inserted page breaks** — they conflict with the single deterministic rule.
+> - The owner will supply a **reference preview image for the paginated-mode UI** — pending; standard PDF-preview conventions (centered letter pages on neutral canvas, page gaps, shadows, page numbers) apply until it arrives, absorbed in the polish phase.
+> - Research correction adopted: the webview does **not** render a signature block or photo captions today either — those are **net-new on all four surfaces**, not copy-from-webview items.
+> - PDF stack stays `@react-pdf/renderer` (no puppeteer — Alpine container). `lib/whatsapp/pdf-delivery.ts` must never call the HTTP PDF route (webhook context has no cookies).
+> - Model orchestration for execution: Fable orchestrates, Opus validates (plan-check/verify), Sonnet executes, Haiku simple work; maximize parallelism.
 
-## v4.22 Requirements
+## v4.23 Requirements
 
-### Demo Entry and Session Isolation (ENTRY)
+### Shared Document Engine (ENGINE)
 
-- [x] **ENTRY-01**: A visitor opening the public demo entry on the apex domain is transferred to the configured demo host without changing an existing apex-domain Supabase session.
-- [x] **ENTRY-02**: The demo host creates a host-only authenticated session for the dedicated demo user, selects the deterministic demo company in a host-only `active_company_id` cookie, and redirects to the real `/dashboard`.
-- [x] **ENTRY-03**: Re-entering the demo is idempotent and recovers from stale or partial demo cookies without redirect loops.
-- [x] **ENTRY-04**: Local development supports the same isolated-host flow on the configured localhost port without weakening production cookie rules.
+- [ ] **ENGINE-01**: All four document renderers (workspace editor doc, share webview doc, classic PDF, modern PDF) consume one shared source for the document model, label maps (en/pt/es), design tokens, and formatting helpers (money, date with local-midnight fix, address) — no per-surface duplicated copies remain.
+- [ ] **ENGINE-02**: Page geometry (LETTER 612×792pt) and the pt↔px conversion (1.333× at 96dpi) are defined in exactly one shared module consumed by both renderers.
+- [ ] **ENGINE-03**: Classic and modern render from the shared structure with template-specific styling only (per-template tokens), replacing the current byte-duplicated ~860-line PDF template pair.
 
-### Product Parity (PARITY)
+### PDF Parity with the Webview Benchmark (PDFPAR)
 
-- [x] **PARITY-01**: A demo visitor sees the same authenticated app layout, navigation, responsive behavior, components, and styling used by a real tenant.
-- [x] **PARITY-02**: The demo visitor can navigate the core read surfaces—dashboard, projects, clients, price book, estimates, and settings surfaces intentionally exposed to the demo—using the deterministic demo tenant's data.
-- [x] **PARITY-03**: The shared app shell visibly identifies demo/read-only mode and removes or disables controls that would otherwise initiate a mutation or paid/external side effect.
+- [ ] **PDFPAR-01**: The PDF (both templates) matches the webview benchmark's structure and design — company header/branding, title, project/bill-to, summary, sections with per-section subtotals, items tables, totals block (subtotal → discount → tax → total → deposit → balance due), terms, and photos.
+- [ ] **PDFPAR-02**: A signed estimate renders a signature block (signer name, signed date, signature image) on the webview AND in the PDF — net-new on all surfaces.
+- [ ] **PDFPAR-03**: Photo captions render in the webview photo grid AND in the PDF photo grid.
+- [ ] **PDFPAR-04**: All three PDF paths (download route, email attachment, WhatsApp document) resolve through one shared in-process renderer that honors the tenant's template choice, the signed snapshot (TRUST-01), preparedBy, and attached photos — eliminating the hardcoded-Classic + live-rows defects in `send/route.ts` and `pdf-delivery.ts`.
 
-### Read-Only Security (SAFE)
+### Consolidated Page-Break Rule (PGBRK)
 
-- [x] **SAFE-01**: Every server action and API route reachable from the demo denies mutations when either the authenticated session is the dedicated demo user or the active company is the deterministic demo company.
-- [x] **SAFE-02**: External side effects—including AI generation, uploads, email/SMS/WhatsApp sends, billing, background jobs, and webhooks initiated from the UI—cannot be triggered by the public demo.
-- [x] **SAFE-03**: Database/RLS policy provides a final deny-write boundary for the demo user/company even if a UI or server guard is missed.
-- [x] **SAFE-04**: Automated tests prove allowed read navigation, denied mutation paths, host-only cookie isolation, stale-cookie recovery, and absence of redirect loops.
+- [ ] **PGBRK-01**: One deterministic pagination module (`lib/estimate/pagination/`) computes per-page block assignments from the shared document model; it is the single source of truth consumed by BOTH the web paginated preview and the PDF renderer.
+- [ ] **PGBRK-02**: Break rules enforced: a line-item row never splits; a section header keeps with its first row; a section subtotal keeps with its last row; the totals block, signature block, and each terms card never split; the photo grid breaks only between rows.
+- [ ] **PGBRK-03**: Continuation pages repeat the items-table column header, and every page shows "Page N of M" numbering.
+- [ ] **PGBRK-04**: The PDF renders explicit `<Page>` elements from the module's output (breaks are prescribed, never emergent Yoga wrap), and the paginated web preview shows the same content on the same pages for the same estimate + template.
+- [ ] **PGBRK-05**: Web and PDF use the same registered font family (TTF via `Font.register`, same family the web renders) with a measurement provider built on react-pdf's own transitive deps (`fontkit` + `linebreak`); a measurement-drift spike validates the approach and fixes the safety margin before the engine is finalized.
 
-### Cutover and Operations (CUTOVER)
+### Paginated Editor Mode (PGMODE)
 
-- [x] **CUTOVER-01**: Landing-page demo entry points use the product-native flow after verification, and the obsolete standalone `/demo/*` UI is removed without leaving broken internal links.
-- [x] **CUTOVER-02**: Environment and deployment documentation specifies the demo host, Supabase redirect allow-list requirements, DNS/Coolify domain setup, and local host setup without treating Vercel as production.
-- [x] **CUTOVER-03**: Browser verification demonstrates that a real apex session remains intact before and after visiting the demo host and that the demo renders the real product at desktop and responsive widths.
+- [ ] **PGMODE-01**: The estimate editor header shows two icon toggle buttons to the left of "Edit with AI" — full-width (default) and paginated — switching the document view instantly.
+- [ ] **PGMODE-02**: Paginated mode renders letter-size pages styled like a PDF preview (centered pages, gaps, shadows) mirroring the PDF's page breaks for the active template.
+- [ ] **PGMODE-03**: All editing works inside paginated mode — inline field edits, add/remove items and sections, drag-reorder — with page membership as a derived read-only projection (never persisted), immediate repagination on structural changes, debounced repagination while typing, and no focus loss when content moves across pages.
+- [ ] **PGMODE-04**: The legacy `viewMode: 'width' | 'page'` CSS-zoom toggle is consolidated into the new control — one "page" concept in the UI, no colliding icons/wording.
+- [ ] **PGMODE-05**: The public share webview remains a single-page scroll, byte-compatible with today's URLs and behavior.
 
-## Future Requirements
+### Webview Design Polish (POLISH)
 
-- **DEMO-FUT-01**: Periodically reset demo data to a canonical fixture after scheduled intervals.
-- **DEMO-FUT-02**: Provide scenario-specific demo tenants for multiple service industries.
-- **DEMO-FUT-03**: Capture privacy-safe demo funnel analytics across landing, entry, and product exploration.
+- [ ] **POLISH-01**: The benchmark webview receives a design refinement pass (both templates, mobile included) and the refinements propagate to the PDF through the shared engine — the surfaces stay unified after polish.
+
+## v2 Requirements (deferred)
+
+- **DEFER-01**: Download-PDF button on the public share webview (PDF route is currently owner-authenticated only).
+- **DEFER-02**: Invoices/payment state parity in the PDF (webview shows Stripe invoice pay links; PDF stays a static document this milestone).
+- **DEFER-03**: "Prepared by" block on the webview (PDF-only today; open product decision).
+- **DEFER-04**: Per-user/per-estimate persistence of the full-width vs paginated toggle (session-only state this milestone).
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| A second demo-only design system | The milestone exists specifically to eliminate visual and behavioral divergence. |
-| Public visitors receiving a real admin/provider identity | It creates an unsafe mutation path and is unnecessary for product exploration. |
-| Production deployment, DNS mutation, or Coolify domain creation from local code | These are operator actions; the repository will provide exact configuration requirements and remain deploy-ready. |
-| Demo data editing with periodic rollback | Read-only is the safer first release; resettable sandboxes can be considered later. |
+| Pixel-perfect DOM↔PDF parity | Different render engines (browser CSS vs Yoga+fontkit); anti-feature per research — bar is same breaks/same content per page |
+| Manual user-inserted page breaks | Conflicts with the single deterministic page-break rule |
+| Pagination on the public share webview | Owner-locked: share stays single-page scroll |
+| puppeteer / HTML-to-PDF migration | Alpine container, known OOM history; @react-pdf stays |
+| Rich-text editor frameworks (TipTap/Slate/Lexical) | Existing inline editing only needs page-box wrapping |
+| paged.js / CSS Paged Media libs | Static-print-oriented, DOM-mutating, incompatible with live editing, shares no measurement model with react-pdf |
 
 ## Traceability
 
+Populated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ENTRY-01 | Phase 180 | Complete |
-| ENTRY-02 | Phase 180 | Complete |
-| ENTRY-03 | Phase 180 | Complete |
-| ENTRY-04 | Phase 180 | Complete |
-| PARITY-01 | Phase 181 | Complete |
-| PARITY-02 | Phase 181 | Complete |
-| PARITY-03 | Phase 181 | Complete |
-| SAFE-01 | Phase 180 | Complete |
-| SAFE-02 | Phase 180 | Complete |
-| SAFE-03 | Phase 180 | Complete |
-| SAFE-04 | Phase 180 | Complete |
-| CUTOVER-01 | Phase 181 | Complete |
-| CUTOVER-02 | Phase 181 | Complete |
-| CUTOVER-03 | Phase 181 | Complete |
+| — | — | — |
 
 **Coverage:**
-- v4.22 requirements: 14 total
-- Mapped to phases: 14
-- Unmapped: 0
-- Duplicate mappings: 0
+- v1 requirements: 18 total
+- Mapped to phases: 0
+- Unmapped: 18 ⚠️ (pre-roadmap)
 
 ---
-*Requirements defined: 2026-07-26*
-*Last updated: 2026-07-26 after roadmap creation*
+*Requirements defined: 2026-07-27*
+*Last updated: 2026-07-27 after initial definition*
