@@ -50,150 +50,23 @@ import {
   isSectionVisible,
   type PresentationSettings,
 } from '@/lib/estimate/presentation-settings'
+import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
+import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { LETTER_HEIGHT_PX } from '@/lib/estimate/document/tokens'
+import type {
+  DocumentCompany,
+  CompanyDefaults,
+  DocumentClient,
+  DocumentItem,
+  DocumentSection,
+  DocumentPhoto,
+  EstimateDocumentData,
+} from '@/lib/estimate/document/model'
 import { ItemCardMobile } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
 import type { EstimateAction, EditorItem } from './use-estimate-reducer'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
-
-// ---------------------------------------------------------------------------
-// i18n label map (mirrors PDF labels)
-// ---------------------------------------------------------------------------
-
-const DOC_LABELS = {
-  en: {
-    estimate: 'ESTIMATE',
-    project: 'Project',
-    billTo: 'Bill To',
-    summary: 'Summary',
-    description: 'Description',
-    qty: 'Qty',
-    unit: 'Unit',
-    unitPrice: 'Unit Price',
-    lineDiscount: 'Disc.',
-    taxable: 'Tax',
-    total: 'Total',
-    sectionSubtotal: 'Section Subtotal',
-    subtotal: 'Subtotal',
-    discount: 'Discount',
-    discountNone: 'None',
-    discountPct: '% off',
-    discountFixed: 'Fixed',
-    deposit: 'Deposit',
-    depositNone: 'None',
-    depositPct: '%',
-    depositAmount: 'Amount',
-    balanceDue: 'Balance Due',
-    tax: 'Tax',
-    grandTotal: 'Total',
-    paymentTerms: 'Payment Terms',
-    timeline: 'Timeline',
-    warranty: 'Warranty',
-    notes: 'Notes',
-    date: 'Date',
-    estimateNum: 'Estimate #',
-    noClient: 'No client linked',
-    addItem: 'Add item',
-    addSection: 'Add section',
-    addDetails: 'Add details',
-    summaryPlaceholder: 'Estimate summary…',
-    termsPlaceholder: 'Enter details…',
-    searchPriceBook: 'Search price book…',
-    noMatches: 'No matches',
-    customized: 'Customized',
-    usingDefault: 'Default',
-    resetToDefault: 'Reset to default',
-    photos: 'Photos',
-  },
-  pt: {
-    estimate: 'ORÇAMENTO',
-    project: 'Projeto',
-    billTo: 'Faturar Para',
-    summary: 'Resumo',
-    description: 'Descrição',
-    qty: 'Qtd',
-    unit: 'Unidade',
-    unitPrice: 'Preço Unitário',
-    lineDiscount: 'Desc.',
-    taxable: 'Imposto',
-    total: 'Total',
-    sectionSubtotal: 'Subtotal da Seção',
-    subtotal: 'Subtotal',
-    discount: 'Desconto',
-    discountNone: 'Nenhum',
-    discountPct: '% off',
-    discountFixed: 'Fixo',
-    deposit: 'Entrada',
-    depositNone: 'Nenhum',
-    depositPct: '%',
-    depositAmount: 'Valor',
-    balanceDue: 'Saldo Devedor',
-    tax: 'Imposto',
-    grandTotal: 'Total',
-    paymentTerms: 'Condições de Pagamento',
-    timeline: 'Prazo',
-    warranty: 'Garantia',
-    notes: 'Observações',
-    date: 'Data',
-    estimateNum: 'Orçamento Nº',
-    noClient: 'Nenhum cliente vinculado',
-    addItem: 'Adicionar item',
-    addSection: 'Adicionar seção',
-    addDetails: 'Adicionar detalhes',
-    summaryPlaceholder: 'Resumo do orçamento…',
-    termsPlaceholder: 'Insira os detalhes…',
-    searchPriceBook: 'Buscar no catálogo…',
-    noMatches: 'Sem resultados',
-    customized: 'Personalizado',
-    usingDefault: 'Padrão',
-    resetToDefault: 'Restaurar padrão',
-    photos: 'Fotos',
-  },
-  es: {
-    estimate: 'PRESUPUESTO',
-    project: 'Proyecto',
-    billTo: 'Facturar A',
-    summary: 'Resumen',
-    description: 'Descripción',
-    qty: 'Cant',
-    unit: 'Unidad',
-    unitPrice: 'Precio Unitario',
-    lineDiscount: 'Desc.',
-    taxable: 'Impuesto',
-    total: 'Total',
-    sectionSubtotal: 'Subtotal de Sección',
-    subtotal: 'Subtotal',
-    discount: 'Descuento',
-    discountNone: 'Ninguno',
-    discountPct: '% off',
-    discountFixed: 'Fijo',
-    deposit: 'Depósito',
-    depositNone: 'Ninguno',
-    depositPct: '%',
-    depositAmount: 'Monto',
-    balanceDue: 'Saldo Pendiente',
-    tax: 'Impuesto',
-    grandTotal: 'Total',
-    paymentTerms: 'Términos de Pago',
-    timeline: 'Plazo',
-    warranty: 'Garantía',
-    notes: 'Notas',
-    date: 'Fecha',
-    estimateNum: 'Presupuesto Nº',
-    noClient: 'Sin cliente vinculado',
-    addItem: 'Agregar ítem',
-    addSection: 'Agregar sección',
-    addDetails: 'Agregar detalles',
-    summaryPlaceholder: 'Resumen del presupuesto…',
-    termsPlaceholder: 'Ingrese los detalles…',
-    searchPriceBook: 'Buscar en catálogo…',
-    noMatches: 'Sin resultados',
-    customized: 'Personalizado',
-    usingDefault: 'Predeterminado',
-    resetToDefault: 'Restablecer',
-    photos: 'Fotos',
-  },
-}
 
 interface DocLabels {
   estimate: string
@@ -240,12 +113,6 @@ interface DocLabels {
   photos: string
 }
 
-const DATE_LOCALE: Record<EstimateLanguage, string> = {
-  en: 'en-US',
-  pt: 'pt-BR',
-  es: 'es-MX',
-}
-
 const UNIT_OPTIONS_BY_LANG: Record<EstimateLanguage, string[]> = {
   en: ['each', 'hour', 'day', 'sq ft', 'linear ft', 'cubic yd', 'gallon', 'lb', 'ton', 'lot'],
   pt: ['unidade', 'hora', 'dia', 'm²', 'm', 'm³', 'litro', 'kg', 'tonelada', 'lote'],
@@ -263,114 +130,17 @@ function resolveUnitOptions(lang: EstimateLanguage, currentValue: string | null)
 // Public types
 // ---------------------------------------------------------------------------
 
-export interface DocumentCompany {
-  name: string
-  owner_name: string | null
-  phone: string | null
-  email: string | null
-  website: string | null
-  address: string | null
-  city: string | null
-  state: string | null
-  zip: string | null
-  logo_url: string | null
-  brand_primary_color: string | null
-}
-
-/**
- * R4 — company-level defaults the document compares against to surface an
- * "override vs default" indicator on inherited fields. Optional: omitted in
- * view/share/PDF mode where no edit affordances are shown.
- */
-export interface CompanyDefaults {
-  payment_terms: string | null
-  warranty_terms: string | null
-  tax_rate: number
-}
-
-export interface DocumentClient {
-  // Phase 162-02 (DOCUX-02) — required so the Bill To pencil variant of
-  // ClientPicker (162-03) can render the Unlink action against the
-  // currently-linked client. Also unlocks any downstream call sites that
-  // need to link back to /clients/{id}.
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  address: string | null
-  city: string | null
-  state: string | null
-  zip: string | null
-}
-
-export interface DocumentItem {
-  id: string
-  description: string
-  quantity: number
-  unit: string | null
-  unit_price: number
-  total: number
-  sort_order?: number
-  price_source?: 'price_book' | 'ai_estimate' | 'researched' | null
-  isManuallyEdited?: boolean
-  // v4.11 advanced pricing — optional, no-op defaults (taxable on, discount 0).
-  taxable?: boolean
-  tax_category?: 'labor' | 'materials' | 'other' | null
-  discount?: number
-  cost?: number | null
-  markup_pct?: number | null
-}
-
-export interface DocumentSection {
-  id: string
-  title: string
-  subtotal: number
-  items: DocumentItem[]
-}
-
-/**
- * Deliberately NOT the full lib/queries/photo.ts Photo type — the document
- * surface only needs these fields and shouldn't couple to the photos query
- * module. `url`, when present, is a pre-resolved signed URL (view/share mode,
- * resolved server-side); when absent (edit mode), AttachedPhotoThumb resolves
- * one client-side the same way PhotoCard does.
- */
-export interface DocumentPhoto {
-  id: string
-  storage_path: string
-  caption: string | null
-  url?: string
-}
-
-export interface EstimateDocumentData {
-  summary: string | null
-  notes: string | null
-  timeline: string | null
-  payment_terms: string | null
-  warranty_terms: string | null
-  discount_type: string | null
-  discount_value: number
-  discount_amount: number
-  tax_rate: number
-  tax_amount: number
-  subtotal: number
-  total: number
-  // v4.11 deposit — preview values (server recompute is authoritative). With
-  // deposit_type 'none' the deposit is 0 and balance_due === total → panel
-  // renders byte-identical to today (no deposit row, no Balance Due line).
-  deposit_type: string
-  deposit_value: number | null
-  deposit: number
-  balance_due: number
-  currency_code: string
-  sections: DocumentSection[]
-  estimate_date: string | null
-  estimate_number: string | null
-  attachedPhotos?: DocumentPhoto[]
-  // Phase 162-04 (DOCUX-01, PRESENT-04) — raw override state; the document
-  // renders section visibility via isSectionVisible(resolvePresentationSettings(...)).
-  // NULL keeps today's byte-identical behavior (all sections visible).
-  presentation_settings: PresentationSettings | null
+// Re-export (not just import) so the 13 existing external import sites of
+// these names from '@/components/workspace/estimate/estimate-document'
+// keep resolving unchanged.
+export type {
+  DocumentCompany,
+  CompanyDefaults,
+  DocumentClient,
+  DocumentItem,
+  DocumentSection,
+  DocumentPhoto,
+  EstimateDocumentData,
 }
 
 interface EstimateDocumentProps {
@@ -405,39 +175,6 @@ interface EstimateDocumentProps {
    *  print-preview letter sheet (square corners, hairline border, paper
    *  shadow, US-Letter min-height) instead of the rounded app card. */
   pageView?: boolean
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatAddress(obj: {
-  address: string | null
-  city: string | null
-  state: string | null
-  zip: string | null
-}): string | null {
-  const parts: string[] = []
-  if (obj.address) parts.push(obj.address)
-  const cityState = [obj.city, obj.state].filter(Boolean).join(', ')
-  if (cityState && obj.zip) parts.push(`${cityState} ${obj.zip}`)
-  else if (cityState) parts.push(cityState)
-  else if (obj.zip) parts.push(obj.zip)
-  return parts.length > 0 ? parts.join('\n') : null
-}
-
-function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): string {
-  const locale = DATE_LOCALE[lang] ?? 'en-US'
-  // Date-only strings (YYYY-MM-DD) MUST parse as LOCAL midnight, not UTC.
-  // `new Date('2026-07-08')` is UTC midnight, which renders as the PREVIOUS
-  // day for any viewer west of UTC (and made the doc snapshot non-deterministic
-  // in CI). Mirrors DatePopover's `${value}T00:00:00` convention below.
-  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr
-  return new Date(normalized).toLocaleDateString(locale, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
 }
 
 // Common class string for inline editable fields (looks like plain text, activates on focus/hover)
@@ -1662,13 +1399,15 @@ export function EstimateDocument({
     <div
       // Quick-260718-p3v — pageView renders a print-preview sheet: square
       // corners, hairline border, paper shadow, and US-Letter proportions
-      // (min-h 1056px = 11in @96dpi, pairing the editor's 816px max width).
+      // (min-h LETTER_HEIGHT_PX = 11in @96dpi, pairing the editor's
+      // LETTER_WIDTH_PX max width).
       className={
         pageView
-          ? 'min-h-[1056px] border shadow-2xl overflow-hidden'
+          ? 'border shadow-2xl overflow-hidden'
           : 'rounded-3xl border-4 shadow-lg overflow-hidden'
       }
       style={{
+        ...(pageView ? { minHeight: `${LETTER_HEIGHT_PX}px` } : {}),
         backgroundColor: '#ffffff',
         colorScheme: 'light',
         '--foreground': '240 10% 3.9%',

@@ -87,7 +87,7 @@ describe('EstimateDocument page view (print-preview sheet)', () => {
     expect(root.className).toContain('rounded-3xl')
     expect(root.className).toContain('border-4')
     expect(root.className).toContain('shadow-lg')
-    expect(root.className).not.toContain('min-h-[1056px]')
+    expect(root.style.minHeight).toBe('')
     expect(root.style.borderColor).toBe('rgb(63, 63, 70)') // #3f3f46
   })
 
@@ -100,7 +100,7 @@ describe('EstimateDocument page view (print-preview sheet)', () => {
 
   it('pageView renders a square-cornered letter sheet with paper shadow', () => {
     const root = renderDocument(true)
-    expect(root.className).toContain('min-h-[1056px]')
+    expect(root.style.minHeight).toBe('1056px')
     expect(root.className).toContain('shadow-2xl')
     expect(root.className).not.toContain('rounded-3xl')
     expect(root.className).not.toContain('border-4')

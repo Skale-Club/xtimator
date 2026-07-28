@@ -31,6 +31,7 @@ import {
 } from './estimate-document'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
+import { LETTER_HEIGHT_PX, LETTER_WIDTH_PX } from '@/lib/estimate/document/tokens'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
   hasEstimateBeenSentOrViewed,
@@ -174,10 +175,10 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 /** localStorage key for the document viewing mode (quick-260718-m2q). */
 const VIEW_MODE_KEY = 'estimate-view-mode'
 
-/** Quick-260718-w4k — US Letter height at 96dpi (11in), pairing the 816px
- *  page width. Page mode scales the sheet so this full height fits the
- *  visible viewport, like a print preview. */
-const LETTER_PAGE_HEIGHT = 1056
+/** Quick-260718-w4k — US Letter height at 96dpi (11in), pairing
+ *  LETTER_WIDTH_PX. Page mode scales the sheet so this full height fits
+ *  the visible viewport, like a print preview. */
+const LETTER_PAGE_HEIGHT = LETTER_HEIGHT_PX
 /** Vertical clearance reserved below the sheet for the floating pill. */
 const PAGE_FIT_CLEARANCE = 84
 
@@ -711,8 +712,11 @@ export function EstimateEditor({
           letter sheet fits the visible viewport (print-preview fit). */}
       <div
         ref={pageWrapRef}
-        className={viewMode === 'page' ? 'mx-auto w-full max-w-[816px] space-y-3' : 'space-y-3'}
-        style={viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : undefined}
+        className={viewMode === 'page' ? 'mx-auto w-full space-y-3' : 'space-y-3'}
+        style={{
+          ...(viewMode === 'page' ? { maxWidth: `${LETTER_WIDTH_PX}px` } : {}),
+          ...(viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : {}),
+        }}
       >
       {/* WYSIWYG document surface */}
       <EstimateDocument

@@ -29,31 +29,18 @@ describe('ENGINE-02: LETTER geometry has exactly one source', () => {
     expect(source).toMatch(/LETTER_HEIGHT_PX/)
   })
 
-  // Already-clean sources — zero bare 612/792/816/1056 today AND after the
-  // phase (these files never held a hand-copied geometry literal).
+  // Clean sources — zero bare 612/792/816/1056 anywhere in the file,
+  // including comments. Plan 182-02 (ENGINE-02) converted
+  // estimate-document.tsx and estimate-editor.tsx to reference
+  // LETTER_HEIGHT_PX/LETTER_WIDTH_PX instead of hand-copied literals.
   const CLEAN_SOURCES = [
     'components/share/estimate-document-modern.tsx',
     'components/pdf/estimate-pdf.tsx',
     'components/pdf/estimate-pdf-modern.tsx',
-  ]
-  for (const path of CLEAN_SOURCES) {
-    it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
-  }
-
-  // Still-dirty sources — Plan 182-02 replaces these with tokens.ts
-  // references (estimate-document.tsx's pageView min-height AND
-  // estimate-editor.tsx's LETTER_PAGE_HEIGHT const + its max-w-[816px]
-  // class + its own comment). it.fails: MUST be red right now (proves the
-  // defect exists) but NEVER fails CI — vitest reports it.fails GREEN when
-  // the wrapped assertion throws as expected. Plan 182-02 converts each
-  // entry to the CLEAN_SOURCES list (plain `it()`) once the literal is gone
-  // — if it forgets, `it.fails` starts reporting a REAL failure
-  // (unexpectedly passing), closing the loop.
-  const DIRTY_SOURCES = [
     'components/workspace/estimate/estimate-document.tsx',
     'components/workspace/estimate/estimate-editor.tsx',
   ]
-  for (const path of DIRTY_SOURCES) {
-    it.fails(`${path} still carries a bare 612/792/816/1056 literal — Plan 182-02 converts this to it()`, () => assertNoLiteral(path))
+  for (const path of CLEAN_SOURCES) {
+    it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
   }
 })
