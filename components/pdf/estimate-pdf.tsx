@@ -32,6 +32,8 @@ import { ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
 import { PdfHeader } from './shared/pdf-header'
 import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
+import { PdfTitleBanner } from './shared/pdf-title-banner'
+import { PdfSectionBlock } from './shared/pdf-section-block'
 
 interface CompanyInfo {
   name: string
@@ -356,10 +358,16 @@ export default function EstimatePDF({
           },
         })}
 
-        {/* Title */}
-        <Text style={[styles.estimateTitle, { color: brandText }]}>
-          {L.estimate}
-        </Text>
+        {/* Title. Called as a plain function (not JSX) — see
+            components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfTitleBanner({
+          label: L.estimate,
+          solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
+          brandColor,
+          brandText,
+          brandOnFill,
+          styles: { estimateTitle: styles.estimateTitle },
+        })}
 
         {/* Project & Client Info. Called as a plain function (not JSX) —
             see components/pdf/shared/pdf-header.tsx's top comment for why. */}
@@ -388,81 +396,42 @@ export default function EstimatePDF({
           </View>
         )}
 
-        {/* Sections with Line Items — SENDHUB-04 (Phase 163): resolver-gated */}
+        {/* Sections with Line Items — SENDHUB-04 (Phase 163): resolver-gated.
+            Called as a plain function (not JSX) per section — see
+            components/pdf/shared/pdf-header.tsx's top comment for why. */}
         {isSectionVisible(resolvedSettings, 'sections') && estimate.sections
           .map((section) => ({
             ...section,
             items: section.items.filter((i) => i.description.trim() !== ''),
           }))
           .filter((section) => section.items.length > 0)
-          .map((section) => (
-          <View key={section.id} wrap>
-            <View
-              style={[
-                styles.sectionHeader,
-                { backgroundColor: brandColor },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: brandOnFill }]}>{section.title}</Text>
-            </View>
-
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, styles.colDescription]}>
-                {L.description}
-              </Text>
-              <Text style={[styles.tableHeaderText, styles.colQty]}>
-                {L.qty}
-              </Text>
-              <Text style={[styles.tableHeaderText, styles.colUnit]}>
-                {L.unit}
-              </Text>
-              <Text style={[styles.tableHeaderText, styles.colUnitPrice]}>
-                {L.unitPrice}
-              </Text>
-              <Text style={[styles.tableHeaderText, styles.colTotal]}>
-                {L.total}
-              </Text>
-            </View>
-
-            {/* Table Rows */}
-            {section.items.map((item, idx) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.tableRow,
-                  idx % 2 === 1 ? styles.tableRowAlt : {},
-                ]}
-              >
-                <Text style={[styles.tableCellText, styles.colDescription]}>
-                  {item.description}
-                </Text>
-                <Text style={[styles.tableCellText, styles.colQty]}>
-                  {item.quantity}
-                </Text>
-                <Text style={[styles.tableCellText, styles.colUnit]}>
-                  {item.unit ?? ''}
-                </Text>
-                <Text style={[styles.tableCellText, styles.colUnitPrice]}>
-                  {fmt(item.unit_price)}
-                </Text>
-                <Text style={[styles.tableCellText, styles.colTotal]}>
-                  {fmt(item.total)}
-                </Text>
-              </View>
-            ))}
-
-            {/* Section Subtotal */}
-            <View style={styles.sectionSubtotal}>
-              <Text style={styles.sectionSubtotalLabel}>
-                {L.sectionSubtotal}
-              </Text>
-              <Text style={styles.sectionSubtotalValue}>
-                {fmt(section.subtotal)}
-              </Text>
-            </View>
-          </View>
-        ))}
+          .map((section) =>
+            PdfSectionBlock({
+              section,
+              solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
+              brandColor,
+              brandOnFill,
+              L,
+              fmt,
+              styles: {
+                sectionHeader: styles.sectionHeader,
+                sectionTitle: styles.sectionTitle,
+                tableHeader: styles.tableHeader,
+                tableRow: styles.tableRow,
+                tableRowAlt: styles.tableRowAlt,
+                colDescription: styles.colDescription,
+                colQty: styles.colQty,
+                colUnit: styles.colUnit,
+                colUnitPrice: styles.colUnitPrice,
+                colTotal: styles.colTotal,
+                tableHeaderText: styles.tableHeaderText,
+                tableCellText: styles.tableCellText,
+                sectionSubtotal: styles.sectionSubtotal,
+                sectionSubtotalLabel: styles.sectionSubtotalLabel,
+                sectionSubtotalValue: styles.sectionSubtotalValue,
+              },
+            })
+          )}
 
         {/* Totals */}
         <View style={styles.totalsContainer}>
