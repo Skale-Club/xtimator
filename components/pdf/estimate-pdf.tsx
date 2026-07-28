@@ -4,7 +4,6 @@ import {
   View,
   Text,
   Image,
-  Link,
   StyleSheet,
 } from '@react-pdf/renderer'
 import '@/lib/pdf/register-fonts'
@@ -13,7 +12,6 @@ import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMoney } from '@/lib/money/currency'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
-import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import {
   resolvePresentationSettings,
@@ -29,8 +27,11 @@ import {
 // ---------------------------------------------------------------------------
 
 import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { formatDate } from '@/lib/estimate/document/format'
 import { ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
+import { PdfHeader } from './shared/pdf-header'
+import { PdfInfoGrid } from './shared/pdf-info-grid'
+import { PdfFooter } from './shared/pdf-footer'
 
 interface CompanyInfo {
   name: string
@@ -324,8 +325,6 @@ export default function EstimatePDF({
   //   brandOnFill → black/white foreground with max contrast over a brand fill
   const brandText = ensureReadableOnWhite(brandColor)
   const brandOnFill = readableTextColor(brandColor)
-  const companyAddress = formatAddress(company)
-  const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
   const fmt = (v: number) => formatMoney(v, estimate.currency_code)
   // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
@@ -337,137 +336,49 @@ export default function EstimatePDF({
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
-        {/* Header - fixed on every page */}
-        <View
-          style={[styles.header, { borderBottomColor: brandColor }]}
-          fixed
-        >
-          <View style={styles.headerLeft}>
-            <View>
-              <Text
-                style={[styles.companyName, { color: brandText }]}
-              >
-                {company.website ? (
-                  <Link src={company.website} style={[styles.nameLink, { color: brandText }]}>
-                    {company.name}
-                  </Link>
-                ) : (
-                  company.name
-                )}
-              </Text>
-              <Text style={styles.companyContact}>
-                {(
-                  [
-                    company.phone && (
-                      <Link
-                        key="phone"
-                        src={`tel:${company.phone.replace(/[^\d+]/g, '')}`}
-                        style={styles.contactLink}
-                      >
-                        {formatPhoneForDisplay(company.phone)}
-                      </Link>
-                    ),
-                    company.email && (
-                      <Link
-                        key="email"
-                        src={`mailto:${company.email}`}
-                        style={styles.contactLink}
-                      >
-                        {company.email}
-                      </Link>
-                    ),
-                    company.website && (
-                      <Link
-                        key="website"
-                        src={company.website}
-                        style={styles.contactLink}
-                      >
-                        {company.website}
-                      </Link>
-                    ),
-                  ].filter(Boolean) as React.ReactNode[]
-                ).reduce<React.ReactNode[]>(
-                  (acc, node, i) => (i === 0 ? [node] : [...acc, '  |  ', node]),
-                  [],
-                )}
-              </Text>
-              {companyAddress && (
-                <Text style={styles.companyContact}>{companyAddress}</Text>
-              )}
-            </View>
-          </View>
-          {/* RIGHT — language badge stacked above logo (Quick-260526-jo4) */}
-          <View style={styles.headerRight}>
-            {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
-            <Text style={styles.langBadge}>{langLabel}</Text>
-            {company.logo_url && (
-              // eslint-disable-next-line jsx-a11y/alt-text
-              <Image src={company.logo_url} style={styles.logo} />
-            )}
-          </View>
-        </View>
+        {/* Header - fixed on every page. Called as a plain function (not JSX) —
+            see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfHeader({
+          company,
+          headerBorderColor: brandColor,
+          companyNameColor: brandText,
+          langLabel,
+          styles: {
+            header: styles.header,
+            headerLeft: styles.headerLeft,
+            headerRight: styles.headerRight,
+            logo: styles.logo,
+            companyName: styles.companyName,
+            companyContact: styles.companyContact,
+            contactLink: styles.contactLink,
+            nameLink: styles.nameLink,
+            langBadge: styles.langBadge,
+          },
+        })}
 
         {/* Title */}
         <Text style={[styles.estimateTitle, { color: brandText }]}>
           {L.estimate}
         </Text>
 
-        {/* Project & Client Info */}
-        <View style={styles.infoRow}>
-          <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>{L.project}</Text>
-            <Text style={styles.infoValue}>{projectName}</Text>
-            {projectType && (
-              <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                {projectType}
-              </Text>
-            )}
-            <Text
-              style={[
-                styles.infoValue,
-                { color: '#6b7280', marginTop: 4 },
-              ]}
-            >
-              {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
-            </Text>
-            <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-              {L.estimateNum}{estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')}
-            </Text>
-          </View>
-
-          {client && (
-            <View style={styles.infoBlock}>
-              <Text style={styles.infoLabel}>{L.billTo}</Text>
-              <Text
-                style={[styles.infoValue, { fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold }]}
-              >
-                {client.name}
-              </Text>
-              {client.email && (
-                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  <Link src={`mailto:${client.email}`} style={styles.infoValueLink}>
-                    {client.email}
-                  </Link>
-                </Text>
-              )}
-              {client.phone && (
-                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  <Link
-                    src={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
-                    style={styles.infoValueLink}
-                  >
-                    {formatPhoneForDisplay(client.phone)}
-                  </Link>
-                </Text>
-              )}
-              {clientAddress && (
-                <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-                  {clientAddress}
-                </Text>
-              )}
-            </View>
-          )}
-        </View>
+        {/* Project & Client Info. Called as a plain function (not JSX) —
+            see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfInfoGrid({
+          L,
+          projectName,
+          projectType,
+          estimate,
+          client,
+          fmtDate,
+          clientNameFontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
+          styles: {
+            infoRow: styles.infoRow,
+            infoBlock: styles.infoBlock,
+            infoLabel: styles.infoLabel,
+            infoValue: styles.infoValue,
+            infoValueLink: styles.infoValueLink,
+          },
+        })}
 
         {/* Summary — SENDHUB-04 (Phase 163): resolver-gated */}
         {isSectionVisible(resolvedSettings, 'summary') && estimate.summary && (
@@ -694,14 +605,9 @@ export default function EstimatePDF({
           </View>
         )}
 
-        {/* Footer - Page numbers on every page */}
-        <Text
-          style={styles.footer}
-          fixed
-          render={({ pageNumber, totalPages }) =>
-            `${L.page} ${pageNumber} ${L.of} ${totalPages}`
-          }
-        />
+        {/* Footer - Page numbers on every page. Called as a plain function
+            (not JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfFooter({ styles: { footer: styles.footer }, L })}
       </Page>
     </Document>
   )
