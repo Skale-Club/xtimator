@@ -87,7 +87,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
         class="sm:hidden"
       >
         <div
-          class="px-6 sm:px-10 py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20"
+          class="px-6 sm:px-10 py-2.5 mx-4 my-1.5 rounded-lg border border-border/40"
         >
           <p
             class="text-base font-medium"

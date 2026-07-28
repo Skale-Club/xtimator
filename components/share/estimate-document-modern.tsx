@@ -255,7 +255,7 @@ export function EstimateDocumentModern({
               {section.items.map((item) => (
                 <div
                   key={item.id}
-                  className="px-8 py-3 border-b border-border/50 last:border-b-0"
+                  className="px-8 py-3 mx-6 my-1.5 rounded-lg border border-[#e4e4e7]"
                 >
                   <p className="text-base font-medium">{item.description}</p>
                   <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
@@ -451,7 +451,7 @@ export function EstimateDocumentModern({
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {data.attachedPhotos.map((photo) => (
               <div key={photo.id}>
-                <div className="aspect-square overflow-hidden rounded-lg relative">
+                <div className="aspect-square overflow-hidden rounded-lg relative border border-[#e4e4e7]">
                   {photo.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

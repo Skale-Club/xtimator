@@ -562,7 +562,7 @@ function DocumentSectionBlock({
           ) : (
             <div
               key={item.id}
-              className={`${SECTION_PX} py-2.5 border-b border-border/50 last:border-b-0 even:bg-muted/20`}
+              className={`${SECTION_PX} py-2.5 mx-4 my-1.5 rounded-lg border border-border/40`}
             >
               <p className="text-base font-medium">{item.description}</p>
               <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
@@ -1292,7 +1292,7 @@ function AttachedPhotoThumb({
 
   return (
     <div>
-      <div className="aspect-square overflow-hidden rounded-lg relative group">
+      <div className="aspect-square overflow-hidden rounded-lg relative group ring-1 ring-border/50">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
