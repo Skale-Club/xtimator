@@ -290,7 +290,7 @@ function SortableDocumentItemRow({
       {...attributes}
       data-page-block-id={`${sectionId}-rows-${item.id}`}
       data-item-id={item.id}
-      className="border-b border-border/50 group even:bg-muted/20"
+      className="border-b border-border/50 group even:bg-muted/40"
     >
       {/* drag handle */}
       <td className="py-1 px-1 w-6 align-middle">
@@ -638,7 +638,7 @@ function DocumentSectionBlock({
               {section.items.map((item, idx) => (
                 <tr
                   key={item.id}
-                  className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? 'bg-muted/20' : ''}`}
+                  className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? 'bg-muted/40' : ''}`}
                 >
                   <td className="py-2 px-3 text-base">{item.description}</td>
                   <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>

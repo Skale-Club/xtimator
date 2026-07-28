@@ -95,7 +95,7 @@ export function ItemCardMobile({
   ) : null
 
   return (
-    <div className="border-b border-border/50 last:border-b-0 even:bg-muted/20 px-6 sm:px-10 py-2.5 space-y-1.5">
+    <div className="border-b border-border/50 last:border-b-0 px-6 sm:px-10 py-2.5 space-y-1.5">
       <input
         value={item.description}
         onChange={(e) => onUpdate('description', e.target.value)}

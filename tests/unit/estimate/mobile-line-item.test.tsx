@@ -121,7 +121,7 @@ describe('mobile line-item editor (DOCUX-06)', () => {
     expect(wrapper!.className).toMatch(/min-h-\[44px\]/)
   })
 
-  it('row structure — border-b border-border/50 last:border-b-0 even:bg-muted/20', () => {
+  it('row structure — border-b border-border/50 last:border-b-0, no zebra (Phase 186: mobile rows drop the stripe-zebra pattern; only the desktop table keeps it)', () => {
     const { container } = render(
       <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
     )
@@ -130,7 +130,7 @@ describe('mobile line-item editor (DOCUX-06)', () => {
     expect(outer.className).toMatch(/border-b/)
     expect(outer.className).toMatch(/border-border\/50/)
     expect(outer.className).toMatch(/last:border-b-0/)
-    expect(outer.className).toMatch(/even:bg-muted\/20/)
+    expect(outer.className).not.toMatch(/bg-muted/)
   })
 
   it('preserves onUpdate + onRemove props signature (same as current ItemCardMobile)', () => {
