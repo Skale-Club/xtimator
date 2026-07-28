@@ -34,6 +34,7 @@ import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
 import { PdfTitleBanner } from './shared/pdf-title-banner'
 import { PdfSectionBlock } from './shared/pdf-section-block'
+import { PdfTermsSection } from './shared/pdf-terms-section'
 
 interface CompanyInfo {
   name: string
@@ -501,53 +502,21 @@ export default function EstimatePDF({
 
         {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes.
             SENDHUB-04 (Phase 163): each block gated on its resolver key; the
-            outer wrapper stays hidden when every gated term is invisible OR null. */}
-        {(company.estimate_terms_enabled && company.estimate_terms_text ||
-          (isSectionVisible(resolvedSettings, 'payment_terms') && estimate.payment_terms) ||
-          (isSectionVisible(resolvedSettings, 'warranty_terms') && estimate.warranty_terms) ||
-          (isSectionVisible(resolvedSettings, 'timeline') && estimate.timeline) ||
-          (isSectionVisible(resolvedSettings, 'notes') && estimate.notes)) && (
-          <View style={styles.termsSection}>
-            {company.estimate_terms_enabled && company.estimate_terms_text && (
-              <>
-                <Text style={[styles.termsTitle, { color: brandText }]}>
-                  Estimate Terms
-                </Text>
-                <Text style={styles.termsText}>
-                  {company.estimate_terms_text}
-                </Text>
-              </>
-            )}
-            {isSectionVisible(resolvedSettings, 'payment_terms') && estimate.payment_terms && (
-              <>
-                <Text style={styles.termsTitle}>{L.paymentTerms}</Text>
-                <Text style={styles.termsText}>
-                  {estimate.payment_terms}
-                </Text>
-              </>
-            )}
-            {isSectionVisible(resolvedSettings, 'timeline') && estimate.timeline && (
-              <>
-                <Text style={styles.termsTitle}>{L.timeline}</Text>
-                <Text style={styles.termsText}>{estimate.timeline}</Text>
-              </>
-            )}
-            {isSectionVisible(resolvedSettings, 'warranty_terms') && estimate.warranty_terms && (
-              <>
-                <Text style={styles.termsTitle}>{L.warranty}</Text>
-                <Text style={styles.termsText}>
-                  {estimate.warranty_terms}
-                </Text>
-              </>
-            )}
-            {isSectionVisible(resolvedSettings, 'notes') && estimate.notes && (
-              <>
-                <Text style={styles.termsTitle}>{L.notes}</Text>
-                <Text style={styles.termsText}>{estimate.notes}</Text>
-              </>
-            )}
-          </View>
-        )}
+            outer wrapper stays hidden when every gated term is invisible OR
+            null. Called as a plain function (not JSX) — see
+            components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfTermsSection({
+          company,
+          estimate,
+          resolvedSettings,
+          L,
+          brandText,
+          styles: {
+            termsSection: styles.termsSection,
+            termsTitle: styles.termsTitle,
+            termsText: styles.termsText,
+          },
+        })}
 
         {/* Attached photos — SENDHUB-04 (Phase 163): resolver-gated */}
         {isSectionVisible(resolvedSettings, 'photos') && attachedPhotos && attachedPhotos.length > 0 && (
