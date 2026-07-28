@@ -197,6 +197,8 @@ function renderEditor() {
       companyBrandColor={null}
       company={company}
       companyDefaults={companyDefaults}
+      estimateTemplateId="classic"
+      preparedBy={null}
       recordings={[]}
       photos={[]}
       projectName="Test Project"

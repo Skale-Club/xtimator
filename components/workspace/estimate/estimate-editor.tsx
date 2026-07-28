@@ -31,6 +31,7 @@ import {
 } from './estimate-document'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { LETTER_HEIGHT_PX, LETTER_WIDTH_PX } from '@/lib/estimate/document/tokens'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
@@ -198,6 +199,13 @@ interface EstimateEditorProps {
   company: DocumentCompany
   /** R4 — company defaults for the override-vs-default indicator. */
   companyDefaults: CompanyDefaults
+  /** Phase 185 (PGMODE-02) — resolved design-template id, server-resolved
+   *  identically to resolveEstimatePdfContext. Feeds usePaginatedPreview()
+   *  (Task 2) and EstimateDocument's pageView measurement. */
+  estimateTemplateId: EstimateTemplateId
+  /** Phase 185 (PGMODE-03) — "Prepared by" value, mirroring the PDF
+   *  pipeline's own lookup. Rendered by EstimateDocument in both view modes. */
+  preparedBy: string | null
   recordings: Recording[]
   photos: Photo[]
   /** Project context for the document header */
@@ -222,6 +230,8 @@ export function EstimateEditor({
   companyBrandColor,
   company,
   companyDefaults,
+  estimateTemplateId,
+  preparedBy,
   photos,
   projectName,
   projectType,

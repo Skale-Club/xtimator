@@ -15,6 +15,12 @@ import { ProjectHeader } from '@/components/workspace/project-header'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
+import { requireServiceClient } from '@/lib/supabase/service'
+import {
+  DEFAULT_ESTIMATE_TEMPLATE_ID,
+  isEstimateTemplateId,
+  type EstimateTemplateId,
+} from '@/lib/estimate/templates/registry'
 
 const ALLOWED_TABS = ['overview', 'client'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
@@ -93,7 +99,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const companyPromise = supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status, estimate_terms_enabled, estimate_terms_text, estimate_template_style')
     .eq('id', project.company_id)
     .single()
 
@@ -149,7 +155,18 @@ async function ProjectTabs({
     zip: (company?.zip as string | null) ?? null,
     logo_url: (company?.logo_url as string | null) ?? null,
     brand_primary_color: companyBrandColor,
+    // Phase 185 (PGMODE-02/03) — company-level estimate terms, rendered by
+    // the editor's paginated + full-width EstimateDocument (never by the
+    // public share webview, which builds its own DocumentCompany).
+    estimate_terms_enabled: (company?.estimate_terms_enabled as boolean) ?? false,
+    estimate_terms_text: (company?.estimate_terms_text as string | null) ?? null,
   }
+  // Phase 185 (PGMODE-02) — same registry-resolution pattern
+  // resolveEstimatePdfContext already uses for the PDF pipeline.
+  const rawEstimateTemplateStyle = company?.estimate_template_style as string | undefined
+  const estimateTemplateId: EstimateTemplateId = isEstimateTemplateId(rawEstimateTemplateStyle)
+    ? rawEstimateTemplateStyle
+    : DEFAULT_ESTIMATE_TEMPLATE_ID
   // R4 — company defaults the estimate document compares against to flag
   // overridden vs inherited fields.
   const companyDefaults: CompanyDefaults = {
@@ -160,6 +177,26 @@ async function ProjectTabs({
 
   // Fetch current estimate for workspace tabs that need it
   const currentEstimate = await getCurrentEstimate(supabase, project.id)
+
+  // Phase 185 (PGMODE-02/03) — "Prepared by": staff member who created the
+  // estimate, or company owner name. Mirrors lib/pdf/render-estimate-pdf.ts's
+  // renderEstimatePdf() lookup EXACTLY (lines 163-177) so the editor's
+  // rendered value never drifts from the PDF's.
+  let preparedBy: string | null = (company?.owner_name as string | null) ?? null
+  if (currentEstimate?.created_by_user_id) {
+    try {
+      const svc = requireServiceClient()
+      const { data: member } = await svc
+        .from('company_members')
+        .select('display_name')
+        .eq('user_id', currentEstimate.created_by_user_id)
+        .eq('company_id', project.company_id)
+        .single()
+      if (member?.display_name) preparedBy = member.display_name
+    } catch {
+      // non-fatal: fall back to owner_name already set above
+    }
+  }
 
   // Phase 94 (INVOICE-06) — issued invoices for the current estimate. Read-back
   // returns the frozen snapshot amounts (D-07); the editor surfaces them inline.
@@ -187,6 +224,8 @@ async function ProjectTabs({
       company={documentCompany}
       companyDefaults={companyDefaults}
       estimateTemplate={estimateTemplate}
+      estimateTemplateId={estimateTemplateId}
+      preparedBy={preparedBy}
       smsDeliveryEnabled={smsDeliveryEnabled}
       whatsappEnabled={whatsappAvailable}
       priceBookItems={priceBookItems}

@@ -18,6 +18,7 @@ import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
+import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 const ALLOWED_TABS = ['overview', 'client'] as const
@@ -40,6 +41,14 @@ interface ProjectWorkspaceProps {
   company: DocumentCompany
   companyDefaults: CompanyDefaults
   estimateTemplate: EstimateTemplate
+  /** Phase 185 (PGMODE-02) — resolved design-template id (server-resolved,
+   *  mirroring resolveEstimatePdfContext's own resolution), threaded to the
+   *  editor's usePaginatedPreview hook. */
+  estimateTemplateId: EstimateTemplateId
+  /** Phase 185 (PGMODE-03) — "Prepared by" value (staff display name or
+   *  company owner name), threaded to the editor so it can render the
+   *  prepared-by block matching PDF parity. */
+  preparedBy: string | null
   smsDeliveryEnabled?: boolean
   /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability (tier ∧ active
    * account), threaded to the Send hub so WhatsApp actions hide when unavailable. */
@@ -51,7 +60,8 @@ interface ProjectWorkspaceProps {
 export function ProjectWorkspace({
   project, activity, stats, recordings, photos,
   currentEstimate, allVersions, issuedInvoices, paymentsEnabled, companyName,
-  ownerName, companyBrandColor, company, companyDefaults, estimateTemplate, smsDeliveryEnabled = false,
+  ownerName, companyBrandColor, company, companyDefaults, estimateTemplate,
+  estimateTemplateId, preparedBy, smsDeliveryEnabled = false,
   whatsappEnabled,
   priceBookItems,
   defaultTab = 'overview',
@@ -139,6 +149,8 @@ export function ProjectWorkspace({
             companyName={companyName}
             ownerName={ownerName}
             estimateTemplate={estimateTemplate}
+            estimateTemplateId={estimateTemplateId}
+            preparedBy={preparedBy}
             smsDeliveryEnabled={smsDeliveryEnabled}
             whatsappEnabled={whatsappEnabled}
             onOpenPhotos={() => setPhotosOpen(true)}

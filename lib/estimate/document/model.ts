@@ -23,6 +23,11 @@ export interface DocumentCompany {
   zip: string | null
   logo_url: string | null
   brand_primary_color: string | null
+  /** Phase 185 (PGMODE-02/03) — company-level "Estimate Terms" card, mirroring
+   *  the PDF pipeline's blocksFromModel() input. Optional/additive — every
+   *  existing consumer of DocumentCompany is unaffected. */
+  estimate_terms_enabled?: boolean
+  estimate_terms_text?: string | null
 }
 
 /** R4 — company-level defaults the document compares against to surface an

@@ -22,6 +22,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 
 interface EstimateTabProps {
   projectId: string
@@ -45,6 +46,10 @@ interface EstimateTabProps {
   companyName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
+  /** Phase 185 (PGMODE-02) — forwarded to EstimateEditor's usePaginatedPreview hook. */
+  estimateTemplateId: EstimateTemplateId
+  /** Phase 185 (PGMODE-03) — forwarded to EstimateEditor. */
+  preparedBy: string | null
   smsDeliveryEnabled?: boolean
   /**
    * Phase 163-04 (SENDHUB-01): company slug for buildEstimatePublicPath in the
@@ -86,6 +91,8 @@ export function EstimateTab({
   companyName,
   ownerName,
   estimateTemplate,
+  estimateTemplateId,
+  preparedBy,
   smsDeliveryEnabled,
   companySlug,
   whatsappEnabled,
@@ -203,6 +210,8 @@ export function EstimateTab({
           onOpenPhotos={onOpenPhotos}
           priceBookItems={priceBookItems}
           onSend={() => setSendOpen(true)}
+          estimateTemplateId={estimateTemplateId}
+          preparedBy={preparedBy}
         />
         <SendHubDialog
           open={sendOpen}

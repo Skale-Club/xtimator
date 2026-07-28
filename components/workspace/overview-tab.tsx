@@ -15,6 +15,7 @@ import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { DocumentCompany, CompanyDefaults } from './estimate/estimate-document'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
+import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 
 interface OverviewTabProps {
   project: ProjectDetail
@@ -33,6 +34,10 @@ interface OverviewTabProps {
   companyName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
+  /** Phase 185 (PGMODE-02) — forwarded to EstimateTab -> EstimateEditor. */
+  estimateTemplateId: EstimateTemplateId
+  /** Phase 185 (PGMODE-03) — forwarded to EstimateTab -> EstimateEditor. */
+  preparedBy: string | null
   smsDeliveryEnabled?: boolean
   /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability, forwarded to
    * the Send hub via EstimateTab. */
@@ -68,6 +73,8 @@ export function OverviewTab({
   companyName,
   ownerName,
   estimateTemplate,
+  estimateTemplateId,
+  preparedBy,
   smsDeliveryEnabled,
   whatsappEnabled,
   onOpenPhotos,
@@ -145,6 +152,8 @@ export function OverviewTab({
         companyName={companyName}
         ownerName={ownerName}
         estimateTemplate={estimateTemplate}
+        estimateTemplateId={estimateTemplateId}
+        preparedBy={preparedBy}
         smsDeliveryEnabled={smsDeliveryEnabled}
         whatsappEnabled={whatsappEnabled}
       />
