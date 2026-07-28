@@ -52,6 +52,17 @@ vi.mock('@/components/pdf/estimate-pdf', () => ({
   default: () => null,
 }))
 
+// PDFPAR-04: send/route.ts's attachPdf branch now goes through the shared
+// renderEstimatePdf() resolver (lib/pdf/render-estimate-pdf.ts), which
+// imports BOTH template components at module scope — even though this
+// test's attachPdf: false request never reaches the render call, the real
+// estimate-pdf-modern.tsx would still load and crash on `StyleSheet.create`
+// against this file's minimal @react-pdf/renderer mock. Mock it out the
+// same way estimate-pdf is mocked above.
+vi.mock('@/components/pdf/estimate-pdf-modern', () => ({
+  default: () => null,
+}))
+
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }))
