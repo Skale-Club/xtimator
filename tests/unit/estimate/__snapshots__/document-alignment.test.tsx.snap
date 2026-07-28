@@ -73,6 +73,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
     <div>
       <div
         class="flex items-center gap-2 px-6 sm:px-10 py-2 group/header"
+        data-page-block-id="sec-1-header"
         style="background-color: rgb(64, 110, 241);"
       >
         <span
@@ -184,6 +185,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
       </div>
       <div
         class="flex justify-end items-center gap-3 px-6 sm:px-10 py-2 border-t border-border/50 bg-muted/10"
+        data-page-block-id="sec-1-subtotal"
       >
         <span
           class="text-sm text-muted-foreground select-none"
@@ -200,6 +202,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
   </div>
   <div
     class="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50"
+    data-page-block-id="totals"
   >
     <div
       class="w-full max-w-xs space-y-2"
@@ -238,21 +241,25 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
   <div
     class="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4"
   >
-    <div>
-      <div
-        class="flex items-center justify-between gap-2 mb-1.5"
-      >
-        <p
-          class="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none"
+    <div
+      data-page-block-id="terms-payment"
+    >
+      <div>
+        <div
+          class="flex items-center justify-between gap-2 mb-1.5"
         >
-          Payment Terms
+          <p
+            class="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none"
+          >
+            Payment Terms
+          </p>
+        </div>
+        <p
+          class="text-base text-muted-foreground whitespace-pre-line leading-relaxed"
+        >
+          Net 30
         </p>
       </div>
-      <p
-        class="text-base text-muted-foreground whitespace-pre-line leading-relaxed"
-      >
-        Net 30
-      </p>
     </div>
   </div>
 </div>

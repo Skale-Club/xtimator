@@ -176,6 +176,12 @@ interface EstimateDocumentProps {
    *  print-preview letter sheet (square corners, hairline border, paper
    *  shadow, US-Letter min-height) instead of the rounded app card. */
   pageView?: boolean
+  /** Phase 185 (PGMODE-02/03) — rendered ONLY when provided. The editor's TWO
+   *  call sites (full-width AND paginated) always pass both; the public share
+   *  webview (components/share/estimate-view.tsx) passes NEITHER and stays
+   *  byte-compatible (PGMODE-05 — a dedicated test proves this explicitly). */
+  preparedBy?: string | null
+  companyTerms?: { enabled: boolean; text: string | null } | null
 }
 
 // Common class string for inline editable fields (looks like plain text, activates on focus/hover)
@@ -282,6 +288,8 @@ function SortableDocumentItemRow({
       ref={setNodeRef}
       style={style}
       {...attributes}
+      data-page-block-id={`${sectionId}-rows-${item.id}`}
+      data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/20"
     >
       {/* drag handle */}
@@ -486,6 +494,7 @@ function DocumentSectionBlock({
     <div>
       {/* Section header bar */}
       <div
+        data-page-block-id={`${section.id}-header`}
         className={`flex items-center gap-2 ${SECTION_PX} py-2 group/header`}
         style={{ backgroundColor: brandColor }}
       >
@@ -661,7 +670,10 @@ function DocumentSectionBlock({
       )}
 
       {/* Section subtotal */}
-      <div className={`flex justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}>
+      <div
+        data-page-block-id={`${section.id}-subtotal`}
+        className={`flex justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}
+      >
         <span className="text-sm text-muted-foreground select-none">{L.sectionSubtotal}</span>
         <span className="text-sm font-semibold tabular-nums">
           {formatMoney(section.subtotal, currencyCode)}
@@ -760,7 +772,7 @@ function DocumentTotals({
   })
 
   return (
-    <div className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
+    <div data-page-block-id="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
       <div className="w-full max-w-xs space-y-2">
         {/* Subtotal */}
         <div className="flex justify-between text-base">
@@ -1329,6 +1341,8 @@ export function EstimateDocument({
   priceBookItems = [],
   onDetachPhoto,
   pageView = false,
+  preparedBy,
+  companyTerms,
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -1395,7 +1409,12 @@ export function EstimateDocument({
   const isTermVisible = (field: 'payment_terms' | 'timeline' | 'warranty_terms' | 'notes') =>
     isSectionVisible(resolvedSettings, field) &&
     (isEditable || data[field] != null)
+  // Phase 185 (PGMODE-02/03) — a company with ONLY estimate-terms enabled
+  // (all 4 other terms fields empty) must still render the wrapping
+  // container, so this is a 5th OR-branch alongside the 4 existing checks.
+  const hasCompanyTerms = !!(companyTerms?.enabled && companyTerms.text)
   const hasTerms =
+    hasCompanyTerms ||
     isTermVisible('payment_terms') ||
     isTermVisible('timeline') ||
     isTermVisible('warranty_terms') ||
@@ -1703,55 +1722,78 @@ export function EstimateDocument({
           so the owner has a textarea to type into. */}
       {hasTerms && (
         <div className="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4">
+          {/* Phase 185 (PGMODE-02/03) — company-level "Estimate Terms" card,
+              read-only (no dispatch — company-level data, not editable
+              through this surface). Rendered FIRST, matching the PDF's
+              content order (estimate-terms -> payment/timeline/warranty/
+              notes). Absent when companyTerms is omitted (share webview). */}
+          {hasCompanyTerms && (
+            <div data-page-block-id="terms-estimate">
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+                {L.estimateTerms}
+              </p>
+              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+                {companyTerms!.text}
+              </p>
+            </div>
+          )}
           {isSectionVisible(resolvedSettings, 'payment_terms') &&
             (isEditable || data.payment_terms != null) && (
-            <TermsBlock
-              label={L.paymentTerms}
-              value={data.payment_terms}
-              field="payment_terms"
-              dispatch={dispatch}
-              isEditable={isEditable}
-              autoFocus={false}
-              defaultValue={companyDefaults?.payment_terms}
-              L={L}
-            />
+            <div data-page-block-id="terms-payment">
+              <TermsBlock
+                label={L.paymentTerms}
+                value={data.payment_terms}
+                field="payment_terms"
+                dispatch={dispatch}
+                isEditable={isEditable}
+                autoFocus={false}
+                defaultValue={companyDefaults?.payment_terms}
+                L={L}
+              />
+            </div>
           )}
           {isSectionVisible(resolvedSettings, 'timeline') &&
             (isEditable || data.timeline != null) && (
-            <TermsBlock
-              label={L.timeline}
-              value={data.timeline}
-              field="timeline"
-              dispatch={dispatch}
-              isEditable={isEditable}
-              autoFocus={false}
-              L={L}
-            />
+            <div data-page-block-id="terms-timeline">
+              <TermsBlock
+                label={L.timeline}
+                value={data.timeline}
+                field="timeline"
+                dispatch={dispatch}
+                isEditable={isEditable}
+                autoFocus={false}
+                L={L}
+              />
+            </div>
           )}
           {isSectionVisible(resolvedSettings, 'warranty_terms') &&
             (isEditable || data.warranty_terms != null) && (
-            <TermsBlock
-              label={L.warranty}
-              value={data.warranty_terms}
-              field="warranty_terms"
-              dispatch={dispatch}
-              isEditable={isEditable}
-              autoFocus={false}
-              defaultValue={companyDefaults?.warranty_terms}
-              L={L}
-            />
+            <div data-page-block-id="terms-warranty">
+              <TermsBlock
+                label={L.warranty}
+                value={data.warranty_terms}
+                field="warranty_terms"
+                dispatch={dispatch}
+                isEditable={isEditable}
+                autoFocus={false}
+                defaultValue={companyDefaults?.warranty_terms}
+                L={L}
+              />
+            </div>
           )}
           {isSectionVisible(resolvedSettings, 'notes') &&
             (isEditable || data.notes != null) && (
-            <TermsBlock
-              label={L.notes}
-              value={data.notes}
-              field="notes"
-              dispatch={dispatch}
-              isEditable={isEditable}
-              autoFocus={false}
-              L={L}
-            />
+            <div data-page-block-id="terms-notes">
+              <TermsBlock
+                label={L.notes}
+                value={data.notes}
+                field="notes"
+                dispatch={dispatch}
+                isEditable={isEditable}
+                autoFocus={false}
+                L={L}
+              />
+            </div>
           )}
         </div>
       )}
@@ -1760,7 +1802,7 @@ export function EstimateDocument({
           presentation_settings key exists for it per CONTEXT.md's locked
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
-        <div className="px-6 sm:px-10 py-6 border-t border-border/50">
+        <div data-page-block-id="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.signedBy}
           </p>
@@ -1779,9 +1821,17 @@ export function EstimateDocument({
         </div>
       )}
 
-      {/* Attached photos — gated on presentation_settings.sections.photos AND non-empty list */}
+      {/* Attached photos — gated on presentation_settings.sections.photos AND
+          non-empty list. Anchor scope note (Phase 185, 185-03-PLAN.md): only
+          the FIRST photo-row (photo-row-0) is anchored — per-row internal
+          anchors for photo-row-N (N>0, matching blocksFromModel's
+          photosPerRow chunking) are out of scope this phase: the editor's
+          responsive CSS grid has no equivalent to the PDF's fixed-width row
+          chunking, so an estimate whose photos alone span an internal page
+          break shows an approximate (not exact) sheet boundary there — a
+          documented, accepted gap. */}
       {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
-        <div className="px-6 sm:px-10 py-6 border-t border-border/50">
+        <div data-page-block-id="photo-row-0" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}
           </p>
@@ -1798,6 +1848,20 @@ export function EstimateDocument({
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Prepared-by — Phase 185 (PGMODE-02/03), net-new. Rendered ONLY when
+          the caller supplies `preparedBy` (the editor's two call sites do;
+          the public share webview passes neither prop and never renders
+          this). Position matches the PDF's content order: Terms -> Signature
+          -> Photos -> Prepared-by. */}
+      {preparedBy && (
+        <div data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+            {L.preparedBy}
+          </p>
+          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
     </div>

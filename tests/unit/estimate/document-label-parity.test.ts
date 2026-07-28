@@ -86,9 +86,10 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
       for (const extra of ['page', 'of', 'preparedBy']) allKeys.add(extra)
       expect(Array.from(allKeys).sort()).toEqual(Object.keys(LABELS.en).sort())
     }
-    // Unconditional: LABELS itself always carries exactly the 46-key shape,
-    // regardless of adoption state.
-    expect(Object.keys(LABELS.en).length).toBe(46)
+    // Unconditional: LABELS itself always carries exactly the 47-key shape
+    // (Phase 185 Plan 03, PGMODE-02/03, added `estimateTerms`), regardless of
+    // adoption state.
+    expect(Object.keys(LABELS.en).length).toBe(47)
   })
 
   it('LANG_INDICATOR matches the shared module — pre- or post-adoption', () => {
