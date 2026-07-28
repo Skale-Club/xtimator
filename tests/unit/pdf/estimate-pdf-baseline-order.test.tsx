@@ -12,12 +12,27 @@
 // element tree (via the shared _pdf-text-walker helper) instead of rendering
 // an actual PDF buffer. Text-order only — no style assertions here (those
 // belong to Plan 183-05's dedicated banner-fill test).
+//
+// EXTENDED in Plan 183-07 with the post-refactor signature/caption order
+// assertions — the original pre-refactor assertions above remain valid and
+// unchanged (Phase 183 did not alter any of that text's presence/order, only
+// added a Classic title fill and 2 new content blocks). Classic's title now
+// has a solid fill (still text-order-invisible — no NEW assertion needed
+// here beyond what Plan 183-04's own banner-fill test already covers, since
+// this file is about ORDER, not style); the signature block (when present)
+// now sits between Terms and Photos; captions (when present) sit immediately
+// after their photo, inside the Photos grid.
 
 import { describe, it, expect } from 'vitest'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { collectTextNodes } from '../estimate/_pdf-text-walker'
-import { buildFixtureEstimate, FIXTURE_COMPANY } from '../estimate/fixtures/document-fixtures'
+import {
+  buildFixtureEstimate,
+  FIXTURE_COMPANY,
+  SIGNATURE_FIXTURE,
+  PHOTO_WITH_CAPTION,
+} from '../estimate/fixtures/document-fixtures'
 
 type PDFComponent = typeof EstimatePDF
 
@@ -35,6 +50,53 @@ function renderTexts(component: PDFComponent, estimate: Record<string, unknown>)
   const out: string[] = []
   collectTextNodes(tree, out)
   return out
+}
+
+// Plan 183-07 — same rendering path as renderTexts(), plus signature +
+// captioned photo, to assert the intentional post-refactor content order.
+function renderTextsSignedWithPhoto(component: PDFComponent, estimate: Record<string, unknown>): string[] {
+  const tree = component({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    estimate: estimate as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    company: FIXTURE_COMPANY as any,
+    client: null,
+    projectName: 'Baseline Test Project',
+    projectType: null,
+    language: 'en',
+    signature: SIGNATURE_FIXTURE,
+    attachedPhotos: [PHOTO_WITH_CAPTION],
+  })
+  const out: string[] = []
+  collectTextNodes(tree, out)
+  return out
+}
+
+// Plan 183-07 — intentional post-refactor order: Terms -> Signature ->
+// Photos. This is a NEW assertion for structure Phase 183 added — it does
+// not modify or invalidate assertBaselineOrder() above.
+function assertSignatureBetweenTermsAndPhotos(texts: string[], label: string) {
+  const iWarranty = texts.indexOf('Warranty')
+  const iPhotos = texts.indexOf('Photos')
+  const iSigner = texts.indexOf(SIGNATURE_FIXTURE.signerName)
+
+  expect(iWarranty, `${label}: Warranty present`).toBeGreaterThan(-1)
+  expect(iPhotos, `${label}: Photos section label present`).toBeGreaterThan(-1)
+  expect(iSigner, `${label}: signer name present`).toBeGreaterThan(-1)
+
+  expect(iWarranty, `${label}: Warranty before signer name`).toBeLessThan(iSigner)
+  expect(iSigner, `${label}: signer name before Photos`).toBeLessThan(iPhotos)
+}
+
+// Plan 183-07 — the caption text sits after the 'Photos' section label,
+// inside the grid.
+function assertCaptionAfterPhotosLabel(texts: string[], label: string) {
+  const iPhotos = texts.indexOf('Photos')
+  const iCaption = texts.indexOf(PHOTO_WITH_CAPTION.caption)
+
+  expect(iPhotos, `${label}: Photos label present`).toBeGreaterThan(-1)
+  expect(iCaption, `${label}: caption text present`).toBeGreaterThan(-1)
+  expect(iPhotos, `${label}: Photos label before caption text`).toBeLessThan(iCaption)
 }
 
 // Asserts today's milestone text-content order, shared by both templates.
@@ -109,5 +171,32 @@ describe('PRE-REFACTOR BASELINE (Phase 183 Wave 0) — PDF text-content order', 
     const estimate = buildFixtureEstimate({})
     const texts = renderTexts(EstimatePDFModern, estimate)
     assertBaselineOrder(texts, 'Modern')
+  })
+
+  // Plan 183-07 — intentional post-refactor extensions. These 2 new `it`
+  // blocks per template assert the signature/caption structure Phase 183
+  // added: Terms -> Signature -> Photos, captions inside the Photos grid.
+  it('Classic (EstimatePDF) post-refactor: signer name sits between Terms and Photos', () => {
+    const estimate = buildFixtureEstimate({ signature: SIGNATURE_FIXTURE, attachedPhotos: [PHOTO_WITH_CAPTION] })
+    const texts = renderTextsSignedWithPhoto(EstimatePDF, estimate)
+    assertSignatureBetweenTermsAndPhotos(texts, 'Classic')
+  })
+
+  it('Classic (EstimatePDF) post-refactor: caption text sits after the Photos label', () => {
+    const estimate = buildFixtureEstimate({ signature: SIGNATURE_FIXTURE, attachedPhotos: [PHOTO_WITH_CAPTION] })
+    const texts = renderTextsSignedWithPhoto(EstimatePDF, estimate)
+    assertCaptionAfterPhotosLabel(texts, 'Classic')
+  })
+
+  it('Modern (EstimatePDFModern) post-refactor: signer name sits between Terms and Photos', () => {
+    const estimate = buildFixtureEstimate({ signature: SIGNATURE_FIXTURE, attachedPhotos: [PHOTO_WITH_CAPTION] })
+    const texts = renderTextsSignedWithPhoto(EstimatePDFModern, estimate)
+    assertSignatureBetweenTermsAndPhotos(texts, 'Modern')
+  })
+
+  it('Modern (EstimatePDFModern) post-refactor: caption text sits after the Photos label', () => {
+    const estimate = buildFixtureEstimate({ signature: SIGNATURE_FIXTURE, attachedPhotos: [PHOTO_WITH_CAPTION] })
+    const texts = renderTextsSignedWithPhoto(EstimatePDFModern, estimate)
+    assertCaptionAfterPhotosLabel(texts, 'Modern')
   })
 })
