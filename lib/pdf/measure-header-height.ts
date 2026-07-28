@@ -125,3 +125,31 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
   // tableHeader.paddingVertical(8)×2 + borderBottomWidth(0.5) + tableHeaderText.fontSize(8.5)
   modern: 8 * 2 + 0.5 + 8.5,
 }
+
+/**
+ * Phase 184 Plan 05 (PGBRK-01/03/04, Task 3 finding) — an ADDITIONAL flat
+ * per-page pt reserve, empirically calibrated against the REAL
+ * `@react-pdf/renderer` (Yoga layout + `@react-pdf/pdfkit`) rendering
+ * pipeline — distinct from `SAFETY_MARGIN_LINES` (Plan 184-01), which was
+ * derived from a Chromium-DOM-vs-fontkit spike for the FUTURE web preview
+ * (Phase 185), not from this PDF renderer's own layout engine.
+ *
+ * Root cause: `blocksFromModel()`'s per-block height formulas (Plan 184-03)
+ * are simple additive box-model sums (padding + border + measured text);
+ * per-line text measurement itself was verified byte-identical against
+ * `@react-pdf/pdfkit`'s own `heightOfString()` (zero drift, multiple
+ * fixtures/fonts/widths). The residual drift instead comes from the
+ * cumulative effect, across MANY blocks/lines on the same page, of small
+ * layout differences between that additive model and Yoga's real flexbox
+ * layout (e.g. sub-pixel rounding, border/box-sizing edge effects) — it
+ * scales with block/line count on a page, not with any single block.
+ *
+ * Empirically determined (Task 3's own diagnostic sweep, not committed):
+ * comparing `computePageBreaks()`'s page count against the REAL generated
+ * PDF's `/Type /Page` object count across a single-section 1..60-item
+ * sweep, a 4-section/40-item fixture, and the content-rich `buildFixtureEstimate`
+ * fixture (summary + 2 terms cards + discount/tax/deposit) — for BOTH
+ * templates — showed zero mismatches at +80pt; +100pt is used for headroom
+ * against real-world content this exact sweep didn't cover.
+ */
+export const PDF_RENDER_SAFETY_MARGIN_PT = 100

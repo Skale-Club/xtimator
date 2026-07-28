@@ -44,7 +44,11 @@ import {
   LETTER_HEIGHT_PT,
 } from '@/lib/estimate/document/tokens'
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
-import { measureHeaderHeightPt, CONTINUATION_TABLE_HEADER_HEIGHT_PT } from '@/lib/pdf/measure-header-height'
+import {
+  measureHeaderHeightPt,
+  CONTINUATION_TABLE_HEADER_HEIGHT_PT,
+  PDF_RENDER_SAFETY_MARGIN_PT,
+} from '@/lib/pdf/measure-header-height'
 import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-margin'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
@@ -204,7 +208,11 @@ export async function renderEstimatePdf(
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
   const headerHeightPt = measureHeaderHeightPt(company, templateId)
   const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
-  const safetyMarginPt = SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily])
+  // PDF_RENDER_SAFETY_MARGIN_PT (Task 3 finding) covers the residual drift
+  // between blocksFromModel()'s additive height estimates and @react-pdf/
+  // renderer's real Yoga+PDFKit layout — see that constant's doc comment.
+  const safetyMarginPt =
+    SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily]) + PDF_RENDER_SAFETY_MARGIN_PT
   const constraints: PageConstraints = {
     contentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - headerHeightPt,
     continuationTableHeaderHeightPt: CONTINUATION_TABLE_HEADER_HEIGHT_PT[templateId],
