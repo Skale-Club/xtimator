@@ -72,6 +72,7 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
     // Phase 162-04 (DOCUX-01) — thread raw override state so EstimateDocument
     // resolves section visibility via isSectionVisible(resolvePresentationSettings(...)).
     presentation_settings: state.presentation_settings,
+    signature: state.signature,
     attachedPhotos: state.attachedPhotos.map((p) => ({
       id: p.id,
       storage_path: p.storage_path,

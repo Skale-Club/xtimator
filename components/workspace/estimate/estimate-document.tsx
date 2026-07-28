@@ -41,6 +41,7 @@ import {
 import { Calendar } from '@/components/ui/calendar'
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
@@ -839,7 +840,7 @@ function DocumentTotals({
           <div className="flex justify-between text-base">
             <span className="text-muted-foreground select-none">
               {L.discount}
-              {data.discount_type === 'percentage' ? ` (${data.discount_value}%)` : ''}
+              {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
             </span>
             <span className="tabular-nums text-destructive font-medium">
               -{fmt(data.discount_amount)}
@@ -1275,25 +1276,30 @@ function AttachedPhotoThumb({
   }, [photo.url, photo.storage_path])
 
   return (
-    <div className="aspect-square overflow-hidden rounded-lg relative group">
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt={photo.caption ?? ''}
-          className="object-cover w-full h-full"
-        />
-      ) : (
-        <Skeleton className="w-full h-full" />
-      )}
-      {onRemove && (
-        <button
-          onClick={onRemove}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-          aria-label="Remove photo"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+    <div>
+      <div className="aspect-square overflow-hidden rounded-lg relative group">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt={photo.caption ?? ''}
+            className="object-cover w-full h-full"
+          />
+        ) : (
+          <Skeleton className="w-full h-full" />
+        )}
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+            aria-label="Remove photo"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {photo.caption && (
+        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{photo.caption}</p>
       )}
     </div>
   )
@@ -1747,6 +1753,29 @@ export function EstimateDocument({
               L={L}
             />
           )}
+        </div>
+      )}
+
+      {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
+          presentation_settings key exists for it per CONTEXT.md's locked
+          rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
+      {data.signature && (
+        <div className="px-6 sm:px-10 py-6 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+            {L.signedBy}
+          </p>
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.signature.signatureDataUrl}
+              alt={L.signedBy}
+              className="h-16 w-auto max-w-[240px] object-contain"
+            />
+            <div>
+              <p className="text-base font-semibold">{data.signature.signerName}</p>
+              <p className="text-sm text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+            </div>
+          </div>
         </div>
       )}
 

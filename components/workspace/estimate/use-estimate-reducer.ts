@@ -3,6 +3,7 @@
 import { useReducer } from 'react'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { Photo } from '@/lib/queries/photo'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { mergeRefinement } from '@/lib/estimate/refine-merge'
@@ -91,6 +92,10 @@ export interface EstimateEditorState {
   sent_at: string | null
   client_response: string | null
   hasSignature: boolean
+  /** Phase 183 Plan 05 (PDFPAR-02) — signature-display data threaded from the
+   *  server row (lib/queries/estimate-signature.ts), alongside hasSignature's
+   *  lock-coverage boolean. Null when unsigned; never mutated client-side. */
+  signature: DocumentSignature | null
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +300,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       sent_at: null,
       client_response: null,
       hasSignature: false,
+      signature: null,
     }
   }
 
@@ -359,6 +365,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     sent_at: estimate.sent_at,
     client_response: estimate.client_response,
     hasSignature: (estimate as { hasSignature?: boolean }).hasSignature ?? false,
+    signature: (estimate as { signature?: DocumentSignature | null }).signature ?? null,
   }
 }
 
