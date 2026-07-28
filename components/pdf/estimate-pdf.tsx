@@ -28,12 +28,18 @@ import {
 
 import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
 import { formatDate } from '@/lib/estimate/document/format'
-import { ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
+import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
+import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import { PdfHeader } from './shared/pdf-header'
 import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
 import { PdfTitleBanner } from './shared/pdf-title-banner'
-import { PdfSectionBlock } from './shared/pdf-section-block'
+import {
+  PdfSectionHeader,
+  PdfTableHeaderOnly,
+  PdfSectionRows,
+  PdfSectionSubtotal,
+} from './shared/pdf-section-block'
 import { PdfTermsSection } from './shared/pdf-terms-section'
 import { PdfTotalsBlock } from './shared/pdf-totals-block'
 import { PdfPhotoGrid } from './shared/pdf-photo-grid'
@@ -179,6 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
     color: '#ffffff',
+    lineHeight: LINE_HEIGHT['Inter-Bold'],
   },
   // Table
   tableHeader: {
@@ -211,6 +218,7 @@ const styles = StyleSheet.create({
   },
   tableCellText: {
     fontSize: 9,
+    lineHeight: LINE_HEIGHT.Inter,
   },
   // Section subtotal
   sectionSubtotal: {
@@ -404,26 +412,49 @@ export default function EstimatePDF({
         )}
 
         {/* Sections with Line Items — SENDHUB-04 (Phase 163): resolver-gated.
-            Called as a plain function (not JSX) per section — see
+            Phase 184 Plan 04 (PGBRK-02): each section now renders as 4
+            independently-placeable, individually-keyed pieces (header,
+            table header, rows, subtotal) instead of one monolithic block —
+            reproduces today's single-page tree byte-for-byte (startIndex: 0).
+            Called as plain functions (not JSX) per section — see
             components/pdf/shared/pdf-header.tsx's top comment for why. */}
         {isSectionVisible(resolvedSettings, 'sections') && estimate.sections
           .map((section) => ({
             ...section,
-            items: section.items.filter((i) => i.description.trim() !== ''),
+            items: visibleSectionItems(section),
           }))
           .filter((section) => section.items.length > 0)
-          .map((section) =>
-            PdfSectionBlock({
-              section,
+          .map((section) => [
+            PdfSectionHeader({
+              sectionId: section.id,
+              title: section.title,
               solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
               brandColor,
               brandOnFill,
-              L,
-              fmt,
               styles: {
                 sectionHeader: styles.sectionHeader,
                 sectionTitle: styles.sectionTitle,
+              },
+            }),
+            PdfTableHeaderOnly({
+              sectionId: section.id,
+              L,
+              styles: {
                 tableHeader: styles.tableHeader,
+                tableHeaderText: styles.tableHeaderText,
+                colDescription: styles.colDescription,
+                colQty: styles.colQty,
+                colUnit: styles.colUnit,
+                colUnitPrice: styles.colUnitPrice,
+                colTotal: styles.colTotal,
+              },
+            }),
+            PdfSectionRows({
+              sectionId: section.id,
+              items: section.items,
+              startIndex: 0,
+              fmt,
+              styles: {
                 tableRow: styles.tableRow,
                 tableRowAlt: styles.tableRowAlt,
                 colDescription: styles.colDescription,
@@ -431,14 +462,20 @@ export default function EstimatePDF({
                 colUnit: styles.colUnit,
                 colUnitPrice: styles.colUnitPrice,
                 colTotal: styles.colTotal,
-                tableHeaderText: styles.tableHeaderText,
                 tableCellText: styles.tableCellText,
+              },
+            }),
+            PdfSectionSubtotal({
+              sectionId: section.id,
+              label: L.sectionSubtotal,
+              value: fmt(section.subtotal),
+              styles: {
                 sectionSubtotal: styles.sectionSubtotal,
                 sectionSubtotalLabel: styles.sectionSubtotalLabel,
                 sectionSubtotalValue: styles.sectionSubtotalValue,
               },
-            })
-          )}
+            }),
+          ])}
 
         {/* Totals. Called as a plain function (not JSX) — see
             components/pdf/shared/pdf-header.tsx's top comment for why. */}
