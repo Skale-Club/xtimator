@@ -69,6 +69,16 @@ export interface DocumentSection {
   items: DocumentItem[]
 }
 
+/** PDFPAR-02 — net-new signature-display data, threaded from the widened
+ *  loadLatestSignedSnapshot query (lib/queries/estimate-signature.ts).
+ *  Absent/null = unsigned estimate: renderers must show NO signature block
+ *  at all (no placeholder), per CONTEXT.md's locked rule. */
+export interface DocumentSignature {
+  signerName: string
+  signedAt: string
+  signatureDataUrl: string
+}
+
 /** Deliberately NOT the full lib/queries/photo.ts Photo type — the document
  * surface only needs these fields. `url`, when present, is a pre-resolved
  * signed URL (view/share/PDF mode); when absent (edit mode), the consumer
@@ -102,5 +112,6 @@ export interface EstimateDocumentData {
   estimate_date: string | null
   estimate_number: string | null
   attachedPhotos?: DocumentPhoto[]
+  signature?: DocumentSignature | null
   presentation_settings: PresentationSettings | null
 }

@@ -56,6 +56,8 @@ export interface DocumentLabels {
   of: string
   /** PDF-only (from PDF_LABELS) — the "Prepared by" block. */
   preparedBy: string
+  /** PDFPAR-02 — signature block: signer name label ("Signed by"). */
+  signedBy: string
 }
 
 export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
@@ -72,6 +74,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     termsPlaceholder: 'Enter details…', searchPriceBook: 'Search price book…', noMatches: 'No matches',
     customized: 'Customized', usingDefault: 'Default', resetToDefault: 'Reset to default',
     photos: 'Photos', page: 'Page', of: 'of', preparedBy: 'Prepared by',
+    signedBy: 'Signed by',
   },
   pt: {
     estimate: 'ORÇAMENTO', project: 'Projeto', billTo: 'Faturar Para', summary: 'Resumo',
@@ -86,6 +89,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     termsPlaceholder: 'Insira os detalhes…', searchPriceBook: 'Buscar no catálogo…', noMatches: 'Sem resultados',
     customized: 'Personalizado', usingDefault: 'Padrão', resetToDefault: 'Restaurar padrão',
     photos: 'Fotos', page: 'Página', of: 'de', preparedBy: 'Preparado por',
+    signedBy: 'Assinado por',
   },
   es: {
     estimate: 'PRESUPUESTO', project: 'Proyecto', billTo: 'Facturar A', summary: 'Resumen',
@@ -100,6 +104,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     termsPlaceholder: 'Ingrese los detalles…', searchPriceBook: 'Buscar en catálogo…', noMatches: 'Sin resultados',
     customized: 'Personalizado', usingDefault: 'Predeterminado', resetToDefault: 'Restablecer',
     photos: 'Fotos', page: 'Página', of: 'de', preparedBy: 'Preparado por',
+    signedBy: 'Firmado por',
   },
 }
 

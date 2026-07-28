@@ -86,9 +86,9 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
       for (const extra of ['page', 'of', 'preparedBy']) allKeys.add(extra)
       expect(Array.from(allKeys).sort()).toEqual(Object.keys(LABELS.en).sort())
     }
-    // Unconditional: LABELS itself always carries exactly the 45-key shape,
+    // Unconditional: LABELS itself always carries exactly the 46-key shape,
     // regardless of adoption state.
-    expect(Object.keys(LABELS.en).length).toBe(45)
+    expect(Object.keys(LABELS.en).length).toBe(46)
   })
 
   it('LANG_INDICATOR matches the shared module — pre- or post-adoption', () => {
