@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { Estimate } from '@/lib/queries/estimate'
+import type { EstimateViewMode } from './estimate/estimate-floating-actions'
 
 export interface VersionSlot {
   currentVersionId: string
@@ -15,6 +16,12 @@ export interface VersionSlot {
   onProjectRenamed: (name: string) => void
   /** Autosave status — surfaced next to the "Edit with AI" button in the header. */
   saveStatus: 'idle' | 'saving' | 'saved' | 'error'
+  /** Document view-mode toggle (PGMODE-01) — optional: the slot can be read
+   *  before estimate-editor.tsx's first setSlot() call publishes these, and
+   *  every OTHER field here is already read via `slot?.field` at call sites —
+   *  required fields would be internally inconsistent with that convention. */
+  viewMode?: EstimateViewMode
+  onViewModeChange?: (mode: EstimateViewMode) => void
 }
 
 interface EstimateVersionCtx {

@@ -6,6 +6,7 @@ import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot } from './estimate-version-context'
 import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-header-button'
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
+import { ViewModeToggle } from '@/components/workspace/view-mode-toggle'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -50,6 +51,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
               {slot.saveStatus === 'saving' ? 'Saving…' : 'Saved'}
             </span>
           )}
+          <ViewModeToggle mode={slot?.viewMode} onModeChange={slot?.onViewModeChange} />
           <EditEstimateHeaderButton projectId={project.id} />
         </div>
       </div>
