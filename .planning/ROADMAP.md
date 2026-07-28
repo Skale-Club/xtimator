@@ -3032,7 +3032,13 @@ Plans:
   4. After an estimate is signed, the PDF sent by email or WhatsApp shows the frozen, signed content — never any edit made after signing (closing the live TRUST-01 violation).
   5. Every existing estimate's rendered output is unchanged after this phase's extraction (byte-identical regression proof) — this phase ships zero visible change on its own.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 182-01-PLAN.md — Shared document engine module (model/labels/format/tokens) + Wave-0 validation tests
+- [ ] 182-02-PLAN.md — Adopt shared module in all 4 renderers, delete duplicate label/format/geometry copies
+- [ ] 182-03-PLAN.md — Shared in-process PDF resolver (lib/pdf/render-estimate-pdf.ts) + acceptance test
+- [ ] 182-04-PLAN.md — Wire download/email/WhatsApp PDF paths to the resolver + send-hub attachPdf fix
 
 ### Phase 183: PDF Parity Content
 **Goal**: The PDF (both templates) matches the webview benchmark's full document structure, and both the webview and PDF gain the signature block and visible photo captions neither surface renders today.
