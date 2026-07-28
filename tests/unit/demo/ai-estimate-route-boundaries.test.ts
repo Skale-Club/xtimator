@@ -123,13 +123,21 @@ const routeCases: RouteCase[] = [
   },
   {
     name: 'refine estimate',
-    load: async () => (await import('@/app/api/estimates/[id]/refine/route')).POST,
+    load: async () =>
+      (await import('@/app/api/estimates/[id]/refine/route')).POST as (
+        request: Request,
+        context?: { params: Promise<{ id: string }> },
+      ) => Promise<Response>,
     request: () => new Request('http://localhost/api/estimates/estimate-id/refine', { method: 'POST', body: '{}' }),
     context: { params: Promise.resolve({ id: 'estimate-id' }) },
   },
   {
     name: 'sign estimate',
-    load: async () => (await import('@/app/api/estimates/[id]/sign/route')).POST,
+    load: async () =>
+      (await import('@/app/api/estimates/[id]/sign/route')).POST as (
+        request: Request,
+        context?: { params: Promise<{ id: string }> },
+      ) => Promise<Response>,
     request: () => new Request('http://localhost/api/estimates/estimate-id/sign', {
       method: 'POST',
       body: JSON.stringify({ token: 'share-token', signerName: 'Demo', signatureData: 'data' }),

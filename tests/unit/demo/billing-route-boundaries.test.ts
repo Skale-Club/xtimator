@@ -109,7 +109,9 @@ type RouteCase = {
 const routeCases: RouteCase[] = [
   {
     name: 'subscription checkout',
-    load: async () => (await import('@/app/api/billing/create-checkout-session/route')).POST,
+    load: async () =>
+      (await import('@/app/api/billing/create-checkout-session/route'))
+        .POST as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost/api/billing/create-checkout-session', {
         method: 'POST',
@@ -121,7 +123,9 @@ const routeCases: RouteCase[] = [
   },
   {
     name: 'credit top-up checkout',
-    load: async () => (await import('@/app/api/billing/create-topup-session/route')).POST,
+    load: async () =>
+      (await import('@/app/api/billing/create-topup-session/route'))
+        .POST as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost/api/billing/create-topup-session', {
         method: 'POST',
@@ -133,7 +137,9 @@ const routeCases: RouteCase[] = [
   },
   {
     name: 'billing portal',
-    load: async () => (await import('@/app/api/billing/create-portal-session/route')).POST,
+    load: async () =>
+      (await import('@/app/api/billing/create-portal-session/route'))
+        .POST as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost/api/billing/create-portal-session', { method: 'POST' }),
     unauthenticatedStatus: 401,
@@ -143,7 +149,8 @@ const routeCases: RouteCase[] = [
   {
     name: 'auto-top-up setup checkout',
     load: async () =>
-      (await import('@/app/api/billing/create-autotopup-setup-session/route')).POST,
+      (await import('@/app/api/billing/create-autotopup-setup-session/route'))
+        .POST as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost/api/billing/create-autotopup-setup-session', {
         method: 'POST',
@@ -154,7 +161,9 @@ const routeCases: RouteCase[] = [
   },
   {
     name: 'Stripe Connect initiation',
-    load: async () => (await import('@/app/api/stripe/connect/initiate/route')).GET,
+    load: async () =>
+      (await import('@/app/api/stripe/connect/initiate/route'))
+        .GET as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost:9633/api/stripe/connect/initiate', { method: 'GET' }),
     unauthenticatedStatus: 307,
@@ -175,7 +184,9 @@ const routeCases: RouteCase[] = [
   },
   {
     name: 'Stripe Connect disconnect',
-    load: async () => (await import('@/app/api/stripe/connect/disconnect/route')).POST,
+    load: async () =>
+      (await import('@/app/api/stripe/connect/disconnect/route'))
+        .POST as unknown as (request: Request) => Promise<Response>,
     request: () =>
       new Request('http://localhost:9633/api/stripe/connect/disconnect', { method: 'POST' }),
     unauthenticatedStatus: 401,

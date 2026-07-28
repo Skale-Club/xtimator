@@ -418,7 +418,7 @@ describe('SAFE-02: shared service funnels deny trusted demo companies', () => {
     const result = await notify({
       companyId: DEMO_COMPANY_ID,
       userId: 'demo-user',
-      eventType: 'estimate.sent',
+      eventType: 'estimate.viewed',
       title: 'Blocked',
       body: 'Must not dispatch.',
     })
@@ -433,7 +433,7 @@ describe('SAFE-02: shared service funnels deny trusted demo companies', () => {
     const result = await notify({
       companyId: NORMAL_COMPANY_ID,
       userId: 'normal-user',
-      eventType: 'estimate.sent',
+      eventType: 'estimate.viewed',
       title: 'Estimate sent',
       body: 'Delivery complete.',
       channels: { inApp: false, email: true },
