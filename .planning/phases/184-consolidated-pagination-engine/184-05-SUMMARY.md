@@ -74,7 +74,13 @@ patterns-established:
   - "renderBlockForKind uniform dispatcher + per-page item-row grouping map (see tech-stack.patterns)"
   - "PDF_RENDER_SAFETY_MARGIN_PT as the established mechanism for react-pdf/PDFKit-specific residual measurement drift, kept separate from SAFETY_MARGIN_LINES's DOM-comparison scope"
 
-requirements-completed: [PGBRK-01, PGBRK-03, PGBRK-04]
+requirements-completed: [PGBRK-03]
+# PGBRK-01 and PGBRK-04 both explicitly require the web paginated preview to
+# consume the SAME module/output too (not just the PDF renderer) — that
+# clause lands in Phase 185. Corrected 2026-07-28 (Phase 185 pre-flight
+# verification, GAP 2): both were originally over-marked [x] Complete in
+# REQUIREMENTS.md; now [ ] Partial (PDF side complete, web-preview clause
+# pending Phase 185). See REQUIREMENTS.md's Traceability table.
 
 # Metrics
 duration: 56min
@@ -161,6 +167,28 @@ See `key-decisions` in the frontmatter above — summarized: (1) an additional 1
 **Total deviations:** 3 auto-fixed (1 blocking, 2 bugs).
 **Impact on plan:** All 3 were necessary for the plan's own stated `must_haves.truths`/behavior to actually hold under real measurement — no scope creep beyond making the phase's central deliverable (real PDF page count matches the engine's) true.
 
+## Post-Completion Fixes (Phase 185 Pre-Flight Verification, 2026-07-28)
+
+A verifier pass ahead of Phase 185 found and required 2 more gaps closed:
+
+**GAP 1 — [Rule 1 - Bug] `measureHeaderHeightPt` charged a full US address as 1 line, not 2**
+- **Issue:** `formatAddress()` (`lib/estimate/document/format.ts:30`) joins the street part and the city/state/zip part with `'\n'` when both exist, and `pdf-header.tsx` renders the whole string in ONE `<Text>` — a genuine 2-line block for any company with a full street + city/state/zip address. The formula charged it as always 1 line, under-measuring the header by one prose line (13.5pt Classic / 14.4pt Modern). Verified against the committed UAT PDFs: Classic formula 94.78pt vs real 108.28pt; Modern 105.75pt vs real ~120.1pt.
+- **Fix:** `measureHeaderHeightPt` now derives `addressLines = formatAddress(company)?.split('\n').length ?? 0` and charges `addressLines × contactFontSizePt × prose` instead of a flat 1-line assumption. Audited the contact line too — it's genuinely single-line by construction (joined with the literal `"  |  "` separator, no embedded newline), so it needed no change.
+- **Files modified:** `lib/pdf/measure-header-height.ts`, `tests/unit/pdf/measure-header-height.test.ts` (updated hand-computed expectations to 108.28/120.15, added a dedicated zip-only-address regression case)
+- **Verification:** `tests/unit/pdf/measure-header-height.test.ts` (9/9 pass, matching the reported 108.28pt/120.1pt exactly)
+
+**GAP 1b — [Rule 1 - Bug] `PDF_RENDER_SAFETY_MARGIN_PT` was uncalibrated (the Task 3 sweep was never committed) and 2 more real formula bugs existed in `blocks-from-model.ts`**
+- **Issue:** The prior 100pt value was set from an ad-hoc, uncommitted diagnostic. Deeper isolation testing (comparing `computePageBreaks()`'s page count against the real rendered PDF's page count across single-block-type-isolated fixtures) found 2 concrete, fixable formula bugs in the TOTALS block: `totalsRowHeightPt` and `grandTotalHeightPt` (both templates) omitted real border/margin StyleSheet terms, and Modern's first-deposit-row `marginTop: 16` (`pdf-totals-block.tsx`) was never charged at all.
+- **Fix:** (1) Fixed the 3 formula bugs in `blocks-from-model.ts`'s `TemplateLiterals` (added `totalsRow`'s `borderBottomWidth`, `grandTotalRow`'s `marginTop`/`grandTotalLabel`'s `marginBottom`, and a new `depositRowFirstBonusPt` field, 0 Classic / 16 Modern, applied to the `totals` block's `baseHeightPt` when `dep.showDeposit`). (2) Committed `scripts/pagination-render-calibration.ts` (standalone, mirrors `pagination-drift-spike.ts`'s self-contained style) — sweeps a single-section 1..60-item fixture, a 4-section/40-item multi-page fixture, the content-rich baseline fixture, and an isolated "summary + deposit only" worst-case-boundary fixture (discovered during isolation testing: summary and deposit each independently fit their own page, but combined land almost exactly on a page-capacity boundary — an inherent consequence of additive height estimation at a discrete threshold, not a further single attributable bug). (3) Re-ran it after the GAP-1 + formula fixes: smallest zero-mismatch value = **78pt** (76pt still had 1 mismatch). Set `PDF_RENDER_SAFETY_MARGIN_PT = 90` (78pt + 12pt buffer) — down from the prior over-reserved 100pt.
+- **Files modified:** `lib/estimate/pagination/blocks-from-model.ts`, `lib/pdf/measure-header-height.ts` (constant + derivation comment), `scripts/pagination-render-calibration.ts` (new)
+- **Verification:** `npx vitest run tests/unit/pagination tests/unit/pdf` green (20 files / 130 tests); `npx tsc -p tsconfig.ci.json --noEmit` clean; both application sites (`lib/pdf/render-estimate-pdf.ts` + `tests/unit/pdf/_pages-for-fixture.ts`) confirmed importing the SAME constant (no drift between production and test derivation)
+- **Also:** regenerated all 4 UAT PDFs with the corrected budget; extended the UAT-generation-script-only multipage fixture (NOT the shared unit-test `buildMultiPageFixtureEstimate()`) to carry a signature, all 5 terms cards, photos, and prepared-by, so every atomic-block rule is actually visible in a real render — updated `184-HUMAN-UAT.md` accordingly (new page counts: 7 Classic / 9 Modern).
+
+**GAP 2 — REQUIREMENTS.md overclaim: PGBRK-01/04 marked [x] Complete despite their web-preview clause landing in Phase 185**
+- **Issue:** Both PGBRK-01 ("...the single source of truth consumed by BOTH the web paginated preview and the PDF renderer") and PGBRK-04 ("...the paginated web preview shows the same content...") explicitly require Phase 185's web-preview work too, not just the PDF renderer this plan wired.
+- **Fix:** Unchecked both to `[ ]` in `REQUIREMENTS.md` and annotated their Traceability rows: "Partial (184: engine + PDF side complete; web paginated preview consumes it in Phase 185)". Corrected this SUMMARY's own frontmatter `requirements-completed` (now `[PGBRK-03]` only) and prose accordingly.
+- **Files modified:** `.planning/REQUIREMENTS.md`, `.planning/phases/184-consolidated-pagination-engine/184-05-SUMMARY.md`
+
 ## Issues Encountered
 None beyond the deviations above.
 
@@ -179,7 +207,7 @@ None encountered.
 - **`buildPagesForFixture(estimate: Record<string, unknown>, company: BuildPagesForFixtureCompany, templateId: EstimateTemplateId, opts?: { signature?, attachedPhotos?, preparedBy? }): PageAssignment[]`** (`tests/unit/pdf/_pages-for-fixture.ts`) — Phase 185's own tests may want an equivalent DOM-flavored helper following the same shape (estimate/company/templateId/opts → real pipeline output), swapping in a DOM measurement provider.
 - **`TERMS_CARD_MAP` shape** (built fresh per render inside each template, not exported — see `buildTermsCardMap` in `components/pdf/estimate-pdf.tsx` / `estimate-pdf-modern.tsx`): `Record<'estimate'|'payment'|'timeline'|'warranty'|'notes', { title: string; text: string; titleColor?: string }>`, where `estimate.title = 'Estimate Terms'` (with `titleColor: brandText`), `payment.title = L.paymentTerms`, `timeline.title = L.timeline`, `warranty.title = L.warranty`, `notes.title = L.notes` (all others `titleColor: undefined`). Phase 185's web renderer needs this identical mapping (currently a private per-template function — if Phase 185 needs to import it directly rather than reimplement, consider promoting it to a shared module at that time).
 
-- This closes PGBRK-01 through PGBRK-04 for the PDF surface (PGBRK-05 was already completed in Plan 184-01/03). Both templates are fully wired to the consolidated pagination engine; `npx vitest run tests/unit tests/eval` (4824 passed, 21 todo) and `npx tsc -p tsconfig.ci.json --noEmit` are both green. No blockers for Phase 185.
+- This closes PGBRK-02/03/05 fully, and closes the PDF-renderer HALF of PGBRK-01/04 (both requirements explicitly also require the web paginated preview to consume the same module — that clause lands in Phase 185; corrected in REQUIREMENTS.md 2026-07-28, GAP 2). Both templates are fully wired to the consolidated pagination engine; `npx vitest run tests/unit tests/eval` (4824 passed, 21 todo) and `npx tsc -p tsconfig.ci.json --noEmit` are both green. No blockers for Phase 185.
 
 ---
 *Phase: 184-consolidated-pagination-engine*
