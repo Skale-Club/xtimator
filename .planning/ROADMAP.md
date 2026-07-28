@@ -3017,7 +3017,7 @@ Plans:
  (completed 2026-07-28)
 - [x] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
  (completed 2026-07-28)
-- [ ] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
+- [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates (completed 2026-07-28)
 - [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
 - [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
 
@@ -3084,7 +3084,7 @@ Plans:
 - [x] 184-02-PLAN.md — Wave 2: pure pagination type contracts (PageBlockRef, safetyMarginPt) + computePageBreaks() engine (maximal keep-together chains, per-page margin) + rules (fake measurement provider)
 - [x] 184-04-PLAN.md — Wave 2: component restructure (split PdfSectionBlock; row-chunk PdfPhotoGrid + photosPerRow; per-card-atomic PdfTermsSection + PdfTermsCard; totals wrap={false} fix)
 - [x] 184-03-PLAN.md — Wave 3: server-only fontkit/linebreak estimator + blocksFromModel() (empty-description filter, visibility gates, ref population, token-sourced geometry)
-- [ ] 184-05-PLAN.md — Wave 4: wire both PDF templates to N explicit <Page>s via one uniform block dispatcher; repeated continuation headers; real-PDF-byte page count + determinism + renderToBuffer smoke; durable UAT artifacts + manual visual checkpoint
+- [x] 184-05-PLAN.md — Wave 4: wire both PDF templates to N explicit <Page>s via one uniform block dispatcher; repeated continuation headers; real-PDF-byte page count + determinism + renderToBuffer smoke; durable UAT artifacts + manual visual checkpoint
 
 ### Phase 185: Paginated Editable Editor Mode
 **Goal**: The workspace estimate editor gains a paginated view mode — letter-size pages styled like a PDF preview, mirroring the PDF's page breaks — that stays fully editable, alongside the existing full-width mode, with the legacy width/page toggle retired.
@@ -3120,7 +3120,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete    | 2026-07-28 |
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
-| 184. Consolidated Pagination Engine | 4/5 | In Progress|  |
+| 184. Consolidated Pagination Engine | 5/5 | Complete   | 2026-07-28 |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
 | 186. Webview Design Polish | 0/? | Not started | - |
 
