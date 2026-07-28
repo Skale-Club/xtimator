@@ -3,6 +3,7 @@ import { formatMoney } from '@/lib/money/currency'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { ensureReadableOnWhite } from '@/lib/color/contrast'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import {
   resolvePresentationSettings,
@@ -324,7 +325,7 @@ export function EstimateDocumentModern({
               <div className="flex justify-between text-base">
                 <span className="text-muted-foreground select-none">
                   {L.discount}
-                  {data.discount_type === 'percentage' ? ` (${data.discount_value}%)` : ''}
+                  {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
                 </span>
                 <span className="tabular-nums font-medium">-{fmt(data.discount_amount)}</span>
               </div>
@@ -416,6 +417,29 @@ export function EstimateDocumentModern({
         </div>
       )}
 
+      {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
+          presentation_settings key exists for it per CONTEXT.md's locked
+          rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
+      {data.signature && (
+        <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+            {L.signedBy}
+          </p>
+          <div className="flex items-start gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.signature.signatureDataUrl}
+              alt={L.signedBy}
+              className="h-16 w-auto max-w-[240px] object-contain"
+            />
+            <div>
+              <p className="text-base font-semibold">{data.signature.signerName}</p>
+              <p className="text-base text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Attached photos — conditional on non-empty array + SENDHUB-04 resolver gate */}
       {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
         <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
@@ -424,15 +448,20 @@ export function EstimateDocumentModern({
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {data.attachedPhotos.map((photo) => (
-              <div key={photo.id} className="aspect-square overflow-hidden rounded-lg relative">
-                {photo.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photo.url}
-                    alt={photo.caption ?? ''}
-                    className="object-cover w-full h-full"
-                  />
-                ) : null}
+              <div key={photo.id}>
+                <div className="aspect-square overflow-hidden rounded-lg relative">
+                  {photo.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photo.url}
+                      alt={photo.caption ?? ''}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : null}
+                </div>
+                {photo.caption && (
+                  <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{photo.caption}</p>
+                )}
               </div>
             ))}
           </div>

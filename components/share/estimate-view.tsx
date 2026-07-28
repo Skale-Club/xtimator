@@ -192,6 +192,18 @@ function EstimateViewInner({
         | import('@/lib/estimate/presentation-settings').PresentationSettings
         | null
         | undefined ?? null,
+    // PDFPAR-02 — guard on BOTH signerName and signatureImageDataUrl being
+    // non-null, mirroring the same-shape guard render-estimate-pdf.ts uses
+    // (Plan 183-02): a row can theoretically have one without the other only
+    // in malformed data, never trust partial presence.
+    signature:
+      estimate.signerName && estimate.signatureImageDataUrl
+        ? {
+            signerName: estimate.signerName,
+            signedAt: estimate.signedAt ?? estimate.responded_at ?? estimate.created_at,
+            signatureDataUrl: estimate.signatureImageDataUrl,
+          }
+        : null,
     // Signed URLs are already resolved server-side in lib/queries/share.ts
     // (getEstimateByShareToken) — anon visitors have no session to call
     // getSignedUrl with, so no client-side resolution happens here.
