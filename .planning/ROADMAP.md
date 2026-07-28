@@ -3019,7 +3019,7 @@ Plans:
  (completed 2026-07-28)
 - [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
  (completed 2026-07-28)
-- [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
+- [x] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired (completed 2026-07-28)
 - [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
 
 ### Phase Details
@@ -3105,7 +3105,7 @@ Plans:
 - [x] 185-01-PLAN.md — Mirror foundation: shared computeEstimatePageConstraints() + browser-safe fontkit estimator + deep-equal parity test (wave 1)
 - [x] 185-02-PLAN.md — Header view-mode toggle (PGMODE-01) + legacy floating-pill toggle retirement (PGMODE-04) (wave 1)
 - [x] 185-03-PLAN.md — Paginated canvas: usePaginatedPreview hook + PaginatedDocumentOverlay, server data threading (wave 2)
-- [ ] 185-04-PLAN.md — Repagination triggers (immediate/debounced), focus + dnd-kit regression proof, PGMODE-05 boundary guard, PGBRK-01/04 closure (wave 3)
+- [x] 185-04-PLAN.md — Repagination triggers (immediate/debounced), focus + dnd-kit regression proof, PGMODE-05 boundary guard, PGBRK-01/04 closure (wave 3)
 
 **UI hint**: yes
 
@@ -3129,6 +3129,6 @@ Plans:
 | 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete    | 2026-07-28 |
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
 | 184. Consolidated Pagination Engine | 5/5 | Complete    | 2026-07-28 |
-| 185. Paginated Editable Editor Mode | 3/4 | In Progress|  |
+| 185. Paginated Editable Editor Mode | 4/4 | Complete   | 2026-07-28 |
 | 186. Webview Design Polish | 0/? | Not started | - |
 

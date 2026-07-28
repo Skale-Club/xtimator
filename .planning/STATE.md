@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v4.23
 milestone_name: Unified Estimate Document Engine
-status: "Ready for /gsd:plan-phase 185"
-stopped_at: Completed 185-03-PLAN.md
-last_updated: "2026-07-28T16:05:17.387Z"
+status: "Phase 185 complete — ready for /gsd:plan-phase 186"
+stopped_at: Completed 185-04-PLAN.md (Phase 185 complete)
+last_updated: "2026-07-28T16:39:28.103Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 130
-  completed_phases: 110
+  completed_phases: 111
   total_plans: 343
-  completed_plans: 353
+  completed_plans: 354
   percent: 93
 ---
 
@@ -73,12 +73,13 @@ progress:
 
 ## Current Position
 
-Phase: 185
-Plan: Not started
-Status: Ready for /gsd:plan-phase 185
+Phase: 185 — COMPLETE
+Plan: 4 of 4
+Status: Phase 185 complete — ready for /gsd:plan-phase 186
 Last activity: 2026-07-28
 
-- Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 PARTIAL (engine + PDF side complete, web paginated preview consumes it in Phase 185 — corrected 2026-07-28 after a Phase 185 pre-flight verification found both over-marked): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule). Next: Phase 185 (paginated editable editor mode).
+- Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
+- Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
 Progress: [█████████░] 93%
 
@@ -256,7 +257,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 185-03-PLAN.md
+Stopped at: Completed 185-04-PLAN.md (Phase 185 complete)
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -1052,6 +1053,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 185]: Toggle test verifies tooltip content via keyboard focus + waitFor instead of hover simulation — Radix Tooltip content only mounts in the DOM once open; fireEvent.focus opens immediately (no hover delayDuration), giving a reliable RTL assertion path for the Copywriting Contract
 - [Phase 185]: Parity test forces fontkit's real browser build via a partial vi.mock(importOriginal) overriding only create, not a full-module replacement — A full-module fontkit mock would also break the server measurement provider in the same test file (its getFont() calls openSync, absent from the browser build); importOriginal() keeps openSync genuine while forcing create to the real browser build
 - [Phase 185]: Phase 185 Plan 03: cascade-corrected derivePageOffsets() spacer math (real bug caught by scripts/pagination-binding-check.ts against real Chromium) — Applying multiple pages marginTop simultaneously (all computed against the same fully-reset baseline) double-counts every earlier pages shift once real CSS block flow cascades them. Fixed via an appliedShiftPx accumulator in derivePageOffsets Pass 2 loop; verified by re-running the Playwright binding-check script (all 4 anchors bound correctly afterward) and a new pure-function cascade-correctness test.
+- [Phase 185]: Reducer-level structuralEditEpoch drives immediate-vs-400ms-debounced repagination; a paginated-view-engine-parity test binds the live rendered pipeline sheet count to the engine's direct computation, closing PGBRK-01/04 and PGMODE-05; REQUIREMENTS.md now shows the full v4.23 pagination requirement set complete.
 
 ## Performance Metrics
 
@@ -1400,6 +1402,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 185 P02 | 20 min | 2 tasks | 6 files |
 | Phase 185 P01 | 15min | 3 tasks | 10 files |
 | Phase 185 P03 | 51min | 4 tasks | 20 files |
+| Phase 185 P04 | 35 min | 2 tasks | 12 files |
 
 ## Project Reference
 
