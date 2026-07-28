@@ -18,6 +18,7 @@
 
 import { View, Text, Image, Link } from '@react-pdf/renderer'
 import type { ReactNode } from 'react'
+import type { Style } from '@react-pdf/types'
 import { formatAddress } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 
@@ -34,15 +35,15 @@ export interface PdfHeaderCompany {
 }
 
 export interface PdfHeaderStyles {
-  header: object
-  headerLeft: object
-  headerRight: object
-  logo: object
-  companyName: object
-  companyContact: object
-  contactLink: object
-  nameLink: object
-  langBadge: object
+  header: Style
+  headerLeft: Style
+  headerRight: Style
+  logo: Style
+  companyName: Style
+  companyContact: Style
+  contactLink: Style
+  nameLink: Style
+  langBadge: Style
 }
 
 export interface PdfHeaderProps {

@@ -12,6 +12,7 @@
 
 import { Fragment } from 'react'
 import { View, Text } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
 import {
   isSectionVisible,
   type ResolvedPresentationSettings,
@@ -31,9 +32,9 @@ export interface PdfTermsSectionEstimate {
 }
 
 export interface PdfTermsSectionStyles {
-  termsSection: object
-  termsTitle: object
-  termsText: object
+  termsSection: Style
+  termsTitle: Style
+  termsText: Style
 }
 
 export interface PdfTermsSectionProps {

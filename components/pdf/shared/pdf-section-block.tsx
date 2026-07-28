@@ -14,25 +14,26 @@
 // itself returns — done below via `key={section.id}` on the wrapping <View>.
 
 import { View, Text } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
 import type { DocumentSection } from '@/lib/estimate/document/model'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
 
 export interface PdfSectionBlockStyles {
-  sectionHeader: object
-  sectionTitle: object
-  tableHeader: object
-  tableRow: object
-  tableRowAlt: object
-  colDescription: object
-  colQty: object
-  colUnit: object
-  colUnitPrice: object
-  colTotal: object
-  tableHeaderText: object
-  tableCellText: object
-  sectionSubtotal: object
-  sectionSubtotalLabel: object
-  sectionSubtotalValue: object
+  sectionHeader: Style
+  sectionTitle: Style
+  tableHeader: Style
+  tableRow: Style
+  tableRowAlt: Style
+  colDescription: Style
+  colQty: Style
+  colUnit: Style
+  colUnitPrice: Style
+  colTotal: Style
+  tableHeaderText: Style
+  tableCellText: Style
+  sectionSubtotal: Style
+  sectionSubtotalLabel: Style
+  sectionSubtotalValue: Style
 }
 
 export interface PdfSectionBlockProps {

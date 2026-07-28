@@ -11,11 +11,12 @@
 
 import { Fragment } from 'react'
 import { View, Text } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
 
 export interface PdfTitleBannerStyles {
-  estimateTitle: object
+  estimateTitle: Style
   /** Modern-only — the thin rule under the title. Omit for Classic. */
-  estimateTitleRule?: object
+  estimateTitleRule?: Style
 }
 
 export interface PdfTitleBannerProps {

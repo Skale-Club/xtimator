@@ -11,6 +11,7 @@
 // resolved tree without needing to invoke nested custom components.
 
 import { View, Text, Link } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
 import { formatAddress } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
@@ -33,11 +34,11 @@ export interface PdfInfoGridEstimate {
 }
 
 export interface PdfInfoGridStyles {
-  infoRow: object
-  infoBlock: object
-  infoLabel: object
-  infoValue: object
-  infoValueLink: object
+  infoRow: Style
+  infoBlock: Style
+  infoLabel: Style
+  infoValue: Style
+  infoValueLink: Style
 }
 
 export interface PdfInfoGridProps {

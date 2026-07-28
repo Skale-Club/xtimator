@@ -7,10 +7,11 @@
 // call this as a PLAIN FUNCTION (`{PdfFooter({...})}`), not JSX.
 
 import { Text } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
 
 export interface PdfFooterStyles {
-  footer: object
+  footer: Style
 }
 
 export interface PdfFooterProps {
