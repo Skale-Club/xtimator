@@ -1,19 +1,18 @@
 /**
  * Phase 53: PDF Attachment Delivery
- * Generates an estimate PDF, uploads to Supabase Storage (pdfs bucket),
- * and returns a 24-hour signed URL for Meta Cloud API document delivery.
+ * Generates an estimate PDF via the shared renderEstimatePdf() resolver,
+ * uploads it to Supabase Storage (pdfs bucket), and returns a 24-hour
+ * signed URL for Meta Cloud API document delivery.
  *
  * CRITICAL: Do NOT call /api/estimates/[id]/pdf internally — that route
- * uses createClient() which requires auth cookies unavailable in webhook context.
- * Instead, call renderToBuffer + getEstimateWithContext directly (Phase 41 pattern).
+ * uses createClient() which requires auth cookies unavailable in webhook
+ * context. Instead, call the shared renderEstimatePdf() resolver
+ * (lib/pdf/render-estimate-pdf.ts), which itself calls renderToBuffer +
+ * getEstimateWithContext directly (Phase 41 pattern, centralized in Phase 182).
  */
-import { renderToBuffer } from '@react-pdf/renderer'
-import { createElement } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getEstimateWithContext } from '@/lib/queries/estimate'
+import { renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
 import { createStorage } from '@/lib/storage'
-import EstimatePDF from '@/components/pdf/estimate-pdf'
-import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 /**
  * Generate a PDF buffer for the given estimate, upload it to the `pdfs`
@@ -32,37 +31,24 @@ export async function generateAndUploadEstimatePDF(
   supabase: SupabaseClient,
   clientName: string | null,
 ): Promise<{ signedUrl: string; filename: string }> {
-  // 1. Fetch estimate context (mirrors app/api/estimates/[id]/pdf/route.ts)
-  const result = await getEstimateWithContext(supabase, estimateId)
-  if (!result || !result.company) {
+  // PDFPAR-04: template + signed-snapshot (TRUST-01) + preparedBy + attached
+  // photos now resolve through the SAME shared in-process renderer as the
+  // download route and the email send route — see this module's header
+  // comment for why this must stay a plain function call, never an internal
+  // HTTP fetch to /api/estimates/[id]/pdf.
+  const rendered = await renderEstimatePdf(estimateId, supabase)
+  if (!rendered) {
     throw new Error('Estimate not found for PDF generation')
   }
 
-  const { estimate, project, company } = result
-  const projectName = project?.name ?? 'Untitled Project'
-  const clientRaw = project?.client
-  const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw ?? null
-
-  // 2. Render PDF buffer — use estimate language for localized labels
-  const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
-  const element = createElement(EstimatePDF, {
-    estimate,
-    company,
-    client,
-    projectName,
-    projectType: project?.project_type ?? null,
-    language: estimateLanguage,
-  })
-  const pdfBuffer = await renderToBuffer(element as any)
-
-  // 3. Upload to pdfs bucket (service role bypasses RLS)
+  // Upload to pdfs bucket (service role bypasses RLS).
   //    Path: {companyId}/whatsapp-pdf/{estimateId}-{timestamp}.pdf
   //    Timestamp ensures Meta URL cache uniqueness (Meta caches by URL string ~10min)
   const storage = createStorage(supabase)
   const storagePath = `${companyId}/whatsapp-pdf/${estimateId}-${Date.now()}.pdf`
 
   try {
-    await storage.upload('pdfs', storagePath, Buffer.from(pdfBuffer), {
+    await storage.upload('pdfs', storagePath, rendered.buffer, {
       contentType: 'application/pdf',
       upsert: false,
     })
@@ -71,7 +57,10 @@ export async function generateAndUploadEstimatePDF(
     throw new Error(`PDF upload failed: ${message}`)
   }
 
-  // 4. Create 24-hour signed URL (86400 seconds) — STORAGE-04: explicit expiry
+  // Create 24-hour signed URL (86400 seconds) — STORAGE-04: explicit expiry.
+  // This is a DIFFERENT TTL decision than the resolver's internal 3600s
+  // per-photo TTL (Pitfall 4) — this one is for the delivered PDF document
+  // itself, which must survive Meta's WhatsApp delivery queue.
   let signedUrl: string
   try {
     signedUrl = await storage.getSignedUrl('pdfs', storagePath, 86400)

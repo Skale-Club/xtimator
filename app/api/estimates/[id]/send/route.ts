@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
-import { renderToBuffer } from '@react-pdf/renderer'
-import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
-import EstimatePDF from '@/components/pdf/estimate-pdf'
-import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
@@ -88,7 +85,7 @@ export async function POST(
       return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
     }
 
-    const { estimate, project, company } = result
+    const { estimate, company } = result
 
     // The estimate is a trusted target resolved under the authenticated RLS
     // scope. A non-demo actor must still never send on behalf of the demo
@@ -96,15 +93,7 @@ export async function POST(
     const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
     if (targetBlocked) return targetBlocked
 
-    const projectName = project?.name ?? 'Untitled Project'
-    const projectType = project?.project_type ?? null
     const projectId = estimate.project_id
-
-    // Extract client from Supabase join (may be array) — used only for the
-    // PDF attachment's rendered content. This join has no `id` field, so it
-    // cannot be used for the consent/destination checks below.
-    const clientRaw = project?.client
-    const client = Array.isArray(clientRaw) ? clientRaw[0] ?? null : clientRaw ?? null
 
     // Load Resend key from DB-backed loader (ADMIN-06). This front-check MUST
     // stay here, before any client/gate DB work: tests/integration/
@@ -185,28 +174,22 @@ export async function POST(
       </div>
     `
 
-    // Attach PDF if requested
+    // PDFPAR-04: resolves template + signed snapshot (TRUST-01) + preparedBy
+    // + attached photos via the shared resolver — the same one the download
+    // route uses. Previously this branch hardcoded Classic and rendered the
+    // live (possibly post-sign-edited) row.
     let pdfAttachments: CustomerEmailAttachment[] | undefined
     if (attachPdf) {
-      const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
-      const element = createElement(EstimatePDF, {
-        estimate,
-        company,
-        client,
-        projectName,
-        projectType,
-        language: estimateLanguage,
-      })
-      const pdfBuffer = await renderToBuffer(element as any)
-
-      const safeProjectName = projectName
-        .replace(/[^a-zA-Z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .slice(0, 50)
-
-      pdfAttachments = [
-        { filename: `Estimate-${safeProjectName}.pdf`, content: Buffer.from(pdfBuffer) },
-      ]
+      const rendered = await renderEstimatePdf(id, supabase)
+      if (rendered) {
+        const safeProjectName = rendered.projectName
+          .replace(/[^a-zA-Z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .slice(0, 50)
+        pdfAttachments = [
+          { filename: `Estimate-${safeProjectName}.pdf`, content: rendered.buffer },
+        ]
+      }
     }
 
     // Dispatch via the gated, audited customer send path.

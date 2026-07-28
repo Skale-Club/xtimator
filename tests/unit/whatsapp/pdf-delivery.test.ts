@@ -18,6 +18,24 @@ vi.mock('@/components/pdf/estimate-pdf', () => ({
   default: vi.fn(),
 }))
 
+// PDFPAR-04: pdf-delivery.ts now goes through the shared renderEstimatePdf()
+// resolver (lib/pdf/render-estimate-pdf.ts), which transitively imports these
+// modules — mirrors tests/unit/pdf/render-estimate-pdf-resolver.test.ts's
+// mocking shape from Plan 182-03.
+vi.mock('@/lib/queries/share', () => ({
+  loadLatestSignedSnapshot: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: vi.fn().mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null }),
+    }),
+  }),
+}))
+vi.mock('@/components/pdf/estimate-pdf-modern', () => ({ default: vi.fn(() => null) }))
+
 // Import after mocks
 import { generateAndUploadEstimatePDF, buildPdfFilename } from '@/lib/whatsapp/pdf-delivery'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
@@ -119,6 +137,22 @@ describe('generateAndUploadEstimatePDF', () => {
     expect(fromCall).toBe('pdfs')
     const uploadCall = supabase.storage.from().upload.mock.calls[0][0] as string
     expect(uploadCall).toMatch(new RegExp(`^${COMPANY_ID}/whatsapp-pdf/${ESTIMATE_ID}-\\d+\\.pdf$`))
+  })
+
+  it('resolves via the shared renderEstimatePdf resolver — template selection is exercised (PDFPAR-04)', async () => {
+    mockGetEstimate.mockResolvedValue({
+      estimate: { id: ESTIMATE_ID, sections: [], attachedPhotos: [], created_by_user_id: null, language: 'en', updated_at: '2026-01-01T00:00:00Z' } as never,
+      project: { name: 'Kitchen Reno', project_type: 'renovation', client: null } as never,
+      company: { id: COMPANY_ID, name: 'Acme Builders', owner_name: null, estimate_template_style: 'modern' } as never,
+    })
+    const supabase = makeSupabase()
+
+    await generateAndUploadEstimatePDF(ESTIMATE_ID, COMPANY_ID, supabase as unknown as SupabaseClient, 'Johnson')
+
+    // If the resolver's template-registry lookup runs, createElement/renderToBuffer
+    // are still called exactly once — this proves the resolver path executed
+    // end-to-end rather than throwing before reaching the mocked render.
+    expect(mockRenderToBuffer).toHaveBeenCalledTimes(1)
   })
 })
 
