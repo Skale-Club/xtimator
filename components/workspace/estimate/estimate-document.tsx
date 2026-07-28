@@ -518,10 +518,10 @@ function DocumentSectionBlock({
               })
             }
             style={{ color: brandOnFill }}
-            className="flex-1 bg-transparent font-semibold text-base focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            className="flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
           />
         ) : (
-          <span className="flex-1 font-semibold text-base select-none" style={{ color: brandOnFill }}>{section.title}</span>
+          <span className="flex-1 font-semibold text-base tracking-wide select-none" style={{ color: brandOnFill }}>{section.title}</span>
         )}
 
         {isEditable && dispatch && (
@@ -1506,7 +1506,7 @@ export function EstimateDocument({
         style={{ backgroundColor: brandColor }}
       >
         <h1
-          className="text-3xl sm:text-4xl font-bold tracking-wide select-none"
+          className="text-3xl sm:text-4xl font-bold tracking-widest select-none"
           style={{ color: brandOnFill }}
         >
           {L.estimate}

@@ -10,7 +10,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
     style="background-color: rgb(64, 110, 241);"
   >
     <h1
-      class="text-3xl sm:text-4xl font-bold tracking-wide select-none"
+      class="text-3xl sm:text-4xl font-bold tracking-widest select-none"
       style="color: rgb(0, 0, 0);"
     >
       ESTIMATE
@@ -77,7 +77,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
         style="background-color: rgb(64, 110, 241);"
       >
         <span
-          class="flex-1 font-semibold text-base select-none"
+          class="flex-1 font-semibold text-base tracking-wide select-none"
           style="color: rgb(0, 0, 0);"
         >
           Materials

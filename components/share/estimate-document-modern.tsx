@@ -245,7 +245,7 @@ export function EstimateDocumentModern({
               className="px-8 sm:px-12 pt-6 pb-2 border-b"
               style={{ borderBottomColor: '#e4e4e7' }}
             >
-              <span className="font-semibold text-base select-none" style={{ color: brandText }}>
+              <span className="font-semibold text-base tracking-wide select-none" style={{ color: brandText }}>
                 {section.title}
               </span>
             </div>
