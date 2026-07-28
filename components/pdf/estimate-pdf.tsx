@@ -35,6 +35,7 @@ import { PdfFooter } from './shared/pdf-footer'
 import { PdfTitleBanner } from './shared/pdf-title-banner'
 import { PdfSectionBlock } from './shared/pdf-section-block'
 import { PdfTermsSection } from './shared/pdf-terms-section'
+import { PdfTotalsBlock } from './shared/pdf-totals-block'
 
 interface CompanyInfo {
   name: string
@@ -434,71 +435,26 @@ export default function EstimatePDF({
             })
           )}
 
-        {/* Totals */}
-        <View style={styles.totalsContainer}>
-          <View style={styles.totalsBlock}>
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.subtotal}</Text>
-              <Text style={styles.totalsValue}>
-                {fmt(estimate.subtotal)}
-              </Text>
-            </View>
-
-            {estimate.discount_amount > 0 && (
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>
-                  {L.discount}
-                  {estimate.discount_type === 'percentage'
-                    ? ` (${estimate.discount_value}%)`
-                    : ''}
-                </Text>
-                <Text style={[styles.totalsValue, { color: '#dc2626' }]}>
-                  -{fmt(estimate.discount_amount)}
-                </Text>
-              </View>
-            )}
-
-            {estimate.tax_amount > 0 && (
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>
-                  {L.tax} ({(estimate.tax_rate * 100).toFixed(2)}%)
-                </Text>
-                <Text style={styles.totalsValue}>
-                  {fmt(estimate.tax_amount)}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.grandTotalRow}>
-              <Text
-                style={[styles.grandTotalLabel, { color: brandText }]}
-              >
-                {L.grandTotal}
-              </Text>
-              <Text
-                style={[styles.grandTotalValue, { color: brandText }]}
-              >
-                {fmt(estimate.total)}
-              </Text>
-            </View>
-
-            {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set.
-                Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
-            {dep.showDeposit && (
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{L.deposit}</Text>
-                <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
-              </View>
-            )}
-
-            {dep.showDeposit && (
-              <View style={styles.totalsRow}>
-                <Text style={styles.totalsLabel}>{L.balanceDue}</Text>
-                <Text style={styles.totalsValue}>{fmt(dep.balanceDue)}</Text>
-              </View>
-            )}
-          </View>
-        </View>
+        {/* Totals. Called as a plain function (not JSX) — see
+            components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfTotalsBlock({
+          variant: 'classic',
+          estimate,
+          dep,
+          L,
+          brandText,
+          fmt,
+          styles: {
+            totalsContainer: styles.totalsContainer,
+            totalsBlock: styles.totalsBlock,
+            totalsRow: styles.totalsRow,
+            totalsLabel: styles.totalsLabel,
+            totalsValue: styles.totalsValue,
+            grandTotalRow: styles.grandTotalRow,
+            grandTotalLabel: styles.grandTotalLabel,
+            grandTotalValue: styles.grandTotalValue,
+          },
+        })}
 
         {/* Estimate Terms, Payment Terms, Warranty, Timeline, Notes.
             SENDHUB-04 (Phase 163): each block gated on its resolver key; the
