@@ -3051,7 +3051,16 @@ Plans:
   3. A photo with a caption shows that caption as visible text beneath the photo, in both the webview photo grid and the PDF photo grid, for both templates.
   4. The PDF (both templates) mirrors the webview's full structure — company header/branding, title, project/bill-to, summary, sections with per-section subtotals, items tables, the locked totals order (subtotal→discount→tax→total→deposit→balance due), and terms.
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 183-01-PLAN.md — Wave-0 shared fixtures + pre-refactor PDF baseline-order test
+- [ ] 183-02-PLAN.md — Signature + discount-display data plumbing (shared query, model types, predicate)
+- [ ] 183-03-PLAN.md — Font asset sourcing + Font.register + design-tokens widening
+- [ ] 183-04-PLAN.md — PDF shared components pt1 (header/info-grid/footer/section+Classic banner fix/terms)
+- [ ] 183-05-PLAN.md — Webview signature block + photo captions (Classic + Modern)
+- [ ] 183-06-PLAN.md — PDF shared components pt2 (totals variant/photos+captions/signature block)
+- [ ] 183-07-PLAN.md — Cross-surface integration test + baseline update + manual visual checkpoint
 
 ### Phase 184: Consolidated Pagination Engine
 **Goal**: One deterministic pagination module computes page-break decisions from the shared document model, is the single source of truth consumed by the PDF renderer (and, in Phase 185, the web paginated preview), and is validated by an early measurement-drift spike before being finalized.
