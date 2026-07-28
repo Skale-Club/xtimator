@@ -100,11 +100,25 @@ interface TemplateLiterals {
   sectionSubtotalBaseHeightPt: number
   /** totalsContainer.marginTop (20 classic / 28 modern). */
   totalsContainerMarginTopPt: number
-  /** totalsRow paddingVertical×2 (classic 4×2=8, modern 6×2=12) — per subtotal/discount/tax/deposit/balance-due row. */
+  /** totalsRow paddingVertical×2 + borderBottomWidth (classic 4×2+0.5=8.5, modern
+   *  6×2+0.5=12.5) — per subtotal/discount/tax/deposit/balance-due row. Phase 185
+   *  pre-flight verification finding (GAP 1b, 2026-07-28): the prior formula
+   *  omitted totalsRow's own borderBottomWidth(0.5), under-measuring by 0.5pt
+   *  per row. */
   totalsRowHeightPt: number
-  /** Classic: grandTotalRow paddingVertical(8)×2 + borderTopWidth(2) = 18.
-   *  Modern: grandTotalBlock marginTop(16) + label fontSize(9) + value fontSize(30) = 55. */
+  /** Classic: grandTotalRow paddingVertical(8)×2 + borderTopWidth(2) + marginTop(4) = 22.
+   *  Modern: grandTotalBlock marginTop(16) + grandTotalLabel marginBottom(4) +
+   *  label fontSize(9) + value fontSize(30) = 59. Phase 185 pre-flight
+   *  verification finding (GAP 1b, 2026-07-28): the prior formula omitted
+   *  Classic's grandTotalRow.marginTop(4) and Modern's grandTotalLabel.marginBottom(4). */
   grandTotalHeightPt: number
+  /** pdf-totals-block.tsx Modern-only: the FIRST deposit row (when
+   *  `dep.showDeposit`) carries an extra inline `marginTop: 16` not present on
+   *  Classic's equivalent row (`{...styles.totalsRow, marginTop: 16}` vs
+   *  Classic's plain `styles.totalsRow`) — 0 for Classic, 16 for Modern. Phase
+   *  185 pre-flight verification finding (GAP 1b, 2026-07-28): previously
+   *  uncharged entirely. */
+  depositRowFirstBonusPt: number
   /** termsTitle.fontSize (11 classic / 10.5 modern) — the card title's own single-line height proxy. */
   termsTitleFontSizePt: number
   /** Per-card uniform base (NO first/non-first difference): termsTitle line
@@ -150,6 +164,7 @@ function buildTemplateLiterals(p: {
   totalsContainerMarginTopPt: number
   totalsRowHeightPt: number
   grandTotalHeightPt: number
+  depositRowFirstBonusPt: number
   termsTitleFontSizePt: number
   termsTitleSpacingContributionPt: number
   termsCardFirstBonusPt: number
@@ -183,6 +198,7 @@ function buildTemplateLiterals(p: {
     totalsContainerMarginTopPt: p.totalsContainerMarginTopPt,
     totalsRowHeightPt: p.totalsRowHeightPt,
     grandTotalHeightPt: p.grandTotalHeightPt,
+    depositRowFirstBonusPt: p.depositRowFirstBonusPt,
     termsTitleFontSizePt: p.termsTitleFontSizePt,
     termsCardBaseHeightPt:
       p.termsTitleFontSizePt + p.termsTitleSpacingContributionPt + p.termsTextMarginBottomPt,
@@ -214,8 +230,9 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     sectionSubtotalPaddingContributionPt: 6 * 2 + 1, // styles.sectionSubtotal.paddingVertical×2 + borderTopWidth
     sectionSubtotalLabelFontSizePt: 9, // styles.sectionSubtotalLabel/Value.fontSize
     totalsContainerMarginTopPt: 20, // styles.totalsContainer.marginTop
-    totalsRowHeightPt: 4 * 2, // styles.totalsRow.paddingVertical×2
-    grandTotalHeightPt: 8 * 2 + 2, // styles.grandTotalRow.paddingVertical×2 + borderTopWidth
+    totalsRowHeightPt: 4 * 2 + 0.5, // styles.totalsRow.paddingVertical×2 + borderBottomWidth
+    grandTotalHeightPt: 8 * 2 + 2 + 4, // styles.grandTotalRow.paddingVertical×2 + borderTopWidth + marginTop
+    depositRowFirstBonusPt: 0, // Classic's deposit row carries no extra margin (unlike Modern)
     termsTitleFontSizePt: 11, // styles.termsTitle.fontSize
     termsTitleSpacingContributionPt: 6 + 4 + 1, // styles.termsTitle.marginBottom + paddingBottom + borderBottomWidth
     termsCardFirstBonusPt: 24, // removed styles.termsSection.marginTop, now PdfTermsSection topMarginPt
@@ -243,8 +260,9 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     sectionSubtotalPaddingContributionPt: 8 * 2 + 0.5, // paddingVertical×2 + borderTopWidth
     sectionSubtotalLabelFontSizePt: 9, // styles.sectionSubtotalLabel/Value.fontSize
     totalsContainerMarginTopPt: 28, // styles.totalsContainer.marginTop
-    totalsRowHeightPt: 6 * 2, // styles.totalsRow.paddingVertical×2
-    grandTotalHeightPt: 16 + 9 + 30, // grandTotalBlock.marginTop + grandTotalLabel.fontSize + grandTotalValue.fontSize
+    totalsRowHeightPt: 6 * 2 + 0.5, // styles.totalsRow.paddingVertical×2 + borderBottomWidth
+    grandTotalHeightPt: 16 + 4 + 9 + 30, // grandTotalBlock.marginTop + grandTotalLabel.marginBottom + grandTotalLabel.fontSize + grandTotalValue.fontSize
+    depositRowFirstBonusPt: 16, // pdf-totals-block.tsx Modern-only: {...styles.totalsRow, marginTop: 16} on the FIRST deposit row
     termsTitleFontSizePt: 10.5, // styles.termsTitle.fontSize
     termsTitleSpacingContributionPt: 7 + 5 + 0.5, // marginBottom + paddingBottom + borderBottomWidth
     termsCardFirstBonusPt: 32, // removed styles.termsSection.marginTop, now PdfTermsSection topMarginPt
@@ -398,7 +416,10 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
     kind: 'totals',
     id: 'totals',
     baseHeightPt:
-      lit.totalsContainerMarginTopPt + lit.totalsRowHeightPt * totalsRowCount + lit.grandTotalHeightPt,
+      lit.totalsContainerMarginTopPt +
+      lit.totalsRowHeightPt * totalsRowCount +
+      lit.grandTotalHeightPt +
+      (dep.showDeposit ? lit.depositRowFirstBonusPt : 0),
     atomic: true,
   })
 

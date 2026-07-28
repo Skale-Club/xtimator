@@ -4,13 +4,13 @@
 // computed PER RENDER from the exact live layout
 // components/pdf/shared/pdf-header.tsx renders: a flex ROW with a LEFT
 // column (company name always; ONE contact line joined by "  |  " only if
-// any of phone/email/website is present; ONE address line only if
-// formatAddress() is truthy) and a RIGHT column (langBadge always; +logo
-// ONLY if logo_url is set, stacked below the badge with its own gap). A
-// react-pdf flex row's rendered height is max(leftColumnHeight,
-// rightColumnHeight) — NEVER the sum of both columns (Plan-checker warning
-// 8) — so NO `headerLeft.gap` term is added here (the prior draft
-// incorrectly summed it in).
+// any of phone/email/website is present; an ADDRESS block — 1 or 2 lines,
+// see measureHeaderHeightPt's inline comment — only if formatAddress() is
+// truthy) and a RIGHT column (langBadge always; +logo ONLY if logo_url is
+// set, stacked below the badge with its own gap). A react-pdf flex row's
+// rendered height is max(leftColumnHeight, rightColumnHeight) — NEVER the
+// sum of both columns (Plan-checker warning 8) — so NO `headerLeft.gap`
+// term is added here (the prior draft incorrectly summed it in).
 //
 // Consumed by lib/pdf/render-estimate-pdf.ts to derive
 // PageConstraints.contentHeightPt (the header repeats via `fixed` on every
@@ -86,14 +86,26 @@ export function measureHeaderHeightPt(company: PdfHeaderCompany, templateId: Est
   const layout = HEADER_LAYOUT[templateId]
   const prose = ESTIMATE_PAGE_GEOMETRY[templateId].proseLineHeightMultiplier
 
+  // Phase 185 pre-flight verification finding (2026-07-28, GAP 1): the
+  // contact line is genuinely single-line by construction — phone/email/
+  // website are joined with the literal separator "  |  " (no embedded
+  // newline), see pdf-header.tsx's companyContact Text. The ADDRESS line is
+  // NOT: lib/estimate/document/format.ts:30's formatAddress() joins the
+  // street part and the city/state/zip part with '\n' when BOTH exist, and
+  // pdf-header.tsx renders the whole (possibly 2-line) string in ONE <Text>
+  // — so charging it as a flat single line under-measured the header by
+  // exactly one prose line (13.5pt Classic / 14.4pt Modern) for any company
+  // with a full US street + city/state/zip address. Derive the real line
+  // count from the actual formatted string instead of assuming 1.
   const hasContactLine = !!(company.phone || company.email || company.website)
-  const hasAddressLine = !!formatAddress(company)
+  const addressText = formatAddress(company)
+  const addressLines = addressText ? addressText.split('\n').length : 0
 
   const leftColumnHeightPt =
     layout.companyNameFontSizePt * LINE_HEIGHT[layout.companyNameFontFamilyBold] +
     layout.companyNameMarginBottomPt +
     (hasContactLine ? layout.contactFontSizePt * prose : 0) +
-    (hasAddressLine ? layout.contactFontSizePt * prose : 0)
+    addressLines * layout.contactFontSizePt * prose
 
   const rightColumnHeightPt =
     layout.langBadgeFontSizePt * prose + (company.logo_url ? layout.headerRightGapPt + layout.logoHeightPt : 0)
@@ -127,29 +139,46 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
 }
 
 /**
- * Phase 184 Plan 05 (PGBRK-01/03/04, Task 3 finding) — an ADDITIONAL flat
- * per-page pt reserve, empirically calibrated against the REAL
- * `@react-pdf/renderer` (Yoga layout + `@react-pdf/pdfkit`) rendering
- * pipeline — distinct from `SAFETY_MARGIN_LINES` (Plan 184-01), which was
- * derived from a Chromium-DOM-vs-fontkit spike for the FUTURE web preview
- * (Phase 185), not from this PDF renderer's own layout engine.
+ * Phase 184 Plan 05 (PGBRK-01/03/04) — an ADDITIONAL flat per-page pt
+ * reserve, empirically calibrated against the REAL `@react-pdf/renderer`
+ * (Yoga layout + `@react-pdf/pdfkit`) rendering pipeline — distinct from
+ * `SAFETY_MARGIN_LINES` (Plan 184-01), which was derived from a
+ * Chromium-DOM-vs-fontkit spike for the FUTURE web preview (Phase 185), not
+ * from this PDF renderer's own layout engine.
  *
  * Root cause: `blocksFromModel()`'s per-block height formulas (Plan 184-03)
  * are simple additive box-model sums (padding + border + measured text);
  * per-line text measurement itself was verified byte-identical against
  * `@react-pdf/pdfkit`'s own `heightOfString()` (zero drift, multiple
- * fixtures/fonts/widths). The residual drift instead comes from the
- * cumulative effect, across MANY blocks/lines on the same page, of small
- * layout differences between that additive model and Yoga's real flexbox
- * layout (e.g. sub-pixel rounding, border/box-sizing edge effects) — it
- * scales with block/line count on a page, not with any single block.
+ * fixtures/fonts/widths — Task 3's own diagnostic). Two concrete formula
+ * bugs were found and fixed in `blocks-from-model.ts` during the Phase 185
+ * pre-flight verification pass (2026-07-28, GAP 1b): `totalsRowHeightPt` and
+ * `grandTotalHeightPt` both omitted real border/margin StyleSheet terms, and
+ * Modern's first-deposit-row `marginTop: 16` (`pdf-totals-block.tsx`) was
+ * uncharged entirely — see `blocks-from-model.ts`'s `TemplateLiterals`
+ * comments for the exact corrections. The REMAINING residual is not
+ * attributable to any single further formula bug: isolated fixture testing
+ * showed a summary block and a deposit-bearing totals block each
+ * independently fit their own page's budget, but COMBINED land almost
+ * exactly on a page-capacity boundary — an inherent consequence of additive
+ * height estimation vs. Yoga's real flexbox layout at a discrete page-break
+ * threshold, which per-field accuracy fixes alone cannot fully eliminate
+ * (there will always exist SOME content combination near the boundary).
  *
- * Empirically determined (Task 3's own diagnostic sweep, not committed):
- * comparing `computePageBreaks()`'s page count against the REAL generated
- * PDF's `/Type /Page` object count across a single-section 1..60-item
- * sweep, a 4-section/40-item fixture, and the content-rich `buildFixtureEstimate`
- * fixture (summary + 2 terms cards + discount/tax/deposit) — for BOTH
- * templates — showed zero mismatches at +80pt; +100pt is used for headroom
- * against real-world content this exact sweep didn't cover.
+ * Calibrated via `scripts/pagination-render-calibration.ts`, run AFTER the
+ * GAP-1 header-address-line-count fix (`measureHeaderHeightPt`) and the
+ * GAP-1b totals-formula fixes above (2026-07-28): comparing
+ * `computePageBreaks()`'s page count against the REAL generated PDF's
+ * `/Type /Page` object count across a single-section 1..60-item sweep, a
+ * 4-section/40-item multi-page fixture, the content-rich baseline fixture
+ * (summary + 2 terms cards + discount/tax/deposit), and an isolated
+ * "summary + deposit only" worst-case-boundary fixture — for BOTH
+ * templates — the smallest zero-mismatch value was **78pt** (76pt still had
+ * 1 mismatch: Classic's "summary + deposit only" fixture, engine=1
+ * page/real=2 pages). **90pt** is used here (78pt + 12pt buffer) for
+ * headroom against real-world content this exact sweep didn't cover. Re-run
+ * that script and update this comment + the constant if
+ * `blocks-from-model.ts` / `measure-header-height.ts` / either template's
+ * StyleSheet ever changes.
  */
-export const PDF_RENDER_SAFETY_MARGIN_PT = 100
+export const PDF_RENDER_SAFETY_MARGIN_PT = 90

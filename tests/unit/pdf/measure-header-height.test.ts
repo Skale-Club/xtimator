@@ -64,6 +64,20 @@ function shortLeftWithLogo(name = 'Acme'): PdfHeaderCompany {
   return { name, ...NO_CONTACT, logo_url: 'https://acme.test/logo.png' }
 }
 
+// GAP 1 regression fixture (Phase 185 pre-flight verification, 2026-07-28):
+// a full US street + city/state/zip address. lib/estimate/document/format.ts's
+// formatAddress() joins these with '\n', rendered in ONE <Text> — this is a
+// genuine 2-LINE address block, not 1.
+function tallLeftNoLogoTwoLineAddress(name = 'Acme'): PdfHeaderCompany {
+  return tallLeftNoLogo(name)
+}
+
+// A company with ONLY a zip (no street, no city/state) — formatAddress()
+// still returns a truthy, single-line string here (no '\n' to join against).
+function nameOnlyZipOnlyAddress(name = 'Acme'): PdfHeaderCompany {
+  return { name, phone: null, email: null, website: null, address: null, city: null, state: null, zip: '78701', logo_url: null }
+}
+
 describe('measureHeaderHeightPt (PGBRK-01/03/04, corrected max(left,right) formula)', () => {
   it('name-only header is strictly shorter than a full header (contact + address + logo), classic', () => {
     const short = measureHeaderHeightPt(nameOnly(), 'classic')
@@ -77,16 +91,31 @@ describe('measureHeaderHeightPt (PGBRK-01/03/04, corrected max(left,right) formu
     expect(short).toBeLessThan(full)
   })
 
-  it('classic: tall-left/no-logo header height is driven by the LEFT column (hand-computed)', () => {
+  it('classic: tall-left/no-logo header height is driven by the LEFT column (hand-computed, 2-line address)', () => {
+    // GAP 1 fix: formatAddress() joins the street line + city/state/zip line
+    // with '\n' (lib/estimate/document/format.ts:30) when BOTH exist, and
+    // pdf-header.tsx renders the whole string in ONE <Text> — 2 lines here,
+    // not 1.
     // left  = companyName(18 * LINE_HEIGHT['Inter-Bold']=1.21) + marginBottom(4)
-    //         + contact(9 * prose=1.5) + address(9 * 1.5)
-    //       = 21.78 + 4 + 13.5 + 13.5 = 52.78
+    //         + contact(9 * prose=1.5) + address(2 lines * 9 * 1.5)
+    //       = 21.78 + 4 + 13.5 + 27 = 66.28
     // right = langBadge(9 * 1.5) = 13.5   (no logo)
-    // headerRow = max(52.78, 13.5) = 52.78
+    // headerRow = max(66.28, 13.5) = 66.28
     // chrome = paddingBottom(16) + marginBottom(24) + borderBottomWidth(2) = 42
-    // total = 94.78
-    const height = measureHeaderHeightPt(tallLeftNoLogo(), 'classic')
-    expect(height).toBeCloseTo(94.78, 5)
+    // total = 108.28
+    const height = measureHeaderHeightPt(tallLeftNoLogoTwoLineAddress(), 'classic')
+    expect(height).toBeCloseTo(108.28, 5)
+  })
+
+  it('classic: an address with only a zip (no street/city/state — no embedded newline) charges exactly 1 address line', () => {
+    // left  = companyName(18 * 1.21) + marginBottom(4) + address(1 line * 9 * 1.5)
+    //       = 21.78 + 4 + 13.5 = 39.28
+    // right = langBadge(9 * 1.5) = 13.5   (no logo, no contact line)
+    // headerRow = max(39.28, 13.5) = 39.28
+    // chrome = 42
+    // total = 81.28
+    const height = measureHeaderHeightPt(nameOnlyZipOnlyAddress(), 'classic')
+    expect(height).toBeCloseTo(81.28, 5)
   })
 
   it('classic: short-left/with-logo header height is driven by the RIGHT column (hand-computed)', () => {
@@ -99,16 +128,17 @@ describe('measureHeaderHeightPt (PGBRK-01/03/04, corrected max(left,right) formu
     expect(height).toBeCloseTo(133.5, 5)
   })
 
-  it('modern: tall-left/no-logo header height is driven by the LEFT column (hand-computed)', () => {
+  it('modern: tall-left/no-logo header height is driven by the LEFT column (hand-computed, 2-line address)', () => {
+    // GAP 1 fix — see the classic case's comment above for the root cause.
     // left  = companyName(15 * LINE_HEIGHT['Lora-Bold']=1.28) + marginBottom(5)
-    //         + contact(9 * prose=1.6) + address(9 * 1.6)
-    //       = 19.2 + 5 + 14.4 + 14.4 = 53
+    //         + contact(9 * prose=1.6) + address(2 lines * 9 * 1.6)
+    //       = 19.2 + 5 + 14.4 + 28.8 = 67.4
     // right = langBadge(8.5 * 1.6=13.6) = 13.6   (no logo)
-    // headerRow = max(53, 13.6) = 53
+    // headerRow = max(67.4, 13.6) = 67.4
     // chrome = paddingBottom(20) + marginBottom(32) + borderBottomWidth(0.75) = 52.75
-    // total = 105.75
-    const height = measureHeaderHeightPt(tallLeftNoLogo(), 'modern')
-    expect(height).toBeCloseTo(105.75, 5)
+    // total = 120.15
+    const height = measureHeaderHeightPt(tallLeftNoLogoTwoLineAddress(), 'modern')
+    expect(height).toBeCloseTo(120.15, 5)
   })
 
   it('modern: short-left/with-logo header height is driven by the RIGHT column (hand-computed)', () => {
