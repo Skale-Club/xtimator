@@ -315,9 +315,16 @@ export function PaginatedDocumentOverlay({
                   {continuesTable && (
                     <div
                       data-testid="continuation-header"
-                      className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none"
+                      className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none flex items-center px-4"
                       style={{ height: continuationHeaderPx }}
-                    />
+                    >
+                      {/* Mirrors PdfTableHeaderOnly's repeated column labels (40/12/13/17/18%) */}
+                      <span className="font-medium" style={{ width: '40%' }}>{L.description}</span>
+                      <span className="font-medium text-right" style={{ width: '12%' }}>{L.qty}</span>
+                      <span className="font-medium text-right" style={{ width: '13%' }}>{L.unit}</span>
+                      <span className="font-medium text-right" style={{ width: '17%' }}>{L.unitPrice}</span>
+                      <span className="font-medium text-right" style={{ width: '18%' }}>{L.total}</span>
+                    </div>
                   )}
                 </div>
                 <p

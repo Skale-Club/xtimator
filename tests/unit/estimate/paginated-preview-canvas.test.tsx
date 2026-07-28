@@ -70,6 +70,11 @@ describe('PaginatedDocumentOverlay — structure/chrome/fail-soft (jsdom-provabl
     // Confirms it sits inside page index 1's own sheet, not any other page's.
     const sheetForPage1 = container.querySelector('[data-page-sheet="1"]')
     expect(sheetForPage1?.querySelector('[data-testid="continuation-header"]')).toBeTruthy()
+    // Mirrors the PDF's PdfTableHeaderOnly: real column labels, not a blank band.
+    expect(headers[0].textContent).toContain('Description')
+    expect(headers[0].textContent).toContain('Qty')
+    expect(headers[0].textContent).toContain('Unit Price')
+    expect(headers[0].textContent).toContain('Total')
   })
 
   it('never sets overflow: hidden anywhere in the decoration layer', () => {
