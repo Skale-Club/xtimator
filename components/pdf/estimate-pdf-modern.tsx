@@ -22,141 +22,17 @@ import {
 // ---------------------------------------------------------------------------
 // 260705-8u0-02: "Modern" editorial PDF template.
 // Same data/props/helpers as EstimatePDF (Classic) — only StyleSheet/JSX differ.
-// Serif (Times-Roman/Times-Bold built-in fonts), thin rule dividers, brand color
+// Serif (ESTIMATE_DESIGN_TOKENS.modern built-in fonts), thin rule dividers, brand color
 // as accent-only (never a fill), large standalone hero total, more whitespace.
 // @react-pdf/renderer runs server-side with no React context — plain lookups.
 // Labels mirror lib/whatsapp/formatter.ts LABELS map (Phase 52).
+// Phase 182 (ENGINE-01): labels/LANG_INDICATOR now sourced from the shared
+// document engine module — see lib/estimate/document/labels.ts.
 // ---------------------------------------------------------------------------
 
-interface PdfLabels {
-  estimate: string
-  project: string
-  billTo: string
-  summary: string
-  description: string
-  qty: string
-  unit: string
-  unitPrice: string
-  total: string
-  sectionSubtotal: string
-  subtotal: string
-  discount: string
-  tax: string
-  grandTotal: string
-  deposit: string
-  balanceDue: string
-  paymentTerms: string
-  timeline: string
-  warranty: string
-  notes: string
-  page: string
-  of: string
-  date: string
-  estimateNum: string
-  preparedBy: string
-  photos: string
-}
-
-const PDF_LABELS: Record<EstimateLanguage, PdfLabels> = {
-  en: {
-    estimate: 'ESTIMATE',
-    project: 'Project',
-    billTo: 'Bill To',
-    summary: 'Summary',
-    description: 'Description',
-    qty: 'Qty',
-    unit: 'Unit',
-    unitPrice: 'Unit Price',
-    total: 'Total',
-    sectionSubtotal: 'Section Subtotal',
-    subtotal: 'Subtotal',
-    discount: 'Discount',
-    tax: 'Tax',
-    grandTotal: 'Total',
-    deposit: 'Deposit',
-    balanceDue: 'Balance Due',
-    paymentTerms: 'Payment Terms',
-    timeline: 'Timeline',
-    warranty: 'Warranty',
-    notes: 'Notes',
-    page: 'Page',
-    of: 'of',
-    date: 'Date',
-    estimateNum: 'Estimate #',
-    preparedBy: 'Prepared by',
-    photos: 'Photos',
-  },
-  pt: {
-    estimate: 'ORÇAMENTO',
-    project: 'Projeto',
-    billTo: 'Faturar Para',
-    summary: 'Resumo',
-    description: 'Descrição',
-    qty: 'Qtd',
-    unit: 'Unidade',
-    unitPrice: 'Preço Unitário',
-    total: 'Total',
-    sectionSubtotal: 'Subtotal da Seção',
-    subtotal: 'Subtotal',
-    discount: 'Desconto',
-    tax: 'Imposto',
-    grandTotal: 'Total',
-    deposit: 'Entrada',
-    balanceDue: 'Saldo Devedor',
-    paymentTerms: 'Condições de Pagamento',
-    timeline: 'Prazo',
-    warranty: 'Garantia',
-    notes: 'Observações',
-    page: 'Página',
-    of: 'de',
-    date: 'Data',
-    estimateNum: 'Orçamento Nº',
-    preparedBy: 'Preparado por',
-    photos: 'Fotos',
-  },
-  es: {
-    estimate: 'PRESUPUESTO',
-    project: 'Proyecto',
-    billTo: 'Facturar A',
-    summary: 'Resumen',
-    description: 'Descripción',
-    qty: 'Cant',
-    unit: 'Unidad',
-    unitPrice: 'Precio Unitario',
-    total: 'Total',
-    sectionSubtotal: 'Subtotal de Sección',
-    subtotal: 'Subtotal',
-    discount: 'Descuento',
-    tax: 'Impuesto',
-    grandTotal: 'Total',
-    deposit: 'Depósito',
-    balanceDue: 'Saldo Pendiente',
-    paymentTerms: 'Términos de Pago',
-    timeline: 'Plazo',
-    warranty: 'Garantía',
-    notes: 'Notas',
-    page: 'Página',
-    of: 'de',
-    date: 'Fecha',
-    estimateNum: 'Presupuesto Nº',
-    preparedBy: 'Preparado por',
-    photos: 'Fotos',
-  },
-}
-
-const DATE_LOCALE: Record<EstimateLanguage, string> = {
-  en: 'en-US',
-  pt: 'pt-BR',
-  es: 'es-MX',
-}
-
-// Text-based language indicator for PDF header.
-// @react-pdf/renderer does not support SVG flags — plain text chip is used instead.
-const LANG_INDICATOR: Record<EstimateLanguage, string> = {
-  en: 'EN',
-  pt: 'PT',
-  es: 'ES',
-}
+import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
+import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
 
 interface CompanyInfo {
   name: string
@@ -198,37 +74,9 @@ export interface EstimatePDFProps {
   attachedPhotos?: { url: string; caption: string | null }[]
 }
 
-function formatAddress(obj: {
-  address: string | null
-  city: string | null
-  state: string | null
-  zip: string | null
-}): string | null {
-  const parts: string[] = []
-  if (obj.address) parts.push(obj.address)
-  const cityStateZip = [obj.city, obj.state].filter(Boolean).join(', ')
-  if (cityStateZip && obj.zip) {
-    parts.push(`${cityStateZip} ${obj.zip}`)
-  } else if (cityStateZip) {
-    parts.push(cityStateZip)
-  } else if (obj.zip) {
-    parts.push(obj.zip)
-  }
-  return parts.length > 0 ? parts.join('\n') : null
-}
-
-function formatDate(dateStr: string, locale = 'en-US'): string {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString(locale, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Times-Roman',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
     fontSize: 10,
     paddingTop: 52,
     paddingBottom: 68,
@@ -261,7 +109,7 @@ const styles = StyleSheet.create({
   },
   companyName: {
     fontSize: 15,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     marginBottom: 5,
     color: '#1f2937',
   },
@@ -285,7 +133,7 @@ const styles = StyleSheet.create({
   // underneath, instead of Classic's large centered bold headline.
   estimateTitle: {
     fontSize: 13,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     letterSpacing: 2,
     marginBottom: 6,
     textAlign: 'left',
@@ -306,7 +154,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 8,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
@@ -326,7 +174,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 11,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     color: '#1f2937',
     letterSpacing: 0.5,
   },
@@ -353,14 +201,14 @@ const styles = StyleSheet.create({
   colTotal: { width: '18%', textAlign: 'right' },
   tableHeaderText: {
     fontSize: 8.5,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   tableCellText: {
     fontSize: 9.5,
-    fontFamily: 'Times-Roman',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
   },
   // Section subtotal
   sectionSubtotal: {
@@ -373,13 +221,13 @@ const styles = StyleSheet.create({
   },
   sectionSubtotalLabel: {
     fontSize: 9,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     color: '#6b7280',
     marginRight: 12,
   },
   sectionSubtotalValue: {
     fontSize: 9,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     width: '18%',
     textAlign: 'right',
   },
@@ -401,12 +249,12 @@ const styles = StyleSheet.create({
   totalsLabel: {
     fontSize: 10,
     color: '#6b7280',
-    fontFamily: 'Times-Roman',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
   },
   totalsValue: {
     fontSize: 10,
     textAlign: 'right',
-    fontFamily: 'Times-Roman',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
   },
   // Hero total — large standalone block, own margin, no border-top table row.
   grandTotalBlock: {
@@ -415,7 +263,7 @@ const styles = StyleSheet.create({
   },
   grandTotalLabel: {
     fontSize: 9,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     color: '#9ca3af',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
@@ -423,7 +271,7 @@ const styles = StyleSheet.create({
   },
   grandTotalValue: {
     fontSize: 30,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     textAlign: 'right',
   },
   // Terms
@@ -432,7 +280,7 @@ const styles = StyleSheet.create({
   },
   termsTitle: {
     fontSize: 10.5,
-    fontFamily: 'Times-Bold',
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     marginBottom: 7,
     paddingBottom: 5,
     borderBottomWidth: 0.5,
@@ -493,12 +341,11 @@ export default function EstimatePDFModern({
   const companyAddress = formatAddress(company)
   const clientAddress = client ? formatAddress(client) : null
   const L = PDF_LABELS[language] ?? PDF_LABELS.en
-  const dateLocale = DATE_LOCALE[language] ?? 'en-US'
   const fmt = (v: number) => formatMoney(v, estimate.currency_code)
   // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
   // never recompute). showDeposit is false for legacy / deposit_type 'none' rows.
   const dep = deriveDepositDisplay(estimate)
-  const fmtDate = (s: string) => formatDate(s, dateLocale)
+  const fmtDate = (s: string) => formatDate(s, language)
   const langLabel = LANG_INDICATOR[language] ?? 'EN'
 
   return (
@@ -602,7 +449,7 @@ export default function EstimatePDFModern({
             <View style={styles.infoBlock}>
               <Text style={styles.infoLabel}>{L.billTo}</Text>
               <Text
-                style={[styles.infoValue, { fontFamily: 'Times-Bold' }]}
+                style={[styles.infoValue, { fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold }]}
               >
                 {client.name}
               </Text>
