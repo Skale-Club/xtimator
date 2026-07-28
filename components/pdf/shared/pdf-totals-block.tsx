@@ -18,6 +18,11 @@
 //
 // NOTE on invocation style: see pdf-header.tsx's top comment — both templates
 // call this as a PLAIN FUNCTION (`{PdfTotalsBlock({...})}`), not JSX.
+//
+// Phase 184 Plan 04 (PGBRK-02) — outer totalsContainer is now explicitly
+// `wrap={false}` in BOTH branches, closing a real pre-existing atomicity gap
+// (previously relied on default Yoga wrap, which is NOT the same as an
+// atomic block per the locked break rule: "totals block atomic").
 
 import { View, Text } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
@@ -91,7 +96,7 @@ export function PdfTotalsBlock({
 
   if (variant === 'classic') {
     return (
-      <View style={styles.totalsContainer}>
+      <View style={styles.totalsContainer} wrap={false}>
         <View style={styles.totalsBlock}>
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>{L.subtotal}</Text>
@@ -132,7 +137,7 @@ export function PdfTotalsBlock({
 
   // variant === 'modern'
   return (
-    <View style={styles.totalsContainer}>
+    <View style={styles.totalsContainer} wrap={false}>
       <View style={styles.totalsBlock}>
         <View style={styles.totalsRow}>
           <Text style={styles.totalsLabel}>{L.subtotal}</Text>

@@ -281,10 +281,10 @@ const styles = StyleSheet.create({
     fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
     textAlign: 'right',
   },
-  // Terms
-  termsSection: {
-    marginTop: 24,
-  },
+  // Terms — marginTop moved to PdfTermsSection's topMarginPt prop (Phase 184
+  // Plan 04, PGBRK-02): the container itself is no longer atomic/margined,
+  // spacing now lands on whichever card is emitted first.
+  termsSection: {},
   termsTitle: {
     fontSize: 11,
     fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
@@ -509,6 +509,7 @@ export default function EstimatePDF({
           resolvedSettings,
           L,
           brandText,
+          topMarginPt: 24,
           styles: {
             termsSection: styles.termsSection,
             termsTitle: styles.termsTitle,
@@ -536,6 +537,8 @@ export default function EstimatePDF({
             photos: attachedPhotos,
             L,
             topMargin: 16,
+            contentWidthPt: ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt,
+            showLabel: true,
             styles: { termsTitle: styles.termsTitle },
           })}
 
