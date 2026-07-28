@@ -76,7 +76,7 @@
 |-------------|-------|--------|
 | ENGINE-01 | Phase 182 | Complete |
 | ENGINE-02 | Phase 182 | Complete |
-| ENGINE-03 | Phase 182 | Complete |
+| ENGINE-03 | Phase 182 + 183 | Partial (182: per-template token layer; structural de-dup of the PDF template pair completes in Phase 183 with PDFPAR-01) |
 | PDFPAR-04 | Phase 182 | Complete |
 | PDFPAR-01 | Phase 183 | Pending |
 | PDFPAR-02 | Phase 183 | Pending |
