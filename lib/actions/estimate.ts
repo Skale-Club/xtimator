@@ -19,6 +19,41 @@ import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { assertWritable } from '@/lib/demo/guard'
 
 // ---------------------------------------------------------------------------
+// Discount-type domain mapping (quick-260728-6ts)
+// ---------------------------------------------------------------------------
+//
+// The DB/editor domain has THREE co-existing spellings, not two:
+//   'percentage' | 'fixed' — written by saveEstimate itself (schema-validated
+//                            edits made via the discount-type dropdown)
+//   'amount'               — written directly by the AI-generation insert
+//                            (lib/services/generate-estimate.ts:554); the
+//                            reducer passes this through UNNORMALIZED
+//                            whenever the owner saves an AI-generated
+//                            estimate without touching the discount-type
+//                            dropdown first
+//   'percent'              — the totals engine's OWN internal spelling
+//                            (lib/estimate/compute-totals.ts), included
+//                            defensively in case it ever leaks back into
+//                            this domain
+//
+// Previously this mapping only recognized 'percentage'/'fixed' and fell
+// through to 'none' for anything else — so an AI-generated estimate's
+// discount was silently DROPPED (recomputed as if no discount existed)
+// the first time saveEstimate or recalculateEstimateTotals ran on it.
+// Both call sites now share this ONE helper so the fix can't drift back
+// out of sync between them. GUARD-03: this only resolves which spelling
+// maps to which engine-domain value — computeEstimateTotals
+// (lib/estimate/compute-totals.ts) remains the untouched, single source
+// of truth for the actual math.
+function mapDiscountTypeToEngine(
+  discountType: string | null | undefined
+): 'percent' | 'amount' | 'none' {
+  if (discountType === 'percentage' || discountType === 'percent') return 'percent'
+  if (discountType === 'fixed' || discountType === 'amount') return 'amount'
+  return 'none'
+}
+
+// ---------------------------------------------------------------------------
 // Auth helper (same pattern as recording.ts)
 // ---------------------------------------------------------------------------
 
@@ -66,15 +101,10 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
   const companyId = company.id as string
 
   // GUARD-03: recompute ALL math server-side via the SHARED engine (never trust client).
-  // Map the editor/DB discount_type ('percentage'|'fixed') to the engine domain
-  // ('percent'|'amount'|'none'). Leave taxConfig undefined → flat retrocompat branch
-  // (the editor does not surface per-category tax config this phase).
-  const engineDiscountType: 'percent' | 'amount' | 'none' =
-    estimateData.discount_type === 'percentage'
-      ? 'percent'
-      : estimateData.discount_type === 'fixed'
-        ? 'amount'
-        : 'none'
+  // Map the editor/DB discount_type to the engine domain ('percent'|'amount'|'none')
+  // via the shared mapDiscountTypeToEngine() helper. Leave taxConfig undefined → flat
+  // retrocompat branch (the editor does not surface per-category tax config this phase).
+  const engineDiscountType = mapDiscountTypeToEngine(estimateData.discount_type)
 
   // Company per-category tax rule (e.g. labor-exempt), same as generate-estimate.ts:
   // a malformed value degrades to null (flat-rate retrocompat) rather than throwing.
@@ -627,14 +657,9 @@ async function recalculateEstimateTotals(
     )
     .eq('estimate_id', estimateId)
 
-  // Editor/DB domain ('percentage'|'fixed') → engine domain ('percent'|'amount'|'none'),
-  // same mapping as saveEstimate.
-  const engineDiscountType: 'percent' | 'amount' | 'none' =
-    estimate.discount_type === 'percentage'
-      ? 'percent'
-      : estimate.discount_type === 'fixed'
-        ? 'amount'
-        : 'none'
+  // Editor/DB domain → engine domain ('percent'|'amount'|'none'), same shared
+  // mapping helper as saveEstimate.
+  const engineDiscountType = mapDiscountTypeToEngine(estimate.discount_type as string | null)
 
   const taxConfig =
     company?.tax_config != null ? (company.tax_config as TaxConfig) : null

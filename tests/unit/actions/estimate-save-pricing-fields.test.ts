@@ -244,4 +244,26 @@ describe('PUI-01: saveEstimate widened contract (persisted via save_estimate_ato
       'temp-item-1': 'item_real_1',
     })
   })
+
+  it("Case F (quick-260728-6ts new) — an AI-generated estimate's 'amount'-typed discount_type survives the first save unnormalized", async () => {
+    const { saveEstimate } = await import('@/lib/actions/estimate')
+
+    // Mirrors generate-estimate.ts:554's raw write exactly, never touched via
+    // the discount-type dropdown before this save.
+    const input = baseInput({
+      estimate: { discount_type: 'amount', discount_value: 100 },
+    })
+
+    const result = await saveEstimate(input as never)
+    expect(result).not.toHaveProperty('error')
+
+    // subtotal 1000, discount 100 → taxable base 900, tax 900 × 0.0875 = 78.75,
+    // total (1000 - 100) + 78.75 = 978.75.
+    expect(lastRpcArgs).not.toBeNull()
+    expect(lastRpcArgs!.p_header.discount_amount).toBe(100)
+    expect(lastRpcArgs!.p_header.tax_amount).toBe(78.75)
+    expect(lastRpcArgs!.p_header.total).toBe(978.75)
+    // Persisted byte-identically, no lossy translation to 'fixed'.
+    expect(lastRpcArgs!.p_header.discount_type).toBe('amount')
+  })
 })
