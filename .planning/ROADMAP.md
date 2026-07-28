@@ -3020,7 +3020,7 @@ Plans:
 - [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
  (completed 2026-07-28)
 - [x] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired (completed 2026-07-28)
-- [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
+- [x] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine (completed 2026-07-28)
 
 ### Phase Details
 
@@ -3123,7 +3123,7 @@ Plans:
 
 Plans:
 - [x] 186-01-PLAN.md — Classic typography hierarchy, table zebra-contrast, and grand-total emphasis (webview-only)
-- [ ] 186-02-PLAN.md — Terms/signature/photo/mobile-list card polish + Classic PDF token propagation + milestone close-out
+- [x] 186-02-PLAN.md — Terms/signature/photo/mobile-list card polish + Classic PDF token propagation + milestone close-out
 **UI hint**: yes
 
 ### v4.23 Progress
@@ -3134,5 +3134,5 @@ Plans:
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
 | 184. Consolidated Pagination Engine | 5/5 | Complete    | 2026-07-28 |
 | 185. Paginated Editable Editor Mode | 4/4 | Complete    | 2026-07-28 |
-| 186. Webview Design Polish | 1/2 | In Progress|  |
+| 186. Webview Design Polish | 2/2 | Complete   | 2026-07-28 |
 
