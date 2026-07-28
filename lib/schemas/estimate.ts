@@ -22,7 +22,17 @@ const MAX_ITEMS_PER_SECTION = 200
 
 // DB/editor domain (see use-estimate-reducer.ts) — NOT the engine's internal
 // 'percent'|'amount'|'none' domain; saveEstimate maps between the two.
-const discountTypeSchema = z.enum(['percentage', 'fixed']).nullable()
+// Widened (quick-260728-6ts) beyond the editor's own 'percentage'/'fixed'
+// spellings: the reducer (use-estimate-reducer.ts:53,318) passes the raw DB
+// discount_type value straight into editor state with NO runtime
+// normalization (the `as 'percentage'|'fixed'|null` cast at line 132 is
+// compile-time only), so a client save payload can legitimately carry
+// 'amount' (written directly by generate-estimate.ts:554 for every
+// AI-generated estimate with a discount) or, defensively, 'percent' (the
+// totals engine's own internal spelling, in case it ever round-trips back
+// into this domain). Without this widening, safeParse() rejects the whole
+// payload for any AI-generated estimate carrying an untouched discount.
+const discountTypeSchema = z.enum(['percentage', 'fixed', 'amount', 'percent']).nullable()
 const depositTypeSchema = z.enum(['none', 'percent', 'amount']).nullable()
 const taxCategorySchema = z.enum(['labor', 'materials', 'other']).nullable()
 const priceSourceSchema = z.enum(['price_book', 'ai_estimate', 'researched']).nullable()
