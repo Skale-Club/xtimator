@@ -95,6 +95,8 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
     mockLoadSnapshot.mockResolvedValue({
       id: 'sig-1',
+      signer_name: 'Jane Signer',
+      signature_data: 'data:image/png;base64,AA==',
       signed_at: '2026-02-01T00:00:00Z',
       signed_total: 1000,
       signed_content: {
@@ -157,6 +159,8 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
     mockGetEstimate.mockResolvedValue(baseContext() as never)
     mockLoadSnapshot.mockResolvedValue({
       id: 'sig-1',
+      signer_name: 'Jane Signer',
+      signature_data: 'data:image/png;base64,AA==',
       signed_at: '2026-02-01T00:00:00Z',
       signed_total: 1000,
       signed_content: null,
