@@ -3036,7 +3036,7 @@ Plans:
 
 Plans:
 - [x] 182-01-PLAN.md — Shared document engine module (model/labels/format/tokens) + Wave-0 validation tests
-- [ ] 182-02-PLAN.md — Adopt shared module in all 4 renderers, delete duplicate label/format/geometry copies
+- [x] 182-02-PLAN.md — Adopt shared module in all 4 renderers, delete duplicate label/format/geometry copies
 - [x] 182-03-PLAN.md — Shared in-process PDF resolver (lib/pdf/render-estimate-pdf.ts) + acceptance test
 - [ ] 182-04-PLAN.md — Wire download/email/WhatsApp PDF paths to the resolver + send-hub attachPdf fix
 
@@ -3099,7 +3099,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 182. Shared Document Engine + Send-Path Fix | 2/4 | In Progress|  |
+| 182. Shared Document Engine + Send-Path Fix | 3/4 | In Progress|  |
 | 183. PDF Parity Content | 0/? | Not started | - |
 | 184. Consolidated Pagination Engine | 0/? | Not started | - |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
