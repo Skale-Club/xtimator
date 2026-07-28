@@ -173,9 +173,6 @@ function stateToSavePayload(state: EstimateEditorState, opts?: { force?: boolean
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 
-/** localStorage key for the document viewing mode (quick-260718-m2q). */
-const VIEW_MODE_KEY = 'estimate-view-mode'
-
 /** Quick-260718-w4k — US Letter height at 96dpi (11in), pairing
  *  LETTER_WIDTH_PX. Page mode scales the sheet so this full height fits
  *  the visible viewport, like a print preview. */
@@ -275,19 +272,15 @@ export function EstimateEditor({
   // lock (no separate carve-out needed).
   const [notCurrentByServer, setNotCurrentByServer] = useState(false)
 
-  // Quick-260718-m2q — document viewing mode: 'width' fills the column
-  // (default), 'page' centers the document at letter width. Initialized in an
-  // effect (not the useState initializer) so server and first client render
-  // agree — reading localStorage during render would desync hydration.
+  // Phase 185 Plan 02 (PGMODE-01/04) — document viewing mode: 'width' fills
+  // the column (default), 'page' centers the document at letter width.
+  // Session-only state — resets to 'width' on every mount (DEFER-04 defers
+  // persistence; the legacy localStorage-backed mechanism was retired this
+  // plan). Published into VersionSlot.viewMode below so the header
+  // ViewModeToggle (not this component) renders the actual toggle control.
   const [viewMode, setViewMode] = useState<EstimateViewMode>('width')
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(VIEW_MODE_KEY) === 'page') setViewMode('page')
-    } catch { /* storage unavailable (private mode) — keep default */ }
-  }, [])
   const handleViewModeChange = useCallback((mode: EstimateViewMode) => {
     setViewMode(mode)
-    try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* non-fatal */ }
   }, [])
 
   // Quick-260718-w4k — page mode fits the WHOLE letter sheet in the visible
@@ -658,9 +651,11 @@ export function EstimateEditor({
       projectName: localProjectName,
       onProjectRenamed: setLocalProjectName,
       saveStatus: slotSaveStatus,
+      viewMode,
+      onViewModeChange: handleViewModeChange,
     })
     return () => setSlot(null)
-  }, [currentVersionId, versions, state.version, state.isDirty, isContentReadOnly, setSlot, localProjectName, slotSaveStatus])
+  }, [currentVersionId, versions, state.version, state.isDirty, isContentReadOnly, setSlot, localProjectName, slotSaveStatus, viewMode, handleViewModeChange])
 
   // -------------------------------------------------------------------------
   // Render
@@ -767,8 +762,6 @@ export function EstimateEditor({
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen(true)}
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
         linkClientSlot={linkClientSlot}
         refineSlot={
           isContentReadOnly ? undefined : (

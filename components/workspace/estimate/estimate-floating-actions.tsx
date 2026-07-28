@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Send, Camera, Settings, File, StretchHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
+import { Send, Camera, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -19,11 +19,6 @@ interface EstimateFloatingActionsProps {
   /** Phase 162-04 (DOCUX-01) — opens the PresentationSettingsPanel. When
    *  omitted the gear button is not rendered (backward-compat). */
   onOpenSettings?: () => void
-  /** Current viewing mode; the toggle renders only when BOTH viewMode and
-   *  onViewModeChange are provided (backward-compat, same pattern as
-   *  onOpenSettings). The button is labeled with the mode it switches TO. */
-  viewMode?: EstimateViewMode
-  onViewModeChange?: (mode: EstimateViewMode) => void
   linkClientSlot?: ReactNode
   /** "Refine with AI" trigger (RefineEstimateDialog) — omitted on read-only versions. */
   refineSlot?: ReactNode
@@ -66,8 +61,6 @@ export function EstimateFloatingActions({
   onSend,
   onOpenPhotos,
   onOpenSettings,
-  viewMode,
-  onViewModeChange,
   linkClientSlot,
   refineSlot,
 }: EstimateFloatingActionsProps) {
@@ -107,26 +100,6 @@ export function EstimateFloatingActions({
           className="rounded-full text-foreground"
         >
           <Settings className="h-3.5 w-3.5" />
-        </Button>
-      )}
-      {viewMode && onViewModeChange && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => onViewModeChange(viewMode === 'width' ? 'page' : 'width')}
-          className="rounded-full gap-1.5 text-foreground"
-        >
-          {viewMode === 'width' ? (
-            <>
-              <File className="h-3.5 w-3.5" />
-              Full page
-            </>
-          ) : (
-            <>
-              <StretchHorizontal className="h-3.5 w-3.5" />
-              Full width
-            </>
-          )}
         </Button>
       )}
       {linkClientSlot}
