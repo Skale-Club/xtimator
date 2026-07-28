@@ -33,6 +33,7 @@ import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { usePaginatedPreview } from './use-paginated-preview'
+import { PaginatedDocumentOverlay } from './paginated-document-overlay'
 import { LETTER_HEIGHT_PX, LETTER_WIDTH_PX } from '@/lib/estimate/document/tokens'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
@@ -321,6 +322,11 @@ export function EstimateEditor({
   // clamped to the scroll container's top (<main>) so toggling mid-scroll
   // doesn't measure a negative offset. Capped at 1 (no upscaling), floored
   // at 0.45 (never unreadably small). Recomputes on window resize.
+  // Phase 185 Plan 03 (185-UI-SPEC.md §4) — widened to also gate on
+  // available WIDTH (not height-only), so the paginated canvas scales down
+  // on narrower viewports instead of clipping/scrolling horizontally.
+  // `+ 32` mirrors the canvas wrapper's own px-4 (16px) horizontal padding
+  // on each side (PaginatedDocumentOverlay).
   const pageWrapRef = useRef<HTMLDivElement | null>(null)
   const [pageZoom, setPageZoom] = useState(1)
   useEffect(() => {
@@ -333,8 +339,14 @@ export function EstimateEditor({
       if (!el) return
       const scrollerTop = el.closest('main')?.getBoundingClientRect().top ?? 0
       const sheetTop = Math.max(el.getBoundingClientRect().top, scrollerTop)
-      const avail = window.innerHeight - sheetTop - PAGE_FIT_CLEARANCE
-      setPageZoom(Math.min(1, Math.max(avail / LETTER_PAGE_HEIGHT, 0.45)))
+      const availHeight = window.innerHeight - sheetTop - PAGE_FIT_CLEARANCE
+      const availWidth = el.getBoundingClientRect().width || window.innerWidth
+      setPageZoom(
+        Math.min(
+          1,
+          Math.max(Math.min(availHeight / LETTER_PAGE_HEIGHT, availWidth / (LETTER_WIDTH_PX + 32)), 0.45)
+        )
+      )
     }
     compute()
     window.addEventListener('resize', compute)
@@ -733,41 +745,77 @@ export function EstimateEditor({
         </Alert>
       )}
 
-      {/* Quick-260718-m2q — 'page' view centers the document (and the invoice
-          surfaces below, so nothing pokes past the page edge) at US-Letter
-          width; 'width' leaves everything filling the column as before.
-          Quick-260718-w4k — zoom scales the whole page group so the full
-          letter sheet fits the visible viewport (print-preview fit). */}
+      {/* Quick-260718-m2q — 'page' view centers the document at US-Letter
+          width via PaginatedDocumentOverlay's own canvas wrapper; 'width'
+          leaves the document filling the column as before. Quick-260718-w4k
+          — zoom scales the whole page group so the full letter sheet fits
+          the visible viewport (print-preview fit). Phase 185 Plan 03
+          (185-UI-SPEC.md §2/§3) — this wrapper now contains ONLY the canvas;
+          IssuedInvoicesPanel/GenerateInvoiceDialog render as SIBLINGS below,
+          in BOTH view modes, so unrelated invoice surfaces never sit inside
+          the paginated tray. */}
       <div
         ref={pageWrapRef}
-        className={viewMode === 'page' ? 'mx-auto w-full space-y-3' : 'space-y-3'}
-        style={{
-          ...(viewMode === 'page' ? { maxWidth: `${LETTER_WIDTH_PX}px` } : {}),
-          ...(viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : {}),
-        }}
+        className={viewMode === 'page' ? 'w-full' : undefined}
+        style={viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : undefined}
       >
-      {/* WYSIWYG document surface */}
-      <EstimateDocument
-        mode="edit"
-        data={documentData}
-        company={company}
-        companyDefaults={companyDefaults}
-        brandColor={companyBrandColor ?? undefined}
-        client={client}
-        projectName={localProjectName}
-        projectType={projectType}
-        language={(estimate.language ?? 'en') as EstimateLanguage}
-        estimateVersion={state.version}
-        estimateSeq={state.estimate_seq}
-        estimateCreatedAt={estimate.created_at}
-        dispatch={dispatch}
-        isReadOnly={isContentReadOnly}
-        projectId={projectId}
-        onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
-        priceBookItems={priceBookItems}
-        onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
-        pageView={viewMode === 'page'}
-      />
+        {viewMode === 'page' ? (
+          <PaginatedDocumentOverlay
+            pages={paginatedPages}
+            company={company}
+            templateId={estimateTemplateId}
+            language={(estimate.language ?? 'en') as EstimateLanguage}
+          >
+            <EstimateDocument
+              mode="edit"
+              data={documentData}
+              company={company}
+              companyDefaults={companyDefaults}
+              brandColor={companyBrandColor ?? undefined}
+              client={client}
+              projectName={localProjectName}
+              projectType={projectType}
+              language={(estimate.language ?? 'en') as EstimateLanguage}
+              estimateVersion={state.version}
+              estimateSeq={state.estimate_seq}
+              estimateCreatedAt={estimate.created_at}
+              dispatch={dispatch}
+              isReadOnly={isContentReadOnly}
+              projectId={projectId}
+              onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
+              priceBookItems={priceBookItems}
+              onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
+              pageView
+              preparedBy={preparedBy}
+              companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+            />
+          </PaginatedDocumentOverlay>
+        ) : (
+          <EstimateDocument
+            mode="edit"
+            data={documentData}
+            company={company}
+            companyDefaults={companyDefaults}
+            brandColor={companyBrandColor ?? undefined}
+            client={client}
+            projectName={localProjectName}
+            projectType={projectType}
+            language={(estimate.language ?? 'en') as EstimateLanguage}
+            estimateVersion={state.version}
+            estimateSeq={state.estimate_seq}
+            estimateCreatedAt={estimate.created_at}
+            dispatch={dispatch}
+            isReadOnly={isContentReadOnly}
+            projectId={projectId}
+            onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
+            priceBookItems={priceBookItems}
+            onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
+            pageView={false}
+            preparedBy={preparedBy}
+            companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+          />
+        )}
+      </div>
 
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).
           PAYGATE-02: IssuedInvoicesPanel is a historical RECORD (it returns null
@@ -786,7 +834,6 @@ export function EstimateEditor({
           />
         </div>
       )}
-      </div>
 
       <EstimateFloatingActions
         isCurrent={isCurrent}

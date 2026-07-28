@@ -49,6 +49,10 @@ describe('ENGINE-02: LETTER geometry has exactly one source', () => {
     // Phase 185 Plan 01 — the new shared constraints function reads
     // LETTER_HEIGHT_PT from tokens.ts, never a bare literal.
     'lib/estimate/pagination/page-constraints.ts',
+    // Phase 185 Plan 03 — the paginated canvas overlay reads
+    // LETTER_WIDTH_PX/LETTER_HEIGHT_PX/PX_PER_PT from tokens.ts, never a bare
+    // 816/1056 literal.
+    'components/workspace/estimate/paginated-document-overlay.tsx',
   ]
   for (const path of CLEAN_SOURCES) {
     it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
