@@ -167,11 +167,8 @@ export function SendHubDialog({
       format: 'pdf',
       channel: 'download',
     })
-    // deliveryLog=true is a signal to /pdf/route.ts that this open was
-    // triggered by the hub. Wiring the route to self-log on the flag is a
-    // follow-up; today the client-side logDeliveryAction above is authoritative.
     window.open(
-      `/api/estimates/${estimate!.id}/pdf?deliveryLog=true`,
+      `/api/estimates/${estimate!.id}/pdf`,
       '_blank',
       'noopener,noreferrer',
     )
@@ -226,7 +223,7 @@ export function SendHubDialog({
           to: clientEmail,
           subject: `Your estimate from ${companyName}`,
           body: `Hi ${clientName || 'there'},\n\nYour estimate is ready. View it here: ${buildAbsoluteUrl()}\n\nThanks,\n${ownerName}`,
-          attachPdf: false,
+          attachPdf: opts.format === 'pdf',
           format: opts.format,
         }),
       })
