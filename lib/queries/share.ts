@@ -9,43 +9,9 @@ import { getEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { createStorage } from '@/lib/storage'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
-import {
-  applySignedSnapshot,
-  type SignedContentSnapshot,
-} from '@/lib/estimate/signed-snapshot'
-
-/**
- * TRUST-01: the most recent signature row's immutable content, if any.
- * `signed_content: null` covers BOTH "no signature yet" and "a legacy
- * signature predating this column" — both mean render the LIVE rows
- * unchanged (byte-identical retrocompat).
- */
-export interface LatestSignedSnapshotRow {
-  id: string
-  signed_at: string
-  signed_content: SignedContentSnapshot | null
-  signed_total: number | null
-}
-
-/**
- * Shared query used by BOTH share lookups here AND the PDF route
- * (app/api/estimates/[id]/pdf/route.ts) so the "latest signature" lookup
- * never drifts between the two client-facing render surfaces.
- */
-export async function loadLatestSignedSnapshot(
-  supabase: ReturnType<typeof requireServiceClient>,
-  estimateId: string
-): Promise<LatestSignedSnapshotRow | null> {
-  const { data } = await supabase
-    .from('estimate_signatures')
-    .select('id, signed_at, signed_content, signed_total')
-    .eq('estimate_id', estimateId)
-    .order('signed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  return (data as LatestSignedSnapshotRow | null) ?? null
-}
+import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
+import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites — PERMANENT
+export { loadLatestSignedSnapshot } // TRANSITIONAL re-export, deleted in Task 3
 
 // Internal fields never sent to the public browser payload: share_token is a
 // bearer credential the viewer already holds. attachedPhotos is also omitted
@@ -109,6 +75,11 @@ export interface ShareEstimateData {
       caption: string | null
       url: string
     }[]
+    /** PDFPAR-02 — signature-display data, threaded from loadLatestSignedSnapshot.
+     *  All 3 null together = unsigned estimate (no signature block rendered). */
+    signerName: string | null
+    signedAt: string | null
+    signatureImageDataUrl: string | null
   }
   client: {
     // Phase 162-02 (DOCUX-02) — required by the widened DocumentClient
@@ -197,6 +168,16 @@ export async function getEstimateByShareToken(
   // lib/estimate/signed-snapshot.ts's known-limitation doc comment).
   const signedSnapshotRow = await loadLatestSignedSnapshot(supabase, estimate.id)
   const signedContent = signedSnapshotRow?.signed_content ?? null
+
+  // PDFPAR-02 — signature-display data. Both columns are NOT NULL on the
+  // estimate_signatures table, so any existing row always has them; only a
+  // null row (no signature at all) yields all-null. Deliberately NOT gated
+  // on signed_content — that gate is for the TRUST-01 content overlay, a
+  // separate concern; a legacy signature (signed_content: null) still has a
+  // real signer_name/signature_data and must still show a signature block.
+  const signerName = signedSnapshotRow?.signer_name ?? null
+  const signedAt = signedSnapshotRow ? signedSnapshotRow.signed_at : null
+  const signatureImageDataUrl = signedSnapshotRow?.signature_data ?? null
 
   const estimateWithSections: EstimateWithSections = applySignedSnapshot(
     {
@@ -326,6 +307,9 @@ export async function getEstimateByShareToken(
       // Override the raw (no-URL) attachedPhotos from safeEstimate with the
       // signed-URL-resolved version built above.
       attachedPhotos,
+      signerName,
+      signedAt,
+      signatureImageDataUrl,
     },
     client,
   }
@@ -433,6 +417,11 @@ export async function getEstimateByPublicToken(
   const signedSnapshotRow = await loadLatestSignedSnapshot(supabase, estimate.id)
   const signedContent = signedSnapshotRow?.signed_content ?? null
 
+  // PDFPAR-02 — same signature-display derivation as getEstimateByShareToken.
+  const signerName = signedSnapshotRow?.signer_name ?? null
+  const signedAt = signedSnapshotRow ? signedSnapshotRow.signed_at : null
+  const signatureImageDataUrl = signedSnapshotRow?.signature_data ?? null
+
   const estimateWithSections: EstimateWithSections = applySignedSnapshot(
     {
       ...estimate,
@@ -524,6 +513,9 @@ export async function getEstimateByPublicToken(
       payment_amount_cents,
       invoices,
       attachedPhotos,
+      signerName,
+      signedAt,
+      signatureImageDataUrl,
     },
     client,
     realShareToken,

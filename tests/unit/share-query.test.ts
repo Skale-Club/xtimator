@@ -160,6 +160,52 @@ describe('getEstimateByShareToken', () => {
   })
 })
 
+// PDFPAR-02 (Phase 183 Plan 02) — widened loadLatestSignedSnapshot now also
+// surfaces signer_name/signature_data, threaded through as
+// signerName/signedAt/signatureImageDataUrl on the returned estimate.
+describe('getEstimateByShareToken — PDFPAR-02 signature display fields', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('signature present: signerName/signedAt/signatureImageDataUrl reflect the signature row', async () => {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [],
+      projectRow: validProject,
+      companyRow: validCompany,
+      signatureRow: {
+        id: 'sig-1',
+        signer_name: 'Jane Client',
+        signature_data: 'data:image/png;base64,AAA',
+        signed_at: '2026-07-01T12:00:00Z',
+        signed_content: null,
+        signed_total: null,
+      },
+    })
+
+    const result = await getEstimateByShareToken('tok-SECRET')
+    expect(result).not.toBeNull()
+    expect(result!.estimate.signerName).toBe('Jane Client')
+    expect(result!.estimate.signatureImageDataUrl).toBe('data:image/png;base64,AAA')
+    expect(result!.estimate.signedAt).toBe('2026-07-01T12:00:00Z')
+  })
+
+  it('no signature: signerName/signedAt/signatureImageDataUrl are all null', async () => {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [],
+      projectRow: validProject,
+      companyRow: validCompany,
+      signatureRow: null,
+    })
+
+    const result = await getEstimateByShareToken('tok-SECRET')
+    expect(result).not.toBeNull()
+    expect(result!.estimate.signerName).toBeNull()
+    expect(result!.estimate.signedAt).toBeNull()
+    expect(result!.estimate.signatureImageDataUrl).toBeNull()
+  })
+})
+
 // TRUST-01 (Phase 164 Plan 01) — audit finding A1/A2: "client signs $12,400 ->
 // owner edits to $15,000 -> public link re-renders live rows ($15,000)". These
 // tests prove the exact scenario the audit traced is now closed: once a
