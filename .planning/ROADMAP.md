@@ -3122,7 +3122,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 186-01-PLAN.md — Classic typography hierarchy, table zebra-contrast, and grand-total emphasis (webview-only)
+- [x] 186-01-PLAN.md — Classic typography hierarchy, table zebra-contrast, and grand-total emphasis (webview-only)
 - [ ] 186-02-PLAN.md — Terms/signature/photo/mobile-list card polish + Classic PDF token propagation + milestone close-out
 **UI hint**: yes
 
@@ -3134,5 +3134,5 @@ Plans:
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
 | 184. Consolidated Pagination Engine | 5/5 | Complete    | 2026-07-28 |
 | 185. Paginated Editable Editor Mode | 4/4 | Complete    | 2026-07-28 |
-| 186. Webview Design Polish | 0/2 | Not started | - |
+| 186. Webview Design Polish | 1/2 | In Progress|  |
 
