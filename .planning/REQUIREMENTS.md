@@ -72,17 +72,32 @@
 
 ## Traceability
 
-Populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| — | — | — |
+| ENGINE-01 | Phase 182 | Pending |
+| ENGINE-02 | Phase 182 | Pending |
+| ENGINE-03 | Phase 182 | Pending |
+| PDFPAR-04 | Phase 182 | Pending |
+| PDFPAR-01 | Phase 183 | Pending |
+| PDFPAR-02 | Phase 183 | Pending |
+| PDFPAR-03 | Phase 183 | Pending |
+| PGBRK-01 | Phase 184 | Pending |
+| PGBRK-02 | Phase 184 | Pending |
+| PGBRK-03 | Phase 184 | Pending |
+| PGBRK-04 | Phase 184 | Pending |
+| PGBRK-05 | Phase 184 | Pending |
+| PGMODE-01 | Phase 185 | Pending |
+| PGMODE-02 | Phase 185 | Pending |
+| PGMODE-03 | Phase 185 | Pending |
+| PGMODE-04 | Phase 185 | Pending |
+| PGMODE-05 | Phase 185 | Pending |
+| POLISH-01 | Phase 186 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️ (pre-roadmap)
+- Mapped to phases: 18
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-27*
-*Last updated: 2026-07-27 after initial definition*
+*Last updated: 2026-07-27 after roadmap creation — 18/18 requirements mapped to Phases 182-186, 0 orphans, 0 duplicates*

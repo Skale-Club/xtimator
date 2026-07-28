@@ -43,6 +43,7 @@
 - 🚧 **v4.21 Notification Center** — Phases 172-178 (roadmap created 2026-07-21) — unify all outbound messaging into one admin-manageable Notification Center serving three audiences: platform admins (Telegram per-event toggles), tenants (in-app/email/WhatsApp/SMS via the existing `notify()` pipeline), and end customers (email/SMS only — WhatsApp reserved for owner↔Xtimator). Hardcoded `copy.ts` becomes DB-driven super-admin-editable `{{var}}` templates with a per-event variable catalog, live preview, unknown-var rejection, test-send, and a DB→built-in→never-block fallback resolver with per-channel escaping (Pitfalls 1/2/4/5). Re-enables proactive tenant WhatsApp via the EXISTING HSM registry (Pitfall 3 runtime guard). New end-customer send path (friendly-from email + dedicated Twilio Messaging Service SMS + `customer_messages` audit) gated behind a hard consent/STOP/quiet-hours prerequisite (CUST-03, Pitfall 10/HIGH-legal). Agentic send (WhatsApp assistant + MCP) is confirmation-gated with injection-resistant recipient resolution + per-company rate limits (Pitfalls 8/9). Three structurally-separate pipelines that never share a table: tenant-scoped `notify()`, platform-scoped `notifyOps()`, and the new synchronous agentic-send capability. 21/21 requirements mapped (PLAT-01..03, TMPL-01..07, TNT-01..03, CUST-01..05, AGENT-01..03), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.20 ended at Phase 171, so v4.21 starts at **Phase 172**.
 
 - 🚧 **v4.22 Product-Native Demo** — Phases 180-181 (roadmap created 2026-07-26) — replace the divergent standalone public demo with a host-isolated, defense-in-depth read-only session inside the real authenticated product. Phase 180 establishes the dedicated demo session and deny-write boundaries while the legacy demo stays live; Phase 181 verifies real-product parity, cuts public entry points over, removes duplicate demo UI, and documents the GitHub Actions → Docker/GHCR → Coolify production topology. 14/14 requirements mapped, 0 orphans, 0 duplicates.
+- 🚧 **v4.23 Unified Estimate Document Engine** — Phases 182-186 (roadmap created 2026-07-27) — unify the estimate webview and PDF onto one shared document structure/design (webview is the benchmark, PDF copies it, both templates classic + modern); ONE consolidated deterministic page-break rule module shared by the PDF renderer and a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI"); net-new signature block + photo captions on all four surfaces; fixes the hardcoded-Classic/stale-snapshot email+WhatsApp PDF send-path bug (TRUST-01); public share webview stays single-page scroll. 18/18 requirements mapped (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.22 ended at Phase 181, so v4.23 starts at **Phase 182**.
 
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
@@ -2993,3 +2994,108 @@ Plans:
 |-------|----------------|--------|-----------|
 | 180. Isolated Demo Session & Read-Only Foundation | 15/15 | Complete    | 2026-07-27 |
 | 181. Real-Product Cutover & Verification | 5/5 | Complete    | 2026-07-27 |
+
+## 🚧 v4.23 Unified Estimate Document Engine (Phases 182-186) — ROADMAP CREATED 2026-07-27
+
+**Milestone Goal:** Unify the estimate webview and PDF onto one shared document structure/design — the webview is the benchmark, the PDF copies it — with a single deterministic page-break rule powering a new fully-editable paginated editor mode that mirrors the PDF.
+
+**Coverage:** 18/18 requirements mapped (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), **0 orphans, 0 duplicates.** Numbering continues the global counter — v4.22 ended at Phase 181, so v4.23 starts at **Phase 182**.
+
+**Dependency spine:** Phase 182 (shared document engine + standalone send-path fix) is the foundation every later phase inherits — no other phase should re-derive labels/formatters/tokens against the current 4-independently-diverged files. Phase 183 (PDF parity content — signature block + captions) depends on 182 and must land BEFORE Phase 184, not in parallel with it: both phases modify the same two PDF template files (`components/pdf/estimate-pdf.tsx`, `estimate-pdf-modern.tsx`), and Phase 184's pagination engine needs the signature block defined as an atomic block kind before finalizing its block inventory. Phase 184 (consolidated pagination engine, opening with the browser-vs-fontkit measurement-drift spike) depends on 182 and 183. Phase 185 (paginated editable editor mode) depends on 184's rule engine being provably correct before UI is layered on top. Phase 186 (webview design polish) only strictly needs 182's shared tokens, but touches the same webview document files (`estimate-document.tsx`, `estimate-document-modern.tsx`) that Phases 183 and 185 also modify — sequence it LAST to avoid redoing polish work or merge conflicts, even though it has no hard requirement dependency on 184/185.
+
+**Parallelizable work:**
+- Within Phase 182: the shared-model extraction (`lib/estimate/document/*`) and the send-path fix (`send/route.ts`, `lib/whatsapp/pdf-delivery.ts`) are file-disjoint and can be planned/executed concurrently — the send-path fix has zero dependency on the extraction landing first (it copies an already-proven pattern from `pdf/route.ts`).
+- Phases 183 and 184 should NOT run in parallel — both touch the same PDF template files; sequence 183 → 184.
+- Phase 186 could theoretically start as soon as Phase 182 ships (it only needs the token source), but is recommended to run LAST/sequentially after Phase 185 rather than in parallel with 183-185, since all three touch the same webview document components.
+
+**Key context (locked, from research):** PDF stack stays `@react-pdf/renderer` only (Alpine container, no puppeteer). Pixel-perfect DOM↔PDF parity is explicitly rejected — the bar is "same page-break decisions, same content per page," verified structurally. The webview does NOT currently render a signature block or photo captions either — both are net-new on all four surfaces (Phase 183), not a copy-from-webview task. `lib/whatsapp/pdf-delivery.ts` must resolve the PDF via a plain importable function, never an HTTP fetch to the PDF route (no cookies in the webhook context).
+
+### Phases (summary checklist)
+
+- [ ] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot
+- [ ] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
+- [ ] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
+- [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
+- [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
+
+### Phase Details
+
+### Phase 182: Shared Document Engine + Send-Path Fix
+**Goal**: All four document renderers (workspace editor, share webview, classic PDF, modern PDF) read from one shared document model/labels/tokens/formatters source, and every PDF send path (download, email, WhatsApp) renders the tenant's actual chosen template with the signed snapshot honored.
+**Depends on**: Nothing in-milestone (first phase; sequencing follows Phase 181 in the global counter)
+**Requirements**: ENGINE-01, ENGINE-02, ENGINE-03, PDFPAR-04
+**Success Criteria** (what must be TRUE):
+
+  1. Downloading a PDF, viewing the public share webview, and viewing the workspace editor document all show identical labels, formatted addresses, and formatted dates for the same estimate — sourced from one shared module, not four independently-diverged copies.
+  2. Both PDF page geometry and the pt-to-px conversion are read from one shared module by both the DOM and PDF renderers — no hand-copied raw literal exists in a second place.
+  3. Emailing an estimate PDF and receiving one via WhatsApp both render the company's actually-configured template (classic or modern), matching what the existing "Download PDF" route produces for the same estimate.
+  4. After an estimate is signed, the PDF sent by email or WhatsApp shows the frozen, signed content — never any edit made after signing (closing the live TRUST-01 violation).
+  5. Every existing estimate's rendered output is unchanged after this phase's extraction (byte-identical regression proof) — this phase ships zero visible change on its own.
+
+**Plans**: TBD
+
+### Phase 183: PDF Parity Content
+**Goal**: The PDF (both templates) matches the webview benchmark's full document structure, and both the webview and PDF gain the signature block and visible photo captions neither surface renders today.
+**Depends on**: Phase 182 (shared document model, labels, tokens)
+**Requirements**: PDFPAR-01, PDFPAR-02, PDFPAR-03
+**Success Criteria** (what must be TRUE):
+
+  1. A signed estimate's PDF (classic and modern) displays the signer's name, signed date, and the signature image.
+  2. A signed estimate's webview (classic and modern) also displays the signer's name, signed date, and the signature image — net-new, not previously rendered anywhere.
+  3. A photo with a caption shows that caption as visible text beneath the photo, in both the webview photo grid and the PDF photo grid, for both templates.
+  4. The PDF (both templates) mirrors the webview's full structure — company header/branding, title, project/bill-to, summary, sections with per-section subtotals, items tables, the locked totals order (subtotal→discount→tax→total→deposit→balance due), and terms.
+
+**Plans**: TBD
+
+### Phase 184: Consolidated Pagination Engine
+**Goal**: One deterministic pagination module computes page-break decisions from the shared document model, is the single source of truth consumed by the PDF renderer (and, in Phase 185, the web paginated preview), and is validated by an early measurement-drift spike before being finalized.
+**Depends on**: Phase 182 (shared model), Phase 183 (signature block defined as an atomic block kind; also avoids concurrent edits to the same PDF template files)
+**Requirements**: PGBRK-01, PGBRK-02, PGBRK-03, PGBRK-04, PGBRK-05
+**Success Criteria** (what must be TRUE):
+
+  1. In a multi-page PDF, a line-item row is never split across a page break; a section header always renders on the same page as its first item row; a section's subtotal always renders on the same page as that section's last item row.
+  2. The totals block, the signature block, and each terms card each render fully on one page — never split across a break.
+  3. Every PDF page after page 1 repeats the items-table column header, and every page shows "Page N of M".
+  4. The browser-vs-fontkit measurement-drift spike has run, produced a documented go/no-go decision, and its resulting safety margin is applied in the shipped height-estimation formula.
+  5. For the same estimate and template, the pagination module (`lib/estimate/pagination/`) is the one function both the PDF renderer and the web measurement provider call — verified by fixture/unit tests that the same block inputs always produce the same page/block assignment regardless of which renderer invokes it.
+
+**Plans**: TBD
+
+### Phase 185: Paginated Editable Editor Mode
+**Goal**: The workspace estimate editor gains a paginated view mode — letter-size pages styled like a PDF preview, mirroring the PDF's page breaks — that stays fully editable, alongside the existing full-width mode, with the legacy width/page toggle retired.
+**Depends on**: Phase 184 (the pagination rule engine must exist and be proven correct before UI is layered on top)
+**Requirements**: PGMODE-01, PGMODE-02, PGMODE-03, PGMODE-04, PGMODE-05
+**Success Criteria** (what must be TRUE):
+
+  1. The estimate editor header shows two icon toggle buttons to the left of "Edit with AI"; clicking the paginated icon instantly switches the document into letter-size, PDF-preview-styled pages (centered, gapped, shadowed) matching the active template's page breaks.
+  2. In paginated mode, a user can edit any field inline, add/remove items and sections, and drag-reorder items exactly as in full-width mode — no editing capability is lost.
+  3. Editing content that pushes an item across a page boundary triggers a debounced repagination with no loss of cursor focus or scroll position, and no per-keystroke full-tree reflow lag.
+  4. The old floating-pill "Full page/Full width" toggle and its CSS-zoom mechanism no longer appear anywhere in the editor — there is exactly one page-view control, in the header.
+  5. The public share webview for the same estimate is unchanged — still a normal single-page scroll, at the same URL, with no pagination controls.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 186: Webview Design Polish
+**Goal**: The benchmark webview (both templates, desktop and mobile) receives a general design refinement pass, and because it reads from the shared token source, the refinement propagates to the PDF without a separate manual pass.
+**Depends on**: Phase 182 (shared design tokens); sequenced after Phase 185 to avoid repeated edits to the same webview document files Phases 183 and 185 also modify
+**Requirements**: POLISH-01
+**Success Criteria** (what must be TRUE):
+
+  1. Both webview templates (classic and modern) show a visibly refined design pass — spacing, typography, and visual hierarchy — correctly on both desktop and mobile viewports.
+  2. The refined values are read from `lib/estimate/document/tokens.ts`, not reintroduced as one-off literals per surface, so the same refinement appears in the PDF output for both templates without a separate manual edit.
+  3. The public share webview and the workspace editor webview remain visually consistent with each other after polish — no new drift is reintroduced.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### v4.23 Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 182. Shared Document Engine + Send-Path Fix | 0/? | Not started | - |
+| 183. PDF Parity Content | 0/? | Not started | - |
+| 184. Consolidated Pagination Engine | 0/? | Not started | - |
+| 185. Paginated Editable Editor Mode | 0/? | Not started | - |
+| 186. Webview Design Polish | 0/? | Not started | - |
+

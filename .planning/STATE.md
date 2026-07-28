@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v4.23
 milestone_name: Unified Estimate Document Engine
-status: defining-requirements
-stopped_at: Milestone v4.23 started — defining requirements
+status: roadmap-created
+stopped_at: Roadmap created — next /gsd:plan-phase 182
 last_updated: "2026-07-27T15:30:00.000Z"
 last_activity: 2026-07-27
 progress:
@@ -18,7 +18,7 @@ progress:
 
 ## Current Status
 
-- **Milestone v4.23 Unified Estimate Document Engine** — STARTED 2026-07-27. Unify the estimate webview and PDF onto one shared document structure/design (webview = benchmark, PDF copies it, both templates classic + modern); consolidate ONE deterministic page-break rule shared by a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI": full-width default + paginated PDF-preview mode) and the react-pdf renderer; public share webview stays single-page scroll; fix email/WhatsApp PDF send paths (hardcoded Classic + skipped signed snapshot); webview design polish. Pending external input: user will send a reference preview image for the paginated-mode UI. Position: defining requirements → roadmap. Numbering continues after Phase 181 → v4.23 starts at **Phase 182**.
+- **Milestone v4.23 Unified Estimate Document Engine** — ROADMAP CREATED 2026-07-27. Unify the estimate webview and PDF onto one shared document structure/design (webview = benchmark, PDF copies it, both templates classic + modern); consolidate ONE deterministic page-break rule shared by a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI": full-width default + paginated PDF-preview mode) and the react-pdf renderer; public share webview stays single-page scroll; fix email/WhatsApp PDF send paths (hardcoded Classic + skipped signed snapshot); webview design polish. **5 phases (182-186)**, **18/18 requirements mapped** (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), **0 orphans, 0 duplicates**. Sequencing: 182 (shared engine + send-path fix, foundation) → 183 (PDF parity content — must precede 184, same PDF template files) → 184 (pagination engine, opens with the fontkit-vs-browser measurement spike) → 185 (paginated editable editor mode) → 186 (webview design polish, sequenced last to avoid re-touching files 183/185 also modify). Pending external input: user will send a reference preview image for the paginated-mode UI. Next: `/gsd:plan-phase 182`.
 
 ### Previous Milestone (shipped)
 
