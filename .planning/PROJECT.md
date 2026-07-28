@@ -14,7 +14,9 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.23 Unified Estimate Document Engine
+## Current Milestone: v4.23 Unified Estimate Document Engine ✅ (shipped 2026-07-28)
+
+**Shipped:** all 5 phases (182-186), 18/18 requirements (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), 22/22 plans, all phase verifications passed. Shared document engine (`lib/estimate/document/`) feeding all four renderers; one in-process PDF resolver for download/email/WhatsApp honoring template + signed snapshot (TRUST-01); signature block + photo captions on all surfaces; vendored Inter/Lora fonts; the deterministic pagination engine (`lib/estimate/pagination/` — maximal keep-together chains, empirically calibrated via committed Chromium drift-spike + render-calibration scripts) driving explicit multi-page PDFs AND the new fully-editable paginated editor mode (header toggle left of "Edit with AI", client-side fontkit estimator with byte-identical PageAssignment parity, real-Chromium positional binding check); webview polish pass. Pending: owner UAT (staging sends, visual checks, paginated-mode reference image) per the four *-HUMAN-UAT.md files; formal `/gsd:complete-milestone` archival.
 
 **Goal:** Unify the estimate webview and PDF into one shared document structure/design — the webview is the benchmark, the PDF copies it — with a single deterministic page-break rule powering a new fully-editable paginated editor mode that mirrors the PDF.
 
