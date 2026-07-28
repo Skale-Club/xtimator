@@ -3054,9 +3054,9 @@ Plans:
 **Plans**: 7 plans
 
 Plans:
-- [ ] 183-01-PLAN.md — Wave-0 shared fixtures + pre-refactor PDF baseline-order test
+- [x] 183-01-PLAN.md — Wave-0 shared fixtures + pre-refactor PDF baseline-order test
 - [ ] 183-02-PLAN.md — Signature + discount-display data plumbing (shared query, model types, predicate)
-- [ ] 183-03-PLAN.md — Font asset sourcing + Font.register + design-tokens widening
+- [x] 183-03-PLAN.md — Font asset sourcing + Font.register + design-tokens widening
 - [ ] 183-04-PLAN.md — PDF shared components pt1 (header/info-grid/footer/section+Classic banner fix/terms)
 - [ ] 183-05-PLAN.md — Webview signature block + photo captions (Classic + Modern)
 - [ ] 183-06-PLAN.md — PDF shared components pt2 (totals variant/photos+captions/signature block)
@@ -3109,7 +3109,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete    | 2026-07-28 |
-| 183. PDF Parity Content | 0/? | Not started | - |
+| 183. PDF Parity Content | 2/7 | In Progress|  |
 | 184. Consolidated Pagination Engine | 0/? | Not started | - |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
 | 186. Webview Design Polish | 0/? | Not started | - |
