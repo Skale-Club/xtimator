@@ -3,11 +3,11 @@ import {
   Page,
   View,
   Text,
-  Image,
   StyleSheet,
 } from '@react-pdf/renderer'
 import '@/lib/pdf/register-fonts'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import type { DocumentSignature } from '@/lib/estimate/document/model'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { formatMoney } from '@/lib/money/currency'
@@ -39,6 +39,8 @@ import { PdfTitleBanner } from './shared/pdf-title-banner'
 import { PdfSectionBlock } from './shared/pdf-section-block'
 import { PdfTermsSection } from './shared/pdf-terms-section'
 import { PdfTotalsBlock } from './shared/pdf-totals-block'
+import { PdfPhotoGrid } from './shared/pdf-photo-grid'
+import { PdfSignatureBlock } from './shared/pdf-signature-block'
 
 interface CompanyInfo {
   name: string
@@ -78,6 +80,8 @@ export interface EstimatePDFProps {
   preparedBy?: string | null
   /** Attached photos with signed URLs pre-resolved server-side (route handler resolves them before rendering). Rendered only when non-empty. */
   attachedPhotos?: { url: string; caption: string | null }[]
+  /** PDFPAR-02 — signature-display data (signer name, signed date, signature image). null = unsigned estimate: no signature block rendered at all. */
+  signature?: DocumentSignature | null
 }
 
 const styles = StyleSheet.create({
@@ -326,6 +330,7 @@ export default function EstimatePDFModern({
   language = 'en',
   preparedBy,
   attachedPhotos,
+  signature,
 }: EstimatePDFProps) {
   // SENDHUB-04 (Phase 163): resolve once at the render boundary. Cast-with-fallback
   // mirrors components/share/estimate-view.tsx:157-161 — the query type may lag the
@@ -491,22 +496,28 @@ export default function EstimatePDFModern({
           },
         })}
 
-        {/* Attached photos — SENDHUB-04 (Phase 163): resolver-gated */}
-        {isSectionVisible(resolvedSettings, 'photos') && attachedPhotos && attachedPhotos.length > 0 && (
-          <View style={{ marginTop: 20 }} wrap={false}>
-            <Text style={styles.termsTitle}>{L.photos}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-              {attachedPhotos.map((photo, i) => (
-                // eslint-disable-next-line jsx-a11y/alt-text
-                <Image
-                  key={i}
-                  src={photo.url}
-                  style={{ width: 150, height: 150, objectFit: 'cover' as const }}
-                />
-              ))}
-            </View>
-          </View>
-        )}
+        {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
+            presentation_settings key exists for it, per CONTEXT.md's locked
+            rule). Position: Terms -> Signature -> Photos, matching the
+            webview's Plan 183-05 placement. Called as a plain function (not
+            JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {PdfSignatureBlock({
+          signature: signature ?? null,
+          L,
+          fmtDate,
+          styles: { termsTitle: styles.termsTitle },
+        })}
+
+        {/* Attached photos — SENDHUB-04 (Phase 163): resolver-gated. Called
+            as a plain function (not JSX) — see
+            components/pdf/shared/pdf-header.tsx's top comment for why. */}
+        {isSectionVisible(resolvedSettings, 'photos') && attachedPhotos && attachedPhotos.length > 0 &&
+          PdfPhotoGrid({
+            photos: attachedPhotos,
+            L,
+            topMargin: 20,
+            styles: { termsTitle: styles.termsTitle },
+          })}
 
         {/* Prepared by */}
         {preparedBy && (

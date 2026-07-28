@@ -20,7 +20,7 @@
 // does the full, expensive render and accepts an optional pre-resolved
 // `context` to avoid re-fetching when the caller already has one.
 
-import { createElement, type ComponentType } from 'react'
+import { createElement } from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEstimateWithContext, type EstimateWithSections } from '@/lib/queries/estimate'
@@ -29,7 +29,7 @@ import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { createStorage } from '@/lib/storage'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
-import EstimatePDF, { type EstimatePDFProps } from '@/components/pdf/estimate-pdf'
+import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { isSupportedLanguage, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import {
@@ -179,27 +179,21 @@ export async function renderEstimatePdf(
     }))
   )
 
-  // `EstimatePDFProps` does not yet declare `signature` (Plan 183-06 adds the
-  // real, permanent field once it owns these 2 component files, Wave 3) — a
-  // plain createElement(PDFComponent, { ..., signature }) would fail tsc's
-  // excess-property check. Widen via an explicit cast on PDFComponent
-  // instead, so neither PDF template file needs to be touched by this plan
-  // (Plan 183-03 restructures both in this same wave).
+  // `EstimatePDFProps` declares `signature?: DocumentSignature | null` for
+  // real as of Plan 183-06 (both template files now own the field) — no
+  // widening cast needed here anymore.
   const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
-  const element = createElement(
-    PDFComponent as ComponentType<EstimatePDFProps & { signature?: DocumentSignature | null }>,
-    {
-      estimate,
-      company,
-      client,
-      projectName,
-      projectType,
-      language: estimateLanguage,
-      preparedBy,
-      attachedPhotos,
-      signature,
-    }
-  )
+  const element = createElement(PDFComponent, {
+    estimate,
+    company,
+    client,
+    projectName,
+    projectType,
+    language: estimateLanguage,
+    preparedBy,
+    attachedPhotos,
+    signature,
+  })
   const pdfBuffer = await renderToBuffer(element as any)
 
   return { buffer: Buffer.from(pdfBuffer), templateId, contentKey, projectName }
