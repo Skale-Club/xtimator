@@ -3013,7 +3013,7 @@ Plans:
 ### Phases (summary checklist)
 
 - [x] **Phase 182: Shared Document Engine + Send-Path Fix** — extract one shared document model/labels/formatters/tokens consumed by all four renderers; fix the email/WhatsApp PDF send paths to honor template choice + signed snapshot (completed 2026-07-28)
-- [ ] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces
+- [x] **Phase 183: PDF Parity Content** — signature block + photo captions + full structural parity with the webview benchmark, across both templates and both send-adjacent surfaces (completed 2026-07-28)
 - [ ] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
 - [ ] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
 - [ ] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
@@ -3109,7 +3109,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete    | 2026-07-28 |
-| 183. PDF Parity Content | 6/7 | In Progress|  |
+| 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
 | 184. Consolidated Pagination Engine | 0/? | Not started | - |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
 | 186. Webview Design Polish | 0/? | Not started | - |
