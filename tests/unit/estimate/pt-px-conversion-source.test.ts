@@ -39,6 +39,9 @@ describe('ENGINE-02: LETTER geometry has exactly one source', () => {
     'components/pdf/estimate-pdf-modern.tsx',
     'components/workspace/estimate/estimate-document.tsx',
     'components/workspace/estimate/estimate-editor.tsx',
+    // Phase 184 Plan 03 — must always read page/content geometry from
+    // ESTIMATE_PAGE_GEOMETRY, never re-derive it as a bare literal.
+    'lib/estimate/pagination/blocks-from-model.ts',
   ]
   for (const path of CLEAN_SOURCES) {
     it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
