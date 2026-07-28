@@ -37,23 +37,11 @@ import {
   isEstimateTemplateId,
   type EstimateTemplateId,
 } from '@/lib/estimate/templates/registry'
-import {
-  ESTIMATE_DESIGN_TOKENS,
-  ESTIMATE_PAGE_GEOMETRY,
-  LINE_HEIGHT,
-  LETTER_HEIGHT_PT,
-} from '@/lib/estimate/document/tokens'
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
-import {
-  measureHeaderHeightPt,
-  CONTINUATION_TABLE_HEADER_HEIGHT_PT,
-  PDF_RENDER_SAFETY_MARGIN_PT,
-} from '@/lib/pdf/measure-header-height'
-import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-margin'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
 import { computePageBreaks } from '@/lib/estimate/pagination/engine'
-import type { PageConstraints } from '@/lib/estimate/pagination/types'
+import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 
@@ -205,19 +193,11 @@ export async function renderEstimatePdf(
   // resolved (blocksFromModel needs the final photos array) and BEFORE
   // createElement — the templates render exactly `pages.length` <Page>
   // elements, replacing the single implicit Yoga `wrap`.
-  const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
-  const headerHeightPt = measureHeaderHeightPt(company, templateId)
-  const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
-  // PDF_RENDER_SAFETY_MARGIN_PT (Task 3 finding) covers the residual drift
-  // between blocksFromModel()'s additive height estimates and @react-pdf/
-  // renderer's real Yoga+PDFKit layout — see that constant's doc comment.
-  const safetyMarginPt =
-    SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily]) + PDF_RENDER_SAFETY_MARGIN_PT
-  const constraints: PageConstraints = {
-    contentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - headerHeightPt,
-    continuationTableHeaderHeightPt: CONTINUATION_TABLE_HEADER_HEIGHT_PT[templateId],
-    safetyMarginPt,
-  }
+  // Phase 185 Plan 01 (PGBRK-01/04) — constraints now derived via the ONE
+  // shared function also used by tests/unit/pdf/_pages-for-fixture.ts (and,
+  // starting Plan 185-03, the web preview) — never a second, independently-
+  // maintained derivation (see 185-RESEARCH.md's constraints-parity finding).
+  const constraints = computeEstimatePageConstraints(company, templateId)
   const L = PDF_LABELS[estimateLanguage] ?? PDF_LABELS.en
   const blocks = blocksFromModel({
     sections: estimate.sections,

@@ -46,6 +46,9 @@ describe('ENGINE-02: LETTER geometry has exactly one source', () => {
     // from tokens.ts, never re-derive them as bare literals.
     'lib/pdf/render-estimate-pdf.ts',
     'lib/pdf/measure-header-height.ts',
+    // Phase 185 Plan 01 — the new shared constraints function reads
+    // LETTER_HEIGHT_PT from tokens.ts, never a bare literal.
+    'lib/estimate/pagination/page-constraints.ts',
   ]
   for (const path of CLEAN_SOURCES) {
     it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
