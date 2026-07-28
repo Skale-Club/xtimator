@@ -31,7 +31,14 @@ import { PX_PER_PT } from '../lib/estimate/document/tokens'
 
 const FONT_PATH = path.join(process.cwd(), 'public', 'fonts', 'inter', 'Inter-Regular.ttf')
 const FONT_BASE64 = readFileSync(FONT_PATH).toString('base64')
-const font = fontkit.openSync(FONT_PATH)
+
+// openSync returns Font | FontCollection; our vendored TTFs are single fonts.
+// Mirrors lib/estimate/pagination/measure/estimator.ts's narrowing.
+function assertSingleFont(f: ReturnType<typeof fontkit.openSync>): fontkit.Font {
+  if (!('layout' in f)) throw new Error(`${FONT_PATH} resolved to a font collection, not a single font`)
+  return f
+}
+const font = assertSingleFont(fontkit.openSync(FONT_PATH))
 
 // Representative estimate text samples — short/long/accented/numeric-heavy/
 // single-long-token, per 184-RESEARCH.md's "Spike Design (PGBRK-05)" SAMPLES
@@ -70,7 +77,7 @@ const SAMPLES: { label: string; text: string; fontSizePt: number; widthPt: numbe
  * (tests/unit/pagination/measure/fontkit-arithmetic.test.ts). */
 function estimateLineCount(
   text: string,
-  fontArg: ReturnType<typeof fontkit.openSync>,
+  fontArg: fontkit.Font,
   fontSizePt: number,
   maxWidthPt: number
 ): number {

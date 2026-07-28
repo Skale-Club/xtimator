@@ -17,11 +17,18 @@ import * as fontkit from 'fontkit'
 import LineBreaker from 'linebreak'
 
 const FONT_PATH = path.join(process.cwd(), 'public', 'fonts', 'inter', 'Inter-Regular.ttf')
-const font = fontkit.openSync(FONT_PATH)
+
+// openSync returns Font | FontCollection; the vendored TTF is a single font.
+// Mirrors lib/estimate/pagination/measure/estimator.ts's narrowing.
+function assertSingleFont(f: ReturnType<typeof fontkit.openSync>): fontkit.Font {
+  if (!('layout' in f)) throw new Error(`${FONT_PATH} resolved to a font collection, not a single font`)
+  return f
+}
+const font = assertSingleFont(fontkit.openSync(FONT_PATH))
 
 function estimateLineCount(
   text: string,
-  font: ReturnType<typeof fontkit.openSync>,
+  font: fontkit.Font,
   fontSizePt: number,
   maxWidthPt: number
 ): number {

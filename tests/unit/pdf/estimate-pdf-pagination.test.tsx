@@ -90,7 +90,9 @@ function buildSmallSinglePageFixture(): Record<string, unknown> {
   })
 }
 
-function isPageElement(node: ReactNode): node is ElementWithChildren {
+// Deliberately NOT a type guard (`node is ...`): the callers already hold an
+// ElementWithChildren, and a guard would narrow the else-branch to `never`.
+function isPageElement(node: ReactNode): boolean {
   if (node == null || typeof node !== 'object' || !('props' in (node as object))) return false
   const el = node as ElementWithChildren
   const displayName = (el.type as { displayName?: string } | undefined)?.displayName

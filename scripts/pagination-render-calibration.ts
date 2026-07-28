@@ -409,7 +409,9 @@ function buildPages(
     payment_terms: (estimate.payment_terms as string | null) ?? null,
     warranty_terms: (estimate.warranty_terms as string | null) ?? null,
     notes: (estimate.notes as string | null) ?? null,
-    company: FIXTURE_COMPANY,
+    // estimate_terms_enabled: false ≡ the previous undefined at runtime (no
+    // estimate-terms card); the explicit field satisfies the weak-type check.
+    company: { ...FIXTURE_COMPANY, estimate_terms_enabled: false },
     discount_amount: (estimate.discount_amount as number) ?? 0,
     tax_amount: (estimate.tax_amount as number) ?? 0,
     dep: deriveDepositDisplay(depositRow),
