@@ -3119,7 +3119,11 @@ Plans:
   2. The refined values are read from `lib/estimate/document/tokens.ts`, not reintroduced as one-off literals per surface, so the same refinement appears in the PDF output for both templates without a separate manual edit.
   3. The public share webview and the workspace editor webview remain visually consistent with each other after polish — no new drift is reintroduced.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 186-01-PLAN.md — Classic typography hierarchy, table zebra-contrast, and grand-total emphasis (webview-only)
+- [ ] 186-02-PLAN.md — Terms/signature/photo/mobile-list card polish + Classic PDF token propagation + milestone close-out
 **UI hint**: yes
 
 ### v4.23 Progress
@@ -3130,5 +3134,5 @@ Plans:
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
 | 184. Consolidated Pagination Engine | 5/5 | Complete    | 2026-07-28 |
 | 185. Paginated Editable Editor Mode | 4/4 | Complete    | 2026-07-28 |
-| 186. Webview Design Polish | 0/? | Not started | - |
+| 186. Webview Design Polish | 0/2 | Not started | - |
 
