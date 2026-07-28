@@ -33,9 +33,9 @@ const FONT_FAMILY_TO_PATH: Record<string, string> = {
 // Module-scope cache, keyed by family name — opened lazily on first use.
 // Mirrors register-fonts.ts's "register/parse once" discipline: a TTF is
 // never re-parsed on a second call for the same family.
-const fontCache = new Map<string, ReturnType<typeof fontkit.openSync>>()
+const fontCache = new Map<string, fontkit.Font>()
 
-function getFont(fontFamily: string): ReturnType<typeof fontkit.openSync> {
+function getFont(fontFamily: string): fontkit.Font {
   const cached = fontCache.get(fontFamily)
   if (cached) return cached
 
@@ -46,9 +46,20 @@ function getFont(fontFamily: string): ReturnType<typeof fontkit.openSync> {
     )
   }
 
-  const font = fontkit.openSync(fontPath)
-  fontCache.set(fontFamily, font)
-  return font
+  // openSync's return type is `Font | FontCollection` (a .ttc/.dfont
+  // collection) — every vendored path above is a single-font .ttf, so this
+  // narrows deterministically. `layout` only exists on Font, never on
+  // FontCollection (see @types/fontkit), so the `in` check is a safe,
+  // exhaustive type guard (not a defensive-but-untested assumption).
+  const opened = fontkit.openSync(fontPath)
+  if (!('layout' in opened)) {
+    throw new Error(
+      `estimateLineCount: "${fontPath}" resolved to a font collection, not a single font — check FONT_FAMILY_TO_PATH`
+    )
+  }
+
+  fontCache.set(fontFamily, opened)
+  return opened
 }
 
 /**
