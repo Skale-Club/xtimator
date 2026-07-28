@@ -66,8 +66,9 @@ async function loadFont(fontFamily: string): Promise<void> {
     // new Uint8Array — NOT Buffer.from — the browser fontkit build has zero
     // Buffer usage (verified, 185-RESEARCH.md), so this works identically
     // in real browsers, Next.js's client bundle, AND this plan's own test
-    // with no polyfill.
-    const opened = fontkit.create(new Uint8Array(buffer))
+    // with no polyfill. The cast is required because @types/fontkit declares
+    // the Node signature (Buffer); the browser build accepts any Uint8Array.
+    const opened = fontkit.create(new Uint8Array(buffer) as unknown as Parameters<typeof fontkit.create>[0])
     if (!('layout' in opened)) {
       throw new Error(
         `createBrowserFontkitMeasurementProvider: "${url}" resolved to a font collection, not a single font — check FONT_FAMILY_TO_URL`
