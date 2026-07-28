@@ -7,6 +7,7 @@ import {
   Link,
   StyleSheet,
 } from '@react-pdf/renderer'
+import '@/lib/pdf/register-fonts'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'

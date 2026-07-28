@@ -24,9 +24,16 @@ import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 export interface EstimateDesignTokens {
   fontFamily: string
   fontFamilyBold: string
+  /** Correction 1 (183-RESEARCH.md) — Classic gives its title banner and
+   *  section headers a solid backgroundColor: brandColor fill; Modern uses
+   *  a hairline/accent-only treatment with NO fill, by design. Static per
+   *  template — consumed by components/pdf/shared/pdf-section-block.tsx
+   *  and the title-banner component (Plan 183-04) instead of each call
+   *  site re-deciding which template it is. */
+  solidHeaderFill: boolean
 }
 
 export const ESTIMATE_DESIGN_TOKENS: Record<EstimateTemplateId, EstimateDesignTokens> = {
-  classic: { fontFamily: 'Helvetica', fontFamilyBold: 'Helvetica-Bold' },
-  modern: { fontFamily: 'Times-Roman', fontFamilyBold: 'Times-Bold' },
+  classic: { fontFamily: 'Inter', fontFamilyBold: 'Inter-Bold', solidHeaderFill: true },
+  modern: { fontFamily: 'Lora', fontFamilyBold: 'Lora-Bold', solidHeaderFill: false },
 }
