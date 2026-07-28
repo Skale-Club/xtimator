@@ -30,6 +30,7 @@ import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/la
 import { formatDate } from '@/lib/estimate/document/format'
 import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
+import type { PageAssignment } from '@/lib/estimate/pagination/types'
 import { PdfHeader } from './shared/pdf-header'
 import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
@@ -85,6 +86,8 @@ export interface EstimatePDFProps {
   attachedPhotos?: { url: string; caption: string | null }[]
   /** PDFPAR-02 — signature-display data (signer name, signed date, signature image). null = unsigned estimate: no signature block rendered at all. */
   signature?: DocumentSignature | null
+  /** Phase 184 Plan 05 (PGBRK-01/03/04) — deterministic page assignments computed by lib/estimate/pagination/engine.ts's computePageBreaks(). Optional here (Task 1, type-only, additive no-op); Task 2 wires the actual N-explicit-<Page> composition consuming this. */
+  pages?: PageAssignment[]
 }
 
 const styles = StyleSheet.create({

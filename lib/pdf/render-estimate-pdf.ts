@@ -37,6 +37,21 @@ import {
   isEstimateTemplateId,
   type EstimateTemplateId,
 } from '@/lib/estimate/templates/registry'
+import {
+  ESTIMATE_DESIGN_TOKENS,
+  ESTIMATE_PAGE_GEOMETRY,
+  LINE_HEIGHT,
+  LETTER_HEIGHT_PT,
+} from '@/lib/estimate/document/tokens'
+import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
+import { measureHeaderHeightPt, CONTINUATION_TABLE_HEADER_HEIGHT_PT } from '@/lib/pdf/measure-header-height'
+import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-margin'
+import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
+import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
+import { computePageBreaks } from '@/lib/estimate/pagination/engine'
+import type { PageConstraints } from '@/lib/estimate/pagination/types'
+import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
+import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // Registry-keyed lookup — NOT if/else. Matches app/api/estimates/[id]/pdf/route.ts's
 // existing PDF_TEMPLATE_COMPONENTS map exactly (kept local here so this module
@@ -179,6 +194,45 @@ export async function renderEstimatePdf(
     }))
   )
 
+  // Phase 184 Plan 05 (PGBRK-01/03/04) — compute the deterministic page
+  // breaks via the SAME pipeline both this PDF renderer and (Phase 185) the
+  // future web measurement provider call: blocksFromModel() ->
+  // computePageBreaks(). Must run AFTER attachedPhotos/preparedBy are
+  // resolved (blocksFromModel needs the final photos array) and BEFORE
+  // createElement — the templates render exactly `pages.length` <Page>
+  // elements, replacing the single implicit Yoga `wrap`.
+  const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
+  const headerHeightPt = measureHeaderHeightPt(company, templateId)
+  const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
+  const safetyMarginPt = SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily])
+  const constraints: PageConstraints = {
+    contentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - headerHeightPt,
+    continuationTableHeaderHeightPt: CONTINUATION_TABLE_HEADER_HEIGHT_PT[templateId],
+    safetyMarginPt,
+  }
+  const L = PDF_LABELS[estimateLanguage] ?? PDF_LABELS.en
+  const blocks = blocksFromModel({
+    sections: estimate.sections,
+    summary: estimate.summary,
+    timeline: estimate.timeline,
+    payment_terms: estimate.payment_terms,
+    warranty_terms: estimate.warranty_terms,
+    notes: estimate.notes,
+    company,
+    discount_amount: estimate.discount_amount,
+    tax_amount: estimate.tax_amount,
+    dep: deriveDepositDisplay(estimate),
+    signature,
+    photos: attachedPhotos,
+    resolvedSettings: resolvePresentationSettings(
+      (estimate as { presentation_settings?: unknown }).presentation_settings
+    ),
+    preparedBy,
+    L,
+    templateId,
+  })
+  const pages = computePageBreaks(blocks, constraints, createFontkitMeasurementProvider())
+
   // `EstimatePDFProps` declares `signature?: DocumentSignature | null` for
   // real as of Plan 183-06 (both template files now own the field) — no
   // widening cast needed here anymore.
@@ -193,6 +247,7 @@ export async function renderEstimatePdf(
     preparedBy,
     attachedPhotos,
     signature,
+    pages,
   })
   const pdfBuffer = await renderToBuffer(element as any)
 

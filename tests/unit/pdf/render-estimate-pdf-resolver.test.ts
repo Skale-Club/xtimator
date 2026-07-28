@@ -56,6 +56,14 @@ const BASE_ESTIMATE = {
   summary: 'live summary',
   total: 1000,
   attachedPhotos: [] as { id: string; storage_path: string; caption: string | null }[],
+  // Phase 184 Plan 05 (PGBRK-01/03/04) — renderEstimatePdf() now calls the
+  // REAL (unmocked) blocksFromModel()/computePageBreaks() internally, which
+  // reads `sections`/`presentation_settings` off this fixture.
+  // blocksFromModel's own `input.sections ?? []` defensive default already
+  // handles a missing `sections`, but adding it explicitly here keeps this
+  // mock self-documenting.
+  sections: [] as unknown[],
+  presentation_settings: null,
 }
 
 function baseContext(overrides: { templateStyle?: string } = {}) {

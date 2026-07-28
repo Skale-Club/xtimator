@@ -42,6 +42,10 @@ describe('ENGINE-02: LETTER geometry has exactly one source', () => {
     // Phase 184 Plan 03 — must always read page/content geometry from
     // ESTIMATE_PAGE_GEOMETRY, never re-derive it as a bare literal.
     'lib/estimate/pagination/blocks-from-model.ts',
+    // Phase 184 Plan 05 — must always read LETTER_HEIGHT_PT/ESTIMATE_PAGE_GEOMETRY
+    // from tokens.ts, never re-derive them as bare literals.
+    'lib/pdf/render-estimate-pdf.ts',
+    'lib/pdf/measure-header-height.ts',
   ]
   for (const path of CLEAN_SOURCES) {
     it(`${path} has no bare 612/792/816/1056 literal`, () => assertNoLiteral(path))
