@@ -34,10 +34,10 @@
 
 ### Consolidated Page-Break Rule (PGBRK)
 
-- [ ] **PGBRK-01**: One deterministic pagination module (`lib/estimate/pagination/`) computes per-page block assignments from the shared document model; it is the single source of truth consumed by BOTH the web paginated preview and the PDF renderer.
+- [x] **PGBRK-01**: One deterministic pagination module (`lib/estimate/pagination/`) computes per-page block assignments from the shared document model; it is the single source of truth consumed by BOTH the web paginated preview and the PDF renderer.
 - [x] **PGBRK-02**: Break rules enforced: a line-item row never splits; a section header keeps with its first row; a section subtotal keeps with its last row; the totals block, signature block, and each terms card never split; the photo grid breaks only between rows.
 - [x] **PGBRK-03**: Continuation pages repeat the items-table column header, and every page shows "Page N of M" numbering.
-- [ ] **PGBRK-04**: The PDF renders explicit `<Page>` elements from the module's output (breaks are prescribed, never emergent Yoga wrap), and the paginated web preview shows the same content on the same pages for the same estimate + template.
+- [x] **PGBRK-04**: The PDF renders explicit `<Page>` elements from the module's output (breaks are prescribed, never emergent Yoga wrap), and the paginated web preview shows the same content on the same pages for the same estimate + template.
 - [x] **PGBRK-05**: Web and PDF use the same registered font family (TTF via `Font.register`, same family the web renders) with a measurement provider built on react-pdf's own transitive deps (`fontkit` + `linebreak`); a measurement-drift spike validates the approach and fixes the safety margin before the engine is finalized.
 
 ### Paginated Editor Mode (PGMODE)
@@ -46,7 +46,7 @@
 - [x] **PGMODE-02**: Paginated mode renders letter-size pages styled like a PDF preview (centered pages, gaps, shadows) mirroring the PDF's page breaks for the active template.
 - [x] **PGMODE-03**: All editing works inside paginated mode — inline field edits, add/remove items and sections, drag-reorder — with page membership as a derived read-only projection (never persisted), immediate repagination on structural changes, debounced repagination while typing, and no focus loss when content moves across pages.
 - [x] **PGMODE-04**: The legacy `viewMode: 'width' | 'page'` CSS-zoom toggle is consolidated into the new control — one "page" concept in the UI, no colliding icons/wording.
-- [ ] **PGMODE-05**: The public share webview remains a single-page scroll, byte-compatible with today's URLs and behavior.
+- [x] **PGMODE-05**: The public share webview remains a single-page scroll, byte-compatible with today's URLs and behavior.
 
 ### Webview Design Polish (POLISH)
 
@@ -81,16 +81,16 @@
 | PDFPAR-01 | Phase 183 | Complete |
 | PDFPAR-02 | Phase 183 | Complete |
 | PDFPAR-03 | Phase 183 | Complete |
-| PGBRK-01 | Phase 184 | Partial (184: engine + PDF side complete; web paginated preview consumes it in Phase 185) |
+| PGBRK-01 | Phase 184 + 185 | Complete (184: engine + PDF side; 185-01: browser-vs-server MeasurementProvider byte-identical parity test; 185-04: `paginated-view-engine-parity.test.tsx` binds the LIVE rendered web preview's sheet count to the engine's own direct computation for the same fixture — engine parity and view parity are now proven together, not assumed independently) |
 | PGBRK-02 | Phase 184 | Complete |
 | PGBRK-03 | Phase 184 | Complete |
-| PGBRK-04 | Phase 184 | Partial (184: engine + PDF side complete; web paginated preview consumes it in Phase 185) |
+| PGBRK-04 | Phase 184 + 185 | Complete (184: PDF renders explicit `<Page>` elements from the module's output; 185-04: `paginated-view-engine-parity.test.tsx` proves the paginated web preview shows the same page count as the engine for the same estimate + template — see PGBRK-01's note) |
 | PGBRK-05 | Phase 184 | Complete |
 | PGMODE-01 | Phase 185 | Complete |
 | PGMODE-02 | Phase 185 | Complete |
 | PGMODE-03 | Phase 185 | Complete |
 | PGMODE-04 | Phase 185 | Complete |
-| PGMODE-05 | Phase 185 | Pending |
+| PGMODE-05 | Phase 185 | Complete (185-04: `share-webview-pagination-boundary.test.ts` — an automated recursive-directory-walk grep guard, static AND dynamic `import(...)` forms both covered — proves `app/estimate/[token]/**` and `components/share/**` never import any pagination module) |
 | POLISH-01 | Phase 186 | Pending |
 
 **Coverage:**
