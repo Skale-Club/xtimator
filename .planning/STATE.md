@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.23
 milestone_name: Unified Estimate Document Engine
 status: executing
-stopped_at: Phase 184 Plan 01 complete (1/5 plans) — next 184-02
-last_updated: "2026-07-28T10:30:31.404Z"
+stopped_at: Completed 184-01-PLAN.md
+last_updated: "2026-07-28T10:49:56.498Z"
 last_activity: 2026-07-28
 progress:
   total_phases: 130
   completed_phases: 109
-  total_plans: 334
-  completed_plans: 346
+  total_plans: 339
+  completed_plans: 348
   percent: 93
 ---
 
@@ -1045,6 +1045,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 183-pdf-parity-content]: 183-HUMAN-UAT.md stays status: partial with all 4 entries genuinely [pending] despite auto-approval under yolo mode — Auto-approval advances the workflow but the durable UAT record itself must not overclaim that a human actually looked at the downloaded PDFs.
 - [Phase 184]: SAFETY_MARGIN_LINES = 1, derived from a real Chromium-vs-fontkit spike (4/5 samples zero drift; single-long-token showed |drift|=1) — applied as a FLAT PER-PAGE pt reserve (PageConstraints.safetyMarginPt), never added per-block, to avoid over-conservative pagination on text-dense pages while still bounding worst-case underflow.
 - [Phase 184]: photosPerRow lives in lib/estimate/document/tokens.ts, NOT components/pdf/*, so the client-safe pagination core (blocks-from-model.ts, Plan 184-03) never needs to import from components/pdf/*.
+- [Phase 184]: 184-04 split PdfSectionBlock into 4 sectionId-keyed pieces, row-chunked PdfPhotoGrid via the shared photosPerRow token, added exported PdfTermsCard (per-card wrap=false), and made PdfTotalsBlock's outer container wrap=false
 
 ## Performance Metrics
 
@@ -1388,6 +1389,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 183 P06 | 18min | 2 tasks | 10 files |
 | Phase 183-pdf-parity-content P07 | 20min | 3 tasks | 3 files |
 | Phase 184 P01 | 21min | 3 tasks | 10 files |
+| Phase 184 P04 | 20 min | 3 tasks | 8 files |
 
 ## Project Reference
 

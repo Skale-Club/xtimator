@@ -35,7 +35,7 @@
 ### Consolidated Page-Break Rule (PGBRK)
 
 - [ ] **PGBRK-01**: One deterministic pagination module (`lib/estimate/pagination/`) computes per-page block assignments from the shared document model; it is the single source of truth consumed by BOTH the web paginated preview and the PDF renderer.
-- [ ] **PGBRK-02**: Break rules enforced: a line-item row never splits; a section header keeps with its first row; a section subtotal keeps with its last row; the totals block, signature block, and each terms card never split; the photo grid breaks only between rows.
+- [x] **PGBRK-02**: Break rules enforced: a line-item row never splits; a section header keeps with its first row; a section subtotal keeps with its last row; the totals block, signature block, and each terms card never split; the photo grid breaks only between rows.
 - [ ] **PGBRK-03**: Continuation pages repeat the items-table column header, and every page shows "Page N of M" numbering.
 - [ ] **PGBRK-04**: The PDF renders explicit `<Page>` elements from the module's output (breaks are prescribed, never emergent Yoga wrap), and the paginated web preview shows the same content on the same pages for the same estimate + template.
 - [x] **PGBRK-05**: Web and PDF use the same registered font family (TTF via `Font.register`, same family the web renders) with a measurement provider built on react-pdf's own transitive deps (`fontkit` + `linebreak`); a measurement-drift spike validates the approach and fixes the safety margin before the engine is finalized.
@@ -82,7 +82,7 @@
 | PDFPAR-02 | Phase 183 | Complete |
 | PDFPAR-03 | Phase 183 | Complete |
 | PGBRK-01 | Phase 184 | Pending |
-| PGBRK-02 | Phase 184 | Pending |
+| PGBRK-02 | Phase 184 | Complete |
 | PGBRK-03 | Phase 184 | Pending |
 | PGBRK-04 | Phase 184 | Pending |
 | PGBRK-05 | Phase 184 | Complete |

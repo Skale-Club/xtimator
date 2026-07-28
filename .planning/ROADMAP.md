@@ -3081,8 +3081,8 @@ Plans:
 
 Plans:
 - [x] 184-01-PLAN.md — Wave 1: measurement-drift spike + SAFETY_MARGIN_LINES (stated per-page semantics) + hand-calculated arithmetic proof + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY tokens
-- [ ] 184-02-PLAN.md — Wave 2: pure pagination type contracts (PageBlockRef, safetyMarginPt) + computePageBreaks() engine (maximal keep-together chains, per-page margin) + rules (fake measurement provider)
-- [ ] 184-04-PLAN.md — Wave 2: component restructure (split PdfSectionBlock; row-chunk PdfPhotoGrid + photosPerRow; per-card-atomic PdfTermsSection + PdfTermsCard; totals wrap={false} fix)
+- [x] 184-02-PLAN.md — Wave 2: pure pagination type contracts (PageBlockRef, safetyMarginPt) + computePageBreaks() engine (maximal keep-together chains, per-page margin) + rules (fake measurement provider)
+- [x] 184-04-PLAN.md — Wave 2: component restructure (split PdfSectionBlock; row-chunk PdfPhotoGrid + photosPerRow; per-card-atomic PdfTermsSection + PdfTermsCard; totals wrap={false} fix)
 - [ ] 184-03-PLAN.md — Wave 3: server-only fontkit/linebreak estimator + blocksFromModel() (empty-description filter, visibility gates, ref population, token-sourced geometry)
 - [ ] 184-05-PLAN.md — Wave 4: wire both PDF templates to N explicit <Page>s via one uniform block dispatcher; repeated continuation headers; real-PDF-byte page count + determinism + renderToBuffer smoke; durable UAT artifacts + manual visual checkpoint
 
@@ -3120,7 +3120,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 182. Shared Document Engine + Send-Path Fix | 4/4 | Complete    | 2026-07-28 |
 | 183. PDF Parity Content | 6/7 | Complete    | 2026-07-28 |
-| 184. Consolidated Pagination Engine | 1/5 | In Progress|  |
+| 184. Consolidated Pagination Engine | 3/5 | In Progress|  |
 | 185. Paginated Editable Editor Mode | 0/? | Not started | - |
 | 186. Webview Design Polish | 0/? | Not started | - |
 
