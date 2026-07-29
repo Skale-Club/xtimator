@@ -178,6 +178,23 @@ async function ProjectTabs({
   // Fetch current estimate for workspace tabs that need it
   const currentEstimate = await getCurrentEstimate(supabase, project.id)
 
+  // TRUST-01 v2 (security-hardening S1) — this page builds documentCompany from
+  // its own companies query above, bypassing getEstimateWithContext's frozen-
+  // terms overlay. A v2-signed estimate must render the Terms & Conditions as
+  // they stood AT SIGNING on this surface too, or a Settings edit silently
+  // changes the signed document in the editor preview while share/PDF show the
+  // frozen text.
+  if (currentEstimate?.signedCompanyTerms) {
+    documentCompany.estimate_terms_enabled = currentEstimate.signedCompanyTerms.enabled
+    documentCompany.estimate_terms_text = currentEstimate.signedCompanyTerms.text
+  }
+  // Accepted limitation (fix-pack F2, finding #7): this override mutates the
+  // single shared documentCompany object that also renders OLDER version
+  // previews below, so a frozen term from the CURRENT signed version can leak
+  // onto an older, unsigned version's preview. This is the safe direction —
+  // frozen terms are the conservative rendering, and post-sign saves are
+  // blocked, so a signed estimate normally stays current anyway.
+
   // Phase 185 (PGMODE-02/03) — "Prepared by": staff member who created the
   // estimate, or company owner name. Mirrors lib/pdf/render-estimate-pdf.ts's
   // renderEstimatePdf() lookup EXACTLY (lines 163-177) so the editor's

@@ -187,6 +187,17 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
       chain.select = vi.fn().mockReturnValue(chain)
       chain.update = vi.fn().mockReturnValue(chain)
       chain.insert = vi.fn().mockResolvedValue({ error: null })
+      // Security-hardening S2: respondToEstimate's conditional-atomic update
+      // now chains .is('client_response', null).select('id') and awaits the
+      // chain itself (never .single()) to detect a lost sign-vs-decline race
+      // via the returned row count. `.is` needs a stub (chainable, like
+      // .eq); `.then` makes the chain object itself awaitable, resolving as
+      // "one row matched" so this happy-path instrumentation test's update
+      // succeeds by default — the race-losing (zero-rows) case has its own
+      // dedicated test in tests/unit/actions/respond-to-estimate-race-guard.test.ts.
+      chain.is = vi.fn().mockReturnValue(chain)
+      chain.then = (resolve: (value: { data: unknown; error: unknown }) => unknown) =>
+        resolve({ data: [{ id: 'est_2' }], error: null })
       return chain
     }
     return {

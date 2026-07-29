@@ -24,6 +24,12 @@ const appendMessage = vi.fn()
 const getEstimateById = vi.fn()
 const respondToEstimate = vi.fn()
 const buildSignedContentSnapshot = vi.fn()
+// Fix-pack F1 (finding #4): the sign route now resolves headers() BEFORE the
+// demo guard runs (rate limiting moved ahead of it) — every other route case
+// below still calls demoGuardResponse before ever touching headers(), so
+// this stays a dead mock for them; only the dedicated sign-estimate ordering
+// test further down actually exercises it.
+const headersMock = vi.fn()
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/supabase/server', () => ({
@@ -79,7 +85,7 @@ vi.mock('@/lib/estimate/graph/refine-graph', () => ({ buildRefineGraph: vi.fn() 
 vi.mock('@/lib/estimate/adapters/refine', () => ({ makeRefineAdapter: vi.fn() }))
 vi.mock('@/lib/estimate/lock', () => ({ isEstimateLocked: vi.fn() }))
 vi.mock('@/lib/queries/estimate', () => ({ getEstimateById: (...args: unknown[]) => getEstimateById(...args) }))
-vi.mock('next/headers', () => ({ headers: vi.fn() }))
+vi.mock('next/headers', () => ({ headers: (...args: unknown[]) => headersMock(...args) }))
 vi.mock('@/lib/demo/config', () => ({ isDemoCompany: vi.fn() }))
 vi.mock('@/app/estimate/[token]/actions', () => ({
   respondToEstimate: (...args: unknown[]) => respondToEstimate(...args),
@@ -131,19 +137,11 @@ const routeCases: RouteCase[] = [
     request: () => new Request('http://localhost/api/estimates/estimate-id/refine', { method: 'POST', body: '{}' }),
     context: { params: Promise.resolve({ id: 'estimate-id' }) },
   },
-  {
-    name: 'sign estimate',
-    load: async () =>
-      (await import('@/app/api/estimates/[id]/sign/route')).POST as (
-        request: Request,
-        context?: { params: Promise<{ id: string }> },
-      ) => Promise<Response>,
-    request: () => new Request('http://localhost/api/estimates/estimate-id/sign', {
-      method: 'POST',
-      body: JSON.stringify({ token: 'share-token', signerName: 'Demo', signatureData: 'data' }),
-    }),
-    context: { params: Promise.resolve({ id: 'estimate-id' }) },
-  },
+  // 'sign estimate' is deliberately NOT in this shared table anymore — see
+  // the dedicated describe block below. Fix-pack F1 (finding #4) moved that
+  // route's rate limit ahead of its demo guard (an unauthenticated public
+  // write endpoint must be throttled before ANYTHING else runs), so it can no
+  // longer share this loop's "rateLimit must never be called" assertion.
 ]
 
 beforeEach(() => {
@@ -151,6 +149,12 @@ beforeEach(() => {
   getClaims.mockResolvedValue({ data: { claims: { sub: 'normal-user', email: 'owner@example.com' } } })
   demoGuardResponse.mockResolvedValue(demoDenied())
   rateLimit.mockResolvedValue({ allowed: false, retryAfter: 60 })
+  // Fix-pack F1 (finding #4): safe, order-independent default — only the
+  // dedicated sign-estimate block below overrides this per-test. Vitest's
+  // vi.clearAllMocks() clears call history but NOT a previously configured
+  // mockReturnValue, so every test needs its own explicit baseline here
+  // rather than relying on whatever the last test happened to leave behind.
+  headersMock.mockReturnValue(new Headers())
   getBillingConfig.mockResolvedValue({ absorbedChatRateLimitPerMin: 20 })
   requireServiceClient.mockReturnValue({
     from: vi.fn(() => {
@@ -207,5 +211,52 @@ describe('SAFE-01/SAFE-02: AI and estimate routes deny demo contexts before effe
 
     await POST(new Request('http://localhost/api/translate', { method: 'POST' }))
     expect(rateLimit).toHaveBeenCalledWith('translatePerMinute', 'normal-user')
+  })
+})
+
+// Fix-pack F1 (finding #4) — the sign route is a deliberate exception to the
+// "demo guard before rate limit" ordering every OTHER route above follows.
+// This is an unauthenticated, share-token-gated public endpoint that writes a
+// signature + PII row: rate limiting it must precede EVERYTHING, including
+// the demo guard, or an attacker can freely enumerate ids/tokens against it
+// merely by routing requests through a demo-flagged company/session. The demo
+// guard itself is UNCHANGED otherwise — it still precedes the company check
+// and every write (RPC call, snapshot build, notification) below it.
+const TINY_PNG_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+function signRequest() {
+  return new Request('http://localhost/api/estimates/estimate-id/sign', {
+    method: 'POST',
+    body: JSON.stringify({ token: 'share-token', signerName: 'Demo', signatureData: TINY_PNG_DATA_URL }),
+  })
+}
+
+describe('SAFE-01/SAFE-02: sign estimate route (rate limit precedes the demo guard)', () => {
+  it('rate-limits first (allowed), then still returns the standard 403 before RPC/snapshot/notify effects', async () => {
+    headersMock.mockReturnValue(new Headers({ 'x-forwarded-for': '203.0.113.9' }))
+    rateLimit.mockResolvedValue({ allowed: true, count: 1, max: 10 })
+
+    const { POST } = await import('@/app/api/estimates/[id]/sign/route')
+    const response = await POST(signRequest(), { params: Promise.resolve({ id: 'estimate-id' }) })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toMatchObject({ error: 'demo_readonly' })
+    expect(rateLimit).toHaveBeenCalledWith('signPerMinute', '203.0.113.9')
+    expect(demoGuardResponse, 'sign estimate must still use the shared demo guard').toHaveBeenCalled()
+    expect(respondToEstimate).not.toHaveBeenCalled()
+    expect(buildSignedContentSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('when the limiter itself denies, the demo guard never even runs (limiter precedes it unconditionally)', async () => {
+    headersMock.mockReturnValue(new Headers({ 'x-forwarded-for': '203.0.113.9' }))
+    rateLimit.mockResolvedValue({ allowed: false, retryAfter: 30 })
+
+    const { POST } = await import('@/app/api/estimates/[id]/sign/route')
+    const response = await POST(signRequest(), { params: Promise.resolve({ id: 'estimate-id' }) })
+
+    expect(response.status).toBe(429)
+    expect(demoGuardResponse).not.toHaveBeenCalled()
+    expect(buildSignedContentSnapshot).not.toHaveBeenCalled()
   })
 })

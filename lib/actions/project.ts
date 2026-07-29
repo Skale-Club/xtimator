@@ -26,6 +26,39 @@ async function getAuthContext() {
   return { supabase, company: { id: activeCompanyId } }
 }
 
+// ---------------------------------------------------------------------------
+// Security-hardening S3 (audit finding A) — evidence-retention pre-check.
+// ---------------------------------------------------------------------------
+//
+// Deleting a project CASCADEs to every estimate under it (FK ON DELETE
+// CASCADE), which in turn would CASCADE to estimate_signatures — silently
+// destroying a client's signature + immutable signed snapshot (Phase 164)
+// with no trace left behind. The 20260729000001 migration's BEFORE DELETE
+// trigger on public.estimates now hard-blocks that at the DB layer (by
+// design, including cascades), but a raw trigger exception is a poor user
+// experience — this pre-check gives a clear, actionable error instead.
+const SIGNED_PROJECT_DELETE_ERROR =
+  'This project has an estimate with a client signature and cannot be deleted.'
+
+async function projectHasSignedEstimate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string
+): Promise<boolean> {
+  const { data: estimateRows } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+  const estimateIds = (estimateRows ?? []).map((row) => row.id as string)
+  if (estimateIds.length === 0) return false
+
+  const { data: signatureRows } = await supabase
+    .from('estimate_signatures')
+    .select('id')
+    .in('estimate_id', estimateIds)
+    .limit(1)
+  return !!signatureRows && signatureRows.length > 0
+}
+
 export async function createProjectAction(formData: ProjectFormValues) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -171,12 +204,25 @@ export async function deleteProjectAction(projectId: string) {
   if (denied) return denied
   const { supabase } = ctx
 
+  if (await projectHasSignedEstimate(supabase, projectId)) {
+    return { error: SIGNED_PROJECT_DELETE_ERROR }
+  }
+
   const { error } = await supabase
     .from('projects')
     .delete()
     .eq('id', projectId)
 
-  if (error) return { error: 'Failed to delete project. Please try again.' }
+  if (error) {
+    // Defensive: in case a signature was inserted between the pre-check
+    // above and this delete, map the 20260729000001 migration trigger's
+    // ERRCODE (P0005, raised on the cascaded estimates delete) to the same
+    // friendly message instead of surfacing the raw DB exception.
+    if ((error as { code?: string }).code === 'P0005') {
+      return { error: SIGNED_PROJECT_DELETE_ERROR }
+    }
+    return { error: 'Failed to delete project. Please try again.' }
+  }
 
   revalidatePath('/dashboard')
   return { data: { deleted: true } }
@@ -431,6 +477,10 @@ export async function hardDeleteProjectAction(projectId: string) {
   if (denied) return denied
   const { supabase } = ctx
 
+  if (await projectHasSignedEstimate(supabase, projectId)) {
+    return { error: SIGNED_PROJECT_DELETE_ERROR }
+  }
+
   // Hard delete: cascades to recordings/photos/estimates/sections/items/activity per FK ON DELETE CASCADE.
   // Only valid for rows that are already in Trash (deleted_at IS NOT NULL) — defense-in-depth filter.
   // UI gates this behind an AlertDialog (project-row-actions.tsx).
@@ -440,7 +490,13 @@ export async function hardDeleteProjectAction(projectId: string) {
     .eq('id', projectId)
     .not('deleted_at', 'is', null)
 
-  if (error) return { error: 'Failed to permanently delete project. Please try again.' }
+  if (error) {
+    // Defensive: same race-window mapping as deleteProjectAction above.
+    if ((error as { code?: string }).code === 'P0005') {
+      return { error: SIGNED_PROJECT_DELETE_ERROR }
+    }
+    return { error: 'Failed to permanently delete project. Please try again.' }
+  }
   revalidatePath('/projects')
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')

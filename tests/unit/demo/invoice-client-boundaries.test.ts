@@ -90,8 +90,14 @@ describe('SAFE-01/SAFE-02: invoice, client, and public estimate mutation boundar
 
     expectGuardBefore(body, /\.update\s*\(/, 'respondToEstimate')
     expectGuardBefore(body, /estimate_activity/, 'respondToEstimate')
-    expectGuardBefore(body, /notify\s*\(/, 'respondToEstimate')
-    expectGuardBefore(body, /resend\.emails\.send\s*\(/, 'respondToEstimate')
+    // Security-hardening S2: the inline notify()/resend.emails.send() calls
+    // that used to live directly in this function were extracted to
+    // lib/estimate/notify-response.ts's notifyEstimateResponse (shared with
+    // app/api/estimates/[id]/sign/route.ts, where a signature IS acceptance)
+    // — the guard-before check now targets that call site instead of the
+    // (moved) literal notify/email identifiers, which no longer appear in
+    // this function's own body.
+    expectGuardBefore(body, /notifyEstimateResponse\s*\(/, 'respondToEstimate')
   })
 
   it('keeps public actions anonymous while applying session and target guards after estimate lookup', () => {

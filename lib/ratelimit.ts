@@ -28,6 +28,9 @@ export type LimitName =
   | 'transcribePerMinute'
   | 'refinePerMinute'
   | 'sendPerMinute'
+  // Security-hardening S2 — the public (unauthenticated, share-token-only)
+  // sign endpoint had NO rate limit at all despite writing signature PII.
+  | 'signPerMinute'
   // Pre-launch audit fix (B9) — /api/chat had NO rate limit at all (the turn
   // itself is credit-absorbed, so this is its only cost control).
   | 'chatPerMinute'
@@ -61,6 +64,10 @@ export const limits: Record<LimitName, LimitConfig> = {
   transcribePerMinute: { max: 10, window: 60 }, // Whisper dispatch
   refinePerMinute: { max: 10, window: 60 },     // Whisper + Vision + Claude in one call
   sendPerMinute: { max: 10, window: 60 },       // Resend email / Twilio SMS fan-out
+
+  // Security-hardening S2 — public estimate signing (no auth, only a
+  // guessable-ish share token gates it; writes a signature + PII row).
+  signPerMinute: { max: 10, window: 60 },
 
   // Default only — the chat route passes billing_config.absorbedChatRateLimitPerMin
   // as a runtime-tunable override (see the `maxOverride` param below).

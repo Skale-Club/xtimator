@@ -4,6 +4,7 @@ import { getEstimatePhotos } from './estimate-photo'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
+import { applySignedCompanyTermsValue } from '@/lib/estimate/signed-snapshot'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 
 export interface Estimate {
@@ -98,6 +99,13 @@ export interface EstimateWithSections extends Estimate {
    *  loadLatestSignedSnapshot query as hasSignature above. Optional, same
    *  discipline: computed here, not a raw DB column. null = unsigned. */
   signature?: DocumentSignature | null
+  /** TRUST-01 v2 (security-hardening S1) — the frozen company Terms & Conditions
+   *  captured in a v2 signed_content snapshot. The workspace editor page builds
+   *  its DocumentCompany from its OWN companies query (app/(app)/projects/[id]/
+   *  page.tsx), bypassing getEstimateWithContext's overlay — so the frozen terms
+   *  must travel with the estimate for that surface to override them. null =
+   *  unsigned or v1/legacy snapshot: render live company terms, today's behavior. */
+  signedCompanyTerms?: { enabled: boolean; text: string | null } | null
 }
 
 export async function getProjectEstimates(
@@ -169,7 +177,25 @@ export async function getEstimateWithContext(
       .single(),
   ])
 
-  return { estimate, project, company }
+  // TRUST-01 v2 (security-hardening S1): freeze the company Terms & Conditions
+  // block for a v2-signed estimate the same way applySignedSnapshot already
+  // freezes estimate content.
+  //
+  // Fix-pack F1 (finding #6): this used to issue its OWN, second, sequential
+  // loadLatestSignedSnapshot call here just to reach the nested
+  // signed_content.company_terms field — re-fetching the same big
+  // signed_content + signature_data columns that getEstimateById (via
+  // fetchEstimateWithSections, above) had ALREADY loaded concurrently and
+  // surfaced as estimate.signedCompanyTerms. Overlay from that already-loaded
+  // value instead — same REPLACE-not-merge semantics as applySignedCompanyTerms
+  // (applySignedCompanyTermsValue is its sibling that takes the extracted
+  // value directly), zero extra queries. A v1/no signature is
+  // signedCompanyTerms == null: no-op, renders live terms (today's behavior).
+  const frozenCompany = company
+    ? applySignedCompanyTermsValue(company, estimate.signedCompanyTerms)
+    : company
+
+  return { estimate, project, company: frozenCompany }
 }
 
 async function fetchEstimateWithSections(
@@ -223,5 +249,6 @@ async function fetchEstimateWithSections(
             signatureDataUrl: signatureSnapshotRow.signature_data,
           }
         : null,
+    signedCompanyTerms: signatureSnapshotRow?.signed_content?.company_terms ?? null,
   }
 }
