@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Lock, History, Minus, Plus } from 'lucide-react'
+import { History, Minus, Plus } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -710,26 +710,9 @@ export function EstimateEditor({
 
   return (
     <div className="space-y-3">
-      {/* Phase 164 Plan 02 (TRUST-02) — lock banner. Only when this IS the
-          current version AND it is locked (older, non-current versions
-          already render their own "Read-only | older version" badge in
-          EstimateHeader — this is a distinct, delivered-and-locked state). */}
-      {isCurrent && locked && (
-        <Alert>
-          <Lock />
-          <AlertTitle>{t('This estimate is locked')}</AlertTitle>
-          <AlertDescription>
-            <p>
-              {t(
-                'This estimate was delivered to the client and is locked. Create a new version to make changes.'
-              )}
-            </p>
-            <Button size="sm" className="mt-2" onClick={() => void handleCreateNewVersion()}>
-              {t('Create new version')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* The delivered-and-locked banner that used to render here was removed
+          — the lock still applies (editor read-only, server guard, toast on a
+          rejected save); "Create new version" lives in the header actions. */}
 
       {/* Phase 165 Plan 02 (SAVE-05, audit B3/RPC P0003) — this tab's belief
           that it holds the current version was WRONG (another tab/session

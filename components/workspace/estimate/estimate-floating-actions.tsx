@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Send, Camera, Settings, ChevronDown, ChevronUp } from 'lucide-react'
+import { Share2, Camera, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -53,7 +53,7 @@ function Pill({ children }: { children: ReactNode }) {
 // Autosave status (drafts save automatically, debounced in the editor) is
 // surfaced next to the "Edit with AI" button in the project header instead
 // of here — see ProjectHeader + VersionSlot.saveStatus. `status` still gates
-// the Send button below (disabled while a save is in flight).
+// the Share button below (disabled while a save is in flight).
 
 export function EstimateFloatingActions({
   isCurrent,
@@ -111,8 +111,8 @@ export function EstimateFloatingActions({
         </Button>
       )}
       <Button size="sm" onClick={onSend} disabled={isSaving} className="rounded-full gap-1.5">
-        <Send className="h-3.5 w-3.5" />
-        Send
+        <Share2 className="h-3.5 w-3.5" />
+        Share
       </Button>
       <Button
         size="sm"

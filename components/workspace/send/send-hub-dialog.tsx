@@ -1,20 +1,21 @@
 // components/workspace/send/send-hub-dialog.tsx
-// Phase 163 (SENDHUB-01, SENDHUB-03, SENDHUB-06): format-first Send hub.
-// Three primary format cards (Online Estimate / PDF / Plain Text), each with
-// its own delivery actions. Retires the channel-first email/SMS tab layout AND the
-// separate dropdown menu that used to sit in the dialog header (see 163-06
-// for the deletion sweep).
-//
-// 163-04 landed the layout + Copy URL / Open URL bindings. 163-05 (THIS plan)
-// replaces every remaining placeholder onClick with a real server-action or
-// route call, threads the `format` field into every send POST body, and
-// records copy/open/download actions via logDeliveryAction. The retire and
-// dispatch surfaces (email/SMS/WhatsApp routes + WhatsApp dispatcher +
-// estimate_deliveries schema) were widened in Tasks 1-2 of this same plan.
+// Send hub, preview-first: Xtimator never dispatches email/SMS/WhatsApp itself.
+// The owner sends from their OWN apps so client replies land where they
+// already talk to the client (we rarely have reliable client contact data,
+// and an in-app send would orphan the reply thread). The hub therefore:
+//   1. heroes the online estimate (webview) with the full URL + a visible
+//      Copy button,
+//   2. pairs Download PDF with a single Share menu (wa.me / mailto: / sms: /
+//      native share sheet) whose intents open the user's own app with the
+//      message + link pre-filled,
+//   3. keeps the copy-ready formatted message visible + editable inline.
+// The old in-app dispatch routes (/send, /send-sms, /send-whatsapp) are no
+// longer called from here, and the Mark-as-sent button was dropped from the
+// hub (markAsSentAction still exists server-side for other callers).
 
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -25,25 +26,25 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Textarea } from '@/components/ui/textarea'
 import {
+  Check,
   Copy,
   Download,
   ExternalLink,
-  FileText,
-  Loader2,
   Mail,
   MessageSquare,
+  RotateCcw,
   Send,
+  Share2,
 } from 'lucide-react'
 import { LanguageFlagChip } from './language-flag-chip'
-import { PlainTextSheet } from './plain-text-sheet'
-import { logDeliveryAction, markAsSentAction } from '@/lib/actions/estimate'
+import { logDeliveryAction } from '@/lib/actions/estimate'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 import {
   resolveTemplate,
@@ -54,8 +55,6 @@ import { resolvePresentationSettings } from '@/lib/estimate/presentation-setting
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 
-type SendFormat = 'online_link' | 'pdf' | 'plain_text'
-
 export interface SendHubDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -65,23 +64,26 @@ export interface SendHubDialogProps {
   /**
    * Company slug -- needed by buildEstimatePublicPath to construct the friendly
    * Phase 160 URL. Falls back to the legacy /estimate/{share_token} path when
-   * null/undefined (matches buildShareLink today). Wired in from estimate-tab
-   * in Task 3; the parent chain (OverviewTab -> ProjectWorkspace -> page)
-   * threads it in a follow-on 163-05 commit.
+   * null/undefined (matches buildShareLink today).
    */
   companySlug?: string | null
+  /** Pre-fills the mailto: recipient when the client has an email on file. */
   clientEmail: string | null
+  /** Pre-fills the wa.me / sms: recipient when the client has a phone on file. */
   clientPhone: string | null
   clientName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
-  smsDeliveryEnabled: boolean
   /**
-   * Whether WhatsApp delivery is available for this account — a single opaque
-   * boolean resolved server-side in the project page from the tier entitlement
-   * ∧ the account registry's active status (getWhatsAppAccountStatus). When
-   * false, the WhatsApp actions are hidden. Defaults to true when the parent
-   * omits it, keeping the hub's shape stable.
+   * @deprecated In-app SMS dispatch was removed from the hub -- sharing goes
+   * through the user's own apps now. Accepted so existing parents keep
+   * compiling; ignored.
+   */
+  smsDeliveryEnabled?: boolean
+  /**
+   * @deprecated In-app WhatsApp dispatch was removed from the hub -- wa.me
+   * share intents need no account entitlement. Accepted so existing parents
+   * keep compiling; ignored.
    */
   whatsappEnabled?: boolean
 }
@@ -93,21 +95,20 @@ export function SendHubDialog({
   projectName,
   companyName,
   companySlug,
-  smsDeliveryEnabled,
-  whatsappEnabled,
   clientEmail,
   clientPhone,
   clientName,
   ownerName,
   estimateTemplate,
 }: SendHubDialogProps) {
-  const [plainTextOpen, setPlainTextOpen] = useState(false)
-  const [isMarkingSent, startMarkTransition] = useTransition()
-  const [pendingAction, setPendingAction] = useState<string | null>(null)
+  const [urlCopied, setUrlCopied] = useState(false)
+  // Edited message draft, tagged with the estimate id it belongs to so a
+  // dialog reused for another estimate falls back to that estimate's
+  // freshly generated text (no effect needed).
+  const [draft, setDraft] = useState<{ id: string; text: string } | null>(null)
 
   if (!estimate) return null
 
-  const showWhatsapp = whatsappEnabled !== false
   const publicPath = buildEstimatePublicPath(
     { slug: companySlug ?? null, name: companyName },
     {
@@ -125,6 +126,26 @@ export function SendHubDialog({
       : publicPath
   }
 
+  // The copy-ready formatted message, same recipe the retired PlainTextSheet
+  // used. Always visible + editable in the block below.
+  const resolvedSettings = resolvePresentationSettings(
+    (estimate as { presentation_settings?: unknown }).presentation_settings,
+  )
+  const generatedText = resolveTemplate(estimateTemplate, {
+    client_name: clientName,
+    company_name: companyName,
+    owner_name: ownerName,
+    total: formatCurrency(estimate.total, estimate.currency_code),
+    items_breakdown: buildItemsBreakdown(estimate, resolvedSettings),
+  })
+  const messageText =
+    draft?.id === estimate.id ? draft.text : generatedText
+
+  /** What the share intents carry: the visible message plus the link. */
+  function buildShareText(): string {
+    return `${messageText}\n\n${buildAbsoluteUrl()}`
+  }
+
   // ---------------------------------------------------------------------------
   // Online Estimate: pure client-side URL affordances (no network dispatch).
   // logDeliveryAction is fire-and-forget -- copy/open success is what matters
@@ -133,7 +154,9 @@ export function SendHubDialog({
   async function handleCopyUrl() {
     try {
       await navigator.clipboard.writeText(buildAbsoluteUrl())
+      setUrlCopied(true)
       toast.success('Link copied')
+      setTimeout(() => setUrlCopied(false), 2000)
       void logDeliveryAction({
         estimateId: estimate!.id,
         format: 'online_link',
@@ -156,6 +179,49 @@ export function SendHubDialog({
   }
 
   // ---------------------------------------------------------------------------
+  // Share intents: open the USER'S OWN app with the message + link pre-filled.
+  // Nothing is dispatched by Xtimator, so nothing is logged as a delivery.
+  // ---------------------------------------------------------------------------
+  function shareWhatsapp() {
+    // wa.me wants digits only (E.164 without the +). Without a phone the
+    // no-recipient variant opens WhatsApp's own contact picker.
+    const digits = (clientPhone ?? '').replace(/\D/g, '')
+    const url = digits
+      ? `https://wa.me/${digits}?text=${encodeURIComponent(buildShareText())}`
+      : `https://wa.me/?text=${encodeURIComponent(buildShareText())}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  function shareEmail() {
+    const subject = encodeURIComponent(`Your estimate from ${companyName}`)
+    const body = encodeURIComponent(buildShareText())
+    // location.href (not window.open) so no blank tab is left behind when the
+    // OS hands the mailto: off to the mail client.
+    window.location.href = `mailto:${clientEmail ?? ''}?subject=${subject}&body=${body}`
+  }
+
+  function shareSms() {
+    // The `?&body` form is the one both iOS and Android accept.
+    const digits = (clientPhone ?? '').replace(/[^\d+]/g, '')
+    window.location.href = `sms:${digits}?&body=${encodeURIComponent(buildShareText())}`
+  }
+
+  const canNativeShare =
+    typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+
+  async function shareNative() {
+    try {
+      await navigator.share({
+        title: `Estimate from ${companyName}`,
+        text: messageText,
+        url: buildAbsoluteUrl(),
+      })
+    } catch {
+      // User dismissed the share sheet -- not an error.
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // PDF: download opens the existing /api/estimates/[id]/pdf route in a new
   // tab. logDeliveryAction fires BEFORE the open so the row lands even if the
   // download stream errors afterwards.
@@ -174,380 +240,172 @@ export function SendHubDialog({
     )
   }
 
-  // ---------------------------------------------------------------------------
-  // Plain Text: render locally using the same recipe PlainTextSheet uses,
-  // then copy + log.
-  // ---------------------------------------------------------------------------
-  async function handleCopyPlainText() {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto overflow-x-hidden">
+        <DialogHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+            <div className="flex min-w-0 items-center gap-2">
+              <DialogTitle className="truncate">Share estimate</DialogTitle>
+              {/* Display-only language chip; there is NO picker
+                  (language is locked at generation time). */}
+              <LanguageFlagChip lang={estimate.language} />
+            </div>
+          </div>
+          <DialogDescription>
+            Copy the link or message and send it from your own apps.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* --- Hero: the online estimate (webview) is THE action; Download
+            PDF sits right below it as THE secondary action.
+            min-w-0: the full URL is one unbreakable "word" -- without it the
+            grid track inflates to the URL's min-content width and every row
+            overflows the dialog. --- */}
+        <div
+          data-testid="send-hub-card-online-link"
+          className="flex min-w-0 flex-col gap-2"
+        >
+          <Button variant="primary" size="lg" onClick={handleOpenUrl}>
+            <ExternalLink className="mr-2 h-4 w-4" /> Open Online Estimate
+          </Button>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1 truncate rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground">
+              {buildAbsoluteUrl()}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void handleCopyUrl()}
+            >
+              {urlCopied ? (
+                <Check className="mr-2 h-3.5 w-3.5" />
+              ) : (
+                <Copy className="mr-2 h-3.5 w-3.5" />
+              )}
+              {urlCopied ? 'Copied!' : 'Copy'}
+            </Button>
+          </div>
+          {/* Download PDF + Share side by side: PDF is the secondary action,
+              Share bundles the intents (WhatsApp / Email / SMS / native share
+              sheet) that open the user's own app with message + link. */}
+          <div className="flex gap-2">
+            <Button
+              data-testid="send-hub-card-pdf"
+              variant="outline"
+              className="flex-1"
+              onClick={handleDownloadPdf}
+            >
+              <Download className="mr-2 h-4 w-4" /> Download PDF
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex-1">
+                  <Share2 className="mr-2 h-4 w-4" /> Share
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={shareWhatsapp}>
+                  <Send className="mr-2 h-4 w-4" /> WhatsApp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={shareEmail}>
+                  <Mail className="mr-2 h-4 w-4" /> Email
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={shareSms}>
+                  <MessageSquare className="mr-2 h-4 w-4" /> SMS
+                </DropdownMenuItem>
+                {canNativeShare && (
+                  <DropdownMenuItem onClick={() => void shareNative()}>
+                    <Share2 className="mr-2 h-4 w-4" /> More options
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* --- Copy-ready message: always visible + editable inline. Share
+            intents above carry this text (plus the link). --- */}
+        <MessageTextBlock
+          estimateId={estimate.id}
+          value={messageText}
+          onChange={(text) => setDraft({ id: estimate!.id, text })}
+          onReset={() => setDraft(null)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// -----------------------------------------------------------------------------
+// MessageTextBlock: the formatted plain-text message, always visible in the
+// hub. Controlled by the parent so the share intents carry edits. Copy copies
+// the (possibly edited) text and logs a plain_text/copy delivery row; Reset
+// restores the generated template output.
+// -----------------------------------------------------------------------------
+function MessageTextBlock({
+  estimateId,
+  value,
+  onChange,
+  onReset,
+}: {
+  estimateId: string
+  value: string
+  onChange: (text: string) => void
+  onReset: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
     try {
-      const resolvedSettings = resolvePresentationSettings(
-        (estimate as { presentation_settings?: unknown }).presentation_settings,
-      )
-      const text = resolveTemplate(estimateTemplate, {
-        client_name: clientName,
-        company_name: companyName,
-        owner_name: ownerName,
-        total: formatCurrency(estimate!.total, estimate!.currency_code),
-        items_breakdown: buildItemsBreakdown(estimate!, resolvedSettings),
-      })
-      await navigator.clipboard.writeText(text)
-      toast.success('Plain text copied')
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      toast.success('Message copied')
+      setTimeout(() => setCopied(false), 2000)
+      // Fire-and-forget delivery log -- a log-write failure must never
+      // surface a toast, the copy already succeeded.
       void logDeliveryAction({
-        estimateId: estimate!.id,
+        estimateId,
         format: 'plain_text',
         channel: 'copy',
       })
     } catch {
-      toast.error('Failed to copy plain text')
+      toast.error('Failed to copy message')
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Email / SMS / WhatsApp per format. Each POSTs to the route Task 1 widened
-  // to accept `format`. If clientEmail/clientPhone is null, we abort with a
-  // clear toast -- a modal input flow is a follow-up. Recipient is pulled
-  // from the linked client's contact fields (drop-in with the retired
-  // channel-first form's field-picker behaviour).
-  // ---------------------------------------------------------------------------
-  async function sendEmail(opts: { format: SendFormat; label: string }) {
-    if (!clientEmail) {
-      toast.error("No email on file for this client")
-      return
-    }
-    setPendingAction(`email-${opts.format}`)
-    try {
-      const res = await fetch(`/api/estimates/${estimate!.id}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: clientEmail,
-          subject: `Your estimate from ${companyName}`,
-          body: `Hi ${clientName || 'there'},\n\nYour estimate is ready. View it here: ${buildAbsoluteUrl()}\n\nThanks,\n${ownerName}`,
-          attachPdf: opts.format === 'pdf',
-          format: opts.format,
-        }),
-      })
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
-        return
-      }
-      toast.success(`${opts.label} sent`)
-    } catch {
-      toast.error(`Failed to send ${opts.label}`)
-    } finally {
-      setPendingAction(null)
-    }
-  }
-
-  async function sendSms(opts: { format: SendFormat; label: string }) {
-    if (!clientPhone) {
-      toast.error("No phone on file for this client")
-      return
-    }
-    setPendingAction(`sms-${opts.format}`)
-    try {
-      const res = await fetch(`/api/estimates/${estimate!.id}/send-sms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: clientPhone, format: opts.format }),
-      })
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
-        return
-      }
-      toast.success(`${opts.label} sent`)
-    } catch {
-      toast.error(`Failed to send ${opts.label}`)
-    } finally {
-      setPendingAction(null)
-    }
-  }
-
-  async function sendWhatsapp(opts: { format: SendFormat; label: string }) {
-    if (!clientPhone) {
-      toast.error("No phone on file for this client")
-      return
-    }
-    setPendingAction(`whatsapp-${opts.format}`)
-    try {
-      // NOTE: the WhatsApp route destructures `to` (E.164), NOT `phone`.
-      const res = await fetch(`/api/estimates/${estimate!.id}/send-whatsapp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: clientPhone, format: opts.format }),
-      })
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string }
-        toast.error(errBody.error ?? `Failed to send ${opts.label}`)
-        return
-      }
-      toast.success(`${opts.label} sent`)
-    } catch {
-      toast.error(`Failed to send ${opts.label}`)
-    } finally {
-      setPendingAction(null)
-    }
-  }
-
-  function handleMarkAsSent() {
-    startMarkTransition(async () => {
-      try {
-        const result = await markAsSentAction(estimate!.id)
-        if (result && 'error' in result && result.error) {
-          toast.error(result.error)
-          return
-        }
-        toast.success('Marked as sent')
-        onOpenChange(false)
-      } catch {
-        toast.error('Failed to mark as sent')
-      }
-    })
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* Wider than the retired channel-first dialog so 3 format cards can lay
-            side-by-side at md+; on mobile they stack. max-h in dvh + overflow-y-auto
-            mirrors the retired dialog's mobile-friendliness. */}
-        <DialogContent className="sm:max-w-3xl max-h-[85dvh] overflow-y-auto overflow-x-hidden">
-          <DialogHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
-              <div className="flex min-w-0 items-center gap-2">
-                <DialogTitle className="truncate">Send estimate</DialogTitle>
-                {/* SENDHUB-06: display-only language chip; there is NO picker
-                    (language is locked at generation time). */}
-                <LanguageFlagChip lang={estimate.language} />
-              </div>
-            </div>
-            <DialogDescription>
-              Choose a format and how to deliver it.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* SENDHUB-01: three primary format cards -- NOT a channel-first
-              tab strip, NOT an overflow dropdown. Grid stacks on mobile
-              (grid-cols-1) and lays out horizontally at md+ (grid-cols-3). */}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {/* --- Online Estimate card (default) --- */}
-            <Card
-              data-testid="send-hub-card-online-link"
-              variant="glass"
-              className="border-primary/40"
-            >
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <ExternalLink className="h-4 w-4" /> Online Estimate
-                </CardTitle>
-                <CardDescription>
-                  Shareable link the client opens in a browser
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={handleCopyUrl}
-                >
-                  <Copy className="mr-2 h-3.5 w-3.5" /> Copy URL
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={handleOpenUrl}
-                >
-                  <ExternalLink className="mr-2 h-3.5 w-3.5" /> Open URL
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={pendingAction === 'email-online_link'}
-                  onClick={() => void sendEmail({ format: 'online_link', label: 'Email link' })}
-                >
-                  <Mail className="mr-2 h-3.5 w-3.5" /> Email
-                </Button>
-                {smsDeliveryEnabled && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'sms-online_link'}
-                    onClick={() => void sendSms({ format: 'online_link', label: 'SMS link' })}
-                  >
-                    <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
-                  </Button>
-                )}
-                {showWhatsapp && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'whatsapp-online_link'}
-                    onClick={() => void sendWhatsapp({ format: 'online_link', label: 'WhatsApp link' })}
-                  >
-                    <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* --- PDF card --- */}
-            <Card data-testid="send-hub-card-pdf" variant="glass">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Download className="h-4 w-4" /> PDF
-                </CardTitle>
-                <CardDescription>
-                  Downloadable branded PDF; SMS/WhatsApp fall back to the online
-                  link
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={handleDownloadPdf}
-                >
-                  <Download className="mr-2 h-3.5 w-3.5" /> Download PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={pendingAction === 'email-pdf'}
-                  onClick={() => void sendEmail({ format: 'pdf', label: 'Email PDF' })}
-                >
-                  <Mail className="mr-2 h-3.5 w-3.5" /> Email
-                </Button>
-                {smsDeliveryEnabled && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'sms-pdf'}
-                    onClick={() => void sendSms({ format: 'pdf', label: 'SMS (link fallback)' })}
-                  >
-                    <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
-                  </Button>
-                )}
-                {showWhatsapp && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'whatsapp-pdf'}
-                    onClick={() => void sendWhatsapp({ format: 'pdf', label: 'WhatsApp (link fallback)' })}
-                  >
-                    <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* --- Plain Text card --- */}
-            <Card data-testid="send-hub-card-plain-text" variant="glass">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <FileText className="h-4 w-4" /> Plain Text
-                </CardTitle>
-                <CardDescription>
-                  Plain-text version of the estimate; SMS/WhatsApp fall back to
-                  the online link
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => void handleCopyPlainText()}
-                >
-                  <Copy className="mr-2 h-3.5 w-3.5" /> Copy
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => setPlainTextOpen(true)}
-                >
-                  <FileText className="mr-2 h-3.5 w-3.5" /> Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={pendingAction === 'email-plain_text'}
-                  onClick={() => void sendEmail({ format: 'plain_text', label: 'Email plain text' })}
-                >
-                  <Mail className="mr-2 h-3.5 w-3.5" /> Email
-                </Button>
-                {smsDeliveryEnabled && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'sms-plain_text'}
-                    onClick={() => void sendSms({ format: 'plain_text', label: 'SMS (link fallback)' })}
-                  >
-                    <MessageSquare className="mr-2 h-3.5 w-3.5" /> SMS
-                  </Button>
-                )}
-                {showWhatsapp && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                    disabled={pendingAction === 'whatsapp-plain_text'}
-                    onClick={() => void sendWhatsapp({ format: 'plain_text', label: 'WhatsApp (link fallback)' })}
-                  >
-                    <Send className="mr-2 h-3.5 w-3.5" /> WhatsApp
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* SENDHUB-06: Mark as Sent is a subordinate secondary action --
-              muted ghost styling, right-aligned below the primary format grid.
-              Language chip already lives in the header above. */}
-          <div className="mt-2 flex items-center justify-end border-t border-[var(--glass-border)] pt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isMarkingSent}
-              onClick={handleMarkAsSent}
-              aria-label="Mark as sent"
-            >
-              {isMarkingSent ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              {isMarkingSent ? 'Marking' : 'Mark as sent'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* PlainTextSheet is opened from the Plain Text card's "Edit" action.
-          It stays a Sheet (right-side drawer) -- same UX as the retired
-          plain-text editor affordance from the old dropdown, minus the
-          menu wrapper. */}
-      <PlainTextSheet
-        key={estimate.id}
-        open={plainTextOpen}
-        onOpenChange={setPlainTextOpen}
-        estimate={estimate}
-        clientName={clientName}
-        companyName={companyName}
-        ownerName={ownerName}
-        estimateTemplate={estimateTemplate}
+    <div data-testid="send-hub-card-plain-text" className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground">
+          Copy-ready message
+        </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Reset message"
+            onClick={onReset}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void handleCopy()}>
+            {copied ? (
+              <Check className="mr-2 h-3.5 w-3.5" />
+            ) : (
+              <Copy className="mr-2 h-3.5 w-3.5" />
+            )}
+            {copied ? 'Copied!' : 'Copy'}
+          </Button>
+        </div>
+      </div>
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={7}
+        className="resize-none font-mono text-xs"
       />
-    </>
+    </div>
   )
 }

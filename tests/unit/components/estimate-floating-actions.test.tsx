@@ -5,7 +5,7 @@ import { EstimateFloatingActions } from '@/components/workspace/estimate/estimat
 // Wave 4 (162-04) — DOCUX-01 gear button real assertions replacing the Wave 0
 // placeholder scaffolds. Every test targets estimate-floating-actions.tsx —
 // the `<Pill>` that hosts the gear icon LEFTMOST of linkClientSlot / Photos /
-// Send.
+// Share.
 
 beforeEach(() => {
   cleanup()
@@ -54,7 +54,7 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
-  it('gear button is the LEFTMOST child of the Pill (order: [Gear] linkClientSlot Photos Send)', () => {
+  it('gear button is the LEFTMOST child of the Pill (order: [Gear] linkClientSlot Photos Share)', () => {
     render(
       <EstimateFloatingActions
         isCurrent
@@ -68,11 +68,11 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
     const gear = screen.getByRole('button', { name: /^settings$/i })
     const slot = screen.getByTestId('lcs')
     const photos = screen.getByRole('button', { name: /photos/i })
-    const send = screen.getByRole('button', { name: /^send$/i })
+    const share = screen.getByRole('button', { name: /^share$/i })
     // DOCUMENT_POSITION_FOLLOWING === 4 — LHS precedes RHS in document order.
     expect(gear.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(slot.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(photos.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(photos.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('gear button has aria-label="Settings" for screen readers', () => {
@@ -106,7 +106,7 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
   })
 })
 
-// Quick-260718-w4k — collapsible pill: a chevron after Send collapses the
+// Quick-260718-w4k — collapsible pill: a chevron after Share collapses the
 // pill to a single "Show actions" button; clicking that restores everything.
 describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
   function renderFull() {
@@ -121,11 +121,11 @@ describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
     )
   }
 
-  it('renders expanded by default with a "Hide actions" chevron AFTER Send', () => {
+  it('renders expanded by default with a "Hide actions" chevron AFTER Share', () => {
     renderFull()
-    const send = screen.getByRole('button', { name: /^send$/i })
+    const share = screen.getByRole('button', { name: /^share$/i })
     const hide = screen.getByRole('button', { name: /^hide actions$/i })
-    expect(send.compareDocumentPosition(hide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(share.compareDocumentPosition(hide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeNull()
   })
 
@@ -133,7 +133,7 @@ describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
     renderFull()
     fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
     expect(screen.queryByRole('button', { name: /^show actions$/i })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^share$/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /photos/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /^settings$/i })).toBeNull()
   })
@@ -142,7 +142,7 @@ describe('EstimateFloatingActions collapsible pill (quick-260718-w4k)', () => {
     renderFull()
     fireEvent.click(screen.getByRole('button', { name: /^hide actions$/i }))
     fireEvent.click(screen.getByRole('button', { name: /^show actions$/i }))
-    expect(screen.queryByRole('button', { name: /^send$/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^share$/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /photos/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^settings$/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^hide actions$/i })).toBeTruthy()
