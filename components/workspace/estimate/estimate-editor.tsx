@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Lock, History } from 'lucide-react'
+import { Lock, History, Minus, Plus } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -176,12 +176,9 @@ function stateToSavePayload(state: EstimateEditorState, opts?: { force?: boolean
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 
-/** Quick-260718-w4k — US Letter height at 96dpi (11in), pairing
- *  LETTER_WIDTH_PX. Page mode scales the sheet so this full height fits
- *  the visible viewport, like a print preview. */
-const LETTER_PAGE_HEIGHT = LETTER_HEIGHT_PX
-/** Vertical clearance reserved below the sheet for the floating pill. */
-const PAGE_FIT_CLEARANCE = 84
+// (260728 rework) The old LETTER_PAGE_HEIGHT/PAGE_FIT_CLEARANCE height-fit
+// constants were retired with the fit-to-width zoom model — LETTER_HEIGHT_PX
+// stays imported for the overlay/geometry consumers below.
 
 interface EstimateEditorProps {
   estimate: EstimateWithSections
@@ -330,29 +327,34 @@ export function EstimateEditor({
   // on each side (PaginatedDocumentOverlay).
   const pageWrapRef = useRef<HTMLDivElement | null>(null)
   const [pageZoom, setPageZoom] = useState(1)
+  // Paginated-preview presentation rework (260728): the document is the hero.
+  // Auto zoom now fits the sheet WIDTH (like a PDF viewer's fit-width), never
+  // the whole page height — the old height-fit shrank the letter sheet to
+  // ~56% on common laptop viewports, reading as a thumbnail. Manual zoom
+  // (the −/+ controls below) overrides auto-fit until "Fit" resets it.
+  const [zoomOverride, setZoomOverride] = useState<number | null>(null)
   useEffect(() => {
     if (viewMode !== 'page') {
       setPageZoom(1)
+      setZoomOverride(null)
       return
     }
     const compute = () => {
       const el = pageWrapRef.current
       if (!el) return
-      const scrollerTop = el.closest('main')?.getBoundingClientRect().top ?? 0
-      const sheetTop = Math.max(el.getBoundingClientRect().top, scrollerTop)
-      const availHeight = window.innerHeight - sheetTop - PAGE_FIT_CLEARANCE
       const availWidth = el.getBoundingClientRect().width || window.innerWidth
-      setPageZoom(
-        Math.min(
-          1,
-          Math.max(Math.min(availHeight / LETTER_PAGE_HEIGHT, availWidth / (LETTER_WIDTH_PX + 32)), 0.45)
-        )
-      )
+      setPageZoom(Math.min(1, Math.max(availWidth / (LETTER_WIDTH_PX + 32), 0.45)))
     }
     compute()
     window.addEventListener('resize', compute)
     return () => window.removeEventListener('resize', compute)
   }, [viewMode])
+  const effectiveZoom = zoomOverride ?? pageZoom
+  const zoomStep = (delta: number) =>
+    setZoomOverride((prev) => {
+      const base = prev ?? pageZoom
+      return Math.min(1.5, Math.max(0.5, Math.round((base + delta) * 10) / 10))
+    })
 
   const isCurrent = state.is_current
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
@@ -755,10 +757,46 @@ export function EstimateEditor({
           IssuedInvoicesPanel/GenerateInvoiceDialog render as SIBLINGS below,
           in BOTH view modes, so unrelated invoice surfaces never sit inside
           the paginated tray. */}
+      {viewMode === 'page' && (
+        <div className="fixed bottom-24 right-8 z-30 pointer-events-none">
+          {/* PDF-viewer-style zoom pill (260728 rework) — fixed at the lower
+              right, clear of the sticky project header, the "Edit with AI"
+              button, and the centered floating action pill. */}
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-zinc-900/90 px-2 py-1 text-zinc-100 shadow-lg backdrop-blur border border-white/10">
+            <button
+              type="button"
+              aria-label="Zoom out"
+              className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              disabled={effectiveZoom <= 0.5}
+              onClick={() => zoomStep(-0.1)}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Fit width"
+              title="Fit width"
+              className="min-w-[3.25rem] rounded-full px-1 text-center text-xs tabular-nums hover:bg-white/10"
+              onClick={() => setZoomOverride(null)}
+            >
+              {Math.round(effectiveZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
+              disabled={effectiveZoom >= 1.5}
+              onClick={() => zoomStep(0.1)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
       <div
         ref={pageWrapRef}
         className={viewMode === 'page' ? 'w-full' : undefined}
-        style={viewMode === 'page' && pageZoom < 1 ? { zoom: pageZoom } : undefined}
+        style={viewMode === 'page' && effectiveZoom !== 1 ? { zoom: effectiveZoom } : undefined}
       >
         {viewMode === 'page' ? (
           <PaginatedDocumentOverlay
@@ -766,6 +804,7 @@ export function EstimateEditor({
             company={company}
             templateId={estimateTemplateId}
             language={(estimate.language ?? 'en') as EstimateLanguage}
+            brandColor={companyBrandColor ?? undefined}
           >
             <EstimateDocument
               mode="edit"

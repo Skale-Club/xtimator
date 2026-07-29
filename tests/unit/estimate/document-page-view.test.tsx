@@ -98,12 +98,17 @@ describe('EstimateDocument page view (print-preview sheet)', () => {
     expect(root.style.borderColor).toBe('rgb(63, 63, 70)') // #3f3f46
   })
 
-  it('pageView renders a square-cornered letter sheet with paper shadow', () => {
+  it('pageView renders chrome-free and transparent — the overlay sheets are the paper (260728 rework)', () => {
     const root = renderDocument(true)
-    expect(root.style.minHeight).toBe('1056px')
-    expect(root.className).toContain('shadow-2xl')
+    // No card chrome of its own: the PaginatedDocumentOverlay's decorative
+    // sheets carry the white fill, hairline edge, and paper shadow; the
+    // content layer stays transparent so inter-page gaps show the canvas.
     expect(root.className).not.toContain('rounded-3xl')
     expect(root.className).not.toContain('border-4')
-    expect(root.style.borderColor).toBe('rgb(212, 212, 216)') // #d4d4d8
+    expect(root.className).not.toContain('shadow')
+    expect(root.className).not.toContain('overflow-hidden')
+    expect(root.style.minHeight).toBe('')
+    expect(root.style.backgroundColor).toBe('')
+    expect(root.style.borderColor).toBe('')
   })
 })

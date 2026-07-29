@@ -176,6 +176,9 @@ interface PaginatedDocumentOverlayProps {
   company: DocumentCompany
   templateId: EstimateTemplateId
   language: EstimateLanguage
+  /** 260728 rework — tints the repeated mini-header's company name on pages
+   *  2+ (mirrors the PDF's fixed header). Optional; neutral when absent. */
+  brandColor?: string
   children: ReactNode
 }
 
@@ -184,12 +187,15 @@ export function PaginatedDocumentOverlay({
   company,
   templateId,
   language,
+  brandColor,
   children,
 }: PaginatedDocumentOverlayProps) {
   const L = DOC_LABELS[language] ?? DOC_LABELS.en
   const containerRef = useRef<HTMLDivElement | null>(null)
   const isApplyingRef = useRef(false)
   const [pageOffsets, setPageOffsets] = useState<DerivedPageOffset[] | null>(null)
+  // 260728 rework — thumbnail rail: which sheet is most visible in the viewport.
+  const [activePage, setActivePage] = useState(0)
 
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
   // Precomputed IN PX here (the shell's own caller of derivePageOffsets) —
@@ -274,6 +280,36 @@ export function PaginatedDocumentOverlay({
     return () => ro.disconnect()
   }, [pages, offsetsOptions])
 
+  // 260728 rework — track the most-visible sheet for the thumbnail rail.
+  // Observes the decorative sheet divs (rendered from pageOffsets below).
+  useLayoutEffect(() => {
+    if (!pageOffsets || pageOffsets.length < 2) return
+    // jsdom (unit tests) has no IntersectionObserver; the rail then simply
+    // keeps page 1 active — navigation still works, only highlight tracking
+    // is browser-tier (same split as the measurement shell above).
+    if (typeof IntersectionObserver === 'undefined') return
+    const sheets = document.querySelectorAll<HTMLElement>('[data-page-sheet]')
+    if (!sheets.length) return
+    const visibility = new Map<number, number>()
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const idx = Number((e.target as HTMLElement).dataset.pageSheet)
+          visibility.set(idx, e.intersectionRatio)
+        }
+        let best = 0
+        let bestRatio = -1
+        visibility.forEach((ratio, idx) => {
+          if (ratio > bestRatio) { bestRatio = ratio; best = idx }
+        })
+        setActivePage(best)
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 1] }
+    )
+    sheets.forEach((s) => io.observe(s))
+    return () => io.disconnect()
+  }, [pageOffsets])
+
   // 185-UI-SPEC.md §3's fail-soft rule — first paint before the first
   // computePageBreaks() result resolves (pages === null): render children
   // UNWRAPPED, zero decoration.
@@ -281,65 +317,126 @@ export function PaginatedDocumentOverlay({
     return <div ref={containerRef}>{children}</div>
   }
 
+  const scrollToPage = (idx: number) => {
+    document.querySelector(`[data-page-sheet="${idx}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
-    <div className="relative mx-auto rounded-xl bg-muted px-4 py-8" style={{ width: LETTER_WIDTH_PX + 32 }}>
-      {/* Decoration layer — MUST use overflow: visible (never hidden, so live
-          hover/focus/drag states near a page boundary are never clipped),
-          pointer-events-none + stacked BEHIND the content layer (z-index 0)
-          so clicks/hovers/drags always reach the real interactive row. */}
-      {pageOffsets && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-4 top-8 z-0 transition-opacity duration-200 ease-out motion-reduce:transition-none"
-          style={{ overflow: 'visible' }}
+    // 260728 rework — PDF-viewer layout: thumbnail rail (lg+) beside the
+    // centered page canvas. The canvas keeps its fixed letter width; the rail
+    // never affects page geometry (pure navigation chrome).
+    <div className="flex justify-center gap-6">
+      {pageOffsets && pageOffsets.length > 1 && (
+        <nav
+          aria-label="Pages"
+          className="hidden lg:flex flex-col gap-3 sticky top-24 self-start shrink-0 max-h-[70vh] overflow-y-auto py-1 pr-1"
         >
-          {pageOffsets.map((offset) => {
-            const sheetTopPx = offset.contentTopPx - topReservationPx
-            const continuesTable = pages[offset.pageIndex]?.continuesTable ?? false
-            return (
-              <div
-                key={offset.pageIndex}
-                data-page-sheet={offset.pageIndex}
-                style={{ position: 'absolute', top: sheetTopPx, left: 0, right: 0 }}
+          {pageOffsets.map((o) => (
+            <button
+              key={o.pageIndex}
+              type="button"
+              onClick={() => scrollToPage(o.pageIndex)}
+              aria-label={`${L.page} ${o.pageIndex + 1}`}
+              aria-current={activePage === o.pageIndex ? 'page' : undefined}
+              className="group flex flex-col items-center gap-1"
+            >
+              <span
+                className={`block w-14 rounded-[3px] bg-white shadow-md transition-all ${
+                  activePage === o.pageIndex
+                    ? 'ring-2 ring-primary'
+                    : 'ring-1 ring-black/10 opacity-70 group-hover:opacity-100'
+                }`}
+                style={{ aspectRatio: '8.5 / 11' }}
               >
-                <div
-                  className="bg-white"
-                  style={{
-                    width: LETTER_WIDTH_PX,
-                    height: offset.sheetHeightPx,
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    boxShadow: '0 20px 40px -12px rgba(0,0,0,0.55)',
-                    overflow: 'visible',
-                  }}
-                >
-                  {continuesTable && (
-                    <div
-                      data-testid="continuation-header"
-                      className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none flex items-center px-4"
-                      style={{ height: continuationHeaderPx }}
-                    >
-                      {/* Mirrors PdfTableHeaderOnly's repeated column labels (40/12/13/17/18%) */}
-                      <span className="font-medium" style={{ width: '40%' }}>{L.description}</span>
-                      <span className="font-medium text-right" style={{ width: '12%' }}>{L.qty}</span>
-                      <span className="font-medium text-right" style={{ width: '13%' }}>{L.unit}</span>
-                      <span className="font-medium text-right" style={{ width: '17%' }}>{L.unitPrice}</span>
-                      <span className="font-medium text-right" style={{ width: '18%' }}>{L.total}</span>
-                    </div>
-                  )}
-                </div>
-                <p
-                  className="select-none pt-2 text-center text-xs text-white/70"
-                  style={{ width: LETTER_WIDTH_PX }}
-                >
-                  {L.page} {offset.pageIndex + 1} {L.of} {pages.length}
-                </p>
-              </div>
-            )
-          })}
-        </div>
+                {/* skeleton page lines — a lightweight thumbnail placeholder */}
+                <span className="mx-2 mt-2 block h-1 rounded-sm bg-zinc-300/80" />
+                <span className="mx-2 mt-1 block h-1 rounded-sm bg-zinc-200" />
+                <span className="mx-2 mt-1 block h-1 w-2/3 rounded-sm bg-zinc-200" />
+              </span>
+              <span className={`text-[11px] tabular-nums ${activePage === o.pageIndex ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {o.pageIndex + 1}
+              </span>
+            </button>
+          ))}
+        </nav>
       )}
-      <div ref={containerRef} className="relative z-10">
-        {children}
+      <div className="relative rounded-xl bg-muted px-4 py-8 shrink-0" style={{ width: LETTER_WIDTH_PX + 32 }}>
+        {/* Decoration layer — MUST use overflow: visible (never hidden, so live
+            hover/focus/drag states near a page boundary are never clipped),
+            pointer-events-none + stacked BEHIND the content layer (z-index 0)
+            so clicks/hovers/drags always reach the real interactive row. */}
+        {pageOffsets && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-4 top-8 z-0 transition-opacity duration-200 ease-out motion-reduce:transition-none"
+            style={{ overflow: 'visible' }}
+          >
+            {pageOffsets.map((offset) => {
+              const sheetTopPx = offset.contentTopPx - topReservationPx
+              const continuesTable = pages[offset.pageIndex]?.continuesTable ?? false
+              const isContinuation = offset.pageIndex > 0
+              return (
+                <div
+                  key={offset.pageIndex}
+                  data-page-sheet={offset.pageIndex}
+                  style={{ position: 'absolute', top: sheetTopPx, left: 0, right: 0, scrollMarginTop: 140 }}
+                >
+                  <div
+                    className="relative bg-white"
+                    style={{
+                      width: LETTER_WIDTH_PX,
+                      height: offset.sheetHeightPx,
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      boxShadow: '0 20px 40px -12px rgba(0,0,0,0.55)',
+                      overflow: 'visible',
+                    }}
+                  >
+                    {/* 260728 rework — pages 2+ mirror the PDF's repeated (fixed)
+                        company header inside the zone the engine already
+                        reserved (topReservationPx), instead of leaving it blank. */}
+                    {isContinuation && (
+                      <div
+                        className="absolute inset-x-0 top-0 flex flex-col justify-center px-10 select-none"
+                        style={{ height: topReservationPx }}
+                      >
+                        <span className="text-sm font-semibold leading-tight" style={{ color: brandColor ?? '#111827' }}>
+                          {company.name}
+                        </span>
+                        <span className="mt-1 block border-b border-zinc-200" />
+                      </div>
+                    )}
+                    {/* Repeated items-table column header — positioned exactly
+                        where the engine budgeted it: AFTER the reserved header
+                        zone (contentTopPx = reservation + this band). */}
+                    {continuesTable && (
+                      <div
+                        data-testid="continuation-header"
+                        className="absolute inset-x-0 bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none flex items-center px-4"
+                        style={{ top: topReservationPx, height: continuationHeaderPx }}
+                      >
+                        {/* Mirrors PdfTableHeaderOnly's repeated column labels (40/12/13/17/18%) */}
+                        <span className="font-medium" style={{ width: '40%' }}>{L.description}</span>
+                        <span className="font-medium text-right" style={{ width: '12%' }}>{L.qty}</span>
+                        <span className="font-medium text-right" style={{ width: '13%' }}>{L.unit}</span>
+                        <span className="font-medium text-right" style={{ width: '17%' }}>{L.unitPrice}</span>
+                        <span className="font-medium text-right" style={{ width: '18%' }}>{L.total}</span>
+                      </div>
+                    )}
+                  </div>
+                  <p
+                    className="select-none pt-2 text-center text-xs text-white/70"
+                    style={{ width: LETTER_WIDTH_PX }}
+                  >
+                    {L.page} {offset.pageIndex + 1} {L.of} {pages.length}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <div ref={containerRef} className="relative z-10">
+          {children}
+        </div>
       </div>
     </div>
   )
