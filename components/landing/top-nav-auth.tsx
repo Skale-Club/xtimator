@@ -92,7 +92,7 @@ export function TopNavAuth({ branding, onOpenAuth, navUser, ctaLabel = 'Start' }
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="flex cursor-pointer items-center gap-2 text-destructive focus:text-destructive"
+            className="flex cursor-pointer items-center gap-2 text-red-400 focus:text-red-400"
             disabled={isPending}
             onClick={() => startTransition(() => signOut())}
           >

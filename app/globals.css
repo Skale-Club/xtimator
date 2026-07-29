@@ -120,7 +120,10 @@
   /* Text stays on the shared gutter and owns the left column. */
   .hero-left { width: 54% !important; flex-shrink: 0 !important; align-self: stretch !important; align-items: flex-start !important; justify-content: center !important; text-align: left !important; }
   /* Foreground media fills the right column and remains grounded at the trust bar. */
-  .hero-image { position: absolute !important; width: auto !important; height: auto !important; aspect-ratio: auto !important; top: 8px !important; bottom: 0 !important; left: 60% !important; right: -100px !important; margin-top: 0 !important; align-self: auto !important; }
+  /* Keep the foreground media desktop-sized as this middle tier narrows.
+     Anchoring both horizontal edges made its box — and therefore the image —
+     shrink with the viewport. */
+  .hero-image { position: absolute !important; width: 520px !important; height: auto !important; aspect-ratio: auto !important; top: 8px !important; bottom: 0 !important; left: auto !important; right: -60px !important; margin-top: 0 !important; align-self: auto !important; }
   .hero-image img { object-fit: contain !important; object-position: center bottom !important; transform: scale(1.2) !important; transform-origin: center bottom !important; }
 }
 
