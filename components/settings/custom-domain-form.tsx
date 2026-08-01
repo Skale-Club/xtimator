@@ -127,29 +127,22 @@ export function CustomDomainForm({ settings }: CustomDomainFormProps) {
               <div className="rounded-md bg-muted p-4 text-sm font-mono space-y-1">
                 <p><span className="text-muted-foreground">Type:</span> A</p>
                 <p><span className="text-muted-foreground">Name:</span> @</p>
-                <p><span className="text-muted-foreground">Value:</span> 76.76.21.21</p>
+                <p><span className="text-muted-foreground">Value:</span> 188.245.112.3</p>
                 <p><span className="text-muted-foreground">TTL:</span> Auto / 3600</p>
               </div>
             ) : (
               <div className="rounded-md bg-muted p-4 text-sm font-mono space-y-1">
                 <p><span className="text-muted-foreground">Type:</span> CNAME</p>
                 <p><span className="text-muted-foreground">Name:</span> {subdomainPart}</p>
-                <p><span className="text-muted-foreground">Value:</span> cname.vercel-dns-0.com</p>
+                <p><span className="text-muted-foreground">Value:</span> xtimator.com</p>
                 <p><span className="text-muted-foreground">TTL:</span> Auto / 3600</p>
               </div>
             )}
             <p className="text-sm text-muted-foreground">
               DNS changes can take up to 24&ndash;48 hours to propagate.
-              Vercel automatically provisions an SSL certificate once the record resolves.
-              Confirm exact values in your{' '}
-              <a
-                href="https://vercel.com/dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                Vercel project&apos;s Domains settings
-              </a>.
+              An SSL certificate is provisioned automatically via Let&apos;s Encrypt
+              once the DNS record resolves &mdash; no manual certificate step is needed.
+              The values shown above are authoritative.
             </p>
           </CardContent>
         </Card>
