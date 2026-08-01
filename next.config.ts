@@ -8,7 +8,7 @@ const deploymentId = process.env.DEPLOYMENT_VERSION
 // Content-Security-Policy (Security Review S10). Shipped in REPORT-ONLY mode:
 // it surfaces violations in the browser console / report stream WITHOUT blocking
 // anything, so the policy can be validated against the real app (Supabase,
-// Stripe, Cloudflare Turnstile, Vercel) before being switched to enforcing.
+// Stripe, Cloudflare Turnstile) before being switched to enforcing.
 // 'unsafe-inline' on script-src is currently required by Next.js + Stripe embeds;
 // tighten to a nonce-based variant before flipping to enforce.
 const cspReportOnly = [
@@ -39,7 +39,7 @@ const cspReportOnly = [
 
 // Baseline security headers (Security Review S10 / B03 — "zero headers" finding).
 const securityHeaders = [
-  // Force HTTPS for two years incl. subdomains. Prod is HTTPS-only on Vercel.
+  // Force HTTPS for two years incl. subdomains. Prod is HTTPS-only (Coolify/Traefik terminates TLS).
   {
     key: 'Strict-Transport-Security',
     value: 'max-age=63072000; includeSubDomains; preload',
