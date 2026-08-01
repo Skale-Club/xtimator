@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { createHash } from 'node:crypto'
-import { isIP } from 'node:net'
+import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { rateLimit } from '@/lib/ratelimit'
@@ -119,25 +119,13 @@ export async function POST(
     // estimates SELECT ran before the limiter ever got a chance to deny.
     const headersList = await headers()
     // Security-hardening S2 (audit finding d) / fix-pack F1 (finding #5 —
-    // x-real-ip reopens IP spoofing): this app sits behind exactly ONE
-    // trusted edge proxy (Traefik/Coolify), which APPENDS the real client IP
-    // as the LAST x-forwarded-for entry — any EARLIER entries are
-    // attacker-supplied via a crafted request header. x-real-ip is
-    // deliberately NOT trusted (dropped entirely, not just deprioritized): it
-    // is exactly as client-forgeable as any other request header unless the
-    // edge strips it, and nothing in this repo proves Traefik/Coolify does —
-    // a forged value here previously flowed straight into
-    // sign_estimate_atomic's `inet`-typed parameter, so a garbage x-real-ip
-    // could 500 the entire request. isIP() (node:net) validates the resolved
-    // candidate — it returns 0 for anything that isn't a well-formed IPv4/
-    // IPv6 literal — so an invalid/garbage header degrades to null instead of
-    // ever reaching that cast.
-    const forwardedFor = headersList.get('x-forwarded-for')
-    const forwardedForLast = forwardedFor
-      ? forwardedFor.split(',').map((part) => part.trim()).filter(Boolean).pop() ?? null
-      : null
-    const ipAddress =
-      forwardedForLast != null && isIP(forwardedForLast) !== 0 ? forwardedForLast : null
+    // x-real-ip reopens IP spoofing): IP resolution mechanics (last
+    // forwarded-for hop wins, x-real-ip never trusted, isIP() validation) now
+    // live in the shared lib/http/client-ip.ts helper — see its doc comment
+    // for the full rationale. A forged/garbage value previously flowed
+    // straight into sign_estimate_atomic's `inet`-typed parameter, so the
+    // helper's null-on-invalid behavior is what keeps that cast safe.
+    const ipAddress = resolveClientIp(headersList)
     const userAgent = headersList.get('user-agent') ?? null
 
     // Security-hardening S2 (audit finding c) / fix-pack F1 (finding #4):
