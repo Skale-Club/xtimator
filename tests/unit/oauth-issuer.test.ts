@@ -12,18 +12,16 @@ describe('resolveIssuer — canonical URL priority', () => {
       APP_ORIGIN: process.env.APP_ORIGIN,
       NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
       NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      VERCEL_URL: process.env.VERCEL_URL,
+      NODE_ENV: process.env.NODE_ENV,
     }
     delete process.env.APP_ORIGIN
     delete process.env.NEXT_PUBLIC_APP_URL
     delete process.env.NEXT_PUBLIC_SITE_URL
-    delete process.env.VERCEL_ENV
-    delete process.env.VERCEL_URL
     vi.resetModules()
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     for (const [k, v] of Object.entries(envBackup)) {
       if (v === undefined) delete process.env[k]
       else process.env[k] = v
@@ -32,8 +30,7 @@ describe('resolveIssuer — canonical URL priority', () => {
 
   it('1. NEXT_PUBLIC_APP_URL wins when set (overrides everything)', async () => {
     process.env.NEXT_PUBLIC_APP_URL = 'https://custom.example.com'
-    process.env.VERCEL_ENV = 'production'
-    process.env.VERCEL_URL = 'preview-abc.vercel.app'
+    vi.stubEnv('NODE_ENV', 'production')
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://custom.example.com')
   })
@@ -44,7 +41,7 @@ describe('resolveIssuer — canonical URL priority', () => {
     expect(await resolveIssuer()).toBe('https://custom.example.com')
   })
 
-  it('1b. NEXT_PUBLIC_APP_URL trailing whitespace (e.g. trailing newline from echo|vercel env add) is trimmed', async () => {
+  it('1b. NEXT_PUBLIC_APP_URL trailing whitespace (e.g. trailing newline from echo|env add) is trimmed', async () => {
     process.env.NEXT_PUBLIC_APP_URL = 'https://custom.example.com\n'
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://custom.example.com')
@@ -52,7 +49,7 @@ describe('resolveIssuer — canonical URL priority', () => {
 
   it('1c. whitespace-only NEXT_PUBLIC_APP_URL falls through to next branch', async () => {
     process.env.NEXT_PUBLIC_APP_URL = '   \n  '
-    process.env.VERCEL_ENV = 'production'
+    vi.stubEnv('NODE_ENV', 'production')
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://xtimator.com')
   })
@@ -61,8 +58,6 @@ describe('resolveIssuer — canonical URL priority', () => {
     process.env.APP_ORIGIN = 'https://xtimator.com'
     process.env.NEXT_PUBLIC_APP_URL = 'https://legacy.example.com'
     process.env.NEXT_PUBLIC_SITE_URL = 'https://site.example.com'
-    process.env.VERCEL_ENV = 'production'
-    process.env.VERCEL_URL = 'preview-abc.vercel.app'
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://xtimator.com')
   })
@@ -73,35 +68,30 @@ describe('resolveIssuer — canonical URL priority', () => {
     expect(await resolveIssuer()).toBe('https://site.example.com')
   })
 
-  it('2. VERCEL_ENV=production resolves to canonical https://xtimator.com (not the preview URL)', async () => {
-    // This is the bug being fixed by the 2026-05-26 hotfix: without this branch,
-    // production deployments emit the per-deploy preview URL as the OAuth issuer,
-    // which breaks Claude.ai's discovery cache the moment a new deploy lands.
-    process.env.VERCEL_ENV = 'production'
-    process.env.VERCEL_URL = 'xtimator-10grdklhm-skaleclub.vercel.app'
+  it('2. NODE_ENV=production resolves to canonical https://xtimator.com when no explicit env is set', async () => {
+    // Safety net: production must always emit the canonical domain, never a
+    // per-deploy or request-derived URL, so OAuth issuer / .well-known metadata
+    // is stable across deploys.
+    vi.stubEnv('NODE_ENV', 'production')
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('https://xtimator.com')
   })
 
-  it('3. VERCEL_URL is used for non-production deployments (preview)', async () => {
-    process.env.VERCEL_ENV = 'preview'
-    process.env.VERCEL_URL = 'xtimator-pr123.vercel.app'
-    const { resolveIssuer } = await import('@/lib/oauth/issuer')
-    expect(await resolveIssuer()).toBe('https://xtimator-pr123.vercel.app')
-  })
-
   it('4. localhost dev falls back to request origin', async () => {
-    // Default mock returns host: localhost:9633
+    // Default mock returns host: localhost:9633; NODE_ENV is 'test' under vitest.
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     expect(await resolveIssuer()).toBe('http://localhost:9633')
   })
 
-  it('regression: production deploy never returns *.vercel.app URL even when VERCEL_URL is set', async () => {
-    process.env.VERCEL_ENV = 'production'
-    process.env.VERCEL_URL = 'xtimator-abcdef-skaleclub.vercel.app'
+  it('regression: production never returns a spoofed request Host header as the issuer', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    const { headers } = await import('next/headers')
+    vi.mocked(headers).mockResolvedValueOnce(
+      new Map([['host', 'evil.example.com']]) as unknown as Awaited<ReturnType<typeof headers>>
+    )
     const { resolveIssuer } = await import('@/lib/oauth/issuer')
     const issuer = await resolveIssuer()
-    expect(issuer).not.toMatch(/vercel\.app/i)
+    expect(issuer).not.toMatch(/evil\.example\.com/i)
     expect(issuer).toBe('https://xtimator.com')
   })
 })
