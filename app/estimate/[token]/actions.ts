@@ -6,6 +6,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { emailFrom } from '@/lib/email/sender'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
+import { notifyEstimateResponse } from '@/lib/estimate/notify-response'
 
 export async function logEstimateView(token: string): Promise<void> {
   const supabase = requireServiceClient()
@@ -146,14 +147,29 @@ export async function respondToEstimate(
     return { success: false, error: 'This estimate has already been responded to' }
   }
 
-  // Update estimate with client response
-  await supabase
+  // Security-hardening S2 (audit finding b1 — sign-vs-decline race): the
+  // pre-check above can go stale between its SELECT and this UPDATE (a
+  // concurrent sign request — app/api/estimates/[id]/sign/route.ts, whose
+  // sign_estimate_atomic RPC ALSO writes client_response='accepted' — can
+  // land in that exact window). Adding `.is('client_response', null)` makes
+  // this UPDATE itself the check-and-set: Postgres only matches rows where
+  // client_response is STILL null at write time. `.select('id')` on the
+  // result is how we detect a lost race — zero returned rows means this
+  // call's WHERE clause matched nothing (someone else responded first), so
+  // we must not proceed to the project/activity/notify side effects below.
+  const { data: updatedRows, error: updateError } = await supabase
     .from('estimates')
     .update({
       client_response: response,
       responded_at: new Date().toISOString(),
     })
     .eq('id', est.id)
+    .is('client_response', null)
+    .select('id')
+
+  if (updateError || !updatedRows || updatedRows.length === 0) {
+    return { success: false, error: 'This estimate has already been responded to' }
+  }
 
   // Update project status to match response
   await supabase
@@ -170,67 +186,7 @@ export async function respondToEstimate(
     metadata: {},
   })
 
-  // Phase 77 NOTIF-04: in-app notification on client response. Best-effort.
-  try {
-    const eventType = response === 'accepted' ? 'estimate.accepted' : 'estimate.declined'
-    const ctx = {
-      estimateNumber: est.estimate_number ?? undefined,
-      clientName: est.client_name ?? undefined,
-    }
-    const copy = buildNotificationCopy(eventType, ctx)
-    void notify({
-      companyId: est.company_id,
-      userId: null,
-      eventType,
-      title: copy.title,
-      body: copy.body,
-      linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
-      resourceType: 'estimate',
-      resourceId: est.id,
-      copyContext: ctx,
-    })
-  } catch {
-    /* best-effort */
-  }
-
-  // Send notification email if enabled
-  const { data: company } = await supabase
-    .from('companies')
-    .select('notify_on_accept, notify_on_decline, email, name')
-    .eq('id', est.company_id)
-    .single()
-
-  const shouldNotify =
-    response === 'accepted'
-      ? company?.notify_on_accept
-      : company?.notify_on_decline
-
-  if (shouldNotify && company?.email) {
-    // Load Resend key from DB-backed loader (ADMIN-06)
-    const resendKey = await getIntegrationKey('resend')
-    if (resendKey) {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('name')
-        .eq('id', est.project_id)
-        .single()
-
-      try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(resendKey)
-        const branding = await getBranding()
-        const appName = branding.appName
-        await resend.emails.send({
-          from: emailFrom(appName),
-          to: company.email,
-          subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
-          text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,
-        })
-      } catch {
-        // Resend not installed yet or send failed — skip silently
-      }
-    }
-  }
+  await notifyEstimateResponse(est, response)
 
   return { success: true }
 }

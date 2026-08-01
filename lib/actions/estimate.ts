@@ -17,6 +17,7 @@ import {
 } from '@/lib/schemas/estimate'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { assertWritable } from '@/lib/demo/guard'
+import { isEstimateLocked } from '@/lib/estimate/lock'
 
 // ---------------------------------------------------------------------------
 // Discount-type domain mapping (quick-260728-6ts)
@@ -538,6 +539,64 @@ export async function createBlankEstimate(projectId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Security-hardening S3 (audit finding A) — signature pre-check helper
+// ---------------------------------------------------------------------------
+//
+// A signed estimate's evidentiary snapshot (estimate_signatures.signed_content,
+// Phase 164) is immutable, but the LIVE estimate_sections/estimate_items rows
+// underneath it are not otherwise guarded against direct deletion the way
+// saveEstimate's content path is (TRUST-02, save_estimate_atomic's ERRCODE
+// P0001 lock). This pre-check gives the user a friendly, specific error
+// instead of silently removing content from an estimate a client has already
+// signed off on. (The 20260729000001 migration's BEFORE DELETE trigger only
+// guards the `estimates` table itself — deleting a section/item never issues
+// a DELETE against `estimates`, so there is no trigger ERRCODE to map here;
+// that defensive mapping lives in lib/actions/project.ts, where a project
+// delete DOES cascade into `estimates`.)
+//
+// Fix-pack F1 (finding #10): widened from a signature-only check to the SAME
+// two-part predicate lib/actions/estimate-photo.ts's assertPhotoMutationAllowed
+// uses — isEstimateLocked({sent_at, client_response}) OR an existing
+// estimate_signatures row. Previously a sent-but-unsigned estimate (delivered
+// to the client, saveEstimate's own freeze-on-send guard already blocks
+// editing it) could still have whole sections/items deleted through THESE two
+// actions, bypassing that freeze via a different code path. Error string
+// matches the photo guard's EXACTLY, for editor consistency.
+const ESTIMATE_CONTENT_LOCKED_ERROR =
+  'Estimate has been delivered and is locked; create a new version to make changes'
+
+async function estimateHasSignature(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  estimateId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('estimate_signatures')
+    .select('id')
+    .eq('estimate_id', estimateId)
+    .limit(1)
+  return !!data && data.length > 0
+}
+
+/** Returns the friendly lock error, or null when the delete may proceed. */
+async function assertEstimateContentDeleteAllowed(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  estimateId: string
+): Promise<string | null> {
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('sent_at, client_response')
+    .eq('id', estimateId)
+    .single()
+
+  const hasSignature = await estimateHasSignature(supabase, estimateId)
+
+  if (isEstimateLocked(estimate) || hasSignature) {
+    return ESTIMATE_CONTENT_LOCKED_ERROR
+  }
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // Action 3: deleteEstimateSection
 // ---------------------------------------------------------------------------
 
@@ -558,6 +617,9 @@ export async function deleteEstimateSection(sectionId: string) {
   if (!section) return { error: 'Section not found' }
 
   const estimateId = section.estimate_id as string
+
+  const lockError = await assertEstimateContentDeleteAllowed(supabase, estimateId)
+  if (lockError) return { error: lockError }
 
   // Delete section (items cascade via FK)
   const { error: deleteError } = await supabase
@@ -593,6 +655,22 @@ export async function deleteEstimateItem(itemId: string) {
 
   const sectionId = item.section_id as string
 
+  // Resolve estimate_id UP FRONT (previously only fetched after the delete,
+  // for recalculateEstimateTotals) so the signature pre-check below can run
+  // BEFORE the item is removed.
+  const { data: sectionRow } = await supabase
+    .from('estimate_sections')
+    .select('estimate_id')
+    .eq('id', sectionId)
+    .single()
+
+  if (!sectionRow) return { error: 'Section not found' }
+
+  const estimateId = sectionRow.estimate_id as string
+
+  const lockError = await assertEstimateContentDeleteAllowed(supabase, estimateId)
+  if (lockError) return { error: lockError }
+
   // Delete item
   const { error: deleteError } = await supabase
     .from('estimate_items')
@@ -601,21 +679,7 @@ export async function deleteEstimateItem(itemId: string) {
 
   if (deleteError) return { error: 'Failed to delete item' }
 
-  // Get estimate_id from section — recalculateEstimateTotals recomputes this
-  // section's subtotal (and every other section's) itself, so no separate
-  // manual subtotal patch is needed here.
-  const { data: sectionRow } = await supabase
-    .from('estimate_sections')
-    .select('estimate_id')
-    .eq('id', sectionId)
-    .single()
-
-  if (!sectionRow) return { error: 'Section not found after update' }
-
-  return recalculateEstimateTotals(
-    supabase,
-    sectionRow.estimate_id as string
-  )
+  return recalculateEstimateTotals(supabase, estimateId)
 }
 
 // ---------------------------------------------------------------------------

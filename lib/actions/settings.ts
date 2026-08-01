@@ -494,6 +494,36 @@ export async function deleteAccount() {
   if (denied) return denied
 
   const serviceClient = requireServiceClient()
+
+  // Security-hardening fix-pack F2 (finding #2): companies.user_id REFERENCES
+  // auth.users ON DELETE CASCADE (20260409000001:12), so auth.admin.deleteUser
+  // below would otherwise cascade straight into public.estimates INSIDE
+  // GoTrue's own transaction -- where this app never gets a chance to SET
+  // LOCAL the signed-estimate-delete escape hatch -- and fail forever for any
+  // owner with a signed estimate. Erase every company this user owns FIRST,
+  // via the erase_company_for_compliance RPC (each call opts into the escape
+  // hatch tx-locally and deletes the company row in the SAME transaction), so
+  // GoTrue's cascade has nothing left under public.estimates to reach by the
+  // time deleteUser runs. See the two-step runbook in
+  // supabase/migrations/20260729000001_signature_evidence_retention.sql.
+  const { data: ownedCompanies, error: companiesError } = await serviceClient
+    .from('companies')
+    .select('id')
+    .eq('user_id', claims.sub as string)
+
+  if (companiesError) {
+    return { error: 'Failed to delete account. Please try again.' }
+  }
+
+  for (const company of ownedCompanies ?? []) {
+    const { error: eraseError } = await serviceClient.rpc('erase_company_for_compliance', {
+      p_company_id: company.id as string,
+    })
+    if (eraseError) {
+      return { error: 'Failed to delete account. Please try again.' }
+    }
+  }
+
   const { error } = await serviceClient.auth.admin.deleteUser(claims.sub as string)
 
   if (error) {

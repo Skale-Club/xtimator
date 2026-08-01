@@ -268,6 +268,107 @@ describe('getEstimateByPublicToken — TRUST-01 signed-snapshot overlay', () => 
   })
 })
 
+// Security-hardening S1 — same v2 company_terms overlay as share-query.test.ts,
+// proven through the friendly public-token lookup too (same shared
+// applySignedCompanyTerms function, no second implementation).
+describe('getEstimateByPublicToken — v2 company_terms overlay', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const liveCompanyWithEditedTerms: AnyRow = {
+    ...validCompany,
+    estimate_terms_enabled: true,
+    estimate_terms_text: 'LIVE terms — edited in Settings after signing',
+  }
+
+  it('v2 snapshot: frozen company_terms win over the live company row', async () => {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [],
+      projectRow: validProject,
+      companyRow: liveCompanyWithEditedTerms,
+      signatureRow: {
+        id: 'sig-1',
+        signed_at: '2026-07-01T12:00:00Z',
+        signed_content: {
+          version: 2,
+          summary: 'Job summary',
+          notes: null,
+          timeline: null,
+          payment_terms: null,
+          warranty_terms: null,
+          estimate_date: null,
+          estimate_number: null,
+          subtotal: 100,
+          tax_rate: 0,
+          tax_amount: 0,
+          discount_type: null,
+          discount_value: null,
+          discount_amount: null,
+          deposit_type: null,
+          deposit_value: null,
+          balance_due: null,
+          total: 100,
+          currency_code: 'USD',
+          presentation_settings: null,
+          sections: [],
+          company_terms: { enabled: false, text: 'FROZEN terms as of signing' },
+          consent: { statement: 'By signing, you agree to the pricing and terms in this estimate.', key: 'sign_consent_v1' },
+        },
+        signed_total: 100,
+      },
+    })
+
+    const result = await getEstimateByPublicToken('shorttok123')
+    expect(result).not.toBeNull()
+    expect(result!.estimate.company.estimate_terms_enabled).toBe(false)
+    expect(result!.estimate.company.estimate_terms_text).toBe('FROZEN terms as of signing')
+  })
+
+  it('v1 snapshot (legacy, no company_terms): live company terms still render', async () => {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [],
+      projectRow: validProject,
+      companyRow: liveCompanyWithEditedTerms,
+      signatureRow: {
+        id: 'sig-legacy',
+        signed_at: '2026-05-19T00:00:00Z',
+        signed_content: {
+          version: 1,
+          summary: 'Job summary',
+          notes: null,
+          timeline: null,
+          payment_terms: null,
+          warranty_terms: null,
+          estimate_date: null,
+          estimate_number: null,
+          subtotal: 100,
+          tax_rate: 0,
+          tax_amount: 0,
+          discount_type: null,
+          discount_value: null,
+          discount_amount: null,
+          deposit_type: null,
+          deposit_value: null,
+          balance_due: null,
+          total: 100,
+          currency_code: 'USD',
+          presentation_settings: null,
+          sections: [],
+        },
+        signed_total: 100,
+      },
+    })
+
+    const result = await getEstimateByPublicToken('shorttok123')
+    expect(result).not.toBeNull()
+    expect(result!.estimate.company.estimate_terms_enabled).toBe(true)
+    expect(result!.estimate.company.estimate_terms_text).toBe(
+      'LIVE terms — edited in Settings after signing'
+    )
+  })
+})
+
 describe('getShareLinkStateByPublicToken', () => {
   beforeEach(() => vi.clearAllMocks())
 

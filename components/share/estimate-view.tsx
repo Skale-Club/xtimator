@@ -117,6 +117,7 @@ function EstimateViewInner({
   const [error, setError] = useState<string | null>(null)
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [signerName, setSignerName] = useState('')
+  const [signerEmail, setSignerEmail] = useState('')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
 
@@ -272,20 +273,25 @@ function EstimateViewInner({
       const res = await fetch(`/api/estimates/${estimate.id}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, signerName: signerName.trim(), signatureData }),
+        body: JSON.stringify({
+          token,
+          signerName: signerName.trim(),
+          signerEmail: signerEmail.trim() || undefined,
+          signatureData,
+        }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error ?? 'Failed to submit signature')
       }
-      const result = await respondToEstimate(token, 'accepted')
-      if (result.success) {
-        setResponded(true)
-        setResponseValue('accepted')
-        setShowSignaturePad(false)
-      } else {
-        setError(result.error ?? t('Something went wrong'))
-      }
+      // sign_estimate_atomic already committed client_response='accepted' as
+      // part of the sign transaction — calling respondToEstimate here would
+      // deterministically hit its already-responded guard and surface an
+      // error banner on a SUCCESSFUL signature. A 200 from the sign endpoint
+      // IS acceptance; just reflect it.
+      setResponded(true)
+      setResponseValue('accepted')
+      setShowSignaturePad(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('Something went wrong'))
     } finally {
@@ -415,10 +421,15 @@ function EstimateViewInner({
             <SignaturePad
               signerName={signerName}
               onSignerNameChange={setSignerName}
+              signerEmail={signerEmail}
+              onSignerEmailChange={setSignerEmail}
               onSignatureChange={setSignatureData}
               brandColor={brandColor}
             />
             {error && <p className="text-sm text-red-600">{error}</p>}
+            <p className="text-xs text-muted-foreground">
+              {t('By signing, you agree to the pricing and terms in this estimate.')}
+            </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 size="lg"

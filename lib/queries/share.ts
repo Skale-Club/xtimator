@@ -9,7 +9,7 @@ import { getEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { createStorage } from '@/lib/storage'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
-import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
+import { applySignedSnapshot, applySignedCompanyTerms } from '@/lib/estimate/signed-snapshot'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites
 
 // Internal fields never sent to the public browser payload: share_token is a
@@ -211,6 +211,16 @@ export async function getEstimateByShareToken(
 
   if (!companyData) return null
 
+  // TRUST-01 v2 (security-hardening S1): a v2 signed snapshot freezes the
+  // company Terms & Conditions block too — REPLACE (never merge) enabled +
+  // text wholesale, same discipline as applySignedSnapshot above. A v1
+  // snapshot or no signature at all is a no-op (renders live terms, today's
+  // behavior).
+  const companyDataFrozen = applySignedCompanyTerms(
+    companyData as ShareEstimateData['estimate']['company'],
+    signedContent
+  )
+
   // Phase 94 — issued invoices for this estimate. Expose ONLY the 6 safe fields
   // the client pay-links need; stripe_customer_id / stripe_invoice_id are never
   // sent to the anonymous viewer. Filtered to open/paid (drafts/voids hidden).
@@ -296,7 +306,7 @@ export async function getEstimateByShareToken(
         name: projectData.name as string,
         project_type: projectData.project_type as string | null,
       },
-      company: companyData as ShareEstimateData['estimate']['company'],
+      company: companyDataFrozen,
       payment_status,
       total_amount_cents,
       stripe_checkout_session_id,
@@ -450,6 +460,14 @@ export async function getEstimateByPublicToken(
 
   if (!companyData) return null
 
+  // TRUST-01 v2 (security-hardening S1) — same overlay as
+  // getEstimateByShareToken above; see that call site's comment for the
+  // full rationale.
+  const companyDataFrozen = applySignedCompanyTerms(
+    companyData as ShareEstimateData['estimate']['company'],
+    signedContent
+  )
+
   type ShareInvoice = ShareEstimateData['estimate']['invoices'][number]
   let invoices: ShareInvoice[] = []
   try {
@@ -504,7 +522,7 @@ export async function getEstimateByPublicToken(
         name: projectData.name as string,
         project_type: projectData.project_type as string | null,
       },
-      company: companyData as ShareEstimateData['estimate']['company'],
+      company: companyDataFrozen,
       payment_status,
       total_amount_cents,
       stripe_checkout_session_id,

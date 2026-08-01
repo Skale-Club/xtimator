@@ -14,8 +14,16 @@ const ACTIONS_DIR = resolve(__dirname, '../../lib/actions')
  * - `company.ts` — `mode: 'first'` upsert path is per-user by design (initial onboarding)
  * - `active-company.ts` — looks up `company_members.user_id` (different column,
  *   not the legacy `companies.user_id`)
+ * - `settings.ts` — deleteAccount() (fix-pack F2, finding #2) must enumerate
+ *   EVERY company the user owns, not just the active one, so it can call
+ *   erase_company_for_compliance on each before auth.admin.deleteUser (see the
+ *   runbook in supabase/migrations/20260729000001_signature_evidence_retention.sql).
+ *   getActiveCompanyId only resolves a single active company — insufficient
+ *   for a user who owns multiple — so the direct companies.user_id lookup is
+ *   the correct domain here, not tenant-data scoping that should route
+ *   through getActiveCompanyId.
  */
-const ALLOWED_LEGACY_FILES = new Set(['auth.ts', 'company.ts', 'active-company.ts'])
+const ALLOWED_LEGACY_FILES = new Set(['auth.ts', 'company.ts', 'active-company.ts', 'settings.ts'])
 
 describe('Phase 83 server-action sweep — static contract', () => {
   const files = readdirSync(ACTIONS_DIR)

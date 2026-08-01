@@ -9,6 +9,8 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 interface SignaturePadProps {
   signerName: string
   onSignerNameChange: (name: string) => void
+  signerEmail: string
+  onSignerEmailChange: (email: string) => void
   onSignatureChange: (dataUrl: string | null) => void
   brandColor?: string
 }
@@ -16,6 +18,8 @@ interface SignaturePadProps {
 export function SignaturePad({
   signerName,
   onSignerNameChange,
+  signerEmail,
+  onSignerEmailChange,
   onSignatureChange,
   brandColor = '#2563eb',
 }: SignaturePadProps) {
@@ -108,6 +112,17 @@ export function SignaturePad({
           placeholder="John Smith"
           value={signerName}
           onChange={(e) => onSignerNameChange(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="signer-email">{t('Email (optional)')}</Label>
+        <Input
+          type="email"
+          id="signer-email"
+          placeholder="john@example.com"
+          value={signerEmail}
+          onChange={(e) => onSignerEmailChange(e.target.value)}
         />
       </div>
 

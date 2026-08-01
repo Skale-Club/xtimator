@@ -6,6 +6,14 @@ import { convertImageToWebp } from '@/lib/image/webp'
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { isEstimateLocked } from '@/lib/estimate/lock'
+
+// Security-hardening S3 (audit finding B / fix-pack F2, finding #9) — SAME
+// error message addPhotoToEstimate/removePhotoFromEstimate's guard
+// (lib/actions/estimate-photo.ts's assertPhotoMutationAllowed) returns, so a
+// caller sees identical wording regardless of which mutation path it hit.
+const ESTIMATE_LOCKED_ERROR =
+  'Estimate has been delivered and is locked; create a new version to make changes'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -164,6 +172,43 @@ export async function deletePhoto(photoId: string) {
     .single()
 
   if (!photo) return { error: 'Photo not found' }
+
+  // Security-hardening S3 (audit finding B / fix-pack F2, finding #9):
+  // addPhotoToEstimate/removePhotoFromEstimate already refuse to touch a
+  // locked/signed estimate's photo set, but this path deletes the photos row
+  // directly — which cascades through estimate_photos and would silently
+  // change what a signed estimate's share page/PDF renders. Block deletion
+  // when ANY estimate this photo is currently attached to is locked/signed,
+  // using the SAME two-part predicate as assertPhotoMutationAllowed
+  // (lib/actions/estimate-photo.ts): isEstimateLocked (sent_at/
+  // client_response) OR an existing estimate_signatures row (the sign route
+  // inserts the signature BEFORE respondToEstimate and swallows a respond
+  // failure, so a signature can exist while client_response is still null).
+  const { data: attachedRows } = await supabase
+    .from('estimate_photos')
+    .select('estimate_id')
+    .eq('photo_id', photoId)
+
+  for (const row of attachedRows ?? []) {
+    const estimateId = row.estimate_id as string
+
+    const { data: estimate } = await supabase
+      .from('estimates')
+      .select('sent_at, client_response')
+      .eq('id', estimateId)
+      .single()
+
+    const { data: signatureRows } = await supabase
+      .from('estimate_signatures')
+      .select('id')
+      .eq('estimate_id', estimateId)
+      .limit(1)
+    const hasSignature = !!signatureRows && signatureRows.length > 0
+
+    if (isEstimateLocked(estimate) || hasSignature) {
+      return { error: ESTIMATE_LOCKED_ERROR }
+    }
+  }
 
   // Delete from Storage photos bucket
   try {
