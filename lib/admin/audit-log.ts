@@ -1,5 +1,6 @@
 import 'server-only'
 import { headers } from 'next/headers'
+import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 
 export type AuditAction =
@@ -64,7 +65,12 @@ export async function logAdminAction(params: LogParams): Promise<void> {
     let userAgent: string | null = null
     try {
       const h = await headers()
-      ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+      // Quick task 260801-hh4: resolved through the same trusted-proxy-aware
+      // helper the sign route uses (lib/http/client-ip.ts) instead of the
+      // old first-XFF-entry logic, which was fully attacker-supplied. An
+      // unparseable/absent value now records `null` rather than a
+      // caller-chosen string — that is the intended change.
+      ip = resolveClientIp(h)
       userAgent = h.get('user-agent') ?? null
     } catch {
       // headers() unavailable outside request scope — best-effort only
