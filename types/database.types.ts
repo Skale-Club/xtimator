@@ -53,6 +53,301 @@ export type Database = {
         }
         Relationships: []
       }
+      affiliate_commissions: {
+        Row: {
+          affiliate_id: string
+          base_amount_cents: number
+          commission_amount_cents: number
+          commission_pct: number
+          company_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          idempotency_key: string
+          payable_at: string
+          payout_id: string | null
+          referral_id: string
+          status: string
+          stripe_event_id: string | null
+          stripe_invoice_id: string | null
+        }
+        Insert: {
+          affiliate_id: string
+          base_amount_cents: number
+          commission_amount_cents: number
+          commission_pct: number
+          company_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key: string
+          payable_at: string
+          payout_id?: string | null
+          referral_id: string
+          status?: string
+          stripe_event_id?: string | null
+          stripe_invoice_id?: string | null
+        }
+        Update: {
+          affiliate_id?: string
+          base_amount_cents?: number
+          commission_amount_cents?: number
+          commission_pct?: number
+          company_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          idempotency_key?: string
+          payable_at?: string
+          payout_id?: string | null
+          referral_id?: string
+          status?: string
+          stripe_event_id?: string | null
+          stripe_invoice_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_commissions_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_payouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_commissions_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "affiliate_referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      affiliate_payouts: {
+        Row: {
+          affiliate_id: string
+          amount_cents: number
+          created_at: string
+          currency: string
+          error_message: string | null
+          id: string
+          idempotency_key: string
+          paid_at: string | null
+          status: string
+          stripe_transfer_id: string | null
+        }
+        Insert: {
+          affiliate_id: string
+          amount_cents: number
+          created_at?: string
+          currency?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key: string
+          paid_at?: string | null
+          status?: string
+          stripe_transfer_id?: string | null
+        }
+        Update: {
+          affiliate_id?: string
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          error_message?: string | null
+          id?: string
+          idempotency_key?: string
+          paid_at?: string | null
+          status?: string
+          stripe_transfer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_payouts_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      affiliate_referrals: {
+        Row: {
+          affiliate_id: string
+          attributed_at: string
+          commission_window_ends_at: string
+          company_id: string
+          created_at: string
+          id: string
+          source: string | null
+          status: string
+        }
+        Insert: {
+          affiliate_id: string
+          attributed_at?: string
+          commission_window_ends_at: string
+          company_id: string
+          created_at?: string
+          id?: string
+          source?: string | null
+          status?: string
+        }
+        Update: {
+          affiliate_id?: string
+          attributed_at?: string
+          commission_window_ends_at?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          source?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_referrals_affiliate_id_fkey"
+            columns: ["affiliate_id"]
+            isOneToOne: false
+            referencedRelation: "affiliates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "affiliate_referrals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      affiliates: {
+        Row: {
+          code: string
+          commission_pct_override: number | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          status: string
+          stripe_account_id: string | null
+          stripe_account_status: string | null
+          stripe_details_submitted: boolean
+          stripe_onboarded_at: string | null
+          stripe_payouts_enabled: boolean
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          code: string
+          commission_pct_override?: number | null
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          status?: string
+          stripe_account_id?: string | null
+          stripe_account_status?: string | null
+          stripe_details_submitted?: boolean
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          code?: string
+          commission_pct_override?: number | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          status?: string
+          stripe_account_id?: string | null
+          stripe_account_status?: string | null
+          stripe_details_submitted?: boolean
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      agentic_send_confirmations: {
+        Row: {
+          body: string
+          body_hash: string
+          channel: string
+          client_id: string
+          company_id: string
+          confirmed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          owner_phone: string | null
+          status: string
+          subject: string | null
+          token: string | null
+          trigger_source: string
+        }
+        Insert: {
+          body: string
+          body_hash: string
+          channel: string
+          client_id: string
+          company_id: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          owner_phone?: string | null
+          status?: string
+          subject?: string | null
+          token?: string | null
+          trigger_source: string
+        }
+        Update: {
+          body?: string
+          body_hash?: string
+          channel?: string
+          client_id?: string
+          company_id?: string
+          confirmed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_phone?: string | null
+          status?: string
+          subject?: string | null
+          token?: string | null
+          trigger_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agentic_send_confirmations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agentic_send_confirmations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_cost_events: {
         Row: {
           attempt_id: string
@@ -339,7 +634,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
-          phone_normalized: string
+          phone_normalized: string | null
           preferred_language: string | null
           sms_consent_method: string | null
           sms_consent_recorded_at: string | null
@@ -362,6 +657,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          phone_normalized?: string | null
           preferred_language?: string | null
           sms_consent_method?: string | null
           sms_consent_recorded_at?: string | null
@@ -384,6 +680,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          phone_normalized?: string | null
           preferred_language?: string | null
           sms_consent_method?: string | null
           sms_consent_recorded_at?: string | null
@@ -728,6 +1025,7 @@ export type Database = {
           deleted_at: string | null
           folder_id: string | null
           id: string
+          image_position: Json | null
           image_url: string | null
           minimum_price: number | null
           name: string
@@ -746,6 +1044,7 @@ export type Database = {
           deleted_at?: string | null
           folder_id?: string | null
           id?: string
+          image_position?: Json | null
           image_url?: string | null
           minimum_price?: number | null
           name: string
@@ -764,6 +1063,7 @@ export type Database = {
           deleted_at?: string | null
           folder_id?: string | null
           id?: string
+          image_position?: Json | null
           image_url?: string | null
           minimum_price?: number | null
           name?: string
@@ -917,21 +1217,29 @@ export type Database = {
       }
       demo_config: {
         Row: {
-          company_id: string | null
+          company_id: string
           created_at: string
           user_id: string
         }
         Insert: {
-          company_id?: string | null
+          company_id: string
           created_at?: string
           user_id: string
         }
         Update: {
-          company_id?: string | null
+          company_id?: string
           created_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "demo_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       estimate_activity: {
         Row: {
@@ -1219,6 +1527,8 @@ export type Database = {
           ip_address: unknown
           signature_data: string
           signed_at: string
+          signed_content: Json | null
+          signed_total: number | null
           signer_email: string | null
           signer_name: string
           user_agent: string | null
@@ -1230,6 +1540,8 @@ export type Database = {
           ip_address?: unknown
           signature_data: string
           signed_at?: string
+          signed_content?: Json | null
+          signed_total?: number | null
           signer_email?: string | null
           signer_name: string
           user_agent?: string | null
@@ -1241,6 +1553,8 @@ export type Database = {
           ip_address?: unknown
           signature_data?: string
           signed_at?: string
+          signed_content?: Json | null
+          signed_total?: number | null
           signer_email?: string | null
           signer_name?: string
           user_agent?: string | null
@@ -1924,6 +2238,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          position: Json | null
           project_id: string
           sort_order: number
           storage_path: string
@@ -1935,6 +2250,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          position?: Json | null
           project_id: string
           sort_order?: number
           storage_path: string
@@ -1946,6 +2262,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          position?: Json | null
           project_id?: string
           sort_order?: number
           storage_path?: string
@@ -2123,6 +2440,27 @@ export type Database = {
           iv?: string | null
           metadata?: Json | null
           provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      platform_notification_preferences: {
+        Row: {
+          event_kind: string
+          telegram_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          event_kind: string
+          telegram_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          event_kind?: string
+          telegram_enabled?: boolean
           updated_at?: string
           updated_by?: string | null
         }
@@ -2919,6 +3257,7 @@ export type Database = {
         }[]
       }
       get_platform_user_count: { Args: never; Returns: number }
+      is_demo_company: { Args: { candidate: string }; Returns: boolean }
       is_demo_user: { Args: never; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       match_knowledge_entries: {
@@ -2945,7 +3284,7 @@ export type Database = {
         Args: {
           p_company_id: string
           p_estimate_id: string
-          p_expected_updated_at: string | null
+          p_expected_updated_at: string
           p_header: Json
           p_sections: Json
         }
