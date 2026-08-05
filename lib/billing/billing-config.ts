@@ -59,6 +59,36 @@ export type TierBilling = {
 }
 export type BillingTier = 'free' | 'pro' | 'business' // mirrors the TierName union (Billing v2: 'trial' retired — free IS the trial via signupCreditGrant)
 
+/**
+ * SEED-054 — affiliate program knobs. Lives in billing_config (not in code) for
+ * the same reason every other rate here does: the super-admin must be able to
+ * retune the program without a deploy (BILLCFG-03).
+ */
+export type AffiliateConfig = {
+  /**
+   * Master switch. Default FALSE, mirroring autoTopupEnabled: with it off no
+   * referral is attributed and no commission accrues, so the whole subsystem
+   * ships inert until the owner turns it on deliberately.
+   */
+  enabled: boolean
+  /** Platform default commission as a fraction (0.20 = 20%). Per-affiliate
+   * negotiated rates override it via affiliates.commission_pct_override. */
+  commissionPct: number
+  /** How many months after attribution a referred company keeps earning. 0 =
+   * lifetime. Frozen onto each referral at attribution time, so changing this
+   * affects only NEW referrals. */
+  commissionDurationMonths: number
+  /** Ref-cookie age (days) still considered attributable at signup. The cookie's
+   * own TTL is a fixed constant at the edge — see lib/affiliates/attribution.ts
+   * for why this one is the authority. */
+  attributionWindowDays: number
+  /** Refund/chargeback hold (days) between accrual and payout eligibility. */
+  holdDays: number
+  /** Minimum payable balance before a Stripe Transfer is issued; below it the
+   * balance rolls forward (a transfer costs more than it moves). */
+  minPayoutCents: number
+}
+
 export type BillingConfig = {
   markup: number // global multiplier; default 4.5 (per-op map = v2 GRAN-01 extension point)
   creditUnitUsd: number // 1 credit = $X charged value; default 0.01
@@ -94,6 +124,8 @@ export type BillingConfig = {
    * tenant's own opt-in (company.auto_topup_enabled).
    */
   autoTopupEnabled: boolean
+  /** SEED-054: affiliate program knobs. See {@link AffiliateConfig}. */
+  affiliate: AffiliateConfig
 }
 
 /**
@@ -224,6 +256,18 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // enforcementEnabled's exact pattern — flip on only after the tenant-facing
   // settings UI (Plan 03) and the trigger core (this plan) are both verified.
   autoTopupEnabled: false,
+  // SEED-054: ships OFF (same pattern as autoTopupEnabled) — no attribution and
+  // no accrual until the owner enables the program. The rates below are
+  // CALIBRATION PLACEHOLDERS in the same spirit as the tier prices: 20% for 12
+  // months is the common self-serve-SaaS shape, not a committed offer.
+  affiliate: {
+    enabled: false,
+    commissionPct: 0.2,
+    commissionDurationMonths: 12,
+    attributionWindowDays: 90,
+    holdDays: 30,
+    minPayoutCents: 5000,
+  },
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The
@@ -288,10 +332,18 @@ export async function getBillingConfig(): Promise<BillingConfig> {
       ]
     })
   ) as Record<BillingTier, TierBilling>
+  // SEED-054: same deep-merge rationale as `tiers` (research Pitfall 6) — a row
+  // saved before a knob existed, or by an admin form that only writes a subset,
+  // must fall through field-by-field instead of replacing the whole block.
+  const affiliate: AffiliateConfig = {
+    ...DEFAULT_BILLING_CONFIG.affiliate,
+    ...((stored.affiliate ?? {}) as Partial<AffiliateConfig>),
+  }
   const value: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
     tiers,
+    affiliate,
   }
   billingConfigCache = { value, fetchedAt: now }
   return value

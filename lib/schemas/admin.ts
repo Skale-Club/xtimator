@@ -229,6 +229,21 @@ const tierBillingSchema = z.object({
   featureBullets: z.array(z.string().max(120)).max(8),
 })
 
+/**
+ * SEED-054: affiliate program knobs. Bounds are sanity rails, not policy —
+ * commissionPct is a fraction (0..1, matching estimateFeePct), and every
+ * duration is a non-negative integer where 0 carries a documented meaning
+ * (lifetime window / no attribution limit / no hold).
+ */
+const affiliateConfigSchema = z.object({
+  enabled: z.boolean(),
+  commissionPct: z.number().min(0).max(1),
+  commissionDurationMonths: z.number().int().min(0).max(120),
+  attributionWindowDays: z.number().int().min(0).max(365),
+  holdDays: z.number().int().min(0).max(365),
+  minPayoutCents: z.number().int().min(0),
+})
+
 export const billingConfigSchema = z.object({
   markup: z.number().positive().max(100),
   creditUnitUsd: z.number().positive().max(1),
@@ -262,6 +277,8 @@ export const billingConfigSchema = z.object({
    * enforcementEnabled's exact pattern: default FALSE.
    */
   autoTopupEnabled: z.boolean(),
+  /** SEED-054: affiliate program knobs. See {@link affiliateConfigSchema}. */
+  affiliate: affiliateConfigSchema,
 })
 export type BillingConfigInput = z.infer<typeof billingConfigSchema>
 

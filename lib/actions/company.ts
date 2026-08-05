@@ -23,6 +23,7 @@ import { captureBackgroundError } from '@/lib/observability/capture'
 import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { assertWritable } from '@/lib/demo/guard'
+import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
 
 interface CompanyFormData {
   companyName?: string
@@ -372,6 +373,16 @@ export async function createOrUpdateCompany(
     // hiccup never breaks onboarding, but observable via Sentry.
     grantSignupCredits(newCompany.id).catch(
       captureBackgroundError('company.signupCreditGrant'),
+    )
+
+    // SEED-054: credit the affiliate whose link brought this signup, if any.
+    // FIRST-company mode ONLY — the 'add' branch above deliberately skips it,
+    // exactly like the signup credit grant: a user who already has a tenant must
+    // not be able to mint a fresh commission stream by adding companies.
+    // Fire-and-forget and itself never-throw; a growth-accounting side effect
+    // must never break onboarding.
+    attributeReferralFromCookie(newCompany.id).catch(
+      captureBackgroundError('company.affiliateAttribution'),
     )
 
     // Seed industry-specific price book defaults — ONLY when the user opted in

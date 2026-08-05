@@ -13,6 +13,7 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { accrueCommissionForInvoice } from '@/lib/affiliates/accrual'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -432,6 +433,26 @@ async function handlePlatformEvent(
           reason: 'grant',
           refId: invoice.id,
           idempotencyKey: monthGrantKey(grantCompany.id, new Date()), // company-month dedup (shared with cron)
+        })
+      }
+
+      // SEED-054: accrue the affiliate commission for this paid invoice.
+      //
+      // Placed on invoice.paid (NOT checkout.session.completed) for the same
+      // reason the credit grant is: this is the event that fires for BOTH the
+      // first payment and every renewal, so a recurring commission needs no
+      // second call site. Deduped on `commission:{invoiceId}`, so the redelivery
+      // this handler's dedup-row-clear can cause accrues exactly once.
+      //
+      // accrueCommissionForInvoice never throws — a commission failure must not
+      // trigger a 500 that makes Stripe retry the tier update and credit grant.
+      if (grantCompany?.id && typeof invoice.amount_paid === 'number') {
+        await accrueCommissionForInvoice({
+          companyId: grantCompany.id,
+          invoiceId: invoice.id ?? subId,
+          amountPaidCents: invoice.amount_paid,
+          currency: invoice.currency ?? 'usd',
+          eventId: event.id,
         })
       }
       break

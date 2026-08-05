@@ -2,6 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDemoAppOrigin } from '@/lib/demo/config'
 import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
+import {
+  REFERRAL_COOKIE,
+  REFERRAL_COOKIE_OPTIONS,
+  readReferralParam,
+  serializeReferralCookie,
+} from '@/lib/affiliates/attribution'
 
 const PROTECTED_ROUTE_PREFIXES = [
   '/dashboard',
@@ -100,6 +106,39 @@ function isClaimFreeApiRoute(pathname: string): boolean {
   )
 }
 
+/**
+ * SEED-054 — persist `?ref=CODE` from an affiliate link into the referral
+ * cookie, on WHICHEVER response the proxy ends up returning.
+ *
+ * A referral link points at a marketing page, so the visit almost always ends
+ * on the landing-page fall-through — but it may also be an authenticated user
+ * who gets redirected, and losing the cookie on that branch loses the
+ * attribution. Applying it through this helper keeps every return path covered.
+ *
+ * LAST WRITE WINS: a fresh `?ref=` overwrites an older cookie. The affiliate who
+ * sent the most recent click before signup gets the credit — standard
+ * last-touch attribution, and simpler to reason about than a first-touch rule
+ * that would need the cookie to be immutable for 90 days.
+ *
+ * Never validates the code against the DB — the proxy runs on every request and
+ * must not add a Supabase round-trip. An unknown code simply fails to resolve at
+ * signup time (attribution-server.ts), costing nothing.
+ */
+function applyReferralCookie(
+  request: NextRequest,
+  response: NextResponse
+): NextResponse {
+  const code = readReferralParam(request.nextUrl.searchParams)
+  if (!code) return response
+  response.cookies.set(REFERRAL_COOKIE, serializeReferralCookie(code, new Date()), {
+    ...REFERRAL_COOKIE_OPTIONS,
+    // Referral links are https in production; keep the cookie writable on plain
+    // http localhost so the flow is testable in dev.
+    secure: request.nextUrl.protocol === 'https:',
+  })
+  return response
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const demoEntry = classifyDemoEntryRequest(request)
@@ -179,11 +218,11 @@ export async function proxy(request: NextRequest) {
     supabaseResponse.headers.forEach((value, key) => {
       if (key === 'set-cookie') redirectResponse.headers.append(key, value)
     })
-    return redirectResponse
+    return applyReferralCookie(request, redirectResponse)
   }
 
   // Allow public routes and authenticated access to protected routes
-  return supabaseResponse
+  return applyReferralCookie(request, supabaseResponse)
 }
 
 export const config = {

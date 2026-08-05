@@ -608,6 +608,19 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     const CHECKOUT_SESSION_PATH = resolve(process.cwd(), 'app/api/billing/create-checkout-session/route.ts')
     const STRIPE_PRICE_MAP_PATH = resolve(process.cwd(), 'lib/billing/stripe-price-map.ts')
     const STRIPE_DISPLAY_PRICES_PATH = resolve(process.cwd(), 'lib/billing/stripe-display-prices.ts')
+    // SEED-054 (affiliate foundation): both affiliate write paths read the
+    // `affiliate` block from getBillingConfig at call time rather than baking any
+    // rate into code (BILLCFG-03). accrual.ts reads enabled/commissionPct/holdDays
+    // to size and hold a commission; attribution-server.ts reads
+    // enabled/attributionWindowDays/commissionDurationMonths to decide whether a
+    // referral attributes and to freeze its earning window. Both are legitimate
+    // runtime billing-config consumers; the guard still fails on any OTHER
+    // reference of the symbol.
+    const AFFILIATE_ACCRUAL_PATH = resolve(process.cwd(), 'lib/affiliates/accrual.ts')
+    const AFFILIATE_ATTRIBUTION_PATH = resolve(
+      process.cwd(),
+      'lib/affiliates/attribution-server.ts',
+    )
     const ALLOWLIST = new Set([
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
@@ -631,6 +644,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       STRIPE_PRICE_MAP_PATH,
       STRIPE_DISPLAY_PRICES_PATH,
       ADMIN_INTEGRATIONS_CONTENT_PATH,
+      AFFILIATE_ACCRUAL_PATH,
+      AFFILIATE_ATTRIBUTION_PATH,
     ])
 
     const collected: string[] = []
