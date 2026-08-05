@@ -79,8 +79,8 @@ BEGIN
   -- re-reads the LATEST committed row via EvalPlanQual — so every check
   -- below observes a value that cannot already be stale by the time it's
   -- tested.
-  SELECT company_id, project_id, client_response, updated_at, estimate_number, client_name
-    INTO v_company_id, v_project_id, v_client_response, v_locked_updated_at, v_estimate_number, v_client_name
+  SELECT company_id, project_id, client_response, updated_at, estimate_number
+    INTO v_company_id, v_project_id, v_client_response, v_locked_updated_at, v_estimate_number
     FROM public.estimates
     WHERE id = p_estimate_id
       AND share_token = p_share_token
@@ -89,6 +89,25 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'estimate_not_found' USING ERRCODE = 'P0006';
   END IF;
+
+  -- The client name is NOT a column on estimates (this function originally
+  -- selected a non-existent `estimates.client_name`, which made every call fail
+  -- with 42703 — the error went unnoticed because the migration had never been
+  -- applied to any environment). It lives on clients.name, reached through
+  -- projects.client_id, exactly the way every other read in the codebase gets it
+  -- (see lib/queries/estimate.ts's `client:clients(name, ...)` embed).
+  --
+  -- LEFT JOIN and a separate statement, deliberately: projects.client_id is
+  -- NULLABLE, so an estimate on a project with no client attached must still
+  -- sign successfully with a NULL name. The caller's consumer
+  -- (lib/estimate/notify-response.ts) already types client_name as optional and
+  -- coalesces it away, so NULL degrades to "no client name in the notification"
+  -- rather than failing the signature.
+  SELECT c.name
+    INTO v_client_name
+    FROM public.projects p
+    LEFT JOIN public.clients c ON c.id = p.client_id
+    WHERE p.id = v_project_id;
 
   -- Step 2: torn-snapshot guard (closes race 3). p_expected_updated_at is the
   -- updated_at the ROUTE observed on the SAME read whose header fields were
