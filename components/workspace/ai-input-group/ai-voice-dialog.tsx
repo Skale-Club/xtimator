@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import { useAIInputSubmit, type SubmitStage } from './use-ai-input-submit'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
@@ -71,6 +72,10 @@ export function AIVoiceDialog({
   const [liveTranscript, setLiveTranscript] = useState('')
   const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Hold the screen on while the user speaks and while the transcribe →
+  // generate submit runs — both are windows where the phone isn't touched.
+  useWakeLock(isRecording || isSubmitting)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
