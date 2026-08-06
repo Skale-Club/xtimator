@@ -15,7 +15,7 @@ export function ViewModeToggle({ mode, onModeChange }: ViewModeToggleProps) {
   return (
     <TooltipProvider delayDuration={300}>
       <div role="group" aria-label="Document view mode"
-        className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/40 p-0.5">
+        className="hidden lg:inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/40 p-0.5">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-pressed={mode === 'width'} aria-label="Full width view"

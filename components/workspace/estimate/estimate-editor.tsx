@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { History, Minus, Plus } from 'lucide-react'
+import { History } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -33,8 +33,7 @@ import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { usePaginatedPreview } from './use-paginated-preview'
-import { PaginatedDocumentOverlay } from './paginated-document-overlay'
-import { LETTER_HEIGHT_PX, LETTER_WIDTH_PX } from '@/lib/estimate/document/tokens'
+import { PaginatedPreview } from './paginated-preview'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
   hasEstimateBeenSentOrViewed,
@@ -176,10 +175,6 @@ function stateToSavePayload(state: EstimateEditorState, opts?: { force?: boolean
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'dirty' | 'error'
 
-// (260728 rework) The old LETTER_PAGE_HEIGHT/PAGE_FIT_CLEARANCE height-fit
-// constants were retired with the fit-to-width zoom model — LETTER_HEIGHT_PX
-// stays imported for the overlay/geometry consumers below.
-
 interface EstimateEditorProps {
   estimate: EstimateWithSections
   versions: Estimate[]
@@ -314,47 +309,18 @@ export function EstimateEditor({
     enabled: viewMode === 'page',
   })
 
-  // Quick-260718-w4k — page mode fits the WHOLE letter sheet in the visible
-  // viewport (print-preview fit) via CSS zoom. Measured, not fixed: available
-  // height = viewport bottom − sheet top − pill clearance. The sheet top is
-  // clamped to the scroll container's top (<main>) so toggling mid-scroll
-  // doesn't measure a negative offset. Capped at 1 (no upscaling), floored
-  // at 0.45 (never unreadably small). Recomputes on window resize.
-  // Phase 185 Plan 03 (185-UI-SPEC.md §4) — widened to also gate on
-  // available WIDTH (not height-only), so the paginated canvas scales down
-  // on narrower viewports instead of clipping/scrolling horizontally.
-  // `+ 32` mirrors the canvas wrapper's own px-4 (16px) horizontal padding
-  // on each side (PaginatedDocumentOverlay).
-  const pageWrapRef = useRef<HTMLDivElement | null>(null)
-  const [pageZoom, setPageZoom] = useState(1)
-  // Paginated-preview presentation rework (260728): the document is the hero.
-  // Auto zoom now fits the sheet WIDTH (like a PDF viewer's fit-width), never
-  // the whole page height — the old height-fit shrank the letter sheet to
-  // ~56% on common laptop viewports, reading as a thumbnail. Manual zoom
-  // (the −/+ controls below) overrides auto-fit until "Fit" resets it.
-  const [zoomOverride, setZoomOverride] = useState<number | null>(null)
+  // Quick 260806-pgv T2 — real page sheets don't fit small viewports; force
+  // back to full-width below lg (paginated mode is desktop-only).
   useEffect(() => {
-    if (viewMode !== 'page') {
-      setPageZoom(1)
-      setZoomOverride(null)
-      return
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mql = window.matchMedia('(min-width: 1024px)')
+    const check = () => {
+      if (!mql.matches && viewMode === 'page') setViewMode('width')
     }
-    const compute = () => {
-      const el = pageWrapRef.current
-      if (!el) return
-      const availWidth = el.getBoundingClientRect().width || window.innerWidth
-      setPageZoom(Math.min(1, Math.max(availWidth / (LETTER_WIDTH_PX + 32), 0.45)))
-    }
-    compute()
-    window.addEventListener('resize', compute)
-    return () => window.removeEventListener('resize', compute)
+    check()
+    mql.addEventListener('change', check)
+    return () => mql.removeEventListener('change', check)
   }, [viewMode])
-  const effectiveZoom = zoomOverride ?? pageZoom
-  const zoomStep = (delta: number) =>
-    setZoomOverride((prev) => {
-      const base = prev ?? pageZoom
-      return Math.min(1.5, Math.max(0.5, Math.round((base + delta) * 10) / 10))
-    })
 
   const isCurrent = state.is_current
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
@@ -731,88 +697,31 @@ export function EstimateEditor({
         </Alert>
       )}
 
-      {/* Quick-260718-m2q — 'page' view centers the document at US-Letter
-          width via PaginatedDocumentOverlay's own canvas wrapper; 'width'
-          leaves the document filling the column as before. Quick-260718-w4k
-          — zoom scales the whole page group so the full letter sheet fits
-          the visible viewport (print-preview fit). Phase 185 Plan 03
-          (185-UI-SPEC.md §2/§3) — this wrapper now contains ONLY the canvas;
-          IssuedInvoicesPanel/GenerateInvoiceDialog render as SIBLINGS below,
-          in BOTH view modes, so unrelated invoice surfaces never sit inside
-          the paginated tray. */}
-      {viewMode === 'page' && (
-        <div className="fixed bottom-24 right-8 z-30 pointer-events-none">
-          {/* PDF-viewer-style zoom pill (260728 rework) — fixed at the lower
-              right, clear of the sticky project header, the "Edit with AI"
-              button, and the centered floating action pill. */}
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-zinc-900/90 px-2 py-1 text-zinc-100 shadow-lg backdrop-blur border border-white/10">
-            <button
-              type="button"
-              aria-label="Zoom out"
-              className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-              disabled={effectiveZoom <= 0.5}
-              onClick={() => zoomStep(-0.1)}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              aria-label="Fit width"
-              title="Fit width"
-              className="min-w-[3.25rem] rounded-full px-1 text-center text-xs tabular-nums hover:bg-white/10"
-              onClick={() => setZoomOverride(null)}
-            >
-              {Math.round(effectiveZoom * 100)}%
-            </button>
-            <button
-              type="button"
-              aria-label="Zoom in"
-              className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-              disabled={effectiveZoom >= 1.5}
-              onClick={() => zoomStep(0.1)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-      <div
-        ref={pageWrapRef}
-        className={viewMode === 'page' ? 'w-full' : undefined}
-        style={viewMode === 'page' && effectiveZoom !== 1 ? { zoom: effectiveZoom } : undefined}
-      >
+      {/* Quick 260806-pgv T2 — 'page' view renders PaginatedPreview, a
+          read-only real-page-container preview (own internal zoom/thumbnail
+          rail); 'width' leaves the document filling the column, editable, as
+          before. `isolate` pins document-internal z-indexes below the app
+          chrome (sticky header, floating action pill). IssuedInvoicesPanel/
+          GenerateInvoiceDialog render as SIBLINGS below, in BOTH view modes,
+          so unrelated invoice surfaces never sit inside the paginated tray. */}
+      <div className={viewMode === 'page' ? 'isolate w-full' : 'isolate'}>
         {viewMode === 'page' ? (
-          <PaginatedDocumentOverlay
+          <PaginatedPreview
+            data={documentData}
             pages={paginatedPages}
             company={company}
             templateId={estimateTemplateId}
             language={(estimate.language ?? 'en') as EstimateLanguage}
             brandColor={companyBrandColor ?? undefined}
-          >
-            <EstimateDocument
-              mode="edit"
-              data={documentData}
-              company={company}
-              companyDefaults={companyDefaults}
-              brandColor={companyBrandColor ?? undefined}
-              client={client}
-              projectName={localProjectName}
-              projectType={projectType}
-              language={(estimate.language ?? 'en') as EstimateLanguage}
-              estimateVersion={state.version}
-              estimateSeq={state.estimate_seq}
-              estimateCreatedAt={estimate.created_at}
-              dispatch={dispatch}
-              isReadOnly={isContentReadOnly}
-              projectId={projectId}
-              onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
-              priceBookItems={priceBookItems}
-              onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
-              pageView
-              preparedBy={preparedBy}
-              companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
-            />
-          </PaginatedDocumentOverlay>
+            client={client}
+            projectName={localProjectName}
+            projectType={projectType}
+            preparedBy={preparedBy}
+            estimateVersion={state.version}
+            estimateSeq={state.estimate_seq}
+            estimateCreatedAt={estimate.created_at}
+            companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+          />
         ) : (
           <EstimateDocument
             mode="edit"
@@ -833,7 +742,6 @@ export function EstimateEditor({
             onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
             priceBookItems={priceBookItems}
             onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
-            pageView={false}
             preparedBy={preparedBy}
             companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
           />

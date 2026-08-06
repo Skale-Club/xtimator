@@ -27,7 +27,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
   useBreadcrumb(breadcrumbItems)
 
   return (
-    <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 pb-3 pt-4 md:px-6">
+    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 pb-3 pt-4 md:px-6">
       {/* items-start on mobile so a 2-line wrapped title (ProjectTitle line-clamp-2)
           keeps the action button anchored to the top instead of floating mid-title;
           sm+ stays center-aligned with the single-line title. */}
