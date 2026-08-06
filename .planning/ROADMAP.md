@@ -3206,7 +3206,15 @@ Plans:
   3. An inbound WhatsApp message carrying media has its audio/photo written and then read back successfully by the estimate pipeline while R2 is configured — the concrete case that would have produced silent 404s now works end-to-end on a single backend.
   4. Adding a server-side module that reintroduces a hardcoded Supabase-only storage path fails an automated check rather than shipping silently, so the provider seam cannot rot the way it did after Phase 66.
 
-**Plans**: TBD
+**Plans**: 5 plans in 3 waves
+
+Plans:
+- [ ] 188-01-PLAN.md — Build lib/storage/server.ts, the single server-side provider seam; move getServerStorage() out of the browser-reachable index.ts (wave 1)
+- [ ] 188-02-PLAN.md — Convert the 13 admin/action storage call sites to serverStorage() (wave 2)
+- [ ] 188-03-PLAN.md — Convert the 6 PDF/share/delivery/cleanup call sites to serverStorage() (wave 2)
+- [ ] 188-04-PLAN.md — PROV-02 storage seam census gate, proven failable, plus the corrected migration runbook (wave 3)
+- [ ] 188-05-PLAN.md — PROV-03 WhatsApp inbound media write-and-read single-backend proof (wave 3)
+
 
 ### Phase 189: Browser Uploads Without Browser Credentials
 **Goal**: The five browser upload call sites put files into the configured backend through server-issued presigned PUTs, with no storage credential ever reaching client code, and with today's field-tested resilience intact.
