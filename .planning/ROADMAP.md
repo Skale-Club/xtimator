@@ -3168,7 +3168,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 ### Phases (summary checklist)
 
 - [x] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction (completed 2026-08-06)
-- [ ] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend
+- [x] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend (completed 2026-08-06)
 - [ ] **Phase 189: Browser Uploads Without Browser Credentials** — the five browser upload call sites move to server-issued presigned PUTs, preserving retry and offline/queue behavior, with no storage credential in client code
 - [ ] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed
 - [ ] **Phase 191: Object Migration & Verification** — a re-runnable command copies all 51 objects into R2 and proves per-object count, size, and content type; the runbook documents cutover and rollback with no real secrets
@@ -3212,7 +3212,7 @@ Plans:
 - [x] 188-01-PLAN.md — Build lib/storage/server.ts, the single server-side provider seam; move getServerStorage() out of the browser-reachable index.ts (wave 1)
 - [x] 188-02-PLAN.md — Convert the 13 admin/action storage call sites to serverStorage() (wave 2)
 - [x] 188-03-PLAN.md — Convert the 6 PDF/share/delivery/cleanup call sites to serverStorage() (wave 2)
-- [ ] 188-04-PLAN.md — PROV-02 storage seam census gate, proven failable, plus the corrected migration runbook (wave 3)
+- [x] 188-04-PLAN.md — PROV-02 storage seam census gate, proven failable, plus the corrected migration runbook (wave 3)
 - [x] 188-05-PLAN.md — PROV-03 WhatsApp inbound media write-and-read single-backend proof (wave 3)
 
 
@@ -3278,7 +3278,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 187. R2 Provisioning & Same-Origin Asset Proxy | 3/3 | Complete   | 2026-08-06 |
-| 188. Server-Wide Provider Selection Integrity | 4/5 | In Progress|  |
+| 188. Server-Wide Provider Selection Integrity | 5/5 | Complete   | 2026-08-06 |
 | 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
 | 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |
 | 191. Object Migration & Verification | 0/TBD | Not started | - |
