@@ -19,9 +19,11 @@
  *     minio/minio server /data --console-address ":9001"
  *
  *   # Then in MinIO console (http://localhost:9001) create a bucket
- *   # called 'smoketest' and run (env vars inline — never write to .env.local):
+ *   # called 'smoketest' and run (env vars inline — never write to .env.local).
+ *   # Phase 188: S3_* presence ALONE selects the S3/R2 backend —
+ *   # STORAGE_PROVIDER=s3 is optional and only needed to make an incomplete
+ *   # S3_* config fail loudly instead of silently falling back to Supabase:
  *
- *   STORAGE_PROVIDER=s3 \
  *     S3_ENDPOINT=http://localhost:9000 \
  *     S3_REGION=us-east-1 \
  *     S3_ACCESS_KEY_ID=minioadmin \
@@ -32,11 +34,11 @@
  *   # Tear down MinIO afterwards:
  *   docker rm -f xtimator-minio-smoke
  *
- * After running, confirm Supabase is restored as default (no STORAGE_PROVIDER
- * line in your committed .env.local).
+ * After running, confirm Supabase is restored as default (no S3_* vars left
+ * in your committed .env.local).
  */
 import 'dotenv/config'
-import { getServerStorage } from '@/lib/storage'
+import { getServerStorage, serverStorageBackend } from '@/lib/storage/server'
 
 const BUCKET = process.argv[2] ?? 'pdfs'
 const KEY = `smoke/${Date.now()}-roundtrip.txt`
@@ -44,7 +46,7 @@ const PAYLOAD = `storage smoke test at ${new Date().toISOString()}`
 
 async function main() {
   const storage = getServerStorage()
-  const provider = process.env.STORAGE_PROVIDER ?? 'supabase'
+  const provider = serverStorageBackend()
   console.log(`[smoke] provider=${provider} bucket=${BUCKET} key=${KEY}`)
 
   // 1. upload

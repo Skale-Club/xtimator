@@ -1,9 +1,27 @@
 /**
- * Phase 66 — Storage abstraction layer.
+ * Phase 66 — Storage abstraction layer. Phase 188 Plan 01 (PROV-01): stripped
+ * to a pure, browser-safe Supabase factory.
  *
- * Every storage call site in the app must funnel through the StorageProvider
- * defined here — never `supabase.storage.from(...)` directly. This makes the
- * future Hetzner Object Storage / S3 swap a 1-line change in createStorage().
+ * `createStorage(client)` is the EXPLICIT Supabase factory. Browser code
+ * uses it directly (Phase 189 moves those call sites to presigned PUTs).
+ * `lib/storage/asset-source.ts` also uses it deliberately, for the PROXY-02
+ * Supabase read-through fallback that must never be provider-aware.
+ *
+ * SERVER CODE MUST USE `@/lib/storage/server` (its `serverStorage(client)`
+ * and its default-provider factory), which honors the server-wide provider
+ * selection (`serverStorageBackend()`). This file used to also export a
+ * default-provider factory that read the legacy provider-select env flag
+ * directly — that function only ever got honored by 4 of ~23 server call
+ * sites, so flipping the flag silently split writes and reads across two
+ * backends (the WhatsApp inbound-media 404 failure mode that motivated
+ * Phase 188). That factory now lives in `./server.ts` instead, and this
+ * file is intentionally kept free of S3, the service-role client, and any
+ * environment-variable read so every `'use client'` component that imports
+ * it stays out of the AWS SDK / service-role module graph.
+ *
+ * A new `createStorage` call site added to a SERVER module going forward is
+ * a census failure (Plan 04's static import-graph gate), not a style
+ * preference — use `serverStorage(client)` there instead.
  *
  * STORAGE-01: this file defines the StorageProvider interface
  * STORAGE-02: createStorage(client) returns the Supabase implementation
@@ -11,8 +29,8 @@
  *
  * Usage:
  *   // Server (route handler / server action):
- *   const supabase = requireServiceClient()
- *   const storage = createStorage(supabase)
+ *   import { serverStorage } from '@/lib/storage/server'
+ *   const storage = serverStorage(requireServiceClient())
  *   await storage.upload('pdfs', key, buffer, { contentType: 'application/pdf' })
  *
  *   // Browser (client component):
@@ -21,8 +39,7 @@
  *   await storage.upload('photos', key, file, { contentType: file.type })
  *
  * No singleton is exported — each call site owns the SupabaseClient that
- * matches its auth context (server / browser / service-role). Plan 02 will
- * migrate every existing direct call site to this factory.
+ * matches its auth context (server / browser / service-role).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -110,56 +127,4 @@ import { createSupabaseStorageProvider } from './supabase-provider'
  */
 export function createStorage(client: SupabaseClient): StorageProvider {
   return createSupabaseStorageProvider(client)
-}
-
-/**
- * STORAGE-05/07: server-side default storage provider.
- *
- * Reads `process.env.STORAGE_PROVIDER`:
- *   - 'supabase' (default, omitted, or any other value): wraps the
- *     service-role Supabase client.
- *   - 's3': uses createS3StorageProvider() with S3_* env vars
- *     (see .env.local.example for the full set; see
- *     docs/STORAGE-MIGRATION.md for the runbook).
- *
- * Use this in server-only contexts where the Supabase client isn't
- * already in hand — e.g. health check, smoke script, future Inngest
- * workers (Phase 67), `/api/health` storage probe (Phase 68).
- *
- * Browser code MUST continue using `createStorage(supabaseBrowserClient)` —
- * the env-var path is server-only because S3 credentials must never reach
- * the browser.
- */
-export function getServerStorage(): StorageProvider {
-  const provider = process.env.STORAGE_PROVIDER ?? 'supabase'
-  if (provider === 's3') {
-    // Lazy require so the AWS SDK isn't loaded unless actually needed.
-    // Keeps the cold-start cost off the Supabase default path.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createS3StorageProvider } =
-      require('./s3-provider') as typeof import('./s3-provider')
-    return createS3StorageProvider({
-      endpoint: requireEnv('S3_ENDPOINT'),
-      region: requireEnv('S3_REGION'),
-      accessKeyId: requireEnv('S3_ACCESS_KEY_ID'),
-      secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
-      forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false',
-      publicUrlBase: process.env.S3_PUBLIC_URL_BASE,
-    })
-  }
-  // Default: Supabase via service-role client.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { requireServiceClient } =
-    require('@/lib/supabase/service') as typeof import('@/lib/supabase/service')
-  return createStorage(requireServiceClient())
-}
-
-function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) {
-    throw new Error(
-      `getServerStorage: missing required env var ${name} (STORAGE_PROVIDER=s3)`,
-    )
-  }
-  return v
 }

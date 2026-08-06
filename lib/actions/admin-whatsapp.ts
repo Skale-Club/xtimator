@@ -2,7 +2,7 @@
 
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getServerStorage } from '@/lib/storage'
+import { getServerStorage } from '@/lib/storage/server'
 import type { ConversationThread } from '@/lib/whatsapp/inbox-types'
 import type { WaConversationRow, WaMessageRow } from '@/lib/whatsapp/conversations'
 

@@ -13,11 +13,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
  *   - 503 + { ok: false, db: 'fail', storage: 'ok', commit, error } when DB SELECT fails
  *   - 503 + { ok: false, db: 'ok', storage: 'fail', commit, error } when storage list fails
  *   - `commit` field reflects process.env.GIT_SHA (falls back to 'unknown')
- *   - MUST go through getServerStorage() (Phase 66 abstraction) — no direct
+ *   - MUST go through getServerStorage() (Phase 66 abstraction, moved to
+ *     @/lib/storage/server in Phase 188 Plan 01) — no direct
  *     supabase.storage.from(...) call
  */
 
-vi.mock('@/lib/storage', () => ({
+vi.mock('@/lib/storage/server', () => ({
   getServerStorage: vi.fn(),
 }))
 
@@ -27,7 +28,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 import { GET } from '@/app/api/health/route'
-import { getServerStorage } from '@/lib/storage'
+import { getServerStorage } from '@/lib/storage/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
 function makeSupabaseOk() {

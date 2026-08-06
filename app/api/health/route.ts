@@ -20,7 +20,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getServerStorage } from '@/lib/storage'
+import { getServerStorage } from '@/lib/storage/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
 // Health must never be cached — always reflect live state.

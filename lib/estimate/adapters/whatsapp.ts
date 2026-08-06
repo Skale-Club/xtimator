@@ -58,7 +58,7 @@ import {
   analyzeImageBuffer,
 } from '@/lib/whatsapp/media'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
-import { getServerStorage } from '@/lib/storage'
+import { getServerStorage } from '@/lib/storage/server'
 import { formatMoney } from '@/lib/money/currency'
 import {
   numberSections,

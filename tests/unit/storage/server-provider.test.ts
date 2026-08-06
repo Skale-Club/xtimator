@@ -152,7 +152,6 @@ describe('lib/storage/server.ts — browser guard', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
-    // @ts-expect-error — deliberately removing the test-only stub
     delete (globalThis as { window?: unknown }).window
   })
 

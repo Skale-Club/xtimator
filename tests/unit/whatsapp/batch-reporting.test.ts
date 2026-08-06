@@ -63,7 +63,7 @@ vi.mock('@/lib/ai/openrouter-client', () => ({
 }))
 
 const storageUpload = vi.fn().mockResolvedValue(undefined)
-vi.mock('@/lib/storage', () => ({
+vi.mock('@/lib/storage/server', () => ({
   getServerStorage: () => ({ upload: storageUpload }),
 }))
 
