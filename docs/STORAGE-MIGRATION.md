@@ -15,23 +15,57 @@ A hands-on assessment corrected several claims below. The sections after this
 one are the ORIGINAL Phase-66 plan; where they conflict with this block, this
 block wins.
 
-**1. It is NOT a 1-line change.** `STORAGE_PROVIDER=s3` is only honored by
-`getServerStorage()`, which has **4 real call sites** (`app/api/health`,
+**1. RESOLVED by Phase 188 (2026-08-06) — kept here for the historical
+record, because the reason the bug existed is worth remembering.** Before
+Phase 188, `STORAGE_PROVIDER=s3` was only honored by `getServerStorage()`,
+which had **4 real call sites** (`app/api/health`,
 `lib/actions/admin-whatsapp.ts`, `lib/estimate/adapters/whatsapp.ts` ×2).
-Every other site calls `createStorage(client)`, which returns the Supabase
-provider **unconditionally** — ~20 files. The STORAGE-03 grep gate proved
-there are no raw `supabase.storage.from(...)` calls; it did NOT prove the
-provider is swappable.
+Every other server call site called `createStorage(client)` directly, which
+returned the Supabase provider **unconditionally** — roughly 20 files. The
+Phase-66 STORAGE-03 grep gate proved there was no raw
+`supabase.storage.from(...)` call left outside the abstraction; it did NOT
+prove the provider was swappable, and it stayed green the entire time this
+bug existed. **Flipping the flag would have been actively harmful, not
+merely incomplete**: the WhatsApp adapter would have written audio/photos
+to R2 while every read path still read Supabase — silent 404s on inbound
+WhatsApp media.
 
-**Flipping the flag today is actively harmful**, not merely incomplete: the
-WhatsApp adapter would write audio/photos to R2 while every read path still
-reads Supabase → silent 404s on inbound WhatsApp media.
+**What Phase 188 changed:** every server-side storage decision now funnels
+through one function, `serverStorageBackend()` in `lib/storage/server.ts`
+(PROV-01). `createStorage(client)` in `lib/storage/index.ts` is no longer a
+default-provider factory at all — it is the explicit, browser-safe Supabase
+factory, reserved for browser call sites and the PROXY-02 read-through
+fallback (`lib/storage/asset-source.ts`), which must stay pinned to
+Supabase on purpose. A new census test,
+`tests/unit/storage/storage-seam-census.test.ts` (PROV-02), enumerates
+every storage call site mechanically via the TypeScript AST and fails the
+test suite — and therefore CI, and therefore the deploy — if a server
+module ever reintroduces a raw `createStorage(client)` call or a raw
+`.storage.from(...)` escape hatch. Unlike the STORAGE-03 grep gate, this
+census was proven to actually fail: four negative cases (an unlisted server
+call site, a reintroduced raw escape hatch, a client component importing
+the server seam, and manifest drift) were each run and observed RED before
+being reverted — see the Phase 188 Plan 04 SUMMARY for the exact failure
+output. See "Phase 188 — server-wide provider selection integrity" below
+for the selection matrix as implemented, the RLS delta, and what this phase
+deliberately did NOT fix.
 
-**2. Browser uploads cannot follow the flag.** Five client components upload
-straight from the browser via `createStorage(supabaseBrowserClient)`
-(`capture-recorder`, `inline-audio-recorder`, `photo-card`, `photo-lightbox`,
-`estimate-document`). S3 credentials must never reach the browser, so this
-path needs a server-issued presigned-PUT route before any cutover.
+**2. Browser call sites are a mix of uploads and reads — not "five" or
+"six" uploads.** Six client components/hooks call
+`createStorage(supabaseBrowserClient)` directly, but only THREE of them are
+uploads: `capture-recorder.tsx`, `inline-audio-recorder.tsx`, and
+`use-ai-input-submit.ts` (all upload to the `audio` bucket). The other three
+call sites — `photo-card.tsx`, `photo-lightbox.tsx`,
+`estimate-document.tsx` — call `.getSignedUrl(...)`, a READ, not an upload;
+`capture-recorder.tsx` additionally has its own read call site (restoring
+photo thumbnails via `getSignedUrl`), so the full operational count across
+these 6 files is **3 uploads + 4 reads**. This was derived by reading each
+call site's actual method call (`.upload(...)` vs `.getSignedUrl(...)`),
+not assumed from an earlier draft's count. S3 credentials must never reach
+the browser, so the 3 upload sites need a server-issued presigned-PUT route
+before any cutover — that is Phase 189 (UPLOAD-01/02). The 4 read sites
+need the same-origin asset proxy repointed at them instead — that is
+Phase 190.
 
 **3. Public URLs are absolute and persisted.** `getPublicUrl()` returns a
 fully-qualified `https://<project>.supabase.co/...` URL that is written into
@@ -265,10 +299,129 @@ cache-HIT claim (PROXY-05 is Phase 192).
 
 ---
 
+## Phase 188 — server-wide provider selection integrity (2026-08-06)
+
+PROV-01 fixed the seam; PROV-02 built the census gate that keeps it fixed.
+This section is the durable record — see §1 of the field assessment above
+for the bug this closed.
+
+**Selection matrix, verbatim from `lib/storage/server.ts`'s own docblock
+(one source of truth — if this table and that file ever disagree, that is
+itself a finding worth filing):**
+
+| `STORAGE_PROVIDER`     | `S3_*` complete? | Result                                                      |
+|-------------------------|------------------|---------------------------------------------------------------|
+| unset / unrecognized    | yes              | `'r2'`                                                        |
+| unset / unrecognized    | no               | `'supabase'`                                                  |
+| `'supabase'`             | yes              | `'supabase'` (explicit kill switch always wins)               |
+| `'supabase'`             | no               | `'supabase'`                                                  |
+| `'s3'`                   | yes              | `'r2'`                                                        |
+| `'s3'`                   | no               | **throws**, naming the missing var(s) — never a silent fallback |
+
+Only the exact strings `'s3'` and `'supabase'` are recognized values of
+`STORAGE_PROVIDER`; anything else (unset, empty string, a typo) is treated
+as unset and falls through to the `S3_*`-presence check.
+
+**Reversibility — with the Phase 187 W1 caveat still standing.** Removing
+the `S3_*` vars returns the entire server to Supabase with no code change
+and no data movement — but that is unconditionally true ONLY while no
+object exists solely in R2. That held through Phase 187. It stops holding
+the moment Phase 188's `serverStorage()` writes are actually exercised
+under R2 (i.e. once `S3_*` is set somewhere) and once Phase 189 sends
+browser uploads there — from that point forward, rolling back also
+requires copying the R2-only objects back to Supabase before flipping the
+switch. Phase 188 makes the seam correct; it does not activate it (see
+below), so this caveat is not yet live in production — but do not restate
+the reversibility sentence without it once R2 is turned on.
+
+**RLS delta.** `serverStorage(client)` in R2 mode ignores the passed
+client's Supabase `storage.objects` RLS entirely — S3 has no per-user
+policy layer of its own. In Supabase mode the passed client's RLS still
+applies exactly as before. Every user-scoped server call site therefore
+relies on its own app-level guard as the SOLE authorization gate once R2 is
+active. All 10 user-scoped sites were audited during Phase 188 Plan 02 and
+confirmed to have a genuine guard already in place:
+
+| File | Function | Guard relied upon once R2 is active |
+|---|---|---|
+| `lib/actions/admin-company.ts` | `createAdminCompany` | `requireAdmin()` at the top of the action |
+| `lib/actions/client.ts` | `uploadClientLogoAction` | `getAuthContext()`'s `assertWritable()` + `getActiveCompanyId()` company-membership validation |
+| `lib/actions/company.ts` | `uploadOnboardingLogoAction` | authenticated-user check (`supabase.auth.getUser()`) + `assertWritable()`; storage path scoped to `userData.user.id` |
+| `lib/actions/photo.ts` | `uploadProjectPhoto` | `getAuthContext()`'s `assertWritable()` + `getActiveCompanyId()` company-membership validation |
+| `lib/actions/photo.ts` | `deletePhoto` | `getAuthContext()`'s `assertWritable()` + `getActiveCompanyId()` company-membership validation |
+| `lib/actions/price-book.ts` | `createPriceBookItem` | explicit `assertWritable()` call in the action body |
+| `lib/actions/price-book.ts` | `updatePriceBookItem` | explicit `assertWritable()` call in the action body |
+| `lib/actions/recording.ts` | `deleteRecording` | `getAuthContext()`'s `assertWritable()` + `getActiveCompanyId()` company-membership validation |
+| `lib/actions/settings.ts` | `updateCompanySettings` | `getAuthContext()`'s `assertWritable()` + `getActiveCompanyId()` company-membership validation |
+| `lib/actions/settings.ts` | `updateProfile` | explicit `assertWritable()` call in the action body |
+
+3 additional service-role sites (`app/admin/branding/actions.ts`,
+`app/admin/landing/actions.ts`, `app/admin/seo/actions.ts`) need no guard
+table entry — the service-role client already bypasses RLS regardless of
+backend.
+
+**Still not activated.** `S3_*` credentials remain deliberately absent from
+`.env.local` and Coolify. Phase 188 makes the seam correct; it does not
+turn R2 on. Phase 191 copies objects into R2, Phase 192 cuts over reads and
+proves the CDN cache-HIT claim. Setting `S3_*` in Coolify before Phase 191
+still burns doomed presign-and-fetch round trips per landing visit — the
+existing W4 note above stays true.
+
+**What Phase 188 deliberately did NOT fix:**
+
+- **Browser uploads still go straight to Supabase.** The 3 upload call
+  sites (`capture-recorder.tsx`, `inline-audio-recorder.tsx`,
+  `use-ai-input-submit.ts`) are unchanged — Phase 189 (UPLOAD-01/02)
+  replaces them with server-issued presigned PUTs.
+- **Browser reads still mint Supabase signed URLs.** The 4 read call sites
+  (`photo-card.tsx`, `photo-lightbox.tsx`, `estimate-document.tsx`, and
+  `capture-recorder.tsx`'s photo-restore path) are unchanged — Phase 190
+  repoints them at the same-origin asset proxy. Until then, activating R2
+  before Phase 190 ships would make a browser-side photo read miss (it
+  would still resolve a Supabase signed URL for an object that may only
+  exist in R2). This is a second, independent reason not to activate R2 in
+  this phase.
+- **The orphan-cleanup cron's folder walk does not match S3's flat
+  listing.** `lib/storage/s3-provider.ts`'s `list()` calls
+  `ListObjectsV2Command` without a `Delimiter`, so it returns keys
+  recursively, while Supabase's `list()` returns one folder level at a
+  time. `lib/inngest/functions/storage-orphan-cleanup.ts`'s 3-level
+  folder-by-folder walk assumes the Supabase (non-recursive) shape, so
+  under R2 the constructed prefixes diverge from any real key and real R2
+  orphans likely never reach the age/delete path. **This is a functional
+  gap (orphans go unswept), not a safety gap** — the age gate itself
+  (`ageMsOf()`) is already fail-closed under an S3-shaped `ListedObject`
+  (verified by a Phase 188 Plan 03 test), so nothing gets deleted wrongly;
+  real orphans just accumulate uncollected in R2 post-cutover. Fixing this
+  needs either an edit to `s3-provider.ts` (forbidden in Phase 188) or a
+  walk-algorithm rewrite (an architectural change) — left for a future
+  phase, documented in `storage-orphan-cleanup.ts`'s own header docblock.
+
+**The census gate (PROV-02).** `tests/unit/storage/storage-seam-census.test.ts`
+walks `app/`, `lib/`, `components/`, `hooks/` via the TypeScript AST,
+enumerates every `createStorage`/`serverStorage`/`getServerStorage` call
+site and every raw `.storage.from(...)` escape hatch mechanically (no
+hand-maintained file list), and asserts exact-set equality against an
+explicit manifest. A new server-side `createStorage(client)` call site, a
+reintroduced raw Supabase escape hatch, or a client component importing
+`@/lib/storage/server` each fail the suite — and therefore CI, and
+therefore the deploy. Unlike the Phase-66 STORAGE-03 grep gate (which
+stayed green the entire time the PROV-01 bug existed), this gate was
+observed actually failing on all four of those cases before being
+reverted — see the Phase 188 Plan 04 SUMMARY for the verbatim failure
+output. Building this gate also surfaced two genuine PROV-01 gaps Plans
+01-03 had missed — `lib/inngest/functions/analyze-photos.ts` and
+`lib/inngest/functions/transcribe-audio.ts` were still calling raw
+`supabase.storage.from(...).download(...)` directly — both were converted
+to `serverStorage(supabase)` as part of closing Plan 04.
+
+---
+
 ## Why this is a 1-line change
 
-> **Superseded** — see §1 of the field assessment above. Kept for context on
-> what Phase 66 intended.
+> **Superseded** — see §1 of the field assessment above, and see "Phase 188
+> — server-wide provider selection integrity" above for what the actual
+> change was. Kept for context on what Phase 66 intended.
 
 Phase 66 introduced `lib/storage/` — every storage call site in the app routes through the `StorageProvider` interface. There is no direct `supabase.storage.from(...)` call left in `app/`, `lib/`, or `components/` (verified by the STORAGE-03 grep gate).
 
