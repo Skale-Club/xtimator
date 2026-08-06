@@ -9,8 +9,8 @@ import {
 } from '@/lib/industries'
 
 describe('INDUSTRIES', () => {
-  it('has exactly 10 entries', () => {
-    expect(INDUSTRIES).toHaveLength(10)
+  it('has exactly 13 entries', () => {
+    expect(INDUSTRIES).toHaveLength(13)
   })
 
   it('every industry has non-empty id, label, icon, and projectTypes array', () => {
@@ -60,6 +60,9 @@ describe('INDUSTRIES', () => {
       'handyman',
       'roofing',
       'hvac',
+      'home_improvement',
+      'general_contracting',
+      'remodeling',
     ]
     for (const id of expected) {
       expect(ids).toContain(id)

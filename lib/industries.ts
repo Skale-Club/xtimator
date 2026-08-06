@@ -126,6 +126,42 @@ export const INDUSTRIES: Industry[] = [
       'Maintenance',
     ],
   },
+  {
+    id: 'home_improvement',
+    label: 'Home Improvement',
+    icon: 'HousePlus',
+    projectTypes: [
+      'Siding',
+      'Window Replacement',
+      'Door Replacement',
+      'Decks & Porches',
+      'Fencing',
+    ],
+  },
+  {
+    id: 'general_contracting',
+    label: 'General Contracting',
+    icon: 'HardHat',
+    projectTypes: [
+      'Home Addition',
+      'New Construction',
+      'Framing & Structural',
+      'Permits & Inspections',
+      'Project Management',
+    ],
+  },
+  {
+    id: 'remodeling',
+    label: 'Remodeling',
+    icon: 'Ruler',
+    projectTypes: [
+      'Kitchen Remodel',
+      'Bathroom Remodel',
+      'Basement Finishing',
+      'Flooring',
+      'Cabinetry & Countertops',
+    ],
+  },
 ] as const satisfies Industry[]
 
 /** Sentinel id used by legacy multi-select to represent a free-text "Other" trade. */

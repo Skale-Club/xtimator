@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, ChevronsUpDown, X, Plus, SprayCan, Sofa, Droplets, Paintbrush, TreePine, Zap, Wrench, Hammer, Home, Fan, MoreHorizontal } from 'lucide-react'
+import { Check, ChevronsUpDown, X, Plus, SprayCan, Sofa, Droplets, Paintbrush, TreePine, Zap, Wrench, Hammer, Home, Fan, HousePlus, HardHat, Ruler, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 import { INDUSTRIES, isKnownIndustry, getIndustryLabel } from '@/lib/industries'
@@ -33,6 +33,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Hammer,
   Home,
   Fan,
+  HousePlus,
+  HardHat,
+  Ruler,
   MoreHorizontal,
 }
 
