@@ -1,3 +1,13 @@
+// @vitest-environment node
+//
+// Phase 188 Plan 03 (PROV-01): getEstimateByShareToken() (and its sibling
+// getEstimateBySlugToken()) now resolve attached-photo signed URLs via
+// serverStorage() -> assertServer(), which throws whenever
+// `typeof window !== 'undefined'`. The suite's global environment is jsdom
+// (vitest.config.ts), where `window` always exists, so this spuriously trips
+// here unless this file opts into the `node` environment (same fix as
+// tests/unit/storage/server-provider.test.ts from Plan 01 and the two other
+// test files this plan touched for the same reason).
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const { serviceClientMock } = vi.hoisted(() => ({ serviceClientMock: { from: vi.fn() } }))

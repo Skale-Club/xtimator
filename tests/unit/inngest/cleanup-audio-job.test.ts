@@ -9,7 +9,7 @@ import { resolve } from 'node:path'
  *
  * Contract under test (matches runCleanupAudio in lib/inngest/functions/cleanup-audio.ts):
  *   - SELECT recordings WHERE storage_path IS NOT NULL AND created_at < (now - 7 days)
- *   - For each row, call createStorage(svc).delete('audio', storage_path)
+ *   - For each row, call serverStorage(svc).delete('audio', storage_path) (Phase 188 PROV-01 seam)
  *   - On success: UPDATE recordings SET storage_path = NULL WHERE id = row.id
  *   - On per-file failure: continue loop, increment errors counter
  *   - Returns { deleted: number; errors: number }
@@ -17,10 +17,10 @@ import { resolve } from 'node:path'
  *   - app/api/inngest/route.ts registers cleanupAudioJob in the serve() functions array
  */
 
-// Mock createStorage so we can assert delete() calls without touching real storage.
+// Mock serverStorage so we can assert delete() calls without touching real storage.
 const mockStorageDelete = vi.fn()
-vi.mock('@/lib/storage', () => ({
-  createStorage: vi.fn(() => ({
+vi.mock('@/lib/storage/server', () => ({
+  serverStorage: vi.fn(() => ({
     delete: mockStorageDelete,
   })),
 }))

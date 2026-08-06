@@ -1,3 +1,14 @@
+// @vitest-environment node
+//
+// Phase 188 Plan 03 (PROV-01): generateAndUploadEstimatePDF now resolves
+// storage via serverStorage() -> assertServer(), which throws whenever
+// `typeof window !== 'undefined'`. The suite's global environment is jsdom
+// (vitest.config.ts), where `window` always exists, so this spuriously trips
+// in every test here unless this file opts into the `node` environment (same
+// fix as tests/unit/storage/server-provider.test.ts from Plan 01). This test
+// intentionally does NOT mock @/lib/storage/server — it mocks the Supabase
+// client's storage.from() so the real serverStorage(client) delegation path
+// (Supabase mode) is exercised end-to-end.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock the heavy deps that pdf-delivery.ts will use

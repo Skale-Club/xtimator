@@ -263,6 +263,30 @@ describe('CAPT-04: runStorageOrphanCleanup', () => {
     expect(result.audio).toEqual({ bucket: 'audio', scanned: 1, skippedProtectedPrefix: 0, deleted: 1 })
   })
 
+  it('(i) Phase 188 PROV-01: S3-shaped entry with neither updatedAt nor createdAt is treated as unknown age and NEVER deleted (fail-closed)', async () => {
+    // The S3 StorageProvider (lib/storage/s3-provider.ts) never populates
+    // createdAt, and this simulates the pathological case where updatedAt is
+    // also absent — ageMsOf() must return null (not "very old"), so the
+    // object is skipped rather than deleted. See the AGE-gate note in
+    // lib/inngest/functions/storage-orphan-cleanup.ts's header.
+    const { provider, deleteCalls } = makeStorage({
+      audio: {
+        '': [{ name: 'co1', isFolder: true }],
+        co1: [{ name: 'proj1', isFolder: true }],
+        'co1/proj1': [{ name: 'unknown-age.webm' /* no updatedAt, no createdAt */ }],
+      },
+    })
+    const svc = makeSvc(alwaysUnreferenced)
+
+    const result = await runStorageOrphanCleanup(svc as never, provider, { now: NOW })
+
+    expect(deleteCalls).toEqual([])
+    expect(result.audio.deleted).toBe(0)
+    // Still scanned (it reached the leaf/age check) — just never crossed the
+    // age threshold because the threshold itself is unknowable.
+    expect(result.audio.scanned).toBe(1)
+  })
+
   it('(h) defensive re-check: a row appears between scan and delete — NOT deleted', async () => {
     const { provider, deleteCalls } = makeStorage({
       audio: {
