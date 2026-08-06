@@ -17,9 +17,9 @@ import { createBlankEstimate } from '@/lib/actions/estimate'
 import { uploadProjectPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
-import { uploadWithRetry } from '@/lib/storage/upload-with-retry'
+import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { savePendingCapture, getPendingCapture, deletePendingCapture, isAvailable as isBlobStoreAvailable, type PendingCapture } from '@/lib/capture/blob-store'
-import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
+import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
 import { Camera, Sparkles, Pause, Play } from 'lucide-react'
@@ -230,7 +230,12 @@ interface CaptureRecorderProps {
 
 export function CaptureRecorder({
   project,
-  companyId,
+  // Phase 189 Plan 03 (UPLOAD-01): companyId is no longer read on this
+  // component's upload path — the server derives the storage key from the
+  // authenticated caller's active company, not from a client-supplied prop.
+  // Kept in CaptureRecorderProps (parent still passes it; removing the prop
+  // would ripple into callers and is not this phase's business), but no
+  // longer destructured here since nothing in this file reads it now.
   projectId,
   variant = 'fullscreen',
   mode,
@@ -892,17 +897,18 @@ export function CaptureRecorder({
     // transcribe-${recordingId} is idempotent; no re-upload, no double charge).
     let storagePath: string | undefined
     if (!recordingIdRef.current) {
-      const fileNameId = crypto.randomUUID()
-      const ext = getFileExtension(mimeTypeRef.current)
-      storagePath = `${companyId}/${projectId}/${fileNameId}.${ext}`
       try {
-        // CAPT-01: retry wrapper (3 tries, exponential backoff 1s/2s/4s,
-        // retry only on network/5xx — never on 4xx/quota). Error surface is
-        // unchanged: failAt fires exactly as before once retries exhaust.
-        await uploadWithRetry(createStorage(createClient()), 'audio', storagePath, blob, {
-          contentType: mimeTypeRef.current || 'audio/webm',
-          upsert: false,
-        })
+        // Phase 189 Plan 03 (UPLOAD-01/UPLOAD-04): server-issued ticket
+        // replaces the client-constructed storagePath. uploadViaTicket
+        // composes uploadWithRetry unchanged (3 tries, exponential backoff
+        // 1s/2s/4s, retry only on network/5xx — never on 4xx/quota). Error
+        // surface is unchanged: failAt fires exactly as before once retries
+        // exhaust.
+        const uploaded = await uploadViaTicket(
+          { bucket: 'audio', projectId, blob, contentType: mimeTypeRef.current || 'audio/webm' },
+          { signal: abortControllerRef.current?.signal },
+        )
+        storagePath = uploaded.path // server-issued key — NOT locally constructed
       } catch (err) {
         console.error('[capture] audio upload failed:', err)
         failAt('saving', err instanceof Error ? err.message : t('Failed to upload audio file'))
@@ -955,7 +961,7 @@ export function CaptureRecorder({
       if (isAbortSignal(err)) return  // unmount; not a user-facing failure
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome, pendingCaptureKey])
+  }, [projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome, pendingCaptureKey])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
