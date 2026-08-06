@@ -126,7 +126,6 @@ function renderPreview(overrides: Partial<PaginatedPreviewProps> = {}) {
       data={data}
       pages={pages}
       company={company}
-      templateId="classic"
       language="en"
       client={null}
       projectName="Test Project"

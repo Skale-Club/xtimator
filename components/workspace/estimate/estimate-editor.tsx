@@ -709,7 +709,6 @@ export function EstimateEditor({
             data={documentData}
             pages={paginatedPages}
             company={company}
-            templateId={estimateTemplateId}
             language={(estimate.language ?? 'en') as EstimateLanguage}
             brandColor={companyBrandColor ?? undefined}
             client={client}

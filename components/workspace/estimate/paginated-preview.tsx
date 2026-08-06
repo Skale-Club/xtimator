@@ -35,7 +35,6 @@ import type {
   DocumentSection,
   EstimateDocumentData,
 } from '@/lib/estimate/document/model'
-import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { DepositDisplay } from '@/lib/estimate/deposit-display'
 import type { ResolvedPresentationSettings } from '@/lib/estimate/presentation-settings'
@@ -54,7 +53,6 @@ export interface PaginatedPreviewProps {
   /** null = engine still computing / fonts loading — renders the skeleton, never the editable tree. */
   pages: PageAssignment[] | null
   company: DocumentCompany
-  templateId: EstimateTemplateId
   language?: EstimateLanguage | null
   /** Override brand color (mirrors EstimateDocumentProps — falls back to company.brand_primary_color). */
   brandColor?: string
@@ -101,20 +99,40 @@ interface RenderCtx {
 // TableHead — the shared column-header row (Description/Qty/Unit/Unit
 // Price/Total at 40/12/13/17/18%), reused for a section's own table AND the
 // page-opening repeated header on a continuesTable page — same markup as
-// estimate-document.tsx's read-only table head (L661-669).
+// estimate-document.tsx's read-only table head (L661-669). `testId`, when
+// given, is stamped on the <thead> itself (only the continuation slice's own
+// first table passes one — see renderPageBlocks).
 // ---------------------------------------------------------------------------
 
-function TableHead({ L }: { L: DocumentLabels }) {
+function TableHead({ L, testId }: { L: DocumentLabels; testId?: string }) {
   return (
-    <thead>
+    <thead data-testid={testId}>
       <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50">
-        <th className="py-1.5 px-3 text-left font-medium w-[40%]">{L.description}</th>
-        <th className="py-1.5 px-2 w-[12%] text-center font-medium">{L.qty}</th>
-        <th className="py-1.5 px-2 w-[13%] text-center font-medium">{L.unit}</th>
-        <th className="py-1.5 px-2 w-[17%] text-right font-medium">{L.unitPrice}</th>
-        <th className="py-1.5 px-3 w-[18%] text-right font-medium">{L.total}</th>
+        <th className="py-1.5 px-3 text-left font-medium">{L.description}</th>
+        <th className="py-1.5 px-2 text-center font-medium">{L.qty}</th>
+        <th className="py-1.5 px-2 text-center font-medium">{L.unit}</th>
+        <th className="py-1.5 px-2 text-right font-medium">{L.unitPrice}</th>
+        <th className="py-1.5 px-3 text-right font-medium">{L.total}</th>
       </tr>
     </thead>
+  )
+}
+
+// ItemTableColgroup — the ONE source of the 40/12/13/17/18% column geometry,
+// applied via <col> (not per-<th> width classes) so EVERY item table on
+// EVERY page — headed or headless, new-section or continuation slice — sizes
+// its 5 columns identically under table-fixed layout. Without this, a
+// continuation page's headless rows table and a headed table elsewhere would
+// auto-size independently and columns would drift out of alignment.
+function ItemTableColgroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '40%' }} />
+      <col style={{ width: '12%' }} />
+      <col style={{ width: '13%' }} />
+      <col style={{ width: '17%' }} />
+      <col style={{ width: '18%' }} />
+    </colgroup>
   )
 }
 
@@ -164,7 +182,7 @@ function ReadOnlyPhotoThumb({ photo }: { photo: DocumentPhoto }) {
 function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
   const { data, L, lang, client, clientAddr, projectName, projectType, estimateCreatedAt, defaultEstimateNumber } = ctx
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-6 sm:px-10 py-6 sm:py-8 border-b border-border/50">
+    <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-10 py-8 border-b border-border/50">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
           {L.project}
@@ -202,7 +220,7 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
 function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
   return (
-    <div data-page-block-id="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
+    <div data-page-block-id="totals" className="flex justify-end px-10 py-6 border-t border-border/50">
       <div className="w-full max-w-xs space-y-2">
         <div className="flex justify-between text-base">
           <span className="text-muted-foreground select-none">{L.subtotal}</span>
@@ -254,7 +272,7 @@ function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx) {
     <div
       key={`${sectionId}-header`}
       data-page-block-id={`${sectionId}-header`}
-      className="flex items-center gap-2 px-6 sm:px-10 py-2"
+      className="flex items-center gap-2 px-10 py-2"
       style={{ backgroundColor: ctx.brandColor }}
     >
       <span className="flex-1 font-semibold text-base tracking-wide select-none" style={{ color: ctx.brandOnFill }}>
@@ -265,15 +283,26 @@ function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx) {
 }
 
 /** Renders one contiguous run of item-row blocks (same section, same page) as
- *  ONE <table>. `withHead` is true only when this run was immediately
- *  preceded on this page by its section's own section-header block — a
- *  continuation-opening run (page.continuesTable) never gets its own thead,
- *  since the page-level repeated column header already covers it. */
-function renderItemTable(sectionId: string, rowBlocks: PageBlock[], ctx: RenderCtx, withHead: boolean, key: string) {
+ *  ONE <table>. `withHead` is true when this run was immediately preceded on
+ *  this page by its section's own section-header block, OR when this run
+ *  IS the continuation slice opening a continuesTable page (in which case
+ *  `headTestId="continuation-header"` is passed so the page-level repeated
+ *  column header renders as this table's own <thead> instead of a separate
+ *  sibling table — keeping every item table's column geometry identical via
+ *  ItemTableColgroup + table-fixed, headed or not). */
+function renderItemTable(
+  sectionId: string,
+  rowBlocks: PageBlock[],
+  ctx: RenderCtx,
+  withHead: boolean,
+  key: string,
+  headTestId?: string
+) {
   const items = ctx.itemsBySection.get(sectionId) ?? []
   return (
-    <table key={key} className="w-full">
-      {withHead && <TableHead L={ctx.L} />}
+    <table key={key} className="w-full table-fixed">
+      <ItemTableColgroup />
+      {withHead && <TableHead L={ctx.L} testId={headTestId} />}
       <tbody>
         {rowBlocks.map((block) => {
           const itemIndex = block.ref?.itemIndex
@@ -285,7 +314,7 @@ function renderItemTable(sectionId: string, rowBlocks: PageBlock[], ctx: RenderC
               key={block.id}
               data-page-block-id={block.id}
               data-item-id={item.id}
-              className={`border-b border-border/50 last:border-0 ${zebra ? 'bg-muted/40' : ''}`}
+              className={`border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
             >
               <td className="py-2 px-3 text-base">{item.description}</td>
               <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
@@ -307,7 +336,7 @@ function renderSectionSubtotal(block: PageBlock, ctx: RenderCtx) {
     <div
       key={block.id}
       data-page-block-id={block.id}
-      className="flex justify-end items-center gap-3 px-6 sm:px-10 py-2 border-t border-border/50 bg-muted/10"
+      className="flex justify-end items-center gap-3 px-10 py-2 border-t border-border/50 bg-muted/10"
     >
       <span className="text-sm text-muted-foreground select-none">{ctx.L.sectionSubtotal}</span>
       <span className="text-sm font-semibold tabular-nums">{ctx.fmt(section?.subtotal ?? 0)}</span>
@@ -322,7 +351,7 @@ function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
   if (key === 'estimate') {
     if (!ctx.hasCompanyTerms) return null
     return (
-      <div key={block.id} data-page-block-id="terms-estimate" className="px-6 sm:px-10 py-6 border-t border-border/50">
+      <div key={block.id} data-page-block-id="terms-estimate" className="px-10 py-6 border-t border-border/50">
         <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
           <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
             {ctx.L.estimateTerms}
@@ -345,7 +374,7 @@ function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
   if (!entry || !entry.value) return null
 
   return (
-    <div key={block.id} data-page-block-id={`terms-${key}`} className="px-6 sm:px-10 py-6 border-t border-border/50">
+    <div key={block.id} data-page-block-id={`terms-${key}`} className="px-10 py-6 border-t border-border/50">
       <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
         <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
           {entry.label}
@@ -359,7 +388,7 @@ function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
 function renderSignature(block: PageBlock, ctx: RenderCtx) {
   if (!ctx.data.signature) return null
   return (
-    <div key={block.id} data-page-block-id="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
+    <div key={block.id} data-page-block-id="signature" className="px-10 py-6 border-t border-border/50">
       <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
           {ctx.L.signedBy}
@@ -389,13 +418,18 @@ function renderPhotoRow(block: PageBlock, ctx: RenderCtx) {
   if (photos.length === 0) return null
   const showLabel = range[0] === 0
   return (
-    <div key={block.id} data-page-block-id={block.id} className="px-6 sm:px-10 py-6 border-t border-border/50">
+    <div key={block.id} data-page-block-id={block.id} className="px-10 py-6 border-t border-border/50">
       {showLabel && (
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
           {ctx.L.photos}
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {/* Fixed grid-cols-3 — matches the engine's photosPerRow chunk size
+          (lib/estimate/document/tokens.ts's photosPerRow, always 3 for both
+          templates' contentWidthPt) exactly, so a 3-photo chunk never lands
+          in a wider grid with a dead trailing cell. Sheets are always
+          LETTER_WIDTH_PX wide — no viewport breakpoint applies here. */}
+      <div className="grid grid-cols-3 gap-3">
         {photos.map((photo) => (
           <ReadOnlyPhotoThumb key={photo.id} photo={photo} />
         ))}
@@ -407,7 +441,7 @@ function renderPhotoRow(block: PageBlock, ctx: RenderCtx) {
 function renderPreparedBy(block: PageBlock, ctx: RenderCtx) {
   if (!ctx.preparedBy) return null
   return (
-    <div key={block.id} data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
+    <div key={block.id} data-page-block-id="prepared-by" className="px-10 py-6 border-t border-border/50">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
         {ctx.L.preparedBy}
       </p>
@@ -420,9 +454,9 @@ function renderSingleBlock(block: PageBlock, ctx: RenderCtx) {
   switch (block.kind) {
     case 'title-banner':
       return (
-        <div key={block.id} className="py-6 px-6 sm:px-10 text-center" style={{ backgroundColor: ctx.brandColor }}>
+        <div key={block.id} className="py-6 px-10 text-center" style={{ backgroundColor: ctx.brandColor }}>
           <h1
-            className="text-3xl sm:text-4xl font-bold tracking-widest select-none"
+            className="text-4xl font-bold tracking-widest select-none"
             style={{ color: ctx.brandOnFill }}
           >
             {ctx.L.estimate}
@@ -433,7 +467,7 @@ function renderSingleBlock(block: PageBlock, ctx: RenderCtx) {
       return <InfoGridBlock key={block.id} ctx={ctx} />
     case 'summary':
       return isSectionVisible(ctx.resolvedSettings, 'summary') && ctx.data.summary ? (
-        <div key={block.id} className="px-6 sm:px-10 py-4 border-b border-border/50">
+        <div key={block.id} className="px-10 py-4 border-b border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {ctx.L.summary}
           </p>
@@ -461,8 +495,12 @@ function renderSingleBlock(block: PageBlock, ctx: RenderCtx) {
  *  the same section (with the section-header block, when present on this
  *  same page) into ONE <table> slice — mirrors
  *  components/pdf/estimate-pdf.tsx's buildItemRowGroups, but DOM-shaped: no
- *  slicing needed since each item-row PageBlock already maps to one item. */
-function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx): React.ReactNode[] {
+ *  slicing needed since each item-row PageBlock already maps to one item.
+ *  `continuesTable` (PageAssignment.continuesTable, true iff blocks[0].kind
+ *  === 'item-row') marks that the very first group is a continuation slice —
+ *  it gets the repeated column header as its OWN <thead> (headTestId=
+ *  'continuation-header'), never a separate sibling table. */
+function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx, continuesTable: boolean): React.ReactNode[] {
   const out: React.ReactNode[] = []
   let i = 0
   while (i < blocks.length) {
@@ -488,7 +526,17 @@ function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx): React.ReactNode[
       let j = i
       while (j < blocks.length && blocks[j].kind === 'item-row' && blocks[j].ref?.sectionId === sectionId) j += 1
       const rowBlocks = blocks.slice(i, j)
-      out.push(renderItemTable(sectionId, rowBlocks, ctx, false, `${sectionId}-continued-${i}`))
+      const isContinuationSlice = continuesTable && i === 0
+      out.push(
+        renderItemTable(
+          sectionId,
+          rowBlocks,
+          ctx,
+          isContinuationSlice,
+          `${sectionId}-continued-${i}`,
+          isContinuationSlice ? 'continuation-header' : undefined
+        )
+      )
       i = j
       continue
     }
@@ -526,7 +574,7 @@ function FullCompanyHeader({ ctx }: { ctx: RenderCtx }) {
   const { company, brandColor, brandText, companyAddr } = ctx
   return (
     <div
-      className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 sm:p-6 border-b border-border"
+      className="flex items-start justify-between gap-4 p-6 border-b border-border"
       style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
     >
       <div className="min-w-0">
@@ -552,7 +600,7 @@ function FullCompanyHeader({ ctx }: { ctx: RenderCtx }) {
 
 function CompactHeader({ ctx }: { ctx: RenderCtx }) {
   return (
-    <div className="flex flex-col justify-center px-6 sm:px-10 py-3 select-none">
+    <div className="flex flex-col justify-center px-10 py-3 select-none">
       <span className="text-sm font-semibold leading-tight" style={{ color: ctx.brandColor }}>
         {ctx.company.name}
       </span>
@@ -580,12 +628,7 @@ function PageSheet({
         style={{ width: LETTER_WIDTH_PX, minHeight: LETTER_HEIGHT_PX, scrollMarginTop: 140, ...LIGHT_PIN_STYLE }}
       >
         {pageIndex === 0 ? <FullCompanyHeader ctx={ctx} /> : <CompactHeader ctx={ctx} />}
-        {page.continuesTable && (
-          <table className="w-full" data-testid="continuation-header">
-            <TableHead L={ctx.L} />
-          </table>
-        )}
-        {renderPageBlocks(page.blocks, ctx)}
+        {renderPageBlocks(page.blocks, ctx, page.continuesTable)}
       </div>
       <p className="select-none pt-2 text-center text-xs text-muted-foreground" style={{ width: LETTER_WIDTH_PX }}>
         {ctx.L.page} {pageIndex + 1} {ctx.L.of} {totalPages}
@@ -721,6 +764,12 @@ export function PaginatedPreview({
   useEffect(() => {
     const el = measureRef.current
     if (!el) return
+    // el (measureRef) carries the px-4 (16px each side = 32px total) padding
+    // applied to its own className below, so getBoundingClientRect().width
+    // already INCLUDES that padding — dividing by (LETTER_WIDTH_PX + 32)
+    // means zoom hits 1 exactly when avail equals the sheet's natural width
+    // plus its own padding, i.e. the sheet fits snug WITHOUT touching el's
+    // edges. Formula and layout must always describe the same 32px.
     const compute = () => {
       const avail = el.getBoundingClientRect().width || window.innerWidth
       setFitZoom(Math.min(1, avail / (LETTER_WIDTH_PX + 32)))
@@ -733,7 +782,7 @@ export function PaginatedPreview({
     const ro = new ResizeObserver(compute)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [pages])
 
   useLayoutEffect(() => {
     const el = contentRef.current
@@ -838,7 +887,9 @@ export function PaginatedPreview({
         </nav>
       )}
 
-      <div ref={measureRef} className="min-w-0 flex-1 flex justify-center">
+      {/* px-4 = 16px each side, the real geometry the fit-zoom effect's
+          "+ 32" compensates for — see the comment on that effect above. */}
+      <div ref={measureRef} className="min-w-0 flex-1 flex justify-center px-4">
         <div style={{ position: 'relative', width: LETTER_WIDTH_PX * zoom, height: sizerHeightPx, margin: '0 auto' }}>
           <div
             ref={contentRef}
