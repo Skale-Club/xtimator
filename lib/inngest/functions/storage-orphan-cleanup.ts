@@ -52,6 +52,34 @@
  * timestamp is available, the object is treated as "not old enough" (never
  * deleted) — an unknown age is not evidence of staleness.
  *
+ * Phase 188 Plan 03 (PROV-01) — S3/R2-shaped `ListedObject` review: this job
+ * now resolves its `StorageProvider` via `serverStorage()`, which returns
+ * the S3 provider in R2 mode. `ageMsOf()` below already reads
+ * `entry.updatedAt ?? entry.createdAt` and returns `null` (never delete) when
+ * neither is present — that is exactly the fail-closed behavior this job
+ * needs, and it required no code change: the S3 provider populates
+ * `updatedAt` (from `LastModified`) for every real object it lists, so the
+ * age gate works under both backends. The S3 provider also never sets
+ * `isFolder` (undefined, not `false`/`true`) — the leaf-level check at
+ * `if (fileEntry.isFolder) continue` only skips a Supabase folder
+ * placeholder (`isFolder: true`); it is `false`/falsy for every S3 entry, so
+ * no real S3 object is ever skipped there. The bucket/company/folder-level
+ * `isFolder === false` guards above are Supabase-only defensive checks
+ * against unexpected files at a level that should only contain folders —
+ * under S3 they never trigger (isFolder is always `undefined`, never
+ * `false`), which does not create a fail-open path: it only affects which
+ * prefixes get walked, and the deletion decision is gated exclusively by
+ * `ageMsOf()` and the reference check. Known separate limitation (NOT fixed
+ * here — would require editing lib/storage/s3-provider.ts's `list()` to add
+ * `Delimiter` support, which this plan may not touch): S3's
+ * `ListObjectsV2Command` here has no `Delimiter`, so it returns keys
+ * recursively rather than one folder level at a time the way Supabase's
+ * `list()` does; under R2 this walk's assumed 3-level folder-by-folder
+ * paging does not line up with a flat/recursive listing, so in practice real
+ * orphans in R2 mode may not reach the deletion path at all (functional
+ * gap, not a safety gap — deleting nothing wrongly-early is the fail-closed
+ * direction).
+ *
  * Convention (matches cleanup-audio.ts): NEVER call the Supabase Storage
  * client directly — every Storage operation here goes through the injected
  * `StorageProvider`. DB row lookups (`recordings`/`photos` tables) use the
@@ -65,7 +93,7 @@
  */
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import type { StorageProvider, ListedObject } from '@/lib/storage'
 
 type ServiceClientLike = ReturnType<typeof requireServiceClient>
@@ -271,7 +299,11 @@ export const storageOrphanCleanupJob = inngest.createFunction(
   async ({ step }) => {
     return step.run('sweep-storage-orphans', async () => {
       const svc = requireServiceClient()
-      const storage = createStorage(svc)
+      // Phase 188 (PROV-01): server-wide provider selection — see the
+      // AGE-gate / isFolder note in this file's header for why the walk
+      // below is safe (fails closed, never deletes) under the S3-shaped
+      // ListedObject this can now return.
+      const storage = serverStorage(svc)
       return runStorageOrphanCleanup(svc, storage)
     })
   },

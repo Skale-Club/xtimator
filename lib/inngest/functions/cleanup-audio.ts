@@ -17,9 +17,10 @@
  *     so it's testable without standing up the Inngest test harness. The
  *     Inngest function itself is a thin wrapper that injects the
  *     service-role client.
- *   - Uses the storage abstraction (`createStorage(...)`) — NEVER calls
- *     Supabase's storage client directly. This keeps the Hetzner/S3
- *     swap a single-line change in `lib/storage` (Phase 66 convention).
+ *   - Uses the storage abstraction (`serverStorage(...)` from
+ *     `@/lib/storage/server`, Phase 188 PROV-01) — NEVER calls Supabase's
+ *     storage client directly, so this job follows the same R2/Supabase
+ *     backend the rest of the server resolves.
  *   - Best-effort: per-file delete failures are logged and counted in
  *     `errors`. The cron runs daily so one failed file gets a retry
  *     within 24 hours. A whole-query failure (e.g. RLS) returns
@@ -27,7 +28,7 @@
  */
 import { inngest } from '@/lib/inngest/client'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 
 type ServiceClientLike = ReturnType<typeof requireServiceClient>
 
@@ -59,7 +60,7 @@ export async function runCleanupAudio(
   }
 
   const stale = (rows ?? []) as Array<{ id: string; storage_path: string | null }>
-  const storage = createStorage(svc)
+  const storage = serverStorage(svc)
 
   let deleted = 0
   let errors = 0

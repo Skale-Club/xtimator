@@ -6,7 +6,7 @@ import type {
   EstimateWithSections,
 } from '@/lib/queries/estimate'
 import { getEstimatePhotos } from '@/lib/queries/estimate-photo'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 import { applySignedSnapshot, applySignedCompanyTerms } from '@/lib/estimate/signed-snapshot'
@@ -149,7 +149,9 @@ export async function getEstimateByShareToken(
   // always succeeds regardless of anon/RLS status; anon visitors have no
   // session to resolve their own signed URLs with).
   const attachedPhotosRaw = await getEstimatePhotos(supabase, estimate.id)
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): server-wide provider selection; Supabase mode keeps
+  // this caller-supplied client and its RLS scoping.
+  const storage = serverStorage(supabase)
   const attachedPhotos = await Promise.all(
     attachedPhotosRaw.map(async (photo) => ({
       id: photo.id,
@@ -411,7 +413,9 @@ export async function getEstimateByPublicToken(
   )
 
   const attachedPhotosRaw = await getEstimatePhotos(supabase, estimate.id)
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): server-wide provider selection; Supabase mode keeps
+  // this caller-supplied client and its RLS scoping.
+  const storage = serverStorage(supabase)
   const attachedPhotos = await Promise.all(
     attachedPhotosRaw.map(async (photo) => ({
       id: photo.id,

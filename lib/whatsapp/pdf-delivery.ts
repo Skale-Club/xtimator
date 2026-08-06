@@ -12,7 +12,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 
 /**
  * Generate a PDF buffer for the given estimate, upload it to the `pdfs`
@@ -44,7 +44,9 @@ export async function generateAndUploadEstimatePDF(
   // Upload to pdfs bucket (service role bypasses RLS).
   //    Path: {companyId}/whatsapp-pdf/{estimateId}-{timestamp}.pdf
   //    Timestamp ensures Meta URL cache uniqueness (Meta caches by URL string ~10min)
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): server-wide provider selection; Supabase mode keeps
+  // this caller-supplied client and its RLS scoping.
+  const storage = serverStorage(supabase)
   const storagePath = `${companyId}/whatsapp-pdf/${estimateId}-${Date.now()}.pdf`
 
   try {

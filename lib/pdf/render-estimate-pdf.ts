@@ -27,7 +27,7 @@ import { getEstimateWithContext, type EstimateWithSections } from '@/lib/queries
 import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -178,7 +178,9 @@ export async function renderEstimatePdf(
 
   // Resolve signed URLs for attached photos server-side BEFORE constructing
   // the element tree (Pitfall 9 — pre-resolve-then-render).
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): server-wide provider selection; Supabase mode keeps
+  // this caller-supplied client and its RLS scoping.
+  const storage = serverStorage(supabase)
   const attachedPhotos = await Promise.all(
     (estimate.attachedPhotos ?? []).map(async (photo) => ({
       url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
