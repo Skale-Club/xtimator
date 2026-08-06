@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 188-02-PLAN.md (Phase 188 Plan 02/05: 13 tenant-facing storage call sites in app/admin/*/actions.ts + lib/actions/* converted to serverStorage(), each user-scoped site annotated with its real app-level guard, no STOP-CONDITION blocker found) — Next: 188-03-PLAN.md (concurrent, PDF/share/WhatsApp-delivery/Inngest) / 188-04-PLAN.md."
-last_updated: "2026-08-06T22:29:59.242Z"
-last_activity: "2026-08-06 - Phase 188 Plan 02 (Server-Wide Provider Selection Integrity — admin/action call sites) complete. Prior: Phase 188 Plan 01 (provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
+stopped_at: "Completed 188-03-PLAN.md (Phase 188 Plan 03/05: PDF renderer, public share page (x2 call sites), WhatsApp PDF delivery, and both Inngest cleanup crons converted to serverStorage(); orphan-cleanup age gate confirmed already fail-closed under an S3-shaped ListedObject, zero s3-provider.ts change, covering test added) — ran concurrently with 188-02. Next: 188-04-PLAN.md (census gate)."
+last_updated: "2026-08-06T22:34:32.908Z"
+last_activity: "2026-08-06 - Phase 188 Plan 03 (Server-Wide Provider Selection Integrity — PDF/share/WhatsApp-delivery/Inngest call sites) complete. Prior: Phase 188 Plan 02 (admin/action call sites) complete. Prior: Phase 188 Plan 01 (provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
 progress:
   total_phases: 136
   completed_phases: 113
-  total_plans: 350
-  completed_plans: 361
-  percent: 12
+  total_plans: 369
+  completed_plans: 362
+  percent: 98
 ---
 
 # Project State
@@ -97,7 +97,7 @@ Last activity: 2026-08-06 - Phase 188 Plan 01 (Server-Wide Provider Selection In
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
 - Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
-Progress: [███░░░░░░░] 29% (v4.24: 5/17 plans across 187-192, phase 187 COMPLETE 3/3 plans, phase 188 2/5 plans)
+Progress: [██████████] 98%
 
 **Phase 183 Plan 06 (2026-07-28):** Extracted `PdfTotalsBlock` (Classic boxed row-list vs
 Modern standalone hero, both preserved verbatim) + `PdfPhotoGrid` (captions) + net-new
@@ -273,7 +273,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 188-02-PLAN.md
+Stopped at: Completed 188-03-PLAN.md
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -1077,6 +1077,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 185]: Reducer-level structuralEditEpoch drives immediate-vs-400ms-debounced repagination; a paginated-view-engine-parity test binds the live rendered pipeline sheet count to the engine's direct computation, closing PGBRK-01/04 and PGMODE-05; REQUIREMENTS.md now shows the full v4.23 pagination requirement set complete.
 - [Phase 188]: PROV-01 selection matrix: unset/unrecognized STORAGE_PROVIDER decides by S3_* completeness; explicit 'supabase' is a kill switch; explicit 's3' with incomplete S3_* throws naming the missing vars instead of silent fallback
 - [Phase 188]: All 10 user-scoped serverStorage() sites already had a real app-level guard (assertWritable/requireAdmin/authenticated-user-id scoping) — no STOP-CONDITION tenant-isolation gap found
+- [Phase 188]: storage-orphan-cleanup.ts's ageMsOf() was already fail-closed and S3-safe (updatedAt-first, null-on-missing => never delete); no s3-provider.ts change needed, only a covering test added
 
 ## Performance Metrics
 
@@ -1430,6 +1431,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 187 P03 | 45min | 3 tasks | 7 files |
 | Phase 188 P01 | 75 | 2 tasks | 12 files |
 | Phase 188 P02 | ~90min | 2 tasks | 16 files |
+| Phase 188 P03 | 70min | 2 tasks | 11 files |
 
 ## Project Reference
 
