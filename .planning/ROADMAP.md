@@ -3188,7 +3188,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
   4. Public assets fetched through the route come back edge-cacheable while tenant-private assets do not — verifiable by inspecting the response headers of one of each. The two public buckets differ deliberately: `platform-brand` writes timestamped keys so it may be immutable; `logos` overwrites a stable key in place (`{companyId}/logo.webp`, `user-avatars/{sub}/avatar.webp`, `upsert: true`), so it must revalidate — an immutable directive there would pin a stale logo in browser caches that cannot be purged. (Corrected 2026-08-06 after plan review; the original wording said "immutable" for both.)
   5. The five R2 buckets `audio`, `photos`, `pdfs`, `logos`, and `platform-brand` exist with public access disabled, and the credential the app uses can read and write those five buckets and nothing else.
 
-**Plans**: 3 plans in 2 waves
+**Plans**: 3 plans in 3 waves
 
 Plans:
 - [ ] 187-01-PLAN.md — Proxy policy (bucket allowlist, traversal rejection, per-bucket cache split) + dual-source asset reader (R2 first, Supabase read-through, content type from stored metadata)
