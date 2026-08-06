@@ -43,6 +43,15 @@ import { getSignedUrl as presignS3 } from '@aws-sdk/s3-request-presigner'
 import { serverStorageBackend } from './server'
 import { s3ConfigFromEnv } from './s3-config'
 import { getFileExtension } from '@/lib/utils/media-format'
+import type { UploadTicket } from './upload-ticket-types'
+
+// Phase 189 Plan 03: the `UploadTicket` union itself now lives in
+// `./upload-ticket-types` (a zero-runtime, zero-import file) so the browser
+// module can depend on the type without this server-only module's specifier
+// ever appearing in its import graph. Re-exported here so every existing
+// `import type { UploadTicket } from '@/lib/storage/upload-ticket'` site
+// keeps working unchanged.
+export type { UploadTicket } from './upload-ticket-types'
 
 /** Buckets a browser may be ticketed to write. Deliberately just `audio` —
  * the verified census (see 189-01-PLAN.md <verified_facts>) is exactly
@@ -67,45 +76,6 @@ export interface MintUploadTicketArgs {
    */
   key?: string
 }
-
-export type UploadTicket =
-  | {
-      strategy: 's3-presigned-put'
-      bucket: string
-      key: string
-      url: string
-      /**
-       * Sent VERBATIM by the browser. Includes the exact Content-Type the
-       * URL was signed for — verbatim-or-broken: a presigned PUT signed for
-       * `audio/webm` fails with `SignatureDoesNotMatch` if the browser sends
-       * a different Content-Type header (e.g. `audio/webm;codecs=opus`,
-       * which is exactly what `getSupportedAudioMimeType()` returns on
-       * Chrome).
-       */
-      headers: Record<string, string>
-      expiresInSeconds: number
-      /** Echo of the normalized type — the browser stamps its Blob with this. */
-      contentType: string
-    }
-  | {
-      strategy: 'supabase-signed-upload'
-      bucket: string
-      key: string
-      token: string
-      expiresInSeconds: number
-      /**
-       * Echo of the normalized type. NOT decoration: `@supabase/storage-js`'s
-       * `uploadToSignedUrl` sends the Blob as multipart FormData and IGNORES
-       * this ticket's content type entirely in that branch — the stored
-       * type comes from the Blob's own `.type`. Plan 03's browser code MUST
-       * re-stamp the Blob with this value before calling
-       * `uploadToSignedUrl`, or the object lands with whatever MIME the
-       * MediaRecorder happened to produce (which may include a
-       * `;codecs=...` suffix Supabase doesn't want). Do not "clean up" this
-       * field as redundant — it is the only thing that fixes that mismatch.
-       */
-      contentType: string
-    }
 
 /**
  * Content types a browser upload ticket may be minted for. Exactly the set
