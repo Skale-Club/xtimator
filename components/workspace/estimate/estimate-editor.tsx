@@ -194,8 +194,7 @@ interface EstimateEditorProps {
   /** R4 — company defaults for the override-vs-default indicator. */
   companyDefaults: CompanyDefaults
   /** Phase 185 (PGMODE-02) — resolved design-template id, server-resolved
-   *  identically to resolveEstimatePdfContext. Feeds usePaginatedPreview()
-   *  (Task 2) and EstimateDocument's pageView measurement. */
+   *  identically to resolveEstimatePdfContext. Feeds usePaginatedPreview(). */
   estimateTemplateId: EstimateTemplateId
   /** Phase 185 (PGMODE-03) — "Prepared by" value, mirroring the PDF
    *  pipeline's own lookup. Rendered by EstimateDocument in both view modes. */

@@ -2,8 +2,8 @@
 //
 // ENGINE-02 — LETTER page geometry defined ONCE. react-pdf's <Page
 // size="LETTER"> resolves 612x792pt (72dpi) internally; the webview's
-// print-preview (estimate-document.tsx pageView, estimate-editor.tsx page
-// mode) approximates the same page at 96dpi CSS px. This is the ONE place
+// print-preview (PaginatedPreview) approximates the same page at 96dpi CSS
+// px. This is the ONE place
 // both numbers are derived from — no second hand-copied literal is allowed
 // anywhere else (tests/unit/estimate/pt-px-conversion-source.test.ts
 // enforces this via static grep).

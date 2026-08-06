@@ -172,10 +172,6 @@ interface EstimateDocumentProps {
   priceBookItems?: PriceBookItem[]
   /** Edit mode only — renders a remove "x" on each attached-photo thumbnail. Never passed in view/share mode. */
   onDetachPhoto?: (photoId: string) => void
-  /** Quick-260718-p3v — 'Full page' view mode: renders the document as a
-   *  print-preview letter sheet (square corners, hairline border, paper
-   *  shadow, US-Letter min-height) instead of the rounded app card. */
-  pageView?: boolean
   /** Phase 185 (PGMODE-02/03) — rendered ONLY when provided. The editor's TWO
    *  call sites (full-width AND paginated) always pass both; the public share
    *  webview (components/share/estimate-view.tsx) passes NEITHER and stays
@@ -266,7 +262,6 @@ function SortableDocumentItemRow({
   lang,
   priceBookItems,
   L,
-  pageView = false,
 }: {
   item: DocumentItem
   sectionId: string
@@ -275,9 +270,6 @@ function SortableDocumentItemRow({
   lang: EstimateLanguage
   priceBookItems: PriceBookItem[]
   L: DocLabels
-  /** 260728 rework — paginated mode renders rows PDF-like at rest (wrapped
-   *  description text, no Disc./Tax columns, chrome revealed on interaction). */
-  pageView?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -296,61 +288,42 @@ function SortableDocumentItemRow({
       data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/40"
     >
-      {/* drag handle — pageView: invisible at rest (PDF-like), revealed on row hover */}
+      {/* drag handle */}
       <td className="py-1 px-1 w-6 align-middle">
         <span
-          className={`cursor-grab inline-flex items-center ${
-            pageView
-              ? 'opacity-0 group-hover:opacity-100 text-muted-foreground/60 transition-opacity'
-              : 'text-muted-foreground/30 group-hover:text-muted-foreground/60'
-          }`}
+          className="cursor-grab inline-flex items-center text-muted-foreground/30 group-hover:text-muted-foreground/60"
           {...listeners}
         >
           <GripVertical className="h-3.5 w-3.5" />
         </span>
       </td>
-      {/* description — pageView: wrapped text at rest (mirrors the PDF's
-          multi-line cell, killing truncation); the combobox input sits
-          invisible on top and appears on click/focus, so price-book
-          autocomplete keeps working unchanged. */}
+      {/* description */}
       <td className="py-1 px-1 align-middle">
-        <div className={pageView ? 'group/desc relative cursor-text' : undefined}>
-          {pageView && (
-            <div
-              aria-hidden
-              className="whitespace-pre-wrap break-words text-base px-1 py-1 min-h-8 group-focus-within/desc:invisible"
-            >
-              {item.description || <span className="text-muted-foreground">Item description</span>}
-            </div>
-          )}
-          <div className={pageView ? 'absolute inset-0 opacity-0 focus-within:opacity-100 focus-within:bg-white' : undefined}>
-            <PriceBookCombobox
-              value={item.description}
-              onChange={(next) =>
-                dispatch({
-                  type: 'UPDATE_ITEM',
-                  sectionId,
-                  itemId: item.id,
-                  field: 'description',
-                  value: next,
-                })
-              }
-              onSelectPriceBookItem={(pb) =>
-                dispatch({
-                  type: 'APPLY_PRICE_BOOK_ITEM',
-                  sectionId,
-                  itemId: item.id,
-                  item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
-                })
-              }
-              items={priceBookItems}
-              currencyCode={currencyCode}
-              placeholder="Item description"
-              className={pageView ? `${INLINE_INPUT_CLS} h-full` : INLINE_INPUT_CLS}
-              noMatchesLabel={L.noMatches}
-            />
-          </div>
-        </div>
+        <PriceBookCombobox
+          value={item.description}
+          onChange={(next) =>
+            dispatch({
+              type: 'UPDATE_ITEM',
+              sectionId,
+              itemId: item.id,
+              field: 'description',
+              value: next,
+            })
+          }
+          onSelectPriceBookItem={(pb) =>
+            dispatch({
+              type: 'APPLY_PRICE_BOOK_ITEM',
+              sectionId,
+              itemId: item.id,
+              item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
+            })
+          }
+          items={priceBookItems}
+          currencyCode={currencyCode}
+          placeholder="Item description"
+          className={INLINE_INPUT_CLS}
+          noMatchesLabel={L.noMatches}
+        />
       </td>
       {/* qty */}
       <td className="py-1 px-1 w-16 align-middle">
@@ -412,44 +385,38 @@ function SortableDocumentItemRow({
           className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
         />
       </td>
-      {/* line discount + taxable — hidden in pageView (not part of the PDF's
-          column set; the paginated sheet mirrors the customer document).
-          Full-width mode keeps them exactly as before. */}
-      {!pageView && (
-        <td className="py-1 px-1 w-20 align-middle">
-          <MoneyInput
-            value={item.discount ?? 0}
-            currencyCode={currencyCode}
-            onValueChange={(value) =>
-              dispatch({
-                type: 'UPDATE_ITEM',
-                sectionId,
-                itemId: item.id,
-                field: 'discount',
-                value,
-              })
-            }
-            className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
-          />
-        </td>
-      )}
-      {!pageView && (
-        <td className="py-1 px-1 w-12 text-center align-middle">
-          <Switch
-            checked={item.taxable ?? true}
-            onCheckedChange={(checked) =>
-              dispatch({
-                type: 'UPDATE_ITEM',
-                sectionId,
-                itemId: item.id,
-                field: 'taxable',
-                value: checked,
-              })
-            }
-            aria-label={L.taxable}
-          />
-        </td>
-      )}
+      {/* line discount + taxable */}
+      <td className="py-1 px-1 w-20 align-middle">
+        <MoneyInput
+          value={item.discount ?? 0}
+          currencyCode={currencyCode}
+          onValueChange={(value) =>
+            dispatch({
+              type: 'UPDATE_ITEM',
+              sectionId,
+              itemId: item.id,
+              field: 'discount',
+              value,
+            })
+          }
+          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+        />
+      </td>
+      <td className="py-1 px-1 w-12 text-center align-middle">
+        <Switch
+          checked={item.taxable ?? true}
+          onCheckedChange={(checked) =>
+            dispatch({
+              type: 'UPDATE_ITEM',
+              sectionId,
+              itemId: item.id,
+              field: 'taxable',
+              value: checked,
+            })
+          }
+          aria-label={L.taxable}
+        />
+      </td>
       {/* total */}
       <td className="py-1 pr-3 pl-1 w-28 text-right text-base tabular-nums font-medium align-middle">
         {formatMoney(item.total, currencyCode)}
@@ -484,7 +451,6 @@ function DocumentSectionBlock({
   lang,
   dragHandleProps,
   priceBookItems = [],
-  pageView = false,
 }: {
   section: DocumentSection
   dispatch?: React.Dispatch<EstimateAction>
@@ -496,8 +462,6 @@ function DocumentSectionBlock({
   lang: EstimateLanguage
   dragHandleProps?: Record<string, unknown>
   priceBookItems?: PriceBookItem[]
-  /** 260728 rework — see SortableDocumentItemRow. */
-  pageView?: boolean
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -522,7 +486,7 @@ function DocumentSectionBlock({
   }
 
   return (
-    <div className={pageView ? 'group/section' : undefined}>
+    <div>
       {/* Section header bar */}
       <div
         data-page-block-id={`${section.id}-header`}
@@ -631,10 +595,8 @@ function DocumentSectionBlock({
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.qty}</th>
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.unit}</th>
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.unitPrice}</th>
-                    {/* 260728 rework — Disc./Tax are editor metadata, not PDF columns;
-                        the paginated sheet hides them (rows do the same below). */}
-                    {!pageView && <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>}
-                    {!pageView && <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>}
+                    <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>
+                    <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.total}</th>
                     <th className="py-1.5 px-2 w-8" />
                   </tr>
@@ -650,7 +612,6 @@ function DocumentSectionBlock({
                       lang={lang}
                       priceBookItems={priceBookItems}
                       L={L}
-                      pageView={pageView}
                     />
                   ))}
                 </tbody>
@@ -690,16 +651,9 @@ function DocumentSectionBlock({
         )}
       </div>
 
-      {/* Add item — edit mode only, placed right after the last item.
-          pageView: invisible at rest (not part of the PDF page), revealed on
-          section hover/focus — opacity keeps its layout space so revealing it
-          never reflows the page. */}
+      {/* Add item — edit mode only, placed right after the last item. */}
       {isEditable && dispatch && (
-        <div
-          className={`${SECTION_PX} py-1.5 border-t border-dashed border-border/50 ${
-            pageView ? 'opacity-0 group-hover/section:opacity-100 focus-within:opacity-100 transition-opacity' : ''
-          }`}
-        >
+        <div className={`${SECTION_PX} py-1.5 border-t border-dashed border-border/50`}>
           <button
             onClick={() => dispatch({ type: 'ADD_ITEM', sectionId: section.id })}
             className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors select-none"
@@ -738,7 +692,6 @@ function SortableDocumentSection({
   L,
   lang,
   priceBookItems,
-  pageView = false,
 }: {
   section: DocumentSection
   dispatch: React.Dispatch<EstimateAction>
@@ -749,7 +702,6 @@ function SortableDocumentSection({
   L: DocLabels
   lang: EstimateLanguage
   priceBookItems: PriceBookItem[]
-  pageView?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id })
@@ -772,7 +724,6 @@ function SortableDocumentSection({
         lang={lang}
         dragHandleProps={listeners}
         priceBookItems={priceBookItems}
-        pageView={pageView}
       />
     </div>
   )
@@ -1105,14 +1056,10 @@ function TermsBlock({
   autoFocus = false,
   defaultValue,
   L,
-  hideChrome = false,
 }: {
   label: string
   value: string | null
   field: 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms'
-  /** 260728 rework — pageView hides the Default/Customized editor chrome at
-   *  rest (not part of the customer document), revealing it on hover/focus. */
-  hideChrome?: boolean
   dispatch?: React.Dispatch<EstimateAction>
   isEditable: boolean
   autoFocus?: boolean
@@ -1126,13 +1073,12 @@ function TermsBlock({
   const isOverridden = (value ?? '').trim() !== (defaultValue ?? '').trim()
 
   return (
-    <div className={hideChrome ? 'group/terms' : undefined}>
+    <div>
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none">
           {label}
         </p>
         {isEditable && hasDefault && dispatch ? (
-          <span className={hideChrome ? 'opacity-0 group-hover/terms:opacity-100 focus-within:opacity-100 transition-opacity' : undefined}>
           <DefaultStateIndicator
             isOverridden={isOverridden}
             onReset={() =>
@@ -1140,7 +1086,6 @@ function TermsBlock({
             }
             L={L}
           />
-          </span>
         ) : null}
       </div>
       {isEditable && dispatch ? (
@@ -1393,7 +1338,6 @@ export function EstimateDocument({
   onRenameProject,
   priceBookItems = [],
   onDetachPhoto,
-  pageView = false,
   preparedBy,
   companyTerms,
 }: EstimateDocumentProps) {
@@ -1475,14 +1419,9 @@ export function EstimateDocument({
 
   return (
     <div
-      // 260728 rework — in pageView the PaginatedDocumentOverlay's decorative
-      // sheets ARE the paper (white fill, hairline edge, shadow). The content
-      // layer renders chrome-free and TRANSPARENT on top of them, so the
-      // inter-page gaps show the canvas instead of one continuous white strip,
-      // and overflow stays visible for hover affordances near page edges.
-      className={pageView ? '' : 'rounded-3xl border-4 shadow-lg overflow-hidden'}
+      className="rounded-3xl border-4 shadow-lg overflow-hidden"
       style={{
-        ...(pageView ? {} : { backgroundColor: '#ffffff' }),
+        backgroundColor: '#ffffff',
         colorScheme: 'light',
         '--foreground': '240 10% 3.9%',
         '--muted-foreground': '240 3.8% 46.1%',
@@ -1498,17 +1437,14 @@ export function EstimateDocument({
         '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
         '--glass-border': 'rgba(15, 23, 42, 0.08)',
         color: 'hsl(240 10% 3.9%)',
-        ...(pageView ? {} : { borderColor: '#3f3f46' }),
+        borderColor: '#3f3f46',
       } as React.CSSProperties}
     >
       {/* Company header — only when company provided (share/view mode + editor) */}
       {company && (
         <div
           className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 sm:p-6 border-b border-border"
-          // 260728 rework — the 3px brand top-rule belongs to the full-width
-          // card chrome; on a paginated sheet it read as a stray line floating
-          // at the paper's top edge (the sheet itself is the page boundary).
-          style={pageView ? undefined : { borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
+          style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
@@ -1710,7 +1646,6 @@ export function EstimateDocument({
                   L={L}
                   lang={lang}
                   priceBookItems={priceBookItems}
-                  pageView={pageView}
                 />
               ))}
             </SortableContext>
@@ -1802,7 +1737,6 @@ export function EstimateDocument({
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
               <TermsBlock
-                hideChrome={pageView}
                 label={L.paymentTerms}
                 value={data.payment_terms}
                 field="payment_terms"
@@ -1822,7 +1756,6 @@ export function EstimateDocument({
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
               <TermsBlock
-                hideChrome={pageView}
                 label={L.timeline}
                 value={data.timeline}
                 field="timeline"
@@ -1841,7 +1774,6 @@ export function EstimateDocument({
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
               <TermsBlock
-                hideChrome={pageView}
                 label={L.warranty}
                 value={data.warranty_terms}
                 field="warranty_terms"
@@ -1861,7 +1793,6 @@ export function EstimateDocument({
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
               <TermsBlock
-                hideChrome={pageView}
                 label={L.notes}
                 value={data.notes}
                 field="notes"
