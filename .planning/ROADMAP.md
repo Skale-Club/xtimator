@@ -3188,7 +3188,12 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
   4. A logo or platform-brand asset fetched through the route comes back with a long-lived immutable cache header, while a tenant-private asset fetched through the same route does not — verifiable by inspecting the response headers of one of each.
   5. The five R2 buckets `audio`, `photos`, `pdfs`, `logos`, and `platform-brand` exist with public access disabled, and the credential the app uses can read and write those five buckets and nothing else.
 
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
+
+Plans:
+- [ ] 187-01-PLAN.md — Proxy policy (bucket allowlist, traversal rejection, per-bucket cache split) + dual-source asset reader (R2 first, Supabase read-through, content type from stored metadata)
+- [ ] 187-02-PLAN.md — `scripts/r2-verify.ts` + `npm run verify:r2`: assert the five provisioned buckets, the token's scope, read/write round-trip, and public-access-disabled (MIG-03 demonstrable)
+- [ ] 187-03-PLAN.md — `GET /storage/{bucket}/{key}` route + tenant ownership gate + proxy contract docs
 
 ### Phase 188: Server-Wide Provider Selection Integrity
 **Goal**: `STORAGE_PROVIDER` switches every server-side storage read and write at once, so writers and readers can never end up on different backends — closing the split-brain failure the field assessment found waiting behind the flag.
