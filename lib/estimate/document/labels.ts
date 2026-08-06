@@ -60,6 +60,14 @@ export interface DocumentLabels {
   signedBy: string
   /** Phase 185 (PGMODE-02/03) — the company-level "Estimate Terms" card title. */
   estimateTerms: string
+  /** Row-kebab menu items (edit-mode item row). */
+  addDiscount: string
+  removeDiscount: string
+  deleteLine: string
+  /** Section-header kebab menu item + both kebabs' aria-labels. */
+  deleteSection: string
+  rowActions: string
+  sectionActions: string
 }
 
 export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
@@ -77,6 +85,8 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     customized: 'Customized', usingDefault: 'Default', resetToDefault: 'Reset to default',
     photos: 'Photos', page: 'Page', of: 'of', preparedBy: 'Prepared by',
     signedBy: 'Signed by', estimateTerms: 'Estimate Terms',
+    addDiscount: 'Add discount', removeDiscount: 'Remove discount', deleteLine: 'Delete line',
+    deleteSection: 'Delete section', rowActions: 'Line actions', sectionActions: 'Section actions',
   },
   pt: {
     estimate: 'ORÇAMENTO', project: 'Projeto', billTo: 'Faturar Para', summary: 'Resumo',
@@ -92,6 +102,8 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     customized: 'Personalizado', usingDefault: 'Padrão', resetToDefault: 'Restaurar padrão',
     photos: 'Fotos', page: 'Página', of: 'de', preparedBy: 'Preparado por',
     signedBy: 'Assinado por', estimateTerms: 'Termos do Orçamento',
+    addDiscount: 'Adicionar desconto', removeDiscount: 'Remover desconto', deleteLine: 'Excluir linha',
+    deleteSection: 'Excluir seção', rowActions: 'Ações da linha', sectionActions: 'Ações da seção',
   },
   es: {
     estimate: 'PRESUPUESTO', project: 'Proyecto', billTo: 'Facturar A', summary: 'Resumen',
@@ -107,6 +119,8 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     customized: 'Personalizado', usingDefault: 'Predeterminado', resetToDefault: 'Restablecer',
     photos: 'Fotos', page: 'Página', of: 'de', preparedBy: 'Preparado por',
     signedBy: 'Firmado por', estimateTerms: 'Términos del Presupuesto',
+    addDiscount: 'Agregar descuento', removeDiscount: 'Quitar descuento', deleteLine: 'Eliminar línea',
+    deleteSection: 'Eliminar sección', rowActions: 'Acciones de línea', sectionActions: 'Acciones de sección',
   },
 }
 

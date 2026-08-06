@@ -20,7 +20,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import { GripVertical, MoreVertical, Plus, RotateCcw, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -38,6 +38,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Calendar } from '@/components/ui/calendar'
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
@@ -112,6 +118,12 @@ interface DocLabels {
   usingDefault: string
   resetToDefault: string
   photos: string
+  addDiscount: string
+  removeDiscount: string
+  deleteLine: string
+  deleteSection: string
+  rowActions: string
+  sectionActions: string
 }
 
 const UNIT_OPTIONS_BY_LANG: Record<EstimateLanguage, string[]> = {
@@ -267,6 +279,10 @@ function SortableDocumentItemRow({
   priceBookItems,
   L,
   pageView = false,
+  showDiscountCol,
+  isDiscountDraft,
+  onAddDiscountDraft,
+  onRemoveDiscountDraft,
 }: {
   item: DocumentItem
   sectionId: string
@@ -278,6 +294,14 @@ function SortableDocumentItemRow({
   /** 260728 rework — paginated mode renders rows PDF-like at rest (wrapped
    *  description text, no Disc./Tax columns, chrome revealed on interaction). */
   pageView?: boolean
+  /** Whether the Disc. column currently renders (mirrors DocumentSectionBlock's
+   *  showDiscountCol so th/td counts always match). */
+  showDiscountCol: boolean
+  /** Whether this row's id is in the section's discountDraftIds set — reveals
+   *  the Disc. column even while the value is still 0. */
+  isDiscountDraft: boolean
+  onAddDiscountDraft: (itemId: string) => void
+  onRemoveDiscountDraft: (itemId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -286,6 +310,9 @@ function SortableDocumentItemRow({
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+
+  const showAddDiscount = !pageView && (item.discount ?? 0) === 0 && !isDiscountDraft
+  const showRemoveDiscount = !pageView && ((item.discount ?? 0) !== 0 || isDiscountDraft)
 
   return (
     <tr
@@ -296,18 +323,67 @@ function SortableDocumentItemRow({
       data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/40"
     >
-      {/* drag handle — pageView: invisible at rest (PDF-like), revealed on row hover */}
-      <td className="py-1 px-1 w-6 align-middle">
-        <span
-          className={`cursor-grab inline-flex items-center ${
-            pageView
-              ? 'opacity-0 group-hover:opacity-100 text-muted-foreground/60 transition-opacity'
-              : 'text-muted-foreground/30 group-hover:text-muted-foreground/60'
-          }`}
-          {...listeners}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </span>
+      {/* drag handle + row-actions kebab — pageView: invisible at rest
+          (PDF-like), revealed on row hover */}
+      <td className="py-1 px-1 w-12 align-middle">
+        <div className="flex items-center gap-0.5">
+          <span
+            className={`cursor-grab inline-flex items-center ${
+              pageView
+                ? 'opacity-0 group-hover:opacity-100 text-muted-foreground/60 transition-opacity'
+                : 'text-muted-foreground/30 group-hover:text-muted-foreground/60'
+            }`}
+            {...listeners}
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={L.rowActions}
+                className={`inline-flex items-center transition-colors ${
+                  pageView
+                    ? 'opacity-0 group-hover:opacity-100 text-muted-foreground/60'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground'
+                }`}
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {showAddDiscount && (
+                <DropdownMenuItem onClick={() => onAddDiscountDraft(item.id)}>
+                  {L.addDiscount}
+                </DropdownMenuItem>
+              )}
+              {showRemoveDiscount && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    dispatch({
+                      type: 'UPDATE_ITEM',
+                      sectionId,
+                      itemId: item.id,
+                      field: 'discount',
+                      value: 0,
+                    })
+                    onRemoveDiscountDraft(item.id)
+                  }}
+                >
+                  {L.removeDiscount}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() =>
+                  dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })
+                }
+              >
+                {L.deleteLine}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </td>
       {/* description — pageView: wrapped text at rest (mirrors the PDF's
           multi-line cell, killing truncation); the combobox input sits
@@ -409,13 +485,14 @@ function SortableDocumentItemRow({
               value,
             })
           }
-          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums pl-6 pr-1 py-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
         />
       </td>
-      {/* line discount + taxable — hidden in pageView (not part of the PDF's
-          column set; the paginated sheet mirrors the customer document).
-          Full-width mode keeps them exactly as before. */}
-      {!pageView && (
+      {/* line discount + taxable — Disc. is hidden until the row has (or is
+          drafting) a discount (see DocumentSectionBlock's showDiscountCol);
+          Tax stays hidden in pageView (not part of the PDF's column set; the
+          paginated sheet mirrors the customer document). */}
+      {showDiscountCol && (
         <td className="py-1 px-1 w-20 align-middle">
           <MoneyInput
             value={item.discount ?? 0}
@@ -429,7 +506,7 @@ function SortableDocumentItemRow({
                 value,
               })
             }
-            className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums p-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+            className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums pl-6 pr-1 py-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
           />
         </td>
       )}
@@ -453,17 +530,6 @@ function SortableDocumentItemRow({
       {/* total */}
       <td className="py-1 pr-3 pl-1 w-28 text-right text-base tabular-nums font-medium align-middle">
         {formatMoney(item.total, currencyCode)}
-      </td>
-      {/* remove */}
-      <td className="py-1 px-1 w-8 align-middle">
-        <button
-          onClick={() =>
-            dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })
-          }
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all p-1 min-h-[32px] min-w-[32px] flex items-center justify-center"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
       </td>
     </tr>
   )
@@ -505,6 +571,26 @@ function DocumentSectionBlock({
   )
 
   const itemDndId = `dnd-items-${section.id}`
+
+  // Disc. column visibility — hidden by default (most rows never carry a
+  // line discount); a row's kebab "Add discount" reveals it via
+  // discountDraftIds, and it stays revealed for any row whose discount is
+  // already non-zero. Draft ids are filtered against current item ids so a
+  // deleted row's draft entry can never keep the column open.
+  const [discountDraftIds, setDiscountDraftIds] = useState<string[]>([])
+  const validDiscountDraftIds = discountDraftIds.filter((id) =>
+    section.items.some((i) => i.id === id)
+  )
+  const showDiscountCol =
+    !pageView &&
+    (section.items.some((i) => (i.discount ?? 0) !== 0) || validDiscountDraftIds.length > 0)
+
+  function addDiscountDraft(itemId: string) {
+    setDiscountDraftIds((ids) => (ids.includes(itemId) ? ids : [...ids, itemId]))
+  }
+  function removeDiscountDraft(itemId: string) {
+    setDiscountDraftIds((ids) => ids.filter((id) => id !== itemId))
+  }
 
   function handleItemDragEnd(event: DragEndEvent) {
     if (!dispatch) return
@@ -556,14 +642,32 @@ function DocumentSectionBlock({
         )}
 
         {isEditable && dispatch && (
-          <button
-            onClick={() =>
-              dispatch({ type: 'REMOVE_SECTION', sectionId: section.id })
-            }
-            className="text-white/40 hover:text-white opacity-0 group-hover/header:opacity-100 transition-all flex-shrink-0 p-1"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={L.sectionActions}
+                style={{ color: brandOnFill }}
+                className={`flex-shrink-0 p-1 transition-opacity ${
+                  pageView
+                    ? 'opacity-0 group-hover/header:opacity-100'
+                    : 'opacity-60 hover:opacity-100'
+                }`}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() =>
+                  dispatch({ type: 'REMOVE_SECTION', sectionId: section.id })
+                }
+              >
+                {L.deleteSection}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
@@ -626,17 +730,18 @@ function DocumentSectionBlock({
               <table className="w-full">
                 <thead>
                   <tr className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none">
-                    <th className="py-1.5 px-1 w-6" />
+                    <th className="py-1.5 px-1 w-12" />
                     <th className="py-1.5 px-2 text-left font-medium">{L.description}</th>
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.qty}</th>
                     <th className="py-1.5 px-2 w-16 text-center font-medium">{L.unit}</th>
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.unitPrice}</th>
                     {/* 260728 rework — Disc./Tax are editor metadata, not PDF columns;
-                        the paginated sheet hides them (rows do the same below). */}
-                    {!pageView && <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>}
+                        the paginated sheet hides them (rows do the same below). Disc.
+                        additionally stays hidden until a row has (or drafts) a discount
+                        — see showDiscountCol above. */}
+                    {showDiscountCol && <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>}
                     {!pageView && <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>}
                     <th className="py-1.5 px-2 w-28 text-right font-medium">{L.total}</th>
-                    <th className="py-1.5 px-2 w-8" />
                   </tr>
                 </thead>
                 <tbody>
@@ -651,6 +756,10 @@ function DocumentSectionBlock({
                       priceBookItems={priceBookItems}
                       L={L}
                       pageView={pageView}
+                      showDiscountCol={showDiscountCol}
+                      isDiscountDraft={validDiscountDraftIds.includes(item.id)}
+                      onAddDiscountDraft={addDiscountDraft}
+                      onRemoveDiscountDraft={removeDiscountDraft}
                     />
                   ))}
                 </tbody>
