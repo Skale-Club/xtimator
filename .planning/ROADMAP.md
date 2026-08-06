@@ -3228,7 +3228,7 @@ Plans:
   4. An image uploaded this way renders inline through the same-origin proxy with the correct content type, including for a key that has no file extension.
   5. A transient upload failure still retries and succeeds, and an interrupted capture still resumes from its persisted/queued blob — the offline behavior the field depends on is unchanged.
 
-**Plans**: TBD
+**Plans**: 4 plans in 4 waves (sequential — each builds on the prior's contract)
 **UI hint**: yes
 
 ### Phase 190: Portable Same-Origin Asset URLs
@@ -3242,7 +3242,7 @@ Plans:
   3. Existing rows that still hold absolute Supabase URLs keep rendering everywhere unchanged during this phase — nothing is rewritten yet, so this phase ships no user-visible break.
   4. The content security policy permits the new same-origin image source and is no broader than the new setup requires.
 
-**Plans**: TBD
+**Plans**: 4 plans in 3 waves (190-02 / 190-03 parallel in wave 2)
 
 ### Phase 191: Object Migration & Verification
 **Goal**: An operator can copy every existing Supabase object into R2 with a re-runnable command that proves, per object, that what landed matches what was there — and has a written cutover and rollback runbook to work from.
@@ -3257,7 +3257,7 @@ Plans:
 
 **Scale note**: 51 objects / 14.3 MB. This phase is about proving correctness per object, not about moving data — no maintenance window, batching strategy, or resumability work is warranted.
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves (191-01/02 share scripts/r2-migrate.ts)
 
 ### Phase 192: URL Rewrite Cutover & CDN Verification
 **Goal**: Existing rows stop pointing at Supabase, the landing page's images actually arrive from `xtimator.com` through the Cloudflare edge, and the milestone's reversibility promise is proven rather than assumed.
@@ -3271,7 +3271,7 @@ Plans:
   4. Repeating those landing-page image requests at the edge returns a Cloudflare cache HIT.
   5. With the R2 environment variables removed after cutover, every asset still renders — served through the proxy's Supabase fallback — with no code change and no data migration, proving the reversibility requirement.
 
-**Plans**: TBD
+**Plans**: 5 plans in 5 waves (sequential; 192-03 writes production data)
 
 ### v4.24 Progress
 
