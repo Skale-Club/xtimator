@@ -1,13 +1,92 @@
 # Storage Migration: Supabase → Hetzner Object Storage
 
-**Status:** Documented, **NOT executed**.
-**Trigger threshold:** Supabase Storage usage exceeds **800 MB** (the soft point where the Free tier becomes uncomfortable; well below the 1 GB hard cap).
+**Status:** Documented, **NOT executed**. Target revised to **Cloudflare R2**
+(2026-08-05) — see the field assessment below before planning any cutover.
+**Trigger threshold:** ⚠️ the 800 MB figure below is the wrong metric — egress
+binds first. See §4 of the field assessment.
 **Owner:** Whoever is on-call when the trigger fires.
 **Estimated wall-clock for full migration:** 1.5–3 hours (depends on bucket sizes and link speed).
 
 ---
 
+## ⚠️ Field assessment — 2026-08-05 (read this before trusting the rest)
+
+A hands-on assessment corrected several claims below. The sections after this
+one are the ORIGINAL Phase-66 plan; where they conflict with this block, this
+block wins.
+
+**1. It is NOT a 1-line change.** `STORAGE_PROVIDER=s3` is only honored by
+`getServerStorage()`, which has **4 real call sites** (`app/api/health`,
+`lib/actions/admin-whatsapp.ts`, `lib/estimate/adapters/whatsapp.ts` ×2).
+Every other site calls `createStorage(client)`, which returns the Supabase
+provider **unconditionally** — ~20 files. The STORAGE-03 grep gate proved
+there are no raw `supabase.storage.from(...)` calls; it did NOT prove the
+provider is swappable.
+
+**Flipping the flag today is actively harmful**, not merely incomplete: the
+WhatsApp adapter would write audio/photos to R2 while every read path still
+reads Supabase → silent 404s on inbound WhatsApp media.
+
+**2. Browser uploads cannot follow the flag.** Five client components upload
+straight from the browser via `createStorage(supabaseBrowserClient)`
+(`capture-recorder`, `inline-audio-recorder`, `photo-card`, `photo-lightbox`,
+`estimate-document`). S3 credentials must never reach the browser, so this
+path needs a server-issued presigned-PUT route before any cutover.
+
+**3. Public URLs are absolute and persisted.** `getPublicUrl()` returns a
+fully-qualified `https://<project>.supabase.co/...` URL that is written into
+DB rows (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs,
+platform branding/SEO). Swapping providers changes only NEWLY written URLs;
+existing rows keep pointing at Supabase. A cutover therefore needs a
+same-origin proxy route + a row rewrite, not just a provider swap.
+
+**4. The trigger threshold is measuring the wrong thing.** Actual usage on
+2026-08-05: **51 objects, 14.3 MB** (photos 11 MB / platform-brand 2.8 MB /
+logos 55 kB / audio 55 kB / pdfs 0) — 1.8 % of the 800 MB trigger. Storage
+volume will not bind for a very long time. **Egress will bind first**: the
+public landing page alone pulls **1.9 MB of images per cold visit**, all from
+`*.supabase.co`, i.e. ~1.9 GB of Supabase egress per 1 000 cold visits.
+Re-derive the trigger from the egress allowance, not from stored bytes.
+
+**5. Cloudflare CDN does not currently help images.** As of 2026-08-05
+`xtimator.com` is proxied through Cloudflare (see `docs/CLOUDFLARE-CDN.md`),
+but images are served from `*.supabase.co`, a different origin — they bypass
+the edge entirely. Moving storage behind a same-origin `/storage/` proxy is
+what would put images on the CDN. That is the main argument for this
+migration, and it is a bigger one than cost.
+
+### What IS already verified (2026-08-05)
+
+- **Target is Cloudflare R2, not Hetzner** — same account as the CDN, free
+  egress, no new vendor.
+- `lib/storage/s3-provider.ts` works against **R2 unmodified**. Proven by
+  `scripts/storage-smoke.ts` against a real R2 bucket: upload → signed URL →
+  in-process download → HTTP fetch of the signed URL → delete, all passing.
+  Required settings: `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`,
+  endpoint `https://<account-id>.r2.cloudflarestorage.com`.
+- Bucket `xtimator` exists (Standard, WEUR, public access disabled) with a
+  scoped Object-Read-&-Write token. Credentials are NOT in `.env.local` and
+  NOT in Coolify — deliberately, so nothing can half-activate (see §1).
+
+### Open design decision for the migration phase
+
+`s3-provider.ts` passes the app's bucket argument straight through as the S3
+bucket name, and the app uses five: `platform-brand` (22 call sites),
+`photos` (10), `logos` (10), `pdfs` (3), `audio` (2). So either:
+
+- **(a)** create five R2 buckets with those exact names — zero provider
+  changes, matches the original runbook; or
+- **(b)** keep one bucket and map app-bucket → key prefix inside the provider
+  — one bucket to manage, one scoped token, but a provider change.
+
+Not decided here on purpose: it belongs with the proxy/presign work.
+
+---
+
 ## Why this is a 1-line change
+
+> **Superseded** — see §1 of the field assessment above. Kept for context on
+> what Phase 66 intended.
 
 Phase 66 introduced `lib/storage/` — every storage call site in the app routes through the `StorageProvider` interface. There is no direct `supabase.storage.from(...)` call left in `app/`, `lib/`, or `components/` (verified by the STORAGE-03 grep gate).
 
