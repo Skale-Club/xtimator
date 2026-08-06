@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { imagePositionSchema } from '@/lib/schemas/admin'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -76,7 +76,13 @@ export async function updateCompanySettings(formData: FormData) {
   if (logoFile && logoFile.size > 0) {
     const storagePath = `${company.id}/logo.webp`
 
-    const storage = createStorage(supabase)
+    // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+    // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+    // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+    // is ignored and that RLS layer does not exist, so getAuthContext()'s
+    // assertWritable() + getActiveCompanyId() company-membership check above is
+    // the sole authorization gate for this object.
+    const storage = serverStorage(supabase)
     try {
       const webpBuffer = await convertImageToWebp(logoFile)
       await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })
@@ -449,7 +455,13 @@ export async function updateProfile(formData: FormData) {
   const avatarFile = formData.get('avatar') as File | null
   if (avatarFile && avatarFile.size > 0) {
     const storagePath = `user-avatars/${claims.sub}/avatar.webp`
-    const storage = createStorage(supabase)
+    // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+    // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+    // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+    // is ignored and that RLS layer does not exist, so the explicit
+    // assertWritable() call above (updateProfile) is the sole authorization
+    // gate for this object.
+    const storage = serverStorage(supabase)
     try {
       const webpBuffer = await convertImageToWebp(avatarFile)
       await storage.upload('logos', storagePath, webpBuffer, {

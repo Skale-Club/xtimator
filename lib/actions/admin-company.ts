@@ -3,7 +3,7 @@
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { cookies } from 'next/headers'
@@ -80,7 +80,12 @@ export async function createAdminCompany(formData: FormData) {
   const logoFile = formData.get('logo') as File | null
   if (logoFile && logoFile.size > 0) {
     const storagePath = `${newCompanyId}/logo.webp`
-    const storage = createStorage(supabase)
+    // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+    // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+    // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+    // is ignored and that RLS layer does not exist, so requireAdmin() above is the
+    // sole authorization gate for this object.
+    const storage = serverStorage(supabase)
     try {
       const webpBuffer = await convertImageToWebp(logoFile)
       await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })

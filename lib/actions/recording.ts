@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -673,9 +673,15 @@ export async function deleteRecording(recordingId: string) {
   if (!recording) return { error: 'Recording not found' }
 
   // Delete from Storage audio bucket (skip for text-only recordings with no audio file)
+  // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+  // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+  // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+  // is ignored and that RLS layer does not exist, so getAuthContext()'s
+  // assertWritable() + getActiveCompanyId() company-membership check above is
+  // the sole authorization gate for this object.
   if (recording.storage_path) {
     try {
-      await createStorage(supabase).delete('audio', recording.storage_path)
+      await serverStorage(supabase).delete('audio', recording.storage_path)
     } catch {
       return { error: 'Failed to delete audio file' }
     }

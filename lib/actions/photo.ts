@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -133,7 +133,13 @@ export async function uploadProjectPhoto(
 
   const photoId = crypto.randomUUID()
   const storagePath = `${company.id}/${projectId}/${photoId}.webp`
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+  // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+  // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+  // is ignored and that RLS layer does not exist, so getAuthContext()'s
+  // assertWritable() + getActiveCompanyId() company-membership check above is
+  // the sole authorization gate for this object.
+  const storage = serverStorage(supabase)
   try {
     const webpBuffer = await convertImageToWebp(file)
     await storage.upload('photos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: false })
@@ -211,8 +217,14 @@ export async function deletePhoto(photoId: string) {
   }
 
   // Delete from Storage photos bucket
+  // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+  // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+  // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+  // is ignored and that RLS layer does not exist, so getAuthContext()'s
+  // assertWritable() + getActiveCompanyId() company-membership check above is
+  // the sole authorization gate for this object.
   try {
-    await createStorage(supabase).delete('photos', photo.storage_path)
+    await serverStorage(supabase).delete('photos', photo.storage_path)
   } catch {
     return { error: 'Failed to delete photo file' }
   }

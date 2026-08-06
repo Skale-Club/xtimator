@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import {
@@ -69,7 +69,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
   const heroImageRemoved = formData.get('heroImageRemoved') === 'true'
 
   const svc = requireServiceClient()
-  const storage = createStorage(svc)
+  const storage = serverStorage(svc)
 
   // --- Upload branch ------------------------------------------------------
   let newHeroUrl: string | null = null

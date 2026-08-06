@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { priceBookItemSchema, type PriceBookItemFormValues, type ItemOption } from '@/lib/schemas/price-book'
-import { createStorage, buildStorageKey } from '@/lib/storage'
+import { buildStorageKey } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { imagePositionSchema, type ImagePosition } from '@/lib/schemas/admin'
 import {
@@ -239,7 +240,13 @@ export async function createPriceBookItem(
       type: 'price-book',
       filename: `${data.id}.webp`,
     })
-    const storage = createStorage(supabase)
+    // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+    // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+    // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+    // is ignored and that RLS layer does not exist, so the explicit
+    // assertWritable() call above (createPriceBookItem) is the sole
+    // authorization gate for this object.
+    const storage = serverStorage(supabase)
     try {
       if (!validPhoto) throw new Error('Invalid item photo (type or size).')
       const webpBuffer = await convertImageToWebp(imageFile)
@@ -306,7 +313,13 @@ export async function updatePriceBookItem(
       type: 'price-book',
       filename: `${itemId}.webp`,
     })
-    const storage = createStorage(supabase)
+    // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+    // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+    // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+    // is ignored and that RLS layer does not exist, so the explicit
+    // assertWritable() call above (updatePriceBookItem) is the sole
+    // authorization gate for this object.
+    const storage = serverStorage(supabase)
     try {
       if (!validPhoto) throw new Error('Invalid item photo (type or size).')
       const webpBuffer = await convertImageToWebp(imageFile)

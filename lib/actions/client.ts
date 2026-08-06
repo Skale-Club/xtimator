@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import type { ClientFormValues } from '@/lib/schemas/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 
 const MAX_LOGO_SIZE = 2 * 1024 * 1024
@@ -120,7 +120,13 @@ export async function uploadClientLogoAction(clientId: string, formData: FormDat
   if (!ACCEPTED_LOGO_TYPES.includes(file.type)) return { error: 'Unsupported image format. Please upload a PNG, JPG, or WebP file.' }
   if (file.size > MAX_LOGO_SIZE) return { error: 'Logo must be under 2MB.' }
 
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+  // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+  // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+  // is ignored and that RLS layer does not exist, so getAuthContext()'s
+  // assertWritable() + getActiveCompanyId() company-membership check above is
+  // the sole authorization gate for this object.
+  const storage = serverStorage(supabase)
   const path = `${company.id}/clients/${clientId}/logo.webp`
   let url: string
   try {

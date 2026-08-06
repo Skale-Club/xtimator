@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { createStorage } from '@/lib/storage'
+import { serverStorage } from '@/lib/storage/server'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
@@ -87,7 +87,13 @@ export async function uploadOnboardingLogoAction(formData: FormData) {
   if (!ACCEPTED_ONBOARDING_LOGO_TYPES.includes(file.type)) return { error: 'Unsupported image format. Please upload a PNG, JPG, or WebP file.' }
   if (file.size > MAX_ONBOARDING_LOGO_SIZE) return { error: 'Logo must be under 2MB.' }
 
-  const storage = createStorage(supabase)
+  // Phase 188 (PROV-01): serverStorage() honors the server-wide provider
+  // selection. In Supabase mode this is byte-identical to the prior Supabase-only factory call
+  // — same user-scoped client, same storage.objects RLS. In R2 mode the client
+  // is ignored and that RLS layer does not exist, so the supabase.auth.getUser()
+  // check + assertWritable() above are the sole authorization gate for this
+  // object.
+  const storage = serverStorage(supabase)
   const path = `${userData.user.id}/logo.webp`
   try {
     const webpBuffer = await convertImageToWebp(file)
