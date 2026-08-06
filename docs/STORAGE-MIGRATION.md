@@ -77,6 +77,60 @@ migration, and it is a bigger one than cost.
   nothing can half-activate (see §1). They stay in the operator's scratchpad
   until the cutover phase wires them in.
 
+### MIG-03 — provisioning record and re-verification (Phase 187)
+
+MIG-03 is closed. The table below is the provisioned state as of 2026-08-06;
+`npm run verify:r2` (added by Phase 187 Plan 02, `scripts/r2-verify.ts`) is
+the repeatable check that it is *still* true — it asserts, it never
+provisions.
+
+| Bucket | Class | Location | Public `r2.dev` access |
+|---|---|---|---|
+| `audio` | Standard | WEUR | disabled |
+| `photos` | Standard | WEUR | disabled |
+| `pdfs` | Standard | WEUR | disabled |
+| `logos` | Standard | WEUR | disabled |
+| `platform-brand` | Standard | WEUR | disabled |
+
+WEUR was chosen to co-locate with the Hetzner origin (`188.245.112.3`).
+
+One Account API token (`xtimator app`, Object Read & Write) is scoped to
+exactly those five buckets. It lives in the operator's scratchpad —
+deliberately **not** in `.env.local` and **not** in Coolify, because
+`STORAGE_PROVIDER` only half-applies until Phase 188 rewrites
+`getServerStorage()` (see §1 above), and wiring R2 credentials in early
+would produce split-brain writes (some paths writing to R2, others still
+reading Supabase).
+
+**Phase-191 caution:** the `S3_*` vars must also stay out of Coolify until
+Phase 191 has copied the objects into R2. Until then every R2 lookup from
+the asset proxy misses by design, and each cold landing-page visit would
+burn roughly 41 wasted presign round trips and emit roughly 41
+`[asset-proxy] fallback` warn lines — harmless (Supabase still serves
+every request) but noisy and pointless before the objects actually exist
+in R2.
+
+**Re-verification runbook** — placeholders only, env vars inline (never
+written to `.env.local`, per `scripts/storage-smoke.ts`'s own convention):
+
+```bash
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+  S3_REGION=auto \
+  S3_ACCESS_KEY_ID=<r2-access-key-id> \
+  S3_SECRET_ACCESS_KEY=<r2-secret-access-key> \
+  S3_FORCE_PATH_STYLE=true \
+  CLOUDFLARE_ACCOUNT_ID=<account-id> \
+  CLOUDFLARE_API_TOKEN=<r2-read-token> \
+  npm run verify:r2
+```
+
+Omitting the two `CLOUDFLARE_*` vars downgrades the public-access
+assertion to `SKIPPED` — `SKIPPED` is not a pass, and the script never
+reports one on your behalf.
+
+The script asserts, it never provisions — do not use it to "repair" a
+bucket; a failing check means investigate by hand, not re-run with `--fix`.
+
 ### Open design decision for the migration phase
 
 `s3-provider.ts` passes the app's bucket argument straight through as the S3
