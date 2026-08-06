@@ -155,6 +155,114 @@ bucket name, and the app uses five: `platform-brand` (22 call sites),
 
 Not decided here on purpose: it belongs with the proxy/presign work.
 
+### Same-origin asset proxy (Phase 187, PROXY-01..04)
+
+The proxy/presign work referenced above is now shipped, in its Phase 187
+scope: a route exists and serves correctly. **Nothing in the app has been
+repointed at it yet** — no DB row rewritten, no `getPublicUrl()` output
+changed, no component/PDF/share page updated. That rewiring is Phase 190
+(private buckets) and Phase 192 (public buckets, the CDN cache-HIT proof).
+
+**Route:** `GET /storage/{bucket}/{key}`, where `{bucket}` is one of the five
+allowlisted buckets and `{key}` is the object key, slash-separated,
+path-encoded. Example: `/storage/platform-brand/platform/1784854705622-kvwo24`.
+
+**Resolution order:** R2 first when the `S3_*` env vars are present, then a
+Supabase read-through. R2 being empty is a supported steady state — that is
+what makes Phases 190/191/192 reversible.
+
+**W1 — the fallback direction limit, stated honestly.** The fallback is
+*one-directional*: it covers "object is in Supabase but not yet in R2".
+Removing the `S3_*` vars returns every read to Supabase with no code change
+and no data movement **only while no object exists solely in R2**. That
+holds today and through Phase 187, but stops holding once Phase 188 routes
+server writes to R2 and Phase 189 sends browser uploads there — from that
+point, rolling back also requires copying the R2-only objects back to
+Supabase. Do not read the earlier sentence as an unconditional guarantee.
+
+**R2 is detected by the presence of the `S3_*` vars, deliberately not by
+`STORAGE_PROVIDER`** — that flag only half-applies until Phase 188 (see §1
+above), and the Supabase read-through fallback makes R2-first safe under
+every combination.
+
+**Cache policy** — three rows, not two:
+
+| Bucket | Audience | Key style | `Cache-Control` |
+|---|---|---|---|
+| `platform-brand` | public | timestamped keys | `public, max-age=31536000, immutable` |
+| `logos` | public | stable keys, `upsert: true` | `public, max-age=300, stale-while-revalidate=86400` |
+| `photos`, `audio`, `pdfs` | tenant-private | company-prefixed | `private, no-store` + `Vary: Cookie` |
+
+`logos` overwrites the same URL when a company changes its logo or a user
+changes their avatar, so `immutable` would pin the stale image in Cloudflare
+**and** in browser caches that cannot be purged. `photos`/`audio`/`pdfs` are
+tenant job-site data and must never enter Cloudflare's shared edge cache.
+Moving logo/avatar writes to versioned keys (a Phase 190 candidate) would let
+`logos` become immutable too.
+
+**Access control:** private buckets require an authenticated caller who is a
+`company_members` member of the key's leading company UUID; public buckets
+are open. Two deliberate exclusions, called out for Phase 190:
+
+1. **No platform-admin / support-mode bypass.** An admin cannot pull another
+   company's private object through this route today. If an admin surface
+   needs it, it must be added explicitly — silently widening a public URL's
+   reach is exactly the leak this gate exists to prevent.
+2. **No path for anonymous share pages or the server-side PDF renderer.**
+   Both currently resolve tenant photos through signed URLs and keep doing
+   so. Both are unauthenticated with respect to this route (the PDF renderer
+   has no browser session at all), so both would be refused here today —
+   Phase 190 must design their scoping explicitly rather than assume the
+   proxy already serves them.
+
+**Fallback observability:** the authoritative signal is the server-side
+`[asset-proxy] fallback` warn line emitted by `lib/storage/asset-source.ts`.
+The `X-Asset-Source: r2|supabase` response header is a convenience for manual
+curling only — **it is edge-cached along with the body on public buckets**,
+so a cached `supabase` value can outlive the condition it described.
+FUT-R2-01 must count log lines, not headers (W3).
+
+**Known limitations:** no Range/206 responses, no ETag revalidation,
+whole-object pass-through only (51 objects / 14.3 MB — deliberate).
+
+**Local verification runbook** — placeholders only:
+
+```bash
+# 1. Fallback path — R2 NOT configured (this is production's current state)
+npm run dev
+curl -sI http://localhost:9633/storage/platform-brand/<a-real-key>
+# expect: 200, stored content type, x-asset-source: supabase,
+#         cache-control: public, max-age=31536000, immutable
+curl -sI http://localhost:9633/storage/logos/<a-real-key>
+# expect: 200, cache-control: public, max-age=300, stale-while-revalidate=86400
+curl -sI http://localhost:9633/storage/photos/<company-uuid>/<key>
+# expect: 404 when unauthenticated (tenant data is gated)
+curl -sI "http://localhost:9633/storage/estimates/x"               # expect 404 (bucket not allowlisted)
+curl -sI "http://localhost:9633/storage/photos/../../etc/passwd"   # expect 400
+
+# 2. R2 path — inline env vars only, NEVER written to .env.local
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+  S3_REGION=auto \
+  S3_ACCESS_KEY_ID=<r2-access-key-id> \
+  S3_SECRET_ACCESS_KEY=<r2-secret-access-key> \
+  S3_FORCE_PATH_STYLE=true \
+  npm run dev
+# a key present in R2   → x-asset-source: r2
+# a key absent from R2  → x-asset-source: supabase + one [asset-proxy] fallback warn
+```
+
+**W4 — do not set `S3_*` in Coolify yet.** The `S3_*` vars (and
+`STORAGE_PROVIDER`) must stay out of Coolify until Phase 188 fixes the
+provider seam and Phase 191 has copied the objects. Setting them early is
+not merely useless — while R2 is empty, every asset request pays a presign
++ a doomed R2 round trip before falling back, so a single cold landing visit
+would burn ~41 wasted round trips and emit ~41 `[asset-proxy] fallback` warn
+lines.
+
+**Not done in Phase 187:** no DB row rewritten, no `getPublicUrl()` change,
+no component/PDF/share page repointed, no object copied into R2, no CDN
+cache-HIT claim (PROXY-05 is Phase 192).
+
 ---
 
 ## Why this is a 1-line change

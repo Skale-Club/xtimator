@@ -52,11 +52,19 @@ there is nothing here to rescue with a custom rule:
   default rules already cache it — verified MISS → HIT.
 - App HTML is `Cache-Control: private, no-cache, no-store` and comes back
   `DYNAMIC`. Correct: this is an authenticated SaaS, HTML must never cache.
-- **Images are NOT on the CDN.** They are served from
-  `*.supabase.co` (~1.9 MB per cold landing visit, 41 references), a
-  different origin, so they bypass the edge entirely. Putting them behind the
-  CDN is exactly what the storage migration would achieve — see
-  `docs/STORAGE-MIGRATION.md`.
+- **Images are NOT on the CDN yet — but a same-origin route now exists.**
+  Phase 187 shipped `GET /storage/{bucket}/{key}` (see
+  `docs/STORAGE-MIGRATION.md`): `platform-brand` is served
+  `public, max-age=31536000, immutable` and `logos`
+  `public, max-age=300, stale-while-revalidate=86400` — both cacheable by
+  Cloudflare's default rules, `logos` deliberately revalidating because logo
+  URLs are overwritten in place. Tenant-private buckets (`photos`, `audio`,
+  `pdfs`) are served `private, no-store` and must never be edge-cached.
+  **No image URL has been repointed at the route yet** — the 41 landing-page
+  image references still come from `*.supabase.co`, so they still bypass the
+  edge entirely today. The MISS→HIT proof on real landing images is PROXY-05
+  in Phase 192. No Cloudflare cache rule was added for this route; none is
+  needed.
 
 ## Verified after cutover
 
