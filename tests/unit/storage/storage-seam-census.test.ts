@@ -333,14 +333,24 @@ describe('Phase 188 storage seam census', () => {
     }
   })
 
-  it('finds zero raw .storage.from( calls outside the one legitimate adapter holder', () => {
-    const EXEMPT = new Set(['lib/storage/supabase-provider.ts'])
+  it('finds zero raw .storage.from( calls outside the legitimate adapter holders', () => {
+    // Phase 189 Plan 01 (UPLOAD-02/03) adds a second legitimate holder:
+    // lib/storage/upload-ticket.ts's Supabase-mode ticket minting calls
+    // `args.supabase.storage.from(bucket).createSignedUploadUrl(key)`
+    // directly. `createSignedUploadUrl` is NOT part of the StorageProvider
+    // interface (createStorage()/serverStorage() only expose upload/
+    // download/getSignedUrl(read)/getPublicUrl/delete/list), and 189-01
+    // deliberately does not widen that interface to add a write-presign
+    // method — see that file's own header docblock. This is therefore the
+    // seam itself for signed-upload-URL minting, not an escape hatch
+    // bypassing it.
+    const EXEMPT = new Set(['lib/storage/supabase-provider.ts', 'lib/storage/upload-ticket.ts'])
     const offenders = discoveredFiles.filter(
       (file) => file.hasStorageFromCall && !EXEMPT.has(file.path),
     )
     expect(
       offenders.map((file) => file.path),
-      'A raw `<client>.storage.from(...)` call was found outside lib/storage/supabase-provider.ts (the one legitimate adapter). Route through createStorage()/serverStorage() instead — this is the STORAGE-03 grep gate re-expressed as a suite assertion so it cannot silently stop being run.',
+      'A raw `<client>.storage.from(...)` call was found outside the legitimate adapter holders (lib/storage/supabase-provider.ts, lib/storage/upload-ticket.ts). Route through createStorage()/serverStorage() instead — this is the STORAGE-03 grep gate re-expressed as a suite assertion so it cannot silently stop being run.',
     ).toEqual([])
   })
 
