@@ -3,20 +3,35 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: Milestone v4.24 STARTED 2026-08-05 — defining requirements. Cloudflare CDN already live on xtimator.com (docs/CLOUDFLARE-CDN.md); R2 provider verified working unmodified via scripts/storage-smoke.ts. v4.23 (182-186) shipped; its /gsd:complete-milestone archival is still pending and out-of-band.
-last_updated: "2026-08-05T23:30:00.000Z"
-last_activity: 2026-08-05
+stopped_at: "Milestone v4.24 ROADMAP CREATED 2026-08-06 — 6 phases (187-192), 20/20 requirements mapped (PROXY-01..05, PROV-01..03, UPLOAD-01..04, URL-01..04, MIG-01..04), 0 orphans, 0 duplicates. Next: /gsd:plan-phase 187."
+last_updated: "2026-08-06T00:00:00.000Z"
+last_activity: 2026-08-06
 progress:
-  total_phases: 130
+  total_phases: 136
   completed_phases: 112
   total_plans: 345
   completed_plans: 356
-  percent: 100
+  percent: 0
 ---
 
 # Project State
 
 ## Current Status
+
+- **Milestone v4.24 Same-Origin Storage on R2** — ROADMAP CREATED 2026-08-06. Serve every user-uploaded and platform asset from the app's own origin, backed by Cloudflare R2, so images land on the CDN that already fronts `xtimator.com` and Supabase Storage egress goes to zero. **6 phases (187-192)**, **20/20 requirements mapped** (PROXY-01..05, PROV-01..03, UPLOAD-01..04, URL-01..04, MIG-01..04), **0 orphans, 0 duplicates**. Numbering continues the global counter — v4.23 ended at Phase 186, so v4.24 starts at **Phase 187**; the parking-lot dirs 999.1/1000/1001 are out-of-band and do not affect sequencing.
+- **Phase map (goal-backward, dependency-ordered):**
+  - **187 R2 Provisioning & Same-Origin Asset Proxy** (PROXY-01..04, MIG-03) — five R2 buckets (`audio`/`photos`/`pdfs`/`logos`/`platform-brand`) with public access disabled and a scoped credential, plus a same-origin route streaming any object from R2 with content type preserved, a **transparent Supabase read-through fallback** so nothing 404s in either direction, traversal/unknown-bucket rejection with zero credential leakage, and immutable edge caching for public assets only. The keystone — the fallback is what makes every later phase reversible.
+  - **188 Server-Wide Provider Selection Integrity** (PROV-01..03) — one provider resolution for every server-side read and write so `STORAGE_PROVIDER` cannot half-apply (today it is honored only by `getServerStorage()`'s 4 call sites while ~20 sites call `createStorage(client)` and get Supabase unconditionally); an automated build check against reintroducing hardcoded Supabase paths; WhatsApp inbound media proven write-and-read on one backend.
+  - **189 Browser Uploads Without Browser Credentials** (UPLOAD-01..04) — the five client upload call sites (`capture-recorder`, `inline-audio-recorder`, `photo-card`, `photo-lightbox`, `estimate-document`) move to server-issued presigned PUTs; tenant-namespaced key authorization; correct content type verified through the proxy including extension-less keys; retry + offline/queue behavior preserved. **File-disjoint — parallelizable with 188/190/191.**
+  - **190 Portable Same-Origin Asset URLs** (URL-01, URL-03, URL-04) — new writes persist same-origin relative URLs (no backend hostname in any row); every surface resolves them (app UI, share pages, PDFs, email/WhatsApp), including the server-side PDF renderer with no browser origin; CSP updated and narrowed. Existing absolute rows still render unchanged — no rewrite yet.
+  - **191 Object Migration & Verification** (MIG-01, MIG-02, MIG-04) — a re-runnable, twice-safe copy command with per-object count/size/content-type verification that fails loudly on mismatch, plus a cutover+rollback runbook with verified R2 settings and no real secrets.
+  - **192 URL Rewrite Cutover & CDN Verification** (URL-02, PROXY-05) — the milestone's only irreversible-ish data step, sequenced last: rewrite `companies.logo_url` / `profiles.avatar_url` / price-book image URLs / platform branding+SEO rows off `*.supabase.co` with a reversible record, then prove a cold landing-page load fetches every image from `xtimator.com` with a Cloudflare cache HIT, and that removing the R2 env vars still renders everything via the Supabase fallback.
+- **Dependency spine:** 187 → 188 → 190 → 191 → 192, with 189 parallelizable off 187. PROXY-02's fallback MUST precede any migration or URL rewrite. PROV MUST land before/with the migration — flipping the flag with ~20 hardcoded call sites causes split-brain writes/reads and silent 404s on WhatsApp inbound media (verified failure mode, 2026-08-05 field assessment). MIG-03 is an operator prerequisite for anything writing to R2, hence front-loaded into 187.
+- **Do not re-plan what is proven:** `lib/storage/s3-provider.ts` works against R2 **unmodified** — `scripts/storage-smoke.ts` passed upload → signed URL → in-process download → HTTP fetch of the signed URL → delete, with `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`, endpoint `https://<account-id>.r2.cloudflarestorage.com`. No phase spends effort re-validating the provider. The Cloudflare CDN layer is already live (`docs/CLOUDFLARE-CDN.md`) — this milestone only makes images reach it.
+- **Scale flag:** production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-brand 2.8 MB, logos 55 kB, audio 55 kB, pdfs 0). Transfer volume and time are non-issues — **Phase 191 is dominated by correctness and per-object verification**, not throughput, batching, windowing, or resumability. The trigger is **egress, not stored volume**: ~1.9 MB of landing-page images per cold visit, ~1.9 GB per 1 000 cold visits.
+- **Reversibility is a hard requirement:** removing the R2 env vars must return the app to Supabase with no code change and no data migration — Phase 192 proves it rather than assuming it. S3 credentials must never reach the browser. No real secrets in the repo (placeholders only; real values in `.env.local` and Coolify). Storage keys keep `{companyId}/{type}/{timestamp}-{filename}` — re-keying is out of scope. Next: `/gsd:plan-phase 187`.
+
+### Previous Milestone (v4.23, shipped 2026-07-28)
 
 - **Milestone v4.23 Unified Estimate Document Engine** — ROADMAP CREATED 2026-07-27. Unify the estimate webview and PDF onto one shared document structure/design (webview = benchmark, PDF copies it, both templates classic + modern); consolidate ONE deterministic page-break rule shared by a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI": full-width default + paginated PDF-preview mode) and the react-pdf renderer; public share webview stays single-page scroll; fix email/WhatsApp PDF send paths (hardcoded Classic + skipped signed snapshot); webview design polish. **5 phases (182-186)**, **18/18 requirements mapped** (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), **0 orphans, 0 duplicates**. Sequencing: 182 (shared engine + send-path fix, foundation) → 183 (PDF parity content — must precede 184, same PDF template files) → 184 (pagination engine, opens with the fontkit-vs-browser measurement spike) → 185 (paginated editable editor mode) → 186 (webview design polish, sequenced last to avoid re-touching files 183/185 also modify). Pending external input: user will send a reference preview image for the paginated-mode UI. Next: `/gsd:plan-phase 182`.
 
@@ -73,16 +88,16 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 187 (R2 Provisioning & Same-Origin Asset Proxy) — not started
 Plan: —
-Status: Defining requirements for milestone v4.24 Same-Origin Storage on R2
-Last activity: 2026-08-05 — Milestone v4.24 started
+Status: v4.24 ROADMAP CREATED — 6 phases (187-192), 20/20 requirements mapped, 0 orphans, 0 duplicates. Ready for `/gsd:plan-phase 187`.
+Last activity: 2026-08-06 — Milestone v4.24 roadmap created (ROADMAP.md + REQUIREMENTS.md traceability)
 
 - Phase 186 (Webview Design Polish) COMPLETE 2026-07-28 — 2/2 plans shipped, POLISH-01 closed: Plan 01 (desktop-only zebra contrast bump, mobile-EDIT-list zebra removal, brand-tied grand-total emphasis, unified tracking-wide/tracking-widest letter-spacing), Plan 02 (shared `cardTintFill()` token in `lib/estimate/document/tokens.ts` tints terms/signature cards identically in both webview templates and propagates — via 2 real call sites only, `PdfTermsCard`/`PdfSignatureBlock` — to the Classic PDF; Modern PDF/webview stay fill-free by design; photo-grid frame + customer-facing mobile stacked-list card treatment closes out mobile zebra entirely; 2 stale `?stripe=` visual baselines retired with a documented reason). Milestone v4.23's full 18/18 requirement set is now closed.
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
 - Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0% (v4.24: 0/6 phases)
 
 **Phase 183 Plan 06 (2026-07-28):** Extracted `PdfTotalsBlock` (Classic boxed row-list vs
 Modern standalone hero, both preserved verbatim) + `PdfPhotoGrid` (captions) + net-new

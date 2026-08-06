@@ -45,6 +45,8 @@
 - 🚧 **v4.22 Product-Native Demo** — Phases 180-181 (roadmap created 2026-07-26) — replace the divergent standalone public demo with a host-isolated, defense-in-depth read-only session inside the real authenticated product. Phase 180 establishes the dedicated demo session and deny-write boundaries while the legacy demo stays live; Phase 181 verifies real-product parity, cuts public entry points over, removes duplicate demo UI, and documents the GitHub Actions → Docker/GHCR → Coolify production topology. 14/14 requirements mapped, 0 orphans, 0 duplicates.
 - 🚧 **v4.23 Unified Estimate Document Engine** — Phases 182-186 (roadmap created 2026-07-27) — unify the estimate webview and PDF onto one shared document structure/design (webview is the benchmark, PDF copies it, both templates classic + modern); ONE consolidated deterministic page-break rule module shared by the PDF renderer and a new fully-editable paginated editor mode (two icon toggle buttons left of "Edit with AI"); net-new signature block + photo captions on all four surfaces; fixes the hardcoded-Classic/stale-snapshot email+WhatsApp PDF send-path bug (TRUST-01); public share webview stays single-page scroll. 18/18 requirements mapped (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.22 ended at Phase 181, so v4.23 starts at **Phase 182**.
 
+- 🚧 **v4.24 Same-Origin Storage on R2** — Phases 187-192 (roadmap created 2026-08-06) — serve every user-uploaded and platform asset from the app's own origin, backed by Cloudflare R2, so images land on the Cloudflare CDN that already fronts `xtimator.com` and Supabase Storage egress goes to zero. A same-origin proxy route with a mandatory **Supabase read-through fallback** (nothing may 404 in either direction) is the keystone that makes every later step reversible; server-side provider selection is unified so `STORAGE_PROVIDER` can never half-apply (today it would make the WhatsApp adapter write to R2 while readers read Supabase — silent 404s on inbound media); the five browser upload call sites move to server-issued presigned PUTs so no storage credential reaches the browser; persisted absolute `*.supabase.co` URLs become same-origin relative URLs with a reversible rewrite; and 51 objects / 14.3 MB are copied to R2 with per-object count/size/content-type verification. Five R2 buckets named 1:1 with the existing `StorageProvider` bucket argument — `lib/storage/s3-provider.ts` is already verified working against R2 **unmodified**, so no phase re-validates the provider. 20/20 requirements mapped (PROXY-01..05, PROV-01..03, UPLOAD-01..04, URL-01..04, MIG-01..04), 0 orphans, 0 duplicates. Numbering continues the global counter — v4.23 ended at Phase 186, so v4.24 starts at **Phase 187**.
+
 > **Phase numbering note:** v3.1.1 starts at **Phase 66**, not 62. Phases 62-65 are reserved as DEFERRED placeholders for the v3.2 Production Deploy milestone (Vercel→Hetzner deploy + Stripe live + monitoring + UAT in prod). Skipping past 62-65 keeps the global phase counter unambiguous and prevents number reuse confusion when v3.2 begins.
 
 ## Phases
@@ -3019,8 +3021,10 @@ Plans:
  (completed 2026-07-28)
 - [x] **Phase 184: Consolidated Pagination Engine** — one deterministic page-break rule module, opening with the browser-vs-fontkit measurement-drift spike, wired into both PDF templates
  (completed 2026-07-28)
-- [x] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired (completed 2026-07-28)
-- [x] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine (completed 2026-07-28)
+- [x] **Phase 185: Paginated Editable Editor Mode** — header toggle (full-width/paginated), live DOM measurement provider, fully editable letter-size page preview, legacy viewMode toggle retired
+ (completed 2026-07-28)
+- [x] **Phase 186: Webview Design Polish** — design refinement pass on the benchmark webview (both templates, mobile included), propagated to the PDF through the shared engine
+ (completed 2026-07-28)
 
 ### Phase Details
 
@@ -3136,3 +3140,158 @@ Plans:
 | 185. Paginated Editable Editor Mode | 4/4 | Complete    | 2026-07-28 |
 | 186. Webview Design Polish | 2/2 | Complete    | 2026-07-28 |
 
+
+## 🚧 v4.24 Same-Origin Storage on R2 (Phases 187-192) — ROADMAP CREATED 2026-08-06
+
+**Milestone Goal:** Serve every user-uploaded and platform asset from the app's own origin, backed by Cloudflare R2, so images land on the CDN that already fronts `xtimator.com` and Supabase Storage egress goes to zero.
+
+**Coverage:** 20/20 requirements mapped (PROXY-01..05, PROV-01..03, UPLOAD-01..04, URL-01..04, MIG-01..04), **0 orphans, 0 duplicates.** Numbering continues the global counter — v4.23 ended at Phase 186, so v4.24 starts at **Phase 187**. (The out-of-band parking-lot directories 999.1 / 1000 / 1001 are not part of the counter.)
+
+### Scale note — read this before sizing any phase
+
+Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-brand 2.8 MB, logos 55 kB, audio 55 kB, pdfs 0). Transfer volume and transfer time are **non-issues** — the entire corpus copies in seconds. **Phase 191 is therefore dominated by correctness and per-object verification, not by throughput, windowing, batching, resumability, or a maintenance window.** Any plan that budgets effort for transfer scale is mis-sized. The trigger for this whole milestone is **egress, not stored volume**: the landing page alone pulls ~1.9 MB of images per cold visit from `*.supabase.co` (~1.9 GB per 1 000 cold visits). The 800 MB threshold in `docs/STORAGE-MIGRATION.md` measures the wrong thing and is superseded.
+
+### Already proven — do not re-plan
+
+`lib/storage/s3-provider.ts` **works against R2 unmodified.** `scripts/storage-smoke.ts` passed upload → signed URL → in-process download → HTTP fetch of the signed URL → delete against a real R2 bucket, with `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`, endpoint `https://<account-id>.r2.cloudflarestorage.com`. **No phase in this milestone should spend a plan, a spike, or a verification step re-validating the S3 provider itself.** Likewise, the Cloudflare CDN layer is already live and verified (`docs/CLOUDFLARE-CDN.md`) — this milestone does not re-do the CDN, it makes images actually reach it. The five-bucket decision (`audio` / `photos` / `pdfs` / `logos` / `platform-brand`, 1:1 with the bucket argument the app already passes) is locked precisely so the provider needs zero changes.
+
+**Dependency spine:** Phase 187 is the keystone — the **Supabase read-through fallback (PROXY-02) must exist before any object is migrated or any URL is rewritten**, because it is the single mechanism that makes every later step non-breaking and reversible in both directions. Phase 188 (provider-selection integrity) must land **before or with** the migration: flipping `STORAGE_PROVIDER` while ~20 call sites still hardcode Supabase causes split-brain writes/reads and silent 404s on WhatsApp inbound media — a verified failure mode from the 2026-08-05 field assessment, not a hypothetical. Phase 190 (portable URLs, code-level) precedes Phase 192 (the row rewrite) so that every renderer already understands the new URL form before any row changes. Phase 191 (copy + verify objects) precedes Phase 192 so the cutover rewrites rows toward objects that are provably present. **Phase 192 contains the only irreversible-ish data step in the milestone (URL-02)** — it is deliberately sequenced last, after the proxy can serve both backends, and it must carry a reversible record of every row it changes.
+
+**Parallelizable work:**
+- **Phase 189 (browser presigned uploads) is file-disjoint from the proxy/URL/migration track** — it touches one new presign route plus five client components (`capture-recorder`, `inline-audio-recorder`, `photo-card`, `photo-lightbox`, `estimate-document`). It can be planned and executed concurrently with 188/190/191. Its only real coupling is verification: UPLOAD-03's content-type check reads back through Phase 187's proxy, so land 187 first or stub that one check.
+- Phases 187 and 188 both touch `lib/storage/` — sequence them, do not parallelize.
+- Phases 191 and 192 are strictly sequential (copy → verify → rewrite → prove).
+- **MIG-03 (five R2 buckets, public access disabled, scoped credential) is an operator prerequisite for anything that writes to R2** and is therefore front-loaded into Phase 187, not deferred to the migration phase.
+
+**Key context (locked):** Target is **Cloudflare R2**, not Hetzner. **Reversibility is a hard requirement** — removing the R2 env vars must return the app to Supabase with no code change and no data migration, and Phase 192 must prove that, not assume it. **S3 credentials must never reach the browser.** **No secrets in the repo** — `.env.local.example` and every doc use placeholders only; real values live in `.env.local` (gitignored) and Coolify. Storage keys keep the existing `{companyId}/{type}/{timestamp}-{filename}` convention (`lib/storage/keys.ts`) — re-keying during a backend swap is explicitly out of scope. Model orchestration for execution: Fable orchestrates, Opus validates (plan-check/verify), Sonnet executes, Haiku simple work; maximize parallelism.
+
+### Phases (summary checklist)
+
+- [ ] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction
+- [ ] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend
+- [ ] **Phase 189: Browser Uploads Without Browser Credentials** — the five browser upload call sites move to server-issued presigned PUTs, preserving retry and offline/queue behavior, with no storage credential in client code
+- [ ] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed
+- [ ] **Phase 191: Object Migration & Verification** — a re-runnable command copies all 51 objects into R2 and proves per-object count, size, and content type; the runbook documents cutover and rollback with no real secrets
+- [ ] **Phase 192: URL Rewrite Cutover & CDN Verification** — existing rows rewritten off `*.supabase.co` with a reversible record, and the landing page's images proven to arrive from `xtimator.com` with a Cloudflare cache HIT
+
+### Phase Details
+
+### Phase 187: R2 Provisioning & Same-Origin Asset Proxy
+**Goal**: Every storage object is reachable at a same-origin `xtimator.com` URL that streams it from R2 when it is there and from Supabase when it is not — so no asset can break in either migration direction, and every later phase becomes reversible.
+**Depends on**: Nothing in-milestone (first phase; follows Phase 186 in the global counter)
+**Requirements**: PROXY-01, PROXY-02, PROXY-03, PROXY-04, MIG-03
+**Success Criteria** (what must be TRUE):
+
+  1. Requesting a same-origin storage URL for an object that lives in R2 returns the bytes with the object's original content type preserved — an image renders inline in the browser rather than downloading, and a PDF opens as a PDF.
+  2. Requesting the same URL shape for an object that exists only in Supabase still returns the bytes, and an object that exists only in R2 also returns the bytes — so no asset 404s at any point during or after the cutover, in either direction.
+  3. A request carrying a traversal-style key, a bucket name outside the five known buckets, or a key belonging to another tenant's private data is refused, and no response body or header ever contains storage credentials or a backend signed URL.
+  4. A logo or platform-brand asset fetched through the route comes back with a long-lived immutable cache header, while a tenant-private asset fetched through the same route does not — verifiable by inspecting the response headers of one of each.
+  5. The five R2 buckets `audio`, `photos`, `pdfs`, `logos`, and `platform-brand` exist with public access disabled, and the credential the app uses can read and write those five buckets and nothing else.
+
+**Plans**: TBD
+
+### Phase 188: Server-Wide Provider Selection Integrity
+**Goal**: `STORAGE_PROVIDER` switches every server-side storage read and write at once, so writers and readers can never end up on different backends — closing the split-brain failure the field assessment found waiting behind the flag.
+**Depends on**: Phase 187 (shares `lib/storage/`; the proxy is the first consumer of a correct provider seam)
+**Requirements**: PROV-01, PROV-02, PROV-03
+**Success Criteria** (what must be TRUE):
+
+  1. With R2 configured, every server-side storage read and write in the app goes to R2 — there is no remaining server module that reaches Supabase Storage regardless of the flag.
+  2. Removing the R2 environment variables returns the entire server to Supabase, with no code change and no data movement.
+  3. An inbound WhatsApp message carrying media has its audio/photo written and then read back successfully by the estimate pipeline while R2 is configured — the concrete case that would have produced silent 404s now works end-to-end on a single backend.
+  4. Adding a server-side module that reintroduces a hardcoded Supabase-only storage path fails an automated check rather than shipping silently, so the provider seam cannot rot the way it did after Phase 66.
+
+**Plans**: TBD
+
+### Phase 189: Browser Uploads Without Browser Credentials
+**Goal**: The five browser upload call sites put files into the configured backend through server-issued presigned PUTs, with no storage credential ever reaching client code, and with today's field-tested resilience intact.
+**Depends on**: Phase 187 for the content-type read-back check only (UPLOAD-03). Otherwise **file-disjoint** from the 188/190/191 track and safe to execute in parallel.
+**Requirements**: UPLOAD-01, UPLOAD-02, UPLOAD-03, UPLOAD-04
+**Success Criteria** (what must be TRUE):
+
+  1. A user records job-site audio and uploads photos from the browser — on iOS Safari and Android Chrome — and the files land in the configured storage backend.
+  2. No storage credential, Supabase or S3, appears in any client bundle or in any payload the browser receives; the browser only ever gets a short-lived upload URL scoped to a single key.
+  3. A caller who is not authenticated, or who asks for a key outside their own company's namespace, is refused an upload URL — one tenant cannot write into another's prefix.
+  4. An image uploaded this way renders inline through the same-origin proxy with the correct content type, including for a key that has no file extension.
+  5. A transient upload failure still retries and succeeds, and an interrupted capture still resumes from its persisted/queued blob — the offline behavior the field depends on is unchanged.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 190: Portable Same-Origin Asset URLs
+**Goal**: Newly stored assets persist a same-origin relative URL instead of a backend-specific absolute one, and every surface that renders assets — app UI, public share pages, PDFs, and email/WhatsApp sends — resolves that form correctly.
+**Depends on**: Phase 187 (the proxy the relative URLs resolve against), Phase 188 (server-side writes resolve through one provider)
+**Requirements**: URL-01, URL-03, URL-04
+**Success Criteria** (what must be TRUE):
+
+  1. Uploading a new company logo, avatar, price-book image, or platform branding asset persists a same-origin relative URL — no `*.supabase.co` hostname and no R2 hostname is written into any database row.
+  2. A newly stored asset displays correctly in the app UI, on a public share page, in a generated PDF, and in an emailed/WhatsApp-sent document — including the server-side PDF renderer, which has no browser origin to resolve against.
+  3. Existing rows that still hold absolute Supabase URLs keep rendering everywhere unchanged during this phase — nothing is rewritten yet, so this phase ships no user-visible break.
+  4. The content security policy permits the new same-origin image source and is no broader than the new setup requires.
+
+**Plans**: TBD
+
+### Phase 191: Object Migration & Verification
+**Goal**: An operator can copy every existing Supabase object into R2 with a re-runnable command that proves, per object, that what landed matches what was there — and has a written cutover and rollback runbook to work from.
+**Depends on**: Phase 187 (buckets and scoped credential exist), Phase 188 (provider integrity — the migration must not create split-brain state)
+**Requirements**: MIG-01, MIG-02, MIG-04
+**Success Criteria** (what must be TRUE):
+
+  1. An operator runs one command and every object in the five Supabase buckets exists in the matching R2 bucket; running the same command a second time changes nothing and still reports success.
+  2. The command reports per-object verification — count, byte size, and content type compared between source and destination — rather than a bare "done".
+  3. When any object mismatches, is missing, or has the wrong content type, the command fails loudly and non-zero; a deliberately corrupted or deleted destination object is caught rather than reported as success.
+  4. `docs/STORAGE-MIGRATION.md` states the verified R2 settings, the cutover procedure, and the rollback procedure, and contains no real secret values anywhere.
+
+**Scale note**: 51 objects / 14.3 MB. This phase is about proving correctness per object, not about moving data — no maintenance window, batching strategy, or resumability work is warranted.
+
+**Plans**: TBD
+
+### Phase 192: URL Rewrite Cutover & CDN Verification
+**Goal**: Existing rows stop pointing at Supabase, the landing page's images actually arrive from `xtimator.com` through the Cloudflare edge, and the milestone's reversibility promise is proven rather than assumed.
+**Depends on**: Phase 190 (every renderer already resolves the new URL form), Phase 191 (objects are present in R2 and verified). Contains the milestone's only irreversible-ish data step — sequenced last on purpose.
+**Requirements**: URL-02, PROXY-05
+**Success Criteria** (what must be TRUE):
+
+  1. `companies.logo_url`, `profiles.avatar_url`, price-book image URLs, and platform branding/SEO asset rows no longer contain absolute Supabase URLs, and every one of those assets still renders in the app UI, on public share pages, and in generated PDFs.
+  2. The rewrite leaves a reversible record of exactly what changed, so an operator can restore the previous values without guessing them.
+  3. A cold landing-page load fetches every image from `xtimator.com` — zero requests go to `*.supabase.co`.
+  4. Repeating those landing-page image requests at the edge returns a Cloudflare cache HIT.
+  5. With the R2 environment variables removed after cutover, every asset still renders — served through the proxy's Supabase fallback — with no code change and no data migration, proving the reversibility requirement.
+
+**Plans**: TBD
+
+### v4.24 Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 187. R2 Provisioning & Same-Origin Asset Proxy | 0/TBD | Not started | - |
+| 188. Server-Wide Provider Selection Integrity | 0/TBD | Not started | - |
+| 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
+| 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |
+| 191. Object Migration & Verification | 0/TBD | Not started | - |
+| 192. URL Rewrite Cutover & CDN Verification | 0/TBD | Not started | - |
+
+### v4.24 Traceability
+
+| Requirement | Phase |
+|-------------|-------|
+| PROXY-01 | 187 |
+| PROXY-02 | 187 |
+| PROXY-03 | 187 |
+| PROXY-04 | 187 |
+| PROXY-05 | 192 |
+| PROV-01 | 188 |
+| PROV-02 | 188 |
+| PROV-03 | 188 |
+| UPLOAD-01 | 189 |
+| UPLOAD-02 | 189 |
+| UPLOAD-03 | 189 |
+| UPLOAD-04 | 189 |
+| URL-01 | 190 |
+| URL-02 | 192 |
+| URL-03 | 190 |
+| URL-04 | 190 |
+| MIG-01 | 191 |
+| MIG-02 | 191 |
+| MIG-03 | 187 |
+| MIG-04 | 191 |

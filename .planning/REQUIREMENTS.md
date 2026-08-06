@@ -71,4 +71,51 @@
 
 ## Traceability
 
-Filled by the roadmapper.
+**Coverage: 20/20 v4.24 requirements mapped to exactly one phase each — 0 orphans, 0 duplicates.**
+
+Phase numbering continues the global counter: v4.23 ended at Phase 186, so v4.24 runs **Phases 187-192**. (The out-of-band parking-lot directories `999.1` / `1000` / `1001` under `.planning/phases/` are not part of the counter.)
+
+| Requirement | Phase | Phase Name | Status |
+|-------------|-------|------------|--------|
+| PROXY-01 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| PROXY-02 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| PROXY-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| PROXY-04 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| PROXY-05 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
+| PROV-01 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
+| PROV-02 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
+| PROV-03 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
+| UPLOAD-01 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
+| UPLOAD-02 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
+| UPLOAD-03 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
+| UPLOAD-04 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
+| URL-01 | Phase 190 | Portable Same-Origin Asset URLs | Pending |
+| URL-02 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
+| URL-03 | Phase 190 | Portable Same-Origin Asset URLs | Pending |
+| URL-04 | Phase 190 | Portable Same-Origin Asset URLs | Pending |
+| MIG-01 | Phase 191 | Object Migration & Verification | Pending |
+| MIG-02 | Phase 191 | Object Migration & Verification | Pending |
+| MIG-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| MIG-04 | Phase 191 | Object Migration & Verification | Pending |
+
+### Per-phase requirement sets
+
+| Phase | Requirements | Count |
+|-------|--------------|-------|
+| 187 R2 Provisioning & Same-Origin Asset Proxy | PROXY-01, PROXY-02, PROXY-03, PROXY-04, MIG-03 | 5 |
+| 188 Server-Wide Provider Selection Integrity | PROV-01, PROV-02, PROV-03 | 3 |
+| 189 Browser Uploads Without Browser Credentials | UPLOAD-01, UPLOAD-02, UPLOAD-03, UPLOAD-04 | 4 |
+| 190 Portable Same-Origin Asset URLs | URL-01, URL-03, URL-04 | 3 |
+| 191 Object Migration & Verification | MIG-01, MIG-02, MIG-04 | 3 |
+| 192 URL Rewrite Cutover & CDN Verification | URL-02, PROXY-05 | 2 |
+| **Total** | | **20** |
+
+### Sequencing notes bound into the mapping
+
+- **PROXY-02 (Supabase read-through fallback) is deliberately in the FIRST phase.** It is what makes every later step non-breaking and reversible in both directions, so no migration or URL rewrite may precede it.
+- **MIG-03 (five R2 buckets + scoped credential) is front-loaded into Phase 187**, not held with the rest of MIG, because it is an operator prerequisite for anything that writes to R2.
+- **PROV lands before the migration (Phase 188 < Phase 191).** Flipping `STORAGE_PROVIDER` while ~20 call sites still hardcode Supabase produces split-brain writes/reads and silent 404s on WhatsApp inbound media — a verified failure mode from the 2026-08-05 field assessment.
+- **URL-02 is isolated in the last phase (192)** because it is the milestone's only irreversible-ish data step. It runs after the proxy can serve both backends and after objects are verified in R2, and it must carry a reversible record of every row it changes.
+- **UPLOAD-01..04 (Phase 189) is file-disjoint** from the proxy/URL/migration track (one new presign route + five client components) and may be executed in parallel; only UPLOAD-03's read-back check depends on Phase 187.
+- **Scale**: production storage is 51 objects / 14.3 MB. Phase 191 is dominated by per-object correctness and verification, not by transfer volume or elapsed time.
+
