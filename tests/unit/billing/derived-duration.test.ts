@@ -1,3 +1,15 @@
+// @vitest-environment node
+/**
+ * Phase 188 Plan 04 (PROV-02) deviation: this suite exercises the real
+ * transcribe-audio worker, which now resolves its audio download via
+ * serverStorage(supabase) -> assertServer() (Phase 188 fix — the census
+ * gate found transcribe-audio.ts using a raw supabase.storage.from(...)
+ * call that Plans 01-03 had missed). assertServer() throws whenever
+ * `typeof window !== 'undefined'`, which is always true under the suite's
+ * default jsdom environment regardless of mocking. The `node` override here
+ * matches the fix already applied across Plans 01-03's own test files for
+ * the identical root cause.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NonRetriableError } from 'inngest'
 

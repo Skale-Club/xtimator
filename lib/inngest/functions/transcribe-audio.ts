@@ -35,6 +35,7 @@ import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { serverStorage } from '@/lib/storage/server'
 import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
 import { getTranscriptionModel } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
@@ -214,12 +215,17 @@ export const transcribeAudioJob = inngest.createFunction(
       }
 
       const supabase = requireServiceClient()
-      const { data: fileData, error: dlErr } = await supabase.storage
-        .from('audio')
-        .download(storagePath)
-      if (dlErr || !fileData) {
+      // Phase 188 (PROV-01/PROV-02): serverStorage() honors the
+      // server-wide provider selection instead of a hardcoded raw
+      // supabase.storage.from(...) call — this call site predates
+      // Phase 188 and was missed by Plans 01-03 (a genuine STORAGE-03
+      // escape hatch found by Plan 04's census gate).
+      let fileData: Blob
+      try {
+        fileData = await serverStorage(supabase).download('audio', storagePath)
+      } catch (dlErr) {
         throw new Error(
-          `Failed to download audio: ${dlErr?.message ?? 'no data'}`
+          `Failed to download audio: ${dlErr instanceof Error ? dlErr.message : 'no data'}`
         )
       }
 
