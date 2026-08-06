@@ -128,6 +128,17 @@ Omitting the two `CLOUDFLARE_*` vars downgrades the public-access
 assertion to `SKIPPED` — `SKIPPED` is not a pass, and the script never
 reports one on your behalf.
 
+**Executed against live R2 on 2026-08-06** with the real scoped credential:
+all five buckets reachable, all five round-trips (upload → sign → download)
+passing, and `scope:xtimator — correctly denied`, which is the check that
+actually proves the token cannot reach anything outside the five buckets.
+The public-access leg reported `SKIPPED` on that run: the operator's
+Cloudflare R2 token was deliberately revoked after provisioning, so the
+assertion had no credential. That property *was* verified directly against
+the Cloudflare managed-domain API on 2026-08-06 — the table above is that
+result — but it is verified out-of-band, not by this script. Re-assert it
+with a short-lived R2 read token whenever the bucket set changes.
+
 The script asserts, it never provisions — do not use it to "repair" a
 bucket; a failing check means investigate by hand, not re-run with `--fix`.
 
