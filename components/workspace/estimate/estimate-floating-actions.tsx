@@ -16,12 +16,10 @@ interface EstimateFloatingActionsProps {
   onSend: () => void
   /** Opens the Photos dialog on top of the estimate (replaces the old sub-sidebar nav). */
   onOpenPhotos?: () => void
-  /** Phase 162-04 (DOCUX-01) — opens the PresentationSettingsPanel. When
-   *  omitted the gear button is not rendered (backward-compat). */
+  /** Phase 162-04 (DOCUX-01) — opens the PresentationSettingsPanel (which now
+   *  also hosts the Link-Client affordance). When omitted the gear button is
+   *  not rendered (backward-compat). */
   onOpenSettings?: () => void
-  linkClientSlot?: ReactNode
-  /** "Refine with AI" trigger (RefineEstimateDialog) — omitted on read-only versions. */
-  refineSlot?: ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -32,6 +30,11 @@ interface EstimateFloatingActionsProps {
 // the content column, and stays centered when the sidebar collapses. Mobile
 // keeps `sticky` inside the content column (sidebar hidden there, so content
 // center already equals viewport center).
+//
+// `max-w-full` + `overflow-x-auto` are the horizontal-overflow guard: the pill
+// buttons don't shrink, so before this a too-wide pill pushed the whole preview
+// sideways (the page gained a horizontal scrollbar and rocked left/right). Any
+// excess now scrolls INSIDE the pill and never reaches the document.
 // ---------------------------------------------------------------------------
 
 function Pill({ children }: { children: ReactNode }) {
@@ -40,7 +43,7 @@ function Pill({ children }: { children: ReactNode }) {
       className="sticky bottom-3 lg:fixed lg:inset-x-0 lg:bottom-2 z-40 flex justify-center px-4 lg:px-0 pointer-events-none"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+      <div className="pointer-events-auto inline-flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
         {children}
       </div>
     </div>
@@ -61,8 +64,6 @@ export function EstimateFloatingActions({
   onSend,
   onOpenPhotos,
   onOpenSettings,
-  linkClientSlot,
-  refineSlot,
 }: EstimateFloatingActionsProps) {
   // Quick-260718-w4k — the pill collapses to a single small round button so it
   // stops covering the bottom of the document. Session-local state (resets on
@@ -97,20 +98,23 @@ export function EstimateFloatingActions({
           variant="ghost"
           onClick={onOpenSettings}
           aria-label="Settings"
-          className="rounded-full text-foreground"
+          className="shrink-0 rounded-full text-foreground"
         >
           <Settings className="h-3.5 w-3.5" />
         </Button>
       )}
-      {linkClientSlot}
-      {refineSlot}
       {onOpenPhotos && (
-        <Button size="sm" variant="ghost" onClick={onOpenPhotos} className="rounded-full gap-1.5 text-foreground">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onOpenPhotos}
+          className="shrink-0 rounded-full gap-1.5 text-foreground"
+        >
           <Camera className="h-3.5 w-3.5" />
           Photos
         </Button>
       )}
-      <Button size="sm" onClick={onSend} disabled={isSaving} className="rounded-full gap-1.5">
+      <Button size="sm" onClick={onSend} disabled={isSaving} className="shrink-0 rounded-full gap-1.5">
         <Share2 className="h-3.5 w-3.5" />
         Share
       </Button>
@@ -119,7 +123,7 @@ export function EstimateFloatingActions({
         variant="ghost"
         onClick={() => setCollapsed(true)}
         aria-label="Hide actions"
-        className="rounded-full text-foreground"
+        className="shrink-0 rounded-full text-foreground"
       >
         <ChevronDown className="h-3.5 w-3.5" />
       </Button>

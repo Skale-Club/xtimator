@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 
 // Wave 4 (162-04) — DOCUX-01 PresentationSettingsPanel real assertions
@@ -57,6 +58,7 @@ interface RenderOpts {
   defaultTaxRate?: number
   estimateSentOrViewed?: boolean
   open?: boolean
+  clientSlot?: ReactNode
 }
 
 async function renderPanel(opts: RenderOpts = {}) {
@@ -71,6 +73,7 @@ async function renderPanel(opts: RenderOpts = {}) {
       onChange={onChange}
       defaultTaxRate={opts.defaultTaxRate}
       estimateSentOrViewed={opts.estimateSentOrViewed ?? false}
+      clientSlot={opts.clientSlot}
     />,
   )
   return { ...result, onChange, onOpenChange }
@@ -79,6 +82,34 @@ async function renderPanel(opts: RenderOpts = {}) {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// The Link-Client affordance moved out of the floating action pill (which was
+// wide enough to overflow the preview horizontally) and into this panel.
+describe('PresentationSettingsPanel — client slot', () => {
+  it('renders the client slot under a "Client" legend when one is passed', async () => {
+    await renderPanel({
+      clientSlot: <button data-testid="link-client">Link Client</button>,
+    })
+    expect(screen.getByTestId('link-client')).toBeTruthy()
+    expect(screen.getByText('Client')).toBeTruthy()
+  })
+
+  it('renders no Client section at all when the slot is omitted (client already linked)', async () => {
+    await renderPanel()
+    expect(screen.queryByText('Client')).toBeNull()
+  })
+
+  it('puts the client slot ABOVE the Pricing controls', async () => {
+    await renderPanel({
+      clientSlot: <button data-testid="link-client">Link Client</button>,
+    })
+    const slot = screen.getByTestId('link-client')
+    const pricing = screen.getByText('Pricing')
+    expect(
+      slot.compareDocumentPosition(pricing) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
 
 describe('PresentationSettingsPanel (DOCUX-01)', () => {
   it('responsive branch — renders Popover when window matches (min-width: 768px)', async () => {

@@ -59,6 +59,12 @@ export interface PresentationSettingsPanelProps {
   defaultTaxRate?: number
   /** PRESENT-05: whether the client has already seen/received this estimate. */
   estimateSentOrViewed: boolean
+  /** Link-Client affordance (a ClientPicker), moved here out of the floating
+   *  action pill — the pill was wide enough to push the preview sideways, and
+   *  the gear is where the estimate's other per-document settings already live.
+   *  Null/undefined when a client is already linked (the document's own Bill To
+   *  pencil handles changing it), in which case no Client section renders. */
+  clientSlot?: ReactNode
   /** Optional trigger children — otherwise the panel opens/closes only via onOpenChange. */
   children?: ReactNode
 }
@@ -114,6 +120,7 @@ function PanelBody({
   onChange,
   defaultTaxRate,
   estimateSentOrViewed,
+  clientSlot,
 }: PresentationSettingsPanelProps): JSX.Element {
   const { t } = useTranslation()
   const resolved = resolvePresentationSettings(settings)
@@ -144,6 +151,16 @@ function PanelBody({
             )}
           </span>
         </div>
+      )}
+
+      {/* --- Client --- */}
+      {clientSlot && (
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t('Client')}
+          </legend>
+          <div className="flex items-center justify-start">{clientSlot}</div>
+        </fieldset>
       )}
 
       {/* --- Pricing --- */}

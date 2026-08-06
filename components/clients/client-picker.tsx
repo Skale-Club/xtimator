@@ -53,6 +53,11 @@ export interface ClientPickerProps {
   onUnlinked?: () => void
   /** When set, renders a "New client" footer action that closes the popover. */
   onCreateNew?: () => void
+  /** Radix `modal` for the picker's own popover. Set it when the picker is
+   *  nested inside ANOTHER dismissable layer (e.g. the estimate's presentation
+   *  settings popover/sheet): without it, a pointer-down inside this picker
+   *  reads as "outside" to the parent layer and collapses it mid-selection. */
+  modal?: boolean
   className?: string
 }
 
@@ -203,7 +208,7 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
   const popoverWidth = props.variant === 'card' ? 'w-[350px]' : 'w-[320px]'
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={props.modal}>
       {trigger}
       <PopoverContent
         align={props.align ?? (props.variant === 'button' ? 'end' : 'start')}
