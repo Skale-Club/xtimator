@@ -1,104 +1,74 @@
-# Requirements: Xtimator — Milestone v4.23 Unified Estimate Document Engine
+# Requirements: Xtimator — Milestone v4.24 Same-Origin Storage on R2
 
-**Defined:** 2026-07-27
+**Defined:** 2026-08-05
 **Core Value:** A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
-**Milestone goal:** Unify the estimate webview and PDF onto one shared document structure/design (webview is the benchmark), with a single deterministic page-break rule powering a fully-editable paginated editor mode that mirrors the PDF.
+**Milestone goal:** Serve every user-uploaded and platform asset from the app's own origin, backed by Cloudflare R2, so images land on the CDN that already fronts `xtimator.com` and Supabase Storage egress goes to zero.
 
-> **Locked decisions (owner-confirmed):**
-> - The **webview is the benchmark** — it is the most-finished surface; the PDF copies its features/design. Both templates (classic + modern) are covered.
-> - The **public share webview stays a normal single-page scroll** — pagination never applies there.
-> - The workspace editor gains **two icon buttons to the LEFT of "Edit with AI"**: (1) full-width mode (current default), (2) paginated mode that mirrors the PDF like a PDF preview.
-> - The paginated mode is **fully functional AND editable** — all existing inline editing keeps working inside pages.
-> - **ONE consolidated deterministic page-break rule** decides where breaks fall, shared by the web paginated preview and the react-pdf renderer so they mirror each other.
-> - **Fidelity bar (research-locked):** "same page-break decisions, same content per page" — pixel-perfect parity between DOM and react-pdf is architecturally impossible and explicitly rejected as an anti-feature.
-> - **No manual user-inserted page breaks** — they conflict with the single deterministic rule.
-> - The owner will supply a **reference preview image for the paginated-mode UI** — pending; standard PDF-preview conventions (centered letter pages on neutral canvas, page gaps, shadows, page numbers) apply until it arrives, absorbed in the polish phase.
-> - Research correction adopted: the webview does **not** render a signature block or photo captions today either — those are **net-new on all four surfaces**, not copy-from-webview items.
-> - PDF stack stays `@react-pdf/renderer` (no puppeteer — Alpine container). `lib/whatsapp/pdf-delivery.ts` must never call the HTTP PDF route (webhook context has no cookies).
+> **Locked decisions (owner-confirmed / field-verified 2026-08-05):**
+> - **Target is Cloudflare R2**, not Hetzner Object Storage as the original Phase-66 runbook assumed — same Cloudflare account as the CDN, free egress, no new vendor.
+> - **Five R2 buckets named exactly `audio` / `photos` / `pdfs` / `logos` / `platform-brand`** — 1:1 with the bucket argument the app already passes to `StorageProvider`, so `s3-provider.ts` needs zero changes. Explicitly NOT one bucket with key prefixes.
+> - `lib/storage/s3-provider.ts` is **already verified working against R2 unmodified** — `scripts/storage-smoke.ts` passed upload → signed URL → in-process download → HTTP fetch of the signed URL → delete, with `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`, endpoint `https://<account-id>.r2.cloudflarestorage.com`. Do not re-litigate the provider.
+> - **Supabase read-through fallback is mandatory during cutover** — any object not yet in R2 is served from Supabase instead of 404ing. No image may ever break, in either direction.
+> - **Reversibility is a hard requirement** — removing the R2 env vars must return the app to Supabase with no code change and no data migration.
+> - **The trigger is egress, not stored volume.** 14.3 MB stored is 1.8 % of the old 800 MB trigger, but landing-page images alone burn ~1.9 GB of Supabase egress per 1 000 cold visits. The 800 MB threshold in `docs/STORAGE-MIGRATION.md` measures the wrong thing and is superseded.
+> - **`STORAGE_PROVIDER=s3` must never half-apply.** Today it is honored only by `getServerStorage()` (4 call sites) while ~20 sites call `createStorage(client)` and get Supabase unconditionally — flipping the flag as-is makes the WhatsApp adapter write to R2 while readers read Supabase, producing silent 404s on inbound media. Either the flag switches everything server-side or it switches nothing.
+> - **S3 credentials must never reach the browser.** The five direct-from-browser upload call sites move to server-issued presigned PUTs.
+> - **No secrets in the repo** — `.env.local.example` and all docs use placeholders only; real values live in `.env.local` (gitignored) and Coolify.
+> - Cloudflare CDN is already live on `xtimator.com` (`docs/CLOUDFLARE-CDN.md`) — this milestone does not re-do the CDN, it makes images actually reach it.
 > - Model orchestration for execution: Fable orchestrates, Opus validates (plan-check/verify), Sonnet executes, Haiku simple work; maximize parallelism.
 
-## v4.23 Requirements
+## v4.24 Requirements
 
-### Shared Document Engine (ENGINE)
+### Same-Origin Asset Proxy (PROXY)
 
-- [x] **ENGINE-01**: All four document renderers (workspace editor doc, share webview doc, classic PDF, modern PDF) consume one shared source for the document model, label maps (en/pt/es), design tokens, and formatting helpers (money, date with local-midnight fix, address) — no per-surface duplicated copies remain.
-- [x] **ENGINE-02**: Page geometry (LETTER 612×792pt) and the pt↔px conversion (1.333× at 96dpi) are defined in exactly one shared module consumed by both renderers.
-- [x] **ENGINE-03**: Classic and modern render from the shared structure with template-specific styling only (per-template tokens), replacing the current byte-duplicated ~860-line PDF template pair.
+- [ ] **PROXY-01**: A same-origin route on `xtimator.com` serves any storage object by bucket + key, streaming it from R2 with the object's original content type preserved.
+- [ ] **PROXY-02**: When an object is absent from R2, the route transparently falls back to Supabase Storage and still returns the bytes — so no asset can 404 at any point during or after the cutover, in either migration direction.
+- [ ] **PROXY-03**: The route rejects path traversal and any key outside the five known buckets, and never exposes storage credentials or signed backend URLs to the client.
+- [ ] **PROXY-04**: Publicly-readable assets (logos, platform branding) are served with a long-lived immutable cache header so Cloudflare caches them at the edge; assets belonging to a tenant's private data are not edge-cached.
+- [ ] **PROXY-05**: A landing-page load fetches its images from `xtimator.com` rather than `*.supabase.co`, and repeat edge requests for those images report a Cloudflare cache HIT.
 
-### PDF Parity with the Webview Benchmark (PDFPAR)
+### Provider Selection Integrity (PROV)
 
-- [x] **PDFPAR-01**: The PDF (both templates) matches the webview benchmark's structure and design — company header/branding, title, project/bill-to, summary, sections with per-section subtotals, items tables, totals block (subtotal → discount → tax → total → deposit → balance due), terms, and photos.
-- [x] **PDFPAR-02**: A signed estimate renders a signature block (signer name, signed date, signature image) on the webview AND in the PDF — net-new on all surfaces.
-- [x] **PDFPAR-03**: Photo captions render in the webview photo grid AND in the PDF photo grid.
-- [x] **PDFPAR-04**: All three PDF paths (download route, email attachment, WhatsApp document) resolve through one shared in-process renderer that honors the tenant's template choice, the signed snapshot (TRUST-01), preparedBy, and attached photos — eliminating the hardcoded-Classic + live-rows defects in `send/route.ts` and `pdf-delivery.ts`.
+- [ ] **PROV-01**: Every server-side storage read and write resolves through one provider selection, so `STORAGE_PROVIDER` switches the whole server at once and cannot leave writers and readers on different backends.
+- [ ] **PROV-02**: An automated check fails the build if a server-side module reintroduces a hardcoded Supabase-only storage path, keeping the provider seam from silently rotting the way it did after Phase 66.
+- [ ] **PROV-03**: With R2 configured, the WhatsApp inbound media path (the concrete case that would have broken) writes and reads the same backend end-to-end.
 
-### Consolidated Page-Break Rule (PGBRK)
+### Browser Uploads Without Browser Credentials (UPLOAD)
 
-- [x] **PGBRK-01**: One deterministic pagination module (`lib/estimate/pagination/`) computes per-page block assignments from the shared document model; it is the single source of truth consumed by BOTH the web paginated preview and the PDF renderer.
-- [x] **PGBRK-02**: Break rules enforced: a line-item row never splits; a section header keeps with its first row; a section subtotal keeps with its last row; the totals block, signature block, and each terms card never split; the photo grid breaks only between rows.
-- [x] **PGBRK-03**: Continuation pages repeat the items-table column header, and every page shows "Page N of M" numbering.
-- [x] **PGBRK-04**: The PDF renders explicit `<Page>` elements from the module's output (breaks are prescribed, never emergent Yoga wrap), and the paginated web preview shows the same content on the same pages for the same estimate + template.
-- [x] **PGBRK-05**: Web and PDF use the same registered font family (TTF via `Font.register`, same family the web renders) with a measurement provider built on react-pdf's own transitive deps (`fontkit` + `linebreak`); a measurement-drift spike validates the approach and fixes the safety margin before the engine is finalized.
+- [ ] **UPLOAD-01**: A user can record audio and upload photos from the browser with the file landing in the configured backend, without any storage credential reaching client code.
+- [ ] **UPLOAD-02**: The upload endpoint authorizes the caller and confines the resulting key to that tenant's namespace, so one tenant cannot write into another's prefix.
+- [ ] **UPLOAD-03**: The uploaded object retains its correct content type, so images render inline rather than downloading — verified end-to-end through the proxy, including keys with no file extension.
+- [ ] **UPLOAD-04**: Existing upload behavior the field depends on is preserved: retry on transient failure, and the capture flow's offline/queue handling still works.
 
-### Paginated Editor Mode (PGMODE)
+### Portable Asset URLs (URL)
 
-- [x] **PGMODE-01**: The estimate editor header shows two icon toggle buttons to the left of "Edit with AI" — full-width (default) and paginated — switching the document view instantly.
-- [x] **PGMODE-02**: Paginated mode renders letter-size pages styled like a PDF preview (centered pages, gaps, shadows) mirroring the PDF's page breaks for the active template.
-- [x] **PGMODE-03**: All editing works inside paginated mode — inline field edits, add/remove items and sections, drag-reorder — with page membership as a derived read-only projection (never persisted), immediate repagination on structural changes, debounced repagination while typing, and no focus loss when content moves across pages.
-- [x] **PGMODE-04**: The legacy `viewMode: 'width' | 'page'` CSS-zoom toggle is consolidated into the new control — one "page" concept in the UI, no colliding icons/wording.
-- [x] **PGMODE-05**: The public share webview remains a single-page scroll, byte-compatible with today's URLs and behavior.
+- [ ] **URL-01**: Newly stored assets produce a same-origin relative URL, so the storage backend is no longer baked into any value the app persists.
+- [ ] **URL-02**: Existing rows holding absolute Supabase URLs (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs, platform branding and SEO assets) are rewritten to the new form, with a reversible record of what changed.
+- [ ] **URL-03**: Every surface that renders these assets — app UI, public share pages, PDFs, and email/WhatsApp sends — resolves the new relative URLs correctly, including the server-side PDF renderer which cannot rely on a browser origin.
+- [ ] **URL-04**: The content security policy permits the new same-origin image source, and is not left broader than the new setup requires.
 
-### Webview Design Polish (POLISH)
+### Object Migration & Verification (MIG)
 
-- [x] **POLISH-01**: The benchmark webview receives a design refinement pass (both templates, mobile included) and the refinements propagate to the PDF through the shared engine — the surfaces stay unified after polish.
+- [ ] **MIG-01**: An operator can copy all existing Supabase objects into R2 with a repeatable, re-runnable command that is safe to run twice.
+- [ ] **MIG-02**: The migration reports per-object verification — count, byte size, and content type compared between source and destination — and fails loudly on any mismatch rather than reporting success.
+- [ ] **MIG-03**: The five R2 buckets exist with public access disabled, and the credential used by the app is scoped to only those buckets.
+- [ ] **MIG-04**: The runbook documents the cutover and the rollback, states the verified R2 settings, and contains no real secrets.
 
-## v2 Requirements (deferred)
+## Future Requirements (deferred)
 
-- **DEFER-01**: Download-PDF button on the public share webview (PDF route is currently owner-authenticated only).
-- **DEFER-02**: Invoices/payment state parity in the PDF (webview shows Stripe invoice pay links; PDF stays a static document this milestone).
-- **DEFER-03**: "Prepared by" block on the webview (PDF-only today; open product decision).
-- **DEFER-04**: Per-user/per-estimate persistence of the full-width vs paginated toggle (session-only state this milestone).
+- **FUT-R2-01**: Disable the Supabase read-through fallback once production is proven stable, so a missing object surfaces as a loud error instead of silently costing Supabase egress again.
+- **FUT-R2-02**: Decommission Supabase Storage entirely (delete buckets) after a retention window with the fallback disabled and no fallback hits observed.
+- **FUT-R2-03**: Serve tenant-private assets through short-lived signed URLs at the edge rather than proxying every byte through the app server.
+- **FUT-R2-04**: Image transformation/resizing at the edge (the landing page currently ships full-size images; ~1.9 MB per cold visit is a payload problem the CDN caches but does not shrink).
 
 ## Out of Scope
 
-| Feature | Reason |
-|---------|--------|
-| Pixel-perfect DOM↔PDF parity | Different render engines (browser CSS vs Yoga+fontkit); anti-feature per research — bar is same breaks/same content per page |
-| Manual user-inserted page breaks | Conflicts with the single deterministic page-break rule |
-| Pagination on the public share webview | Owner-locked: share stays single-page scroll |
-| puppeteer / HTML-to-PDF migration | Alpine container, known OOM history; @react-pdf stays |
-| Rich-text editor frameworks (TipTap/Slate/Lexical) | Existing inline editing only needs page-box wrapping |
-| paged.js / CSS Paged Media libs | Static-print-oriented, DOM-mutating, incompatible with live editing, shares no measurement model with react-pdf |
+- **Migrating to Hetzner Object Storage** — the original Phase-66 target. R2 wins on free egress and colocates with the CDN already fronting the app; adding a second storage vendor has no upside here.
+- **One bucket with key prefixes** — rejected in favor of five name-matched buckets because it would require changing a provider that is already verified working against R2.
+- **Re-doing or extending the Cloudflare CDN layer** — already live and verified (`docs/CLOUDFLARE-CDN.md`). This milestone only makes images reach it.
+- **Changing the storage key convention** (`lib/storage/keys.ts`) — the existing `{companyId}/{type}/{timestamp}-{filename}` scheme is carried over as-is; re-keying objects during a backend swap would conflate two migrations.
+- **Moving Supabase Postgres or Auth** — this milestone is storage only.
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| ENGINE-01 | Phase 182 | Complete |
-| ENGINE-02 | Phase 182 | Complete |
-| ENGINE-03 | Phase 182 + 183 | Complete (182: token layer; 183: structural de-dup — templates now 519/536 lines composing 9 shared components, was 860/861) |
-| PDFPAR-04 | Phase 182 | Complete |
-| PDFPAR-01 | Phase 183 | Complete |
-| PDFPAR-02 | Phase 183 | Complete |
-| PDFPAR-03 | Phase 183 | Complete |
-| PGBRK-01 | Phase 184 + 185 | Complete (184: engine + PDF side; 185-01: browser-vs-server MeasurementProvider byte-identical parity test; 185-04: `paginated-view-engine-parity.test.tsx` binds the LIVE rendered web preview's sheet count to the engine's own direct computation for the same fixture — engine parity and view parity are now proven together, not assumed independently) |
-| PGBRK-02 | Phase 184 | Complete |
-| PGBRK-03 | Phase 184 | Complete |
-| PGBRK-04 | Phase 184 + 185 | Complete (184: PDF renders explicit `<Page>` elements from the module's output; 185-04: `paginated-view-engine-parity.test.tsx` proves the paginated web preview shows the same page count as the engine for the same estimate + template — see PGBRK-01's note) |
-| PGBRK-05 | Phase 184 | Complete |
-| PGMODE-01 | Phase 185 | Complete |
-| PGMODE-02 | Phase 185 | Complete |
-| PGMODE-03 | Phase 185 | Complete |
-| PGMODE-04 | Phase 185 | Complete |
-| PGMODE-05 | Phase 185 | Complete (185-04: `share-webview-pagination-boundary.test.ts` — an automated recursive-directory-walk grep guard, static AND dynamic `import(...)` forms both covered — proves `app/estimate/[token]/**` and `components/share/**` never import any pagination module) |
-| POLISH-01 | Phase 186 | Complete (Phase 186) — webview-only polish + one geometry-safe PDF token; PDF font/box propagation deferred — requires lockstep blocks-from-model formula updates. |
-
-**Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 18
-- Complete: 18/18 ✓
-- Unmapped: 0 ✓
-
----
-*Requirements defined: 2026-07-27*
-*Last updated: 2026-07-28 after Phase 186 completion — 18/18 v1 requirements mapped to Phases 182-186 and complete, 0 orphans, 0 duplicates*
+Filled by the roadmapper.
