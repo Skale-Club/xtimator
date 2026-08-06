@@ -31,7 +31,7 @@
 
 - [x] **PROV-01**: Every server-side storage read and write resolves through one provider selection, so `STORAGE_PROVIDER` switches the whole server at once and cannot leave writers and readers on different backends.
 - [ ] **PROV-02**: An automated check fails the build if a server-side module reintroduces a hardcoded Supabase-only storage path, keeping the provider seam from silently rotting the way it did after Phase 66.
-- [ ] **PROV-03**: With R2 configured, the WhatsApp inbound media path (the concrete case that would have broken) writes and reads the same backend end-to-end.
+- [x] **PROV-03**: With R2 configured, the WhatsApp inbound media path (the concrete case that would have broken) writes and reads the same backend end-to-end.
 
 ### Browser Uploads Without Browser Credentials (UPLOAD)
 

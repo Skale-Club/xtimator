@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 188-03-PLAN.md (Phase 188 Plan 03/05: PDF renderer, public share page (x2 call sites), WhatsApp PDF delivery, and both Inngest cleanup crons converted to serverStorage(); orphan-cleanup age gate confirmed already fail-closed under an S3-shaped ListedObject, zero s3-provider.ts change, covering test added) — ran concurrently with 188-02. Next: 188-04-PLAN.md (census gate)."
-last_updated: "2026-08-06T22:34:32.908Z"
-last_activity: "2026-08-06 - Phase 188 Plan 03 (Server-Wide Provider Selection Integrity — PDF/share/WhatsApp-delivery/Inngest call sites) complete. Prior: Phase 188 Plan 02 (admin/action call sites) complete. Prior: Phase 188 Plan 01 (provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
+stopped_at: "Completed 188-05-PLAN.md (Phase 188 Plan 05/05: end-to-end proof that WhatsApp inbound media writes and reads the same storage backend — R2-configured leg with a poisoned Supabase .storage getter, the reversibility twin with S3_* removed, and a static pin of the 3 estimate-pipeline photo readers to lib/storage/server.ts; Part C sabotage confirmed the test can fail, reverted clean) — ran concurrently with 188-04 (census gate). Phase 188 nearly complete pending 188-04 sign-off. Next: Phase 189 (Browser Uploads Without Browser Credentials)."
+last_updated: "2026-08-06T23:02:10.945Z"
+last_activity: "2026-08-06 - Phase 188 Plan 05 (Server-Wide Provider Selection Integrity — WhatsApp inbound media single-backend proof, PROV-03) complete. Prior: Phase 188 Plan 03 (PDF/share/WhatsApp-delivery/Inngest call sites) complete. Prior: Phase 188 Plan 02 (admin/action call sites) complete. Prior: Phase 188 Plan 01 (provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
 progress:
   total_phases: 136
   completed_phases: 113
   total_plans: 369
-  completed_plans: 362
+  completed_plans: 363
   percent: 98
 ---
 
@@ -273,7 +273,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 188-03-PLAN.md
+Stopped at: Completed 188-05-PLAN.md
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -1078,6 +1078,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 188]: PROV-01 selection matrix: unset/unrecognized STORAGE_PROVIDER decides by S3_* completeness; explicit 'supabase' is a kill switch; explicit 's3' with incomplete S3_* throws naming the missing vars instead of silent fallback
 - [Phase 188]: All 10 user-scoped serverStorage() sites already had a real app-level guard (assertWritable/requireAdmin/authenticated-user-id scoping) — no STOP-CONDITION tenant-isolation gap found
 - [Phase 188]: storage-orphan-cleanup.ts's ageMsOf() was already fail-closed and S3-safe (updatedAt-first, null-on-missing => never delete); no s3-provider.ts change needed, only a covering test added
+- [Phase 188]: PROV-03 closed: WhatsApp inbound media proven to write and read the same storage backend via a poisoned-Supabase-.storage-getter test (anti-silent-pass), the reversibility twin, and a static pin of the 3 estimate-pipeline photo readers
 
 ## Performance Metrics
 
@@ -1432,6 +1433,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 188 P01 | 75 | 2 tasks | 12 files |
 | Phase 188 P02 | ~90min | 2 tasks | 16 files |
 | Phase 188 P03 | 70min | 2 tasks | 11 files |
+| Phase 188 P05 | 90min | 2 tasks | 1 files |
 
 ## Project Reference
 
