@@ -53,7 +53,7 @@ export async function signUp(formData: FormData) {
   if (companyName) userMetadata.company_name = companyName
   if (subdomain) userMetadata.subdomain = subdomain.toLowerCase()
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -68,6 +68,24 @@ export async function signUp(formData: FormData) {
       return { error: 'An account with this email already exists. Sign in instead.' }
     }
     return { error: 'Something went wrong. Please try again.' }
+  }
+
+  // GoTrue anti-user-enumeration: with email confirmation ENABLED, signing up with an
+  // email that already has a CONFIRMED account returns NO error — instead it returns a
+  // fabricated user with an EMPTY `identities` array and a null session, so an attacker
+  // cannot probe which emails are registered. The empty `identities` array is the ONLY
+  // signal available to this caller that the account already exists. A genuinely new
+  // user always comes back with exactly one identity. Do not "simplify" this away, and
+  // do not replace it with an email-existence probe — that would reintroduce the
+  // enumeration hole GoTrue is closing.
+  if (data?.user && (data.user.identities?.length ?? 0) === 0) {
+    logAuthEvent({
+      event: 'sign_up_attempt',
+      success: false,
+      email,
+      error: 'email_already_registered',
+    })
+    return { error: 'An account with this email already exists. Sign in instead.' }
   }
 
   logAuthEvent({ event: 'sign_up_attempt', success: true, email })
