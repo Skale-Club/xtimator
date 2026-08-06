@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: vi.fn(),
   requireServiceClient: vi.fn(),
 }))
-vi.mock('@/lib/storage', () => ({ createStorage: vi.fn() }))
+vi.mock('@/lib/storage/server', () => ({ serverStorage: vi.fn() }))
 vi.mock('@/lib/platform-config', () => ({ invalidatePlatformConfig: vi.fn() }))
 vi.mock('@/lib/admin/audit-log', () => ({ logAdminAction: vi.fn() }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))

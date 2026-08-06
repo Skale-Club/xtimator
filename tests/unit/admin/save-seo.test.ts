@@ -67,8 +67,8 @@ const getPublicUrlMock = vi.fn(
 )
 const deleteMock = vi.fn(async (_bucket: string, _path: string): Promise<void> => undefined)
 
-vi.mock('@/lib/storage', () => ({
-  createStorage: () => ({
+vi.mock('@/lib/storage/server', () => ({
+  serverStorage: () => ({
     upload: (
       b: string,
       p: string,

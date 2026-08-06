@@ -1,3 +1,12 @@
+// @vitest-environment node
+//
+// Phase 188 Plan 02 (PROV-01): saveBranding now resolves storage through
+// lib/storage/server.ts's serverStorage(client), whose assertServer() throws
+// unconditionally when `window` is defined — true under Vitest's default
+// jsdom environment regardless of any mock. This suite deliberately does NOT
+// mock @/lib/storage or @/lib/storage/server (it mocks the Supabase client's
+// storage.from directly, exercising the real Supabase-mode delegation), so it
+// needs the Node environment to let serverStorage() past its browser guard.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 /**

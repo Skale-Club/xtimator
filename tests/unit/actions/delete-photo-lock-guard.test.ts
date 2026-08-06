@@ -32,8 +32,8 @@ vi.mock('next/cache', () => ({
 }))
 
 const storageDeleteSpy = vi.fn().mockResolvedValue(undefined)
-vi.mock('@/lib/storage', () => ({
-  createStorage: vi.fn().mockReturnValue({
+vi.mock('@/lib/storage/server', () => ({
+  serverStorage: vi.fn().mockReturnValue({
     delete: (...args: unknown[]) => storageDeleteSpy(...args),
   }),
 }))

@@ -17,7 +17,7 @@ const authSpies = {
 const adminDeleteUser = vi.fn()
 const requireServiceClient = vi.fn()
 const assertWritable = vi.fn()
-const createStorage = vi.fn()
+const serverStorage = vi.fn()
 const convertImageToWebp = vi.fn()
 
 vi.mock('server-only', () => ({}))
@@ -43,8 +43,8 @@ vi.mock('@/lib/auth-logger', () => ({ logAuthEvent: vi.fn() }))
 vi.mock('@/lib/utils/site-url', () => ({
   getCanonicalBaseUrl: () => 'https://xtimator.com',
 }))
-vi.mock('@/lib/storage', () => ({
-  createStorage: (...args: unknown[]) => createStorage(...args),
+vi.mock('@/lib/storage/server', () => ({
+  serverStorage: (...args: unknown[]) => serverStorage(...args),
 }))
 vi.mock('@/lib/image/webp', () => ({
   convertImageToWebp: (...args: unknown[]) => convertImageToWebp(...args),
@@ -107,7 +107,7 @@ beforeEach(() => {
   requireServiceClient.mockReturnValue({
     auth: { admin: { deleteUser: adminDeleteUser } },
   })
-  createStorage.mockReturnValue({
+  serverStorage.mockReturnValue({
     upload: vi.fn(),
     getPublicUrl: vi.fn(),
   })
@@ -138,7 +138,7 @@ describe('SAFE-02: guard-before-effect source contract', () => {
     )
     expectGuardBefore(
       functionBody(settingsSource, 'updateProfile'),
-      /createStorage\s*\(|auth\.updateUser\s*\(/,
+      /serverStorage\s*\(|auth\.updateUser\s*\(/,
       'updateProfile',
     )
     expectGuardBefore(
@@ -187,7 +187,7 @@ describe('SAFE-02: classified Auth mutations stop before effects', () => {
 
     await expect(settingsActions.updateProfile(form)).resolves.toEqual(denied)
 
-    expect(createStorage).not.toHaveBeenCalled()
+    expect(serverStorage).not.toHaveBeenCalled()
     expect(convertImageToWebp).not.toHaveBeenCalled()
     expect(authSpies.updateUser).not.toHaveBeenCalled()
   })
