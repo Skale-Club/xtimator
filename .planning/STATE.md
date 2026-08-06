@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Milestone v4.24 ROADMAP CREATED 2026-08-06 — 6 phases (187-192), 20/20 requirements mapped (PROXY-01..05, PROV-01..03, UPLOAD-01..04, URL-01..04, MIG-01..04), 0 orphans, 0 duplicates. Next: /gsd:plan-phase 187."
-last_updated: "2026-08-06T00:00:00.000Z"
-last_activity: 2026-08-06
+stopped_at: "Completed 187-01-PLAN.md (Phase 187 Plan 01/03 complete) — PROXY-01/PROXY-02 shipped: proxy-policy.ts, s3-config.ts, asset-source.ts. Next: 187-02-PLAN.md."
+last_updated: "2026-08-06T15:38:22.172Z"
+last_activity: 2026-08-06 — Phase 187 Plan 01 (Proxy Policy, S3 Config, Dual-Source Asset Reader) complete
 progress:
   total_phases: 136
   completed_phases: 112
-  total_plans: 345
-  completed_plans: 356
+  total_plans: 349
+  completed_plans: 357
   percent: 0
 ---
 
@@ -88,16 +88,16 @@ progress:
 
 ## Current Position
 
-Phase: 187 (R2 Provisioning & Same-Origin Asset Proxy) — not started
-Plan: —
-Status: v4.24 ROADMAP CREATED — 6 phases (187-192), 20/20 requirements mapped, 0 orphans, 0 duplicates. Ready for `/gsd:plan-phase 187`.
-Last activity: 2026-08-06 — Milestone v4.24 roadmap created (ROADMAP.md + REQUIREMENTS.md traceability)
+Phase: 187 (R2 Provisioning & Same-Origin Asset Proxy) — in progress
+Plan: 01/03 complete
+Status: Phase 187 Plan 01 (Proxy Policy, S3 Config, Dual-Source Asset Reader) COMPLETE 2026-08-06 — PROXY-01/PROXY-02 shipped: `lib/storage/proxy-policy.ts` (bucket allowlist + traversal-safe key normalization + 3-way per-bucket cache policy), `lib/storage/s3-config.ts` (single-source-of-truth S3_* env mapping), `lib/storage/asset-source.ts` (server-only R2-first/Supabase-read-through dual-source reader, content type from stored object metadata, `[asset-proxy] fallback` structured logging). 58 new unit tests, full `tests/unit/storage` suite (116 tests) green, `lib/storage/s3-provider.ts`/`index.ts` verified byte-identical. Next: `187-02-PLAN.md`.
+Last activity: 2026-08-06 — Phase 187 Plan 01 complete (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-01-SUMMARY.md`)
 
 - Phase 186 (Webview Design Polish) COMPLETE 2026-07-28 — 2/2 plans shipped, POLISH-01 closed: Plan 01 (desktop-only zebra contrast bump, mobile-EDIT-list zebra removal, brand-tied grand-total emphasis, unified tracking-wide/tracking-widest letter-spacing), Plan 02 (shared `cardTintFill()` token in `lib/estimate/document/tokens.ts` tints terms/signature cards identically in both webview templates and propagates — via 2 real call sites only, `PdfTermsCard`/`PdfSignatureBlock` — to the Classic PDF; Modern PDF/webview stay fill-free by design; photo-grid frame + customer-facing mobile stacked-list card treatment closes out mobile zebra entirely; 2 stale `?stripe=` visual baselines retired with a documented reason). Milestone v4.23's full 18/18 requirement set is now closed.
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
 - Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
-Progress: [░░░░░░░░░░] 0% (v4.24: 0/6 phases)
+Progress: [░░░░░░░░░░] 0% (v4.24: 1/17 plans across 187-192, phase 187 1/3 plans)
 
 **Phase 183 Plan 06 (2026-07-28):** Extracted `PdfTotalsBlock` (Classic boxed row-list vs
 Modern standalone hero, both preserved verbatim) + `PdfPhotoGrid` (captions) + net-new

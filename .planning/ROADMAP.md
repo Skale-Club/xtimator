@@ -3191,7 +3191,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 187-01-PLAN.md — Proxy policy (bucket allowlist, traversal rejection, per-bucket cache split) + dual-source asset reader (R2 first, Supabase read-through, content type from stored metadata)
+- [x] 187-01-PLAN.md — Proxy policy (bucket allowlist, traversal rejection, per-bucket cache split) + dual-source asset reader (R2 first, Supabase read-through, content type from stored metadata)
 - [ ] 187-02-PLAN.md — `scripts/r2-verify.ts` + `npm run verify:r2`: assert the five provisioned buckets, the token's scope, read/write round-trip, and public-access-disabled (MIG-03 demonstrable)
 - [ ] 187-03-PLAN.md — `GET /storage/{bucket}/{key}` route + tenant ownership gate + proxy contract docs
 
@@ -3269,7 +3269,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 187. R2 Provisioning & Same-Origin Asset Proxy | 0/TBD | Not started | - |
+| 187. R2 Provisioning & Same-Origin Asset Proxy | 1/3 | In Progress|  |
 | 188. Server-Wide Provider Selection Integrity | 0/TBD | Not started | - |
 | 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
 | 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |
