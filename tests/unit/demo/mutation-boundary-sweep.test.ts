@@ -576,6 +576,13 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'DELETE',
     'POST',
   ]),
+  // Phase 189 (v4.24): browser upload tickets. A WRITE boundary — it issues the
+  // authority to PUT an object into a tenant's storage prefix, so it is guarded,
+  // not read-only, even though it mutates no DB row itself. companyId comes from
+  // getActiveCompanyId() and never from the request body; the key is derived
+  // (or re-validated) against that company, so a demo or cross-tenant caller
+  // cannot obtain a ticket for someone else's prefix.
+  ...guarded('app/api/storage/upload-ticket/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/stripe/connect/callback/route.ts', 'demoGuardResponse', ['GET']),
   ...guarded('app/api/stripe/connect/disconnect/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/stripe/connect/initiate/route.ts', 'demoGuardResponse', ['GET']),
