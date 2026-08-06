@@ -3167,7 +3167,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 
 ### Phases (summary checklist)
 
-- [ ] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction
+- [x] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction (completed 2026-08-06)
 - [ ] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend
 - [ ] **Phase 189: Browser Uploads Without Browser Credentials** — the five browser upload call sites move to server-issued presigned PUTs, preserving retry and offline/queue behavior, with no storage credential in client code
 - [ ] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed
@@ -3193,7 +3193,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 Plans:
 - [x] 187-01-PLAN.md — Proxy policy (bucket allowlist, traversal rejection, per-bucket cache split) + dual-source asset reader (R2 first, Supabase read-through, content type from stored metadata)
 - [x] 187-02-PLAN.md — `scripts/r2-verify.ts` + `npm run verify:r2`: assert the five provisioned buckets, the token's scope, read/write round-trip, and public-access-disabled (MIG-03 demonstrable)
-- [ ] 187-03-PLAN.md — `GET /storage/{bucket}/{key}` route + tenant ownership gate + proxy contract docs
+- [x] 187-03-PLAN.md — `GET /storage/{bucket}/{key}` route + tenant ownership gate + proxy contract docs
 
 ### Phase 188: Server-Wide Provider Selection Integrity
 **Goal**: `STORAGE_PROVIDER` switches every server-side storage read and write at once, so writers and readers can never end up on different backends — closing the split-brain failure the field assessment found waiting behind the flag.
@@ -3269,7 +3269,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 187. R2 Provisioning & Same-Origin Asset Proxy | 2/3 | In Progress|  |
+| 187. R2 Provisioning & Same-Origin Asset Proxy | 3/3 | Complete   | 2026-08-06 |
 | 188. Server-Wide Provider Selection Integrity | 0/TBD | Not started | - |
 | 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
 | 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |

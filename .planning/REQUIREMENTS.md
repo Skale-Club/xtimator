@@ -21,10 +21,10 @@
 
 ### Same-Origin Asset Proxy (PROXY)
 
-- [ ] **PROXY-01**: A same-origin route on `xtimator.com` serves any storage object by bucket + key, streaming it from R2 with the object's original content type preserved. <sub>(Reader layer `lib/storage/asset-source.ts` landed in 187-01; closes when the route itself lands in 187-03 — the requirement is about the route, so it stays open until then.)</sub>
-- [ ] **PROXY-02**: When an object is absent from R2, the route transparently falls back to Supabase Storage and still returns the bytes — so no asset can 404 at any point during or after the cutover, in either migration direction. <sub>(Dual-source fallback implemented and unit-tested in 187-01; closes with the route in 187-03.)</sub>
-- [ ] **PROXY-03**: The route rejects path traversal and any key outside the five known buckets, and never exposes storage credentials or signed backend URLs to the client.
-- [ ] **PROXY-04**: Publicly-readable assets (logos, platform branding) are served edge-cacheable so Cloudflare caches them, with a cache directive matched to how each bucket keys its objects — immutable only where keys are content-addressed or timestamped, revalidating where a key is overwritten in place; assets belonging to a tenant's private data are not edge-cached at all.
+- [x] **PROXY-01**: A same-origin route on `xtimator.com` serves any storage object by bucket + key, streaming it from R2 with the object's original content type preserved. <sub>(Reader layer `lib/storage/asset-source.ts` landed in 187-01; closes when the route itself lands in 187-03 — the requirement is about the route, so it stays open until then.)</sub>
+- [x] **PROXY-02**: When an object is absent from R2, the route transparently falls back to Supabase Storage and still returns the bytes — so no asset can 404 at any point during or after the cutover, in either migration direction. <sub>(Dual-source fallback implemented and unit-tested in 187-01; closes with the route in 187-03.)</sub>
+- [x] **PROXY-03**: The route rejects path traversal and any key outside the five known buckets, and never exposes storage credentials or signed backend URLs to the client.
+- [x] **PROXY-04**: Publicly-readable assets (logos, platform branding) are served edge-cacheable so Cloudflare caches them, with a cache directive matched to how each bucket keys its objects — immutable only where keys are content-addressed or timestamped, revalidating where a key is overwritten in place; assets belonging to a tenant's private data are not edge-cached at all.
 - [ ] **PROXY-05**: A landing-page load fetches its images from `xtimator.com` rather than `*.supabase.co`, and repeat edge requests for those images report a Cloudflare cache HIT.
 
 ### Provider Selection Integrity (PROV)

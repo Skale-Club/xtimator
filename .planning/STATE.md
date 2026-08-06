@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 187-02-PLAN.md (Phase 187 Plan 02/03 complete) — MIG-03 verification shipped: scripts/r2-verify.ts, npm run verify:r2, docs/STORAGE-MIGRATION.md MIG-03 record. Next: 187-03-PLAN.md."
-last_updated: "2026-08-06T15:55:00.000Z"
-last_activity: 2026-08-06 — Phase 187 Plan 02 (R2 Verification Script + MIG-03 Provisioning Record) complete
+stopped_at: "Completed 187-03-PLAN.md (Phase 187 Plan 03/03 complete — Phase 187 COMPLETE) — same-origin asset proxy shipped: lib/storage/proxy-auth.ts (tenant ownership gate), app/storage/[bucket]/[...key]/route.ts (the proxy route, PROXY-01..04 closed), docs updated. Next: 188-PLAN.md (Server-Wide Provider Selection Integrity)."
+last_updated: "2026-08-06T16:40:00.000Z"
+last_activity: 2026-08-06 — Phase 187 Plan 03 (Same-Origin Asset Proxy Route) complete — Phase 187 fully shipped
 progress:
   total_phases: 136
-  completed_phases: 112
+  completed_phases: 113
   total_plans: 349
-  completed_plans: 358
+  completed_plans: 359
   percent: 12
 ---
 
@@ -88,16 +88,16 @@ progress:
 
 ## Current Position
 
-Phase: 187 (R2 Provisioning & Same-Origin Asset Proxy) — in progress
-Plan: 02/03 complete
-Status: Phase 187 Plan 02 (R2 Verification Script + MIG-03 Provisioning Record) COMPLETE 2026-08-06 — MIG-03 shipped: `scripts/r2-verify.ts` (bucket reachability, credential-scope inversion check, five-bucket read/write round-trip, Cloudflare-API public-access-disabled assertion with honest SKIPPED when Cloudflare vars are absent), `npm run verify:r2` entry point, `docs/STORAGE-MIGRATION.md` MIG-03 provisioning record + placeholder-only re-verification runbook. 20 new unit tests via `aws-sdk-client-mock`, zero real credentials; full `tests/unit/storage` suite (136 tests) green; `lib/storage/s3-provider.ts`/`index.ts` verified byte-identical. Real-credential run deferred to the operator (credentials deliberately outside this repo/environment). Next: `187-03-PLAN.md`.
-Last activity: 2026-08-06 — Phase 187 Plan 02 complete (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-02-SUMMARY.md`)
+Phase: 187 (R2 Provisioning & Same-Origin Asset Proxy) — COMPLETE
+Plan: 03/03 complete
+Status: Phase 187 Plan 03 (Same-Origin Asset Proxy Route) COMPLETE 2026-08-06 — PROXY-01..04 all closed. `lib/storage/proxy-auth.ts` (`canReadPrivateKey`: UUID-prefix + `company_members` membership check under RLS, fail-closed, zero DB calls when unauthenticated), `app/storage/[bucket]/[...key]/route.ts` (the route: ordered allowlist→key-normalize→ownership→read gates, per-bucket Cache-Control, `Content-Disposition: inline`, real content type never inferred from the key). 21 new unit tests green (8 gate + 13 route contract); full `tests/unit/storage`+`tests/unit/api` suite 255 passed/2 pre-existing todo; `tsc -p tsconfig.ci.json` clean; `next build` succeeded with no route-conflict. **Real HTTP verified** (B3, mandatory per plan revision): curled a running `next dev` server (R2 unconfigured) against real Supabase-hosted keys — `platform-brand` confirmed `public, max-age=31536000, immutable`, `logos` confirmed `public, max-age=300, stale-while-revalidate=86400`, unauthenticated `photos` confirmed `private, no-store` on a 404 — all three byte-for-byte through Next's real pipeline, not just the direct-call unit tests. Docs updated (`docs/STORAGE-MIGRATION.md` new proxy-contract section, `docs/CLOUDFLARE-CDN.md` amended). One item recorded operator-pending in the SUMMARY: the authenticated `photos` 200 real-browser-session header observation (no `TEST_USER_EMAIL`/`TEST_USER_PASSWORD` fixture available to the executor) — does not block Phase 187 completion. Phase 187's full requirement set (PROXY-01..04, MIG-03) is now closed. Next: Phase 188 (Server-Wide Provider Selection Integrity, PROV-01..03) — `/gsd:plan-phase 188`.
+Last activity: 2026-08-06 — Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)
 
 - Phase 186 (Webview Design Polish) COMPLETE 2026-07-28 — 2/2 plans shipped, POLISH-01 closed: Plan 01 (desktop-only zebra contrast bump, mobile-EDIT-list zebra removal, brand-tied grand-total emphasis, unified tracking-wide/tracking-widest letter-spacing), Plan 02 (shared `cardTintFill()` token in `lib/estimate/document/tokens.ts` tints terms/signature cards identically in both webview templates and propagates — via 2 real call sites only, `PdfTermsCard`/`PdfSignatureBlock` — to the Classic PDF; Modern PDF/webview stay fill-free by design; photo-grid frame + customer-facing mobile stacked-list card treatment closes out mobile zebra entirely; 2 stale `?stripe=` visual baselines retired with a documented reason). Milestone v4.23's full 18/18 requirement set is now closed.
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
 - Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
-Progress: [█░░░░░░░░░] 12% (v4.24: 2/17 plans across 187-192, phase 187 2/3 plans)
+Progress: [██░░░░░░░░] 18% (v4.24: 3/17 plans across 187-192, phase 187 COMPLETE 3/3 plans)
 
 **Phase 183 Plan 06 (2026-07-28):** Extracted `PdfTotalsBlock` (Classic boxed row-list vs
 Modern standalone hero, both preserved verbatim) + `PdfPhotoGrid` (captions) + net-new
@@ -440,6 +440,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 
 ## Decisions
 
+- [Phase 187 187-03]: canReadPrivateKey duplicates the UUID regex from lib/storage/keys.ts locally instead of importing it — keys.ts stayed out of scope per the plan's hard constraint, so the private-bucket gate keeps its own textually-identical copy rather than giving keys.ts a new export surface for one check
+- [Phase 187 187-03]: Every private-bucket refusal (unauthenticated, cross-tenant, unknown bucket) returns 404 rather than 403 — a response must never let a caller distinguish "object exists but you can't read it" from "nothing is here," matching the existing not_found-folding pattern in app/api/jobs/[jobId]/route.ts
+- [Phase 187 187-03]: Real-HTTP curl verification against a running dev server was treated as mandatory evidence for Cache-Control values, not merely the direct GET() unit-test call — confirmed all three cache directives (immutable/revalidating/private-no-store) survive Next's response pipeline unmodified; the authenticated photos-200 real-browser-session case was recorded operator-pending (no TEST_USER_EMAIL/PASSWORD fixture available) rather than silently skipped
 - [Phase 187 187-02]: `main()`'s missing-config message names the S3_* class generically rather than enumerating each var literal — the done-criteria grep gate forbids the literal string "S3_ACCESS_KEY_ID" anywhere in scripts/r2-verify.ts, so the message points to lib/storage/s3-config.ts instead of repeating the names, keeping the single-source-of-truth mapping guarantee real
 - [Phase 187 187-02]: verifyPublicAccessDisabled treats every non-`{enabled:false}` outcome (non-200, unparseable body, missing/non-false field) as FAIL, never a silent pass — only simultaneous absence of both CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN produces SKIPPED
 - [Phase 159 159-02]: Task 1 (Accounts/Templates sub-components glass audit) required zero code changes — direct read + grep confirmed both files already use Card variant="glass" on every top-level container (4 occurrences in admin-whatsapp-accounts.tsx, 2 in whatsapp-templates-panel.tsx), exceeding the plan's documented baseline, with zero variant="default" leftovers
@@ -1422,6 +1425,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 185 P03 | 51min | 4 tasks | 20 files |
 | Phase 185 P04 | 35 min | 2 tasks | 12 files |
 | Phase 186-webview-design-polish P02 | 15 min | 3 tasks | 10 files |
+| Phase 187 P03 | 45min | 3 tasks | 7 files |
 
 ## Project Reference
 
