@@ -37,6 +37,7 @@ const KEY_FIXTURES: Array<[label: string, bucket: PersistableProxyBucket, key: s
   ['key with a +', 'platform-brand', 'hero-images/1784854705622-a+b.png'],
   ['key with a %', 'platform-brand', 'og-images/100%25done.png'],
   ['key with a non-ASCII char', 'photos', `${UUID}/price-book/café.webp`],
+  ['key with URL-significant chars', 'photos', `${UUID}/price-book/a#b?c&d.webp`],
   ['single-segment key', 'logos', 'logo.webp'],
 ]
 
@@ -115,6 +116,20 @@ describe('round-trip property: emitted path -> Next.js decode -> normalizeProxyK
     // Exactly what Next.js + app/storage/[bucket]/[...key]/route.ts do.
     expect(normalizeProxyKey(parsed!.segments.map(decodeURIComponent))).toBe(key)
   })
+
+  it.each(KEY_FIXTURES)(
+    '%s survives real URL parsing (whole key stays in the pathname)',
+    (_label, bucket, key) => {
+      // Our own parser is string-based, so it would happily round-trip a literal
+      // "#" or "?" that a BROWSER truncates into a fragment/query. This asserts
+      // against the platform URL parser instead.
+      const path = storageProxyPath(bucket, key)
+      const url = new URL(path, 'https://xtimator.com')
+      expect(url.pathname).toBe(path)
+      expect(url.search).toBe('')
+      expect(url.hash).toBe('')
+    },
+  )
 })
 
 describe('isStorageProxyPath', () => {
