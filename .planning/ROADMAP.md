@@ -3279,7 +3279,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 187. R2 Provisioning & Same-Origin Asset Proxy | 3/3 | Complete   | 2026-08-06 |
 | 188. Server-Wide Provider Selection Integrity | 5/5 | Complete   | 2026-08-06 |
-| 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
+| 189. Browser Uploads Without Browser Credentials | 2/4 | In Progress|  |
 | 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |
 | 191. Object Migration & Verification | 0/TBD | Not started | - |
 | 192. URL Rewrite Cutover & CDN Verification | 0/TBD | Not started | - |

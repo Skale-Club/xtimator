@@ -36,7 +36,7 @@
 ### Browser Uploads Without Browser Credentials (UPLOAD)
 
 - [ ] **UPLOAD-01**: A user can record audio and upload photos from the browser with the file landing in the configured backend, without any storage credential reaching client code.
-- [ ] **UPLOAD-02**: The upload endpoint authorizes the caller and confines the resulting key to that tenant's namespace, so one tenant cannot write into another's prefix.
+- [x] **UPLOAD-02**: The upload endpoint authorizes the caller and confines the resulting key to that tenant's namespace, so one tenant cannot write into another's prefix.
 - [ ] **UPLOAD-03**: The uploaded object retains its correct content type, so images render inline rather than downloading — verified end-to-end through the proxy, including keys with no file extension.
 - [ ] **UPLOAD-04**: Existing upload behavior the field depends on is preserved: retry on transient failure, and the capture flow's offline/queue handling still works.
 
