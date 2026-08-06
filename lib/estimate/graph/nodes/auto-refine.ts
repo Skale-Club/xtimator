@@ -23,6 +23,7 @@
  */
 import { requireServiceClient } from '@/lib/supabase/service'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
+import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import type { EstimateStateType } from '../state'
 
 const REFINE_HINT =
@@ -33,6 +34,18 @@ const REFINE_HINT =
 export const autoRefineNode = async (
   state: EstimateStateType
 ): Promise<Partial<EstimateStateType>> => {
+  // Sub-phase narration (lib/estimate/generation-phases.ts): this is the ONE
+  // place that knows a second pass is starting, and without it the overlay
+  // silently replays "drafting" with no explanation for the extra minutes.
+  // `round` is 1-based: the first auto-refine is round 1.
+  reportGeneratePhase({
+    attemptId: state.attemptId,
+    phase: 'refining',
+    companyId: state.companyId,
+    projectId: state.projectId,
+    detail: { round: (state.refineAttempts ?? 0) + 1 },
+  })
+
   const supabase = requireServiceClient()
   // Best-effort revert — swallow errors (consistent with WhatsApp adapter pattern).
   //

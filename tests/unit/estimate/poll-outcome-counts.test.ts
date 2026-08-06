@@ -191,7 +191,10 @@ describe('getAttemptOutcome — analyze coverage counts (PHOTO-02 UI half)', () 
       lastStep: 'transcribe',
       lastStatus: 'started',
       completedSteps: ['save_recording'],
-      activeStepStartedAt: undefined,
+      // 260806: a `started` row with no created_at in the fixture now yields
+      // null rather than the row's raw undefined. The lookup coalesces to
+      // match the declared `string | null` return type.
+      activeStepStartedAt: null,
     })
     expect(result).not.toHaveProperty('analyzedCount')
     expect(result).not.toHaveProperty('totalCount')

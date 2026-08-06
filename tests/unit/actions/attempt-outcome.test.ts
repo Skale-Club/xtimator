@@ -62,6 +62,10 @@ interface JournalRowFixture {
   // projects.needs_details by project_id). Optional — omitted fixtures
   // exercise the "no projectId available" early-return path.
   project_id?: string | null
+  // 260806: the generate-phase reconstruction reads both; created_at anchors
+  // the per-phase clock, metadata.phase names the phase.
+  created_at?: string
+  metadata?: Record<string, unknown> | null
 }
 
 function makeAuthedSupabase() {
@@ -359,9 +363,11 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
       lastStatus: 'started',
       // 260707-o7a: pending now carries progress-bar payload — save_recording
       // succeeded → completed; transcribe started with no created_at in the
-      // mock rows → activeStepStartedAt undefined.
+      // mock rows → activeStepStartedAt null (260806: the lookup now coalesces
+      // a missing timestamp to null, matching the declared `string | null`
+      // return type; it used to leak the row's raw undefined).
       completedSteps: ['save_recording'],
-      activeStepStartedAt: undefined,
+      activeStepStartedAt: null,
     })
   })
 
@@ -411,6 +417,136 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
       completedSteps: [],
       activeStepStartedAt: null,
     })
+  })
+})
+
+/**
+ * 260806: generate_estimate sub-phase reconstruction.
+ *
+ * The generate step owns ~90% of a capture's wall clock and used to surface as
+ * one static label. Phase rows (generate_estimate/started carrying
+ * metadata.phase) let the overlay narrate the real work; these tests pin the
+ * three properties the narration depends on being honest.
+ */
+describe('getAttemptOutcome: generate sub-phase narration (260806)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreateClient.mockResolvedValue(makeAuthedSupabase() as never)
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
+  })
+
+  const base = {
+    error_code: null,
+    error_message: null,
+    estimate_id: null,
+    company_id: 'company-1',
+  }
+
+  function phaseRow(phase: string, at: string, extra: Record<string, unknown> = {}) {
+    return {
+      ...base,
+      step: 'generate_estimate',
+      status: 'started',
+      created_at: at,
+      metadata: { phase, ...extra },
+    }
+  }
+
+  it('reports the LATEST phase as the live phase and carries its detail counts', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'transcribe', status: 'succeeded', created_at: '2026-08-06T21:48:25Z' },
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+          phaseRow('context', '2026-08-06T21:48:27Z'),
+          phaseRow('drafting', '2026-08-06T21:48:29Z', { inputCount: 3 }),
+          phaseRow('pricing', '2026-08-06T21:49:10Z', { candidates: 38, researched: 12 }),
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-phases')
+
+    expect(result).toMatchObject({
+      state: 'pending',
+      generatePhase: {
+        phase: 'pricing',
+        furthestPhase: 'pricing',
+        startedAt: '2026-08-06T21:49:10Z',
+        detail: { candidates: 38, researched: 12 },
+      },
+    })
+  })
+
+  it('never rewinds furthestPhase when the auto-refine loop re-enters drafting', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+          phaseRow('drafting', '2026-08-06T21:48:29Z'),
+          phaseRow('reviewing', '2026-08-06T21:49:40Z'),
+          phaseRow('refining', '2026-08-06T21:49:45Z', { round: 1 }),
+          // Second pass: the same early phases run again.
+          phaseRow('drafting', '2026-08-06T21:49:47Z'),
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-refine')
+
+    // Label follows the live phase; the bar follows the furthest phase, so a
+    // legitimate second pass can never make the progress bar walk backwards.
+    expect(result).toMatchObject({
+      generatePhase: { phase: 'drafting', furthestPhase: 'refining' },
+    })
+  })
+
+  it('anchors activeStepStartedAt to the FIRST started row of the step, not the latest', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+          // Inngest replays + phase rows both append more `started` rows; the
+          // step's elapsed clock must keep measuring from the first one.
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:50:00Z' },
+          phaseRow('pricing', '2026-08-06T21:51:00Z'),
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-elapsed')
+
+    expect(result).toMatchObject({ activeStepStartedAt: '2026-08-06T21:48:26Z' })
+  })
+
+  it('omits generatePhase entirely for an attempt with no phase rows (older server build)', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-legacy')
+
+    expect(result).not.toHaveProperty('generatePhase')
+  })
+
+  it('ignores an unrecognized metadata.phase rather than narrating garbage', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+          phaseRow('drafting', '2026-08-06T21:48:29Z'),
+          phaseRow('teleporting', '2026-08-06T21:48:35Z'),
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-garbage')
+
+    expect(result).toMatchObject({ generatePhase: { phase: 'drafting', furthestPhase: 'drafting' } })
   })
 })
 

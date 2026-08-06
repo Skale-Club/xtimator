@@ -35,6 +35,7 @@ import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
+import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 
 export type ClientSuggestion = {
   detectedName: string
@@ -124,6 +125,25 @@ export async function generateEstimateForProject(
   options: GenerateEstimateOptions = {}
 ): Promise<GenerateEstimateResult> {
   const supabase = requireServiceClient()
+
+  // Sub-phase narration (lib/estimate/generation-phases.ts). The attempt
+  // lineage is already threaded in here for cost attribution (COST-01), so the
+  // phases need no new plumbing: they ride the SAME costContext. Absent
+  // costContext (a direct service call outside the Inngest job) makes every
+  // report a no-op, so nothing below is conditional on it.
+  const phase = (
+    name: Parameters<typeof reportGeneratePhase>[0]['phase'],
+    detail?: Parameters<typeof reportGeneratePhase>[0]['detail']
+  ) =>
+    reportGeneratePhase({
+      attemptId: options.costContext?.attemptId,
+      phase: name,
+      companyId,
+      projectId,
+      detail,
+    })
+
+  phase('context')
 
   // Gather context data in parallel
   const [projectResult, recordings, photos, companyResult] = await Promise.all([
@@ -252,6 +272,13 @@ export async function generateEstimateForProject(
     if (extra) estimateInput.extraInstructions = extra
   }
 
+  // The estimator LLM call, the single longest stretch of the whole capture
+  // (the bulk of the 4m40s `generate_estimate` step measured on 2026-08-06).
+  // inputCount is what the model actually has to work from.
+  phase('drafting', {
+    inputCount: transcripts.length + photoDescriptions.length + prompts.length,
+  })
+
   const provider = await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
@@ -366,6 +393,21 @@ export async function generateEstimateForProject(
   let researchTelemetry:
     | { candidates: number; cacheHits: number; providerUsable: number; missed: number }
     | undefined
+  // Phase narration: the candidate set is exactly what the orchestrator will
+  // work on (post-anchor items still tagged 'ai_estimate'), computed the same
+  // way it computes it, so "researching N items" is the real N, not a guess.
+  const researchCandidates = guardedSections.reduce(
+    (n, section) =>
+      n + section.items.filter((item) => item.price_source === 'ai_estimate').length,
+    0
+  )
+  const guardedItemCount = guardedSections.reduce((n, s) => n + s.items.length, 0)
+  phase('pricing', {
+    candidates: researchCandidates,
+    itemCount: guardedItemCount,
+    sectionCount: guardedSections.length,
+  })
+
   try {
     const research = await researchUnmatchedPrices(guardedSections, {
       companyId, // param — NEVER LLM-derived
@@ -377,6 +419,18 @@ export async function generateEstimateForProject(
     researchedSections = research.sections
     flaggedUnpriced = research.flaggedUnpriced
     researchTelemetry = research.telemetry
+    // Exit report: what the research pass actually resolved. The orchestrator
+    // issues ONE batched provider lookup for the whole miss set, so there is no
+    // honest per-item progression to stream mid-flight. This is the real
+    // resolved count, reported the moment it exists.
+    if (researchTelemetry) {
+      phase('pricing', {
+        candidates: researchTelemetry.candidates,
+        researched: researchTelemetry.cacheHits + researchTelemetry.providerUsable,
+        itemCount: guardedItemCount,
+        sectionCount: guardedSections.length,
+      })
+    }
   } catch (err) {
     // Non-fatal: keep the anchored sections; generation must still complete.
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
@@ -486,6 +540,14 @@ export async function generateEstimateForProject(
   } catch (err) {
     console.warn('[generate-estimate] quality signal build failed', err)
   }
+
+  // Phase narration: everything from here on is DB writes (blank replacement,
+  // version bump, estimate + sections + items). The last stretch before the
+  // journal's `succeeded` event lands.
+  phase('saving', {
+    itemCount: dedupedSections.reduce((n, s) => n + s.items.length, 0),
+    sectionCount: dedupedSections.length,
+  })
 
   // REPLACE-BLANK: an untouched blank estimate must not leave an empty version
   // behind. When the project's current estimate is a pristine blank — draft,

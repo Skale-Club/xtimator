@@ -120,18 +120,36 @@ export const generateEstimateJob = inngest.createFunction(
     // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
     const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'manual_text'
-    const t0 = Date.now()
 
-    // Phase 92 (EVENT-02/D-03): started generate_estimate event at handler entry.
-    const ownerUserId = await loadOwnerUserId(companyId)
-    void recordPipelineEvent({
-      attemptId,
-      inputType,
-      step: 'generate_estimate',
-      status: 'started',
-      companyId,
-      projectId,
-      userId: ownerUserId,
+    // 260806: t0 MUST be memoized through step.run.
+    //
+    // Inngest re-executes this handler from the top at every step boundary, so
+    // a bare `Date.now()` here was re-stamped on each replay and `durationMs`
+    // below measured only the LAST replay leg. Production evidence (60-day
+    // window): recorded median duration_ms for generate_estimate was 0.276s
+    // while the real wall clock median was 29.9s (max 280s recorded as 2.0s).
+    // That bogus median then flowed into getStepMedians → the capture progress
+    // bar, which saturated its final segment at ACTIVE_FILL_CAP in ~300ms and
+    // then sat frozen for minutes. A memoized step.run returns the SAME value
+    // on every replay, so the recorded duration is the true wall clock.
+    const { t0, ownerUserId } = await step.run('generation-start', async () => {
+      // Phase 92 (EVENT-02/D-03): the `started` event rides inside the same
+      // memoized step so replays no longer append a duplicate `started` row per
+      // boundary (production averaged 2.84 of them per run). Awaited rather
+      // than voided because a fire-and-forget write inside step.run could be
+      // cut off when the step returns; recordPipelineEvent never throws, so it
+      // cannot fail the step.
+      const ownerId = await loadOwnerUserId(companyId)
+      await recordPipelineEvent({
+        attemptId,
+        inputType,
+        step: 'generate_estimate',
+        status: 'started',
+        companyId,
+        projectId,
+        userId: ownerId,
+      })
+      return { t0: Date.now(), ownerUserId: ownerId }
     })
 
     // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
@@ -165,9 +183,11 @@ export const generateEstimateJob = inngest.createFunction(
           // for OpenRouter cost attribution. Same id used as the Langfuse
           // correlationId below — joins the cost row to the trace + pipeline_events.
           attemptId,
-          // HARD-07: thread the handler-entry timestamp (t0, captured outside
-          // step.run) so any finalize TTL is replay-safe. The web/MCP adapter
-          // finalize is a passthrough today, but the field stays consistent.
+          // HARD-07: thread the generation-start timestamp so any finalize TTL
+          // is replay-safe. t0 now comes from a MEMOIZED step.run (260806), so
+          // the value is genuinely stable across replays. Previously it was
+          // re-stamped at every step boundary. The web/MCP adapter finalize is
+          // a passthrough today, but the field stays consistent.
           requestedAt: t0,
           prompts: prompts && prompts.length > 0 ? prompts : undefined,
           estimateLanguage: language ?? undefined,

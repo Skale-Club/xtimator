@@ -36,6 +36,7 @@
  */
 import { createClient } from '@/lib/supabase/client'
 import { getAttemptOutcome } from '@/lib/actions/attempt-outcome'
+import type { GeneratePhaseProgress } from '@/lib/estimate/generation-phases'
 
 export type EstimateOutcome =
   | { state: 'completed'; estimateId: string }
@@ -67,6 +68,13 @@ export interface StageProgress {
   analyzedCount?: number
   totalCount?: number
   failedCount?: number
+  /**
+   * 260806: journal-reported sub-phase of the `generate_estimate` step, so the
+   * overlay can narrate what generation is actually doing instead of showing
+   * one static label for what is usually minutes of work. Absent until the
+   * first phase row lands (and for attempts that predate phase reporting).
+   */
+  generatePhase?: GeneratePhaseProgress
 }
 
 /**
@@ -195,6 +203,7 @@ export async function pollEstimateOutcome(opts: {
             analyzedCount: attemptOutcome.analyzedCount,
             totalCount: attemptOutcome.totalCount,
             failedCount: attemptOutcome.failedCount,
+            generatePhase: attemptOutcome.generatePhase,
           })
         }
         // 'unauthorized' — a scoping edge (e.g. a stale claims read); never
