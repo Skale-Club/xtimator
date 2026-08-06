@@ -16,6 +16,7 @@ import {
   GENERATE_PHASE_LABELS,
   GENERATE_PHASE_QUIPS,
   STEP_QUIPS,
+  formatElapsed,
   phaseDetailLine,
   pickQuip,
 } from './processing-narration'
@@ -168,7 +169,7 @@ export function CaptureProcessingOverlay({
       // "Pricing the line items" instead of a fourth minute of "Generating
       // estimate". Without one, nothing changes from the previous behavior.
       label = livePhase ? t(GENERATE_PHASE_LABELS[livePhase.phase]) : activeStepLabel
-      elapsedSuffix = `${Math.floor(elapsedMs / 1000)}s`
+      elapsedSuffix = formatElapsed(elapsedMs)
     }
 
     if (!isDone && effectiveActive) {
@@ -254,39 +255,65 @@ export function CaptureProcessingOverlay({
         <TowerLoader size={1.8} label={t('Loading')} />
       </div>
       {progressBar}
-      <p
-        className="text-sm text-muted-foreground"
-        data-testid="capture-processing-label"
-      >
-        {label}
-        {elapsedSuffix && (
-          <span className="tabular-nums text-muted-foreground/70"> · {elapsedSuffix}</span>
+      {/* The words are their own tight stack. The overlay's gap-4 is right
+          between the loader, the bar and the text as a group, but applying it
+          BETWEEN the lines left them floating 16px apart, reading as separate
+          statements instead of one status. */}
+      <div className="flex flex-col items-center gap-1.5">
+        {/* Label and clock share a row but stay separate elements: the phase
+            name is prose and the elapsed time is a readout, and cramming a raw
+            "148s" into the sentence made both harder to read. The chip reuses
+            the app's own font with tabular figures (not a monospace face, which
+            appears nowhere else in this UI) so the digits hold their column and
+            stop nudging the label sideways on every tick. */}
+        <div className="flex items-center justify-center gap-2">
+          <p
+            className="text-sm text-muted-foreground"
+            data-testid="capture-processing-label"
+          >
+            {label}
+          </p>
+          {elapsedSuffix && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs leading-none tabular-nums transition-colors duration-500 ${
+                // Overdue brightens the chip rather than recolouring it: the
+                // run is slow, not broken, and an alarm colour would say
+                // otherwise.
+                overdue
+                  ? 'bg-muted text-foreground/75'
+                  : 'bg-muted/60 text-muted-foreground/70'
+              }`}
+              data-testid="capture-processing-elapsed"
+            >
+              {elapsedSuffix}
+            </span>
+          )}
+        </div>
+        {subtitle && (
+          <p
+            className="text-xs text-muted-foreground/70"
+            data-testid="capture-processing-coverage"
+          >
+            {subtitle}
+          </p>
         )}
-      </p>
-      {subtitle && (
-        <p
-          className="text-xs text-muted-foreground/70"
-          data-testid="capture-processing-coverage"
-        >
-          {subtitle}
-        </p>
-      )}
-      {quip && (
-        <p
-          className="max-w-[260px] text-center text-xs italic text-muted-foreground/60"
-          data-testid="capture-processing-quip"
-        >
-          {quip}
-        </p>
-      )}
-      {overdue && (
-        <p
-          className="max-w-[260px] text-center text-xs text-muted-foreground/70"
-          data-testid="capture-processing-overdue"
-        >
-          {t('Bigger job than usual, still working on it')}
-        </p>
-      )}
+        {quip && (
+          <p
+            className="max-w-[260px] text-center text-xs italic text-muted-foreground/60"
+            data-testid="capture-processing-quip"
+          >
+            {quip}
+          </p>
+        )}
+        {overdue && (
+          <p
+            className="max-w-[260px] text-center text-xs text-muted-foreground/70"
+            data-testid="capture-processing-overdue"
+          >
+            {t('Bigger job than usual, still working on it')}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

@@ -31,7 +31,11 @@ vi.mock('@/components/ui/tower-loader', () => ({
 }))
 
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
-import { QUIP_ROTATE_MS, GENERATE_PHASE_QUIPS } from '@/components/capture/processing-narration'
+import {
+  QUIP_ROTATE_MS,
+  GENERATE_PHASE_QUIPS,
+  formatElapsed,
+} from '@/components/capture/processing-narration'
 import { GENERATE_OVERDUE_FLOOR_MS } from '@/lib/estimate/generation-phases'
 
 const NOW = Date.parse('2026-08-06T21:53:00Z')
@@ -61,6 +65,34 @@ function renderGenerating(opts: {
     />
   )
 }
+
+describe('formatElapsed', () => {
+  it('reads as a clock rather than a raw second count', () => {
+    expect(formatElapsed(0)).toBe('0:00')
+    expect(formatElapsed(7_400)).toBe('0:07')
+    expect(formatElapsed(59_999)).toBe('0:59')
+    expect(formatElapsed(60_000)).toBe('1:00')
+    expect(formatElapsed(148_000)).toBe('2:28')
+    expect(formatElapsed(303_000)).toBe('5:03')
+  })
+
+  it('holds a stable width through the first ten minutes', () => {
+    // Tabular figures only stop the digits jittering if the string length is
+    // stable too, so every value below 10:00 must be exactly four characters.
+    for (const seconds of [0, 9, 59, 60, 61, 599]) {
+      expect(formatElapsed(seconds * 1000)).toHaveLength(4)
+    }
+  })
+
+  it('rolls over to hours instead of printing a three-digit minute', () => {
+    expect(formatElapsed(3_600_000)).toBe('1:00:00')
+    expect(formatElapsed(3_725_000)).toBe('1:02:05')
+  })
+
+  it('never renders a negative clock from a skewed timestamp', () => {
+    expect(formatElapsed(-5_000)).toBe('0:00')
+  })
+})
 
 describe('CaptureProcessingOverlay: generate phase narration (260806)', () => {
   beforeEach(() => {
@@ -94,11 +126,18 @@ describe('CaptureProcessingOverlay: generate phase narration (260806)', () => {
     )
   })
 
-  it('keeps the step elapsed counter on the step clock, not the phase clock', () => {
+  it('keeps the elapsed clock on the step, not on the phase', () => {
     // 200s into the step, 3s into the current phase. The operator wants to
     // know how long THE ESTIMATE has been running.
     renderGenerating({ phase: 'saving', phaseAgeMs: 3_000, stepAgeMs: 200_000 })
-    expect(screen.getByTestId('capture-processing-label').textContent).toContain('200s')
+    expect(screen.getByTestId('capture-processing-elapsed').textContent).toBe('3:20')
+  })
+
+  it('keeps the clock out of the label so the phase name reads as prose', () => {
+    renderGenerating({ phase: 'saving', stepAgeMs: 200_000 })
+    expect(screen.getByTestId('capture-processing-label').textContent).toBe(
+      '__t(Putting the estimate together)__'
+    )
   })
 
   it('prints the real researched/candidate counts during pricing', () => {

@@ -105,6 +105,28 @@ export function pickQuip(pool: string[] | undefined, elapsedMs: number): string 
 }
 
 /**
+ * Elapsed time as a clock, not as a raw second count.
+ *
+ * `148s` was accurate and unreadable: past a minute nobody converts it in their
+ * head, and the string grows a digit at exactly the moment the operator is
+ * getting anxious about it. `2:28` is the format every stopwatch, timer and
+ * media player already uses, so it needs no reading at all.
+ *
+ * Always zero-padded to m:ss so the width only changes at 10 minutes, which
+ * (with tabular figures) keeps the digits from jittering as the clock ticks.
+ * Rolls over to h:mm:ss rather than printing a three-digit minute count.
+ */
+export function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const seconds = totalSeconds % 60
+  const minutes = Math.floor(totalSeconds / 60) % 60
+  const hours = Math.floor(totalSeconds / 3600)
+  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes)
+  const ss = String(seconds).padStart(2, '0')
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`
+}
+
+/**
  * The factual detail line for a generate phase, as a template plus its real
  * numbers, or null when the server reported nothing worth showing.
  *
