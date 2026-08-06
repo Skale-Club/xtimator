@@ -64,9 +64,18 @@ migration, and it is a bigger one than cost.
   in-process download → HTTP fetch of the signed URL → delete, all passing.
   Required settings: `S3_REGION=auto`, `S3_FORCE_PATH_STYLE=true`,
   endpoint `https://<account-id>.r2.cloudflarestorage.com`.
-- Bucket `xtimator` exists (Standard, WEUR, public access disabled) with a
-  scoped Object-Read-&-Write token. Credentials are NOT in `.env.local` and
-  NOT in Coolify — deliberately, so nothing can half-activate (see §1).
+- **The five production buckets exist** (provisioned 2026-08-06, closing
+  MIG-03): `audio`, `photos`, `pdfs`, `logos`, `platform-brand` — all
+  Standard class, location WEUR (co-located with the Hetzner origin), and
+  **public access (`r2.dev`) disabled on every one**, verified via the API.
+  The throwaway `xtimator` smoke bucket has been deleted.
+- A single Account API token (`xtimator app`, Object Read & Write) is scoped
+  to exactly those five buckets and nothing else. Verified end-to-end by
+  running `scripts/storage-smoke.ts` against `pdfs`, `photos`, `logos` and
+  `platform-brand` — all ops passing on each.
+- Credentials are NOT in `.env.local` and NOT in Coolify — deliberately, so
+  nothing can half-activate (see §1). They stay in the operator's scratchpad
+  until the cutover phase wires them in.
 
 ### Open design decision for the migration phase
 
