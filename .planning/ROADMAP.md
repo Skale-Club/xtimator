@@ -3210,7 +3210,7 @@ Plans:
 
 Plans:
 - [x] 188-01-PLAN.md — Build lib/storage/server.ts, the single server-side provider seam; move getServerStorage() out of the browser-reachable index.ts (wave 1)
-- [ ] 188-02-PLAN.md — Convert the 13 admin/action storage call sites to serverStorage() (wave 2)
+- [x] 188-02-PLAN.md — Convert the 13 admin/action storage call sites to serverStorage() (wave 2)
 - [ ] 188-03-PLAN.md — Convert the 6 PDF/share/delivery/cleanup call sites to serverStorage() (wave 2)
 - [ ] 188-04-PLAN.md — PROV-02 storage seam census gate, proven failable, plus the corrected migration runbook (wave 3)
 - [ ] 188-05-PLAN.md — PROV-03 WhatsApp inbound media write-and-read single-backend proof (wave 3)
@@ -3278,7 +3278,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 187. R2 Provisioning & Same-Origin Asset Proxy | 3/3 | Complete   | 2026-08-06 |
-| 188. Server-Wide Provider Selection Integrity | 1/5 | In Progress|  |
+| 188. Server-Wide Provider Selection Integrity | 2/5 | In Progress|  |
 | 189. Browser Uploads Without Browser Credentials | 0/TBD | Not started | - |
 | 190. Portable Same-Origin Asset URLs | 0/TBD | Not started | - |
 | 191. Object Migration & Verification | 0/TBD | Not started | - |
