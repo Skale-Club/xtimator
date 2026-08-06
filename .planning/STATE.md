@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.23
-milestone_name: Unified Estimate Document Engine
-status: completed
-stopped_at: Milestone v4.23 COMPLETE — all 5 phases (182-186) shipped, 18/18 requirements, all verifications passed. Pending: owner UAT items (182/183/184/185-HUMAN-UAT.md) + formal /gsd:complete-milestone archival. Parking-lot phase 999.1 is out-of-band, not part of this milestone.
-last_updated: "2026-07-28T18:23:06.950Z"
-last_activity: 2026-07-28
+milestone: v4.24
+milestone_name: Same-Origin Storage on R2
+status: in_progress
+stopped_at: Milestone v4.24 STARTED 2026-08-05 — defining requirements. Cloudflare CDN already live on xtimator.com (docs/CLOUDFLARE-CDN.md); R2 provider verified working unmodified via scripts/storage-smoke.ts. v4.23 (182-186) shipped; its /gsd:complete-milestone archival is still pending and out-of-band.
+last_updated: "2026-08-05T23:30:00.000Z"
+last_activity: 2026-08-05
 progress:
   total_phases: 130
   completed_phases: 112
@@ -73,10 +73,10 @@ progress:
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Phase 186 Plan 02 (terms/signature tint, photo/mobile card polish, milestone close-out) shipped — cardTintFill() shared token propagates the brand tint to both webview templates AND the Classic PDF's terms/signature cards; Modern stays fill-free by design; customer-facing mobile item list + photo grid gain a card/frame treatment (zebra now fully retired from every mobile surface); lib/estimate/pagination/blocks-from-model.ts proven untouched (empty diff) — zero geometry drift. Stale ?stripe= payment-banner visual baselines removed intentionally (docblock corrected 12->10). POLISH-01 marked complete in REQUIREMENTS.md with an honest webview-only rationale. All 18/18 v1 requirements (ENGINE/PDFPAR/PGBRK/PGMODE/POLISH) now complete across Phases 182-186 — milestone v4.23 ready for `/gsd:complete-milestone`.
-Last activity: 2026-07-28
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for milestone v4.24 Same-Origin Storage on R2
+Last activity: 2026-08-05 — Milestone v4.24 started
 
 - Phase 186 (Webview Design Polish) COMPLETE 2026-07-28 — 2/2 plans shipped, POLISH-01 closed: Plan 01 (desktop-only zebra contrast bump, mobile-EDIT-list zebra removal, brand-tied grand-total emphasis, unified tracking-wide/tracking-widest letter-spacing), Plan 02 (shared `cardTintFill()` token in `lib/estimate/document/tokens.ts` tints terms/signature cards identically in both webview templates and propagates — via 2 real call sites only, `PdfTermsCard`/`PdfSignatureBlock` — to the Classic PDF; Modern PDF/webview stay fill-free by design; photo-grid frame + customer-facing mobile stacked-list card treatment closes out mobile zebra entirely; 2 stale `?stripe=` visual baselines retired with a documented reason). Milestone v4.23's full 18/18 requirement set is now closed.
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).

@@ -14,7 +14,20 @@ The platform includes:
 
 A business owner can go from job site audio recording to a sent, professional estimate in under 5 minutes without touching a keyboard.
 
-## Current Milestone: v4.23 Unified Estimate Document Engine ✅ (shipped 2026-07-28)
+## Current Milestone: v4.24 Same-Origin Storage on R2
+
+**Goal:** Serve every user-uploaded and platform asset from the app's own origin, backed by Cloudflare R2, so images land on the CDN that already fronts `xtimator.com` and Supabase Storage egress goes to zero.
+
+**Target features:**
+- **Same-origin asset proxy:** a `/storage/...` route on `xtimator.com` that streams objects from R2 with a Supabase read-through fallback, so no asset can 404 during or after the cutover. This is the feature that actually puts images on the CDN — today 41 image references (~1.9 MB per cold landing visit) are fetched from `*.supabase.co`, a different origin, and bypass the edge entirely.
+- **Provider selection that actually switches:** `STORAGE_PROVIDER` is honored today only by `getServerStorage()` (4 call sites); ~20 sites call `createStorage(client)` and get Supabase unconditionally. Server-side reads/writes must all resolve through one provider so the flag cannot half-apply — flipping it today would make the WhatsApp adapter write to R2 while readers still read Supabase, producing silent 404s on inbound media.
+- **Browser uploads without browser credentials:** five client components upload straight to Supabase from the browser (`capture-recorder`, `inline-audio-recorder`, `photo-card`, `photo-lightbox`, `estimate-document`). S3 credentials must never reach the browser, so these move to a server-issued presigned-PUT flow.
+- **Relative, portable asset URLs:** `getPublicUrl()` returns absolute `https://<project>.supabase.co/...` URLs that are *persisted* into DB rows (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs, platform branding/SEO). New writes emit same-origin relative paths and existing rows are rewritten, so the storage backend stops being baked into the data.
+- **Object migration with verification:** copy the 51 live objects (14.3 MB) into R2 and verify count + size + content type per object.
+
+**Key context:** Target is **Cloudflare R2** (same account as the CDN, free egress), not Hetzner as the original Phase-66 runbook assumed. `lib/storage/s3-provider.ts` is already verified working against R2 **unmodified** (`scripts/storage-smoke.ts`, all ops passing, `S3_REGION=auto` + path-style). Locked decision: **five R2 buckets named exactly `audio` / `photos` / `pdfs` / `logos` / `platform-brand`** — 1:1 with the existing `StorageProvider` contract, zero provider changes — not one bucket with key prefixes. Reversibility is a hard requirement: removing the env vars must return the app to Supabase. The trigger for this work is **egress, not stored volume** — 14.3 MB stored is 1.8 % of the old 800 MB trigger, but landing-page images alone burn ~1.9 GB of Supabase egress per 1 000 cold visits. Full corrected analysis in `docs/STORAGE-MIGRATION.md` § "Field assessment — 2026-08-05"; CDN layer documented in `docs/CLOUDFLARE-CDN.md`. Numbering continues the global counter — v4.23 ended at Phase 186, so v4.24 starts at **Phase 187**.
+
+## Last Milestone: v4.23 Unified Estimate Document Engine ✅ (shipped 2026-07-28)
 
 **Shipped:** all 5 phases (182-186), 18/18 requirements (ENGINE-01..03, PDFPAR-01..04, PGBRK-01..05, PGMODE-01..05, POLISH-01), 22/22 plans, all phase verifications passed. Shared document engine (`lib/estimate/document/`) feeding all four renderers; one in-process PDF resolver for download/email/WhatsApp honoring template + signed snapshot (TRUST-01); signature block + photo captions on all surfaces; vendored Inter/Lora fonts; the deterministic pagination engine (`lib/estimate/pagination/` — maximal keep-together chains, empirically calibrated via committed Chromium drift-spike + render-calibration scripts) driving explicit multi-page PDFs AND the new fully-editable paginated editor mode (header toggle left of "Edit with AI", client-side fontkit estimator with byte-identical PageAssignment parity, real-Chromium positional binding check); webview polish pass. Pending: owner UAT (staging sends, visual checks, paginated-mode reference image) per the four *-HUMAN-UAT.md files; formal `/gsd:complete-milestone` archival.
 
