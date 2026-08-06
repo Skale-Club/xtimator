@@ -607,6 +607,129 @@ const INDUSTRY_PRICE_BOOK: Record<string, DefaultFolder[]> = {
       ],
     },
   ],
+
+  home_improvement: [
+    {
+      name: 'Siding & Exterior',
+      image_url: PX(186461),
+      items: [
+        { name: 'Vinyl siding installation (per sqft)', unit: 'sqft', unit_price: 6, notes: 'Materials + labor; typical $4–$9/sqft' },
+        { name: 'Fiber cement siding installation (per sqft)', unit: 'sqft', unit_price: 11, notes: 'Materials + labor; typical $8–$14/sqft' },
+        { name: 'Soffit & fascia replacement (per lf)', unit: 'lf', unit_price: 16, notes: 'Materials + labor; typical $12–$20/lf' },
+        { name: 'House wrap / weather barrier (per sqft)', unit: 'sqft', unit_price: 1, notes: 'Materials + labor' },
+        { name: 'Siding repair / patch section', unit: 'job', unit_price: 350, notes: 'Typical $250–$500' },
+        { name: 'Exterior trim replacement (per lf)', unit: 'lf', unit_price: 8, notes: 'PVC or wood trim, installed' },
+        { name: 'Exterior caulking & sealing — whole house', unit: 'job', unit_price: 450, notes: 'Seams, trim, and penetrations' },
+      ],
+    },
+    {
+      name: 'Windows & Entry Doors',
+      image_url: PX(186461),
+      items: [
+        { name: 'Vinyl double-hung replacement window (each)', unit: 'each', unit_price: 550, notes: 'Materials + labor; typical $450–$850' },
+        { name: 'Bay / bow window replacement (each)', unit: 'each', unit_price: 2200, notes: 'Materials + labor; typical $1,800–$3,500' },
+        { name: 'Entry door replacement — steel or fiberglass (each)', unit: 'each', unit_price: 1400, notes: 'Materials + labor; typical $1,000–$2,500' },
+        { name: 'Sliding patio door replacement (each)', unit: 'each', unit_price: 2500, notes: 'Materials + labor; typical $1,800–$4,000' },
+        { name: 'Storm door installation (each)', unit: 'each', unit_price: 350, notes: 'Materials + labor' },
+        { name: 'Window trim & casing (per opening)', unit: 'each', unit_price: 150, notes: 'Interior and exterior casing' },
+        { name: 'Window screen replacement (each)', unit: 'each', unit_price: 65, notes: 'Custom-fit rescreen' },
+      ],
+    },
+    {
+      name: 'Decks, Porches & Fencing',
+      image_url: PX(186461),
+      items: [
+        { name: 'Pressure-treated deck construction (per sqft)', unit: 'sqft', unit_price: 35, notes: 'Materials + labor; typical $25–$45/sqft' },
+        { name: 'Composite deck construction (per sqft)', unit: 'sqft', unit_price: 55, notes: 'Materials + labor; typical $45–$70/sqft' },
+        { name: 'Deck railing installation (per lf)', unit: 'lf', unit_price: 60, notes: 'Materials + labor; wood or composite' },
+        { name: 'Deck staining / sealing (per sqft)', unit: 'sqft', unit_price: 3, notes: 'Prep plus two coats' },
+        { name: 'Wood privacy fence installation (per lf)', unit: 'lf', unit_price: 35, notes: 'Materials + labor; typical $25–$45/lf' },
+        { name: 'Vinyl fence installation (per lf)', unit: 'lf', unit_price: 40, notes: 'Materials + labor; typical $30–$50/lf' },
+        { name: 'Fence gate installation (each)', unit: 'each', unit_price: 350, notes: 'Materials + labor' },
+      ],
+    },
+  ],
+
+  general_contracting: [
+    {
+      name: 'Framing & Structural',
+      image_url: PX(1145434),
+      items: [
+        { name: 'Wall framing — new interior wall (per lf)', unit: 'lf', unit_price: 25, notes: 'Materials + labor' },
+        { name: 'Load-bearing wall removal with beam install', unit: 'job', unit_price: 6500, notes: 'Typical $4,000–$10,000; engineering not included' },
+        { name: 'Floor joist sistering / repair (each)', unit: 'each', unit_price: 250, notes: 'Per joist, materials + labor' },
+        { name: 'Subfloor installation (per sqft)', unit: 'sqft', unit_price: 4, notes: 'Plywood / OSB, materials + labor' },
+        { name: 'Egress window / header opening', unit: 'job', unit_price: 3500, notes: 'Structural opening plus header' },
+        { name: 'Roof truss installation (each)', unit: 'each', unit_price: 180, notes: 'Standard residential truss, installed' },
+        { name: 'Structural steel beam installation', unit: 'job', unit_price: 4500, notes: 'Typical $2,500–$8,000' },
+      ],
+    },
+    {
+      name: 'Additions & New Construction',
+      image_url: PX(1145434),
+      items: [
+        { name: 'Single-story home addition (per sqft)', unit: 'sqft', unit_price: 250, notes: 'Typical $200–$400/sqft, full build-out' },
+        { name: 'Second-story addition (per sqft)', unit: 'sqft', unit_price: 300, notes: 'Typical $250–$450/sqft' },
+        { name: 'Garage conversion', unit: 'job', unit_price: 18000, notes: 'Typical $12,000–$25,000' },
+        { name: 'Detached ADU / accessory structure (per sqft)', unit: 'sqft', unit_price: 220, notes: 'Typical $180–$350/sqft' },
+        { name: 'Foundation slab (per sqft)', unit: 'sqft', unit_price: 8, notes: 'Materials + labor; typical $6–$12/sqft' },
+        { name: 'Exterior wall framing & sheathing (per sqft)', unit: 'sqft', unit_price: 12, notes: 'New construction shell' },
+      ],
+    },
+    {
+      name: 'Permits, Management & Site Work',
+      image_url: PX(1145434),
+      items: [
+        { name: 'Building permit filing & fees (each)', unit: 'each', unit_price: 850, notes: 'Varies widely by municipality' },
+        { name: 'Architectural / engineering plans', unit: 'job', unit_price: 2500, notes: 'Typical $1,500–$5,000' },
+        { name: 'Project management / GC oversight', unit: 'hr', unit_price: 95, notes: 'PM billed hourly on T&M jobs' },
+        { name: 'Site preparation & demolition (per sqft)', unit: 'sqft', unit_price: 5, notes: 'Clear, grade, and haul debris' },
+        { name: 'Dumpster rental (each)', unit: 'each', unit_price: 450, notes: 'Per pull, 20–30 yard' },
+        { name: 'Portable toilet rental (each)', unit: 'each', unit_price: 175, notes: 'Per month, job site' },
+        { name: 'GC overhead & profit — coordination fee', unit: 'job', unit_price: 1500, notes: 'Flat coordination fee for subcontracted trades' },
+      ],
+    },
+  ],
+
+  remodeling: [
+    {
+      name: 'Kitchen Remodeling',
+      image_url: PX(1453499),
+      items: [
+        { name: 'Mid-range kitchen remodel — full', unit: 'job', unit_price: 28000, notes: 'Typical $25,000–$50,000; full remodel' },
+        { name: 'Cabinet installation (per lf)', unit: 'lf', unit_price: 250, notes: 'Materials + labor; stock to semi-custom' },
+        { name: 'Quartz countertop installation (per sqft)', unit: 'sqft', unit_price: 75, notes: 'Materials + labor; typical $60–$100/sqft' },
+        { name: 'Tile backsplash installation (per sqft)', unit: 'sqft', unit_price: 25, notes: 'Materials + labor' },
+        { name: 'Kitchen sink & faucet installation (each)', unit: 'each', unit_price: 450, notes: 'Materials + labor' },
+        { name: 'Appliance installation (each)', unit: 'each', unit_price: 150, notes: 'Per appliance, hookup + install' },
+        { name: 'Kitchen island installation', unit: 'each', unit_price: 2200, notes: 'Materials + labor; typical $1,500–$3,500' },
+      ],
+    },
+    {
+      name: 'Bathroom Remodeling',
+      image_url: PX(1453499),
+      items: [
+        { name: 'Full bathroom remodel', unit: 'job', unit_price: 16000, notes: 'Typical $12,000–$25,000' },
+        { name: 'Tub-to-shower conversion', unit: 'job', unit_price: 6500, notes: 'Typical $4,500–$9,000' },
+        { name: 'Tile shower surround (per sqft)', unit: 'sqft', unit_price: 35, notes: 'Materials + labor' },
+        { name: 'Vanity installation (each)', unit: 'each', unit_price: 650, notes: 'Materials + labor' },
+        { name: 'Toilet installation (each)', unit: 'each', unit_price: 350, notes: 'Materials + labor' },
+        { name: 'Bathroom fan / ventilation replacement (each)', unit: 'each', unit_price: 300, notes: 'Materials + labor' },
+      ],
+    },
+    {
+      name: 'Flooring & Basement Finishing',
+      image_url: PX(1453499),
+      items: [
+        { name: 'LVP flooring installation (per sqft)', unit: 'sqft', unit_price: 6, notes: 'Materials + labor; typical $4–$9/sqft' },
+        { name: 'Hardwood flooring installation (per sqft)', unit: 'sqft', unit_price: 11, notes: 'Materials + labor; typical $8–$15/sqft' },
+        { name: 'Tile flooring installation (per sqft)', unit: 'sqft', unit_price: 13, notes: 'Materials + labor; typical $10–$18/sqft' },
+        { name: 'Basement finishing — full build-out (per sqft)', unit: 'sqft', unit_price: 35, notes: 'Materials + labor; typical $25–$50/sqft' },
+        { name: 'Drywall / drop ceiling installation (per sqft)', unit: 'sqft', unit_price: 4, notes: 'Materials + labor' },
+        { name: 'Egress window installation — basement (each)', unit: 'each', unit_price: 4500, notes: 'Typical $3,000–$6,000, includes excavation' },
+      ],
+    },
+  ],
 }
 
 /** Normalize a single id or array into a clean list of industry ids. */
