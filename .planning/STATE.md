@@ -1625,6 +1625,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 | 260725-id4 | Format landing hero title as Professional / estimates in seconds. on tablet and desktop | 2026-07-25 | 6ec8a5aa | [260725-id4-format-landing-hero-title-as-professiona](.planning/quick/260725-id4-format-landing-hero-title-as-professiona/) |
 | 260725-j0q | Remove the period from the hero headline everywhere, enlarge mobile and middle-tier typography, and move the middle-tier image left | 2026-07-25 | bb0bc45e | [260725-j0q-remove-the-period-from-the-hero-headline](.planning/quick/260725-j0q-remove-the-period-from-the-hero-headline/) |
 | 260806-ngz | Add home_improvement, general_contracting, remodeling trades to industry catalog (INDUSTRIES 10→13, ICON_MAP icons, 9 price-book folders, count test) | 2026-08-06 | 0c74c3db | [260806-ngz-add-home-improvement-general-contracting](.planning/quick/260806-ngz-add-home-improvement-general-contracting/) |
+| 260806-op9 | Fix signUp not detecting an existing account — guard GoTrue's anti-enumeration empty-`identities` response instead of falling through to /onboarding | 2026-08-06 | 00abb781 | [260806-op9-fix-signup-not-detecting-existing-accoun](.planning/quick/260806-op9-fix-signup-not-detecting-existing-accoun/) |
 | 2026-05-18 | fast | Center auth card logo+wordmark | done |
 | 2026-05-19 | fast | Make audio capture screen scrollable on smaller viewports | done |
 | 2026-05-18 | fast | Restyle sidebar New Project as filled gradient, remove dashboard CTA | done |
