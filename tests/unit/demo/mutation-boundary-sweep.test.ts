@@ -606,6 +606,14 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     { path: 'lib/oauth/codes.ts', symbol: 'consumeAuthorizationCode' },
     { path: 'lib/oauth/tokens.ts', symbol: 'rotateRefreshToken' },
   ]),
+  // Phase 187 (v4.24): same-origin asset proxy. GET-only — it streams bytes
+  // out of R2 or Supabase Storage and writes nothing. Its own tenant gate
+  // (lib/storage/proxy-auth.ts) restricts private buckets to company members,
+  // so a demo principal reading through it cannot reach another tenant's
+  // objects and cannot mutate anything.
+  ...excepted('app/storage/[bucket]/[...key]/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'GET',
+  ]),
 
   ...guarded('lib/actions/active-company.ts', 'assertWritable', ['switchActiveCompany']),
   ...excepted('lib/actions/admin-company.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
