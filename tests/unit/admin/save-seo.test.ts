@@ -161,10 +161,16 @@ describe('saveSeo — OG image upload + remove', () => {
     expect(bucket).toBe('platform-brand')
     expect(path).toMatch(/^og-images\/\d+-cover\.png$/)
     expect(opts).toMatchObject({ contentType: 'image/png', upsert: true })
-    expect(getPublicUrlMock).toHaveBeenCalledTimes(1)
-    expect((lastUpsertPayload as { og_image_url: string }).og_image_url).toMatch(
-      /\/platform-brand\/og-images\//
+    // Phase 190 (URL-01): saveSeo no longer mints a storage-backend URL. The
+    // persisted value is the same-origin proxy path, so getPublicUrl must never
+    // be reached — that inverted assertion is what fails if the line is reverted.
+    expect(getPublicUrlMock).not.toHaveBeenCalled()
+    const persistedOgUrl = (lastUpsertPayload as { og_image_url: string }).og_image_url
+    expect(persistedOgUrl).toMatch(
+      /^\/storage\/platform-brand\/og-images\/\d+-cover\.png$/
     )
+    expect(persistedOgUrl).not.toContain('://')
+    expect(persistedOgUrl).not.toContain('supabase.co')
   })
 
   it('3. 3MB file → rejected with size message, no upload', async () => {

@@ -190,11 +190,15 @@ describe('app/admin/branding/actions saveBranding (ADMIN-08)', () => {
     expect(uploadBody).toBeInstanceOf(Buffer)
     expect(uploadOpts).toMatchObject({ contentType: 'image/webp', upsert: true })
 
-    expect(client.getPublicUrl).toHaveBeenCalledWith('logo-12345.png')
+    // Phase 190 (URL-01): saveBranding persists a same-origin proxy path instead
+    // of a Supabase public-object URL, so the provider's getPublicUrl is never
+    // reached. Inverted from the original assertion; still fails on a revert.
+    expect(client.getPublicUrl).not.toHaveBeenCalled()
     expect(client.upsert).toHaveBeenCalledTimes(1)
-    expect(client.upsert.mock.calls[0][0].logo_url).toBe(
-      'https://example.test/storage/v1/object/public/platform-brand/logo-12345.png'
-    )
+    const persistedLogoUrl = client.upsert.mock.calls[0][0].logo_url
+    expect(persistedLogoUrl).toBe('/storage/platform-brand/logo-12345.png')
+    expect(persistedLogoUrl).not.toContain('://')
+    expect(persistedLogoUrl).not.toContain('supabase.co')
   })
 
   it('schema violation (appName empty): returns ok:false with errors, no upsert, no invalidate', async () => {
