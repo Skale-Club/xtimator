@@ -19,6 +19,7 @@
     "audit:seo:production": "node scripts/seo-smoke.mjs https://xtimator.com",
     "verify:r2": "npx tsx scripts/r2-verify.ts",
     "migrate:r2": "npx tsx scripts/r2-migrate.ts",
+    "rewrite:asset-urls": "npx tsx scripts/rewrite-asset-urls.ts",
     "db:seed:demo": "node --env-file=.env.local scripts/seed-demo-workspace.mjs",
     "db:seed:demo:reset": "node --env-file=.env.local scripts/seed-demo-workspace.mjs --reset"
   },

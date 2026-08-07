@@ -8,7 +8,10 @@
  * Hostnames below are obviously fake (`fakeproj123.supabase.co`). Nothing in this
  * file names a real project ref.
  */
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   EXCLUDED_TARGETS,
@@ -16,6 +19,8 @@ import {
   MEASURED_BASELINE,
   assertProjectConfirmed,
   changeKey,
+  isWriteMode,
+  parseArgs,
   planJsonRewrite,
   planRestoreFromDump,
   planRevert,
@@ -23,8 +28,14 @@ import {
   planTextRewrite,
   planUserMetadataRewrite,
   projectRefFromUrl,
+  runApply,
+  runDryRun,
+  runPreflight,
+  runRestoreFromDump,
+  runRevert,
   selectApplyBatch,
   type AuditRecord,
+  type CliOptions,
   type DumpEntry,
   type RewriteTarget,
 } from '@/scripts/rewrite-asset-urls'
@@ -444,3 +455,639 @@ describe('importing the module has no side effects', () => {
     expect(process.exitCode).toBeUndefined()
   })
 })
+
+// ===========================================================================
+// CLI surface
+// ===========================================================================
+
+describe('parseArgs — an ignored flag is how a read-only check becomes a write run', () => {
+  it('defaults to dry-run', () => {
+    expect(parseArgs([]).mode).toBe('dry-run')
+    expect(isWriteMode('dry-run')).toBe(false)
+    expect(isWriteMode('preflight')).toBe(false)
+  })
+
+  it('recognises every mode and marks the writing ones', () => {
+    expect(parseArgs(['--preflight']).mode).toBe('preflight')
+    expect(parseArgs(['--apply']).mode).toBe('apply')
+    expect(parseArgs(['--revert-latest']).mode).toBe('revert-latest')
+    expect(parseArgs(['--revert', 'b-1'])).toMatchObject({ mode: 'revert', batchId: 'b-1' })
+    expect(parseArgs(['--restore-from-dump', '/tmp/x.json'])).toMatchObject({
+      mode: 'restore-from-dump',
+      restorePath: '/tmp/x.json',
+    })
+    for (const mode of ['apply', 'revert-latest', 'revert', 'restore-from-dump'] as const) {
+      expect(isWriteMode(mode), mode).toBe(true)
+    }
+  })
+
+  it('carries --confirm-project, --dump and --force', () => {
+    expect(
+      parseArgs(['--preflight', '--dump', '/out/pre.json', '--confirm-project', 'abc123', '--force']),
+    ).toMatchObject({
+      mode: 'preflight',
+      dumpPath: '/out/pre.json',
+      confirmProject: 'abc123',
+      force: true,
+    })
+  })
+
+  it('THROWS on an unrecognized flag rather than ignoring it', () => {
+    expect(() => parseArgs(['--dryrun'])).toThrow(/unrecognized flag/)
+  })
+
+  it('THROWS when two modes are requested', () => {
+    expect(() => parseArgs(['--apply', '--preflight'])).toThrow(/two modes/)
+  })
+
+  it('THROWS when a value-taking flag has no value', () => {
+    expect(() => parseArgs(['--confirm-project'])).toThrow(/requires a value/)
+    expect(() => parseArgs(['--dump', '--force'])).toThrow(/requires a value/)
+  })
+})
+
+// ===========================================================================
+// The I/O shell, driven offline against a fake PostgREST client
+// ===========================================================================
+
+interface FakeDb {
+  seq: number
+  tables: Record<string, Record<string, unknown>[]>
+  users: { id: string; user_metadata: Record<string, unknown> | null }[]
+  missingTables: Set<string>
+  /** Fires just before an update executes — used to simulate a concurrent save. */
+  beforeUpdate?: (table: string) => void
+}
+
+type Filter = { op: 'eq' | 'is'; col: string; value: unknown }
+
+function matches(row: Record<string, unknown>, filters: Filter[]): boolean {
+  return filters.every((f) => {
+    const actual = row[f.col]
+    if (f.op === 'is') return actual === null || actual === undefined
+    if (actual === f.value) return true
+    if (actual === null || actual === undefined) return false
+    if (typeof actual === 'object' || typeof f.value === 'object') {
+      return JSON.stringify(actual) === JSON.stringify(f.value)
+    }
+    return String(actual) === String(f.value)
+  })
+}
+
+/**
+ * A deliberately small stand-in for the PostgREST query builder: enough to drive
+ * the apply/revert/restore paths with real data and a real unique constraint, and
+ * nothing more. It exists so the ONE script that mutates production rows has its
+ * compare-and-set, its 1-row assertion, its crash-resume and its rollback
+ * exercised with zero credentials and zero network.
+ */
+function fakeClient(db: FakeDb) {
+  const AUDIT = 'storage_url_rewrites'
+
+  function from(table: string) {
+    const filters: Filter[] = []
+    let op: 'select' | 'insert' | 'update' | 'delete' = 'select'
+    let payload: Record<string, unknown> | Record<string, unknown>[] | null = null
+    let returning = false
+    let limitN: number | null = null
+    let orderCol: string | null = null
+    let orderAscending = true
+
+    function execute(): { data: unknown; error: unknown } {
+      if (db.missingTables.has(table)) {
+        return {
+          data: null,
+          error: { message: `relation "public.${table}" does not exist`, code: '42P01' },
+        }
+      }
+      const rows = (db.tables[table] ??= [])
+
+      if (op === 'insert') {
+        const incoming = Array.isArray(payload) ? payload : [payload as Record<string, unknown>]
+        const created: Record<string, unknown>[] = []
+        for (const candidate of incoming) {
+          if (table === AUDIT) {
+            const clash = rows.some(
+              (r) =>
+                r.batch_id === candidate.batch_id &&
+                r.target === candidate.target &&
+                r.row_pk === candidate.row_pk,
+            )
+            if (clash) {
+              return {
+                data: null,
+                error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+              }
+            }
+          }
+          const row = { id: (db.seq += 1), reverted_at: null, ...candidate }
+          rows.push(row)
+          created.push(row)
+        }
+        return { data: returning ? created : null, error: null }
+      }
+
+      if (op === 'update') {
+        db.beforeUpdate?.(table)
+        const affected = rows.filter((r) => matches(r, filters))
+        for (const row of affected) Object.assign(row, payload)
+        return { data: returning ? affected : null, error: null }
+      }
+
+      if (op === 'delete') {
+        const affected = rows.filter((r) => matches(r, filters))
+        db.tables[table] = rows.filter((r) => !affected.includes(r))
+        return { data: returning ? affected : null, error: null }
+      }
+
+      let selected = rows.filter((r) => matches(r, filters))
+      if (orderCol) {
+        const col = orderCol
+        selected = [...selected].sort((a, b) => {
+          const left = Number(a[col] ?? 0)
+          const right = Number(b[col] ?? 0)
+          return orderAscending ? left - right : right - left
+        })
+      }
+      if (limitN !== null) selected = selected.slice(0, limitN)
+      return { data: selected.map((r) => ({ ...r })), error: null }
+    }
+
+    const api: Record<string, unknown> = {
+      select(_cols?: string) {
+        if (op !== 'select') returning = true
+        return api
+      },
+      insert(rows: Record<string, unknown> | Record<string, unknown>[]) {
+        op = 'insert'
+        payload = rows
+        return api
+      },
+      update(patch: Record<string, unknown>) {
+        op = 'update'
+        payload = patch
+        return api
+      },
+      delete() {
+        op = 'delete'
+        return api
+      },
+      eq(col: string, value: unknown) {
+        filters.push({ op: 'eq', col, value })
+        return api
+      },
+      is(col: string, value: unknown) {
+        filters.push({ op: 'is', col, value })
+        return api
+      },
+      limit(n: number) {
+        limitN = n
+        return api
+      },
+      order(col: string, opts?: { ascending?: boolean }) {
+        orderCol = col
+        orderAscending = opts?.ascending !== false
+        return api
+      },
+      then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+        return Promise.resolve(execute()).then(onFulfilled, onRejected)
+      },
+    }
+    return api
+  }
+
+  return {
+    from,
+    auth: {
+      admin: {
+        async listUsers() {
+          return { data: { users: db.users.map((u) => ({ ...u })) }, error: null }
+        },
+        async getUserById(id: string) {
+          const user = db.users.find((u) => u.id === id)
+          return { data: { user: user ? { ...user } : null }, error: null }
+        },
+        async updateUserById(id: string, attrs: { user_metadata?: Record<string, unknown> }) {
+          const user = db.users.find((u) => u.id === id)
+          if (!user) return { data: { user: null }, error: null }
+          user.user_metadata = { ...(user.user_metadata ?? {}), ...(attrs.user_metadata ?? {}) }
+          return { data: { user: { ...user } }, error: null }
+        },
+      },
+    },
+  }
+}
+
+/** Mirrors the measured production census exactly: 11 occurrences, 4 columns. */
+function seedDb(): FakeDb {
+  return {
+    seq: 0,
+    missingTables: new Set<string>(),
+    tables: {
+      companies: [{ id: 'co-1', logo_url: `${PUBLIC}/logos/co/logo.webp` }],
+      clients: [],
+      platform_branding: [
+        {
+          id: 1,
+          logo_url: `${PUBLIC}/platform-brand/logo.webp`,
+          og_image_url: `${PUBLIC}/platform-brand/og.png`,
+          favicon_url: null,
+          landing_content: landingFixture(),
+          updated_at: '2026-08-06T10:00:00Z',
+        },
+      ],
+      blog_posts: [],
+      company_price_book: [{ image_url: 'https://images.pexels.com/photos/1/x.jpeg' }],
+      storage_url_rewrites: [],
+    },
+    users: [{ id: 'u-1', user_metadata: { avatar_url: 'https://lh3.googleusercontent.com/a/AAcd' } }],
+  }
+}
+
+type Client = Parameters<typeof runApply>[0]
+
+function asClient(db: FakeDb): Client {
+  return fakeClient(db) as unknown as Client
+}
+
+async function capture(fn: () => Promise<number>): Promise<{ code: number; out: string[] }> {
+  const out: string[] = []
+  const push = (...args: unknown[]) => {
+    out.push(args.map((a) => (typeof a === 'string' ? a : String(a))).join(' '))
+  }
+  const logSpy = vi.spyOn(console, 'log').mockImplementation(push)
+  const errSpy = vi.spyOn(console, 'error').mockImplementation(push)
+  try {
+    const code = await fn()
+    return { code, out }
+  } finally {
+    logSpy.mockRestore()
+    errSpy.mockRestore()
+  }
+}
+
+const PREFLIGHT_OPTS: CliOptions = {
+  mode: 'preflight',
+  confirmProject: null,
+  dumpPath: null,
+  restorePath: null,
+  batchId: null,
+  force: false,
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('--dry-run — the default mode writes NOTHING', () => {
+  it('reports the measured census and plans 4 changes over 11 occurrences', async () => {
+    const db = seedDb()
+    const { code, out } = await capture(() => runDryRun(asClient(db)))
+
+    expect(code).toBe(0)
+    expect(out).toContain('CENSUS_TOTAL=11')
+    expect(out).toContain('PLANNED_CHANGES=4')
+    expect(out).toContain('EXEMPT_VIDEO=1')
+    expect(out).toContain('SKIPPED_UNSERVEABLE=0')
+  })
+
+  it('leaves every row and the audit table untouched', async () => {
+    const db = seedDb()
+    await capture(() => runDryRun(asClient(db)))
+    expect(db.tables.companies[0].logo_url).toBe(`${PUBLIC}/logos/co/logo.webp`)
+    expect(db.tables.storage_url_rewrites).toEqual([])
+  })
+})
+
+describe('--apply — safe writes and a complete record', () => {
+  it('rewrites all four columns, records four audit rows, and is idempotent on re-run', async () => {
+    const db = seedDb()
+    const first = await capture(() => runApply(asClient(db)))
+
+    expect(first.code).toBe(0)
+    expect(first.out).toContain('APPLIED_CHANGES=4')
+    expect(first.out).toContain('BATCH_REUSED=false')
+    expect(first.out).toContain('CENSUS_TOTAL=11')
+
+    expect(db.tables.companies[0].logo_url).toBe('/storage/logos/co/logo.webp')
+    expect(db.tables.platform_branding[0].logo_url).toBe('/storage/platform-brand/logo.webp')
+    expect(db.tables.platform_branding[0].og_image_url).toBe('/storage/platform-brand/og.png')
+
+    const landing = db.tables.platform_branding[0].landing_content as ReturnType<typeof landingFixture>
+    expect(landing.hero.imageUrl).toBe('/storage/platform-brand/landing/hero.webp')
+    expect(
+      landing.hero.backgroundVideoUrl,
+      'the exempt video leaf must survive a real apply, not just the planner',
+    ).toBe(`${PUBLIC}/platform-brand/hero-bg-videos/loop.mp4`)
+    expect(db.tables.storage_url_rewrites).toHaveLength(4)
+
+    const second = await capture(() => runApply(asClient(db)))
+    expect(second.code).toBe(0)
+    expect(second.out).toContain('PLANNED_CHANGES=0')
+    expect(second.out).toContain('APPLIED_CHANGES=0')
+    expect(db.tables.storage_url_rewrites).toHaveLength(4)
+  })
+
+  it('REUSES an open batch after a crash instead of minting a second one', async () => {
+    const db = seedDb()
+    // A crashed run that recorded one row and died before writing it.
+    db.tables.storage_url_rewrites.push({
+      id: (db.seq += 1),
+      batch_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      target: 'companies.logo_url',
+      row_pk: 'co-1',
+      value_kind: 'text',
+      old_value: `${PUBLIC}/logos/co/logo.webp`,
+      new_value: '/storage/logos/co/logo.webp',
+      reverted_at: null,
+    })
+
+    const { code, out } = await capture(() => runApply(asClient(db)))
+    expect(code).toBe(0)
+    expect(out).toContain('BATCH_ID=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+    expect(out).toContain('BATCH_REUSED=true')
+    expect(out).toContain('APPLIED_CHANGES=4')
+
+    const batches = new Set(db.tables.storage_url_rewrites.map((r) => r.batch_id))
+    expect(
+      [...batches],
+      'a second batch here is exactly how --revert-latest restores half of production',
+    ).toEqual(['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'])
+    expect(db.tables.companies[0].logo_url).toBe('/storage/logos/co/logo.webp')
+  })
+
+  it('ABORTS on a 0-row update and deletes the audit row it had just inserted', async () => {
+    const db = seedDb()
+    // A concurrent admin save landing between the read and the write: the
+    // compare-and-set filter stops matching.
+    let fired = false
+    db.beforeUpdate = (table) => {
+      if (table !== 'companies' || fired) return
+      fired = true
+      db.tables.companies[0].logo_url = `${PUBLIC}/logos/co/someone-elses-upload.webp`
+    }
+
+    const { code, out } = await capture(() => runApply(asClient(db)))
+
+    expect(code, 'a 0-row update must abort the run, not be reported as applied').toBe(1)
+    expect(out).toContain('APPLIED_CHANGES=0')
+    expect(out.join('\n')).toMatch(/expected exactly 1 row affected, got 0/)
+    expect(
+      db.tables.storage_url_rewrites,
+      'an audit row claiming a change that did not happen would later read as drift',
+    ).toEqual([])
+    expect(db.tables.companies[0].logo_url).toBe(`${PUBLIC}/logos/co/someone-elses-upload.webp`)
+  })
+})
+
+describe('--revert-latest — completeness over convenience', () => {
+  function revertOpts(overrides: Partial<CliOptions> = {}): CliOptions {
+    return { ...PREFLIGHT_OPTS, mode: 'revert-latest', ...overrides }
+  }
+
+  function seedTwoOpenBatches(): FakeDb {
+    const db = seedDb()
+    db.tables.companies[0].logo_url = '/storage/logos/co/logo.webp'
+    db.tables.platform_branding[0].logo_url = '/storage/platform-brand/logo.webp'
+    db.tables.storage_url_rewrites.push(
+      {
+        id: (db.seq += 1),
+        batch_id: 'batch-older',
+        target: 'companies.logo_url',
+        row_pk: 'co-1',
+        value_kind: 'text',
+        old_value: `${PUBLIC}/logos/co/logo.webp`,
+        new_value: '/storage/logos/co/logo.webp',
+        reverted_at: null,
+      },
+      {
+        id: (db.seq += 1),
+        batch_id: 'batch-newer',
+        target: 'platform_branding.logo_url',
+        row_pk: '1',
+        value_kind: 'text',
+        old_value: `${PUBLIC}/platform-brand/logo.webp`,
+        new_value: '/storage/platform-brand/logo.webp',
+        reverted_at: null,
+      },
+    )
+    return db
+  }
+
+  it('reverts ALL open batches in one run and closes them', async () => {
+    const db = seedTwoOpenBatches()
+    const { code, out } = await capture(() => runRevert(asClient(db), revertOpts()))
+
+    expect(code).toBe(0)
+    expect(out).toContain('UNREVERTED_BATCHES=2')
+    expect(out).toContain('REVERTED=2')
+    expect(out).toContain('DRIFTED=0')
+    expect(out[out.length - 1], 'the final count must be zero, not the opening one').toBe(
+      'UNREVERTED_BATCHES=0',
+    )
+    expect(db.tables.companies[0].logo_url).toBe(`${PUBLIC}/logos/co/logo.webp`)
+    expect(db.tables.platform_branding[0].logo_url).toBe(`${PUBLIC}/platform-brand/logo.webp`)
+    expect(db.tables.storage_url_rewrites.every((r) => r.reverted_at !== null)).toBe(true)
+  })
+
+  it('refuses a DRIFTED row and exits non-zero so a partial rollback cannot read as clean', async () => {
+    const db = seedTwoOpenBatches()
+    db.tables.companies[0].logo_url = '/storage/logos/co/newer-upload.webp'
+
+    const { code, out } = await capture(() => runRevert(asClient(db), revertOpts()))
+
+    expect(code).toBe(1)
+    expect(out).toContain('DRIFTED=1')
+    expect(out).toContain('REVERTED=1')
+    expect(db.tables.companies[0].logo_url).toBe('/storage/logos/co/newer-upload.webp')
+  })
+
+  it('--force restores the drifted row and says so loudly', async () => {
+    const db = seedTwoOpenBatches()
+    db.tables.companies[0].logo_url = '/storage/logos/co/newer-upload.webp'
+
+    const { code, out } = await capture(() => runRevert(asClient(db), revertOpts({ force: true })))
+
+    expect(code).toBe(0)
+    expect(out).toContain('DRIFTED=0')
+    expect(out).toContain('REVERTED=2')
+    expect(out.join('\n')).toMatch(/--force: ALSO restoring 1 DRIFTED row/)
+    expect(db.tables.companies[0].logo_url).toBe(`${PUBLIC}/logos/co/logo.webp`)
+  })
+
+  it('--revert <batch-id> prints what it is NOT reverting', async () => {
+    const db = seedTwoOpenBatches()
+    const { out } = await capture(() =>
+      runRevert(asClient(db), revertOpts({ mode: 'revert', batchId: 'batch-newer' })),
+    )
+    expect(out).toContain('UNREVERTED_BATCHES=2')
+    expect(out.join('\n')).toMatch(/NOT touching the others/)
+    expect(out[out.length - 1]).toBe('UNREVERTED_BATCHES=1')
+  })
+})
+
+describe('--restore-from-dump — the independent second restore path', () => {
+  it('restores only what differs from the dumped pre-state', async () => {
+    const db = seedDb()
+    const dir = mkdtempSync(join(tmpdir(), 'rewrite-dump-'))
+    const dumpPath = join(dir, 'pre-state.json')
+
+    // Take the pre-state, apply, then restore from the dump alone.
+    const preflight = await capture(() =>
+      runPreflight(asClient(db), { ...PREFLIGHT_OPTS, dumpPath }),
+    )
+    expect(preflight.out).toContain('CENSUS_TOTAL=11')
+
+    await capture(() => runApply(asClient(db)))
+    expect(db.tables.companies[0].logo_url).toBe('/storage/logos/co/logo.webp')
+
+    const { code, out } = await capture(() =>
+      runRestoreFromDump(asClient(db), {
+        ...PREFLIGHT_OPTS,
+        mode: 'restore-from-dump',
+        restorePath: dumpPath,
+      }),
+    )
+
+    expect(code).toBe(0)
+    expect(out).toContain('REVERTED=4')
+    expect(db.tables.companies[0].logo_url).toBe(`${PUBLIC}/logos/co/logo.webp`)
+    expect(db.tables.platform_branding[0].og_image_url).toBe(`${PUBLIC}/platform-brand/og.png`)
+
+    const dumped = JSON.parse(readFileSync(dumpPath, 'utf8')) as { entries: DumpEntry[] }
+    expect(dumped.entries.length).toBeGreaterThan(0)
+  })
+})
+
+describe('--preflight — read-only, and it BLOCKS rather than warns', () => {
+  it('passes on a healthy database and prints the exclusion re-counted live', async () => {
+    const db = seedDb()
+    const { code, out } = await capture(() => runPreflight(asClient(db), PREFLIGHT_OPTS))
+
+    expect(code).toBe(0)
+    expect(out).toContain('PREFLIGHT_BLOCKERS=0')
+    expect(out).toContain('CENSUS_TOTAL=11')
+    expect(out).toContain('EXCLUDED_PRICE_BOOK_ROWS=1')
+    expect(out).toContain('EXCLUDED_PRICE_BOOK_SUPABASE_URLS=0')
+    expect(out).toContain('UNREVERTED_BATCHES=0')
+    expect(out).toContain('EXEMPT_VIDEO=1')
+  })
+
+  it('BLOCKS when the audit table has not been applied by hand yet', async () => {
+    const db = seedDb()
+    db.missingTables.add('storage_url_rewrites')
+
+    const { code, out } = await capture(() => runPreflight(asClient(db), PREFLIGHT_OPTS))
+
+    expect(code, 'Plan 03 treats a preflight blocker as a STOP').toBe(1)
+    expect(out).toContain('PREFLIGHT_BLOCKERS=1')
+    expect(out.join('\n')).toMatch(/applied to production BY HAND/)
+  })
+
+  it('BLOCKS if a Supabase URL ever appears in the excluded price-book column', async () => {
+    const db = seedDb()
+    db.tables.company_price_book.push({ image_url: `${PUBLIC}/photos/co/item.webp` })
+
+    const { code, out } = await capture(() => runPreflight(asClient(db), PREFLIGHT_OPTS))
+
+    expect(code).toBe(1)
+    expect(out).toContain('EXCLUDED_PRICE_BOOK_SUPABASE_URLS=1')
+    expect(out).toContain('EXCLUDED_PRICE_BOOK_ROWS=2')
+    expect(out.join('\n')).toMatch(/exclusion was decided on the measured fact/)
+  })
+
+  it('WARNS (never passes) about R2 and about an already-open batch', async () => {
+    const db = seedDb()
+    db.tables.storage_url_rewrites.push({
+      id: (db.seq += 1),
+      batch_id: 'batch-open',
+      target: 'companies.logo_url',
+      row_pk: 'co-1',
+      value_kind: 'text',
+      old_value: 'x',
+      new_value: 'y',
+      reverted_at: null,
+    })
+
+    const { out } = await capture(() => runPreflight(asClient(db), PREFLIGHT_OPTS))
+    const text = out.join('\n')
+    // No `s` flag: this repo's tsconfig target predates it (TS1501).
+    expect(text).toMatch(/\[WARN\] R2 object presence \(Phase 191\) is NOT verified/)
+    expect(text).toMatch(/\[WARN\] 1 unreverted batch\(es\) exist/)
+    expect(out).toContain('UNREVERTED_BATCHES=1')
+  })
+})
+
+// ===========================================================================
+// Static properties of the script itself
+// ===========================================================================
+
+describe('scripts/rewrite-asset-urls.ts — static invariants', () => {
+  const SCRIPT_PATH = resolve(process.cwd(), 'scripts/rewrite-asset-urls.ts')
+  const raw = readFileSync(SCRIPT_PATH, 'utf8')
+
+  /**
+   * Per Plan 01's finding: three of its verification greps returned COMMENT-only
+   * matches because the plan's own mandated comments contained the identifiers
+   * being searched for. These checks run against the comment-stripped body, and
+   * the stripper is proven non-vacuous below.
+   */
+  function stripComments(source: string): string {
+    return source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(/\r?\n/)
+      .map((line) => line.replace(/(^|\s)\/\/.*$/, ''))
+      .join('\n')
+  }
+
+  const body = stripComments(raw)
+
+  it('the comment stripper is not vacuous', () => {
+    expect(raw).toMatch(/LOAD-BEARING/)
+    expect(body, 'the stripper failed to remove the docblock').not.toMatch(/LOAD-BEARING/)
+    expect(body, 'the stripper removed executable code').toMatch(/export const REWRITE_TARGETS/)
+  })
+
+  it('never mentions the raw absolute-URL provider method, in code OR in comments', () => {
+    // Phase 190 repointed ~14 CALL SITES; the provider method itself is still
+    // absolute on purpose (the video exemption depends on it). A preflight check
+    // asserting it returns a same-origin path would be FALSE and would fire on
+    // every run, deadlocking Plan 03.
+    expect(raw).not.toMatch(/getPublicUrl/)
+  })
+
+  it('asserts storageProxyPath instead', () => {
+    expect(body).toMatch(/storageProxyPath\('logos', 'x\/y\.webp'\)/)
+    expect(body).toMatch(/'\/storage\/logos\/x\/y\.webp'/)
+  })
+
+  it('names the price-book table ONLY inside EXCLUDED_TARGETS', () => {
+    const excludedBlock = /export const EXCLUDED_TARGETS[\s\S]*?\n\]/.exec(body)?.[0] ?? ''
+    const totalHits = (body.match(/company_price_book/g) ?? []).length
+    const inExclusion = (excludedBlock.match(/company_price_book/g) ?? []).length
+    expect(totalHits).toBeGreaterThan(0)
+    expect(inExclusion, 'selection must be by URL prefix, never by column name').toBe(totalHits)
+  })
+
+  it('contains no paging machinery — the measured scope is 11 occurrences', () => {
+    expect(body).not.toMatch(/PAGE_SIZE|chunk|offset/i)
+  })
+
+  it('reads back the affected rows of every update it performs', () => {
+    const segments = body.split('.update(').slice(1)
+    expect(segments.length).toBeGreaterThan(0)
+    for (const segment of segments) {
+      expect(
+        segment.slice(0, 400),
+        'every update must .select() its affected rows so "the write landed" is OBSERVED',
+      ).toMatch(/\.select\(/)
+    }
+  })
+
+  it('delegates all URL translation to lib/storage/url-rewrite', () => {
+    expect(body).toMatch(/from '@\/lib\/storage\/url-rewrite'/)
+    expect(body).toMatch(/rewriteAssetUrl/)
+    expect(body).toMatch(/rewriteJsonAssetUrls/)
+  })
+})
+
