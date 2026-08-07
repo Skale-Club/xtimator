@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import type { RefinementPayload } from './use-estimate-reducer'
 import { mergeRefinement, type MergeCurrentContent, type RefineDiff } from '@/lib/estimate/refine-merge'
 import { formatCurrency } from '@/lib/utils/format'
@@ -80,6 +81,10 @@ export function RefineEstimateDialog({
   // dialog never auto-applies. Holding both the raw refined payload (what
   // Apply dispatches) and the precomputed diff (what the user reviews).
   const [pendingReview, setPendingReview] = useState<{ refined: RefinementPayload; diff: RefineDiff } | null>(null)
+
+  // Hold the screen on while dictating a refinement and while the refine
+  // request runs — both are untouched-phone windows.
+  useWakeLock(recState === 'recording' || submitState === 'submitting')
 
   // REFINE-02: currentContent must be read LIVE at compute time (after the
   // flush resolves), never a value captured when `submit` started -- a ref

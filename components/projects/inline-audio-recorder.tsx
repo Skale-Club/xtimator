@@ -13,6 +13,7 @@ import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { HARD_CAP_MS, WARN_AT_MS, AMBER_AT_MS, RED_AT_MS } from '@/components/capture/capture-recorder'
 
@@ -54,6 +55,11 @@ export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAud
 
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | undefined>(undefined)
+
+  // Hold the screen on while recording (hands-free, phone untouched) and
+  // through the upload/dispatch wait — an OS screen lock in either window
+  // suspends the page and can lose the take.
+  useWakeLock(isRecording || isSaving)
 
   const estimateLanguage: EstimateLanguage =
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'

@@ -22,6 +22,7 @@ import { useRef, useState } from 'react'
 import { Mic, Square, Paperclip, Send, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
@@ -58,6 +59,10 @@ export function ChatComposer({
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const photoInputRef = useRef<HTMLInputElement>(null)
+
+  // Hold the screen on while dictating and while the audio/photo is being
+  // normalized server-side — the phone is untouched for both.
+  useWakeLock(recording || normalizing)
 
   // Gates SUBMIT + media buttons while the parent thread is streaming or while
   // we normalize media. The textarea itself only locks during normalization

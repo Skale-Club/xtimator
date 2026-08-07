@@ -31,6 +31,7 @@ import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome, type S
 import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { CaptureMode } from '@/components/projects/estimate-creation-popup'
@@ -285,6 +286,17 @@ export function CaptureRecorder({
   // `uploadedPhotos` stays the pipeline source of truth (only 'done' photos).
   const [photoItems, setPhotoItems] = useState<PhotoItem[]>([])
   const isUploadingPhotos = photoItems.some(i => i.status === 'uploading')
+
+  // Keep the phone screen on for the whole hands-free window: while recording
+  // (the user is talking at a job site, not touching the phone — an OS screen
+  // lock here suspends the page and can lose the take) AND through the
+  // upload/transcribe/generate wait, which is exactly the "gerar o orçamento"
+  // screen the user watches without interacting. Released once the pipeline
+  // reaches a surface that needs a tap anyway (failure, needs-details) or
+  // finishes ('done' → the parent navigates/closes).
+  const isPipelineRunning =
+    stage !== 'idle' && stage !== 'done' && !failedAt && !needsDetailsInfo
+  useWakeLock(isRecording || isPipelineRunning || isUploadingPhotos)
 
   // 260707-o7a: real progress bar state — journal-derived (never advances a
   // segment without its succeeded event) + live step medians fetched ONCE per

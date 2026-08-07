@@ -19,6 +19,7 @@ import {
   showClientSuggestionToast,
 } from './client-suggestion-toast'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useWakeLock } from '@/hooks/use-wake-lock'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
@@ -172,6 +173,11 @@ export function EstimateTab({
       })
     }
   }, [projectId, router])
+
+  // The auto-generating screen is a pure wait — the user watches it without
+  // touching the phone, so the OS idle timer would otherwise blank the screen
+  // mid-generation. Must sit above the early returns below (hook order).
+  useWakeLock(isAutoGenerating && !currentEstimate)
 
   if (isAutoGenerating && !currentEstimate) {
     const hasTranscript = recordings.some(r => r.transcript && r.transcript.trim().length > 0)
