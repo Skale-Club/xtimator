@@ -24,6 +24,19 @@ const LanguageContext = createContext<LanguageContextValue>({
   setLanguage: () => {},
 })
 
+/**
+ * The APP language, provided only by the root LanguageProvider and deliberately
+ * never overridden by ScopedLanguageProvider.
+ *
+ * ScopedLanguageProvider exists so the New Xtimate popup re-skins itself in the
+ * language of the estimate being produced. That is right for anything the
+ * client will eventually read, and wrong for anything only the operator ever
+ * sees: a Brazilian contractor writing an English estimate for a US client
+ * should not get an English processing screen in an otherwise Portuguese app.
+ * Operator-only surfaces read this context instead (see useAppTranslation).
+ */
+const AppLanguageContext = createContext<Language>('en')
+
 // Translation "pending" state lives in its OWN contexts, split in two so that
 // the async-translation machinery never re-renders the whole app:
 //   - TranslationPendingCountContext holds the changing count and is read ONLY
@@ -64,13 +77,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <LanguageContext.Provider value={languageValue}>
-      <TranslationSetPendingContext.Provider value={setPendingCount}>
-        <TranslationPendingCountContext.Provider value={pendingCount}>
-          {children}
-        </TranslationPendingCountContext.Provider>
-      </TranslationSetPendingContext.Provider>
-    </LanguageContext.Provider>
+    <AppLanguageContext.Provider value={language}>
+      <LanguageContext.Provider value={languageValue}>
+        <TranslationSetPendingContext.Provider value={setPendingCount}>
+          <TranslationPendingCountContext.Provider value={pendingCount}>
+            {children}
+          </TranslationPendingCountContext.Provider>
+        </TranslationSetPendingContext.Provider>
+      </LanguageContext.Provider>
+    </AppLanguageContext.Provider>
   )
 }
 
@@ -100,6 +115,15 @@ export function ScopedLanguageProvider({
 
 export function useLanguage() {
   return useContext(LanguageContext)
+}
+
+/**
+ * The app's own language, immune to any ScopedLanguageProvider above the
+ * caller. Read by operator-only surfaces that must follow the app rather than
+ * the estimate being written.
+ */
+export function useAppLanguage() {
+  return useContext(AppLanguageContext)
 }
 
 /** Current number of in-flight translation batches. Read by the loading overlay. */

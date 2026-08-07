@@ -1,7 +1,7 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
-import { useLanguage, useSetTranslationPending } from './language-context'
+import { useAppLanguage, useLanguage, useSetTranslationPending } from './language-context'
 import { staticDict } from './translations'
 
 // Module-level in-memory cache — persists for browser session
@@ -113,7 +113,26 @@ export function useTranslation() {
   // Read the stable setter only — NOT the count — so bumping pendingCount on
   // each translation batch never re-renders this (ubiquitous) hook's consumers.
   const setPendingCount = useSetTranslationPending()
+  return makeTranslator(language, setPendingCount)
+}
 
+/**
+ * Same translator, bound to the APP language instead of the nearest scoped one
+ * (lib/i18n/language-context.tsx). For surfaces only the operator ever sees:
+ * inside the New Xtimate popup, useTranslation() resolves to the language of
+ * the ESTIMATE being written, which is correct for anything the client will
+ * read and wrong for a processing screen the client never sees.
+ */
+export function useAppTranslation() {
+  const language = useAppLanguage()
+  const setPendingCount = useSetTranslationPending()
+  return makeTranslator(language, setPendingCount)
+}
+
+function makeTranslator(
+  language: 'en' | 'pt' | 'es',
+  setPendingCount: Dispatch<SetStateAction<number>>
+) {
   function t(text: string): string {
     // EN fast-path: return text unchanged with zero overhead
     if (language === 'en') return text

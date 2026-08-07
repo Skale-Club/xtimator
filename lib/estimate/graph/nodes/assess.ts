@@ -12,11 +12,21 @@ import {
   isVagueEstimate,
   type VagueCheckEstimate,
 } from '@/lib/estimate/quality/vagueness'
+import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import type { EstimateStateType } from '../state'
 
 export const assessNode = async (
   state: EstimateStateType
 ): Promise<Partial<EstimateStateType>> => {
+  // Sub-phase narration (lib/estimate/generation-phases.ts), channel-neutral:
+  // a journal write carries no channel token and reads only trusted state.
+  reportGeneratePhase({
+    attemptId: state.attemptId,
+    phase: 'reviewing',
+    companyId: state.companyId,
+    projectId: state.projectId,
+  })
+
   const supabase = requireServiceClient()
   const { data: est } = await supabase
     .from('estimates')

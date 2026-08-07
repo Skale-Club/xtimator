@@ -14,6 +14,8 @@
  * tests/unit/estimate/progress-model.test.ts.
  */
 
+import { generatePhaseFill, type GeneratePhase } from './generation-phases'
+
 export type CaptureProgressMode = 'audio' | 'photos' | 'text'
 
 /**
@@ -100,6 +102,20 @@ export function computeProgress(input: {
   /** Live medians (getStepMedians) — merged over FALLBACK_MEDIANS_MS by the caller;
    * any missing step falls back to FALLBACK_MEDIANS_MS here regardless. */
   medians?: Record<string, number>
+  /**
+   * 260806: journal-reported sub-phase of the ACTIVE `generate_estimate` step
+   * (lib/estimate/generation-phases.ts). When present, this step's segment is
+   * filled by REAL phase boundaries instead of elapsed-vs-median. That is the
+   * honest upgrade, since the phases come off the journal exactly like the
+   * segment completions do. Absent (older attempt, or a phase row not yet
+   * written) leaves the elapsed/median behavior below unchanged.
+   */
+  generatePhase?: {
+    phase: GeneratePhase
+    furthestPhase: GeneratePhase
+    /** ms since the latest phase row (caller-computed, like activeStepElapsedMs). */
+    phaseElapsedMs: number
+  }
 }): ProgressSnapshot {
   const steps = STEP_SEQUENCES[input.mode]
   const completed = new Set(input.completedSteps)
@@ -109,6 +125,14 @@ export function computeProgress(input: {
       return { step, state: 'done', fill: 1 }
     }
     if (step === input.activeStep) {
+      if (step === 'generate_estimate' && input.generatePhase) {
+        const raw = generatePhaseFill({
+          phase: input.generatePhase.phase,
+          furthestPhase: input.generatePhase.furthestPhase,
+          phaseElapsedMs: input.generatePhase.phaseElapsedMs,
+        })
+        return { step, state: 'active', fill: Math.min(raw, ACTIVE_FILL_CAP) }
+      }
       const median = medianFor(step, input.medians)
       const raw = Math.max(0, input.activeStepElapsedMs) / median
       return { step, state: 'active', fill: Math.min(raw, ACTIVE_FILL_CAP) }

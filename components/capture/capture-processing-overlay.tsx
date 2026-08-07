@@ -1,13 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTranslation } from '@/lib/i18n/use-translation'
+import { useAppTranslation } from '@/lib/i18n/use-translation'
 import { TowerLoader } from '@/components/ui/tower-loader'
 import {
   computeProgress,
   STEP_SEQUENCES,
   type CaptureProgressMode,
 } from '@/lib/estimate/progress-model'
+import {
+  isGenerateOverdue,
+  type GeneratePhaseProgress,
+} from '@/lib/estimate/generation-phases'
+import {
+  GENERATE_PHASE_LABELS,
+  GENERATE_PHASE_QUIPS,
+  STEP_QUIPS,
+  formatElapsed,
+  phaseDetailLine,
+  pickQuip,
+} from './processing-narration'
 
 export type CaptureProcessingStage =
   | 'idle'
@@ -44,6 +56,14 @@ export interface CaptureProcessingOverlayProps {
   analyzedCount?: number
   totalCount?: number
   failedCount?: number
+  /**
+   * 260806: journal-reported sub-phase of the `generate_estimate` step. That
+   * step is ~90% of a capture's wall clock (4m40s of a 5m03s production run on
+   * 2026-08-06) and used to render as ONE static label, which reads as a hung
+   * screen. With this present the overlay names the real phase, prints the
+   * counts the server reported, and fills the segment by phase boundaries.
+   */
+  generatePhase?: GeneratePhaseProgress
 }
 
 export function CaptureProcessingOverlay({
@@ -56,8 +76,14 @@ export function CaptureProcessingOverlay({
   analyzedCount,
   totalCount,
   failedCount,
+  generatePhase,
 }: CaptureProcessingOverlayProps) {
-  const { t } = useTranslation()
+  // useAppTranslation, not useTranslation: in the New Xtimate popup this
+  // component renders inside a ScopedLanguageProvider set to the ESTIMATE's
+  // language, so a Portuguese operator writing an English estimate was getting
+  // an English processing screen. The client never sees this surface, so it
+  // follows the app language.
+  const { t } = useAppTranslation()
 
   // Local 250ms re-render timer: the TIMER is local but the STATE it fills
   // toward is real — elapsed is measured against the journal's started
@@ -85,6 +111,12 @@ export function CaptureProcessingOverlay({
   let progressBar: React.ReactNode = null
   let label = stageLabel
   let elapsedSuffix: string | null = null
+  /** Rotating ambient line: flavour only, never carries information. */
+  let quip: string | null = null
+  /** Factual sub-line built from server-reported counts. */
+  let phaseDetail: string | null = null
+  /** True once the step has run well past what is normal, and says so. */
+  let overdue = false
   if (mode) {
     // stage === 'done' ONLY happens after a journal-confirmed `completed`
     // outcome (pollEstimateOutcome is journal-authoritative), so rendering the
@@ -98,12 +130,29 @@ export function CaptureProcessingOverlay({
         ? Math.max(0, nowMs - Date.parse(activeStepStartedAt))
         : 0
 
+    // 260806: the generate step's sub-phase, when the journal has reported one.
+    // Guarded on the active step so a stale phase payload can never narrate a
+    // step the pipeline has already moved past.
+    const livePhase =
+      effectiveActive === 'generate_estimate' && generatePhase ? generatePhase : null
+    const phaseElapsedMs =
+      livePhase?.startedAt != null
+        ? Math.max(0, nowMs - Date.parse(livePhase.startedAt))
+        : elapsedMs
+
     const { segments } = computeProgress({
       mode,
       completedSteps: effectiveCompleted,
       activeStep: effectiveActive,
       activeStepElapsedMs: elapsedMs,
       medians,
+      generatePhase: livePhase
+        ? {
+            phase: livePhase.phase,
+            furthestPhase: livePhase.furthestPhase,
+            phaseElapsedMs,
+          }
+        : undefined,
     })
 
     // Current step label — inline t() literals (extractor requirement). Falls
@@ -116,8 +165,42 @@ export function CaptureProcessingOverlay({
       effectiveActive === 'generate_estimate' ? t('Generating estimate') :
                                                 null
     if (activeStepLabel) {
-      label = activeStepLabel
-      elapsedSuffix = `${Math.floor(elapsedMs / 1000)}s`
+      // A reported phase is MORE specific than the step label, so it wins:
+      // "Pricing the line items" instead of a fourth minute of "Generating
+      // estimate". Without one, nothing changes from the previous behavior.
+      label = livePhase ? t(GENERATE_PHASE_LABELS[livePhase.phase]) : activeStepLabel
+      elapsedSuffix = formatElapsed(elapsedMs)
+    }
+
+    if (!isDone && effectiveActive) {
+      // Ambient line. Scoped to the live phase when there is one, otherwise to
+      // the step; rotates off the same elapsed clock the bar already tracks.
+      const pool = livePhase
+        ? GENERATE_PHASE_QUIPS[livePhase.phase]
+        : STEP_QUIPS[effectiveActive]
+      const raw = pickQuip(pool, phaseElapsedMs)
+      quip = raw ? `${t(raw)}…` : null
+    }
+
+    if (livePhase) {
+      // Factual sub-line: server-reported counts only.
+      const detail = phaseDetailLine(livePhase.phase, livePhase.detail)
+      if (detail?.kind === 'priced') {
+        phaseDetail = `${detail.researched} ${t('of')} ${detail.candidates} ${t('items priced')}`
+      } else if (detail?.kind === 'to_price') {
+        phaseDetail = `${detail.candidates} ${t('items to price')}`
+      } else if (detail?.kind === 'items') {
+        phaseDetail = `${detail.itemCount} ${t('items in')} ${detail.sectionCount} ${t('sections')}`
+      } else if (detail?.kind === 'round') {
+        phaseDetail = `${t('Pass')} ${detail.round + 1}`
+      }
+
+      // Say it plainly instead of freezing at 95% and pretending nothing is
+      // wrong. The estimate is still coming: this is a long job, not a dead one.
+      overdue = isGenerateOverdue({
+        elapsedMs,
+        medianMs: medians?.['generate_estimate'],
+      })
     }
 
     progressBar = (
@@ -155,6 +238,11 @@ export function CaptureProcessingOverlay({
     ? `${analyzedCount} ${t('of')} ${totalCount} ${t('photos analyzed')}`
     : null
 
+  // One factual sub-line at a time: photo coverage belongs to the analyze step,
+  // the phase detail to generate. They can never both be live, but pick
+  // explicitly rather than relying on that.
+  const subtitle = coverageSubtitle ?? phaseDetail
+
   return (
     <div
       className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/60 backdrop-blur-sm"
@@ -167,23 +255,65 @@ export function CaptureProcessingOverlay({
         <TowerLoader size={1.8} label={t('Loading')} />
       </div>
       {progressBar}
-      <p
-        className="text-sm text-muted-foreground"
-        data-testid="capture-processing-label"
-      >
-        {label}
-        {elapsedSuffix && (
-          <span className="tabular-nums text-muted-foreground/70"> · {elapsedSuffix}</span>
+      {/* The words are their own tight stack. The overlay's gap-4 is right
+          between the loader, the bar and the text as a group, but applying it
+          BETWEEN the lines left them floating 16px apart, reading as separate
+          statements instead of one status. */}
+      <div className="flex flex-col items-center gap-1.5">
+        {/* Label and clock share a row but stay separate elements: the phase
+            name is prose and the elapsed time is a readout, and cramming a raw
+            "148s" into the sentence made both harder to read. The chip reuses
+            the app's own font with tabular figures (not a monospace face, which
+            appears nowhere else in this UI) so the digits hold their column and
+            stop nudging the label sideways on every tick. */}
+        <div className="flex items-center justify-center gap-2">
+          <p
+            className="text-sm text-muted-foreground"
+            data-testid="capture-processing-label"
+          >
+            {label}
+          </p>
+          {elapsedSuffix && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs leading-none tabular-nums transition-colors duration-500 ${
+                // Overdue brightens the chip rather than recolouring it: the
+                // run is slow, not broken, and an alarm colour would say
+                // otherwise.
+                overdue
+                  ? 'bg-muted text-foreground/75'
+                  : 'bg-muted/60 text-muted-foreground/70'
+              }`}
+              data-testid="capture-processing-elapsed"
+            >
+              {elapsedSuffix}
+            </span>
+          )}
+        </div>
+        {subtitle && (
+          <p
+            className="text-xs text-muted-foreground/70"
+            data-testid="capture-processing-coverage"
+          >
+            {subtitle}
+          </p>
         )}
-      </p>
-      {coverageSubtitle && (
-        <p
-          className="text-xs text-muted-foreground/70"
-          data-testid="capture-processing-coverage"
-        >
-          {coverageSubtitle}
-        </p>
-      )}
+        {quip && (
+          <p
+            className="max-w-[260px] text-center text-xs italic text-muted-foreground/60"
+            data-testid="capture-processing-quip"
+          >
+            {quip}
+          </p>
+        )}
+        {overdue && (
+          <p
+            className="max-w-[260px] text-center text-xs text-muted-foreground/70"
+            data-testid="capture-processing-overdue"
+          >
+            {t('Bigger job than usual, still working on it')}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

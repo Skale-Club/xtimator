@@ -28,6 +28,7 @@ import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visual
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Photo } from '@/lib/queries/photo'
 import { pollEstimateOutcome, getCurrentEstimateId, type EstimateOutcome, type StageProgress } from '@/lib/estimate/poll-outcome'
+import type { GeneratePhaseProgress } from '@/lib/estimate/generation-phases'
 import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
@@ -164,6 +165,12 @@ interface AttemptProgress {
   analyzedCount?: number
   totalCount?: number
   failedCount?: number
+  /**
+   * 260806: journal-reported sub-phase of the generate step. Drives the
+   * overlay's phase label, its whimsical status line, and the phase-boundary
+   * fill of the final bar segment.
+   */
+  generatePhase?: GeneratePhaseProgress
 }
 const EMPTY_ATTEMPT_PROGRESS: AttemptProgress = {
   completedSteps: [],
@@ -716,6 +723,8 @@ export function CaptureRecorder({
       analyzedCount: progress.analyzedCount,
       totalCount: progress.totalCount,
       failedCount: progress.failedCount,
+      // 260806: sub-phase narration for the generate step.
+      generatePhase: progress.generatePhase,
     })
   }, [])
 
@@ -1344,6 +1353,7 @@ export function CaptureRecorder({
               analyzedCount={attemptProgress.analyzedCount}
               totalCount={attemptProgress.totalCount}
               failedCount={attemptProgress.failedCount}
+              generatePhase={attemptProgress.generatePhase}
             />
           )}
           {failedAt && (
