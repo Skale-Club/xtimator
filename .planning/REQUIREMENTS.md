@@ -49,7 +49,7 @@
 
 ### Object Migration & Verification (MIG)
 
-- [ ] **MIG-01**: An operator can copy all existing Supabase objects into R2 with a repeatable, re-runnable command that is safe to run twice.
+- [x] **MIG-01**: An operator can copy all existing Supabase objects into R2 with a repeatable, re-runnable command that is safe to run twice.
 - [x] **MIG-02**: The migration reports per-object verification — count, byte size, and content type compared between source and destination — and fails loudly on any mismatch rather than reporting success.
 - [x] **MIG-03**: The five R2 buckets exist with public access disabled, and the credential used by the app is scoped to only those buckets.
 - [ ] **MIG-04**: The runbook documents the cutover and the rollback, states the verified R2 settings, and contains no real secrets.
