@@ -18,7 +18,6 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
-import { RefineEstimateDialog } from './refine-estimate-dialog'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
@@ -858,40 +857,16 @@ export function EstimateEditor({
         </div>
       )}
 
+      {/* The pill is deliberately minimal: "Refine with AI" is gone (the header's
+          "Edit with AI" is the one AI entry point for an existing estimate) and
+          Link Client moved into the gear panel below. A wide pill overflowed the
+          preview horizontally and made the whole document rock side to side. */}
       <EstimateFloatingActions
         isCurrent={isCurrent}
         status={slotSaveStatus}
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen(true)}
-        linkClientSlot={linkClientSlot}
-        refineSlot={
-          isContentReadOnly ? undefined : (
-            <RefineEstimateDialog
-              estimateId={state.id}
-              version={state.version}
-              isDirty={state.isDirty}
-              // REFINE-01 (audit G1): the dialog flushes THIS before its POST
-              // when the editor is dirty -- runSave's own boolean IS the
-              // flush-succeeded signal (false on lock/conflict/error, in
-              // which case the dialog aborts before ever reaching the route).
-              onBeforeRefine={() => runSave()}
-              // REFINE-02: the LIVE current content, read by the dialog via a
-              // ref at compute time (not a dialog-open snapshot) -- reflects
-              // the flush above + 165-02's id remap.
-              currentContent={{
-                sections: state.sections,
-                summary: state.summary,
-                notes: state.notes,
-                timeline: state.timeline,
-                payment_terms: state.payment_terms,
-                warranty_terms: state.warranty_terms,
-              }}
-              currencyCode={state.currency_code}
-              onApply={(refined) => dispatch({ type: 'APPLY_REFINEMENT', refined })}
-            />
-          )
-        }
       />
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
@@ -911,6 +886,7 @@ export function EstimateEditor({
             sent_at: estimate.sent_at,
             viewed_at: estimate.viewed_at,
           })}
+          clientSlot={linkClientSlot}
         />
       )}
     </div>

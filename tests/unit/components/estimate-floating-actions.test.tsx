@@ -4,8 +4,10 @@ import { EstimateFloatingActions } from '@/components/workspace/estimate/estimat
 
 // Wave 4 (162-04) — DOCUX-01 gear button real assertions replacing the Wave 0
 // placeholder scaffolds. Every test targets estimate-floating-actions.tsx —
-// the `<Pill>` that hosts the gear icon LEFTMOST of linkClientSlot / Photos /
-// Share.
+// the `<Pill>` that hosts the gear icon LEFTMOST of Photos / Share. The pill's
+// Link-Client slot and "Refine with AI" trigger were removed (Link Client now
+// lives inside the gear panel; "Edit with AI" in the header is the single AI
+// entry point) — a narrower pill can no longer overflow the preview sideways.
 
 beforeEach(() => {
   cleanup()
@@ -54,7 +56,7 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
-  it('gear button is the LEFTMOST child of the Pill (order: [Gear] linkClientSlot Photos Share)', () => {
+  it('gear button is the LEFTMOST child of the Pill (order: [Gear] Photos Share)', () => {
     render(
       <EstimateFloatingActions
         isCurrent
@@ -62,17 +64,27 @@ describe('EstimateFloatingActions gear button (DOCUX-01)', () => {
         onSend={vi.fn()}
         onOpenPhotos={vi.fn()}
         onOpenSettings={vi.fn()}
-        linkClientSlot={<span data-testid="lcs">slot</span>}
       />,
     )
     const gear = screen.getByRole('button', { name: /^settings$/i })
-    const slot = screen.getByTestId('lcs')
     const photos = screen.getByRole('button', { name: /photos/i })
     const share = screen.getByRole('button', { name: /^share$/i })
     // DOCUMENT_POSITION_FOLLOWING === 4 — LHS precedes RHS in document order.
-    expect(gear.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(slot.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(gear.compareDocumentPosition(photos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(photos.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders no "Refine with AI" trigger — the header\'s "Edit with AI" is the one AI entry point', () => {
+    render(
+      <EstimateFloatingActions
+        isCurrent
+        status="idle"
+        onSend={vi.fn()}
+        onOpenPhotos={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText(/refine with ai/i)).toBeNull()
   })
 
   it('gear button has aria-label="Settings" for screen readers', () => {

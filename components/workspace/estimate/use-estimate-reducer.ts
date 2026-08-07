@@ -674,10 +674,13 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       // matches refined items back onto the CURRENT rows (exact normalized-
       // description, then section-relative positional pairing of the
       // leftovers under a similarity guard) so untouched AND reworded rows
-      // keep their id/created_at; only genuinely NEW rows get temp- ids. The
-      // SAME util computes the diff the review dialog rendered before Apply
-      // was clicked (refine-estimate-dialog.tsx) -- what the user reviewed is
-      // exactly what lands here.
+      // keep their id/created_at; only genuinely NEW rows get temp- ids.
+      //
+      // NOTE: the in-editor "Refine with AI" dialog that used to dispatch this
+      // (refine-estimate-dialog.tsx) was removed -- "Edit with AI" in the
+      // project header is now the single AI entry point for an existing
+      // estimate. This case + mergeRefinement stay as the merge contract for
+      // any refined payload that reaches the editor.
       const r = action.refined
       const { mergedSections } = mergeRefinement(
         {

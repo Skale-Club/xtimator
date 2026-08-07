@@ -91,9 +91,6 @@ vi.mock('@/components/workspace/estimate/estimate-document', () => ({
 vi.mock('@/components/workspace/estimate/estimate-floating-actions', () => ({
   EstimateFloatingActions: () => null,
 }))
-vi.mock('@/components/workspace/estimate/refine-estimate-dialog', () => ({
-  RefineEstimateDialog: () => null,
-}))
 vi.mock('@/components/workspace/estimate/presentation-settings-panel', () => ({
   PresentationSettingsPanel: () => null,
 }))

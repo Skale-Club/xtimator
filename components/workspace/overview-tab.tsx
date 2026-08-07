@@ -84,12 +84,20 @@ export function OverviewTab({
   const searchParams = useSearchParams()
   const [modePickerOpen, setModePickerOpen] = useState(false)
 
+  // Rendered inside the estimate's gear panel (popover on desktop, bottom sheet
+  // on mobile) — not the floating action pill any more. Hence `modal` (so a
+  // click inside the picker doesn't dismiss the panel behind it) and the
+  // downward/start anchoring, since the panel row it hangs off is at the top of
+  // the panel rather than at the bottom edge of the screen.
   const linkClientSlot =
     !project.client && currentEstimate ? (
       <ClientPicker
         projectId={project.id}
         currentClientId={null}
         variant="button"
+        side="bottom"
+        align="start"
+        modal
       />
     ) : null
 
