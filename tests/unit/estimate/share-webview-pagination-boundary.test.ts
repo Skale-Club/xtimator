@@ -19,12 +19,14 @@ const ROOTS = ['app/estimate/[token]', 'components/share']
 const STATIC_IMPORT_PATTERNS = [
   /from\s+['"][^'"]*lib\/estimate\/pagination[^'"]*['"]/,
   /from\s+['"][^'"]*paginated-document-overlay[^'"]*['"]/,
+  /from\s+['"][^'"]*paginated-preview[^'"]*['"]/,
   /from\s+['"][^'"]*use-paginated-preview[^'"]*['"]/,
 ]
 
 const DYNAMIC_IMPORT_PATTERNS = [
   /import\(\s*['"][^'"]*lib\/estimate\/pagination[^'"]*['"]/,
   /import\(\s*['"][^'"]*paginated-document-overlay[^'"]*['"]/,
+  /import\(\s*['"][^'"]*paginated-preview[^'"]*['"]/,
   /import\(\s*['"][^'"]*use-paginated-preview[^'"]*['"]/,
 ]
 
