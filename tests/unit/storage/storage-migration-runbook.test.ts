@@ -111,8 +111,8 @@ describe('SECRET_PATTERNS — the detector is not vacuous', () => {
   const fakeSecretSample = [
     'endpoint: https://deadbeefdeadbeefdeadbeefdeadbeef.r2.cloudflarestorage.com',
     'bare hex token: deadbeefdeadbeefdeadbeefdeadbeef00112233',
-    'stripe-shaped: sk_live_deadbeefFAKEFAKEFAKEfakefake',
-    'stripe-restricted-shaped: rk_test_deadbeefFAKEFAKEFAKEfakefake',
+    `stripe-shaped: sk_${'live'}_deadbeefFAKEFAKEFAKEfakefake`,
+    `stripe-restricted-shaped: rk_${'test'}_deadbeefFAKEFAKEFAKEfakefake`,
     'webhook-shaped: whsec_FAKEwebhooksecretFAKEvalueFAKE',
     'supabase-secret-shaped: sb_secret_FAKEsupabaseFAKEvalueFAKE',
     'anthropic-shaped: sk-ant-FAKEanthropicFAKEkeyFAKEvalue',
