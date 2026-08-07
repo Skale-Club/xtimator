@@ -3282,7 +3282,7 @@ Plans:
 | 189. Browser Uploads Without Browser Credentials | 2/4 | In Progress|  |
 | 190. Portable Same-Origin Asset URLs | 4/4 | Complete   | 2026-08-07 |
 | 191. Object Migration & Verification | 3/3 | Complete   | 2026-08-07 |
-| 192. URL Rewrite Cutover & CDN Verification | 1/5 | In Progress|  |
+| 192. URL Rewrite Cutover & CDN Verification | 2/5 | In Progress|  |
 
 ### v4.24 Traceability
 
