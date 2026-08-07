@@ -175,12 +175,15 @@ describe('planTextRewrite — selection is by Supabase URL prefix, never by colu
   })
 
   it('never throws on a malformed row — it is skipped and counted', () => {
+    // Two distinct malformed shapes: no usable primary key, and a non-string value
+    // in a text column. Neither may throw, neither may be planned, and neither may
+    // vanish silently — a dropped row that is not counted looks like a clean pass.
     const result = planRows(
       [{ id: null, logo_url: `${PUBLIC}/logos/co/logo.webp` }, { id: 'ok', logo_url: 42 }],
       COMPANIES_LOGO(),
     )
     expect(result.changes).toEqual([])
-    expect(result.skipped).toBe(1)
+    expect(result.skipped).toBe(2)
   })
 
   it('counts an unserveable key without changing it', () => {
