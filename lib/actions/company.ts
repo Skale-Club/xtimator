@@ -70,10 +70,14 @@ const ACCEPTED_ONBOARDING_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 
 /**
  * Server-side logo upload for the onboarding survey — replaces the previous
  * client-side direct-to-storage upload (sharp only runs server-side, so
- * WebP conversion requires this round-trip). Returns the resolved public
- * URL; the prior client-side code stored the bare storage PATH as
- * companies.logo_url instead of a usable URL — fixed here since this
- * replaces that exact code path.
+ * WebP conversion requires this round-trip).
+ *
+ * Returns a SAME-ORIGIN `/storage/logos/...` path (Phase 190, URL-01) — a URL
+ * this app serves itself via the Phase 187 asset proxy. Do not confuse that
+ * with the original bug this function was written to fix: the old client-side
+ * code persisted the bare storage KEY (`{userId}/logo.webp`, no `/storage/`
+ * prefix), which no browser could resolve. A relative value is only correct
+ * when it is a path the app actually routes.
  */
 export async function uploadOnboardingLogoAction(formData: FormData) {
   const supabase = await createClient()
