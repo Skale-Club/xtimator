@@ -417,6 +417,127 @@ to `serverStorage(supabase)` as part of closing Plan 04.
 
 ---
 
+## Phase 189 — browser uploads without browser credentials (2026-08-06/07)
+
+UPLOAD-01's negative half (no storage credential reaches the browser) and
+UPLOAD-03 (content type survives the round trip, including for a key with no
+extension) — plus the one prerequisite this milestone cannot verify from the
+repo. gitleaks cannot match bare-hex credentials — they carry no
+vendor-specific prefix the way a Stripe or webhook secret does, and an R2
+account id/access key is exactly that bare-hex shape — so "the hook passed"
+is not evidence of anything below; the Plan 04 verification checks the
+shapes directly instead.
+
+**1. What changed.** The three browser upload call sites —
+`components/capture/capture-recorder.tsx`,
+`components/projects/inline-audio-recorder.tsx`, and
+`components/workspace/ai-input-group/use-ai-input-submit.ts` (all targeting
+the `audio` bucket) — no longer hold a storage client of any kind. Each now
+`POST`s to `/api/storage/upload-ticket` and receives a single-key,
+single-use ticket:
+
+```typescript
+type UploadTicket =
+  | { strategy: 's3-presigned-put'; bucket: string; key: string; url: string;
+      headers: Record<string, string>; expiresInSeconds: number; contentType: string }
+  | { strategy: 'supabase-signed-upload'; bucket: string; key: string; token: string;
+      expiresInSeconds: number; contentType: string }
+```
+
+The browser then PUTs (R2) or `uploadToSignedUrl`s (Supabase) the bytes
+against that ticket via `lib/storage/browser-upload.ts`'s `uploadViaTicket()`.
+`ticket.headers` is sent **verbatim** — no merging, no extra header, no
+`x-upsert` — because any unsigned or altered header breaks the presigned
+signature. `ticket.contentType` re-stamps the Blob before the write (see
+item 6 of the Phase 187 field notes and item 3 below): the key is derived
+**server-side** from the caller's active company, so nothing in the request
+body can choose a prefix — a request body carrying someone else's
+`companyId` is read by nobody in the route.
+
+**2. R2 CORS is a hard prerequisite for activation — and Supabase mode
+hides it completely.**
+
+> ⚠️ A presigned PUT to `https://<account-id>.r2.cloudflarestorage.com` is
+> **cross-origin** from the app. Without a CORS policy on the `audio`
+> bucket allowing `PUT` from the app origin, with `Content-Type` in
+> `AllowedHeaders`, the preflight fails and **every browser audio upload
+> dies at cutover** — while every test and every Supabase-mode run stays
+> green, because Supabase Storage is the origin the app already talks to.
+> This is the single most likely way this milestone breaks in production,
+> and no automated check in this repo can catch it — see CONTEXT.md
+> (Phase 189) for the verified detail that the production app token
+> **cannot** set bucket CORS itself (`PutBucketCorsCommand` returns
+> `AccessDenied` — correct least-privilege behavior, not a bug), so this is
+> an out-of-band admin step with zero repo-side evidence.
+>
+> Intended policy for the `audio` bucket, to apply at cutover:
+>
+> - AllowedOrigins: the production app origin(s) and any preview origin
+>   that must upload
+> - AllowedMethods: `PUT`, `GET`, `HEAD`
+> - AllowedHeaders: `content-type`
+> - **ExposeHeaders: `etag`** — required, not optional:
+>   `lib/storage/upload-with-retry.ts` treats a 409 as success and reads the
+>   response `ETag` to confirm the object actually landed; without
+>   `ExposeHeaders`, the browser's `fetch` cannot read that header
+>   cross-origin and a legitimate retry-confirmed success looks like a
+>   failure.
+> - MaxAgeSeconds: a short value (e.g. 3600) is sufficient
+>
+> **Whoever runs the Phase 191/192 cutover must apply this BEFORE flipping
+> `S3_*` into Coolify** — add it to that cutover checklist explicitly, not
+> as an assumed side effect of provisioning. Confirm the same policy is
+> **not** needed on `photos`, `pdfs`, `logos`, or `platform-brand` — no
+> browser writes to those four; all are written server-side.
+
+**3. The tenant-confinement contract.** Every ticketed key is
+`{companyId}/{projectId}/{uuid}.{ext}` — `companyId` comes from
+`getActiveCompanyId()` (never the request body), project ownership is
+verified against that company under the RLS-bound request client before a
+ticket is ever minted, and a client-supplied prior `key` (the retry path) is
+**re-validated, never repaired** — a key that fails tenant-confinement
+validation gets a hard refusal, not a "corrected" key. This is what replaces
+Supabase's `storage.objects` RLS, which — per `lib/storage/server.ts`'s own
+header docblock — **"DROPS Supabase `storage.objects` RLS in R2 mode,
+because an S3-compatible backend has no per-user policy layer of its own."**
+In R2 mode, the ticket-minting route's own gates (auth, active company, demo
+guard, project ownership) are the *entire* authorization surface for where a
+browser upload can land — there is no storage-layer backstop underneath them
+the way there is in Supabase mode today.
+
+**4. Resilience preserved.** `lib/storage/upload-with-retry.ts` is
+byte-unchanged and still wraps the byte move: 3 attempts, 1s/2s backoff,
+409-as-success, terminal-4xx-is-terminal. The ticket is minted **once**,
+outside that retry loop, so every retry attempt reuses the same key — minting
+a fresh ticket per attempt would break the wrapper's 409-as-success rule and
+orphan a new object on every transient failure. The capture flow's IndexedDB
+resume is unchanged. `inline-audio-recorder.tsx` and
+`use-ai-input-submit.ts` **gained** the 3-attempt retry ladder they did not
+have before this phase — a strict improvement, not a behavior change to
+guard against.
+
+**5. What Phase 189 did NOT fix.** Browser *readers* still mint Supabase
+signed URLs directly: `photo-card.tsx`, `photo-lightbox.tsx`,
+`estimate-document.tsx`, and `capture-recorder.tsx`'s photo-restore effect.
+With R2 active and Phase 190 not yet landed, a browser-side photo read
+misses (it resolves a Supabase signed URL for an object that may only exist
+in R2). This is an independent reason not to activate R2 before Phase 190
+ships, and it **compounds** — rather than duplicates — the same-shaped gap
+Phase 188 already recorded for server-side reads; see "What Phase 188
+deliberately did NOT fix" above.
+
+**6. Known limitation: no server-side size cap on the presigned PUT.** An
+S3 presigned PUT cannot enforce a maximum object size — only a presigned
+POST policy can do that, and this phase deliberately did not switch to POST
+policies (a bigger change, out of scope here). In Supabase mode the
+bucket's own file-size limit still applies underneath the ticket; in R2
+mode it does not. The exposure is bounded — a ticket is issued only to an
+authenticated, non-demo member of the company, for exactly one key, for 15
+minutes — but it is a real behavioral difference between the two backends
+and belongs written down rather than left implicit.
+
+---
+
 ## Why this is a 1-line change
 
 > **Superseded** — see §1 of the field assessment above, and see "Phase 188
