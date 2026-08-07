@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 191-03-PLAN.md (R2 cutover/rollback runbook, MIG-04). Phase 191 (Object Migration & Verification) complete. Next: Phase 192 (URL Rewrite Cutover & CDN Verification)."
-last_updated: "2026-08-07T01:48:41.807Z"
-last_activity: "2026-08-07 - Phase 191 Plan 03 (R2 cutover/rollback runbook, MIG-04) complete — Phase 191 COMPLETE. Prior: Phase 191 Plan 02 (destination layer, idempotent copy, CLI + exit-code contract, MIG-01/MIG-02) complete. Prior: Phase 191 Plan 01 (source enumeration + comparison engine) complete. Phase 190 Plan 02/03 (Portable Same-Origin Asset URLs) in progress concurrently. Phase 189 COMPLETE. Phase 188 COMPLETE. Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
+stopped_at: "Completed 190-03-PLAN.md (origin-less asset resolution for the PDF renderer and the dynamic favicon routes, URL-03). Phase 190 Plan 02 running concurrently; Plan 04 (email absolute URLs) still open."
+last_updated: "2026-08-07T02:20:32.362Z"
+last_activity: "2026-08-07 - Phase 190 Plan 03 (resolveAssetForRenderer: same-origin path -> data: URI for react-pdf and app/icon.tsx) complete. Prior: Phase 191 Plan 03 (R2 cutover/rollback runbook, MIG-04) complete — Phase 191 COMPLETE. Phase 190 Plan 02 in progress concurrently. Phase 189 COMPLETE. Phase 188 COMPLETE. Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
 progress:
   total_phases: 136
   completed_phases: 113
@@ -1089,6 +1089,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 191]: Source side pinned to createStorage(requireServiceClient()) via buildSourceStorage(), never the R2-aware default-provider factories, so the migration source stays Supabase regardless of S3_* env
 - [Phase 191]: main(argv=process.argv.slice(2)) made overridable for testability; grep-gate fix to Plan 01's docblock; vi.resetModules()+fresh aws-sdk import pattern for mocking a script's transitive deps
 - [Phase 191]: Phase 191 R2 cutover/rollback runbook (MIG-04): verified settings, both rollback cases, and the production execution record (55 objects copied, idempotency proven, corruption drill caught+restored) are now in docs/STORAGE-MIGRATION.md, gated by a self-proving secret-detector test
+- [Phase 190]: 190-03: server-side renderers resolve same-origin assets in-process to a data: URI (no self-request to our own public domain); a content-type allowlist (png/jpeg/webp/gif) is the control that keeps react-pdf's whole-URI 'Invalid base64 image' throw from dumping multi-MB base64 blobs into logs
 
 ## Performance Metrics
 
@@ -1450,6 +1451,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 191 P01 | 35min | 2 tasks | 2 files |
 | Phase 191 P02 | 70min | 2 tasks | 3 files |
 | Phase 191 P03 | 40min | 3 tasks | 3 files |
+| Phase 190 P03 | 60min | 3 tasks | 7 files |
 
 ## Project Reference
 
