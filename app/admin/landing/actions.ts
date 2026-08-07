@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import {
@@ -86,7 +87,8 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
         contentType: 'image/webp',
         upsert: true,
       })
-      newHeroUrl = storage.getPublicUrl('platform-brand', result.path)
+      // Phase 190 (URL-01): persist a same-origin path, never a backend hostname.
+      newHeroUrl = storageProxyPath('platform-brand', result.path)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed.'
       return { ok: false, message }
@@ -138,7 +140,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
         contentType: 'image/webp',
         upsert: true,
       })
-      newBgImageUrl = storage.getPublicUrl('platform-brand', result.path)
+      newBgImageUrl = storageProxyPath('platform-brand', result.path)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Background image upload failed.'
       return { ok: false, message }
@@ -187,6 +189,16 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
         contentType: bgVideoFile.type,
         upsert: true,
       })
+      // Phase 190 (URL-01) — DELIBERATE EXEMPTION, do not "finish" this.
+      // The hero background video stays on its absolute Supabase URL. The Phase 187
+      // asset proxy is whole-object pass-through with no Range/206 and no
+      // Accept-Ranges, and Safari (desktop + iOS) refuses to play a <video> from an
+      // origin that does not honour byte-range requests. This asset can be up to 20MB
+      // with no transcoding, and it renders as a bare <video> in
+      // components/landing/hero-section.tsx.
+      // PREREQUISITE before repointing: the asset proxy must support Range/206.
+      // Consequence: video is the one asset class still using Supabase egress.
+      // Tripwire: tests/unit/admin (saveLanding video case) asserts this stays absolute.
       newBgVideoUrl = storage.getPublicUrl('platform-brand', result.path)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Background video upload failed.'
@@ -234,7 +246,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
           contentType: 'image/webp',
           upsert: true,
         })
-        stepImageUrls.push(storage.getPublicUrl('platform-brand', result.path))
+        stepImageUrls.push(storageProxyPath('platform-brand', result.path))
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Step image upload failed.'
         return { ok: false, message }
@@ -287,7 +299,7 @@ export async function saveLandingContent(formData: FormData): Promise<SaveLandin
           contentType: 'image/webp',
           upsert: true,
         })
-        featureImageUrls.push(storage.getPublicUrl('platform-brand', result.path))
+        featureImageUrls.push(storageProxyPath('platform-brand', result.path))
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Feature image upload failed.'
         return { ok: false, message }

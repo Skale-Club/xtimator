@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { seoSchema } from '@/lib/schemas/admin'
 
@@ -70,11 +71,15 @@ export async function saveSeo(formData: FormData): Promise<SaveSeoResult> {
         upsert: true,
       })
       uploadedPath = result.path
+      // Phase 190 (URL-01): persist a same-origin path. The key is built from
+      // sanitizeBase(file.name) + an extension, so storageProxyPath()'s key
+      // validation is a guard rather than a live branch; it sits inside the same
+      // try that already returns { ok: false, message }.
+      newOgUrl = storageProxyPath('platform-brand', uploadedPath)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed.'
       return { ok: false, message }
     }
-    newOgUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
   // --- Remove branch (only if no new file) --------------------------------

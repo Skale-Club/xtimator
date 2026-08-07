@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { invalidatePlatformConfig } from '@/lib/platform-config'
 import { brandingSchema } from '@/lib/schemas/admin'
@@ -53,11 +54,15 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
         upsert: true,
       })
       uploadedPath = result.path
+      // Phase 190 (URL-01): persist a same-origin path, not a backend hostname.
+      // storageProxyPath() throws on a key the asset proxy could not serve; the
+      // key here is already sanitized, so this is a guard, not a live branch. It
+      // sits inside the same try that already returns { ok: false, message }.
+      logoUrl = storageProxyPath('platform-brand', uploadedPath)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed.'
       return { ok: false, message }
     }
-    logoUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
   // Favicon upload — NOT converted to WebP: browsers expect .ico/.png/.svg
@@ -76,11 +81,11 @@ export async function saveBranding(formData: FormData): Promise<SaveBrandingResu
         upsert: true,
       })
       uploadedPath = result.path
+      faviconUrl = storageProxyPath('platform-brand', uploadedPath)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Favicon upload failed.'
       return { ok: false, message }
     }
-    faviconUrl = storage.getPublicUrl('platform-brand', uploadedPath)
   }
 
   const upsertPayload: Record<string, unknown> = {
