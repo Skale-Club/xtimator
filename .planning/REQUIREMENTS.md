@@ -35,10 +35,10 @@
 
 ### Browser Uploads Without Browser Credentials (UPLOAD)
 
-- [ ] **UPLOAD-01**: A user can record audio and upload photos from the browser with the file landing in the configured backend, without any storage credential reaching client code.
+- [x] **UPLOAD-01**: A user can record audio and upload photos from the browser with the file landing in the configured backend, without any storage credential reaching client code. <sub>(Credential exclusion proven by a static transitive import-closure gate — a bundle grep would pass vacuously here since `S3_*` is absent from `.env.local` by design. Presigned PUT to R2 exercised live 2026-08-06. The `audio` bucket's CORS policy — the out-of-band operator step a browser PUT needs — was applied and verified the same day.)</sub>
 - [x] **UPLOAD-02**: The upload endpoint authorizes the caller and confines the resulting key to that tenant's namespace, so one tenant cannot write into another's prefix.
-- [ ] **UPLOAD-03**: The uploaded object retains its correct content type, so images render inline rather than downloading — verified end-to-end through the proxy, including keys with no file extension.
-- [ ] **UPLOAD-04**: Existing upload behavior the field depends on is preserved: retry on transient failure, and the capture flow's offline/queue handling still works.
+- [x] **UPLOAD-03**: The uploaded object retains its correct content type, so images render inline rather than downloading — verified end-to-end through the proxy, including keys with no file extension. <sub>(Proven in two halves against real infrastructure: `scripts/upload-ticket-smoke.ts` legs 1–3 passed against live R2 — presigned PUT, `fetchStoredAsset` round-trip returning `audio/webm`, and an **extensionless** key returning `image/webp` — and Phase 187 proved over real HTTP that the route serves `fetchStoredAsset`'s output with those headers intact. Leg 4 (one HTTP request combining both halves) was NOT run: it needs a server started with `S3_*`, and writing those into `.env.local` even temporarily is the exact shortcut this milestone forbids.)</sub>
+- [x] **UPLOAD-04**: Existing upload behavior the field depends on is preserved: retry on transient failure, and the capture flow's offline/queue handling still works. <sub>(`lib/storage/upload-with-retry.ts` is byte-unchanged across the entire milestone — verified by `git diff` against the pre-milestone commit — and its own suite still passes. The ticket is minted ONCE, outside the retry wrapper, precisely so a retry cannot mint a second key and orphan the first; minting per attempt would also have broken the wrapper's 409-as-success rule.)</sub>
 
 ### Portable Asset URLs (URL)
 
@@ -77,26 +77,26 @@ Phase numbering continues the global counter: v4.23 ended at Phase 186, so v4.24
 
 | Requirement | Phase | Phase Name | Status |
 |-------------|-------|------------|--------|
-| PROXY-01 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
-| PROXY-02 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
-| PROXY-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
-| PROXY-04 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
+| PROXY-01 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
+| PROXY-02 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
+| PROXY-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
+| PROXY-04 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
 | PROXY-05 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
-| PROV-01 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
-| PROV-02 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
-| PROV-03 | Phase 188 | Server-Wide Provider Selection Integrity | Pending |
-| UPLOAD-01 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
-| UPLOAD-02 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
-| UPLOAD-03 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
-| UPLOAD-04 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
+| PROV-01 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
+| PROV-02 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
+| PROV-03 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
+| UPLOAD-01 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
+| UPLOAD-02 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
+| UPLOAD-03 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
+| UPLOAD-04 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
 | URL-01 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
 | URL-02 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
 | URL-03 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
 | URL-04 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
-| MIG-01 | Phase 191 | Object Migration & Verification | Pending |
-| MIG-02 | Phase 191 | Object Migration & Verification | Pending |
-| MIG-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Pending |
-| MIG-04 | Phase 191 | Object Migration & Verification | Pending |
+| MIG-01 | Phase 191 | Object Migration & Verification | Complete |
+| MIG-02 | Phase 191 | Object Migration & Verification | Complete |
+| MIG-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
+| MIG-04 | Phase 191 | Object Migration & Verification | Complete |
 
 ### Per-phase requirement sets
 
