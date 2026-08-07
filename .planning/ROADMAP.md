@@ -3170,7 +3170,7 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 - [x] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction (completed 2026-08-06)
 - [x] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend (completed 2026-08-06)
 - [ ] **Phase 189: Browser Uploads Without Browser Credentials** — the five browser upload call sites move to server-issued presigned PUTs, preserving retry and offline/queue behavior, with no storage credential in client code
-- [ ] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed
+- [x] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed (completed 2026-08-07)
 - [x] **Phase 191: Object Migration & Verification** — a re-runnable command copies all 51 objects into R2 and proves per-object count, size, and content type; the runbook documents cutover and rollback with no real secrets (completed 2026-08-07)
 - [ ] **Phase 192: URL Rewrite Cutover & CDN Verification** — existing rows rewritten off `*.supabase.co` with a reversible record, and the landing page's images proven to arrive from `xtimator.com` with a Cloudflare cache HIT
 
@@ -3280,7 +3280,7 @@ Plans:
 | 187. R2 Provisioning & Same-Origin Asset Proxy | 3/3 | Complete   | 2026-08-06 |
 | 188. Server-Wide Provider Selection Integrity | 5/5 | Complete   | 2026-08-06 |
 | 189. Browser Uploads Without Browser Credentials | 2/4 | In Progress|  |
-| 190. Portable Same-Origin Asset URLs | 3/4 | In Progress|  |
+| 190. Portable Same-Origin Asset URLs | 4/4 | Complete   | 2026-08-07 |
 | 191. Object Migration & Verification | 3/3 | Complete   | 2026-08-07 |
 | 192. URL Rewrite Cutover & CDN Verification | 0/TBD | Not started | - |
 
