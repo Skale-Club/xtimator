@@ -21,6 +21,7 @@ import type { ReactNode } from 'react'
 import type { Style } from '@react-pdf/types'
 import { formatAddress } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { willPdfRenderLogo } from '@/lib/pdf/pdf-image-support'
 
 export interface PdfHeaderCompany {
   name: string
@@ -143,9 +144,14 @@ export function PdfHeader({
       <View style={styles.headerRight}>
         {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
         <Text style={styles.langBadge}>{langLabel}</Text>
-        {company.logo_url && (
+        {/* PDF-LOGO-01 — gated on the SAME predicate lib/pdf/measure-header-height.ts
+            charges the logo block with, never on bare truthiness. Rendering an
+            <Image> react-pdf cannot decode does not throw (@react-pdf/layout's
+            fetchImage catches and warns) but it does emit a per-render warn line
+            and leaves a blank box the header already paid height for. */}
+        {willPdfRenderLogo(company.logo_url) && (
           // eslint-disable-next-line jsx-a11y/alt-text
-          <Image src={company.logo_url} style={styles.logo} />
+          <Image src={company.logo_url as string} style={styles.logo} />
         )}
       </View>
     </View>

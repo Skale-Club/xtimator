@@ -51,3 +51,39 @@ Operational / scope deferrals surfaced during execution. Each carries forward wi
 **Why deferred (out of scope):** Plan 180-11 changes signed Stripe/Connect and shared service funnels; it does not own public-estimate action authentication or those three anonymous test setups. The failing stacks stop in `app/estimate/[token]/actions.ts` before notification dispatch and are independent of every file changed by this plan. Focused Plan 180-11 coverage is green (323 tests), and `tsconfig.ci.json` is clean.
 
 **Pickup condition:** when the public-estimate action tests are next maintained, provide the same request/guard mock context used by the dedicated Phase 180 public-estimate boundary suite, then restore the whole `event-sources.test.ts` file to green.
+
+## PDF-LOGO-01 follow-up work (2026-08-07)
+
+### Item 1 — attached job-site PHOTOS are WebP too, and also never render in a PDF — OBSERVED, OUT OF SCOPE
+
+**What:** while fixing PDF-LOGO-01 (company logos stored as WebP, which
+`@react-pdf/image` cannot decode), the identical failure was found one layer
+over on estimate photos. `lib/actions/photo.ts:144` runs `convertImageToWebp`
+and uploads `{companyId}/{projectId}/{photoId}.webp` with
+`contentType: 'image/webp'`. `lib/pdf/render-estimate-pdf.ts` hands those to
+`components/pdf/shared/pdf-photo-grid.tsx` as short-lived **signed remote URLs**,
+and react-pdf's `resolveImageFromUrl`
+(`node_modules/@react-pdf/image/lib/index.js:193`) sniffs the fetched bytes with
+`getImageFormat`, which recognises only `JPEG.isValid` / `PNG.isValid`. A WebP
+body therefore throws `Not valid image extension`, is swallowed by
+`@react-pdf/layout`'s `fetchImage` catch, and the photo grid renders blank —
+while `blocksFromModel` has already charged the page budget for the photo grid.
+Same bug class as PDF-LOGO-01, same silent signature.
+
+**Why deferred (out of scope):** PDF-LOGO-01's scope is the company logo. The
+photo path is a different resolution mechanism (signed remote URL, not the
+in-process `resolveAssetForRenderer` inline path), so the fix is materially
+different and materially more expensive: the server would have to READ every
+attached photo's bytes and transcode them per render, instead of emitting a
+signed URL react-pdf fetches itself. That is a real bandwidth/memory decision
+(N photos x full resolution per PDF) and deserves its own plan, its own size
+caps and its own measurement of the page-budget impact. Nothing in the
+PDF-LOGO-01 change touches `lib/actions/photo.ts`, `pdf-photo-grid.tsx`, or the
+photo signed-URL block of `render-estimate-pdf.ts`.
+
+**Pickup condition:** schedule as PDF-PHOTO-01. `lib/pdf/resolve-pdf-logo.ts`'s
+`transcodeToPdfSafeDataUri` is the reusable half; the open question is only
+whether photos get transcoded in-process on every render, get a stored
+PDF-safe variant at upload time, or get a transcoding read path on the asset
+proxy. Note that unlike logos, photos are NOT publicly readable, so a
+`/storage/` proxy path is not an option for them.

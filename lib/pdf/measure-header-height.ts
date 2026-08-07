@@ -6,8 +6,9 @@
 // column (company name always; ONE contact line joined by "  |  " only if
 // any of phone/email/website is present; an ADDRESS block — 1 or 2 lines,
 // see measureHeaderHeightPt's inline comment — only if formatAddress() is
-// truthy) and a RIGHT column (langBadge always; +logo ONLY if logo_url is
-// set, stacked below the badge with its own gap). A react-pdf flex row's
+// truthy) and a RIGHT column (langBadge always; +logo ONLY if
+// willPdfRenderLogo(logo_url) — PDF-LOGO-01, NOT mere truthiness — stacked
+// below the badge with its own gap). A react-pdf flex row's
 // rendered height is max(leftColumnHeight, rightColumnHeight) — NEVER the
 // sum of both columns (Plan-checker warning 8) — so NO `headerLeft.gap`
 // term is added here (the prior draft incorrectly summed it in).
@@ -18,6 +19,7 @@
 // page 1 included) — see lib/estimate/pagination/types.ts's doc comment.
 import { LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
 import { formatAddress } from '@/lib/estimate/document/format'
+import { willPdfRenderLogo } from '@/lib/pdf/pdf-image-support'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
 
@@ -107,8 +109,16 @@ export function measureHeaderHeightPt(company: PdfHeaderCompany, templateId: Est
     (hasContactLine ? layout.contactFontSizePt * prose : 0) +
     addressLines * layout.contactFontSizePt * prose
 
+  // PDF-LOGO-01: charge the logo block only when a logo will ACTUALLY BE DRAWN.
+  // This previously keyed on `company.logo_url` being a non-empty string, which
+  // is a different question: every logo writer stores WebP and @react-pdf/image
+  // decodes only jpg/jpeg/png, so the header reserved 64-72pt + the gap for a
+  // logo that never appeared. `willPdfRenderLogo` is the SAME predicate
+  // components/pdf/shared/pdf-header.tsx gates its <Image> on — measurement and
+  // render now answer one question, not two.
+  const drawsLogo = willPdfRenderLogo(company.logo_url)
   const rightColumnHeightPt =
-    layout.langBadgeFontSizePt * prose + (company.logo_url ? layout.headerRightGapPt + layout.logoHeightPt : 0)
+    layout.langBadgeFontSizePt * prose + (drawsLogo ? layout.headerRightGapPt + layout.logoHeightPt : 0)
 
   const headerRowHeightPt = Math.max(leftColumnHeightPt, rightColumnHeightPt)
 

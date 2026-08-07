@@ -127,13 +127,17 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
           L,
           templateId,
         })
-        // Parity note (Phase 190): lib/pdf/render-estimate-pdf.ts resolves
-        // company.logo_url to a data URI before calling this; this hook cannot
-        // (resolveAssetForRenderer is server-only) and passes the raw value.
-        // Safe because measureHeaderHeightPt keys on TRUTHINESS only, and a
-        // relative path and its resolved data URI are both truthy. If that ever
-        // becomes a size- or format-dependent measurement, these two sites must
-        // be reunified — they are Phase 185's deliberate shared-parity pair.
+        // Parity note (Phase 190, revised by PDF-LOGO-01):
+        // lib/pdf/render-estimate-pdf.ts resolves company.logo_url to a
+        // png/jpeg data URI before calling this; this hook cannot (resolvePdfLogo
+        // is server-only) and passes the RAW value. Safe because
+        // measureHeaderHeightPt no longer keys on TRUTHINESS — it asks
+        // willPdfRenderLogo(), which deliberately answers TRUE for BOTH a
+        // same-origin /storage path (the server transcodes it) and the data URI
+        // that path resolves to. The two sites diverge only when resolution
+        // genuinely fails. If measurement ever becomes size-dependent, these two
+        // sites must be reunified — they are Phase 185's deliberate
+        // shared-parity pair.
         const constraints = computeEstimatePageConstraints(company, templateId)
         const computed = computePageBreaks(blocks, constraints, provider)
         if (!cancelled) setPages(computed)

@@ -28,7 +28,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { serverStorage } from '@/lib/storage/server'
-import { resolveAssetForRenderer } from '@/lib/storage/asset-inline'
+import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -196,23 +196,35 @@ export async function renderEstimatePdf(
   // unresolvable asset becomes null => the header renders logo-less rather
   // than throwing: a broken image must never cost the user their document.
   //
-  // ORDER IS LOAD-BEARING: computeEstimatePageConstraints -> measureHeaderHeightPt
-  // charges 64-72pt of header height purely on company.logo_url being TRUTHY.
-  // Resolving AFTER it would let the pagination engine measure a header with a
-  // logo that the renderer then omits, silently shifting every page break.
+  // PDF-LOGO-01: `resolvePdfLogo` (NOT the raw `resolveAssetForRenderer`) —
+  // origin was only half the problem. Every logo writer stores WebP, which
+  // `@react-pdf/image` refuses on BOTH its data-URI and its remote-URL path, so
+  // no company logo had ever actually been drawn. `resolvePdfLogo` transcodes
+  // the bytes to PNG/JPEG in-process and guarantees its return value is either
+  // drawable or null. See lib/pdf/resolve-pdf-logo.ts for why transcoding beats
+  // storing a PNG variant (existing logos, no new dependency, no migration).
   //
-  // Parity note (Phase 190): components/workspace/estimate/use-paginated-preview.ts
-  // calls computeEstimatePageConstraints with the RAW company — it is a client
-  // hook and cannot call this server-only resolver. Safe because
-  // measureHeaderHeightPt keys on TRUTHINESS only, and a relative path and its
-  // resolved data URI are both truthy. If that ever becomes a size- or
-  // format-dependent measurement, these two sites must be reunified.
+  // ORDER IS LOAD-BEARING: computeEstimatePageConstraints -> measureHeaderHeightPt
+  // charges 64-72pt of header height for the logo. Resolving AFTER it would let
+  // the pagination engine measure a header with a logo that the renderer then
+  // omits, silently shifting every page break.
+  //
+  // Parity note (Phase 190, revised by PDF-LOGO-01):
+  // components/workspace/estimate/use-paginated-preview.ts calls
+  // computeEstimatePageConstraints with the RAW company — it is a client hook
+  // and cannot call this server-only resolver. Safe because both sites now ask
+  // `willPdfRenderLogo()` (lib/pdf/pdf-image-support.ts), which answers TRUE for
+  // a same-origin /storage path AND for the png/jpeg data URI it resolves to.
+  // The two answers only diverge when resolution genuinely FAILS (missing
+  // object, corrupt bytes) — the same pre-existing degradation as before, now
+  // strictly rarer. If measurement ever becomes size-dependent, these two sites
+  // must be reunified.
   //
   // Unconditional by design: no `logo_url ? resolve : skip` short-circuit, so
   // the null-in/null-out path can never drift from the resolved one.
   const companyForRender = {
     ...company,
-    logo_url: await resolveAssetForRenderer(company.logo_url),
+    logo_url: await resolvePdfLogo(company.logo_url),
   }
 
   // Phase 184 Plan 05 (PGBRK-01/03/04) — compute the deterministic page

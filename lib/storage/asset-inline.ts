@@ -27,14 +27,17 @@ import 'server-only'
  * 190-03-PLAN.md's verification block, so the prose above deliberately spells
  * none of those symbols literally.
  *
- * NOTE ON WEBP (see PDF-LOGO-01): `image/webp` is in the allowlist below because
- * it is what the `logos` writers actually produce (all four run
- * `convertImageToWebp`) and because the bytes are legitimately an image — the
- * `ImageResponse` renderer behind app/icon.tsx DOES decode WebP, so excluding it
- * would break the favicon route. But `@react-pdf/image` accepts only jpg/jpeg/png,
- * on BOTH the remote-URL and the data-URI path, so a WebP company logo still does
- * not appear in an estimate PDF. That is a pre-existing product bug this module
- * neither causes nor fixes; it is recorded as follow-up PDF-LOGO-01.
+ * NOTE ON WEBP (PDF-LOGO-01, now FIXED elsewhere): `image/webp` is in the
+ * allowlist below because it is what the `logos` writers actually produce (all
+ * four run `convertImageToWebp`) and because the bytes are legitimately an image
+ * — the `ImageResponse` renderer behind app/icon.tsx DOES decode WebP, so
+ * excluding it would break the favicon route. `@react-pdf/image` however accepts
+ * only jpg/jpeg/png, on BOTH the remote-URL and the data-URI path. This module
+ * solves ORIGIN, not FORMAT, and deliberately still does not: the PDF path calls
+ * `lib/pdf/resolve-pdf-logo.ts`'s `resolvePdfLogo()`, a thin wrapper that
+ * transcodes this function's output to PNG/JPEG in-process. Do NOT move that
+ * transcode in here — the favicon route would pay it for nothing, and this
+ * module would gain a `sharp` dependency it has no business holding.
  */
 import { isAcceptableAbsoluteAssetUrl, parseStorageProxyPath } from './asset-url'
 import { fetchStoredAsset } from './asset-source'

@@ -10,9 +10,10 @@
 // not (or vice versa), every page break in the document would shift silently.
 //
 // What this file deliberately does NOT assert: that a logo is VISIBLE in the
-// output. All four `logos` writers store WebP and @react-pdf/image decodes only
-// jpg/jpeg/png, so no company logo has ever rendered in a PDF — a pre-existing
-// product bug recorded as follow-up PDF-LOGO-01, neither caused nor fixed here.
+// output. That is PDF-LOGO-01's own end-to-end proof, which renders a REAL PDF
+// and inspects its image XObjects — see tests/unit/pdf/pdf-logo-webp-render.test.ts.
+// This file's job is the wiring: resolution happens ONCE, BEFORE measurement,
+// and the SAME company object reaches all three consumers.
 //
 // `node` environment: renderEstimatePdf resolves photo signed URLs through
 // serverStorage() -> assertServer(), which throws whenever `window` exists
@@ -41,7 +42,7 @@ vi.mock('@/lib/supabase/service', () => ({
     }),
   }),
 }))
-vi.mock('@/lib/storage/asset-inline', () => ({ resolveAssetForRenderer: vi.fn() }))
+vi.mock('@/lib/pdf/resolve-pdf-logo', () => ({ resolvePdfLogo: vi.fn() }))
 vi.mock('@/lib/estimate/pagination/page-constraints', () => ({
   computeEstimatePageConstraints: vi.fn().mockReturnValue({
     contentHeightPt: 600,
@@ -57,21 +58,23 @@ import { createElement } from 'react'
 import { resolveEstimatePdfContext, renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
-import { resolveAssetForRenderer } from '@/lib/storage/asset-inline'
+import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
 
 const mockGetEstimate = vi.mocked(getEstimateWithContext)
 const mockLoadSnapshot = vi.mocked(loadLatestSignedSnapshot)
 const mockCreateElement = vi.mocked(createElement)
-const mockResolveAsset = vi.mocked(resolveAssetForRenderer)
+const mockResolveAsset = vi.mocked(resolvePdfLogo)
 const mockConstraints = vi.mocked(computeEstimatePageConstraints)
 const mockBlocks = vi.mocked(blocksFromModel)
 
 const RELATIVE_LOGO = '/storage/logos/11111111-2222-3333-4444-555555555555/logo.webp'
 const LEGACY_ABSOLUTE =
   'https://prmqgcrnpuvpzruyzvuv.supabase.co/storage/v1/object/public/logos/co-1/logo.webp'
-const DATA_URI = 'data:image/webp;base64,AAAA'
+// resolvePdfLogo's contract is that whatever it returns is DRAWABLE — a WebP
+// data URI is exactly what it must never hand back (PDF-LOGO-01).
+const DATA_URI = 'data:image/png;base64,AAAA'
 
 const BASE_ESTIMATE = {
   id: 'est-1',
@@ -272,8 +275,12 @@ describe('W3 — paginated-preview parity is documented at BOTH call sites', () 
     )
 
     for (const src of [pdfSource, hookSource]) {
-      expect(src).toMatch(/Parity note \(Phase 190\)/)
-      expect(src).toMatch(/TRUTHINESS/)
+      expect(src).toMatch(/Parity note \(Phase 190/)
+      // PDF-LOGO-01 revised the parity BASIS: measurement no longer keys on
+      // truthiness, it asks willPdfRenderLogo(). Both notes must name the real
+      // predicate — a note citing a basis that no longer exists is worse than
+      // no note, because the next reader will trust it.
+      expect(src).toMatch(/willPdfRenderLogo/)
     }
   })
 })
