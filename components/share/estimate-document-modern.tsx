@@ -158,12 +158,22 @@ export function EstimateDocumentModern({
 
         {company.logo_url && (
           <div className="flex-shrink-0">
+            {/* Phase 190 (URL-03/W2): skip /_next/image. These logos are now
+                same-origin (/storage/logos/...) and the proxy already sets the
+                right Cache-Control (public, max-age=300, stale-while-revalidate
+                — logos use STABLE keys with upsert, so they must revalidate).
+                Routing through the optimizer would re-cache them under
+                next.config.ts's minimumCacheTTL (31 days) and pin a stale logo
+                on exactly the surface that shows a company's CURRENT branding.
+                Same rationale as components/landing/*, which also skip the
+                self-hosted optimizer (it intermittently fails — no sharp). */}
             <Image
               src={company.logo_url}
               alt={company.name}
               width={64}
               height={64}
               className="rounded object-contain"
+              unoptimized
             />
           </div>
         )}

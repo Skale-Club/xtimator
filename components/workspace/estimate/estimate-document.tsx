@@ -1537,12 +1537,19 @@ export function EstimateDocument({
           {/* RIGHT — logo (Quick-260526-jo4) */}
           {company.logo_url && (
             <div className="flex-shrink-0">
+              {/* Phase 190 (URL-03/W2): skip /_next/image — same rationale as
+                  components/share/estimate-document-modern.tsx. The logo is now
+                  a same-origin /storage/logos/... path whose proxy response is
+                  already correctly cached (max-age=300, stale-while-revalidate);
+                  the optimizer's 31-day minimumCacheTTL would pin a stale logo,
+                  and the editor is where a just-uploaded logo must appear. */}
               <Image
                 src={company.logo_url}
                 alt={company.name}
                 width={64}
                 height={64}
                 className="rounded object-contain"
+                unoptimized
               />
             </div>
           )}
