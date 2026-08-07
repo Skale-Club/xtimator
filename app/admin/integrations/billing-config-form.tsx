@@ -216,6 +216,12 @@ export function BillingConfigForm({ current }: Props) {
       meteredOperations,
       absorbedChatRateLimitPerMin: Number(absorbedChatRateLimitPerMin),
       autoTopupEnabled,
+      // SEED-054: pass the stored affiliate block through UNCHANGED. This panel
+      // has no affiliate fields yet, and saveBillingConfig persists `parsed.data`
+      // as the WHOLE metadata row — omitting the block here would silently wipe
+      // the program's configuration on every unrelated billing save. Replace this
+      // with real inputs when the affiliate admin slice lands.
+      affiliate: current.affiliate,
     }
 
     startTransition(async () => {

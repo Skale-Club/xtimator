@@ -137,3 +137,77 @@ describe('sign_estimate_atomic migration (S2) — shape', () => {
     expect(SQL).not.toMatch(/sk_(test|live)_/)
   })
 })
+
+/**
+ * Regression: this function shipped selecting `client_name` from
+ * `public.estimates` — a column that has never existed on that table (no
+ * migration creates it; the name lives on `clients.name`, reached through
+ * `projects.client_id`, which is how every other read in the codebase gets it).
+ *
+ * Every call therefore failed with 42703 (undefined_column). It went unnoticed
+ * because the migration had not been applied to any environment, so the RPC
+ * failed earlier with "function does not exist" and the two errors were
+ * indistinguishable from the route's perspective.
+ *
+ * The existing static assertions above could not catch it: none of them look at
+ * WHICH columns the estimates SELECT list reads. These do.
+ */
+describe('sign_estimate_atomic migration — estimates SELECT list is real columns only', () => {
+  /**
+   * The file is heavily commented, and the header prose mentions both `SELECT`
+   * and `public.estimates` — matching against the raw text picks up comment
+   * text instead of code. Strip `--` line comments first so these assertions
+   * only ever see executable SQL.
+   */
+  const CODE = SQL.split('\n')
+    .map((line) => line.replace(/--.*$/, ''))
+    .join('\n')
+
+  /** The estimates row read locked by the FOR UPDATE, as a single string. */
+  function estimatesSelectList(): string {
+    const m = CODE.match(/SELECT\s+([\s\S]*?)\s+INTO[\s\S]*?FROM public\.estimates/)
+    expect(m, 'could not locate the estimates SELECT ... INTO block').toBeTruthy()
+    return m![1]
+  }
+
+  it('does not read a non-existent estimates.client_name', () => {
+    expect(estimatesSelectList()).not.toMatch(/\bclient_name\b/)
+  })
+
+  it('reads only columns that actually exist on public.estimates', () => {
+    // Kept deliberately explicit rather than derived: if someone adds a column
+    // to this SELECT, they must consciously confirm it exists on the table.
+    const ALLOWED = new Set([
+      'company_id',
+      'project_id',
+      'client_response',
+      'updated_at',
+      'estimate_number',
+    ])
+    const selected = estimatesSelectList()
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    for (const col of selected) {
+      expect(ALLOWED.has(col), `unexpected estimates column in SELECT: ${col}`).toBe(true)
+    }
+  })
+
+  it('resolves the client name through clients.name via projects.client_id', () => {
+    expect(SQL).toMatch(
+      /SELECT\s+c\.name[\s\S]*?FROM public\.projects p[\s\S]*?JOIN public\.clients c ON c\.id = p\.client_id/
+    )
+  })
+
+  it('LEFT JOINs the client so a project with no client still signs', () => {
+    // projects.client_id is nullable; an INNER JOIN would make the SELECT ...
+    // INTO return no row, leaving v_client_name NULL anyway but silently
+    // coupling the signature path to client presence. LEFT JOIN states the
+    // intent — and the caller already types client_name as optional.
+    expect(SQL).toMatch(/LEFT JOIN public\.clients c ON c\.id = p\.client_id/)
+  })
+
+  it('still returns client_name in the RPC result the route consumes', () => {
+    expect(SQL).toMatch(/'client_name',\s*v_client_name/)
+  })
+})
