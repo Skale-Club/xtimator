@@ -22,6 +22,33 @@ const cspReportOnly = [
   "style-src 'self' 'unsafe-inline'",
   // *.googleusercontent.com — Google account avatars (lh3/lh4/lh5.googleusercontent.com)
   // surfaced after Google OAuth sign-in. Was missing → 35+ CSP img-src reports (XTIMATOR-B).
+  //
+  // ── Phase 190 (URL-04) CSP audit — conclusion: NOTHING was broadened. ──
+  // Pinned by tests/unit/security/csp-same-origin-assets.test.ts. Read that test
+  // before editing either of the two lines below.
+  //
+  // 1. `'self'` is what permits `/storage/{bucket}/{key}` — the Phase 187 asset
+  //    proxy route (app/storage/[bucket]/[...key]/route.ts) is same-origin, so
+  //    Phase 190 requires NO new source. A `https://xtimator.com` entry was
+  //    deliberately NOT added: it would be strictly broader than `'self'` and
+  //    URL-04 forbids leaving the policy broader than it needs to be.
+  // 2. `https://*.supabase.co` / `*.supabase.in` MUST REMAIN in `img-src`. Rows
+  //    written before Phase 190 still hold absolute Supabase URLs and must keep
+  //    rendering (Phase 190 Success Criterion 3), and tenant photos on share
+  //    pages and in the app still resolve through Supabase SIGNED URLs.
+  //    Narrowing is Phase 192's job, AFTER URL-02 rewrites the existing rows.
+  // 3. `https://*.supabase.co` MUST REMAIN in `media-src` for a SECOND, much
+  //    longer-lived reason: the landing hero background video is deliberately
+  //    NOT moved to the proxy (Phase 190 Plan 02, exemption B1 — the proxy is
+  //    whole-object pass-through with no Range/206 and no `Accept-Ranges`, and
+  //    Safari, desktop and iOS, refuses to play a `<video>` from such an origin).
+  //    Video is therefore the one asset class that stays on Supabase egress.
+  //    Phase 192 must NOT drop this entry; the prerequisite for ever doing so is
+  //    Range/206 support on the asset proxy. Note also that `media-src 'self'`
+  //    is NOT a claim that a proxied video would play — CSP permission is not
+  //    playback capability.
+  // 4. `*.googleusercontent.com` is unrelated to storage (Google OAuth avatars)
+  //    and is out of scope for this phase in either direction.
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.googleusercontent.com",
   "font-src 'self'",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.stripe.com https://api.inngest.com",
