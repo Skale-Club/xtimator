@@ -136,13 +136,14 @@ deliberately **not** in `.env.local` and **not** in Coolify, because
 would produce split-brain writes (some paths writing to R2, others still
 reading Supabase).
 
-**Phase-191 caution:** the `S3_*` vars must also stay out of Coolify until
-Phase 191 has copied the objects into R2. Until then every R2 lookup from
-the asset proxy misses by design, and each cold landing-page visit would
-burn roughly 41 wasted presign round trips and emit roughly 41
-`[asset-proxy] fallback` warn lines — harmless (Supabase still serves
-every request) but noisy and pointless before the objects actually exist
-in R2.
+**Phase-191 caution — resolved, see the concrete gate below.** The `S3_*`
+vars had to stay out of Coolify until Phase 191 copied the objects into R2.
+That copy is done (see "Phase 191 — R2 migration, cutover, and rollback"
+above). The precondition that now actually lifts the prohibition —
+`npm run migrate:r2 -- --verify-only` exiting 0 across all five buckets,
+run immediately before the Coolify change — is stated in that section's
+"Cutover" subsection; this paragraph is kept only so a reader who lands
+here first knows where to look.
 
 **Re-verification runbook** — placeholders only, env vars inline (never
 written to `.env.local`, per `scripts/storage-smoke.ts`'s own convention):
@@ -336,17 +337,210 @@ S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
 # a key absent from R2  → x-asset-source: supabase + one [asset-proxy] fallback warn
 ```
 
-**W4 — do not set `S3_*` in Coolify yet.** The `S3_*` vars (and
-`STORAGE_PROVIDER`) must stay out of Coolify until Phase 188 fixes the
-provider seam and Phase 191 has copied the objects. Setting them early is
-not merely useless — while R2 is empty, every asset request pays a presign
-+ a doomed R2 round trip before falling back, so a single cold landing visit
-would burn ~41 wasted round trips and emit ~41 `[asset-proxy] fallback` warn
-lines.
+**W4 — do not set `S3_*` in Coolify yet — resolved, see the concrete gate
+below.** The `S3_*` vars (and `STORAGE_PROVIDER`) had to stay out of
+Coolify until Phase 188 fixed the provider seam AND Phase 191 copied the
+objects. Both are now true. See "Phase 191 — R2 migration, cutover, and
+rollback" above, "Cutover" subsection, for the exact precondition
+(`npm run migrate:r2 -- --verify-only` exiting 0 across all five buckets)
+that must be re-checked immediately before wiring `S3_*` into Coolify —
+this paragraph documents why the prohibition existed, not an open-ended
+ban anymore.
 
 **Not done in Phase 187:** no DB row rewritten, no `getPublicUrl()` change,
 no component/PDF/share page repointed, no object copied into R2, no CDN
 cache-HIT claim (PROXY-05 is Phase 192).
+
+---
+
+## Phase 191 — R2 migration, cutover, and rollback (authoritative)
+
+This is the live procedure. Everything from "Why this is a 1-line change"
+onward, below, is the Phase-66/Hetzner-era plan — superseded, kept only for
+historical context, and marked as such at every heading. If you are about
+to run a command from this document, it belongs above this line.
+
+### Verified R2 settings
+
+Placeholders only — real values live in the operator's scratchpad, never in
+this repo, never in `.env.local`, never in Coolify (until the cutover step
+below explicitly says otherwise).
+
+| Setting | Value |
+|---|---|
+| `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `S3_REGION` | `auto` |
+| `S3_FORCE_PATH_STYLE` | `true` |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | `<r2-access-key-id>` / `<r2-secret-access-key>` |
+| Buckets | `audio`, `photos`, `pdfs`, `logos`, `platform-brand` — Standard, WEUR, public `r2.dev` access disabled |
+| Credential | one Account API token, Object Read & Write, scoped to exactly those five |
+
+`s3ConfigFromEnv()` (`lib/storage/s3-config.ts`) is the single mapping these
+env var names go through — every script in this section (`r2-verify.ts`,
+`r2-migrate.ts`) and the app itself (`lib/storage/server.ts`) read the same
+function, so this doc and the running app cannot disagree about what
+`S3_REGION` or `S3_FORCE_PATH_STYLE` mean.
+
+### Preconditions
+
+- `npm run verify:r2` exits 0 with the real credential supplied inline. A
+  `SKIP` on the `public-access:*` lines is **not** a pass — it means the two
+  `CLOUDFLARE_*` vars were omitted, so that leg was never checked. Re-assert
+  it with a short-lived Cloudflare R2 read token whenever the bucket set
+  changes.
+- Objects may be copied at any time, in any order, **with no maintenance
+  window and no write pause.** The asset proxy's Supabase read-through
+  (`lib/storage/asset-source.ts`) serves anything not yet in R2, so a
+  partially-copied R2 still serves every asset correctly. This replaces the
+  Hetzner-era section's "pause writes before sync" step below, which is
+  wrong for this migration.
+- The object count is **not** a fixed number and must never be hard-coded
+  anywhere that could go stale — see "Execution record" below for why.
+
+### Migration
+
+Copy-and-verify, env vars inline, never written to `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=<from .env.local> \
+  SUPABASE_SECRET_KEY=<from .env.local> \
+  S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com \
+  S3_REGION=auto \
+  S3_ACCESS_KEY_ID=<r2-access-key-id> \
+  S3_SECRET_ACCESS_KEY=<r2-secret-access-key> \
+  S3_FORCE_PATH_STYLE=true \
+  npm run migrate:r2
+```
+
+Report row vocabulary, verbatim from `formatMigrationReport` in
+`scripts/r2-migrate.ts` (see `191-02-SUMMARY.md` for the full derivation):
+
+- `[MATCH]` — source and destination already agree on size + content type.
+  No write.
+- `[COPIED]` — written this run, and the post-write re-read confirmed it
+  landed correctly. Never emitted in `--verify-only`.
+- `[WARN]` — `unknown-source-content-type`: the source object never
+  recorded a content type AND the destination's content type is the
+  generic `application/octet-stream` fallback. Not fatal.
+- `[EXTRA]` — a destination key with no source counterpart. **Not fatal** —
+  this is the W1 rollback signal: it means an object exists in R2 with no
+  Supabase counterpart, so a rollback for that specific object now needs a
+  copy-back (see "Rollback" below).
+- `[FAIL]` — `missing` / `size-mismatch` / `content-type-mismatch`, or a
+  write whose post-copy re-read does not match. Any `[FAIL]` row flips the
+  process exit code to `1`.
+
+Each bucket line renders `<bucket>: source=<n> destination=<n>`, and the run
+ends with a summary line
+(`objects=<n> match=<n> copied=<n> warn=<n> extra=<n> FAIL=<n>`) followed by
+`ALL OBJECTS VERIFIED` or `ONE OR MORE OBJECTS FAILED VERIFICATION`. **Exit
+code is 0 only when the row set contains zero `[FAIL]` rows.** The run is
+restartable by simply invoking the same command again — nothing is ever
+deleted, and an unconditional-overwrite copy makes a second pass
+self-healing for anything that changed in between.
+
+### Re-run / verify without writing
+
+Same env block, with `-- --verify-only`:
+
+```bash
+... npm run migrate:r2 -- --verify-only
+```
+
+The `--` is **load-bearing**: `npm run migrate:r2 --verify-only` (no `--`)
+silently swallows the flag as an npm option and runs a full **write** pass
+instead of the read-only check you asked for.
+
+Running the plain command twice, back to back, proves idempotency (MIG-01):
+the second run reports `copied=0` with every row `[MATCH]`. Running
+`--verify-only` against a destination with a corrupted or deleted object
+proves the opposite property (MIG-02): it reports `[FAIL]` naming the key
+and exits non-zero **without** healing it — `copyObject` is never called in
+this mode, by construction (see `scripts/r2-migrate.ts`'s own docblock).
+
+### Cutover
+
+This is the part that lifts the standing "do not set `S3_*` in Coolify"
+prohibition that appears twice elsewhere in this document.
+
+1. **Hard gate:** `npm run migrate:r2 -- --verify-only` exits 0 across all
+   five buckets, run immediately before the Coolify change (not from a
+   stale earlier run).
+2. Only then may `S3_*` be set in Coolify. The prohibition existed for two
+   independent reasons, and **both** had to be fixed before it could lift:
+   Phase 188 fixing the provider seam (`serverStorageBackend()` — see
+   below), and this phase actually copying the objects into R2. Neither
+   alone was sufficient.
+3. Coolify env changes need a redeploy/recreate to take effect. After that
+   redeploy, the post-deploy Inngest re-sync step in
+   `.github/workflows/build-deploy.yml` must run — do not skip it; a missed
+   sync silently stops every event-triggered Inngest job.
+4. Setting `S3_*` alone changes which backend serves the proxy — nothing
+   else. Repointing existing DB rows (`getPublicUrl()` output,
+   `companies.logo_url`, etc.) and proving the Cloudflare cache HIT is
+   **Phase 192**, not this one.
+5. Smoke checks after the flip: `/api/health` reports `storage: 'ok'`; one
+   estimate created with audio + a photo; a PDF send; a public share page
+   rendering the company logo; `X-Asset-Source: r2` on a `platform-brand`
+   key. The header is edge-cached on public buckets, so treat it as a
+   convenience only — the authoritative signal is the server-side
+   `[asset-proxy] fallback` warn line in `lib/storage/asset-source.ts`, not
+   the header (see "Fallback observability" above).
+
+### Rollback
+
+Two cases, both concrete. In both, **never delete a Supabase bucket** as
+part of a rollback or in the same window as a cutover — the 7-day rule in
+the superseded "What to NEVER do" section below still holds.
+
+**Before any write reaches R2** (today's state, and the state through
+Phase 187): remove the `S3_*` vars from Coolify, or set
+`STORAGE_PROVIDER=supabase` — an explicit kill switch that wins even with a
+complete `S3_*` config (`lib/storage/server.ts`'s own selection matrix).
+Redeploy. Every read returns to Supabase with no code change and no data
+movement, because nothing was ever deleted from Supabase.
+
+**After writes have reached R2** (post-188/189, i.e. once server writes and
+browser uploads are actually routing to R2): the same lever restores reads,
+but any object written only to R2 is now unreachable through Supabase.
+Recover it by copying back — the `[EXTRA]` rows from
+`npm run migrate:r2 -- --verify-only` are exactly the list of those keys.
+The current script copies Supabase→R2 only; a copy-back is a manual step
+(or a follow-up script), not a flag. Do not claim a reverse mode exists.
+
+### Execution record
+
+Executed against live production R2 on 2026-08-06.
+
+| Step | Result |
+|---|---|
+| Baseline `npm run verify:r2` | 16/16 PASS, zero SKIP — the public-access leg was re-asserted with a short-lived Cloudflare R2 admin token, which was revoked immediately afterward |
+| Initial copy (`npm run migrate:r2`) | **55 copied, 0 failed** |
+| Second run (idempotency, MIG-01) | 0 copied, 55 matched |
+| `npm run migrate:r2 -- --verify-only` | zero writes, all 55 matched |
+| Deliberate corruption drill (MIG-02) | one R2 object truncated to 9 bytes; the next verification run **detected it** — `[FAIL]` naming the object, reporting source size vs. destination size, non-zero exit |
+| Restore | object re-copied, all green afterward |
+| CORS | applied to the `audio` bucket (see "CORS on the `audio` bucket" above); the production app token cannot set bucket CORS itself (`PutBucketCorsCommand` → `AccessDenied`, verified) — this was an out-of-band admin step |
+
+**The object count is a moving target, not a constant — do not hard-code
+it.** It was 51 when this migration was scoped (2026-08-05) and 55 by the
+time the copy actually ran (2026-08-06): a live user uploaded three audio
+recordings and a logo during the same working session. The command compares
+live source against live destination on every invocation, which is what
+makes the number irrelevant to correctness. Objects created between the
+copy and the eventual URL cutover (Phase 192) exist only in Supabase until
+the copy is re-run — harmless, because the proxy falls back there, and
+fixed by simply running `npm run migrate:r2` again.
+
+Per-bucket source/destination counts were not individually transcribed into
+this record beyond the totals above; the summary line and the `[FAIL]`
+count are the load-bearing numbers, and the full per-object report is
+reproducible on demand by re-running `npm run migrate:r2 -- --verify-only`.
+
+**What this phase did NOT do:** no `S3_*` set in Coolify, no DB row
+rewritten, no `getPublicUrl()` change, no CDN cache-HIT claim. Those are
+Phase 192 — see "Cutover" above for the exact precondition that unblocks
+that work.
 
 ---
 
@@ -611,6 +805,9 @@ Switching providers means **flipping `STORAGE_PROVIDER=s3`** and supplying the `
 
 ## Pre-migration checklist
 
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
+
 - [ ] Storage usage measured and recorded (per bucket, total)
 - [ ] All five buckets enumerated: **`audio`**, **`photos`**, **`pdfs`**, **`logos`**, **`platform-brand`**
 - [ ] Maintenance window scheduled (writes paused during sync — typical 30–60 min depending on size)
@@ -622,6 +819,9 @@ Switching providers means **flipping `STORAGE_PROVIDER=s3`** and supplying the `
 ---
 
 ## Step 1 — Provision Hetzner Object Storage
+
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
 
 1. Log in to **Hetzner Cloud Console** → **Object Storage**
 2. Create a new project (or use the existing one that hosts the VPS)
@@ -643,6 +843,9 @@ The `logos` and `platform-brand` buckets currently serve content via `getPublicU
 ---
 
 ## Step 2 — Sync data (`aws s3 sync`)
+
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
 
 Configure two `aws-cli` profiles — one for the source (Supabase Storage exposes an S3-compatible endpoint), one for the destination (Hetzner):
 
@@ -704,6 +907,9 @@ All five lines must end with `OK` before continuing.
 
 ## Step 3 — Smoke-test Hetzner BEFORE swapping production
 
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
+
 Run the project's smoke script (see `scripts/storage-smoke.ts`) against Hetzner with a throwaway `smoketest` bucket — proves the endpoint, region, access key, and secret key are correct before flipping production traffic:
 
 ```bash
@@ -721,6 +927,9 @@ Expected output: 5 lines ending in `OK` plus `[smoke] ALL OPS PASSED`. If anythi
 ---
 
 ## Step 4 — Swap the application provider (the 1-line change)
+
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
 
 Add to production env (Vercel dashboard → **Settings → Environment Variables**, or the `.env` on the Hetzner VPS host):
 
@@ -775,6 +984,11 @@ After 7 days of incident-free operation:
 ---
 
 ## Rollback procedure
+
+> **Superseded** — the live procedure is "Phase 191 — R2 migration,
+> cutover, and rollback" above. Kept for context on what Phase 66 intended.
+> The steps below instruct an `aws s3 sync` against a Hetzner endpoint that
+> does not exist — do not follow them.
 
 If anything misbehaves in the **first 24 hours**:
 
