@@ -1,24 +1,31 @@
 /**
- * Phase 191 Plan 01 — MIG-02: source enumeration + per-object comparison
- * engine for the Supabase -> R2 migration.
+ * Phase 191 — MIG-01/MIG-02: one re-runnable command that copies every
+ * Supabase Storage object into the matching Cloudflare R2 bucket, preserving
+ * byte size and stored content type, and re-verifies each object after
+ * copying it.
  *
- * READ-ONLY. Nothing in this file writes to, or deletes from, either
- * backend — there is no upload call and no delete call anywhere below.
- * Plan 02 adds `main()` and the R2-side HeadObject/copy work; this plan
- * only builds the half that decides what is true and what matched.
+ * NEVER DELETES. There is no delete call anywhere in this file, in any
+ * mode — not `--verify-only`, not the write path, not even a hidden flag.
+ * A deleted or corrupted destination object is REPORTED, never healed
+ * silently and never removed.
  *
  * THE ONE TRAP THIS FILE MUST NOT STEP INTO:
  * a migration run supplies `S3_*` inline so the process can talk to R2 for
- * the DESTINATION side (added in Plan 02). With those vars present,
- * `serverStorageBackend()` in `@/lib/storage/server` returns 'r2', so EVERY
- * default-provider factory exported by that module returns the R2 provider
- * (see the selection matrix in that module's own docblock). If the
- * SOURCE side used any of those factories, this script would enumerate R2,
- * compare R2 against R2, and report a flawless migration having moved
- * nothing. The source side is pinned below to
- * `createStorage(requireServiceClient())` — the explicit Supabase factory
- * from `@/lib/storage` — for exactly the reason `lib/storage/asset-source.ts`
- * pins its own read-through fallback the same way. See buildSourceStorage().
+ * the DESTINATION side. With those vars present, `serverStorageBackend()` in
+ * `@/lib/storage/server` returns 'r2', so EVERY default-provider factory
+ * exported by that module returns the R2 provider (see the selection matrix
+ * in that module's own docblock). If the SOURCE side used any of those
+ * factories, this script would enumerate R2, compare R2 against R2, and
+ * report a flawless migration having moved nothing. The source side is
+ * pinned below to `createStorage(requireServiceClient())` — the explicit
+ * Supabase factory from `@/lib/storage` — for exactly the reason
+ * `lib/storage/asset-source.ts` pins its own read-through fallback the same
+ * way. See buildSourceStorage().
+ *
+ * `--verify-only` is genuinely write-free: it never calls `copyObject`, so
+ * it can check the destination without healing anything it finds wrong —
+ * which is the only way a deliberately corrupted/deleted destination object
+ * can be demonstrated as CAUGHT rather than silently repaired first.
  *
  * Usage — env vars inline, never written to `.env.local` (the same house
  * convention `scripts/storage-smoke.ts`'s docblock states verbatim). This
@@ -29,20 +36,49 @@
  * var, so the operator's inline `S3_*` still win over anything in
  * `.env.local`.
  *
+ * All four required S3_* vars (endpoint, region, the access-key-id var, the
+ * secret-access-key var — see lib/storage/s3-config.ts for the exact names)
+ * go inline on the command line, e.g.:
+ *
  *   S3_ENDPOINT=<endpoint> S3_REGION=auto \
- *     S3_ACCESS_KEY_ID=<key-id> S3_SECRET_ACCESS_KEY=<secret> \
+ *     <the two credential vars from s3ConfigFromEnv()>=<placeholders> \
  *     npx tsx scripts/r2-migrate.ts
  *
- * `main()` does not exist yet — Plan 02 adds it and the direct-execution
- * guard that calls it. Importing this module today performs no network
- * call of any kind; the only side effect is the dotenv.config() read below,
- * which silently no-ops when `.env.local` is absent (CI) and never
- * overrides an already-set var.
+ *   npm run migrate:r2
+ *   npm run migrate:r2 -- --verify-only
+ *
+ * The `--` before `--verify-only` is LOAD-BEARING when invoked through npm:
+ * `npm run migrate:r2 --verify-only` (no `--`) silently swallows the flag as
+ * an npm option instead of forwarding it to the script, and would run a full
+ * WRITE pass instead of the read-only check an operator asked for.
+ *
+ * Flags:
+ *   --verify-only        perform zero writes; report-only
+ *   --bucket <name>       restrict to one of the five migration buckets
+ *                          (repeatable is NOT supported — one bucket per flag
+ *                          occurrence wins; pass the flag once)
+ * An unrecognized flag, or a `--bucket` value outside the five provisioned
+ * buckets, THROWS rather than being ignored — see parseArgs().
+ *
+ * Report row vocabulary — `[MATCH]` / `[COPIED]` / `[WARN]` / `[EXTRA]` /
+ * `[FAIL]` — is defined by `formatMigrationReport` (see that function's own
+ * docblock). `[EXTRA]` (destination-only object) is reported but NEVER
+ * fatal. See docs/STORAGE-MIGRATION.md for the operator runbook.
+ *
+ * Importing this module performs no network call of any kind and never
+ * touches `process.exit` — the only side effect is the dotenv.config() read
+ * below, which silently no-ops when `.env.local` is absent (CI) and never
+ * overrides an already-set var. `main()` only runs when this file is
+ * executed directly (see the guard at the bottom of the file).
  */
+import { pathToFileURL } from 'node:url'
 import dotenv from 'dotenv'
+import { S3Client, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 import type { StorageProvider } from '@/lib/storage'
 import { createStorage } from '@/lib/storage'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { s3ConfigFromEnv } from '@/lib/storage/s3-config'
+import { createS3StorageProvider } from '@/lib/storage/s3-provider'
 
 dotenv.config({ path: '.env.local' })
 
@@ -349,4 +385,306 @@ export function formatMigrationReport(
   const text = [...objectLines, '', ...bucketLines, '', summaryCounts, verdict].join('\n')
 
   return { text, allPassed }
+}
+
+// ---------------------------------------------------------------------------
+// Destination layer (Plan 02 — MIG-01)
+// ---------------------------------------------------------------------------
+
+export interface MigrationDeps {
+  /** Always Supabase — see buildSourceStorage(). */
+  sourceStorage: StorageProvider
+  /** Always R2 — built from the same s3ConfigFromEnv() result as s3Client. */
+  destStorage: StorageProvider
+  /**
+   * A raw @aws-sdk/client-s3 client against the SAME R2 config as
+   * `destStorage`. `StorageProvider` has no head/stat operation and
+   * `ListedObject` has no content-type field (see lib/storage/index.ts), so
+   * HeadObjectCommand/ListObjectsV2Command are the only route to the
+   * destination's stored size + content type through the S3 API.
+   * `lib/storage/s3-provider.ts` is proven against R2 unmodified (Phase 187
+   * MIG-03) and stays out of bounds — it is used here, never extended.
+   */
+  s3Client: S3Client
+}
+
+export interface MigrationOptions {
+  verifyOnly: boolean
+  buckets: readonly string[]
+}
+
+/**
+ * HeadObject against the destination. A NotFound-shaped rejection
+ * (`name: 'NotFound'`, and the '404'/'NoSuchKey' names some S3-compatible
+ * stacks use) means "object absent" and resolves to `null`. ANY OTHER
+ * rejection (AccessDenied, network error, etc.) THROWS — swallowing an
+ * authorization failure as "absent" would make the script re-upload
+ * everything on every run and then report a clean migration it never
+ * actually verified.
+ */
+export async function headDestinationObject(
+  client: S3Client,
+  bucket: string,
+  key: string,
+): Promise<DestinationObject | null> {
+  try {
+    const res = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }))
+    return {
+      size: res.ContentLength ?? 0,
+      contentType: res.ContentType ?? '',
+    }
+  } catch (err) {
+    if (isNotFoundError(err)) return null
+    throw err
+  }
+}
+
+function isNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== 'object' || !('name' in err)) return false
+  const name = String((err as { name: unknown }).name)
+  return name === 'NotFound' || name === '404' || name === 'NoSuchKey'
+}
+
+/**
+ * Lists every key currently in a destination bucket, paging via
+ * ListObjectsV2's continuation-token protocol. At 51 objects one page
+ * covers everything in practice — the loop and MAX_PAGES ceiling exist so an
+ * unhandled truncation never silently under-reports `[EXTRA]` objects, which
+ * is the one signal that tells an operator R2-only data exists (the
+ * docs/STORAGE-MIGRATION.md rollback signal).
+ */
+export async function listDestinationKeys(client: S3Client, bucket: string): Promise<string[]> {
+  const keys: string[] = []
+  let continuationToken: string | undefined
+  let pagesFetched = 0
+
+  for (;;) {
+    if (pagesFetched >= MAX_PAGES) {
+      throw new Error(
+        `[r2-migrate] listDestinationKeys: bucket "${bucket}" exceeded MAX_PAGES=${MAX_PAGES} — ` +
+          `refusing to keep paging. Production scale is 51 objects total, so this is almost ` +
+          `certainly a bug (an infinite/misbehaving listing), not real growth.`,
+      )
+    }
+
+    const res = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: continuationToken }),
+    )
+    pagesFetched += 1
+
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key) keys.push(obj.Key)
+    }
+
+    if (!res.IsTruncated || !res.NextContinuationToken) break
+    continuationToken = res.NextContinuationToken
+  }
+
+  return keys
+}
+
+/**
+ * Uploads the source bytes to the destination, unconditionally overwriting
+ * whatever is there — R2/S3 PutObject has no create-only mode (see
+ * lib/storage/s3-provider.ts's own file header). That overwrite semantics is
+ * exactly what makes a re-run self-healing: a corrupted or size-mismatched
+ * destination object gets replaced, not skipped.
+ *
+ * `contentType` is `source.contentType` RAW AND UNMODIFIED — normalization
+ * (normalizeContentType) exists for comparison only and must never leak into
+ * what gets written.
+ */
+export async function copyObject(destStorage: StorageProvider, source: SourceObject): Promise<void> {
+  await destStorage.upload(source.bucket, source.key, source.bytes, {
+    contentType: source.contentType,
+  })
+}
+
+/**
+ * Migrates (or, in --verify-only mode, checks) every source object in one
+ * bucket, then sweeps the destination for `[EXTRA]` objects the source has
+ * no counterpart for.
+ *
+ * Per object, sequentially:
+ *   1. readSourceObject   — the size/content-type authority (Supabase).
+ *   2. headDestinationObject.
+ *   3. compareObject.
+ *   4. status === 'match'      -> [MATCH], done, no write.
+ *      opts.verifyOnly         -> [WARN] for 'unknown-source-content-type',
+ *                                 [FAIL] for anything else that isn't a
+ *                                 match — copyObject is NEVER called here.
+ *      otherwise                -> copyObject, then re-head + re-compare:
+ *                                 [COPIED] on a match, [FAIL] otherwise (a
+ *                                 write that appears to succeed but does not
+ *                                 land must never be reported as a copy).
+ */
+export async function migrateBucket(
+  deps: MigrationDeps,
+  bucket: string,
+  opts: MigrationOptions,
+): Promise<{ rows: ReportRow[]; counts: { source: number; destination: number } }> {
+  const { sourceStorage, destStorage, s3Client } = deps
+  const rows: ReportRow[] = []
+
+  const sourceKeys = await walkSupabaseBucket(sourceStorage, bucket)
+  const sourceKeySet = new Set(sourceKeys)
+
+  for (const key of sourceKeys) {
+    const source = await readSourceObject(sourceStorage, bucket, key)
+    const destination = await headDestinationObject(s3Client, bucket, key)
+    const comparison = compareObject(source, destination)
+
+    if (comparison.status === 'match') {
+      rows.push({ label: 'MATCH', bucket, key, detail: comparison.detail })
+      console.log(`[r2-migrate] [MATCH] ${bucket}/${key}`)
+      continue
+    }
+
+    if (opts.verifyOnly) {
+      const label: RowLabel = comparison.status === 'unknown-source-content-type' ? 'WARN' : 'FAIL'
+      rows.push({ label, bucket, key, detail: comparison.detail })
+      console.log(`[r2-migrate] [${label}] ${bucket}/${key} — ${comparison.detail} (verify-only: not copying)`)
+      continue
+    }
+
+    console.log(`[r2-migrate] copying ${bucket}/${key} (was ${comparison.status})...`)
+    await copyObject(destStorage, source)
+    const recheckDestination = await headDestinationObject(s3Client, bucket, key)
+    const recheck = compareObject(source, recheckDestination)
+
+    if (recheck.status === 'match') {
+      rows.push({ label: 'COPIED', bucket, key, detail: recheck.detail })
+      console.log(`[r2-migrate] [COPIED] ${bucket}/${key}`)
+    } else {
+      rows.push({
+        label: 'FAIL',
+        bucket,
+        key,
+        detail: `copy did not land: ${recheck.detail}`,
+      })
+      console.log(`[r2-migrate] [FAIL] ${bucket}/${key} — copy did not land: ${recheck.detail}`)
+    }
+  }
+
+  const destinationKeys = await listDestinationKeys(s3Client, bucket)
+  for (const key of destinationKeys) {
+    if (!sourceKeySet.has(key)) {
+      rows.push({
+        label: 'EXTRA',
+        bucket,
+        key,
+        detail: 'present in destination, no source counterpart',
+      })
+      console.log(`[r2-migrate] [EXTRA] ${bucket}/${key} — present in destination, no source counterpart`)
+    }
+  }
+
+  return { rows, counts: { source: sourceKeys.length, destination: destinationKeys.length } }
+}
+
+/** Runs migrateBucket over every requested bucket and renders one combined report. */
+export async function runMigration(
+  deps: MigrationDeps,
+  opts: MigrationOptions,
+): Promise<{ text: string; allPassed: boolean }> {
+  const rows: ReportRow[] = []
+  const countsByBucket: Record<string, { source: number; destination: number }> = {}
+
+  for (const bucket of opts.buckets) {
+    const { rows: bucketRows, counts } = await migrateBucket(deps, bucket, opts)
+    rows.push(...bucketRows)
+    countsByBucket[bucket] = counts
+  }
+
+  return formatMigrationReport(rows, countsByBucket)
+}
+
+// ---------------------------------------------------------------------------
+// CLI (Plan 02 — MIG-01)
+// ---------------------------------------------------------------------------
+
+const SUPPORTED_FLAGS = '--verify-only, --bucket <name>'
+
+/**
+ * Three flags, hand-rolled — not worth a CLI arg library. An unrecognized
+ * flag, or a `--bucket` value outside the five provisioned buckets, THROWS
+ * rather than being silently ignored: an ignored `--delete-extra` typo or an
+ * ignored `--verify-only` typo is exactly how an intended read-only check
+ * turns into an unintended write run.
+ */
+export function parseArgs(argv: string[]): MigrationOptions {
+  let verifyOnly = false
+  const explicitBuckets: string[] = []
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]
+
+    if (arg === '--verify-only') {
+      verifyOnly = true
+      continue
+    }
+
+    if (arg === '--bucket') {
+      const value = argv[i + 1]
+      i += 1
+      if (!value || !(MIGRATION_BUCKETS as readonly string[]).includes(value)) {
+        throw new Error(
+          `[r2-migrate] --bucket must be one of: ${MIGRATION_BUCKETS.join(', ')} (got ${JSON.stringify(value)})`,
+        )
+      }
+      explicitBuckets.push(value)
+      continue
+    }
+
+    throw new Error(`[r2-migrate] unrecognized flag ${JSON.stringify(arg)}. Supported flags: ${SUPPORTED_FLAGS}`)
+  }
+
+  return {
+    verifyOnly,
+    buckets: explicitBuckets.length > 0 ? explicitBuckets : MIGRATION_BUCKETS,
+  }
+}
+
+/**
+ * `argv` defaults to `process.argv.slice(2)` for real CLI invocations, and
+ * is overridable so tests can call `main()` without inheriting the test
+ * runner's own process.argv (which is not this script's CLI surface).
+ */
+export async function main(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const opts = parseArgs(argv)
+
+  const config = s3ConfigFromEnv()
+  if (!config) {
+    console.error(
+      '[r2-migrate] R2 not configured — one or more required S3_* env vars are missing or ' +
+        'empty (see lib/storage/s3-config.ts for the exact list). Set them inline and re-run.',
+    )
+    process.exit(1)
+    return
+  }
+
+  const s3Client = new S3Client({
+    endpoint: config.endpoint,
+    region: config.region,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+    forcePathStyle: config.forcePathStyle ?? true,
+  })
+  const destStorage = createS3StorageProvider(config)
+  const sourceStorage = buildSourceStorage()
+
+  const { text, allPassed } = await runMigration({ sourceStorage, destStorage, s3Client }, opts)
+  // Print BEFORE exiting so a failing run is diagnosable from the terminal
+  // without re-running.
+  console.log(text)
+  process.exit(allPassed ? 0 : 1)
+}
+
+// Guard direct execution so tests can import every export above with zero
+// S3 calls, zero Supabase calls, and zero process.exit side effects — same
+// pattern as scripts/r2-verify.ts.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main()
 }
