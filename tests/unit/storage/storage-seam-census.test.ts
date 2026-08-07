@@ -229,6 +229,12 @@ const STORAGE_SEAM_MANIFEST: Row[] = [
     authority: "The client component's own authenticated browser Supabase auth context",
     reason: READ_REASON,
   },
+  {
+    id: 'components/workspace/estimate/paginated-preview.tsx#createStorage',
+    disposition: 'browser-supabase',
+    authority: "The client component's own authenticated browser Supabase auth context",
+    reason: READ_REASON,
+  },
 
   // --- deliberate-supabase: server code, pinned to Supabase on purpose ---
   {
