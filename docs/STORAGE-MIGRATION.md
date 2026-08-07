@@ -306,7 +306,9 @@ are open. Two deliberate exclusions, called out for Phase 190:
 The `X-Asset-Source: r2|supabase` response header is a convenience for manual
 curling only — **it is edge-cached along with the body on public buckets**,
 so a cached `supabase` value can outlive the condition it described.
-FUT-R2-01 must count log lines, not headers (W3).
+FUT-R2-01 must count log lines, not headers (W3). The switch that turns the
+fallback off is `STORAGE_SUPABASE_FALLBACK` — see "FUT-R2-01 — the Supabase
+fallback kill switch" at the end of this document.
 
 **Known limitations:** no Range/206 responses, no ETag revalidation,
 whole-object pass-through only (51 objects / 14.3 MB — deliberate).
@@ -1411,7 +1413,14 @@ occurrences inside `platform_branding.landing_content` (jsonb).
 Rollback remains one command:
 `npm run rewrite:asset-urls -- --revert-latest --confirm-project <ref>`.
 
-### Still pending: R2 is provisioned but NOT serving
+### ~~Still pending: R2 is provisioned but NOT serving~~ — DONE, same day
+
+> **Superseded later on 2026-08-07.** The `S3_*` variables were set on the
+> Coolify app and R2 is now serving: reads report `x-asset-source: r2`. The
+> record of that flip is commit `b793dcb2` ("close the milestone — R2 live")
+> and `docs/CLOUDFLARE-CDN.md`, which was corrected in the same commit; this
+> section was not, hence this note. The paragraphs below describe the
+> pre-flip state and are kept for the sequence, not as current truth.
 
 `x-asset-source: supabase` on every response — the `S3_*` variables are not in
 Coolify, so on a cache miss the origin still reads Supabase. The CDN already
@@ -1428,3 +1437,106 @@ verification. Note the reversibility caveat: removing `S3_*` returns reads to
 Supabase unconditionally only while no object exists **solely** in R2 — once
 writes land there, run `npm run migrate:r2 -- --verify-only` and treat any
 `[EXTRA]` row as a copy-back list before rolling back.
+
+---
+
+## FUT-R2-01 — the Supabase fallback kill switch (`STORAGE_SUPABASE_FALLBACK`)
+
+**Mechanism shipped 2026-08-07. NOT activated anywhere** — not in
+`.env.local`, not in Coolify. Turning it on is a deliberate operator action
+with a hard precondition, stated below.
+
+### What it is
+
+With R2 live, `lib/storage/asset-source.ts` still reads through to Supabase
+for any object R2 does not have. That read-through is what made the whole
+migration reversible and order-independent (see PROXY-02 above). Post-cutover
+it inverts: an object missing from R2 is served quietly from Supabase, at
+Supabase egress, **forever**, and nothing about the response says so. The
+failure is invisible by construction — the page renders.
+
+`STORAGE_SUPABASE_FALLBACK` converts that silence into a 404.
+
+| Value | Effect |
+|---|---|
+| unset | **fallback ENABLED** (default) |
+| `false`, `0`, `off` — trimmed, case-insensitive | fallback DISABLED |
+| anything else (`true`, `1`, `on`, `""`, a typo) | **fallback ENABLED** |
+
+**The default is ENABLED and the parsing is deliberately asymmetric.** Only an
+explicit disable value disables; every unrecognized value falls back to
+today's behaviour. A typo in this variable must never start 404ing live
+production assets — a typo in the *disable* direction merely leaves the safety
+net up, which is the harmless failure.
+
+### What it does and does not touch
+
+- **Disabled + R2 miss** → the reader returns "not found" and the route emits
+  its ordinary `404 Not found`. Not a 500, and the response carries no hint of
+  why — the reason is server-side only.
+- **R2-first ordering, content-type handling and `X-Asset-Source` semantics
+  are unchanged** in both modes. A successful R2 read is byte-identical.
+- **The switch is INERT when the `S3_*` vars are absent.** In that state
+  Supabase is the *primary* source, not a fallback. This is on purpose: it
+  keeps "remove `S3_*` from Coolify" (the Phase 191 "Rollback" lever above) a
+  working rollback rather than a site-wide blackout for whoever left this
+  variable set. Rolling R2 back does **not** require unsetting this first.
+
+### Observability — one line, both modes
+
+The existing `[asset-proxy] fallback` `console.warn` remains the authoritative
+signal (W3 — count log lines, never the edge-cached `X-Asset-Source` header).
+It gains one field and is still emitted **exactly once** per R2 miss, in both
+modes:
+
+```
+[asset-proxy] fallback {"bucket":"photos","key":"<co>/<id>.jpg","reason":"r2-miss","fallback":"supabase"}
+[asset-proxy] fallback {"bucket":"photos","key":"<co>/<id>.jpg","reason":"r2-miss","fallback":"disabled"}
+```
+
+- `"fallback":"supabase"` — the read-through served it (pre-flip behaviour).
+- `"fallback":"disabled"` — the switch is on and this request 404'd instead.
+
+`"fallback":"disabled"` lines are the operator's exact worklist: each names an
+object that exists in Supabase but not in R2, i.e. precisely what re-running
+`npm run migrate:r2` fixes. **A healthy post-cutover origin emits none.** Alert
+on the presence of the line, not on its absence.
+
+### Precondition for flipping it — not optional
+
+```bash
+# Same inline env block as the Migration section above.
+... npm run migrate:r2 -- --verify-only
+```
+
+**Confirm zero `[FAIL]` rows and exit code 0, immediately before flipping —
+not from a stale earlier run.** Once the fallback is off, an object that is in
+Supabase but not in R2 is a hard 404 for every visitor: a broken image on the
+landing page, a missing logo on a share page, a dead PDF link. Before the
+flip, that same object is invisible and merely expensive. The verification run
+is the only thing standing between those two outcomes.
+
+Two things that are easy to get wrong here:
+
+- **The `--` is load-bearing.** `npm run migrate:r2 --verify-only` (no `--`)
+  swallows the flag as an npm option and runs a full **write** pass instead of
+  the read-only check — see "Re-run / verify without writing" above.
+- **`[EXTRA]` rows are not a blocker for this flip** (they mean R2-only
+  objects, which the fallback never covered anyway) — but they *are* the
+  copy-back list for a future rollback. `[FAIL]` is the blocker.
+
+Suggested order, since nothing forces it:
+
+1. `npm run migrate:r2 -- --verify-only` → exit 0, zero `[FAIL]`.
+2. Check the last few days of origin logs for `[asset-proxy] fallback` lines.
+   Any with `"fallback":"supabase"` name objects that would 404 the moment you
+   flip. Re-run `npm run migrate:r2` and re-verify until they stop.
+3. Set `STORAGE_SUPABASE_FALLBACK=false` in Coolify, redeploy/recreate. The
+   post-deploy Inngest re-sync in `.github/workflows/build-deploy.yml` must
+   run — a missed sync silently stops every event-triggered job.
+4. Smoke the same surfaces as the R2 cutover: landing page, a share page logo,
+   a tenant photo, a PDF. Then watch for `"fallback":"disabled"` lines.
+
+**Rollback is instant and needs no data movement:** unset the variable (or set
+it to `true`) and redeploy. Nothing is deleted from Supabase by this switch —
+it only changes whether the read-through is consulted.

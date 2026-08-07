@@ -240,6 +240,26 @@ describe('fetchStoredAsset', () => {
     expect(result?.contentLength).toBe(812)
   })
 
+  it('R2 404 -> the single fallback warning records mode "supabase"', async () => {
+    stubR2Env()
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', undefined)
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      fakeResponse({
+        ok: false,
+        body: { cancel: vi.fn() } as unknown as ReadableStream<Uint8Array>,
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    downloadMock.mockResolvedValueOnce(new Blob(['hello'], { type: 'image/webp' }))
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    await fetchStoredAsset('photos', 'co/photos/missing.jpg')
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][1]).toContain('"fallback":"supabase"')
+  })
+
   it('R2 404 -> falls through to Supabase, source "supabase", exactly one fallback warning with bucket+key', async () => {
     stubR2Env()
     const cancelMock = vi.fn()
@@ -347,5 +367,205 @@ describe('fetchStoredAsset', () => {
     expect(serialized).not.toContain('X-Amz-Signature')
     expect(serialized).not.toContain('X-Amz-Credential')
     expect(serialized).not.toContain('token=')
+  })
+})
+
+/**
+ * FUT-R2-01 — STORAGE_SUPABASE_FALLBACK, the read-through kill switch.
+ *
+ * The load-bearing assertion in every "disabled" case is NOT the returned
+ * value — `null` is also what a genuine both-backends-miss returns, so a
+ * test that only checked the return value would pass for the wrong reason.
+ * Each one asserts that the Supabase side was never even CONSTRUCTED:
+ * requireServiceClient / createStorage / download all uncalled. That is
+ * the property that actually stops the egress.
+ */
+describe('fetchStoredAsset — STORAGE_SUPABASE_FALLBACK (FUT-R2-01)', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    getSignedUrlMock.mockClear()
+    createS3StorageProviderMock.mockClear()
+    requireServiceClientMock.mockClear()
+    createStorageMock.mockClear()
+    downloadMock.mockReset()
+    vi.stubGlobal('fetch', vi.fn())
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubEnv('S3_ENDPOINT', FAKE_ENV.S3_ENDPOINT)
+    vi.stubEnv('S3_REGION', FAKE_ENV.S3_REGION)
+    vi.stubEnv('S3_ACCESS_KEY_ID', FAKE_ENV.S3_ACCESS_KEY_ID)
+    vi.stubEnv('S3_SECRET_ACCESS_KEY', FAKE_ENV.S3_SECRET_ACCESS_KEY)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+    warnSpy.mockRestore()
+  })
+
+  /** An R2 miss (404-shaped), the only condition the switch changes. */
+  function stubR2Miss() {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        fakeResponse({
+          ok: false,
+          body: { cancel: vi.fn() } as unknown as ReadableStream<Uint8Array>,
+        }),
+      ),
+    )
+  }
+
+  function expectSupabaseNeverTouched() {
+    expect(requireServiceClientMock).not.toHaveBeenCalled()
+    expect(createStorageMock).not.toHaveBeenCalled()
+    expect(downloadMock).not.toHaveBeenCalled()
+  }
+
+  describe('parsing: only an explicit disable value turns it off', () => {
+    // Absent is covered separately below; '' and 'maybe' prove that an
+    // unrecognized value keeps the safety net rather than silently 404ing.
+    it.each(['true', '1', 'on', 'yes', '', 'maybe', 'FALSEY'])(
+      'STORAGE_SUPABASE_FALLBACK=%j -> ENABLED (today\'s behaviour)',
+      async (value) => {
+        vi.stubEnv('STORAGE_SUPABASE_FALLBACK', value)
+        stubR2Miss()
+        downloadMock.mockResolvedValueOnce(new Blob(['hi'], { type: 'image/webp' }))
+
+        const { fetchStoredAsset, isSupabaseFallbackEnabled } = await import(
+          '@/lib/storage/asset-source'
+        )
+
+        expect(isSupabaseFallbackEnabled()).toBe(true)
+        const result = await fetchStoredAsset('photos', 'co/photos/a.jpg')
+        expect(result?.source).toBe('supabase')
+        expect(downloadMock).toHaveBeenCalledTimes(1)
+      },
+    )
+
+    it.each(['false', '0', 'off', 'FALSE', 'Off', ' false ', '  0'])(
+      'STORAGE_SUPABASE_FALLBACK=%j -> DISABLED (trimmed, case-insensitive)',
+      async (value) => {
+        vi.stubEnv('STORAGE_SUPABASE_FALLBACK', value)
+        stubR2Miss()
+
+        const { fetchStoredAsset, isSupabaseFallbackEnabled } = await import(
+          '@/lib/storage/asset-source'
+        )
+
+        expect(isSupabaseFallbackEnabled()).toBe(false)
+        expect(await fetchStoredAsset('photos', 'co/photos/a.jpg')).toBeNull()
+        expectSupabaseNeverTouched()
+      },
+    )
+  })
+
+  it('unset -> ENABLED: an R2 miss is still served from Supabase, unchanged', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', undefined)
+    stubR2Miss()
+    downloadMock.mockResolvedValueOnce(new Blob(['hi'], { type: 'image/webp' }))
+
+    const { fetchStoredAsset, isSupabaseFallbackEnabled } = await import(
+      '@/lib/storage/asset-source'
+    )
+
+    expect(isSupabaseFallbackEnabled()).toBe(true)
+    const result = await fetchStoredAsset('photos', 'co/photos/a.jpg')
+
+    expect(result?.source).toBe('supabase')
+    expect(result?.contentType).toBe('image/webp')
+    expect(requireServiceClientMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('disabled + R2 miss -> null, Supabase provider never constructed', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'false')
+    stubR2Miss()
+    // Armed on purpose: if anything DID reach Supabase the test would get a
+    // usable blob back and the null assertion would fail loudly.
+    downloadMock.mockResolvedValue(new Blob(['hi'], { type: 'image/webp' }))
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    expect(await fetchStoredAsset('photos', 'co/photos/gone.jpg')).toBeNull()
+    expectSupabaseNeverTouched()
+  })
+
+  it('disabled + R2 network error -> null, Supabase provider never constructed', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'off')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('network down')))
+    downloadMock.mockResolvedValue(new Blob(['hi'], { type: 'audio/webm' }))
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    expect(await fetchStoredAsset('audio', 'co/audio/r.webm')).toBeNull()
+    expectSupabaseNeverTouched()
+    expect(warnSpy.mock.calls[0][1]).toContain('"reason":"r2-error"')
+  })
+
+  it('disabled -> exactly ONE warn line, marked "disabled", naming bucket+key', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'false')
+    stubR2Miss()
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    await fetchStoredAsset('photos', 'co/photos/gone.jpg')
+
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    const [label, payload] = warnSpy.mock.calls[0]
+    expect(label).toBe('[asset-proxy] fallback')
+    expect(payload).toContain('"bucket":"photos"')
+    expect(payload).toContain('"key":"co/photos/gone.jpg"')
+    expect(payload).toContain('"reason":"r2-miss"')
+    expect(payload).toContain('"fallback":"disabled"')
+    expect(payload).not.toContain('"fallback":"supabase"')
+  })
+
+  it('disabled -> R2 hit is unaffected: still source "r2", no warn, no Supabase call', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'false')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        fakeResponse({ ok: true, headers: { 'content-type': 'image/webp' } }),
+      ),
+    )
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    const result = await fetchStoredAsset('platform-brand', 'platform/1784854705622-kvwo24')
+
+    expect(result?.source).toBe('r2')
+    expect(result?.contentType).toBe('image/webp')
+    expect(warnSpy).not.toHaveBeenCalled()
+    expectSupabaseNeverTouched()
+  })
+
+  it('the switch is INERT when R2 is not configured — "remove S3_* to roll back" still works', async () => {
+    // Supabase is the PRIMARY source here, not a fallback. If the switch
+    // applied, an operator who left it set while rolling R2 back would
+    // black out every asset on the site.
+    vi.stubEnv('S3_ENDPOINT', undefined)
+    vi.stubEnv('S3_REGION', undefined)
+    vi.stubEnv('S3_ACCESS_KEY_ID', undefined)
+    vi.stubEnv('S3_SECRET_ACCESS_KEY', undefined)
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'false')
+    downloadMock.mockResolvedValueOnce(new Blob(['hi'], { type: 'image/webp' }))
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    const result = await fetchStoredAsset('logos', 'co-uuid/logo.webp')
+
+    expect(result?.source).toBe('supabase')
+    expect(createS3StorageProviderMock).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+  })
+
+  it('disabled + both backends absent -> null without throwing (route renders its 404)', async () => {
+    vi.stubEnv('STORAGE_SUPABASE_FALLBACK', 'false')
+    stubR2Miss()
+
+    const { fetchStoredAsset } = await import('@/lib/storage/asset-source')
+
+    await expect(fetchStoredAsset('pdfs', 'co/pdfs/1-est.pdf')).resolves.toBeNull()
   })
 })
