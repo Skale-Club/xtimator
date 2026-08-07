@@ -1,6 +1,8 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { emailFrom } from '@/lib/email/sender'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { absoluteAssetUrl } from '@/lib/storage/asset-url'
 
 /**
  * Phase 77 (NOTIF-07) — Branded notifications digest email.
@@ -87,9 +89,15 @@ function renderItem(item: DigestEmailItem, brandColor: string): string {
 
 function renderHtml(ctx: DigestEmailContext): string {
   const brandColor = ctx.branding.brandColor ?? '#111111'
-  const logo = ctx.branding.logoUrl
+  // Phase 190 (URL-03): the digest's logo may be a same-origin path
+  // (/storage/logos/... or /storage/platform-brand/...). A mail client cannot
+  // resolve a relative src, so it is absolutized here against the canonical base
+  // URL. Both buckets are publicly readable through the Phase 187 proxy, so the
+  // emitted URL carries no credential; an already-absolute value is unchanged.
+  const resolvedLogoUrl = absoluteAssetUrl(ctx.branding.logoUrl, getCanonicalBaseUrl())
+  const logo = resolvedLogoUrl
     ? `<img src="${escapeHtml(
-        ctx.branding.logoUrl,
+        resolvedLogoUrl,
       )}" alt="${escapeHtml(ctx.branding.businessName)}" style="height:32px;display:block;" />`
     : `<div style="font-weight:700;color:#fff;">${escapeHtml(
         ctx.branding.businessName,

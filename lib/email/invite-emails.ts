@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { absoluteAssetUrl } from '@/lib/storage/asset-url'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
 /**
@@ -43,12 +44,19 @@ function buildEmailShell({
   appName: string
   body: string
 }): string {
-  const logoHtml = logoUrl
-    ? `<img src="${escHtml(logoUrl)}" alt="${escHtml(appName)}" style="height:28px;display:inline-block;" />`
+  // Phase 190 (URL-03): identical to account-emails.ts's shell — logoUrl may be a
+  // same-origin path (/storage/platform-brand/...) and a mail client has no app
+  // origin to resolve it against. 'platform-brand' is publicly readable through the
+  // proxy, so an absolute URL here embeds no credential. Already-absolute values pass
+  // through byte-identical. Absolutize INSIDE, escape OUTSIDE.
+  const resolvedLogoUrl = absoluteAssetUrl(logoUrl, getCanonicalBaseUrl())
+
+  const logoHtml = resolvedLogoUrl
+    ? `<img src="${escHtml(resolvedLogoUrl)}" alt="${escHtml(appName)}" style="height:28px;display:inline-block;" />`
     : `<span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">${escHtml(appName)}</span>`
 
-  const footerLogoHtml = logoUrl
-    ? `<img src="${escHtml(logoUrl)}" alt="${escHtml(appName)}" style="height:24px;display:inline-block;margin-bottom:10px;" />`
+  const footerLogoHtml = resolvedLogoUrl
+    ? `<img src="${escHtml(resolvedLogoUrl)}" alt="${escHtml(appName)}" style="height:24px;display:inline-block;margin-bottom:10px;" />`
     : `<div style="font-size:16px;font-weight:700;color:#333333;margin-bottom:10px;">${escHtml(appName)}</div>`
 
   return `<!doctype html>

@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey, getBranding, getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { absoluteAssetUrl } from '@/lib/storage/asset-url'
 import { buildWaMeLink } from '@/lib/whatsapp/wa-link'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 
@@ -35,12 +36,22 @@ function buildEmailShell({
   appName: string
   body: string
 }): string {
-  const logoHtml = logoUrl
-    ? `<img src="${escHtml(logoUrl)}" alt="${escHtml(appName)}" style="height:28px;display:inline-block;" />`
+  // Phase 190 (URL-03): logoUrl may be a same-origin path (/storage/platform-brand/...).
+  // A mail client has no app origin to resolve it against, so it must be absolute here.
+  // Safe to expose publicly: 'platform-brand' is a publicly readable bucket, so the
+  // proxy serves it with no session and no token — no credential is embedded.
+  // An already-absolute value comes back byte-identical, so existing rows do not change.
+  // NOTE this is deliberately a DIFFERENT mechanism from Plan 03's PDF/icon data-URI
+  // path: a public URL is correct for email, and inlining would bloat every message.
+  // Do not "unify" the two. Absolutize INSIDE, escape OUTSIDE.
+  const resolvedLogoUrl = absoluteAssetUrl(logoUrl, getCanonicalBaseUrl())
+
+  const logoHtml = resolvedLogoUrl
+    ? `<img src="${escHtml(resolvedLogoUrl)}" alt="${escHtml(appName)}" style="height:28px;display:inline-block;" />`
     : `<span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">${escHtml(appName)}</span>`
 
-  const footerLogoHtml = logoUrl
-    ? `<img src="${escHtml(logoUrl)}" alt="${escHtml(appName)}" style="height:24px;display:inline-block;margin-bottom:10px;" />`
+  const footerLogoHtml = resolvedLogoUrl
+    ? `<img src="${escHtml(resolvedLogoUrl)}" alt="${escHtml(appName)}" style="height:24px;display:inline-block;margin-bottom:10px;" />`
     : `<div style="font-size:16px;font-weight:700;color:#333333;margin-bottom:10px;">${escHtml(appName)}</div>`
 
   return `<!doctype html>

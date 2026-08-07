@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 import { getBranding } from '@/lib/platform-config'
 import { LandingPage } from '@/components/landing/landing-page'
 import { JsonLd } from '@/components/seo/json-ld'
+import { absoluteAssetUrl } from '@/lib/storage/asset-url'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import {
   organizationSchema,
   softwareApplicationSchema,
@@ -24,7 +26,16 @@ export default async function RootPage() {
           organizationSchema({
             name: branding.appName,
             description: branding.metaDescription ?? landingContent.heroSubheadline,
-            logoUrl: branding.logoUrl,
+            // Phase 190 (URL-03): schema.org consumers do not resolve relative URLs
+            // against the page, so the org logo must be absolute even though the page
+            // itself renders the same value same-origin (see the <LandingPage> branding
+            // prop below, which deliberately keeps the raw path). OpenGraph/Twitter need
+            // no equivalent — app/layout.tsx sets metadataBase and Next absolutizes
+            // metadata images against it.
+            // Wrapped at the CALL SITE, not inside organizationSchema(): that shaper is
+            // pure and has other potential callers, so fixing the one caller that feeds
+            // it a storage URL is the narrower change.
+            logoUrl: absoluteAssetUrl(branding.logoUrl, getCanonicalBaseUrl()),
           }),
           websiteSchema(branding.appName),
           softwareApplicationSchema({
