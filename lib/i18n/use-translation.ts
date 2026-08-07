@@ -15,6 +15,20 @@ const batchTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingKeys = new Set<string>()
 
 async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateAction<number>>) {
+  // The 50ms debounce below is scheduled from render and is module-level, so it
+  // can outlive the environment that queued it. Under vitest/jsdom the window is
+  // torn down between tests, and calling setPendingCount then throws
+  // "window is not defined" from React's dispatchSetState — an async failure
+  // attributed to whichever test happens to be running. There is nothing to
+  // flush into a dead document, so drop the batch instead. No-op in a browser,
+  // where window always outlives the timer.
+  if (typeof window === 'undefined') {
+    batchTimers.delete(lang)
+    pendingBatch.get(lang)?.forEach((_cbs, src) => pendingKeys.delete(`${lang}:${src}`))
+    pendingBatch.get(lang)?.clear()
+    return
+  }
+
   const langBatch = pendingBatch.get(lang)
   if (!langBatch || langBatch.size === 0) return
 
