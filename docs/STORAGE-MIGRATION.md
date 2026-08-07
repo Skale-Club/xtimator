@@ -1382,3 +1382,49 @@ For typical Xtimator load (audio + photos + PDFs per estimate), Hetzner is rough
 - **Do NOT commit real S3 credentials anywhere** — see CLAUDE.md "Secret Handling". Real credentials live only on the deploy target (Vercel env vars or `.env` on the VPS, both gitignored / out-of-tree).
 - **Do NOT swap providers without first running `scripts/storage-smoke.ts` against the destination.** Phase 66 STORAGE-07 caught the abstraction holds in dev; you must re-prove it against Hetzner before flipping production.
 - **Do NOT skip the bucket public-access policy** for `logos` and `platform-brand` — without it, every logo on the site 403s.
+
+---
+
+## Executed cutover record — 2026-08-07
+
+Deploy `304191a1` reached production first (confirmed via `/api/health`), and
+only then were rows rewritten. That order is not optional: before the deploy,
+`GET /storage/…` returned **404** in production, so rewriting first would have
+turned every image on the site into a broken link. Verify the health SHA
+before any future rewrite.
+
+**Rewrite applied.** Batch `f43f66df`, 5 rows / 12 URL occurrences:
+`companies.logo_url` ×2, `platform_branding.logo_url`, `.og_image_url`, and 8
+occurrences inside `platform_branding.landing_content` (jsonb).
+
+**Verified after, not assumed:**
+
+| Check | Result |
+|---|---|
+| `*.supabase.co` refs left on the landing page | **0** |
+| Distinct `/storage/` URLs on the page, each fetched | **18 → all 200**, correct content types |
+| Public image at the edge | `cf-cache-status: HIT` on repeat requests |
+| Private bucket at the edge | `private, no-store` + `BYPASS` — tenant photos never edge-cached |
+| `company_price_book` | 293 Pexels URLs untouched, 0 Supabase |
+| Reversible record | 5 audit rows, none reverted |
+
+Rollback remains one command:
+`npm run rewrite:asset-urls -- --revert-latest --confirm-project <ref>`.
+
+### Still pending: R2 is provisioned but NOT serving
+
+`x-asset-source: supabase` on every response — the `S3_*` variables are not in
+Coolify, so on a cache miss the origin still reads Supabase. The CDN already
+collapses most of that traffic (one origin fetch per edge miss instead of one
+per visitor), but egress is not zero until R2 is switched on.
+
+All 55 objects are copied and verified in R2 (`npm run migrate:r2 -- --verify-only`),
+so the switch is a configuration change only. It requires an operator with
+Coolify access — deliberately not automated, since it means handling live
+credentials.
+
+After switching, re-check `x-asset-source: r2` and re-run the object
+verification. Note the reversibility caveat: removing `S3_*` returns reads to
+Supabase unconditionally only while no object exists **solely** in R2 — once
+writes land there, run `npm run migrate:r2 -- --verify-only` and treat any
+`[EXTRA]` row as a copy-back list before rolling back.

@@ -25,7 +25,7 @@
 - [x] **PROXY-02**: When an object is absent from R2, the route transparently falls back to Supabase Storage and still returns the bytes — so no asset can 404 at any point during or after the cutover, in either migration direction. <sub>(Dual-source fallback implemented and unit-tested in 187-01; closes with the route in 187-03.)</sub>
 - [x] **PROXY-03**: The route rejects path traversal and any key outside the five known buckets, and never exposes storage credentials or signed backend URLs to the client.
 - [x] **PROXY-04**: Publicly-readable assets (logos, platform branding) are served edge-cacheable so Cloudflare caches them, with a cache directive matched to how each bucket keys its objects — immutable only where keys are content-addressed or timestamped, revalidating where a key is overwritten in place; assets belonging to a tenant's private data are not edge-cached at all.
-- [ ] **PROXY-05**: A landing-page load fetches its images from `xtimator.com` rather than `*.supabase.co`, and repeat edge requests for those images report a Cloudflare cache HIT.
+- [x] **PROXY-05**: A landing-page load fetches its images from `xtimator.com` rather than `*.supabase.co`, and repeat edge requests for those images report a Cloudflare cache HIT.
 
 ### Provider Selection Integrity (PROV)
 
@@ -43,7 +43,7 @@
 ### Portable Asset URLs (URL)
 
 - [x] **URL-01**: Newly stored assets produce a same-origin relative URL, so the storage backend is no longer baked into any value the app persists.
-- [ ] **URL-02**: Existing rows holding absolute Supabase URLs (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs, platform branding and SEO assets) are rewritten to the new form, with a reversible record of what changed.
+- [x] **URL-02**: Existing rows holding absolute Supabase URLs (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs, platform branding and SEO assets) are rewritten to the new form, with a reversible record of what changed.
 - [x] **URL-03**: Every surface that renders these assets — app UI, public share pages, PDFs, and email/WhatsApp sends — resolves the new relative URLs correctly, including the server-side PDF renderer which cannot rely on a browser origin.
 - [x] **URL-04**: The content security policy permits the new same-origin image source, and is not left broader than the new setup requires.
 
@@ -81,7 +81,7 @@ Phase numbering continues the global counter: v4.23 ended at Phase 186, so v4.24
 | PROXY-02 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
 | PROXY-03 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
 | PROXY-04 | Phase 187 | R2 Provisioning & Same-Origin Asset Proxy | Complete |
-| PROXY-05 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
+| PROXY-05 | Phase 192 | URL Rewrite Cutover & CDN Verification | Complete |
 | PROV-01 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
 | PROV-02 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
 | PROV-03 | Phase 188 | Server-Wide Provider Selection Integrity | Complete |
@@ -90,7 +90,7 @@ Phase numbering continues the global counter: v4.23 ended at Phase 186, so v4.24
 | UPLOAD-03 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
 | UPLOAD-04 | Phase 189 | Browser Uploads Without Browser Credentials | Complete |
 | URL-01 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
-| URL-02 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
+| URL-02 | Phase 192 | URL Rewrite Cutover & CDN Verification | Complete |
 | URL-03 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
 | URL-04 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
 | MIG-01 | Phase 191 | Object Migration & Verification | Complete |
