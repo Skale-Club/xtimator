@@ -35,3 +35,52 @@ with Allow: POST header`, ~15-20s). Re-run in isolation
 (`npx vitest run tests/unit/mcp-route-contract.test.ts`) passed 8/8 in ~6s.
 Matches the documented fork-pool-contention flake — not a regression from
 191-01.
+
+## 3. 191-03 mandated full-suite gate — 14 failed files / 21 failed tests, none in this plan's scope (2026-08-07)
+
+**Observed running the mandated `npx vitest run tests/unit tests/eval` gate
+for 191-03** (`docs/STORAGE-MIGRATION.md`,
+`tests/unit/storage/storage-migration-runbook.test.ts`, `.gitleaks.toml` —
+no script/library file touched). Result: 14 failed test files, 21 failed
+tests, 5475 passed, 20 todo. `VITEST_EXIT=1`. Duration ~612s, roughly 3x the
+~215s baseline 191-02 recorded — three sibling full-suite gates
+(190-02/190-03, each running the same mandated command) were executing
+concurrently in this same working tree/machine at the time, and the log
+shows multiple `[vitest-pool]: Timeout terminating forks worker` lines
+consistent with CPU contention, not logic failures.
+
+Zero failures name `r2-migrate`, `r2-verify`, or
+`storage-migration-runbook` — this plan's own doc-gate test
+(`tests/unit/storage/storage-migration-runbook.test.ts`, 30/30) is not in
+the failing set.
+
+Categorized:
+
+- **Expected (documented in the plan itself):** `sign-estimate-atomic-migration.test.ts`,
+  `signature-evidence-retention-migration.test.ts` (Windows/CRLF, item 1
+  above) and `mcp-route-contract.test.ts` (fork-pool flake, item 2 above).
+- **Sibling 190-02/190-03 mid-edit collateral** (same-origin asset URL
+  writers were being actively changed in this shared working tree while
+  this gate ran — confirmed via `git status` showing those exact files as
+  concurrently modified/untracked at the time): `branding-actions.test.ts`,
+  `save-landing-asset-urls.test.ts` (5 sub-failures), `save-seo.test.ts`,
+  `storage/persisted-url-form.test.ts` (2 sub-failures, a brand-new
+  untracked file belonging to 190-02/190-03's own TDD cycle, not this
+  plan's).
+- **Apparent resource-contention timeouts/flakes, not present in any prior
+  191 plan's baseline** (`team-invite.test.ts`,
+  `billing/seat-billing-wiring.test.ts` — 2 sub-failures,
+  `inngest/generate-estimate-job.test.ts`, `whatsapp/confirm.test.ts` — a
+  30000ms timeout, `estimate/paginated-view-engine-parity.test.tsx`,
+  `eval/harness.test.ts`, `eval/price-research-regression.test.ts` — 2
+  sub-failures): none touch storage, R2, or this plan's files; several are
+  slow (20-70s) AI/render/timing-sensitive tests, consistent with being
+  starved of CPU by 2-3 concurrent full-suite runs rather than genuinely
+  broken. Not re-run in isolation to "confirm green" per the executor's
+  scope-boundary rule (do not re-run builds hoping they resolve
+  themselves) — logged here instead for whoever verifies 190-02/190-03 or
+  re-runs the gate once the concurrent sessions are done.
+
+**No action taken from 191-03** — none of these files are touched by this
+plan's diff (`git diff --stat` for this plan is exactly `docs/STORAGE-MIGRATION.md`,
+`tests/unit/storage/storage-migration-runbook.test.ts`, `.gitleaks.toml`).
