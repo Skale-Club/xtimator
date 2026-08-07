@@ -402,6 +402,29 @@ describe('browser credential gate — client import-graph closure (UPLOAD-01)', 
     }
   })
 
+  it('regression: photo uploads still go through the uploadProjectPhoto Server Action, not a direct browser storage write', () => {
+    // Phase 188 already moved the photo half of UPLOAD-01 onto
+    // serverStorage() inside lib/actions/photo.ts's uploadProjectPhoto —
+    // CONTEXT.md records this as CLOSED, not something Plan 04 rewrites.
+    // This asserts it as a REGRESSION GATE: both browser call sites must
+    // reach lib/actions/photo.ts as a 'use server' boundary (an RPC
+    // reference, not a credential leak — see ParsedModule.isUseServer's
+    // docblock) rather than importing any storage module directly.
+    const photoCallSites = [
+      'components/capture/capture-recorder.tsx',
+      'components/workspace/photos/photo-drop-zone.tsx',
+    ]
+    for (const site of photoCallSites) {
+      const closure = closures.get(site)
+      expect(closure, `${site} was not discovered as a 'use client' entry point`).toBeTruthy()
+      expect(
+        closure!.boundary.has('lib/actions/photo.ts'),
+        `${site} does not reach lib/actions/photo.ts as a 'use server' boundary — the photo upload path may ` +
+          'have regressed off the uploadProjectPhoto Server Action',
+      ).toBe(true)
+    }
+  })
+
   it('the server route is wired to the ticket minter (the seam is not orphaned)', () => {
     // Deliberately NOT a client-entry walk — app/api/storage/upload-ticket/route.ts
     // is server-only and has no 'use client' directive. This asserts the OTHER
