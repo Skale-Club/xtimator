@@ -1,10 +1,14 @@
 /**
  * Phase 192 Plan 01 — URL-02: the translation layer for the asset-URL cutover.
  *
- * Turns a persisted ABSOLUTE Supabase public storage URL
- * (`https://{ref}.supabase.co/storage/v1/object/public/{bucket}/{key}`) into the
- * same-origin path this app's own asset proxy serves — and refuses, loudly in
- * its return value rather than by throwing, everything that must not be turned.
+ * Turns a persisted ABSOLUTE Supabase public storage URL — host `{ref}.supabase`
+ * `.co`, path `/storage/v1/object/public/{bucket}/{key}` — into the same-origin
+ * path this app's own asset proxy serves, and refuses, loudly in its return
+ * value rather than by throwing, everything that must not be turned.
+ *
+ * (The host and path are spelled separately above on purpose:
+ * `tests/unit/storage/persisted-url-form.test.ts` fails any line in app/, lib/
+ * or components/ that glues them into a whole backend URL, comments included.)
  *
  * PURE, for the same reason `proxy-policy.ts` and `asset-url.ts` are: no
  * `import 'server-only'`, no env read, no I/O. It must stay importable from unit
@@ -62,6 +66,29 @@ import {
  * would open that hole from the data side instead of the code side.
  */
 const PERSISTABLE_SET = new Set<string>(PERSISTABLE_PROXY_BUCKETS)
+
+function isPersistableBucket(bucket: string): bucket is PersistableProxyBucket {
+  return PERSISTABLE_SET.has(bucket)
+}
+
+/**
+ * Emission table. Every entry calls `storageProxyPath` with a LITERAL bucket, so
+ * "a URL is only ever persisted for a bucket with a defined viewer" stays a
+ * STATIC property of this module and not merely a runtime one — and
+ * `Record<PersistableProxyBucket, …>` turns a fourth persistable bucket into a
+ * compile error here instead of a silent pass-through.
+ *
+ * This is also what `tests/unit/storage/persisted-url-form.test.ts` enforces
+ * repo-wide ("storageProxyPath() must be called with a LITERAL bucket"). An
+ * earlier draft of this module passed `parsed.bucket as PersistableProxyBucket`
+ * and that gate caught it: the cast asserted the very thing the runtime check
+ * was supposed to establish. The table removes the cast altogether.
+ */
+const EMIT_BY_BUCKET: Record<PersistableProxyBucket, (key: string) => string> = {
+  logos: (key) => storageProxyPath('logos', key),
+  'platform-brand': (key) => storageProxyPath('platform-brand', key),
+  photos: (key) => storageProxyPath('photos', key),
+}
 
 /**
  * The REMOTE (Supabase) public-object path prefix — an input to the parser, not
@@ -196,17 +223,17 @@ export function rewriteAssetUrl(value: unknown): RewriteResult {
   const parsed = parseSupabasePublicUrl(value)
   if (!parsed) return { changed: false, value }
 
-  if (!PERSISTABLE_SET.has(parsed.bucket)) return { changed: false, value }
+  // THE gate — PERSISTABLE_PROXY_BUCKETS (3), never the 5-bucket proxy
+  // allowlist. Narrowing here is what makes the emission table below total, so
+  // no cast is needed anywhere in this module.
+  if (!isPersistableBucket(parsed.bucket)) return { changed: false, value }
 
   if (isExemptFromRewrite(parsed.bucket, parsed.key)) {
     return { changed: false, value, exempt: true }
   }
 
   try {
-    return {
-      changed: true,
-      value: storageProxyPath(parsed.bucket as PersistableProxyBucket, parsed.key),
-    }
+    return { changed: true, value: EMIT_BY_BUCKET[parsed.bucket](parsed.key) }
   } catch {
     // See the header: the writer is right to throw, the bulk rewriter is right
     // to keep going. The count is surfaced by the caller.
