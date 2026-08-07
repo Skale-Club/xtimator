@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { assetUrlString } from './asset-url'
 
 export const pricingTypeSchema = z.enum(['fixed', 'area_based', 'base_plus_addons'])
 export type PricingType = z.infer<typeof pricingTypeSchema>
@@ -25,7 +26,7 @@ export const priceBookItemSchema = z.object({
   unit:          z.string().optional().or(z.literal('')),
   unit_price:    z.coerce.number().min(0, 'Price must be 0 or greater'),
   notes:         z.string().optional().or(z.literal('')),
-  image_url:     z.string().url().optional().or(z.literal('')),
+  image_url:     assetUrlString().optional().or(z.literal('')),
   pricing_type:  pricingTypeSchema.default('fixed'),
   base_price:    z.coerce.number().min(0).optional().nullable(),
   price_per_unit: z.coerce.number().min(0).optional().nullable(),

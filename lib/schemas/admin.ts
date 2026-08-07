@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { assetUrlString } from './asset-url'
 
 /**
  * Shared zod schemas for the Platform Admin Panel (/admin/*).
@@ -50,7 +51,9 @@ export type AddAdminInput = z.infer<typeof addAdminSchema>
 export const seoSchema = z.object({
   siteTitle: z.string().max(120).nullable(),
   metaDescription: z.string().max(300).nullable(),
-  ogImageUrl: z.string().url('Must be a valid URL').nullable().or(z.literal('')).transform(v => v || null),
+  ogImageUrl: assetUrlString('Must be a valid URL').nullable().or(z.literal('')).transform(v => v || null),
+  // STAYS STRICT: a canonical base URL is by definition absolute — it is the
+  // origin other URLs are resolved against, never a same-origin path.
   canonicalBaseUrl: z.string().url('Must be a valid URL').nullable().or(z.literal('')).transform(v => v || null),
   ogImageFile: z
     .instanceof(File)
@@ -81,7 +84,7 @@ export const landingContentSchema = z.object({
    * the hero collapses to a single-column layout (left content centered/full-width).
    * Uploaded via the platform-brand storage bucket under `hero-images/`.
    */
-  heroImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  heroImageUrl: assetUrlString().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   heroImagePosition: imagePositionSchema,
   /**
    * Full-bleed backdrop behind the whole hero section — 'none' shows the
@@ -91,9 +94,17 @@ export const landingContentSchema = z.object({
    * URL matching heroBackgroundType actually renders.
    */
   heroBackgroundType: z.enum(['none', 'image', 'video']).optional().default('none'),
-  heroBackgroundImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  heroBackgroundImageUrl: assetUrlString().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   heroBackgroundPosition: imagePositionSchema,
-  heroBackgroundVideoUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+  /**
+   * Relaxed like the other asset fields (accepting a same-origin path is a
+   * harmless superset), but its WRITER is deliberately NOT repointed: the
+   * Phase 187 proxy is whole-object pass-through with no Range/206, and Safari
+   * refuses to play a <video> from an origin that does not honour byte-range
+   * requests. This field keeps its absolute Supabase URL until the proxy gains
+   * Range support. A relaxed validator is not permission to repoint the writer.
+   */
+  heroBackgroundVideoUrl: assetUrlString().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
   /** Toggle for the animated How It Works card backgrounds. Defaults on. */
   howItWorksAnimations: z.boolean().optional().default(true),
   /**
@@ -105,7 +116,7 @@ export const landingContentSchema = z.object({
     eyebrow: z.string().max(30),
     title: z.string().max(60),
     description: z.string().max(300),
-    imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+    imageUrl: assetUrlString().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
     imagePosition: imagePositionSchema,
   })).min(3).max(6),
   features: z.array(z.object({
@@ -113,7 +124,7 @@ export const landingContentSchema = z.object({
     title: z.string().max(80),
     description: z.string().max(300),
     benefit: z.string().max(60),
-    imageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
+    imageUrl: assetUrlString().nullable().or(z.literal('')).transform(v => v || null).optional().nullable(),
     imagePosition: imagePositionSchema,
   })).min(1).max(6),
 })
@@ -181,6 +192,8 @@ export const blogPostSchema = z.object({
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only'),
   content: z.string().min(1),
   excerpt: z.string().max(500).nullable(),
+  // STAYS STRICT: blog covers are pasted external URLs — there is no
+  // getPublicUrl writer for this field, so Phase 190 never makes it relative.
   coverImageUrl: z.string().url().nullable().or(z.literal('')).transform(v => v || null),
   status: z.enum(['draft', 'published']),
   metaTitle: z.string().max(120).nullable(),
