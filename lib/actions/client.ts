@@ -6,6 +6,7 @@ import type { ClientFormValues } from '@/lib/schemas/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 
 const MAX_LOGO_SIZE = 2 * 1024 * 1024
@@ -132,7 +133,7 @@ export async function uploadClientLogoAction(clientId: string, formData: FormDat
   try {
     const webpBuffer = await convertImageToWebp(file)
     await storage.upload('logos', path, webpBuffer, { contentType: 'image/webp', upsert: true })
-    url = storage.getPublicUrl('logos', path)
+    url = storageProxyPath('logos', path)
   } catch (err) {
     console.error('[uploadClientLogoAction] upload error:', err)
     return { error: 'Failed to upload logo. Please try again.' }

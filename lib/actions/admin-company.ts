@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { cookies } from 'next/headers'
@@ -89,7 +90,7 @@ export async function createAdminCompany(formData: FormData) {
     try {
       const webpBuffer = await convertImageToWebp(logoFile)
       await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })
-      const logoUrl = storage.getPublicUrl('logos', storagePath)
+      const logoUrl = storageProxyPath('logos', storagePath)
       await service
         .from('companies')
         .update({ logo_url: logoUrl })

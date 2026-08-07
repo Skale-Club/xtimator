@@ -228,7 +228,7 @@ describe('lib/actions/settings.ts', () => {
 
     const result = await updateProfile(fd)
 
-    expect(result).toEqual({ success: true })
+    expect(result).toEqual({ ok: true })
     const payload = lastPayload('auth.user')
     expect(payload.avatar_url).toBe(`/storage/logos/user-avatars/${USER_ID}/avatar.webp`)
     expectSameOrigin(payload.avatar_url)

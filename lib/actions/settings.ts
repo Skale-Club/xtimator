@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { imagePositionSchema } from '@/lib/schemas/admin'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -86,12 +87,16 @@ export async function updateCompanySettings(formData: FormData) {
     try {
       const webpBuffer = await convertImageToWebp(logoFile)
       await storage.upload('logos', storagePath, webpBuffer, { contentType: 'image/webp', upsert: true })
+      // Phase 190 (URL-01): persist a same-origin path, never a storage-backend
+      // hostname. storageProxyPath() THROWS on a key the asset proxy could not
+      // serve; every key built in these actions is already sanitized, so that is
+      // a guard rather than a live branch. It sits INSIDE the try so a throw
+      // returns the same error string instead of escaping the server action.
+      logoUrl = storageProxyPath('logos', storagePath)
     } catch (err) {
       console.error('[settings] logo upload error:', err)
       return { error: 'Failed to upload logo. Please try again.' }
     }
-
-    logoUrl = storage.getPublicUrl('logos', storagePath)
   }
 
   // Fetch current values before update so we can detect which fields changed
@@ -468,7 +473,7 @@ export async function updateProfile(formData: FormData) {
         contentType: 'image/webp',
         upsert: true,
       })
-      updateData.avatar_url = storage.getPublicUrl('logos', storagePath)
+      updateData.avatar_url = storageProxyPath('logos', storagePath)
     } catch {
       return { error: 'Failed to upload photo. Please try again.' }
     }

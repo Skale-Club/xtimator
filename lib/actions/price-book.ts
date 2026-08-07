@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { priceBookItemSchema, type PriceBookItemFormValues, type ItemOption } from '@/lib/schemas/price-book'
 import { buildStorageKey } from '@/lib/storage'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { imagePositionSchema, type ImagePosition } from '@/lib/schemas/admin'
 import {
@@ -251,7 +252,13 @@ export async function createPriceBookItem(
       if (!validPhoto) throw new Error('Invalid item photo (type or size).')
       const webpBuffer = await convertImageToWebp(imageFile)
       await storage.upload('photos', key, webpBuffer, { contentType: 'image/webp', upsert: true })
-      const imageUrl = storage.getPublicUrl('photos', key)
+      // Phase 190 (URL-01): 'photos' is a PRIVATE bucket. getPublicUrl() used to write a
+      // Supabase public-object URL here, which 400s for a private bucket — price-book
+      // thumbnails have been silently broken. The proxy path is served to authenticated
+      // company members by app/storage/[bucket]/[...key]/route.ts's canReadPrivateKey
+      // gate. This value is rendered ONLY on authenticated surfaces (price-book list /
+      // item dialog / trash) — never on a share page or in a PDF.
+      const imageUrl = storageProxyPath('photos', key)
       const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
         .from('company_price_book')
@@ -324,7 +331,13 @@ export async function updatePriceBookItem(
       if (!validPhoto) throw new Error('Invalid item photo (type or size).')
       const webpBuffer = await convertImageToWebp(imageFile)
       await storage.upload('photos', key, webpBuffer, { contentType: 'image/webp', upsert: true })
-      const imageUrl = storage.getPublicUrl('photos', key)
+      // Phase 190 (URL-01): 'photos' is a PRIVATE bucket. getPublicUrl() used to write a
+      // Supabase public-object URL here, which 400s for a private bucket — price-book
+      // thumbnails have been silently broken. The proxy path is served to authenticated
+      // company members by app/storage/[bucket]/[...key]/route.ts's canReadPrivateKey
+      // gate. This value is rendered ONLY on authenticated surfaces (price-book list /
+      // item dialog / trash) — never on a share page or in a PDF.
+      const imageUrl = storageProxyPath('photos', key)
       const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
         .from('company_price_book')

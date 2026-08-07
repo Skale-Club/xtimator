@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
@@ -98,7 +99,7 @@ export async function uploadOnboardingLogoAction(formData: FormData) {
   try {
     const webpBuffer = await convertImageToWebp(file)
     await storage.upload('logos', path, webpBuffer, { contentType: 'image/webp', upsert: true })
-    return { data: { url: storage.getPublicUrl('logos', path) } }
+    return { data: { url: storageProxyPath('logos', path) } }
   } catch (err) {
     console.error('[uploadOnboardingLogoAction] upload error:', err)
     return { error: 'Logo upload failed.' }
