@@ -783,6 +783,183 @@ and belongs written down rather than left implicit.
 
 ---
 
+## Phase 190 — portable same-origin asset URLs (URL-01, URL-03, URL-04)
+
+**Completed 2026-08-06.** Four plans. The one-sentence version: *newly written
+asset URLs no longer contain a storage hostname at all — they are
+`/storage/{bucket}/{key}` paths served by the Phase 187 proxy, and each rendering
+surface resolves that path with the mechanism appropriate to it.*
+
+### 1. The persisted URL form
+
+Every newly persisted asset URL is a bare same-origin path:
+
+```
+/storage/{bucket}/{key}
+```
+
+It is built in exactly ONE place — `storageProxyPath(bucket, key)` in
+`lib/storage/asset-url.ts` — which validates the key against the route's own
+`normalizeProxyKey` before emitting, so an emitted URL is provably servable. It
+throws rather than repairing or returning `''`: a persisted unservable URL is a
+permanently dead image.
+
+Only three buckets may be persisted this way (`PERSISTABLE_PROXY_BUCKETS`):
+`logos`, `platform-brand`, `photos`. `audio` and `pdfs` are refused at the type
+level AND at runtime — nothing persists a URL for them; they are delivered as
+signed URLs at send time.
+
+The 15 writer call sites, with the bucket each writes and whether it was
+repointed:
+
+| # | File:line | Bucket | Repointed? |
+| --- | --- | --- | --- |
+| 1 | `lib/actions/settings.ts:95` (company logo) | `logos` | yes |
+| 2 | `lib/actions/settings.ts:476` (user avatar) | `logos` | yes |
+| 3 | `lib/actions/company.ts:106` (onboarding logo) | `logos` | yes |
+| 4 | `lib/actions/client.ts:136` (client logo) | `logos` | yes |
+| 5 | `lib/actions/admin-company.ts:93` (admin-created company logo) | `logos` | yes |
+| 6 | `lib/actions/price-book.ts:261` (price-book item image) | `photos` | yes |
+| 7 | `lib/actions/price-book.ts:340` (price-book item image, update) | `photos` | yes |
+| 8 | `app/admin/branding/actions.ts:61` (platform logo) | `platform-brand` | yes |
+| 9 | `app/admin/branding/actions.ts:84` (platform favicon) | `platform-brand` | yes |
+| 10 | `app/admin/landing/actions.ts:91` (hero image) | `platform-brand` | yes |
+| 11 | `app/admin/landing/actions.ts:143` (how-it-works step image) | `platform-brand` | yes |
+| 12 | `app/admin/landing/actions.ts:249` (feature image) | `platform-brand` | yes |
+| 13 | `app/admin/landing/actions.ts:302` (hero background IMAGE) | `platform-brand` | yes |
+| 14 | `app/admin/seo/actions.ts:78` (OG image) | `platform-brand` | yes |
+| 15 | `app/admin/landing/actions.ts:202` (hero background **VIDEO**) | `platform-brand` | **NO — see §2** |
+
+Side effect worth naming: sites 6 and 7 were previously calling `getPublicUrl()`
+on the **private** `photos` bucket, which produces a public-object URL that
+`400`s. Price-book thumbnails had been silently broken; they now resolve through
+the proxy's `canReadPrivateKey` gate.
+
+A repo-wide static gate (`tests/unit/storage/persisted-url-form.test.ts`) scans
+the `.getPublicUrl(` **call shape** and fails on any new writer that mints a
+storage-backend URL. It allowlists exactly one occurrence, in the landing action,
+bound to `newBgVideoUrl`.
+
+### 2. Consequence: video is the one asset class that stays on Supabase egress
+
+The landing hero **background video** (`platform-brand/hero-bg-videos/…`) still
+emits an absolute Supabase URL, and this is not a footnote — it is a standing
+architectural consequence:
+
+- The Phase 187 asset proxy is **whole-object pass-through**: no `Range`/`206`,
+  no `Accept-Ranges`.
+- Safari (desktop **and** iOS) refuses to play a `<video>` served from an origin
+  that does not honour byte-range requests.
+- Hero background videos are up to 20 MB and are not transcoded.
+
+**Therefore: video does not move to the same-origin path, and does not get the
+Cloudflare same-origin caching the rest of the assets now get.** It remains on
+Supabase egress.
+
+- **Current blast radius:** latent, not active — no hero background video is set
+  in production today.
+- **Named prerequisite before it can ever be repointed:** the asset proxy must
+  support **`Range`/`206` + `Accept-Ranges`**. Until then, repointing it makes
+  `tests/unit/admin/save-landing-asset-urls.test.ts` go red, deliberately.
+- **CSP consequence:** `https://*.supabase.co` must stay in the CSP `media-src`
+  directive for as long as this holds. **Phase 192 must not drop it** when it
+  narrows `img-src`. This is pinned by
+  `tests/unit/security/csp-same-origin-assets.test.ts`.
+
+### 3. Three resolution mechanisms, and why they are deliberately different
+
+A single persisted path is resolved three different ways, because the consumers
+have genuinely different constraints. Do not "unify" them.
+
+| Consumer | Mechanism | Why |
+| --- | --- | --- |
+| Browser surfaces (app UI, share pages) | uses the relative path as-is | the browser has the origin already; the proxy sets the cache policy |
+| Origin-less server renderers (estimate PDF, `app/icon.tsx`, `app/apple-icon.tsx`) | in-process byte read → `data:` URI, via `lib/storage/asset-inline.ts` | a relative specifier has no base URL in Node; the platform HTTP client throws "Failed to parse URL" |
+| Email + schema.org JSON-LD | absolutized against `getCanonicalBaseUrl()`, via `absoluteAssetUrl()` | a mail client and a rich-results crawler have no app origin at all and will not resolve a relative `src`/`url` |
+
+Two details that are easy to get wrong:
+
+- **The two `next/image` company-logo sites carry `unoptimized`**
+  (`components/share/estimate-document-modern.tsx`,
+  `components/workspace/estimate/estimate-document.tsx`). Without it, a relative
+  src becomes `/_next/image?url=%2Fstorage%2Flogos%2F…` — the self-hosted
+  optimizer fetches the proxy server-side and re-caches the result under
+  `next.config.ts`'s `minimumCacheTTL: 2678400` (**31 days**), pinning a stale
+  logo and neutralising the proxy's deliberate
+  `max-age=300, stale-while-revalidate` policy for `logos` (which use STABLE keys
+  with upsert and therefore MUST revalidate). The landing components already skip
+  the optimizer for a second reason: it intermittently fails without `sharp`.
+- **The PDF does NOT absolutize and fetch its own domain.** That would make the
+  container request its own public hostname — out through Cloudflare and back in
+  through Traefik. This repo has already been bitten in exactly that path (the
+  Flexible-SSL HTTP→HTTPS redirect loop), and `getCanonicalBaseUrl()` on a dev box
+  falls back to the production domain, so a local render would silently pull
+  production assets. Reading the object in-process removes the origin from the
+  problem and cannot leak a credential, because no URL is ever emitted. The
+  inliner is restricted to an allowlist of raster image content types
+  (`image/png`, `image/jpeg`, `image/webp`, `image/gif`) — that allowlist is a
+  **logging-safety control**: `@react-pdf/image` interpolates the WHOLE data URI
+  into its error message when the media type is not `image/<letters>`, which would
+  print multi-megabyte base64 blobs into container logs and Sentry breadcrumbs.
+
+### 4. Both Phase 187 deferred exclusions are now CLOSED — neither by widening the proxy
+
+Phase 187's `lib/storage/proxy-auth.ts` recorded two deliberate exclusions and
+handed their design to Phase 190. Both are closed, and it matters *how*:
+
+- **"No share-token path" — CLOSED BY CONSTRAINT.** The proxy gained no token
+  path and no anonymous private read. Instead, `PERSISTABLE_PROXY_BUCKETS` is
+  restricted to buckets that are either publicly readable through the proxy
+  (`logos`, `platform-brand` — which is exactly why an anonymous share-page
+  visitor and a mail client resolve them with no session and no token), or never
+  rendered anonymously (`photos`, whose only persisted URL is
+  `company_price_book.image_url`, rendered solely on authenticated app surfaces).
+  **Tenant job-site photos on share pages and in PDFs still resolve through
+  short-lived, server-side-generated signed URLs** (`lib/queries/share.ts`,
+  `lib/pdf/render-estimate-pdf.ts`) — that path is unchanged by this phase.
+  This is asserted executably in
+  `tests/unit/storage/anonymous-surface-invariant.test.ts`: adding a bucket to
+  `PERSISTABLE_PROXY_BUCKETS` that is neither publicly readable nor documented
+  as authenticated-only (with surface file paths that must exist on disk) fails
+  the suite.
+- **"No server-side-renderer path" — CLOSED BY IN-PROCESS READS.** The PDF
+  renderer and the icon routes never authenticate against the route at all; they
+  read the object bytes directly through the same R2-first/Supabase-fallback
+  reader the route uses. No renderer credential, no service token, no widening.
+- **"No platform-admin bypass"** — still **NOT built**, and still not needed. An
+  admin cannot pull another company's private object through this route.
+
+### 5. What is still NOT done
+
+- **Existing rows are untouched.** No backfill, no migration, no rewrite. Rows
+  written before this phase still hold absolute `*.supabase.co` URLs and still
+  render — every resolver passes an absolute input through byte-identically.
+  Rewriting them is **URL-02, Phase 192**.
+- **The CSP is not yet narrowed.** `https://*.supabase.co` / `*.supabase.in` stay
+  in `img-src` until the rows are rewritten (Phase 192), and
+  `https://*.supabase.co` stays in `media-src` indefinitely (§2).
+- **PROXY-05 — the CDN cache-HIT proof** (an actual `cf-cache-status: HIT` against
+  the proxy) is still Phase 192.
+
+### 6. Follow-ups this phase opened
+
+- **PDF-LOGO-01 — company logos have never rendered in an estimate PDF.** All
+  four `logos` writers run `convertImageToWebp`, and `@react-pdf/image` decodes
+  only jpg/jpeg/png (on both the remote-URL and the data-URI path), while
+  `lib/pdf/measure-header-height.ts` still reserves 64pt (modern) / 72pt
+  (classic) purely on `company.logo_url` being truthy. Every estimate PDF for a
+  company with a logo therefore has a blank reserved block. **This predates
+  Phase 190 and is unchanged by it** — an absolute URL, a relative path and a
+  data URI are all equally truthy. The fix means changing what those four
+  writers upload (PNG, or dual-writing a PNG alongside the WebP) and needs its
+  own migration story for existing rows.
+- **Asset-proxy `Range`/`206` support** — the named prerequisite for §2's video.
+- **`logos` could become `immutable`** once its writers move to versioned keys
+  instead of the stable `{companyId}/logo.webp` + upsert. Already tracked in
+  `lib/storage/proxy-policy.ts`.
+
+---
+
 ## Why this is a 1-line change
 
 > **Superseded** — see §1 of the field assessment above, and see "Phase 188
