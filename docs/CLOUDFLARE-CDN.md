@@ -52,19 +52,32 @@ there is nothing here to rescue with a custom rule:
   default rules already cache it — verified MISS → HIT.
 - App HTML is `Cache-Control: private, no-cache, no-store` and comes back
   `DYNAMIC`. Correct: this is an authenticated SaaS, HTML must never cache.
-- **Images are NOT on the CDN yet — but a same-origin route now exists.**
-  Phase 187 shipped `GET /storage/{bucket}/{key}` (see
-  `docs/STORAGE-MIGRATION.md`): `platform-brand` is served
-  `public, max-age=31536000, immutable` and `logos`
-  `public, max-age=300, stale-while-revalidate=86400` — both cacheable by
-  Cloudflare's default rules, `logos` deliberately revalidating because logo
-  URLs are overwritten in place. Tenant-private buckets (`photos`, `audio`,
-  `pdfs`) are served `private, no-store` and must never be edge-cached.
-  **No image URL has been repointed at the route yet** — the 41 landing-page
-  image references still come from `*.supabase.co`, so they still bypass the
-  edge entirely today. The MISS→HIT proof on real landing images is PROXY-05
-  in Phase 192. No Cloudflare cache rule was added for this route; none is
-  needed.
+- **Images ARE on the CDN as of 2026-08-07.** Phase 187 shipped
+  `GET /storage/{bucket}/{key}` and Phase 192 repointed every persisted asset
+  URL at it, so the landing page now serves **zero** `*.supabase.co`
+  references — all 18 distinct image URLs come from `xtimator.com` and were
+  each fetched and confirmed `200` with the right content type. A repeat
+  request for a hero image reports `cf-cache-status: HIT`.
+
+  The cache directive differs per bucket on purpose:
+  `platform-brand` gets `public, max-age=31536000, immutable` (timestamped
+  keys), `logos` gets `public, max-age=14400, stale-while-revalidate=86400`
+  (its keys are overwritten in place with `upsert: true`, so `immutable`
+  would pin a stale logo in browser caches that cannot be purged), and the
+  tenant-private buckets `photos`/`audio`/`pdfs` get `private, no-store` and
+  come back `BYPASS` — a customer's job-site photo must never enter
+  Cloudflare's shared cache.
+
+  One asset class deliberately stays on Supabase: the landing hero background
+  **video**. The proxy is whole-object pass-through with no Range/206 support
+  and no `Accept-Ranges`, and Safari refuses to play a `<video>` from such an
+  origin. Adding Range support is the prerequisite for ever repointing it —
+  there are tripwires in `lib/storage/asset-url.ts`, `app/admin/landing/actions.ts`
+  and a save-landing test that will fail if someone "finishes" that repoint.
+  No video is currently configured, so the exemption matches nothing today.
+
+  No Cloudflare cache rule was added for this route; the default rules already
+  cache it because the keys carry real extensions.
 
 ## Verified after cutover
 

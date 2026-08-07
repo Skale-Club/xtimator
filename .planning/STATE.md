@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
-status: in_progress
-stopped_at: "Completed 192-02-PLAN.md — the URL-02 operator tool (`scripts/rewrite-asset-urls.ts`, `npm run rewrite:asset-urls`) plus the cutover/rollback runbook. **No production row was written and none may be until 192-03.** Verified 2026-08-07: `public.storage_url_rewrites` does NOT exist in production yet (PGRST205) — 192-03 must apply `supabase/migrations/20260806000003_phase192_storage_url_rewrites.sql` BY HAND first; `--preflight` blocks until then. Gate on the machine-readable tokens (`PREFLIGHT_BLOCKERS`, `CENSUS_TOTAL=11`, `PLANNED_CHANGES=4`, `APPLIED_CHANGES`, `BATCH_ID`, `DRIFTED`), never on prose. URL-02 deliberately still Pending."
+status: completed
+stopped_at: "Milestone v4.24 COMPLETE 2026-08-07 — all 6 phases (187-192), 24/24 plans, 20/20 requirements. Live in production: same-origin /storage/ proxy serving from Cloudflare R2 (x-asset-source: r2), landing page at 0 supabase.co references with cf-cache-status HIT, tenant-private buckets BYPASS. 55 objects migrated and verified. Open gaps recorded in 192-03/04/05 SUMMARYs: no production rollback drill, no human visual UAT. Pending: FUT-R2-01 (disable the Supabase fallback once stable)."
 last_updated: "2026-08-07T04:26:56.651Z"
-last_activity: "2026-08-07 — Phase 192 Plan 02 complete: the URL-02 operator tool. Dry-run is the default; every write mode refuses without --confirm-project; --apply REUSES an open batch (crash-resume); every update is compare-and-set and asserts exactly 1 row affected, deleting its own audit row and aborting on 0; --revert-latest reverts ALL open batches newest-first and exits non-zero on drift; --restore-from-dump is the independent second restore path. 63 offline tests, 12 mutations proven to fail. Prior: 192-01 (migration + lib/storage/url-rewrite.ts)."
+last_activity: "2026-08-07 — v4.24 shipped; R2 activated in Coolify and verified serving"
 progress:
   total_phases: 136
-  completed_phases: 121
+  completed_phases: 122
   total_plans: 387
-  completed_plans: 384
-  percent: 99
+  completed_plans: 387
+  percent: 100
 ---
 
 # Project State
