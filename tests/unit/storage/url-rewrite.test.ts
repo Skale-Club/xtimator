@@ -178,19 +178,34 @@ describe('rewriteAssetUrl', () => {
     })
   })
 
+  /**
+   * These assert WHY the refusal happened, not just that it happened.
+   *
+   * `changed: false` alone is a VACUOUS assertion here: if the bucket gate were
+   * widened from PERSISTABLE_PROXY_BUCKETS (3) to all proxy buckets (5), an
+   * `audio` URL would still come back `changed: false` — because
+   * storageProxyPath would throw and it would be reported as `unserveable`
+   * instead. Requiring `unserveable` to be FALSY pins the refusal to the bucket
+   * gate itself, which is the invariant that matters. (Verified by mutation:
+   * widening the gate makes these fail.)
+   */
   describe('private delivery buckets are NEVER converted', () => {
-    it('refuses an audio/ URL', () => {
+    it('refuses an audio/ URL at the bucket gate', () => {
       const url = publicUrl('audio', `${UUID}/walkthrough.webm`)
       const result = rewriteAssetUrl(url)
       expect(result.changed).toBe(false)
       expect(result.value).toBe(url)
+      expect(result.unserveable).toBeFalsy()
+      expect(result.exempt).toBeFalsy()
     })
 
-    it('refuses a pdfs/ URL', () => {
+    it('refuses a pdfs/ URL at the bucket gate', () => {
       const url = publicUrl('pdfs', `${UUID}/estimate-1.pdf`)
       const result = rewriteAssetUrl(url)
       expect(result.changed).toBe(false)
       expect(result.value).toBe(url)
+      expect(result.unserveable).toBeFalsy()
+      expect(result.exempt).toBeFalsy()
     })
 
     it('refuses a bucket that is not a proxy bucket at all', () => {
@@ -198,6 +213,15 @@ describe('rewriteAssetUrl', () => {
       const result = rewriteAssetUrl(url)
       expect(result.changed).toBe(false)
       expect(result.value).toBe(url)
+      expect(result.unserveable).toBeFalsy()
+    })
+
+    it('a private-bucket URL inside a JSONB document is left alone and not counted', () => {
+      const doc = { audio: publicUrl('audio', `${UUID}/a.webm`), pdf: publicUrl('pdfs', `${UUID}/b.pdf`) }
+      const result = rewriteJsonAssetUrls(doc)
+      expect(result.changed).toBe(0)
+      expect(result.unserveable).toBe(0)
+      expect(result.value).toEqual(doc)
     })
   })
 
