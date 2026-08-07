@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 190-04-PLAN.md (emails + JSON-LD absolutized, CSP audited/pinned, anonymous-surface invariant, docs). Phase 190 COMPLETE (4/4). Next: Phase 192 (URL Rewrite Cutover & CDN Verification)."
-last_updated: "2026-08-07T03:04:35.395Z"
-last_activity: "2026-08-06 — v4.24 phases 187/188/189/190/191 complete; 192 not started. Phase 190 closed by Plan 04: URL-03 (emails + org JSON-LD absolutized, next/image optimizer bypassed for the same-origin logo) and URL-04 (CSP audited — img-src already carried 'self', nothing broadened, now pinned)."
+stopped_at: "Completed 192-01-PLAN.md (URL-02 reversible-record table + pure URL translation module; migration authored, NOT applied). Next: 192-02."
+last_updated: "2026-08-07T03:51:31.099Z"
+last_activity: "2026-08-06 — Phase 192 Plan 01 complete: public.storage_url_rewrites migration (20260806000003, apply BY HAND in Plan 03) and lib/storage/url-rewrite.ts (idempotent, delegates to storageProxyPath, gates on PERSISTABLE_PROXY_BUCKETS, mirrors the hero-bg-videos exemption). Phase 190 closed by Plan 04 (URL-03/URL-04)."
 progress:
   total_phases: 136
   completed_phases: 121
   total_plans: 387
-  completed_plans: 382
-  percent: 98
+  completed_plans: 383
+  percent: 99
 ---
 
 # Project State
@@ -1456,6 +1456,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 190 P03 | 60min | 3 tasks | 7 files |
 | Phase 190 P02 | 65min | 3 tasks | 13 files |
 | Phase 190 P04 | 35min | 3 tasks | 11 files |
+| Phase 192 P01 | 22min | 3 tasks | 4 files |
 
 ## Project Reference
 
