@@ -28,6 +28,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { serverStorage } from '@/lib/storage/server'
+import { resolveAssetForRenderer } from '@/lib/storage/asset-inline'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -188,6 +189,32 @@ export async function renderEstimatePdf(
     }))
   )
 
+  // Phase 190 (URL-03): company.logo_url may now be a same-origin path
+  // (/storage/logos/...). react-pdf runs in Node with no browser origin and
+  // cannot fetch a relative URL, so resolve the bytes in-process to a data:
+  // URI. An absolute legacy *.supabase.co URL passes through untouched. An
+  // unresolvable asset becomes null => the header renders logo-less rather
+  // than throwing: a broken image must never cost the user their document.
+  //
+  // ORDER IS LOAD-BEARING: computeEstimatePageConstraints -> measureHeaderHeightPt
+  // charges 64-72pt of header height purely on company.logo_url being TRUTHY.
+  // Resolving AFTER it would let the pagination engine measure a header with a
+  // logo that the renderer then omits, silently shifting every page break.
+  //
+  // Parity note (Phase 190): components/workspace/estimate/use-paginated-preview.ts
+  // calls computeEstimatePageConstraints with the RAW company — it is a client
+  // hook and cannot call this server-only resolver. Safe because
+  // measureHeaderHeightPt keys on TRUTHINESS only, and a relative path and its
+  // resolved data URI are both truthy. If that ever becomes a size- or
+  // format-dependent measurement, these two sites must be reunified.
+  //
+  // Unconditional by design: no `logo_url ? resolve : skip` short-circuit, so
+  // the null-in/null-out path can never drift from the resolved one.
+  const companyForRender = {
+    ...company,
+    logo_url: await resolveAssetForRenderer(company.logo_url),
+  }
+
   // Phase 184 Plan 05 (PGBRK-01/03/04) — compute the deterministic page
   // breaks via the SAME pipeline both this PDF renderer and (Phase 185) the
   // future web measurement provider call: blocksFromModel() ->
@@ -199,7 +226,7 @@ export async function renderEstimatePdf(
   // shared function also used by tests/unit/pdf/_pages-for-fixture.ts (and,
   // starting Plan 185-03, the web preview) — never a second, independently-
   // maintained derivation (see 185-RESEARCH.md's constraints-parity finding).
-  const constraints = computeEstimatePageConstraints(company, templateId)
+  const constraints = computeEstimatePageConstraints(companyForRender, templateId)
   const L = PDF_LABELS[estimateLanguage] ?? PDF_LABELS.en
   const blocks = blocksFromModel({
     sections: estimate.sections,
@@ -208,7 +235,7 @@ export async function renderEstimatePdf(
     payment_terms: estimate.payment_terms,
     warranty_terms: estimate.warranty_terms,
     notes: estimate.notes,
-    company,
+    company: companyForRender,
     discount_amount: estimate.discount_amount,
     tax_amount: estimate.tax_amount,
     dep: deriveDepositDisplay(estimate),
@@ -229,7 +256,7 @@ export async function renderEstimatePdf(
   const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
   const element = createElement(PDFComponent, {
     estimate,
-    company,
+    company: companyForRender,
     client,
     projectName,
     projectType,
