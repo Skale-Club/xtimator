@@ -162,16 +162,67 @@ Omitting the two `CLOUDFLARE_*` vars downgrades the public-access
 assertion to `SKIPPED` — `SKIPPED` is not a pass, and the script never
 reports one on your behalf.
 
-**Executed against live R2 on 2026-08-06** with the real scoped credential:
-all five buckets reachable, all five round-trips (upload → sign → download)
-passing, and `scope:xtimator — correctly denied`, which is the check that
-actually proves the token cannot reach anything outside the five buckets.
-The public-access leg reported `SKIPPED` on that run: the operator's
-Cloudflare R2 token was deliberately revoked after provisioning, so the
-assertion had no credential. That property *was* verified directly against
-the Cloudflare managed-domain API on 2026-08-06 — the table above is that
-result — but it is verified out-of-band, not by this script. Re-assert it
-with a short-lived R2 read token whenever the bucket set changes.
+**Executed against live R2 on 2026-08-06 — 16/16 PASS, zero SKIP.** All five
+buckets reachable; all five round-trips (upload → sign → download) passing;
+`scope:xtimator — correctly denied`, which is the check that actually proves
+the token cannot reach outside the five buckets; and all five
+`public-access` assertions PASS with a short-lived Cloudflare R2 admin token
+supplied inline. That admin token was revoked immediately afterwards — the
+only R2 credential that persists is the bucket-scoped `xtimator app`.
+
+Re-assert with a short-lived R2 read token whenever the bucket set changes.
+Without the two `CLOUDFLARE_*` vars the public-access leg degrades to
+`SKIPPED`, which is not a pass.
+
+### CORS on the `audio` bucket — applied 2026-08-06
+
+Browser uploads (Phase 189) PUT to a presigned R2 URL, which is
+**cross-origin**. Without a CORS policy every browser upload fails at
+cutover — and the Supabase code path hides this completely, so no test in
+this repo can catch it. Applied:
+
+| Field | Value |
+|---|---|
+| AllowedOrigins | `https://xtimator.com`, `https://www.xtimator.com`, `http://localhost:3000` |
+| AllowedMethods | `PUT`, `GET`, `HEAD` |
+| AllowedHeaders | `content-type` |
+| ExposeHeaders | `etag` |
+| MaxAgeSeconds | 3600 |
+
+`ExposeHeaders: etag` is **load-bearing**, not decoration:
+`lib/storage/upload-with-retry.ts` treats a 409 as success and uses the ETag
+to confirm the object actually landed. Without it a retry cannot tell a
+duplicate from a failure.
+
+Note the production `xtimator app` token **cannot** set bucket CORS —
+`PutBucketCors` returns `AccessDenied`, verified. That is correct
+least-privilege, but it means any future CORS change needs an admin token
+created and revoked for the occasion. Only `audio` needs a policy; the other
+four buckets are never written from a browser.
+
+### Object migration — executed and proven 2026-08-06
+
+`npm run migrate:r2` was run against production. Evidence, in order:
+
+| Step | Result |
+|---|---|
+| Initial copy | **55 copied, 0 failed** |
+| Second run (idempotency) | 0 copied, 55 matched |
+| `--verify-only` | zero writes, all matched |
+| Deliberate corruption (truncated one object to 9 bytes) | **detected**, named the object, source vs destination size, exit 1 |
+| Restore | 1 re-copied, all green |
+
+The corruption drill matters more than the copy: without it, "ALL OBJECTS
+VERIFIED" is an unfalsifiable claim.
+
+**The object count is a moving target, not a constant.** It was 51 when this
+migration was scoped and 55 by the time the copy ran — a live user uploaded
+three audio recordings and a logo during the same working session. Anything
+that hard-codes 51 (or 55) is wrong by construction; the command compares
+live source against live destination on every run, which is what makes the
+number irrelevant. It also means objects created between the copy and the
+URL cutover exist only in Supabase — harmless, because the proxy falls back
+there, and fixed by simply re-running the copy.
 
 The script asserts, it never provisions — do not use it to "repair" a
 bucket; a failing check means investigate by hand, not re-run with `--fix`.
