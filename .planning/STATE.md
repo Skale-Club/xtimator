@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 189-02-PLAN.md (POST /api/storage/upload-ticket — caller authorization gates: auth, active company, demo guard, project ownership — before Plan 01's tenant-confined key minting; mutation-boundary census registered, observed RED then GREEN; UPLOAD-02 closed). Next: Phase 189 Plan 03 (client migration)."
-last_updated: "2026-08-06T23:44:07.759Z"
-last_activity: "2026-08-06 - Phase 189 Plan 02 (Browser Uploads Without Browser Credentials — upload-ticket route, UPLOAD-02) complete. Prior: Phase 189 Plan 01 (upload-ticket module) complete. Prior: Phase 188 Plan 01-05 (Server-Wide Provider Selection Integrity) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
+stopped_at: "Completed 191-01-PLAN.md (source enumeration + comparison engine, MIG-02). Next: Phase 191 Plan 02 (main() + R2 write/HeadObject side)."
+last_updated: "2026-08-07T00:19:48.175Z"
+last_activity: "2026-08-06 - Phase 191 Plan 01 (Object Migration Verification — source enumeration + comparison engine, MIG-02) complete. Prior: Phase 190 Plan 01 (asset-url module) and Phase 189 Plan 03 (browser upload components) in progress concurrently. Prior: Phase 189 Plan 02 (Browser Uploads Without Browser Credentials — upload-ticket route, UPLOAD-02) complete. Prior: Phase 188 Plan 01-05 (Server-Wide Provider Selection Integrity) complete. Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
 progress:
   total_phases: 136
   completed_phases: 113
   total_plans: 369
-  completed_plans: 366
-  percent: 99
+  completed_plans: 368
+  percent: 100
 ---
 
 # Project State
@@ -88,8 +88,10 @@ progress:
 
 ## Current Position
 
-Phase: 188 (Server-Wide Provider Selection Integrity) — IN PROGRESS
-Plan: 01/05 complete
+Phase: 190 (Portable Same-Origin Asset URLs) — IN PROGRESS, in parallel with 189
+Plan: 190 → 01/04 complete · 189 → 02/03+ complete (separate executor)
+Status (190): Plan 01 (URL-01) COMPLETE 2026-08-06. `lib/storage/asset-url.ts` is now the ONE place a `/storage/{bucket}/{key}` URL is built — `storageProxyPath` / `isStorageProxyPath` / `parseStorageProxyPath` / `absoluteAssetUrl<T>` / `isAcceptableAbsoluteAssetUrl` + `PERSISTABLE_PROXY_BUCKETS` (logos, platform-brand, photos; audio/pdfs refused at the type level AND at runtime). Pure/browser-safe, no env read, base URL always an argument. Round-trip property proven against the REAL `normalizeProxyKey` over 8 key shapes incl. extensionless, space, `+`, `%`, non-ASCII and `#?&`. `lib/schemas/asset-url.ts` (`assetUrlString()`) relaxes the 7 asset-URL validators (6 in admin.ts, 1 in price-book.ts); `canonicalBaseUrl` + `coverImageUrl` proven to still reject relative paths. NO writer repointed yet (that is Plan 02) and `heroBackgroundVideoUrl`'s writer stays on its absolute Supabase URL (proxy has no Range/206 → Safari won't play a proxied `<video>`). Full suite EXIT=1 with the ONLY failures being the 2 known Windows-CRLF migration tests, the `mcp-route-contract` fork-pool flake (8/8 green isolated), and `storage-seam-census` red on `lib/storage/browser-upload.ts` — the CONCURRENT 189-03 executor's file, not 190's (logged in `.planning/phases/190-portable-same-origin-asset-urls/deferred-items.md`). Next: 190-02 (repoint writers).
+Prior phase line: Phase 188 (Server-Wide Provider Selection Integrity) — Plan 01 detail retained below.
 Status: Phase 188 Plan 01 (provider seam) COMPLETE 2026-08-06 — PROV-01 closed. Built `lib/storage/server.ts` (`serverStorageBackend()`/`getServerStorage()`/`serverStorage(client)` — the single server-wide storage-backend decision, full selection matrix incl. loud throw on `STORAGE_PROVIDER=s3` with incomplete `S3_*`), stripped `getServerStorage()` out of the browser-reachable `lib/storage/index.ts` (now a pure Supabase-only factory, verified via a suite assertion with zero references to `s3-provider`/`@/lib/supabase/service`/env reads), repointed all 4 production call sites (`app/api/health`, `lib/actions/admin-whatsapp.ts`, `lib/estimate/adapters/whatsapp.ts` x2) + `scripts/storage-smoke.ts` + 4 test mocks to `@/lib/storage/server` with zero behavior change. `lib/storage/s3-provider.ts` untouched (`git diff --stat` empty, verified 3x). Full `npx vitest run tests/unit tests/eval` FAIL set is exactly the 2 known Windows-CRLF-only migration-shape tests (confirmed on 2 separate full-suite runs; a third run intermittently also flagged the pre-existing, storage-unrelated `mcp-route-contract.test.ts` timeout flake, documented in the SUMMARY as non-reproducible and not a regression). `tsc -p tsconfig.ci.json` and bare `tsc` both 0 errors. R2 stays fully dormant — no `S3_*` value entered `.env.local`/Coolify. See `188-01-SUMMARY.md`. Next: Plan 02 (repoint ~19 remaining `createStorage(client)` server call sites onto `serverStorage`).
 Last activity: 2026-08-06 - Phase 188 Plan 01 (Server-Wide Provider Selection Integrity — provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)
 
@@ -97,7 +99,7 @@ Last activity: 2026-08-06 - Phase 188 Plan 01 (Server-Wide Provider Selection In
 - Phase 185 (Paginated Editable Editor Mode) COMPLETE 2026-07-28 — all 4/4 plans shipped, PGMODE-01..05 and PGBRK-01/04 all closed (PGBRK-02/03/05 were already complete from Phase 184): Plan 01 (mirror foundation — shared `computeEstimatePageConstraints()` + browser-shell fontkit estimator, byte-identical browser-vs-server MeasurementProvider parity), Plan 02 (view-mode icon toggle, legacy CSS-zoom toggle retired), Plan 03 (real DOM-measurement paginated canvas — `usePaginatedPreview()`/`PaginatedDocumentOverlay()`/cascade-corrected `derivePageOffsets()`, prepared-by/company-terms parity, Playwright-verified real positional binding), Plan 04 (reducer-level `structuralEditEpoch` driving immediate-vs-400ms-debounced repagination, memoized offset derivation, an engine-parity integration test binding the LIVE rendered pipeline's sheet count to the engine's direct computation, focus/dnd-kit regression proof, and an automated static+dynamic import boundary guard closing PGMODE-05). `185-HUMAN-UAT.md` created (status: partial) for the 3 remaining manual-only items (real-browser editing feel, real positional binding at scale, pending owner reference image). v4.23 milestone's pagination requirement set is now fully closed — only POLISH-01 (Phase 186) remains open. Next: Phase 186 (webview design polish).
 - Phase 184 (Consolidated Pagination Engine) COMPLETE 2026-07-28 — all 5/5 plans shipped, PGBRK-02/03/05 fully complete; PGBRK-01/04 closed by Phase 185 (engine + PDF side complete in 184, web paginated preview consumption + the engine-vs-rendered-view parity proof landed in 185): Plan 01 (measurement-drift spike + SAFETY_MARGIN_LINES + LINE_HEIGHT/ESTIMATE_PAGE_GEOMETRY/photosPerRow tokens + visibleSectionItems), Plan 02 (computePageBreaks() engine — maximal keep-together chains, persistent continuation-header reservation, per-page safety margin), Plan 03 (fontkit/linebreak estimator + blocksFromModel()), Plan 04 (PDF template atomicity restructure — split PdfSectionBlock, row-chunked PdfPhotoGrid, per-card-atomic PdfTermsSection, wrap={false} totals), Plan 05 (both PDF templates wired to N-explicit-<Page> composition via one keyed dispatcher; real-PDF-byte page count verified against the engine's computed count via an empirically-calibrated PDF_RENDER_SAFETY_MARGIN_PT=90, recalibrated after fixing a header address-line-count bug + 2 totals-formula bugs; durable, regenerated UAT artifacts covering every atomic-block rule).
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 **Phase 183 Plan 06 (2026-07-28):** Extracted `PdfTotalsBlock` (Classic boxed row-list vs
 Modern standalone hero, both preserved verbatim) + `PdfPhotoGrid` (captions) + net-new
@@ -273,7 +275,7 @@ Prior: 102-01 (HARD-07 replay-safe TTL) shipped. Added a neutral `requestedAt: A
 Prior: 102-02 (HARD-06 cap half) shipped. Replaced the hard-coded `(state.refineAttempts ?? 0) < 1` literal in `checkVagueAfterAssessEdge` (`lib/estimate/graph/nodes/decide.ts`) with a single `AUTO_REFINE_MAX_ATTEMPTS` module constant — read once at module load via an IIFE (`Number.isFinite(raw) && raw >= 0 ? raw : 1`) from the optional non-secret `process.env.AUTO_REFINE_MAX_ATTEMPTS`, defaulting to 1. Operator kept exactly `<` so the default is byte-identical to today (Research Pitfall 1). `auto-refine.ts` doc comment updated to reference the configurable cap (documentation-only; increment logic untouched). Channel-neutral (no DB, no async, no channel import) → graph-neutrality stays green. `tests/unit/estimate/auto-refine-cap.test.ts` now fully GREEN (default=1 AND `AUTO_REFINE_MAX_ATTEMPTS=2` override cases); `auto-refine-isolation` + `graph-neutrality` (12/12) and `never-reply-regression` Path C (loops exactly once at default) stay green. No env VALUE committed — only the var NAME appears (CLAUDE.md secret-handling). 1 atomic commit (02a41f2). xphere untouched. HARD-06 NOT marked complete — only the configurable-cap half is done; the web recourse UI half is owned by Plan 102-04.
 Prior (102-00, Wave 0 RED/EXTEND scaffold): authored 4 failing-by-design test files (auto-refine-cap [HARD-06 cap, now GREEN via 102-02], replay-safe-ttl [HARD-07, still RED → 102-01], batch-reporting [HARD-05, still RED → 102-03], needs-details-banner [HARD-06 recourse, still RED → 102-04]); 2 commits (201afb0, 35e8537).
 Last activity: 2026-07-08 - Completed quick task 260707-umu: dashboard Recent projects filters aligned with Projects page control bar
-Stopped at: Completed 189-02-PLAN.md
+Stopped at: Completed 191-01-PLAN.md (source enumeration + comparison engine, MIG-02). Next: Phase 191 Plan 02 (main() + R2 write/HeadObject side).
 Prior Stopped at: Completed 157-01-PLAN.md
 Next Up: **Phase 108 COMPLETE (5/5 plans — 108-01 metering [RMETER-01/02/03], 108-02 vagueness gate [RFALL-02], 108-03 orchestrator `researchUnmatchedPrices` [RPRICE-01/03/04, RFALL-01], 108-04 wire into `generateEstimateForProject` [RPRICE-01/03, RFALL-01], 108-05 "Couch cleaning 8 seats" full-graph regression [RFALL-03]).** THE PAYOFF is live in the production generation path AND locked by a green deterministic full-graph regression (EVIDENCED → $180/non-vague, empty-research+context → never-$0 ladder/non-vague, all-empty → still blocks). All three price-research adapters (`openrouter-web`, gated `anthropic-web`, deterministic `fixture`) remain configured-via-`platform_integrations` (all-misses no-op when unconfigured). Suggested: `/gsd:verify-work 108`, then `/gsd:execute-phase 109` (durability + cost-control hardening — dedicated `step.run('price-research')` retry isolation, runtime OpenRouter→Anthropic fallback ordering, per-estimate item caps, refine-loop memoization). DEFERRED (operational, carried from 108-01): apply migration `20260624000002_phase108_usage_event_price_researched.sql` (+ the earlier `20260624000001` price_research_cache) to remote via CI→GHCR→Coolify.
 Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gsd:verify-work 104` to validate the phase, then address the operational deferrals. DEFERRED (operational, all of Phase 104): apply migrations `20260621000001_notification_categories_remap.sql` + `20260621000002_notification_opt_in_consent.sql` + `20260621000003_whatsapp_notification_templates.sql` to the remote DB; ensure the Twilio from-number is SMS-capable; verify the Meta token carries `whatsapp_business_management` scope + author/approve the registry templates in Meta WhatsApp Manager (the `message_template_status_update` webhook then flips them to approved). Also still queued: `/gsd:verify-work 103` + `/gsd:complete-milestone` (v4.5) carry-over UATs.
@@ -1081,6 +1083,9 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 - [Phase 188]: PROV-03 closed: WhatsApp inbound media proven to write and read the same storage backend via a poisoned-Supabase-.storage-getter test (anti-silent-pass), the reversibility twin, and a static pin of the 3 estimate-pipeline photo readers
 - [Phase 188]: PROV-02 census gate (26-row exact manifest) found and closed 2 real Plan-01-03 gaps: analyze-photos.ts and transcribe-audio.ts were still calling raw supabase.storage.from(...) directly
 - [Phase 189]: 189-02: POST /api/storage/upload-ticket authorizes caller (auth+company+demo+ownership) before minting; companyId is auth-derived only, never from request body
+- [Phase 190]: 190-01: parseStorageProxyPath validates through the REAL normalizeProxyKey, so a traversal path can never be persisted by a relaxed validator
+- [Phase 190]: 190-01: isAcceptableAbsoluteAssetUrl allows only http/https/data — zod 4.3.6's z.string().url() accepts javascript:alert(1), so the relaxed fields are now strictly safer than before
+- [Phase 191]: Source side pinned to createStorage(requireServiceClient()) via buildSourceStorage(), never the R2-aware default-provider factories, so the migration source stays Supabase regardless of S3_* env
 
 ## Performance Metrics
 
@@ -1438,6 +1443,8 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 188 P05 | 90min | 2 tasks | 1 files |
 | Phase 188 P04 | 55min | 2 tasks | 9 files |
 | Phase 189 P02 | 40min | 2 tasks | 3 files |
+| Phase 190 P01 | 30 | 2 tasks | 6 files |
+| Phase 191 P01 | 35min | 2 tasks | 2 files |
 
 ## Project Reference
 
