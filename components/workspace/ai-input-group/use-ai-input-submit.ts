@@ -23,11 +23,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
+import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { createRecording, createTextRecording, transcribeRecording } from '@/lib/actions/recording'
 import { pollJob } from '@/hooks/use-job-status'
-import { getFileExtension } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
@@ -41,9 +39,10 @@ export type SubmitStage =
 
 interface UseAIInputSubmitArgs {
   projectId: string
-  // companyId is read from the authenticated server actions, but we keep it
-  // here so the upload path can construct {companyId}/{projectId}/{uuid}.{ext}
-  // mirroring audio-recorder.tsx exactly.
+  // Phase 189 Plan 03 (UPLOAD-01): companyId is no longer read here — the
+  // server derives the storage key from the authenticated caller's active
+  // company. Kept in this interface (callers still pass it; removing the
+  // prop is not this phase's business), but no longer destructured below.
   companyId: string
   currentEstimate: EstimateWithSections | null
   estimateLanguage?: EstimateLanguage
@@ -51,7 +50,6 @@ interface UseAIInputSubmitArgs {
 
 export function useAIInputSubmit({
   projectId,
-  companyId,
   estimateLanguage = 'en',
 }: UseAIInputSubmitArgs) {
   const router = useRouter()
@@ -106,17 +104,22 @@ export function useAIInputSubmit({
     ): Promise<boolean> => {
       try {
         setStage('uploading')
-        const supabase = createClient()
-        const recordingId = crypto.randomUUID()
-        const ext = getFileExtension(mimeType)
-        const storagePath = `${companyId}/${projectId}/${recordingId}.${ext}`
-
+        // Phase 189 Plan 03 (UPLOAD-01): server-issued ticket replaces the
+        // client-constructed storagePath.
+        let storagePath: string
         try {
-          await createStorage(supabase).upload('audio', storagePath, blob, {
+          const uploaded = await uploadViaTicket({
+            bucket: 'audio',
+            projectId,
+            blob,
             contentType: mimeType || 'audio/webm',
-            upsert: false,
           })
-        } catch {
+          storagePath = uploaded.path
+        } catch (err) {
+          // Real error was previously discarded here — log it so a field
+          // failure is diagnosable instead of anonymous. Thrown message is
+          // unchanged (the surrounding pipeline renders it).
+          console.error('[use-ai-input-submit] audio upload failed:', err)
           throw new Error(t('Failed to upload audio file'))
         }
 
@@ -166,7 +169,7 @@ export function useAIInputSubmit({
         return false
       }
     },
-    [companyId, projectId, runGenerate, landOnEstimateTab, t],
+    [projectId, runGenerate, landOnEstimateTab, t],
   )
 
   const submitText = useCallback(

@@ -149,18 +149,18 @@ function manifestDiff(discoveredIds: string[], manifest: Row[]) {
  * `serverStorage()` (which they structurally cannot — `serverStorage()`
  * lives in a server-only module these files never import).
  *
- * Of the 6 browser call sites, 3 are true uploads (Phase 189 / UPLOAD-01-02
- * replaces them with server-issued presigned PUTs) and the other 3 are
- * `getSignedUrl` READS (Phase 190 repoints these at the same-origin asset
- * proxy). `capture-recorder.tsx` contains one of each — a photo-preview
- * `getSignedUrl` read AND the audio upload — so it counts toward both: 3
- * upload operations (capture-recorder's audio upload, inline-audio-recorder,
- * use-ai-input-submit) + 4 read operations (capture-recorder's photo
- * restore, photo-card, photo-lightbox, estimate-document) across 6 distinct
- * call-site files. An earlier draft of this phase's docs said "five" or
- * "six" uploads — that conflated the read sites with the upload sites; the
- * counts above were derived by reading each call site's actual method call
- * (`.upload(...)` vs `.getSignedUrl(...)`), not by trusting either number.
+ * Phase 189 Plan 03 (UPLOAD-01) moved the 3 true browser UPLOADS
+ * (capture-recorder's audio upload, inline-audio-recorder,
+ * use-ai-input-submit) off `createStorage(...).upload(...)` entirely — they
+ * now call `uploadViaTicket()` (`lib/storage/browser-upload.ts`), which this
+ * census does not track (it only tracks `createStorage`/`serverStorage`/
+ * `getServerStorage`, not `uploadViaTicket`). That is why only ONE
+ * `browser-supabase` row remains below: `capture-recorder.tsx` keeps its
+ * `createStorage` call for the photo-preview `getSignedUrl` READ (Phase 190
+ * target) — the audio-upload call site in the same file no longer calls
+ * `createStorage` at all. The other 3 browser call sites are the remaining
+ * `getSignedUrl` READS (`photo-card.tsx`, `photo-lightbox.tsx`,
+ * `estimate-document.tsx`), also Phase 190 targets.
  */
 const UPLOAD_REASON =
   'Phase 189 (UPLOAD-01/02) replaces this direct browser upload with a server-issued presigned PUT. Until then, S3_* is server-only env (never NEXT_PUBLIC_*), so s3ConfigFromEnv() is null in the browser and no R2 credential can reach this call site.'
@@ -210,18 +210,6 @@ const STORAGE_SEAM_MANIFEST: Row[] = [
     reason:
       'BOTH an upload and a read live in this file: the audio-upload call site (Phase 189 target) and a photo-preview getSignedUrl read used to restore thumbnails (Phase 190 target). ' +
       UPLOAD_REASON,
-  },
-  {
-    id: 'components/projects/inline-audio-recorder.tsx#createStorage',
-    disposition: 'browser-supabase',
-    authority: "The client component's own authenticated browser Supabase auth context",
-    reason: UPLOAD_REASON,
-  },
-  {
-    id: 'components/workspace/ai-input-group/use-ai-input-submit.ts#createStorage',
-    disposition: 'browser-supabase',
-    authority: "The client hook's own authenticated browser Supabase auth context",
-    reason: UPLOAD_REASON,
   },
   {
     id: 'components/workspace/photos/photo-card.tsx#createStorage',
@@ -344,13 +332,26 @@ describe('Phase 188 storage seam census', () => {
     // method — see that file's own header docblock. This is therefore the
     // seam itself for signed-upload-URL minting, not an escape hatch
     // bypassing it.
-    const EXEMPT = new Set(['lib/storage/supabase-provider.ts', 'lib/storage/upload-ticket.ts'])
+    //
+    // Phase 189 Plan 03 (UPLOAD-01) adds a third: lib/storage/browser-upload.ts's
+    // supabase-signed-upload strategy calls
+    // `createClient().storage.from(ticket.bucket).uploadToSignedUrl(ticket.key, ticket.token, body, opts)`
+    // directly, for the exact same reason — `uploadToSignedUrl` is not part
+    // of the StorageProvider interface either, and this module explicitly
+    // must NOT import `createStorage`/`serverStorage` (Plan 04's static
+    // import-graph gate forbids it reaching any server storage seam). This
+    // raw call is the browser-side half of the same signed-upload-URL seam.
+    const EXEMPT = new Set([
+      'lib/storage/supabase-provider.ts',
+      'lib/storage/upload-ticket.ts',
+      'lib/storage/browser-upload.ts',
+    ])
     const offenders = discoveredFiles.filter(
       (file) => file.hasStorageFromCall && !EXEMPT.has(file.path),
     )
     expect(
       offenders.map((file) => file.path),
-      'A raw `<client>.storage.from(...)` call was found outside the legitimate adapter holders (lib/storage/supabase-provider.ts, lib/storage/upload-ticket.ts). Route through createStorage()/serverStorage() instead — this is the STORAGE-03 grep gate re-expressed as a suite assertion so it cannot silently stop being run.',
+      'A raw `<client>.storage.from(...)` call was found outside the legitimate adapter holders (lib/storage/supabase-provider.ts, lib/storage/upload-ticket.ts, lib/storage/browser-upload.ts). Route through createStorage()/serverStorage() instead — this is the STORAGE-03 grep gate re-expressed as a suite assertion so it cannot silently stop being run.',
     ).toEqual([])
   })
 

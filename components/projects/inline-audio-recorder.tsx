@@ -9,9 +9,8 @@ import { CaptureProcessingOverlay } from '@/components/capture/capture-processin
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { createRecording, transcribeRecording } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
-import { createClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
-import { getSupportedAudioMimeType, getFileExtension } from '@/lib/utils/media-format'
+import { uploadViaTicket } from '@/lib/storage/browser-upload'
+import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -37,7 +36,12 @@ interface InlineAudioRecorderProps {
   onComplete?: () => void
 }
 
-export function InlineAudioRecorder({ projectId, companyId, onBack, onComplete }: InlineAudioRecorderProps) {
+// Phase 189 Plan 03 (UPLOAD-01): companyId is no longer read here — the
+// server derives the storage key from the authenticated caller's active
+// company. Kept in InlineAudioRecorderProps (capture-mode-picker.tsx still
+// passes it; removing the prop is not this phase's business), but no longer
+// destructured since nothing in this file reads it now.
+export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAudioRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const router = useRouter()
@@ -136,18 +140,20 @@ export function InlineAudioRecorder({ projectId, companyId, onBack, onComplete }
     setSaveError(undefined)
     ensureAttempt()
 
-    const supabase = createClient()
-    const storage = createStorage(supabase)
-
-    const recordingId = crypto.randomUUID()
-    const ext = getFileExtension(mimeTypeRef.current)
-    const storagePath = `${companyId}/${projectId}/${recordingId}.${ext}`
-
+    // Phase 189 Plan 03 (UPLOAD-01): server-issued ticket replaces the
+    // client-constructed storagePath. This site gains uploadViaTicket's
+    // default 3-attempt retry it did not have before — a strict improvement
+    // (no maximum-saving-duration assertion exists in this component or its
+    // tests to regress).
+    let storagePath: string
     try {
-      await storage.upload('audio', storagePath, blob, {
+      const uploaded = await uploadViaTicket({
+        bucket: 'audio',
+        projectId,
+        blob,
         contentType: mimeTypeRef.current || 'audio/webm',
-        upsert: false,
       })
+      storagePath = uploaded.path
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('Failed to upload audio file'))
       setIsSaving(false)
@@ -182,7 +188,7 @@ export function InlineAudioRecorder({ projectId, companyId, onBack, onComplete }
     } else {
       router.push(`/projects/${projectId}?autoGenerating=true`)
     }
-  }, [companyId, projectId, estimateLanguage, ensureAttempt, onComplete, router, t])
+  }, [projectId, estimateLanguage, ensureAttempt, onComplete, router, t])
 
   const startRecording = useCallback(async () => {
     chunksRef.current = []
