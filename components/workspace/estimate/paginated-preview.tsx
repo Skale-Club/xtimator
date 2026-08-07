@@ -766,13 +766,13 @@ export function PaginatedPreview({
     if (!el) return
     // el (measureRef) carries the px-4 (16px each side = 32px total) padding
     // applied to its own className below, so getBoundingClientRect().width
-    // already INCLUDES that padding — dividing by (LETTER_WIDTH_PX + 32)
-    // means zoom hits 1 exactly when avail equals the sheet's natural width
-    // plus its own padding, i.e. the sheet fits snug WITHOUT touching el's
-    // edges. Formula and layout must always describe the same 32px.
+    // already INCLUDES that padding — the 32px is subtracted BEFORE dividing
+    // so the scaled sheet always fits inside el's content box without
+    // touching the padding at any zoom level. Formula and layout must always
+    // describe the same 32px.
     const compute = () => {
       const avail = el.getBoundingClientRect().width || window.innerWidth
-      setFitZoom(Math.min(1, avail / (LETTER_WIDTH_PX + 32)))
+      setFitZoom(Math.min(1, Math.max(avail - 32, 0) / LETTER_WIDTH_PX))
     }
     compute()
     if (typeof ResizeObserver === 'undefined') {
