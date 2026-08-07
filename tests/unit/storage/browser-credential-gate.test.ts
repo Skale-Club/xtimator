@@ -195,7 +195,14 @@ function parseModule(absPath: string): ParsedModule {
       !isTypeOnlyExport(node)
     ) {
       specifiers.push(node.moduleSpecifier.text)
-    } else if (ts.isImportCall(node)) {
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      // Dynamic `import('...')`. `ts.isImportCall` exists at runtime but is
+      // NOT part of the public typescript.d.ts surface (verified against
+      // node_modules/typescript's shipped declarations) — checking the
+      // callee's SyntaxKind directly is the public-API equivalent.
       const arg = node.arguments[0]
       if (arg && ts.isStringLiteral(arg)) specifiers.push(arg.text)
     }
