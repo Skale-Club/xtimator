@@ -35,6 +35,33 @@ Pre-existing, out of scope here (the plan explicitly requires both to stay on
 swap them to a strict absolute-only predicate built on
 `isAcceptableAbsoluteAssetUrl` minus `data:`.
 
+## From 190-02
+
+### 1. REQUIREMENTS.md traceability Status column is never updated by the tooling
+
+`gsd-tools requirements mark-complete URL-01` ticks the checkbox in the
+requirements list (line ~45) but leaves the row in the **Traceability** table
+reading `Pending`. This is project-wide, not URL-01 specific: `MIG-01..04` also
+still read `Pending` even though Phase 191 completed and shipped them.
+
+190-02 hand-corrected only its own row (`URL-01` → `Complete`) so the file is not
+self-contradictory about this plan's requirement. The other stale rows were left
+alone per the scope boundary. Worth a maintenance pass — or a tooling fix — so the
+table stops under-reporting delivered requirements.
+
+### 2. STATE.md `progress` counters are self-contradictory
+
+After `state update-progress`, the frontmatter reads
+`total_plans: 369` / `completed_plans: 374` / `percent: 100` — more plans complete
+than exist, and 100% on a milestone with Phase 192 not started.
+
+This is the known GSD milestone-revert bug interacting with the counter: the tool
+rewrites `milestone` back to the stale `v3.1.1` and then counts against a scope
+that does not match the project-wide totals. 190-02 re-asserted the three identity
+fields (`milestone: v4.24`, `Same-Origin Storage on R2`, `in_progress`) because
+those are verifiably wrong, and deliberately did **not** invent replacement
+numbers for the progress block. A maintainer should re-derive it.
+
 ## From 190-03
 
 ### PDF-LOGO-01: company logos are stored as WebP and have NEVER rendered in any estimate PDF

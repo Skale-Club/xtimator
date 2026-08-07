@@ -42,7 +42,7 @@
 
 ### Portable Asset URLs (URL)
 
-- [ ] **URL-01**: Newly stored assets produce a same-origin relative URL, so the storage backend is no longer baked into any value the app persists.
+- [x] **URL-01**: Newly stored assets produce a same-origin relative URL, so the storage backend is no longer baked into any value the app persists.
 - [ ] **URL-02**: Existing rows holding absolute Supabase URLs (`companies.logo_url`, `profiles.avatar_url`, price-book image URLs, platform branding and SEO assets) are rewritten to the new form, with a reversible record of what changed.
 - [ ] **URL-03**: Every surface that renders these assets — app UI, public share pages, PDFs, and email/WhatsApp sends — resolves the new relative URLs correctly, including the server-side PDF renderer which cannot rely on a browser origin.
 - [ ] **URL-04**: The content security policy permits the new same-origin image source, and is not left broader than the new setup requires.
@@ -89,7 +89,7 @@ Phase numbering continues the global counter: v4.23 ended at Phase 186, so v4.24
 | UPLOAD-02 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
 | UPLOAD-03 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
 | UPLOAD-04 | Phase 189 | Browser Uploads Without Browser Credentials | Pending |
-| URL-01 | Phase 190 | Portable Same-Origin Asset URLs | Pending |
+| URL-01 | Phase 190 | Portable Same-Origin Asset URLs | Complete |
 | URL-02 | Phase 192 | URL Rewrite Cutover & CDN Verification | Pending |
 | URL-03 | Phase 190 | Portable Same-Origin Asset URLs | Pending |
 | URL-04 | Phase 190 | Portable Same-Origin Asset URLs | Pending |

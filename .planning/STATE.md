@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: in_progress
-stopped_at: "Completed 190-03-PLAN.md (origin-less asset resolution for the PDF renderer and the dynamic favicon routes, URL-03). Phase 190 Plan 02 running concurrently; Plan 04 (email absolute URLs) still open."
-last_updated: "2026-08-07T02:20:32.362Z"
-last_activity: "2026-08-07 - Phase 190 Plan 03 (resolveAssetForRenderer: same-origin path -> data: URI for react-pdf and app/icon.tsx) complete. Prior: Phase 191 Plan 03 (R2 cutover/rollback runbook, MIG-04) complete — Phase 191 COMPLETE. Phase 190 Plan 02 in progress concurrently. Phase 189 COMPLETE. Phase 188 COMPLETE. Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
+stopped_at: "Completed 191-03-PLAN.md (R2 cutover/rollback runbook, MIG-04). Phase 191 (Object Migration & Verification) complete. Next: Phase 192 (URL Rewrite Cutover & CDN Verification)."
+last_updated: "2026-08-07T02:25:54.615Z"
+last_activity: "2026-08-06 - Phase 188 Plan 01 (Server-Wide Provider Selection Integrity — provider seam) complete. Prior: completed quick task 260806-ngz: added home_improvement, general_contracting, remodeling to the industry catalog (INDUSTRIES 10→13). Phase 187 Plan 03 complete, Phase 187 COMPLETE (see `.planning/phases/187-r2-provisioning-same-origin-asset-proxy/187-03-SUMMARY.md`)"
 progress:
   total_phases: 136
-  completed_phases: 113
-  total_plans: 372
-  completed_plans: 372
+  completed_phases: 116
+  total_plans: 369
+  completed_plans: 374
   percent: 100
 ---
 
@@ -1452,6 +1452,7 @@ Prior Next Up: **Phase 104 COMPLETE (4/4 plans, NOTIF-01..07)**. Suggested: `/gs
 | Phase 191 P02 | 70min | 2 tasks | 3 files |
 | Phase 191 P03 | 40min | 3 tasks | 3 files |
 | Phase 190 P03 | 60min | 3 tasks | 7 files |
+| Phase 190 P02 | 65min | 3 tasks | 13 files |
 
 ## Project Reference
 
