@@ -2,6 +2,7 @@ import 'server-only'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import { getBranding } from '@/lib/platform-config'
+import { resolveAssetForRenderer } from '@/lib/storage/asset-inline'
 
 /** Solid brand-dark background baked behind every generated icon tile. */
 export const BRAND_ICON_BG = '#0a0a0f'
@@ -24,12 +25,27 @@ export async function loadBrandLogoDataUri(): Promise<string | null> {
     const b = await getBranding()
     const url = b.faviconUrl ?? b.logoUrl
     if (url) {
-      const res = await fetch(url)
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer())
-        const mime = res.headers.get('content-type')?.split(';')[0] ?? 'image/png'
-        return `data:${mime};base64,${buf.toString('base64')}`
+      // Phase 190 (URL-03): this route is an ImageResponse renderer with no
+      // browser origin — fetch('/storage/...') throws "Failed to parse URL" in
+      // Node, which previously degraded (silently, via the catch below) to the
+      // bundled logo the moment an admin uploaded a new favicon.
+      // resolveAssetForRenderer handles the same-origin path in-process and
+      // passes an absolute legacy URL straight through.
+      const resolved = await resolveAssetForRenderer(url)
+      if (resolved?.startsWith('data:')) return resolved
+      if (resolved) {
+        // Absolute URL — the pre-Phase-190 code path, unchanged.
+        const res = await fetch(resolved)
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer())
+          const mime = res.headers.get('content-type')?.split(';')[0] ?? 'image/png'
+          return `data:${mime};base64,${buf.toString('base64')}`
+        }
       }
+      // resolved === null: unresolvable, or a content type outside the
+      // resolver's allowlist (e.g. an .ico favicon served as
+      // image/vnd.microsoft.icon). Fall through to the bundled logo — a clean
+      // fallback, which is also exactly what a relative URL produced before.
     }
   } catch {
     // branding lookup/fetch failed — fall through to the bundled static logo
