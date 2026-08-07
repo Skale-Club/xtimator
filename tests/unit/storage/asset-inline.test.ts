@@ -246,10 +246,14 @@ describe('resolveAssetForRenderer — fail-soft', () => {
 })
 
 describe('resolveAssetForRenderer — size cap', () => {
-  it('rejects on contentLength alone, without reading the body at all', async () => {
-    let enqueued = 0
+  it('rejects on contentLength alone, without opening the body at all', async () => {
+    // A ReadableStream pre-pulls its first chunk on construction (default
+    // highWaterMark of 1), so counting enqueues would measure the stream, not
+    // us. `getReader` is the honest signal: it is called only if we read.
+    const stream = streamOf([new Uint8Array(1024)])
+    const getReaderSpy = vi.fn(stream.getReader.bind(stream))
     mockFetchStoredAsset.mockResolvedValue({
-      body: streamOf([new Uint8Array(1024)], { onEnqueue: () => { enqueued += 1 } }),
+      body: Object.assign(stream, { getReader: getReaderSpy }),
       contentType: 'image/png',
       contentLength: 3 * 1024 * 1024,
       source: 'r2' as const,
@@ -258,7 +262,7 @@ describe('resolveAssetForRenderer — size cap', () => {
     const result = await resolveAssetForRenderer('/storage/logos/co-1/huge.png')
 
     expect(result).toBeNull()
-    expect(enqueued).toBe(0)
+    expect(getReaderSpy).not.toHaveBeenCalled()
   })
 
   it('aborts the read once the accumulated length exceeds the cap when contentLength is absent', async () => {
