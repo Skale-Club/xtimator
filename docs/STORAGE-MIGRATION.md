@@ -353,6 +353,175 @@ cache-HIT claim (PROXY-05 is Phase 192).
 
 ---
 
+### URL-02 — row rewrite cutover and rollback (Phase 192)
+
+Rewrites every persisted absolute `*.supabase.co` storage URL in the database
+to the same-origin `/storage/{bucket}/{key}` path the Phase 187 proxy serves,
+with a reversible record of every change.
+
+Tool: `scripts/rewrite-asset-urls.ts`, aliased as `npm run rewrite:asset-urls`.
+It is an OPERATIONAL step run BY HAND. CI never runs it and the deploy pipeline
+never runs it. **Dry run is the default** — it plans and prints and writes
+nothing; `--apply` is the only way to write, and every write mode refuses
+without `--confirm-project <ref>` matching the project
+`NEXT_PUBLIC_SUPABASE_URL` resolves to. **`.env.local` in this repo points at
+PRODUCTION.**
+
+#### 1. The migration is applied to production BY HAND, first
+
+**This repo applies migrations to production manually. The deploy pipeline
+(GitHub Actions → GHCR → Coolify) ships CODE ONLY and NEVER runs them.** Merging
+`supabase/migrations/20260806000003_phase192_storage_url_rewrites.sql` does not
+create `public.storage_url_rewrites` in production — a human does, through the
+Supabase SQL editor or MCP, and then verifies the actual schema.
+
+Do it before anything else. `--preflight` exits non-zero when the table is
+absent, precisely so getting this backwards is a loud stop rather than a
+confusing failure halfway through a run.
+
+#### 2. The measured scope — 11 occurrences across 4 columns
+
+Measured on **2026-08-06** by direct query against the production database, not
+estimated. `--preflight` re-counts all of it live and prints each target next to
+this baseline, so any divergence is visible without arithmetic.
+
+| Target | Type | Occurrences holding a Supabase storage URL |
+|---|---|---|
+| `companies.logo_url` | text | **1** (of 1 non-null) |
+| `platform_branding.logo_url` | text | **1** (of 1 non-null) |
+| `platform_branding.og_image_url` | text | **1** (of 1 non-null) |
+| `platform_branding.landing_content` | **jsonb** | **8**, all `.webp`, inside ONE 3,050-byte document |
+| `clients.logo_url` | text | 0 (0 non-null rows) |
+| `platform_branding.favicon_url` | text | 0 (null) |
+| `blog_posts.cover_image_url` | text | 0 (0 non-null rows) |
+| `auth.users.user_metadata` (`avatar_url`) | user_metadata | 0 (8 users have an avatar; all OAuth provider URLs) |
+| **Total** | | **11** |
+
+The four zero-count targets stay in the tool's target table for drift detection.
+They report `0` and the run moves on.
+
+**8 of the 11 live inside one JSONB document.** A text-columns-only rewrite would
+miss 73% of the scope and leave the landing page — the exact surface PROXY-05 has
+to prove — still pulling from `*.supabase.co`. The rewrite is **value-level**
+(every URL leaf independently, key-agnostic); the **audit record is
+document-level** (the whole document, old and new), so a restore is one exact
+assignment and never a merge. Both are true.
+
+#### 3. The exclusion — `company_price_book.image_url` is NOT a target
+
+**293 non-null rows, ZERO Supabase URLs.** Every one is an external
+`https://images.pexels.com/...` stock photo.
+
+The trap: the requirement text names "price-book image URLs", so matching on the
+**column name** rather than on the **Supabase storage URL prefix** would corrupt
+293 rows of working data. Selection in the tool always runs the value through
+`rewriteAssetUrl` from `lib/storage/url-rewrite.ts`, which only matches a Supabase
+public storage URL for a persistable, non-exempt bucket. The exclusion, its
+reason and its measured numbers live in `EXCLUDED_TARGETS` **in code**, and
+`--preflight` re-counts the Supabase-URL figure live and **BLOCKS** if it is ever
+non-zero.
+
+#### 4. The video exemption — `hero-bg-videos/` stays absolute
+
+Keys under `hero-bg-videos/` keep their absolute Supabase URL, mirroring the
+Phase 190 writer exemption: the asset proxy is whole-object pass-through with no
+Range/206 and no `Accept-Ranges`, and Safari (desktop + iOS) refuses to play a
+`<video>` from an origin that does not honour byte-range requests.
+
+**No background video is set in production today, so this exemption currently
+matches nothing.** It is counted and printed as `EXEMPT_VIDEO=<n>` rather than
+assumed. Every gate asserting "zero `*.supabase.co` references" must permit this
+one documented exception while stating that it matches nothing right now.
+**Prerequisite for lifting it: Range/206 support in the asset proxy.**
+
+#### 5. Cutover
+
+```bash
+# 0. migration applied by hand first (Supabase SQL editor / MCP), then:
+npm run rewrite:asset-urls -- --preflight --dump "<path-outside-the-repo>/pre-state.json"
+npm run rewrite:asset-urls                       # dry run - writes nothing
+npm run rewrite:asset-urls -- --apply --confirm-project <project-ref>
+npm run rewrite:asset-urls                       # re-run: PLANNED_CHANGES=0
+```
+
+Every mode ends with machine-readable summary tokens on their own lines —
+`CENSUS_TOTAL`, `PLANNED_CHANGES`, `APPLIED_CHANGES`, `BATCH_ID`,
+`BATCH_REUSED`, `UNREVERTED_BATCHES`, `REVERTED`, `DRIFTED`,
+`SKIPPED_UNSERVEABLE`, `EXEMPT_VIDEO`, `EXCLUDED_PRICE_BOOK_ROWS`,
+`EXCLUDED_PRICE_BOOK_SUPABASE_URLS`, `PREFLIGHT_BLOCKERS`. Automated checks
+assert against those, never against the prose around them.
+
+Non-obvious behaviours worth knowing before you run it:
+
+- `SKIPPED_UNSERVEABLE=<n>` above zero is a finding to investigate **before**
+  applying — it means a stored key exists that the proxy would refuse to serve.
+- **`--apply` REUSES an open (unreverted) batch instead of minting a second
+  one.** A crash mid-apply followed by a re-run stays ONE batch. Two batches for
+  one logical apply is exactly how `--revert-latest` ends up restoring half of
+  production and still exiting 0.
+- Every update is **compare-and-set** and asserts **exactly 1 row affected**:
+  text targets filter on the prior column value, `platform_branding.landing_content`
+  filters on the `updated_at` it was read with (a JSONB equality filter is not
+  reliable through PostgREST). On 0 rows the run **deletes the audit row it just
+  inserted and exits non-zero** — the audit table must never claim a change that
+  did not happen. A concurrent admin save is therefore detected, not destroyed.
+- `auth.users.user_metadata` has no compare-and-set through the Admin API. The
+  tool re-reads the user immediately before writing and aborts if the metadata
+  moved. The residual race cannot be closed through that API; it has **zero
+  subjects in production today**.
+- `--preflight` reports R2 object presence as a **WARN, never a pass** — it does
+  not check R2 at all. The rewrite is still correct against an empty R2 because
+  the proxy reads through to Supabase for anything missing. Use
+  `npm run migrate:r2 -- --verify-only` for the R2 side.
+
+#### 6. Rollback — one command
+
+```bash
+npm run rewrite:asset-urls -- --revert-latest --confirm-project <project-ref>
+```
+
+**The `--` is load-bearing.** Without it npm swallows `--revert-latest` as an npm
+option instead of forwarding it to the script — the same trap
+`npm run migrate:r2 -- --verify-only` documents — and an intended rollback
+silently becomes a dry run that reports nothing wrong.
+
+- It counts unreverted batches, prints `UNREVERTED_BATCHES`, and reverts **ALL**
+  of them newest-first in one run. Partial rollback is the failure mode it exists
+  to prevent.
+- It **refuses drifted rows** (a row changed after the rewrite landed — a newer
+  upload) and **exits non-zero** when anything drifted, so a partial rollback can
+  never read as clean. `--force` also restores them and says so loudly; that is
+  data loss if the newer value mattered.
+- `--revert <batch-id>` stays available for surgical single-batch use and prints
+  `UNREVERTED_BATCHES` so you can see what it is NOT reverting.
+- `--restore-from-dump <path>` is the **independent second restore path** — it
+  reads nothing from the audit table, which is the point: it works when the audit
+  table itself is the thing that went wrong.
+
+SQL equivalent for an operator with only the SQL editor (one statement per text
+target; `platform_branding.landing_content` assigns `r.old_value` directly rather
+than `#>> '{}'`):
+
+```sql
+update public.companies c
+   set logo_url = r.old_value #>> '{}'
+  from public.storage_url_rewrites r
+ where r.target = 'companies.logo_url'
+   and r.row_pk = c.id::text
+   and r.reverted_at is null
+   and r.batch_id = '<batch-id>';
+```
+
+`auth.users` metadata has **no SQL-only equivalent** — it must go through the
+Admin API, i.e. through this script.
+
+#### 7. The `--dump` pre-state file contains tenant data
+
+It holds pre-rewrite copies of platform branding and tenant company rows. Write
+it **outside the repo** and **never commit it**.
+
+---
+
 ## Phase 191 — R2 migration, cutover, and rollback (authoritative)
 
 This is the live procedure. Everything from "Why this is a 1-line change"
