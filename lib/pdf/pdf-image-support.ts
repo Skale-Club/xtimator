@@ -113,3 +113,69 @@ export function willPdfRenderLogo(value: string | null | undefined): boolean {
   const pathname = parsed.pathname.toLowerCase()
   return !NON_RENDERABLE_URL_EXTENSIONS.some((ext) => pathname.endsWith(ext))
 }
+
+/**
+ * PDF-PHOTO-01 — a photo the grid can draw, as far as any caller can tell from
+ * the photo row alone.
+ *
+ * A photo is NOT a logo, and the difference is exactly one rule, so this is a
+ * separate predicate rather than a reuse of {@link willPdfRenderLogo}:
+ *
+ *   - **A remote `.webp` URL is TRUE here and FALSE there.** `resolvePdfLogo`
+ *     only repairs a data URI it already holds the bytes for — it will not fetch
+ *     an absolute `*.supabase.co/.../logo.webp`, so react-pdf gets the raw WebP
+ *     and draws nothing. `lib/pdf/resolve-pdf-photos.ts` DOES read every photo
+ *     object in-process and transcode it, so a signed `.../{photo}.webp` URL
+ *     genuinely does end up drawn. Same reasoning that makes a `/storage/` path
+ *     TRUE for a logo, applied to the photo path's own resolver.
+ *   - **A row with no url but a `storage_path` is TRUE.** That is the shape the
+ *     web paginated preview measures with (components/workspace/estimate/
+ *     use-paginated-preview.ts) — the object exists, and BOTH renderers resolve
+ *     it themselves (the PDF via resolve-pdf-photos, the preview via its own
+ *     client-side signed URL in ReadOnlyPhotoThumb). Measuring it as absent
+ *     would reserve a page budget that disagrees with every renderer.
+ *
+ * FALSE is therefore reserved for what is provably undrawable: nothing to draw
+ * at all, or a `data:` URI in a format react-pdf refuses — which is precisely
+ * the un-transcoded `data:image/webp` a regression would reintroduce.
+ */
+export function willPdfRenderPhoto(photo: {
+  url?: string | null
+  storage_path?: string | null
+}): boolean {
+  const url = photo.url
+  if (!url) return !!photo.storage_path
+
+  const mediaType = dataUriMediaType(url)
+  if (mediaType !== null) return PDF_RENDERABLE_DATA_URI_MEDIA_TYPES.has(mediaType)
+
+  if (isStorageProxyPath(url)) return true
+
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+}
+
+/**
+ * The ONE filter that defines which photos exist, applied identically by the
+ * MEASUREMENT (lib/estimate/pagination/blocks-from-model.ts) and by every
+ * RENDER site that slices `PageBlock.ref.photoRange` out of the full array
+ * (components/pdf/estimate-pdf.tsx, estimate-pdf-modern.tsx,
+ * components/workspace/estimate/paginated-preview.tsx).
+ *
+ * CRITICAL — WHY IT MUST BE APPLIED BEFORE `.slice(range)` AND NOWHERE ELSE:
+ * `photoRange` is a pair of INDEXES into the photo array. Measurement and render
+ * must therefore agree not just on "is this photo drawable" but on the whole
+ * INDEX DOMAIN. Filtering in one place and slicing the unfiltered array in
+ * another would draw the wrong photos, which is worse than the blank grid this
+ * fix removes. Pure and idempotent, so applying it twice is harmless.
+ */
+export function drawablePdfPhotos<T extends { url?: string | null; storage_path?: string | null }>(
+  photos: readonly T[]
+): T[] {
+  return photos.filter(willPdfRenderPhoto)
+}

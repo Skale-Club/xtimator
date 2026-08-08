@@ -110,7 +110,11 @@ export const ESTIMATE_PAGE_GEOMETRY: Record<EstimateTemplateId, EstimatePageGeom
 // 184-03) never has to import from components/pdf/* — both that file AND
 // pdf-photo-grid.tsx (Plan 184-04) import this same function instead of
 // each re-deriving the 150pt-tile/8pt-gap chunking formula.
-const PHOTO_TILE_WIDTH_PT = 150
+// PDF-PHOTO-01 exported this: it is not only the chunking input, it is the
+// literal on-page size of a photo tile, which is what
+// lib/pdf/resolve-pdf-photos.ts must downscale to (and what
+// components/pdf/shared/pdf-photo-grid.tsx draws). Three call sites, one number.
+export const PHOTO_TILE_WIDTH_PT = 150
 const PHOTO_TILE_GAP_PT = 8
 export function photosPerRow(contentWidthPt: number): number {
   return Math.floor(contentWidthPt / (PHOTO_TILE_WIDTH_PT + PHOTO_TILE_GAP_PT))

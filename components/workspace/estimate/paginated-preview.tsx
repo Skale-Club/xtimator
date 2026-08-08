@@ -26,6 +26,11 @@ import { resolvePresentationSettings, isSectionVisible } from '@/lib/estimate/pr
 import { LABELS as DOC_LABELS, type DocumentLabels } from '@/lib/estimate/document/labels'
 import { formatAddress, formatDate } from '@/lib/estimate/document/format'
 import { LETTER_WIDTH_PX, LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
+// PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
+// FULL array before photoRange slices it (see the helper's docblock). A no-op
+// for a real workspace photo (it always has a storage_path), but it is what
+// keeps this preview's index domain identical to the engine's.
+import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import type {
   DocumentCompany,
@@ -414,7 +419,7 @@ function renderPhotoRow(block: PageBlock, ctx: RenderCtx) {
   const range = block.ref?.photoRange
   if (!range) return null
   if (!isSectionVisible(ctx.resolvedSettings, 'photos')) return null
-  const photos = (ctx.data.attachedPhotos ?? []).slice(range[0], range[1])
+  const photos = drawablePdfPhotos(ctx.data.attachedPhotos ?? []).slice(range[0], range[1])
   if (photos.length === 0) return null
   const showLabel = range[0] === 0
   return (

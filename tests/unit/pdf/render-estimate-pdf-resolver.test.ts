@@ -34,7 +34,9 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 import { createElement } from 'react'
+import sharp from 'sharp'
 import { resolveEstimatePdfContext, renderEstimatePdf } from '@/lib/pdf/render-estimate-pdf'
+import { willPdfRenderPhoto } from '@/lib/pdf/pdf-image-support'
 import { getEstimateWithContext } from '@/lib/queries/estimate'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -46,13 +48,24 @@ const mockLoadSnapshot = vi.mocked(loadLatestSignedSnapshot)
 const mockCreateElement = vi.mocked(createElement)
 const mockRenderToBuffer = vi.mocked(renderToBuffer)
 
-function makeSupabase() {
+/**
+ * PDF-PHOTO-01: photos are no longer handed to react-pdf as signed URLs — it
+ * cannot decode the WebP they point at — so this stub now serves BYTES through
+ * the same `storage.from(bucket).download(path)` call the real Supabase provider
+ * makes. `createSignedUrl` is kept (harmlessly) so any future caller that still
+ * wants one keeps working.
+ */
+function makeSupabase(photoBytes?: Buffer) {
   return {
     storage: {
       from: vi.fn().mockReturnValue({
         createSignedUrl: vi.fn().mockResolvedValue({
           data: { signedUrl: 'https://signed/photo.jpg' },
           error: null,
+        }),
+        download: vi.fn().mockResolvedValue({
+          data: photoBytes ? new Blob([new Uint8Array(photoBytes)]) : null,
+          error: photoBytes ? null : { message: 'not found' },
         }),
       }),
     },
@@ -134,19 +147,48 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
     expect(passedProps.estimate.summary).toBe('FROZEN summary')
   })
 
-  it('pre-resolves attached photo signed URLs before createElement is called', async () => {
+  it('pre-resolves attached photos to DRAWABLE data URIs before createElement is called', async () => {
+    // PDF-PHOTO-01: this used to assert a signed URL. A signed URL to the stored
+    // `.webp` is exactly what react-pdf could not decode — the grid rendered
+    // blank. The contract now is "whatever reaches the element tree is drawable".
+    const stored = await sharp({
+      create: { width: 900, height: 700, channels: 3, background: { r: 10, g: 90, b: 200 } },
+    })
+      .webp()
+      .toBuffer()
+
     mockGetEstimate.mockResolvedValue({
       ...baseContext(),
-      estimate: { ...BASE_ESTIMATE, attachedPhotos: [{ id: 'p1', storage_path: 'co-1/p1.jpg', caption: 'Before' }] },
+      estimate: { ...BASE_ESTIMATE, attachedPhotos: [{ id: 'p1', storage_path: 'co-1/p1.webp', caption: 'Before' }] },
     } as never)
     mockLoadSnapshot.mockResolvedValue(null)
 
-    await renderEstimatePdf('est-1', makeSupabase())
+    await renderEstimatePdf('est-1', makeSupabase(stored))
 
     const passedProps = mockCreateElement.mock.calls[0][1] as {
       attachedPhotos: { url: string; caption: string | null }[]
     }
-    expect(passedProps.attachedPhotos).toEqual([{ url: 'https://signed/photo.jpg', caption: 'Before' }])
+    expect(passedProps.attachedPhotos).toHaveLength(1)
+    expect(passedProps.attachedPhotos[0].caption).toBe('Before')
+    expect(passedProps.attachedPhotos[0].url).toMatch(/^data:image\/jpeg;base64,/)
+    expect(willPdfRenderPhoto(passedProps.attachedPhotos[0])).toBe(true)
+  })
+
+  it('drops a photo it cannot read rather than failing the document', async () => {
+    mockGetEstimate.mockResolvedValue({
+      ...baseContext(),
+      estimate: { ...BASE_ESTIMATE, attachedPhotos: [{ id: 'p1', storage_path: 'co-1/gone.webp', caption: 'Before' }] },
+    } as never)
+    mockLoadSnapshot.mockResolvedValue(null)
+
+    // makeSupabase() with no bytes => download() errors => provider throws.
+    const result = await renderEstimatePdf('est-1', makeSupabase())
+
+    expect(result?.buffer).toBeInstanceOf(Buffer)
+    const passedProps = mockCreateElement.mock.calls[0][1] as {
+      attachedPhotos: { url: string; caption: string | null }[]
+    }
+    expect(passedProps.attachedPhotos).toEqual([])
   })
 
   it('resolveEstimatePdfContext alone never calls renderToBuffer (cheap path)', async () => {

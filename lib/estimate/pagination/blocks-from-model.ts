@@ -32,12 +32,21 @@ import {
   photosPerRow,
 } from '@/lib/estimate/document/tokens'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
+// PDF-PHOTO-01 — the SAME gate the render sites apply. Pure and browser-safe
+// (lib/pdf/pdf-image-support.ts imports nothing but lib/storage/asset-url), so
+// it does not breach this module's client-safety contract.
+import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
 import { isSectionVisible, type ResolvedPresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { PageBlock } from './types'
 
 export interface BlocksFromModelPhoto {
   url: string
   caption: string | null
+  /** PDF-PHOTO-01 — optional, for the callers that measure BEFORE any URL
+   *  exists (the web paginated preview resolves its own signed URLs inside
+   *  each thumbnail). `willPdfRenderPhoto` reads it so a photo that provably
+   *  exists in storage is still charged page budget. */
+  storage_path?: string | null
 }
 
 export interface BlocksFromModelCompany {
@@ -481,10 +490,19 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
   }
 
   // --- photo-rows (gated on 'photos' visibility, chunked via the shared photosPerRow) ---
-  if (isSectionVisible(resolvedSettings, 'photos') && photos.length > 0) {
+  //
+  // PDF-PHOTO-01: `photos.length > 0` was NOT the right question. Every photo is
+  // stored as WebP, which @react-pdf/image cannot decode by either of its
+  // resolution paths, so this block reserved 150pt+ per row for a grid the
+  // renderer then drew blank — the same measure-vs-render desync PDF-LOGO-01
+  // closed in the header. The question is "will this photo be DRAWN", and it is
+  // asked with the identical `drawablePdfPhotos` the render sites use, over the
+  // identical array, so `photoRange`'s index domain is shared by construction.
+  const drawablePhotos = drawablePdfPhotos(photos)
+  if (isSectionVisible(resolvedSettings, 'photos') && drawablePhotos.length > 0) {
     const perRow = Math.max(1, photosPerRow(geometry.contentWidthPt))
-    for (let start = 0; start < photos.length; start += perRow) {
-      const chunk = photos.slice(start, start + perRow)
+    for (let start = 0; start < drawablePhotos.length; start += perRow) {
+      const chunk = drawablePhotos.slice(start, start + perRow)
       const isFirstRow = start === 0
       const hasCaption = chunk.some((photo) => !!photo.caption)
 

@@ -119,9 +119,19 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
             balance_due: data.balance_due,
           }),
           signature: data.signature ?? null,
-          // url never read by height math (185-RESEARCH.md, verified) — no
-          // signed-URL resolution needed just to compute page breaks.
-          photos: (data.attachedPhotos ?? []).map((p) => ({ url: '', caption: p.caption })),
+          // PDF-PHOTO-01: the url IS read by the height math now — blocksFromModel
+          // asks `willPdfRenderPhoto` so a photo the PDF cannot draw stops buying
+          // page budget. This hook still resolves NO signed URL (it never could
+          // — ReadOnlyPhotoThumb does that per thumbnail, client-side), so it
+          // passes the `storage_path` the gate falls back to: an object that
+          // provably exists in storage is drawn by BOTH renderers and must be
+          // charged by both. Dropping `storage_path` here would silently delete
+          // every photo row from the preview's page breaks.
+          photos: (data.attachedPhotos ?? []).map((p) => ({
+            url: p.url ?? '',
+            caption: p.caption,
+            storage_path: p.storage_path,
+          })),
           resolvedSettings: resolvePresentationSettings(data.presentation_settings),
           preparedBy,
           L,

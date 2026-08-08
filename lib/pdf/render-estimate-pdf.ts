@@ -29,6 +29,7 @@ import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedSnapshot } from '@/lib/estimate/signed-snapshot'
 import { serverStorage } from '@/lib/storage/server'
 import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
+import { resolvePdfPhotos } from '@/lib/pdf/resolve-pdf-photos'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
@@ -177,17 +178,29 @@ export async function renderEstimatePdf(
     }
   }
 
-  // Resolve signed URLs for attached photos server-side BEFORE constructing
-  // the element tree (Pitfall 9 — pre-resolve-then-render).
+  // Resolve attached photos server-side BEFORE constructing the element tree
+  // (Pitfall 9 — pre-resolve-then-render).
   // Phase 188 (PROV-01): server-wide provider selection; Supabase mode keeps
   // this caller-supplied client and its RLS scoping.
+  //
+  // PDF-PHOTO-01: this used to mint a signed remote URL per photo and let
+  // react-pdf fetch it. Every photo is stored as WebP (lib/actions/photo.ts),
+  // and @react-pdf/image's remote path sniffs the fetched bytes with a format
+  // check that knows only JPEG/PNG — so it threw `Not valid image extension`,
+  // @react-pdf/layout swallowed it, and the grid drew NOTHING while
+  // blocksFromModel had already charged the page budget. `resolvePdfPhotos`
+  // reads each object through the SAME provider + SAME client that signed URL
+  // was minted from (identical authorization story) and transcodes it to a
+  // JPEG data URI cropped to the grid's real tile size. See
+  // lib/pdf/resolve-pdf-photos.ts for the size/memory arithmetic.
+  //
+  // Photos that cannot be read or transcoded are DROPPED from this array —
+  // never an entry the renderer would draw blank. That is what makes the array
+  // below the single source of truth shared by measurement (blocksFromModel)
+  // and render (the template's photoRange slice): a partial grid, correctly
+  // paginated, beats a failed send.
   const storage = serverStorage(supabase)
-  const attachedPhotos = await Promise.all(
-    (estimate.attachedPhotos ?? []).map(async (photo) => ({
-      url: await storage.getSignedUrl('photos', photo.storage_path, 3600),
-      caption: photo.caption,
-    }))
-  )
+  const attachedPhotos = await resolvePdfPhotos(estimate.attachedPhotos ?? [], storage)
 
   // Phase 190 (URL-03): company.logo_url may now be a same-origin path
   // (/storage/logos/...). react-pdf runs in Node with no browser origin and

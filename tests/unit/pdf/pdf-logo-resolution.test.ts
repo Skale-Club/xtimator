@@ -75,6 +75,11 @@ const LEGACY_ABSOLUTE =
 // resolvePdfLogo's contract is that whatever it returns is DRAWABLE — a WebP
 // data URI is exactly what it must never hand back (PDF-LOGO-01).
 const DATA_URI = 'data:image/png;base64,AAAA'
+/** A real, decodable 2x2 PNG — the stored bytes the photo path transcodes. */
+const PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP8z4AATAxkcqEDAGJnAgoZlHNCAAAAAElFTkSuQmCC',
+  'base64'
+)
 
 const BASE_ESTIMATE = {
   id: 'est-1',
@@ -89,12 +94,18 @@ const BASE_ESTIMATE = {
   presentation_settings: null,
 }
 
+/** PDF-PHOTO-01: photos are read as BYTES now (see that fix). PNG_BYTES is a
+ *  real, decodable image so the photo path resolves for real here. */
 function makeSupabase() {
   return {
     storage: {
       from: vi.fn().mockReturnValue({
         createSignedUrl: vi.fn().mockResolvedValue({
           data: { signedUrl: 'https://signed/photo.jpg' },
+          error: null,
+        }),
+        download: vi.fn().mockResolvedValue({
+          data: new Blob([new Uint8Array(PNG_BYTES)]),
           error: null,
         }),
       }),
@@ -232,11 +243,15 @@ describe('renderEstimatePdf — company logo resolution (URL-03)', () => {
   })
 })
 
-describe('renderEstimatePdf — tenant photos are untouched', () => {
-  it('keeps attached photos on short-lived signed URLs and never inlines them', async () => {
+describe('renderEstimatePdf — tenant photos take their OWN resolver, not the logo one', () => {
+  it('resolves photos through the photo path and never through resolvePdfLogo', async () => {
+    // PDF-PHOTO-01 replaced "photos stay on signed URLs" (a WebP react-pdf could
+    // not decode) with "photos are transcoded by lib/pdf/resolve-pdf-photos.ts".
+    // What must NOT change is that they never take the LOGO resolver: that one
+    // goes through the public-asset inliner, and photos are not public assets.
     mockGetEstimate.mockResolvedValue(
       contextWithLogo(RELATIVE_LOGO, {
-        attachedPhotos: [{ id: 'p1', storage_path: 'co-1/p1.jpg', caption: 'Before' }],
+        attachedPhotos: [{ id: 'p1', storage_path: 'co-1/p1.webp', caption: 'Before' }],
       }) as never,
     )
     mockResolveAsset.mockResolvedValue(DATA_URI)
@@ -246,8 +261,10 @@ describe('renderEstimatePdf — tenant photos are untouched', () => {
     const props = mockCreateElement.mock.calls[0][1] as {
       attachedPhotos: { url: string; caption: string | null }[]
     }
-    expect(props.attachedPhotos).toEqual([{ url: 'https://signed/photo.jpg', caption: 'Before' }])
-    // The resolver saw the logo and nothing else — no photo path was inlined.
+    expect(props.attachedPhotos).toHaveLength(1)
+    expect(props.attachedPhotos[0].caption).toBe('Before')
+    expect(props.attachedPhotos[0].url).toMatch(/^data:image\/jpeg;base64,/)
+    // The logo resolver saw the logo and nothing else.
     expect(mockResolveAsset).toHaveBeenCalledTimes(1)
     expect(mockResolveAsset).toHaveBeenCalledWith(RELATIVE_LOGO)
   })

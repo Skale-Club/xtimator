@@ -54,7 +54,35 @@ Operational / scope deferrals surfaced during execution. Each carries forward wi
 
 ## PDF-LOGO-01 follow-up work (2026-08-07)
 
-### Item 1 — attached job-site PHOTOS are WebP too, and also never render in a PDF — OBSERVED, OUT OF SCOPE
+### Item 1 — attached job-site PHOTOS are WebP too, and also never render in a PDF — RESOLVED 2026-08-08 (PDF-PHOTO-01)
+
+**Resolution:** fixed as described in the pickup condition below, with one
+correction to the guess recorded here: the transcode does NOT run against the
+signed URL at all. `lib/pdf/render-estimate-pdf.ts` now reads each photo's bytes
+in-process via the SAME `serverStorage(supabase)` provider that used to mint the
+signed URL (`.download('photos', …)` instead of `.getSignedUrl(…)`), so the
+authorization story is unchanged, and hands them to
+`lib/pdf/transcode-pdf-image.ts` — the shared helper `resolve-pdf-logo.ts`'s
+private transcode was extracted into, so there is exactly ONE transcode.
+
+Unlike the logo, photos encode to **JPEG** (a PNG of a photograph is many times
+larger) and are pre-cropped to the grid's real 150pt square cell at 200 DPI
+(417x417), because the grid draws them with `objectFit: 'cover'` and everything
+outside that square is shipped and then discarded. Measured on real PDF bytes:
+6 worst-case (noise) photos = 372 kB vs 8.9 MB inlined at full resolution.
+Reads run 4 at a time so 50 photos never hold 50 decoded bitmaps at once, and an
+unresolvable photo is DROPPED from the array (never throws) — which is also what
+keeps `blocksFromModel` honest, since that dropped array is the one both
+measurement and the templates see. The measurement side got the PDF-LOGO-01
+treatment too: `willPdfRenderPhoto`/`drawablePdfPhotos` (lib/pdf/pdf-image-support.ts)
+is now the ONE gate asked by `blocksFromModel` AND by every site that slices
+`photoRange`. Proof: `tests/unit/pdf/pdf-photo-webp-render.test.ts` asserts image
+XObjects, their dimensions and the document's byte size on real rendered PDFs,
+with a loopback HTTP server driving react-pdf's actual remote-fetch path as the
+negative control. `lib/queries/share.ts` (the WEB share path) deliberately stays
+on signed URLs — browsers render WebP fine.
+
+**Original write-up (kept for the record):**
 
 **What:** while fixing PDF-LOGO-01 (company logos stored as WebP, which
 `@react-pdf/image` cannot decode), the identical failure was found one layer

@@ -30,6 +30,9 @@ import {
 import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
 import { formatDate } from '@/lib/estimate/document/format'
 import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY, cardTintFill } from '@/lib/estimate/document/tokens'
+// PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
+// FULL array before photoRange slices it (see the helper's docblock).
+import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import { PdfHeader } from './shared/pdf-header'
@@ -605,7 +608,7 @@ export default function EstimatePDF({
         return isSectionVisible(resolvedSettings, 'photos') ? (
           <Fragment key={block.id}>
             {PdfPhotoGrid({
-              photos: (attachedPhotos ?? []).slice(range[0], range[1]),
+              photos: drawablePdfPhotos(attachedPhotos ?? []).slice(range[0], range[1]),
               L,
               topMargin: isFirst ? 16 : 0,
               contentWidthPt: ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt,

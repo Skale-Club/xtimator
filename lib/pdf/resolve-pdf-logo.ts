@@ -39,6 +39,11 @@
 import 'server-only'
 import { resolveAssetForRenderer } from '@/lib/storage/asset-inline'
 import { dataUriMediaType, willPdfRenderLogo } from './pdf-image-support'
+// PDF-PHOTO-01 extracted the decode/encode step into this shared module so the
+// photo path could reuse it instead of growing a second copy. The behaviour for
+// a logo is unchanged: `{ kind: 'logo' }` is exactly the PNG-if-alpha /
+// JPEG-otherwise, fit-inside, never-enlarge pipeline that used to live here.
+import { transcodeToPdfSafeDataUri } from './transcode-pdf-image'
 
 /**
  * Longest-edge cap for the transcoded logo, in pixels. The header draws it into
@@ -102,45 +107,5 @@ export async function resolvePdfLogo(url: string | null | undefined): Promise<st
   }
   if (source.byteLength === 0) return null
 
-  return transcodeToPdfSafeDataUri(source)
-}
-
-/**
- * Decodes any raster `sharp` understands and re-encodes it as PNG (when the
- * source carries alpha — the overwhelmingly common case for a logo, and dropping
- * it would paint a black box behind the mark) or JPEG (when it does not, which
- * is materially smaller for a photographic or solid-background logo).
- *
- * `sharp` is imported lazily so the native binding is only loaded on a render
- * that genuinely needs a transcode, and so importing this module from a test or
- * a route that never hits the WebP path costs nothing.
- */
-async function transcodeToPdfSafeDataUri(source: Buffer): Promise<string | null> {
-  try {
-    const { default: sharp } = await import('sharp')
-
-    // `animated: false` (the default) takes frame 0 of an animated WebP/GIF —
-    // a PDF has no animation to render anyway, and without it sharp would emit
-    // a tall filmstrip of every frame.
-    const pipeline = sharp(source).resize({
-      width: MAX_LOGO_EDGE_PX,
-      height: MAX_LOGO_EDGE_PX,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-
-    const metadata = await sharp(source).metadata()
-    const hasAlpha = metadata.hasAlpha === true
-
-    if (hasAlpha) {
-      const png = await pipeline.png({ compressionLevel: 9 }).toBuffer()
-      return `data:image/png;base64,${png.toString('base64')}`
-    }
-    const jpeg = await pipeline.jpeg({ quality: 90 }).toBuffer()
-    return `data:image/jpeg;base64,${jpeg.toString('base64')}`
-  } catch {
-    // Corrupt bytes, an unsupported codec, a sharp binding that failed to load —
-    // all the same outcome: no logo, and a document that still renders.
-    return null
-  }
+  return transcodeToPdfSafeDataUri(source, { kind: 'logo', maxEdgePx: MAX_LOGO_EDGE_PX })
 }

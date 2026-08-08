@@ -21,12 +21,21 @@
 //
 // NOTE on invocation style: see pdf-header.tsx's top comment — both templates
 // call this as a PLAIN FUNCTION (`PdfPhotoGrid({...})`), not JSX.
+//
+// PDF-PHOTO-01 — this component draws whatever it is handed and applies NO
+// drawability gate of its own, deliberately. The gate (`drawablePdfPhotos`,
+// lib/pdf/pdf-image-support.ts) must be applied by the CALLER to the FULL photo
+// array before it is sliced by `PageBlock.ref.photoRange`, because that range is
+// a pair of indexes: filtering here, after the slice, would silently disagree
+// with the index domain the pagination engine measured. See that helper's
+// docblock. The tile size is the shared PHOTO_TILE_WIDTH_PT token — the same
+// number lib/pdf/resolve-pdf-photos.ts downscales each photo to.
 
 import { Fragment } from 'react'
 import { View, Text, Image } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
-import { photosPerRow } from '@/lib/estimate/document/tokens'
+import { photosPerRow, PHOTO_TILE_WIDTH_PT } from '@/lib/estimate/document/tokens'
 
 export interface PdfPhotoGridPhoto {
   url: string
@@ -78,9 +87,12 @@ export function PdfPhotoGrid({
           }}
         >
           {rowPhotos.map((photo, i) => (
-            <View key={i} style={{ width: 150 }}>
+            <View key={i} style={{ width: PHOTO_TILE_WIDTH_PT }}>
               {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              <Image src={photo.url} style={{ width: 150, height: 150, objectFit: 'cover' }} />
+              <Image
+                src={photo.url}
+                style={{ width: PHOTO_TILE_WIDTH_PT, height: PHOTO_TILE_WIDTH_PT, objectFit: 'cover' }}
+              />
               {photo.caption && (
                 <Text style={{ fontSize: 8, marginTop: 2, color: '#6b7280' }}>
                   {photo.caption}
