@@ -1540,3 +1540,51 @@ Suggested order, since nothing forces it:
 **Rollback is instant and needs no data movement:** unset the variable (or set
 it to `true`) and redeploy. Nothing is deleted from Supabase by this switch —
 it only changes whether the read-through is consulted.
+
+---
+
+## FUT-R2-02 executed — Supabase Storage decommissioned 2026-08-07
+
+All 55 objects were deleted from the five Supabase buckets. Supabase Storage
+now holds nothing; R2 is the only copy in the cloud.
+
+**The condition was proven before deleting, not assumed:**
+
+| Gate | Result |
+|---|---|
+| `npm run migrate:r2 -- --verify-only` | 55/55 match, 0 FAIL, 0 EXTRA |
+| DB columns still referencing `*.supabase.co/storage` | **0** across every asset column, incl. jsonb and `auth.users` metadata |
+| Local backup taken first | 55 files / 18 MB |
+| **Every backed-up file MD5-compared against R2** | **55 identical, 0 problems** |
+
+The MD5 comparison is the one that mattered. Matching object *counts* would
+have been satisfied by 55 corrupted objects; comparing bytes would not.
+
+**Backup location:** the operator's session scratchpad
+(`supabase-storage-backup-20260807/`). That is ephemeral — if this data still
+matters in a week, copy it somewhere durable. It is the only non-R2 copy that
+exists.
+
+**Verified after deletion:** all 10 distinct landing images returned 200 with
+cache-busting (forcing a real origin fetch rather than an edge hit),
+`x-asset-source: r2`, and `/api/health` reported `storage: ok`.
+
+### The Supabase fallback was then switched off
+
+With Supabase empty, the read-through fallback could only ever add a wasted
+round trip to a bucket that holds nothing. `STORAGE_SUPABASE_FALLBACK=false`
+was set on the Coolify app and the app restarted.
+
+**What this changes:** an object missing from R2 is now a hard 404 instead of
+a silent Supabase read. That is the intended end state — a missing object
+should be loud.
+
+**What this costs:** the documented rollback lever ("remove `S3_*` from
+Coolify") no longer restores service on its own, because Supabase has nothing
+to fall back to. Restoring now means putting objects back into a Supabase
+bucket from the backup first. Removing `STORAGE_SUPABASE_FALLBACK` is a
+no-op until then.
+
+Note the kill switch is deliberately inert when `S3_*` is absent — see
+FUT-R2-01 — so an operator who pulls `S3_*` does not black out every asset on
+top of an already-empty Supabase.
