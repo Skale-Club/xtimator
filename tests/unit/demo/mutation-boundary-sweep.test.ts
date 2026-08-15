@@ -576,6 +576,12 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'DELETE',
     'POST',
   ]),
+  // Structured price-book export for first-party programmatic consumers
+  // (Thumb Scrap). Bearer-token authenticated via the same verifyMcpRequest +
+  // requireScope('mcp:read') path as /api/mcp; scoped exclusively to
+  // auth.company_id from the resolved token, never from request input. A pure
+  // read — no tenant product state is mutated.
+  ...excepted('app/api/price-book/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   // Phase 189 (v4.24): browser upload tickets. A WRITE boundary — it issues the
   // authority to PUT an object into a tenant's storage prefix, so it is guarded,
   // not read-only, even though it mutates no DB row itself. companyId comes from
