@@ -20,13 +20,12 @@ on:
   # Those two schedules were failing every single day with a 404, masking
   # real failures in the two crons that still matter. Removed rather than
   # reimplemented — there is no trial-expiry concept left to enforce.
-  schedule:
-    - cron: "0 3 * * *" # cleanup-orphan-projects
-    # cleanup-whatsapp-sessions notifies owners about expired `awaiting_confirm`
-    # WhatsApp sessions. It used to run once daily at 04:00 UTC, so a notification
-    # could lag up to 24h behind the 10-min pg_cron purge. Now every 15 minutes so
-    # owners are alerted promptly (migration comment promised ~5-min cadence).
-    - cron: "*/15 * * * *" # cleanup-whatsapp-sessions
+  # Scheduling moved to the skale-cron service on the Coolify VPS (one crontab
+  # for every project in the org). GitHub billed a full minute per run for a
+  # curl that finishes in seconds, and throttled short schedules badly - the
+  # */5 jobs in the sibling repos were landing 28-37 minutes apart. The VPS
+  # crontab does neither. workflow_dispatch stays as the manual and emergency
+  # trigger for when the box is unreachable.
   workflow_dispatch:
 
 permissions:
