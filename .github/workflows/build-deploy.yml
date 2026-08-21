@@ -127,7 +127,13 @@ jobs:
             exit 0
           fi
           echo "Triggering Coolify pull for app ${APP_UUID}…"
+          # -X POST is required: Coolify moved this endpoint off GET, and a GET
+          # now returns 405 {"message":"This endpoint has changed to a POST
+          # request."} - which the retry loop faithfully repeated four times
+          # before failing. This pipeline was broken from that server upgrade
+          # until the next push happened to surface it.
           curl --fail-with-body -sS --retry 3 --retry-all-errors \
+            -X POST \
             "${COOLIFY_BASE}/api/v1/deploy?uuid=${APP_UUID}" \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}"
           echo
