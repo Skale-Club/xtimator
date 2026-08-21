@@ -2,10 +2,12 @@ name: Supabase Keepalive
 
 on:
   schedule:
-    # Twice daily (~12h apart) so a single transient failure never strands
-    # the project near the free-tier inactivity threshold.
-    - cron: "13 2 * * *"
-    - cron: "37 14 * * *"
+    # Consolidated to a single org-wide keepalive cadence (SEED cleanup):
+    # Supabase only auto-pauses a free project after 7 days idle, so every
+    # 3 days is comfortably safe and this is now the org's one scheduled
+    # Supabase keepalive (supabase-keepalive-monitor.yml's schedule was
+    # disabled in favor of this single cron; see that file for why).
+    - cron: "0 8 */3 * *"
   workflow_dispatch:
 
 permissions:
