@@ -6,8 +6,21 @@ name: Supabase Keepalive Monitor
 # even if the email notification is missed or filtered.
 
 on:
-  schedule:
-    - cron: "5 6 * * *"
+  # Schedule disabled as part of the keepalive-workflow consolidation
+  # (org keeps a single scheduled Supabase keepalive: supabase-keepalive.yml
+  # at "0 8 */3 * *"). This ran once daily, not hourly, and only did a
+  # cheap (~7s) GitHub API read of the keepalive workflow's recent run
+  # history to open/comment on an issue when it looked unhealthy — it never
+  # pinged Supabase itself, so it isn't redundant with the ping job in the
+  # same way a second scheduled pinger would be. It's disabled anyway to
+  # honor "one scheduled keepalive" for the org, and because its "last 4
+  # runs ~= 48h of coverage" assumption (see comment below) no longer holds
+  # now that the ping job runs every 3 days instead of twice daily. The
+  # alerting logic itself is left intact and still runs on demand via
+  # workflow_dispatch, or the schedule can be re-enabled and the run-window
+  # comment updated if we want automatic health alerts back.
+  # schedule:
+  #   - cron: "5 6 * * *"
   workflow_dispatch:
 
 permissions:
