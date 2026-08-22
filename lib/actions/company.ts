@@ -55,7 +55,18 @@ interface CompanyFormData {
 export interface CreateOrUpdateCompanyOptions {
   /**
    * Phase 79 — D-12 / D-13:
-   *  - 'first' (default) — Phase 2 onboarding flow. SELECT-then-INSERT/UPDATE. Preserved bit-for-bit.
+   *  - 'first' (default) — Phase 2 onboarding flow. SELECT-then-INSERT/UPDATE, now
+   *      SELECT via `.order(created_at ASC).limit(1).maybeSingle()` (was `.single()`,
+   *      which returned an ERROR — silently discarded — for any user owning 2+
+   *      companies, misrouting them into the INSERT branch on every re-submit and
+   *      re-minting the one-time signup credit grant indefinitely). A lookup query
+   *      error now always short-circuits with an explicit `{ error }` return, never
+   *      treated as "no company". The INSERT branch additionally gates the signup
+   *      credit grant on a count of the user's prior `company_members` rows
+   *      (counted with the service client BEFORE the insert, so it never includes
+   *      the row just created) — belt-and-suspenders for the case where the
+   *      `companies.user_id` lookup itself misses an existing company (e.g. one
+   *      the user was invited into rather than created).
    *  - 'add' — Phase 80 add-company flow. Always INSERT (no UPDATE). After insert:
    *      1. Write a company_members row (user_id, new_company_id, 'owner').
    *      2. Set the `active_company_id` cookie to the new company's id.
@@ -279,13 +290,27 @@ export async function createOrUpdateCompany(
     redirect('/dashboard')
   }
 
-  // mode === 'first' — UNCHANGED behavior from before Phase 79.
-  // SELECT-then-INSERT/UPDATE pattern (Pitfall 6: no UNIQUE constraint on user_id).
-  const { data: existing } = await supabase
+  // mode === 'first' — Phase 79 D-12 SELECT-then-INSERT/UPDATE pattern (Pitfall 6:
+  // no UNIQUE constraint on user_id).
+  //
+  // D-13/D-14 guard: `.single()` on a user with 2+ companies owned via `user_id`
+  // returns PGRST116 (an error), which the old code silently discarded —
+  // `existing` came out `null`, so a user who already had companies fell into
+  // the INSERT branch and re-earned a fresh signup credit grant on every
+  // re-submit. `.order(created_at ASC).limit(1).maybeSingle()` deterministically
+  // picks the user's oldest company instead of erroring, and the query error
+  // (checked explicitly below) is never treated as "no company".
+  const { data: existing, error: lookupError } = await supabase
     .from('companies')
     .select('id')
     .eq('user_id', claims.sub)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (lookupError) {
+    return { error: 'Could not load your company. Please try again.' }
+  }
 
   if (existing) {
     // Update existing company
@@ -337,6 +362,23 @@ export async function createOrUpdateCompany(
     // Billing v2: the free tier IS the trial — no 14-day clock. tier uses the DB
     // DEFAULT 'free'; the one-time signup credit grant (below) is the entire
     // free allowance, and the credit gate is the wall once it's spent.
+    //
+    // D-13/D-14 guard: the `existing` lookup above is scoped to `companies.user_id`,
+    // which misses a company this user is a MEMBER of but did not create (e.g.
+    // invited into someone else's company). Count prior `company_members` rows
+    // for this user BEFORE inserting — the real signal for "is this a genuinely
+    // first company" — with the service client (company_members has no
+    // user-readable SELECT policy, D-03).
+    const service = requireServiceClient()
+    const { count: priorMembershipCount, error: memberCountErr } = await service
+      .from('company_members')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('user_id', claims.sub)
+
+    if (memberCountErr) {
+      return { error: 'Could not load your company. Please try again.' }
+    }
+
     const { data: newCompany, error } = await supabase
       .from('companies')
       .insert(row)
@@ -351,7 +393,6 @@ export async function createOrUpdateCompany(
     }
 
     // 'first' mode must also register company_members so RLS on projects/estimates passes.
-    const service = requireServiceClient()
     const { error: memberErr } = await service.from('company_members').insert({
       user_id: claims.sub,
       company_id: newCompany.id,
@@ -382,9 +423,20 @@ export async function createOrUpdateCompany(
     // Billing v2: one-time signup credit grant — the free tier's allowance.
     // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant
     // hiccup never breaks onboarding, but observable via Sentry.
-    grantSignupCredits(newCompany.id).catch(
-      captureBackgroundError('company.signupCreditGrant'),
-    )
+    //
+    // D-13/D-14 guard: only for a GENUINE first company. `priorMembershipCount`
+    // was counted above, BEFORE this insert, so it never includes the row just
+    // created — a count > 0 means this user already had at least one company
+    // and must not mint another `signup:{companyId}` grant.
+    if (priorMembershipCount && priorMembershipCount > 0) {
+      console.warn(
+        `[createOrUpdateCompany] mode:first skipped signup credit grant for company ${newCompany.id} — user ${claims.sub} already has ${priorMembershipCount} prior company_members row(s)`,
+      )
+    } else {
+      grantSignupCredits(newCompany.id).catch(
+        captureBackgroundError('company.signupCreditGrant'),
+      )
+    }
 
     // SEED-054: credit the affiliate whose link brought this signup, if any.
     // FIRST-company mode ONLY — the 'add' branch above deliberately skips it,

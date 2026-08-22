@@ -4,6 +4,7 @@ import { getBranding } from '@/lib/platform-config'
 import { OnboardingSurvey } from '@/components/onboarding/onboarding-survey'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 
 export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
@@ -29,6 +30,20 @@ export default async function OnboardingPage({
   const branding = await getBranding()
   const { mode } = await searchParams
   const addMode: 'first' | 'add' = mode === 'add' ? 'add' : 'first'
+
+  // D-13/D-14 guard: a user who already has an active company landing on the
+  // plain onboarding URL (no `?mode=add`) has nothing to onboard — send them
+  // to the dashboard instead of re-running 'first'-mode onboarding, which used
+  // to be exploitable for repeat signup credit grants (see the
+  // createOrUpdateCompany guard in lib/actions/company.ts). The deliberate
+  // `?mode=add` add-company flow (Phase 80, launched from the company
+  // selector) must stay reachable regardless of this check.
+  if (addMode === 'first') {
+    const activeCompanyId = await getActiveCompanyId()
+    if (activeCompanyId) {
+      redirect('/dashboard')
+    }
+  }
 
   // Prefill company name and subdomain captured during account-creation step two.
   // They were stored on the auth user's metadata at sign up so they survive the

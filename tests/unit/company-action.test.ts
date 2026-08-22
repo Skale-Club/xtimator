@@ -103,10 +103,17 @@ function makeSupabaseMock({ isNewCompany }: { isNewCompany: boolean }) {
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'companies') {
         return {
+          // D-13/D-14 guard: lookup shape is now .eq().order().limit().maybeSingle()
+          // (was .eq().single()) — see lib/actions/company.ts.
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: isNewCompany ? null : { id: 'company-xyz' },
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: isNewCompany ? null : { id: 'company-xyz' },
+                    error: null,
+                  }),
+                }),
               }),
             }),
           }),
@@ -386,5 +393,184 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
 describe('createOrUpdateCompany — mode: first regression (Phase 79 D-12 backwards-compat)', () => {
   it('marker: existing TIER-04 tests cover mode: first regression', () => {
     expect(true).toBe(true)
+  })
+})
+
+// ============================================================
+// D-13/D-14 guard — latent multi-company signup-credit-farming bug.
+//
+// `.single()` on the `companies` lookup errored (PGRST116) for any user
+// owning 2+ companies; the error was discarded, `existing` came out `null`,
+// and the code fell into the INSERT branch — re-minting a fresh
+// `signup:{companyId}` credit grant on every re-submit of 'first'-mode
+// onboarding. Fixed by:
+//   1. `.order(created_at ASC).limit(1).maybeSingle()` instead of `.single()`,
+//      with the lookup error checked explicitly (never treated as "no company").
+//   2. A `company_members` row-count gate (service client, counted BEFORE the
+//      insert) that skips `grantSignupCredits` whenever the user already had
+//      a prior membership — belt-and-suspenders for the case where the
+//      `companies.user_id` lookup itself misses an existing company.
+// ============================================================
+
+let capturedGuardInsertRow: Record<string, unknown> | null = null
+let capturedGuardUpdateRow: Record<string, unknown> | null = null
+
+function makeFirstModeGuardSupabaseMock(opts: {
+  existingCompany: { id: string } | null
+  lookupError?: unknown
+}) {
+  capturedGuardInsertRow = null
+  capturedGuardUpdateRow = null
+
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: opts.existingCompany,
+    error: opts.lookupError ?? null,
+  })
+  const limit = vi.fn().mockReturnValue({ maybeSingle })
+  const order = vi.fn().mockReturnValue({ limit })
+  const lookupEq = vi.fn().mockReturnValue({ order })
+  const lookupSelect = vi.fn().mockReturnValue({ eq: lookupEq })
+
+  const insertedSingle = vi.fn().mockResolvedValue({ data: { id: 'company-new' }, error: null })
+  const insertedSelect = vi.fn().mockReturnValue({ single: insertedSingle })
+  const insertFn = vi.fn().mockImplementation((row: Record<string, unknown>) => {
+    capturedGuardInsertRow = row
+    return { select: insertedSelect }
+  })
+
+  const updateEq = vi.fn().mockResolvedValue({ error: null })
+  const updateFn = vi.fn().mockImplementation((row: Record<string, unknown>) => {
+    capturedGuardUpdateRow = row
+    return { eq: updateEq }
+  })
+
+  vi.mocked(nextCookies).mockResolvedValue({
+    get: vi.fn().mockReturnValue(undefined),
+    set: vi.fn(),
+  } as never)
+
+  vi.mocked(createClient).mockResolvedValue({
+    auth: {
+      getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: 'user-abc' } } }),
+    },
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'companies') {
+        return { select: lookupSelect, insert: insertFn, update: updateFn }
+      }
+      return {}
+    }),
+  } as never)
+}
+
+function makeGuardServiceClientMock(opts: {
+  memberCount?: number
+  memberCountError?: unknown
+  healExisting?: { user_id: string } | null
+}) {
+  const memberInsert = vi.fn().mockResolvedValue({ error: null })
+
+  const selectFn = vi
+    .fn()
+    .mockImplementation((_cols: unknown, options?: { count?: string; head?: boolean }) => {
+      if (options?.head) {
+        // The D-13/D-14 pre-insert membership count: select(...,{count:'exact',head:true}).eq(...)
+        return {
+          eq: vi
+            .fn()
+            .mockResolvedValue({ count: opts.memberCount ?? 0, error: opts.memberCountError ?? null }),
+        }
+      }
+      // B6 self-heal shape: select('user_id').eq(...).eq(...).maybeSingle()
+      return {
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: opts.healExisting ?? null }),
+          }),
+        }),
+      }
+    })
+
+  vi.mocked(requireServiceClient).mockReturnValue({
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'company_members') {
+        return { select: selectFn, insert: memberInsert }
+      }
+      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+    }),
+  } as never)
+
+  return { memberInsert }
+}
+
+describe('createOrUpdateCompany — D-13/D-14 guard (multi-company signup-credit-farming fix)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(redirect).mockImplementation(() => {
+      throw new Error('redirect')
+    })
+  })
+
+  it('(a) a companies-lookup error returns an error and never reaches INSERT or the credit grant', async () => {
+    makeFirstModeGuardSupabaseMock({
+      existingCompany: null,
+      lookupError: { message: 'connection reset', code: '57014' },
+    })
+    makeGuardServiceClientMock({})
+
+    const result = await createOrUpdateCompany({ companyName: 'Whatever' })
+
+    expect(result).toEqual({ error: 'Could not load your company. Please try again.' })
+    expect(capturedGuardInsertRow).toBeNull()
+    expect(capturedGuardUpdateRow).toBeNull()
+    expect(grantSignupCredits).not.toHaveBeenCalled()
+    expect(redirect).not.toHaveBeenCalled()
+  })
+
+  it('(b) a user with 2+ companies resolves to the oldest existing company (UPDATE) — no INSERT, no grant', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: { id: 'company-oldest' } })
+    makeGuardServiceClientMock({ healExisting: { user_id: 'user-abc' } })
+
+    await createOrUpdateCompany({ companyName: 'Second Attempt' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(capturedGuardUpdateRow).not.toBeNull()
+    expect(capturedGuardInsertRow).toBeNull()
+    expect(grantSignupCredits).not.toHaveBeenCalled()
+  })
+
+  it('(c) a genuine first company (no existing row, zero prior memberships) fires the grant exactly once', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: null })
+    makeGuardServiceClientMock({ memberCount: 0 })
+
+    await createOrUpdateCompany({ companyName: 'Brand New Co' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(capturedGuardInsertRow).not.toBeNull()
+    expect(grantSignupCredits).toHaveBeenCalledTimes(1)
+    expect(grantSignupCredits).toHaveBeenCalledWith('company-new')
+  })
+
+  it('(bonus) no company row under user_id but user already has a prior membership — INSERT proceeds, grant is skipped', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: null })
+    makeGuardServiceClientMock({ memberCount: 1 })
+
+    await createOrUpdateCompany({ companyName: 'Invited User Co' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(capturedGuardInsertRow).not.toBeNull()
+    expect(grantSignupCredits).not.toHaveBeenCalled()
+  })
+
+  it('(d) mode: add never fires the signup credit grant, regardless of prior memberships', async () => {
+    makeAddModeSupabaseMock({ sourceTier: 'free', sourceTrialEndsAt: null, sourceCompanyId: 'existing-co' })
+
+    await createOrUpdateCompany({ companyName: 'Add Mode Co' }, { mode: 'add' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(grantSignupCredits).not.toHaveBeenCalled()
   })
 })
