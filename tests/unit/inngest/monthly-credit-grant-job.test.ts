@@ -63,7 +63,9 @@ const TEST_CONFIG = {
 
 /**
  * Chainable companies select fake:
- *   svc.from('companies').select('id, tier').in('tier', [...]).not('stripe_subscription_id','is',null)
+ *   svc.from('companies').select('id, tier').in('tier', [...])
+ *     .not('stripe_subscription_id','is',null)
+ *     .or('stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)')
  * resolves to { data: rows, error }.
  */
 function makeSvc(opts: {
@@ -72,7 +74,8 @@ function makeSvc(opts: {
 }) {
   const chain: Record<string, unknown> = {}
   chain.in = vi.fn().mockReturnValue(chain)
-  chain.not = vi.fn().mockResolvedValue({
+  chain.not = vi.fn().mockReturnValue(chain)
+  chain.or = vi.fn().mockResolvedValue({
     data: opts.rows,
     error: opts.selectError ?? null,
   })
@@ -108,6 +111,10 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
       'stripe_subscription_id',
       'is',
       null,
+    )
+    // Backward-compatible status filter — NULL (pre-column rows) OR active/trialing.
+    expect(svc.__chain.or).toHaveBeenCalledWith(
+      'stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)',
     )
     // getBillingConfig read ONCE (not per company).
     expect(mockGetBillingConfig).toHaveBeenCalledTimes(1)
@@ -157,6 +164,9 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
       'stripe_subscription_id',
       'is',
       null,
+    )
+    expect(svc.__chain.or).toHaveBeenCalledWith(
+      'stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)',
     )
   })
 

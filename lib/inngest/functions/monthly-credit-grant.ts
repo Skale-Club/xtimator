@@ -14,8 +14,15 @@
  *   - New signup → immediate first grant still comes from invoice.paid.
  *
  * "Active paying company" === tier IN ('pro','business') AND
- * stripe_subscription_id IS NOT NULL — exactly how the webhook lifecycle leaves
- * the row (no separate subscription-status column exists; do NOT add one).
+ * stripe_subscription_id IS NOT NULL AND stripe_subscription_status IN
+ * ('active','trialing') — exactly how the webhook lifecycle leaves the row.
+ * The subscription-status filter is OR'd with `IS NULL` for backward
+ * compatibility: rows written before the stripe_subscription_status column
+ * existed (migration 20260821000001) have never had it set and must not be
+ * silently excluded from the grant — NULL means "unknown / pre-column", not
+ * "inactive". A genuinely lapsed subscription reads 'canceled' (or another
+ * non-active/trialing status) via customer.subscription.updated/deleted and
+ * IS excluded once that status has actually been observed.
  *
  * Implementation notes (mirrors cleanup-audio.ts):
  *   - The grant logic lives in the pure helper `runMonthlyCreditGrant(svc)` so
@@ -52,13 +59,16 @@ export async function runMonthlyCreditGrant(
   // Per-tier grant numbers read ONCE for the whole run.
   const cfg = await getBillingConfig()
 
-  // Active paying companies: paid tier + a present subscription id. Mirrors
-  // cleanup-audio's `.not(col,'is',null)` filter style.
+  // Active paying companies: paid tier + a present subscription id + a
+  // subscription status that is active/trialing (or unset — see the module
+  // doc comment for the backward-compatibility rationale). Mirrors
+  // cleanup-audio's `.not(col,'is',null)` filter style for the first two.
   const { data, error } = await svc
     .from('companies')
     .select('id, tier')
     .in('tier', ['pro', 'business'])
     .not('stripe_subscription_id', 'is', null)
+    .or('stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)')
 
   if (error) {
     console.warn('[monthly-credit-grant] select failed:', error.message)

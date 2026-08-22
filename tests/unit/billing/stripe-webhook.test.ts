@@ -22,6 +22,13 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 
 const mockUpdate = vi.fn()
 const mockEq = vi.fn()
+// stripe_customer_id backfill (persistStripeCustomerId) chains
+// .update(...).eq('id', companyId).is('stripe_customer_id', null) — a
+// SECOND filter after .eq(), unlike every other .update().eq() call site in
+// the route, which is awaited directly. Attaching `.is` onto the Promise
+// mockEq returns lets BOTH styles work off the same mock: awaited directly
+// it resolves normally, and `.is(...)` is still callable on it.
+const mockIs = vi.fn()
 const mockInsert = vi.fn()
 // customer.subscription.deleted now resolves the company BEFORE clearing the
 // subscription id via svc.from('companies').select('id').eq(...).maybeSingle().
@@ -77,8 +84,15 @@ beforeEach(() => {
   vi.clearAllMocks()
   // Default: dedup insert succeeds (no duplicate)
   mockInsert.mockResolvedValue({ error: null })
-  // Default: update chain returns eq which resolves cleanly
-  mockEq.mockResolvedValue({ error: null })
+  // Default: update chain returns eq which resolves cleanly — and also
+  // exposes .is() for the persistStripeCustomerId chain (see mockIs above).
+  mockIs.mockResolvedValue({ error: null })
+  mockEq.mockImplementation(() => {
+    const result: Promise<{ error: null }> & { is?: typeof mockIs } =
+      Promise.resolve({ error: null })
+    result.is = mockIs
+    return result
+  })
   mockUpdate.mockReturnValue({ eq: mockEq })
   // Default: select('id').eq(...).maybeSingle() resolves to no matching company
   // (the deleted-subscription pre-lookup); keeps the handler off the CRM path.
@@ -228,7 +242,14 @@ describe('POST /api/webhooks/stripe — checkout.session.completed autotopup_set
 
     await POST(makeRequest())
 
-    expect(mockUpdate).not.toHaveBeenCalled()
+    // The only companies.update call in this arm is the stripe_customer_id
+    // backfill (persistStripeCustomerId) — the subscription-mode update
+    // (tier, stripe_subscription_id, tier_trial_ends_at, ...) must never fire.
+    expect(mockUpdate).toHaveBeenCalledTimes(1)
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_autotopup_2' })
+    expect(mockUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ stripe_subscription_id: expect.anything() })
+    )
   })
 })
 
@@ -236,6 +257,9 @@ describe('POST /api/webhooks/stripe — invoice.paid (STRIPE-02)', () => {
   it('updates tier_renews_at from subscription.current_period_end', async () => {
     const periodEnd = 1800000000 // unix timestamp
     mockSubscriptionsRetrieve.mockResolvedValue({ current_period_end: periodEnd })
+    // bySub (the primary stripe_subscription_id-mapping lookup) hits — this
+    // test is the normal (non-fallback) path.
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-invoice', tier: 'pro' } })
 
     mockConstructEvent.mockReturnValue({
       id: 'evt_invoice_paid',
@@ -454,6 +478,114 @@ describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () =
     const payload = mockUpdate.mock.calls[0][0]
     expect(payload).not.toHaveProperty('tier')
     expect(payload).toHaveProperty('tier_renews_at')
+  })
+})
+
+describe('POST /api/webhooks/stripe — event-ordering race fix (resolvePlatformEventCompanyId)', () => {
+  beforeEach(() => {
+    // Defensive reset: earlier describe blocks in this file queue
+    // mockMaybeSingle.mockResolvedValueOnce(...) values (for a DIFFERENT
+    // select's columns) that the outer vi.clearAllMocks() (call-history only)
+    // does not drain. These tests exercise invoice.paid's grantCompany lookup
+    // (columns 'id, tier', routed to mockMaybeSingle) and must not silently
+    // inherit a leftover once-value queued by an unrelated earlier test.
+    mockMaybeSingle.mockReset()
+    mockMaybeSingle.mockResolvedValue({ data: null })
+  })
+
+  it('resolves companyId from invoice.parent.subscription_details.metadata.companyId when DB rows are not yet written (checkout.session.completed has not landed) and updates+backfills the company BY ID', async () => {
+    // Simulate the race: neither stripe_subscription_id nor stripe_customer_id
+    // is on the companies row yet, so the normal DB-mapping (bySub) lookup
+    // misses; the SECOND mockMaybeSingle call is invoice.paid's byId fallback
+    // lookup (keyed on resolvedCompanyId), which DOES find the row.
+    mockResolutionMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null }) // bySub misses
+      .mockResolvedValueOnce({ data: { id: 'company-race', tier: 'pro' } }) // byId (fallback) hits
+    mockSubscriptionsRetrieve.mockResolvedValue({ current_period_end: 1800000000 })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_race',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'in_race',
+          subscription: 'sub_race',
+          customer: 'cus_race',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: 'sub_race',
+              metadata: { companyId: 'company-race' },
+            },
+          },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    // The fallback update targets the company BY ID (not by stripe_subscription_id,
+    // which is exactly the column that's missing in this race).
+    expect(mockUpdate).toHaveBeenCalledWith({ tier_renews_at: expect.any(String) })
+    // Mapping backfill: stripe_subscription_id (WHERE-null guarded via .is()).
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_subscription_id: 'sub_race' })
+    // Mapping backfill: stripe_customer_id (WHERE-null guarded via .is()).
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_race' })
+    expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+    expect(mockIs).toHaveBeenCalledWith('stripe_customer_id', null)
+  })
+
+  it('falls back to stripe.subscriptions.retrieve(...).metadata.companyId as a last resort when no metadata path and no DB row matches', async () => {
+    mockResolutionMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockMaybeSingle
+      .mockResolvedValueOnce({ data: null }) // bySub misses
+      .mockResolvedValueOnce({ data: { id: 'company-fallback', tier: 'pro' } }) // byId (fallback) hits
+    // First call is resolvePlatformEventCompanyId's last-resort fallback;
+    // second is invoice.paid's own current_period_end read.
+    mockSubscriptionsRetrieve
+      .mockResolvedValueOnce({ metadata: { companyId: 'company-fallback' } })
+      .mockResolvedValueOnce({ current_period_end: 1800000000 })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_race_2',
+      type: 'invoice.paid',
+      data: {
+        object: { id: 'in_race_2', subscription: 'sub_race_2' },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockSubscriptionsRetrieve).toHaveBeenCalledWith('sub_race_2')
+    expect(mockUpdate).toHaveBeenCalledWith({ tier_renews_at: expect.any(String) })
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_subscription_id: 'sub_race_2' })
+  })
+
+  it('notifies ops and returns 200 (never dropping silently) when the company truly cannot be resolved by any path', async () => {
+    mockResolutionMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockSubscriptionsRetrieve.mockResolvedValue({}) // no metadata.companyId anywhere
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_unresolved',
+      type: 'invoice.paid',
+      data: {
+        object: { id: 'in_unresolved', subscription: 'sub_unresolved' },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'stripe_event_unresolved',
+        dedupeKey: 'stripe_event_unresolved:evt_unresolved',
+      })
+    )
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
 

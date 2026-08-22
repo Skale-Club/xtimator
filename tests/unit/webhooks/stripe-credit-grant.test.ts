@@ -43,6 +43,11 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 const mockInsert = vi.fn()
 const mockUpdate = vi.fn()
 const mockEq = vi.fn()
+// stripe_customer_id backfill (persistStripeCustomerId) chains
+// .update(...).eq('id', companyId).is('stripe_customer_id', null) — attach
+// .is onto the Promise mockEq returns so both the chained and directly-awaited
+// call shapes work off the same mock (mirrors stripe-webhook.test.ts).
+const mockIs = vi.fn()
 const mockSelect = vi.fn()
 // companies select-by-stripe_subscription_id resolution (invoice.paid grant)
 const mockCompanyMaybeSingle = vi.fn()
@@ -73,10 +78,18 @@ vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
 // Xphere CRM sync is fire-and-forget — stub so the grant path never hits it.
 vi.mock('@/lib/integrations/xphere/dispatch', () => ({ dispatchXphereSync: vi.fn() }))
 
+// Affiliate commission accrual — mocked so the SHOULD-FIX-3 fallback test can
+// assert it fires for the resolvedCompanyId-mapped company. The real function
+// never throws (see lib/affiliates/accrual.ts's own doc comment) so leaving it
+// unmocked elsewhere in this file is also safe; mocking it here just makes the
+// assertion possible.
+vi.mock('@/lib/affiliates/accrual', () => ({ accrueCommissionForInvoice: vi.fn() }))
+
 vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_test')
 
 const { grantCredits } = await import('@/lib/billing/credit-ledger')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
+const { accrueCommissionForInvoice } = await import('@/lib/affiliates/accrual')
 const { POST } = await import('@/app/api/webhooks/stripe/route')
 
 // DEFAULT_BILLING_CONFIG-shaped tier grants (mirrors lib/billing/billing-config.ts).
@@ -106,7 +119,13 @@ beforeEach(() => {
   // for these tests we set the return value per-case directly.
   // Default: dedup insert succeeds (not a redelivery).
   mockInsert.mockResolvedValue({ error: null })
-  mockEq.mockResolvedValue({ error: null, data: null })
+  mockIs.mockResolvedValue({ error: null, data: null })
+  mockEq.mockImplementation(() => {
+    const result: Promise<{ error: null; data: null }> & { is?: typeof mockIs } =
+      Promise.resolve({ error: null, data: null })
+    result.is = mockIs
+    return result
+  })
   mockUpdate.mockReturnValue({ eq: mockEq })
   // companies select('id, tier').eq('stripe_subscription_id', ...).maybeSingle()
   mockCompanyMaybeSingle.mockResolvedValue({ data: { id: 'co_1', tier: 'pro' } })
@@ -175,6 +194,73 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
     expect(res.status).toBe(200)
     expect(grantCredits).not.toHaveBeenCalled()
   })
+
+  // SHOULD-FIX 3 — event-ordering race: the stripe_subscription_id mapping is
+  // NOT yet on the companies row (checkout.session.completed hasn't landed),
+  // so the primary bySub lookup misses. The event still resolves via
+  // resolvedCompanyId (here: invoice.parent.subscription_details.metadata.companyId
+  // — the same signed-metadata path resolvePlatformEventCompanyId reads). The
+  // fallback must update the company BY ID, grant with the shared company-month
+  // key, and accrue the affiliate commission — none of those three may be
+  // silently dropped just because the fast-path mapping isn't written yet.
+  it('falls back to resolvedCompanyId when bySub misses: updates the company by id, grants with the month key, and accrues commission', async () => {
+    mockCompanyMaybeSingle
+      .mockResolvedValueOnce({ data: null }) // bySub (stripe_subscription_id lookup) misses
+      .mockResolvedValueOnce({ data: { id: 'co_1', tier: 'pro' } }) // byId (resolvedCompanyId fallback) hits
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_invoice_fallback',
+      type: 'invoice.paid',
+      data: {
+        object: {
+          id: 'in_fallback',
+          subscription: 'sub_fallback',
+          customer: 'cus_fallback',
+          amount_paid: 5000,
+          currency: 'usd',
+          parent: {
+            type: 'subscription_details',
+            subscription_details: {
+              subscription: 'sub_fallback',
+              metadata: { companyId: 'co_1' },
+            },
+          },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    // Updated BY ID (not by stripe_subscription_id — that column is exactly
+    // what's missing in this race).
+    expect(mockUpdate).toHaveBeenCalledWith({ tier_renews_at: expect.any(String) })
+    // Mapping backfill so future events for this subscription hit the fast path.
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_subscription_id: 'sub_fallback' })
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_fallback' })
+    expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
+    expect(mockIs).toHaveBeenCalledWith('stripe_customer_id', null)
+    // Grant — company-month key, the same dedup authority invoice.paid,
+    // checkout.session.completed, and the monthly cron all share.
+    expect(grantCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 'co_1',
+        credits: 9000,
+        reason: 'grant',
+        refId: 'in_fallback',
+        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
+      })
+    )
+    // Commission accrual.
+    expect(accrueCommissionForInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 'co_1',
+        invoiceId: 'in_fallback',
+        amountPaidCents: 5000,
+        currency: 'usd',
+      })
+    )
+  })
 })
 
 // ==================================================================
@@ -236,7 +322,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
     )
   })
 
-  it('a normal subscription checkout.session.completed does NOT call grantCredits (Pitfall 2 — subs grant via invoice.paid only)', async () => {
+  it('a normal subscription checkout.session.completed NOW grants the monthly allowance keyed on the company-month key (event-ordering race fix — Pitfall 2 no longer applies: the shared key makes a double grant with invoice.paid impossible)', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_sub',
       type: 'checkout.session.completed',
@@ -253,7 +339,77 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
 
     await POST(makeRequest())
 
-    expect(grantCredits).not.toHaveBeenCalled()
+    expect(grantCredits).toHaveBeenCalledTimes(1)
+    expect(grantCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 'co_1',
+        credits: 9000,
+        reason: 'grant',
+        refId: 'cs_sub',
+        // Company-month key — the SAME key invoice.paid and the monthly cron
+        // use, so a redelivery or a race with invoice.paid never double-grants.
+        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
+      })
+    )
+  })
+})
+
+// ==================================================================
+// stripe_customer_id backfill — top-up sessions can be the FIRST Stripe
+// touchpoint for a company that has never subscribed.
+// ==================================================================
+describe('credit_topup — stripe_customer_id backfill', () => {
+  it('persists stripe_customer_id WHERE stripe_customer_id IS NULL when the session carries a customer id', async () => {
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_topup_customerid',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_top3',
+          mode: 'payment',
+          payment_status: 'paid',
+          customer: 'cus_topup_new',
+          metadata: { type: 'credit_topup', companyId: 'co_1', credits: '2000' },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_topup_new' })
+    expect(mockIs).toHaveBeenCalledWith('stripe_customer_id', null)
+  })
+})
+
+// ==================================================================
+// checkout.session.async_payment_succeeded — delayed-payment methods (ACH,
+// etc.) settle after Checkout completes; reuses the credit_topup grant logic.
+// ==================================================================
+describe('checkout.session.async_payment_succeeded — delayed-payment top-up grant', () => {
+  it('grants credits via the SAME credit_topup logic once the async payment settles', async () => {
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_async_paid',
+      type: 'checkout.session.async_payment_succeeded',
+      data: {
+        object: {
+          id: 'cs_async',
+          mode: 'payment',
+          metadata: { type: 'credit_topup', companyId: 'co_1', credits: '3000' },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(grantCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 'co_1',
+        credits: 3000,
+        reason: 'topup',
+        idempotencyKey: 'evt_async_paid',
+      })
+    )
   })
 })
 
