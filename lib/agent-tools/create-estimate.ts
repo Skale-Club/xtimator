@@ -60,10 +60,18 @@ export async function createEstimate(args: {
   }
 
   const requestId = randomUUID()
+  // 260821 (billing double-debit fix): mint a stable attemptId HERE at the
+  // producer, so it is never absent/undefined downstream. Without this, the
+  // generate-estimate job's own `data.attemptId ?? randomUUID()` fallback
+  // used to re-mint a FRESH id on every Inngest replay leg (it lived outside
+  // the memoized step), which made the record-credit-debit read-back find
+  // zero cost rows and silently skip the debit on retry.
+  const attemptId = randomUUID()
   const payload: EstimateGeneratePayload = {
     companyId: args.companyId,
     projectId: args.projectId,
     requestId,
+    attemptId,
     ...(args.prompts ? { prompts: args.prompts } : {}),
     ...(args.language ? { language: args.language } : {}),
     ...(args.channel ? { channel: args.channel } : {}),

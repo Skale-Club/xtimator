@@ -117,8 +117,6 @@ export const generateEstimateJob = inngest.createFunction(
     const { companyId, projectId, requestId, language, prompts, createdByUserId } = data
     const denied = await assertCompanyWritable(companyId)
     if (denied) return { skipped: true, reason: 'demo_readonly' as const }
-    // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
-    const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'manual_text'
 
     // 260806: t0 MUST be memoized through step.run.
@@ -132,7 +130,16 @@ export const generateEstimateJob = inngest.createFunction(
     // bar, which saturated its final segment at ACTIVE_FILL_CAP in ~300ms and
     // then sat frozen for minutes. A memoized step.run returns the SAME value
     // on every replay, so the recorded duration is the true wall clock.
-    const { t0, ownerUserId } = await step.run('generation-start', async () => {
+    //
+    // 260821 (billing double-debit fix): attemptId's `data.attemptId ??
+    // randomUUID()` fallback now ALSO lives inside this memoized step, for the
+    // same reason as t0 — a bare fallback re-evaluated on every replay would
+    // mint a FRESH random id on retry when the producer omitted attemptId, so
+    // the record-credit-debit read-back below (keyed on attemptId) would find
+    // zero rows and silently skip the debit. Memoizing returns the SAME id on
+    // every replay leg.
+    const { t0, ownerUserId, attemptId } = await step.run('generation-start', async () => {
+      const id = data.attemptId ?? randomUUID()
       // Phase 92 (EVENT-02/D-03): the `started` event rides inside the same
       // memoized step so replays no longer append a duplicate `started` row per
       // boundary (production averaged 2.84 of them per run). Awaited rather
@@ -141,7 +148,7 @@ export const generateEstimateJob = inngest.createFunction(
       // cannot fail the step.
       const ownerId = await loadOwnerUserId(companyId)
       await recordPipelineEvent({
-        attemptId,
+        attemptId: id,
         inputType,
         step: 'generate_estimate',
         status: 'started',
@@ -149,7 +156,7 @@ export const generateEstimateJob = inngest.createFunction(
         projectId,
         userId: ownerId,
       })
-      return { t0: Date.now(), ownerUserId: ownerId }
+      return { t0: Date.now(), ownerUserId: ownerId, attemptId: id }
     })
 
     // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
@@ -291,10 +298,20 @@ export const generateEstimateJob = inngest.createFunction(
       const svc = requireServiceClient()
       let realCostUsd: number | null = null
       for (let i = 0; i < 3; i++) {
+        // 260821 (billing double-debit fix): the SAME attemptId is shared by
+        // transcribe-audio ('audio_minutes') and analyze-photos ('vision'),
+        // both chained into this generate event — an unfiltered read-back by
+        // attempt_id alone summed those ALREADY-debited rows back into the
+        // 'estimate' debit (prod ledger evidence: audio cost double-counted).
+        // Scope strictly to THIS seam's own op — price_research (also shares
+        // this attemptId when the graph runs price lookups) is metered by its
+        // own separate debit in lib/estimate/price-research/orchestrator.ts
+        // and must stay excluded here too.
         const { data } = await svc
           .from('ai_cost_events')
           .select('real_cost_usd')
           .eq('attempt_id', attemptId)
+          .eq('operation_type', 'estimate')
         const rows = (data ?? []) as { real_cost_usd: number | null }[]
         if (rows.length > 0) {
           const known = rows

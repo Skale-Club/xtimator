@@ -339,7 +339,12 @@ export const transcribeAudioJob = inngest.createFunction(
             projectId: ident.projectId!,
             requestId: reqId,
             language: data.estimateLanguage,
-            attemptId: data.attemptId,
+            // 260821 (billing double-debit fix): forward the RESOLVED attemptId
+            // (the one this job's own audio_minutes cost row was written under)
+            // — not the possibly-undefined data.attemptId, which would break
+            // attemptId lineage into the chained generate event whenever the
+            // producer omitted it.
+            attemptId,
             inputType: 'recording' as const,
             channel: 'web' as const,
           },

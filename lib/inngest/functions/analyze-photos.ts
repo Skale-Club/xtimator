@@ -347,7 +347,13 @@ export const analyzePhotosJob = inngest.createFunction(
             projectId,
             requestId: reqId,
             language: data.estimateLanguage,
-            attemptId: data.attemptId,
+            // 260821 (billing double-debit fix): forward the RESOLVED attemptId
+            // (the one this job's own vision cost rows were written under, and
+            // the id record-credit-debit below reads back by) — not the
+            // possibly-undefined data.attemptId, which would break attemptId
+            // lineage into the chained generate event whenever the producer
+            // omitted it.
+            attemptId,
             inputType: 'photo' as const,
             channel: 'web' as const,
           },
@@ -387,10 +393,18 @@ export const analyzePhotosJob = inngest.createFunction(
         const svc = requireServiceClient()
         let realCostUsd: number | null = null
         for (let i = 0; i < 3; i++) {
+          // 260821 (billing double-debit fix): this attemptId is shared with
+          // the chained generate-estimate run (and, when this job's payload
+          // came from the SAME capture attempt, with transcribe-audio too) —
+          // an unfiltered read-back by attempt_id alone risks summing an
+          // 'estimate' (or 'audio_minutes') row that belongs to a DIFFERENT
+          // seam's already-recorded debit into this 'photo_batch' debit.
+          // Scope strictly to this seam's own op.
           const { data } = await svc
             .from('ai_cost_events')
             .select('real_cost_usd')
             .eq('attempt_id', attemptId)
+            .eq('operation_type', 'vision')
           const rows = (data ?? []) as { real_cost_usd: number | null }[]
           if (rows.length > 0) {
             const known = rows

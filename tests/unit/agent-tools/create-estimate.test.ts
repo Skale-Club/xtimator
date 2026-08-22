@@ -99,6 +99,25 @@ describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => 
     ).rejects.toThrow()
   })
 
+  // 260821 (billing double-debit fix): the producer mints a stable UUID
+  // attemptId so it is never absent downstream — without this, the
+  // generate-estimate job's `data.attemptId ?? randomUUID()` fallback used to
+  // re-mint a FRESH id on every Inngest replay leg (outside its memoized
+  // step), silently breaking the record-credit-debit read-back on retry.
+  it('260821: dispatches a UUID attemptId in the payload', async () => {
+    mockSend.mockResolvedValue({ ids: ['evt_attempt'] })
+
+    await createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
+
+    const arg = mockSend.mock.calls[0][0] as { data: Record<string, unknown> }
+    expect(typeof arg.data.attemptId).toBe('string')
+    expect(arg.data.attemptId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    )
+    // Distinct from requestId — two independently-purposed UUIDs.
+    expect(arg.data.attemptId).not.toBe(arg.data.requestId)
+  })
+
   // Billing v2: the credit wall — a blocked balance rejects BEFORE any dispatch.
   it('Test 4: throws INSUFFICIENT_CREDITS_MESSAGE and dispatches NOTHING when the gate blocks', async () => {
     mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 1 })

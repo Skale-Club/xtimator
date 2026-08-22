@@ -141,12 +141,19 @@ function makeSvc() {
       }
       if (table === 'ai_cost_events') {
         return {
-          select: () => ({
-            eq: async (col: string, value: unknown) => {
-              state.aiCostEqCalls.push({ col, value })
-              return { data: state.aiCostRows }
-            },
-          }),
+          select: () => {
+            const chain = {
+              eq: (col: string, value: unknown) => {
+                state.aiCostEqCalls.push({ col, value })
+                return chain
+              },
+              then: (
+                resolve: (v: unknown) => unknown,
+                reject?: (e: unknown) => unknown
+              ) => Promise.resolve({ data: state.aiCostRows }).then(resolve, reject),
+            }
+            return chain
+          },
         }
       }
       return { insert: async () => ({ error: null }) }
@@ -280,7 +287,7 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     state.photos = makePhotos(2)
     // Stands in for the DB state AFTER the fix: both per-photo vision rows
     // (just proven above to carry the job attemptId) are now findable by the
-    // UNTOUCHED read-back's `.eq('attempt_id', attemptId)`.
+    // read-back's `.eq('attempt_id', attemptId).eq('operation_type', 'vision')`.
     state.aiCostRows = [{ real_cost_usd: 0.5 }, { real_cost_usd: 1.5 }]
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockVisionResponse('a description', 0.5)
@@ -296,8 +303,14 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
         attemptId: 'attempt-batch-2',
       })
     )
-    // The read-back queries by the SAME attemptId the vision calls used.
-    expect(state.aiCostEqCalls[0]).toEqual({ col: 'attempt_id', value: 'attempt-batch-2' })
+    // The read-back queries by the SAME attemptId the vision calls used, AND
+    // (260821 billing double-debit fix) scopes strictly to operation_type
+    // 'vision' — never summing an 'estimate'/'audio_minutes' row that shares
+    // this attemptId from a different, already-debited seam.
+    expect(state.aiCostEqCalls).toEqual([
+      { col: 'attempt_id', value: 'attempt-batch-2' },
+      { col: 'operation_type', value: 'vision' },
+    ])
   })
 
   it('a fully-null cost read (provider gave no cost data) still records null — never coerced to 0', async () => {

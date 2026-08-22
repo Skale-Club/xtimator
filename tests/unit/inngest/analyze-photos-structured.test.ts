@@ -125,7 +125,19 @@ function makeSvc() {
         }
       }
       if (table === 'ai_cost_events') {
-        return { select: () => ({ eq: async () => ({ data: [{ real_cost_usd: 0.01 }] }) }) }
+        return {
+          select: () => {
+            const chain = {
+              eq: (..._args: unknown[]) => chain,
+              then: (
+                resolve: (v: { data: Array<{ real_cost_usd: number | null }> }) => unknown,
+                reject?: (e: unknown) => unknown
+              ) =>
+                Promise.resolve({ data: [{ real_cost_usd: 0.01 }] }).then(resolve, reject),
+            }
+            return chain
+          },
+        }
       }
       return { insert: async () => ({ error: null }) }
     },

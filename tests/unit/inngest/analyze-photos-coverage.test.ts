@@ -127,9 +127,16 @@ function makeSvc() {
       }
       if (table === 'ai_cost_events') {
         return {
-          select: () => ({
-            eq: async () => ({ data: state.aiCostRows }),
-          }),
+          select: () => {
+            const chain = {
+              eq: (..._args: unknown[]) => chain,
+              then: (
+                resolve: (v: { data: typeof state.aiCostRows }) => unknown,
+                reject?: (e: unknown) => unknown
+              ) => Promise.resolve({ data: state.aiCostRows }).then(resolve, reject),
+            }
+            return chain
+          },
         }
       }
       return { insert: async () => ({ error: null }) }
