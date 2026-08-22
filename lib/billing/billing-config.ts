@@ -141,9 +141,11 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   estimateFeeMinCents: 1,
   // Billing v2 (v1 launch decision): seats are FREE — teammates share the
   // company's credit pool, so usage is already metered by credits and per-seat
-  // billing would be double-dipping. Price 0 makes computeSeatChargeCents a
-  // no-op, so inviting a teammate never adds a Stripe seat item. Set a price
-  // here (admin panel, no deploy) to enable seat billing later.
+  // billing would be double-dipping. Price 0 means syncSeatBilling's price
+  // gate (lib/billing/seat-billing.ts) never creates/updates a Stripe seat
+  // item for the priced-0 interval, and removes any pre-existing one — so
+  // inviting a teammate never adds a Stripe seat item. Set a price here
+  // (admin panel, no deploy) to enable seat billing later.
   seatPriceCents: 0,
   seatPriceAnnualCents: 0,
   // includedSeats per tier is a CALIBRATION PLACEHOLDER (the owner seat is bundled,

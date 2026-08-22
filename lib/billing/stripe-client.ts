@@ -108,3 +108,30 @@ export async function syncSubscriptionSeatItem(
     metadata: { kind: SEAT_ITEM_METADATA_KIND },
   })
 }
+
+/**
+ * THIN, mockable Stripe SDK boundary that removes the subscription's
+ * metadata-tagged seat item, if one exists. Used when the caller has decided
+ * the company should no longer be charged for seats (billable seats dropped
+ * to 0, or the configured seat price resolved to <= 0) — this function does
+ * NOT make that decision, it only performs the removal, mirroring
+ * syncSubscriptionSeatItem's contract (retrieve the live subscription, find
+ * OUR item by the stable metadata tag, act on it).
+ *
+ * `proration_behavior: 'create_prorations'` credits the customer for the
+ * unused remainder of the current period, same as a normal quantity/price
+ * change would. No-op (no SDK write) when no seat item is present.
+ */
+export async function removeSubscriptionSeatItem(
+  stripe: Stripe,
+  subscriptionId: string
+): Promise<void> {
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  const items = subscription.items?.data ?? []
+  const seatItem = items.find((it) => it.metadata?.kind === SEAT_ITEM_METADATA_KIND)
+  if (!seatItem) return
+
+  await stripe.subscriptionItems.del(seatItem.id, {
+    proration_behavior: 'create_prorations',
+  })
+}

@@ -53,6 +53,15 @@ function makeMockStripe() {
         currency: 'usd',
         items: {
           data: [
+            // Base (non-seat) plan item is always present — this is what real
+            // subscriptions look like, and it's what interval detection reads.
+            {
+              id: 'si_base',
+              metadata: {},
+              quantity: 1,
+              price: { unit_amount: 2900 },
+              plan: { interval: mockSubscriptionInterval },
+            },
             ...(currentSeatItem
               ? [
                   {
@@ -63,15 +72,7 @@ function makeMockStripe() {
                     plan: { interval: mockSubscriptionInterval },
                   },
                 ]
-              : [
-                  {
-                    id: 'si_base',
-                    metadata: {},
-                    quantity: 1,
-                    price: { unit_amount: 2900 },
-                    plan: { interval: mockSubscriptionInterval },
-                  },
-                ]),
+              : []),
           ],
         },
       })),
@@ -79,6 +80,7 @@ function makeMockStripe() {
     subscriptionItems: {
       update: subscriptionItemsUpdate,
       create: subscriptionItemsCreate,
+      del: vi.fn(async () => ({})),
     },
     products: {
       search: productsSearch,
@@ -362,5 +364,46 @@ describe('ANN-04: syncSeatBilling — enforcement gate', () => {
 
     expect(subscriptionItemsCreate).not.toHaveBeenCalled()
     expect(subscriptionItemsUpdate).not.toHaveBeenCalled()
+  })
+})
+
+// ===========================================================================
+// Bug fix: idempotency must compare against the INTERVAL-resolved price
+// (seatPriceAnnualCents for a yearly sub), not always seatPriceCents — else
+// every sync on an annual subscription re-creates an inline Price forever.
+// ===========================================================================
+describe('ANN-04 (fix): syncSeatBilling idempotency on an annual subscription', () => {
+  it('current seat item already at {billableSeats, seatPriceAnnualCents} → NO update (idempotent)', async () => {
+    billingConfig.enforcementEnabled = true
+    billingConfig.seatPriceCents = 1500
+    billingConfig.seatPriceAnnualCents = 15000
+    mockSubscriptionInterval = 'year'
+    memberCount = 4 // 4 − 1 included = 3 billable
+    currentSeatItem = { quantity: 3, unit_amount: 15000 } // matches the ANNUAL price, not the monthly one
+
+    await syncSeatBilling('company-annual')
+
+    expect(subscriptionItemsUpdate).not.toHaveBeenCalled()
+    expect(subscriptionItemsCreate).not.toHaveBeenCalled()
+  })
+
+  it('current seat item at the STALE annual amount → DOES resync with seatPriceAnnualCents', async () => {
+    billingConfig.enforcementEnabled = true
+    billingConfig.seatPriceCents = 1500
+    billingConfig.seatPriceAnnualCents = 15000
+    mockSubscriptionInterval = 'year'
+    memberCount = 4 // 3 billable
+    currentSeatItem = { quantity: 3, unit_amount: 14000 } // stale annual price
+
+    await syncSeatBilling('company-annual-stale')
+
+    expect(subscriptionItemsUpdate).toHaveBeenCalledTimes(1)
+    const updateCall = (subscriptionItemsUpdate.mock.calls as unknown as unknown[][])[0][1] as {
+      price_data: PriceData
+      quantity: number
+    }
+    expect(updateCall.quantity).toBe(3)
+    expect(updateCall.price_data.unit_amount).toBe(15000)
+    expect(updateCall.price_data.recurring.interval).toBe('year')
   })
 })

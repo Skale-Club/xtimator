@@ -84,12 +84,14 @@ vi.mock('@/lib/billing/billing-config', () => ({
 // current seat item (for the idempotency read). syncSubscriptionSeatItem is the
 // spied SDK boundary the decision drives.
 const syncSeatItemSpy = vi.fn(async (..._args: unknown[]) => {})
+const removeSeatItemSpy = vi.fn(async (..._args: unknown[]) => {})
 let currentSeatItem: { quantity: number; unitAmount: number } | null = null
 let retrieveThrows = false
 
 vi.mock('@/lib/billing/stripe-client', () => ({
   SEAT_ITEM_METADATA_KIND: 'seat',
   syncSubscriptionSeatItem: (...args: unknown[]) => syncSeatItemSpy(...args),
+  removeSubscriptionSeatItem: (...args: unknown[]) => removeSeatItemSpy(...args),
   getStripeClient: async () => ({
     subscriptions: {
       retrieve: async () => {
@@ -128,6 +130,7 @@ beforeEach(() => {
   retrieveThrows = false
   currentSeatItem = null
   syncSeatItemSpy.mockClear()
+  removeSeatItemSpy.mockClear()
   billingConfig = {
     enforcementEnabled: false,
     seatPriceCents: 1500,
@@ -294,5 +297,49 @@ describe('SEAT-07: syncSeatBilling', () => {
       { quantity: number; unitAmount: number },
     ]
     expect(desired).toEqual({ quantity: 3, unitAmount: 1500 })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Bug fixes: stop-charging gate (billable drops to 0 / price resolves to 0)
+  // ---------------------------------------------------------------------------
+  it('billable seats drop to 0 with an EXISTING seat item → removes it (was: silently kept charging)', async () => {
+    billingConfig.enforcementEnabled = true
+    billingConfig.seatPriceCents = 1500
+    memberCount = 1 // 1 - 1 included = 0 billable
+    currentSeatItem = { quantity: 3, unitAmount: 1500 } // stale item from a prior higher-seat state
+    await syncSeatBilling(COMPANY)
+    expect(removeSeatItemSpy).toHaveBeenCalledTimes(1)
+    expect(removeSeatItemSpy.mock.calls[0][1]).toBe('sub_1')
+    expect(syncSeatItemSpy).not.toHaveBeenCalled()
+  })
+
+  it('billable seats drop to 0 with NO existing seat item → no Stripe write at all (unchanged no-op)', async () => {
+    billingConfig.enforcementEnabled = true
+    memberCount = 1
+    currentSeatItem = null
+    await syncSeatBilling(COMPANY)
+    expect(removeSeatItemSpy).not.toHaveBeenCalled()
+    expect(syncSeatItemSpy).not.toHaveBeenCalled()
+  })
+
+  it('seatPriceCents = 0 (calibration placeholder) → NEVER creates a "$0.00 additional seat" item', async () => {
+    billingConfig.enforcementEnabled = true
+    billingConfig.seatPriceCents = 0
+    memberCount = 4 // 3 billable — would normally trigger a create
+    currentSeatItem = null
+    await syncSeatBilling(COMPANY)
+    expect(syncSeatItemSpy).not.toHaveBeenCalled()
+    expect(removeSeatItemSpy).not.toHaveBeenCalled()
+  })
+
+  it('seatPriceCents = 0 with an EXISTING seat item (price lowered after seats were once billed) → removes it', async () => {
+    billingConfig.enforcementEnabled = true
+    billingConfig.seatPriceCents = 0
+    memberCount = 4 // 3 billable
+    currentSeatItem = { quantity: 3, unitAmount: 1500 } // priced before the calibration was zeroed
+    await syncSeatBilling(COMPANY)
+    expect(removeSeatItemSpy).toHaveBeenCalledTimes(1)
+    expect(removeSeatItemSpy.mock.calls[0][1]).toBe('sub_1')
+    expect(syncSeatItemSpy).not.toHaveBeenCalled()
   })
 })
