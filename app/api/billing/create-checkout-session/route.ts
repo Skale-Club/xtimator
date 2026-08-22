@@ -2,9 +2,17 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
+
+const OWNER_REQUIRED_RESPONSE = () =>
+  NextResponse.json(
+    { error: 'Only the company owner can manage billing.' },
+    { status: 403 }
+  )
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -25,6 +33,17 @@ export async function POST(request: NextRequest) {
   // Scope to the active company (getActiveCompanyId validates membership via RLS),
   // then fetch the columns needed for checkout by id with the RLS-bound client.
   const companyId = await getActiveCompanyId()
+
+  // Billing is owner-only — a member (or admin) can never subscribe, change
+  // plans, or otherwise touch the company's payment method.
+  if (companyId) {
+    try {
+      await requireCompanyOwner(companyId)
+    } catch {
+      return OWNER_REQUIRED_RESPONSE()
+    }
+  }
+
   const { data: company } = companyId
     ? await supabase
         .from('companies')
@@ -126,8 +145,9 @@ export async function POST(request: NextRequest) {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
-    // Attach to existing Stripe customer if one exists (avoids duplicate customer creation)
-    customer: company.stripe_customer_id ?? undefined,
+    // Always a persisted Stripe Customer — never an orphan created ad hoc by
+    // Checkout (TOPUP/CREDITUI parity fix; see lib/billing/stripe-customer.ts).
+    customer: await ensureStripeCustomer(stripe, company.id as string),
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=1`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?cancelled=1`,
     // Store plan + companyId + billing_interval in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)

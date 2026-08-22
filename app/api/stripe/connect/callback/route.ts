@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
@@ -39,11 +41,17 @@ export async function GET(req: NextRequest) {
   const claims = await getAuthClaims()
   if (!claims) return NextResponse.redirect(new URL('/?auth=login', base))
 
+  // Resolve the caller's ACTIVE company — never "any company owned by
+  // user_id" (a user in 2+ companies must connect Stripe for whichever
+  // company is currently active, not an arbitrary one picked by `.single()`).
+  const companyId = await getActiveCompanyId()
+  if (!companyId) return NextResponse.redirect(new URL('/onboarding', base))
+
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
     .select('id, stripe_account_id')
-    .eq('user_id', claims.sub as string)
+    .eq('id', companyId)
     .single()
   if (!company) return NextResponse.redirect(new URL('/onboarding', base))
 
@@ -54,9 +62,28 @@ export async function GET(req: NextRequest) {
   })
   if (demoBlocked) return demoBlocked
 
+  // Billing/Connect is owner-only — a member (or admin) can never complete
+  // the OAuth handshake, even if they somehow reach this callback URL.
+  try {
+    await requireCompanyOwner(company.id as string)
+  } catch {
+    settingsUrl.searchParams.set('error', 'owner_required')
+    return NextResponse.redirect(settingsUrl)
+  }
+
   // Clear cookie immediately — single-use state (Pitfall 3).
   const cookieJar = await cookies()
+  const cookieState = cookieJar.get('stripe_oauth_state')?.value
   cookieJar.delete('stripe_oauth_state')
+
+  // The cookie must echo the exact state minted by /initiate — binds this
+  // callback to the browser session that started the flow. Distinct from the
+  // HMAC check below: this catches a caller replaying a DIFFERENT (but
+  // otherwise validly-signed) state than the one their own browser started.
+  if (!cookieState || cookieState !== state) {
+    settingsUrl.searchParams.set('error', 'invalid_state')
+    return NextResponse.redirect(settingsUrl, { status: 302 })
+  }
 
   if (!verifyOAuthState(state, company.id as string)) {
     settingsUrl.searchParams.set('error', 'invalid_state')

@@ -16,6 +16,8 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
+vi.mock('@/lib/billing/stripe-customer', () => ({ ensureStripeCustomer: vi.fn() }))
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
@@ -23,6 +25,8 @@ const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { demoGuardResponse } = await import('@/lib/demo/guard')
+const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
+const { ensureStripeCustomer } = await import('@/lib/billing/stripe-customer')
 const { POST } = await import('@/app/api/billing/create-autotopup-setup-session/route')
 
 function makeRequest() {
@@ -57,6 +61,12 @@ beforeEach(() => {
     checkout: { sessions: { create: mockSessionCreate } },
   } as never)
   vi.mocked(demoGuardResponse).mockResolvedValue(null)
+  vi.mocked(requireCompanyOwner).mockResolvedValue({
+    userId: 'user-1',
+    companyId: 'co_1',
+    role: 'owner',
+  } as never)
+  vi.mocked(ensureStripeCustomer).mockResolvedValue('cus_ensured')
 })
 
 describe('POST /api/billing/create-autotopup-setup-session (CREDITUI-07)', () => {

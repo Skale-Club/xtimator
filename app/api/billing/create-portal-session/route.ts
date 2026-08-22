@@ -1,8 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
+
+const OWNER_REQUIRED_RESPONSE = () =>
+  NextResponse.json(
+    { error: 'Only the company owner can manage billing.' },
+    { status: 403 }
+  )
 
 export async function POST(_request: NextRequest) {
   const supabase = await createClient()
@@ -17,6 +24,16 @@ export async function POST(_request: NextRequest) {
   if (blocked) return blocked
 
   const companyId = await getActiveCompanyId()
+
+  // Billing is owner-only — a member (or admin) can never open the portal.
+  if (companyId) {
+    try {
+      await requireCompanyOwner(companyId)
+    } catch {
+      return OWNER_REQUIRED_RESPONSE()
+    }
+  }
+
   const { data: company } = companyId
     ? await supabase
         .from('companies')

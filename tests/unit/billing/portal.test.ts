@@ -4,12 +4,14 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
+vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
+const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
 const { POST } = await import('@/app/api/billing/create-portal-session/route')
 
 function makeRequest() {
@@ -42,6 +44,11 @@ function makeSupabaseMock(
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+  vi.mocked(requireCompanyOwner).mockResolvedValue({
+    userId: 'user-1',
+    companyId: 'company-1',
+    role: 'owner',
+  } as never)
 })
 
 describe('POST /api/billing/create-portal-session', () => {

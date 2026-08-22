@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { assertWritable } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeClient } from '@/lib/billing/stripe-client'
@@ -28,6 +29,13 @@ async function getAuthContext(): Promise<
 
   const activeCompanyId = await getActiveCompanyId()
   if (!activeCompanyId) return { error: 'No company found' as const }
+
+  // Billing is owner-only — a member (or admin) can never manage auto top-up.
+  try {
+    await requireCompanyOwner(activeCompanyId)
+  } catch {
+    return { error: 'Only the company owner can manage billing.' as const }
+  }
 
   const denied = await assertWritable()
   if (denied) return denied

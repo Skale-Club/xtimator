@@ -55,6 +55,22 @@ vi.mock('@/lib/demo/guard', () => ({
   demoGuardResponse: vi.fn().mockResolvedValue(null),
 }))
 
+// Owner gate — resolves by default (route-owner-gate coverage lives in
+// tests/unit/billing/billing-owner-gate.test.ts; these tests exercise the
+// annual/monthly price-routing behavior, unaffected by the owner check).
+vi.mock('@/lib/auth/require-company-role', () => ({
+  requireCompanyOwner: vi.fn().mockResolvedValue({
+    userId: 'user-1',
+    companyId: 'co-1',
+    role: 'owner',
+  }),
+}))
+// Customer is always ensured before session creation now — stub it so these
+// price-routing tests don't hit the real service client.
+vi.mock('@/lib/billing/stripe-customer', () => ({
+  ensureStripeCustomer: vi.fn().mockResolvedValue('cus_ensured'),
+}))
+
 // Stub required monthly env vars (always present)
 vi.stubEnv('STRIPE_PRICE_PRO', 'price_test_pro')
 vi.stubEnv('STRIPE_PRICE_BUSINESS', 'price_test_business')

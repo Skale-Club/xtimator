@@ -12,6 +12,8 @@ const stripeCheckoutCreate = vi.fn()
 const stripePortalCreate = vi.fn()
 const stripeSubscriptionRetrieve = vi.fn()
 const requireServiceClient = vi.fn()
+const requireCompanyOwner = vi.fn()
+const ensureStripeCustomer = vi.fn()
 const serviceSingle = vi.fn()
 const serviceUpdate = vi.fn()
 const getIntegrationKey = vi.fn()
@@ -68,6 +70,12 @@ vi.mock('@/lib/billing/billing-config', () => ({
 }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: (...args: unknown[]) => requireServiceClient(...args),
+}))
+vi.mock('@/lib/auth/require-company-role', () => ({
+  requireCompanyOwner: (...args: unknown[]) => requireCompanyOwner(...args),
+}))
+vi.mock('@/lib/billing/stripe-customer', () => ({
+  ensureStripeCustomer: (...args: unknown[]) => ensureStripeCustomer(...args),
 }))
 vi.mock('@/lib/platform-config', () => ({
   getIntegrationKey: (...args: unknown[]) => getIntegrationKey(...args),
@@ -250,6 +258,12 @@ beforeEach(() => {
     },
   })
   requireServiceClient.mockReturnValue({ from: serviceFrom })
+  requireCompanyOwner.mockResolvedValue({
+    userId: 'normal-user',
+    companyId: 'company-id',
+    role: 'owner',
+  })
+  ensureStripeCustomer.mockResolvedValue('cus_ensured')
   getIntegrationKey.mockResolvedValue('ca_test')
   mintOAuthState.mockReturnValue('signed-state')
   buildAuthorizeUrl.mockReturnValue('https://connect.stripe.com/oauth/authorize?state=signed-state')

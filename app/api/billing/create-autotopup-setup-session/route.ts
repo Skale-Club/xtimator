@@ -1,8 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
+
+const OWNER_REQUIRED_RESPONSE = () =>
+  NextResponse.json(
+    { error: 'Only the company owner can manage billing.' },
+    { status: 403 }
+  )
 
 /**
  * Phase 153 (CREDITUI-07) — mode:'setup' Checkout Session for capturing a
@@ -24,6 +32,16 @@ export async function POST(request: NextRequest) {
   if (blocked) return blocked
 
   const companyId = await getActiveCompanyId()
+
+  // Billing is owner-only — a member (or admin) can never enable auto top-up.
+  if (companyId) {
+    try {
+      await requireCompanyOwner(companyId)
+    } catch {
+      return OWNER_REQUIRED_RESPONSE()
+    }
+  }
+
   const { data: company } = companyId
     ? await supabase
         .from('companies')
@@ -40,7 +58,9 @@ export async function POST(request: NextRequest) {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'setup',
-    customer: company.stripe_customer_id ?? undefined,
+    // Always a persisted Stripe Customer — never an orphan created ad hoc by
+    // Checkout (see lib/billing/stripe-customer.ts).
+    customer: await ensureStripeCustomer(stripe, company.id as string),
     success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?autotopup_setup=1`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?autotopup_setup=cancelled`,
     metadata: {

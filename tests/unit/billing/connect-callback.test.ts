@@ -25,6 +25,14 @@ beforeAll(() => {
 vi.mock('@/lib/queries/auth', () => ({
   getAuthClaims: vi.fn(),
 }))
+// Route now resolves the caller's ACTIVE company (not "any company owned by
+// user_id") — bypass the real cookie/RLS-bound resolver entirely.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
+vi.mock('@/lib/auth/require-company-role', () => ({
+  requireCompanyOwner: vi.fn(),
+}))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
@@ -40,21 +48,37 @@ vi.mock('@/lib/billing/connect-oauth', async () => {
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn(),
 }))
+
+const cookieGetFn = vi.fn()
+const cookieDeleteFn = vi.fn()
+const cookieSetFn = vi.fn()
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn().mockResolvedValue({
-    delete: vi.fn(),
-    set: vi.fn(),
-    get: vi.fn(),
+    delete: (...args: unknown[]) => cookieDeleteFn(...args),
+    set: (...args: unknown[]) => cookieSetFn(...args),
+    get: (...args: unknown[]) => cookieGetFn(...args),
   }),
 }))
 
 const { getAuthClaims } = await import('@/lib/queries/auth')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
+const { requireCompanyOwner } = await import(
+  '@/lib/auth/require-company-role'
+)
 const { requireServiceClient } = await import('@/lib/supabase/service')
 const { mintOAuthState, exchangeCode } = await import(
   '@/lib/billing/connect-oauth'
 )
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
 const { GET } = await import('@/app/api/stripe/connect/callback/route')
+
+/** Sets the `stripe_oauth_state` cookie the route reads/compares against `state`. */
+function setOAuthStateCookie(value: string | undefined) {
+  cookieGetFn.mockImplementation((name: string) =>
+    name === 'stripe_oauth_state' && value !== undefined ? { value } : undefined
+  )
+}
 
 function makeSupabaseMock(company: {
   id: string
@@ -91,12 +115,20 @@ function makeRequest(query: Record<string, string>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  cookieGetFn.mockReturnValue(undefined)
+  vi.mocked(getActiveCompanyId).mockResolvedValue('company_abc')
+  vi.mocked(requireCompanyOwner).mockResolvedValue({
+    userId: 'user_1',
+    companyId: 'company_abc',
+    role: 'owner',
+  } as never)
 })
 
 describe('GET /api/stripe/connect/callback', () => {
   it('persists stripe_account_id on happy-path code exchange', async () => {
     const companyId = 'company_abc'
     const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
     vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
     const supabase = makeSupabaseMock({
       id: companyId,
@@ -141,6 +173,7 @@ describe('GET /api/stripe/connect/callback', () => {
   it('is idempotent when callback runs for an already-connected company', async () => {
     const companyId = 'company_abc'
     const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
     vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
     const supabase = makeSupabaseMock({
       id: companyId,
@@ -169,6 +202,44 @@ describe('GET /api/stripe/connect/callback', () => {
 
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toContain('error=invalid_state')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('redirects with error=invalid_state when the state cookie does not match the state query param', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    // Cookie holds a DIFFERENT (but validly-signed) state than the one Stripe
+    // echoed back — must be rejected even though verifyOAuthState would pass.
+    setOAuthStateCookie(mintOAuthState(companyId))
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    const supabase = makeSupabaseMock({
+      id: companyId,
+      stripe_account_id: null,
+    })
+    vi.mocked(requireServiceClient).mockReturnValue(supabase)
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toContain('error=invalid_state')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('redirects with error=owner_required when the caller is not the company owner', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    const supabase = makeSupabaseMock({
+      id: companyId,
+      stripe_account_id: null,
+    })
+    vi.mocked(requireServiceClient).mockReturnValue(supabase)
+    vi.mocked(requireCompanyOwner).mockRejectedValue(new Error('forbidden'))
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('error=owner_required')
     expect(exchangeCode).not.toHaveBeenCalled()
   })
 })

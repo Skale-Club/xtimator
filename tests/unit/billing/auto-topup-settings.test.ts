@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
+vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ assertWritable: vi.fn() }))
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
@@ -36,6 +37,7 @@ vi.mock('@/lib/supabase/service', () => ({
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
+const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
 const { assertWritable } = await import('@/lib/demo/guard')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
@@ -62,6 +64,11 @@ beforeEach(() => {
 
   vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ sub: 'user-1' }) as never)
   vi.mocked(getActiveCompanyId).mockResolvedValue('company-1')
+  vi.mocked(requireCompanyOwner).mockResolvedValue({
+    userId: 'user-1',
+    companyId: 'company-1',
+    role: 'owner',
+  } as never)
   vi.mocked(assertWritable).mockResolvedValue(null)
   vi.mocked(getBillingConfig).mockResolvedValue({
     autoTopupEnabled: true,

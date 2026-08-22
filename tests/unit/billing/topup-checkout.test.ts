@@ -26,6 +26,8 @@ vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
 // topUpPacks the route reads to build the inline price_data.
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
+vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
+vi.mock('@/lib/billing/stripe-customer', () => ({ ensureStripeCustomer: vi.fn() }))
 
 vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
 
@@ -33,6 +35,8 @@ const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
+const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
+const { ensureStripeCustomer } = await import('@/lib/billing/stripe-customer')
 // This import drives RED — the route does not exist yet (113-02 creates it).
 const { POST } = await import('@/app/api/billing/create-topup-session/route')
 
@@ -72,6 +76,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getActiveCompanyId).mockResolvedValue('co_1')
   vi.mocked(getBillingConfig).mockResolvedValue({ topUpPacks: TOPUP_PACKS } as never)
+  vi.mocked(requireCompanyOwner).mockResolvedValue({
+    userId: 'user-1',
+    companyId: 'co_1',
+    role: 'owner',
+  } as never)
+  vi.mocked(ensureStripeCustomer).mockResolvedValue('cus_ensured')
   mockSessionCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/pay/topup' })
   vi.mocked(getStripeClient).mockResolvedValue({
     checkout: { sessions: { create: mockSessionCreate } },

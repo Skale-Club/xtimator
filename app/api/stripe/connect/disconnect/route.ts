@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { getAuthClaims } from '@/lib/queries/auth'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { deauthorize } from '@/lib/billing/connect-oauth'
@@ -31,11 +33,29 @@ export async function POST(req: NextRequest) {
   const blocked = await demoGuardResponse()
   if (blocked) return blocked
 
+  // Resolve the caller's ACTIVE company — never "any company owned by
+  // user_id" (a user in 2+ companies must disconnect Stripe for whichever
+  // company is currently active, not an arbitrary one picked by `.single()`).
+  const companyId = await getActiveCompanyId()
+  if (!companyId) {
+    return NextResponse.json({ ok: true, message: 'already disconnected' })
+  }
+
+  // Billing/Connect is owner-only — a member (or admin) can never disconnect.
+  try {
+    await requireCompanyOwner(companyId)
+  } catch {
+    return NextResponse.json(
+      { error: 'Only the company owner can manage billing.' },
+      { status: 403 }
+    )
+  }
+
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
     .select('id, stripe_account_id')
-    .eq('user_id', claims.sub as string)
+    .eq('id', companyId)
     .single()
   if (!company || !company.stripe_account_id) {
     return NextResponse.json({ ok: true, message: 'already disconnected' })
