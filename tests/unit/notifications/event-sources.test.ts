@@ -256,7 +256,10 @@ describe('payment.received instrumentation', () => {
     }
     const single = vi.fn().mockResolvedValueOnce({ data: updated, error: null })
     const selectAfterUpdate = vi.fn().mockReturnValue({ single })
-    const updateEq = vi.fn().mockReturnValue({ select: selectAfterUpdate })
+    // Writes are scoped `.eq('id', …).eq('company_id', …)` since the Connect
+    // ownership hardening — the first eq returns a chain that supports both.
+    const updateEq2 = vi.fn().mockReturnValue({ select: selectAfterUpdate })
+    const updateEq = vi.fn().mockReturnValue({ select: selectAfterUpdate, eq: updateEq2 })
     const update = vi.fn().mockReturnValue({ eq: updateEq })
 
     // companies + projects look-ups
@@ -346,7 +349,8 @@ describe('payment.received instrumentation', () => {
     }
     const invoiceSingle = vi.fn().mockResolvedValueOnce({ data: updatedInvoice, error: null })
     const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle })
-    const invoiceUpdateEq = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate })
+    const invoiceUpdateEq2 = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate })
+    const invoiceUpdateEq = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate, eq: invoiceUpdateEq2 })
     const invoiceUpdate = vi.fn().mockReturnValue({ eq: invoiceUpdateEq })
 
     const companiesSingle = vi.fn().mockResolvedValue({

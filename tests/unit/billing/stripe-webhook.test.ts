@@ -18,6 +18,17 @@ vi.mock('@/lib/billing/stripe-client', () => ({
     setupIntents: { retrieve: mockSetupIntentRetrieve },
     customers: { update: mockCustomersUpdate },
   }),
+  // Fix 1: route.ts now imports readPeriodEnd from this module — mirror the
+  // real implementation (find the PLAN item, read its current_period_end)
+  // rather than leaving it undefined, which would throw on every call site.
+  readPeriodEnd: (sub: { items?: { data?: Array<{ current_period_end?: number; metadata?: { kind?: string } }> } } | null | undefined) => {
+    const items = sub?.items?.data ?? []
+    const planItem = items.find((it) => it?.metadata?.kind !== 'seat') ?? items[0]
+    const periodEnd = planItem?.current_period_end
+    return typeof periodEnd === 'number' && Number.isFinite(periodEnd)
+      ? new Date(periodEnd * 1000).toISOString()
+      : null
+  },
 }))
 
 const mockUpdate = vi.fn()
@@ -256,7 +267,11 @@ describe('POST /api/webhooks/stripe — checkout.session.completed autotopup_set
 describe('POST /api/webhooks/stripe — invoice.paid (STRIPE-02)', () => {
   it('updates tier_renews_at from subscription.current_period_end', async () => {
     const periodEnd = 1800000000 // unix timestamp
-    mockSubscriptionsRetrieve.mockResolvedValue({ current_period_end: periodEnd })
+    // Fix 1: current_period_end lives on the PLAN subscription item, not the
+    // Subscription itself (API version 2026-04-22.dahlia) — see readPeriodEnd.
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      items: { data: [{ current_period_end: periodEnd, price: { id: 'price_pro_test' }, metadata: {} }] },
+    })
     // bySub (the primary stripe_subscription_id-mapping lookup) hits — this
     // test is the normal (non-fallback) path.
     mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-invoice', tier: 'pro' } })
@@ -408,10 +423,10 @@ describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () =
       data: {
         object: {
           id: 'sub_upd',
-          current_period_end: periodEnd,
           cancel_at_period_end: false,
           cancel_at: null,
-          items: { data: [{ id: 'si_1', price: { id: 'price_biz_test' } }] },
+          // Fix 1: current_period_end lives on the PLAN subscription item.
+          items: { data: [{ id: 'si_1', price: { id: 'price_biz_test' }, current_period_end: periodEnd, metadata: {} }] },
         },
       },
     })
@@ -438,10 +453,9 @@ describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () =
       data: {
         object: {
           id: 'sub_upd_cancel',
-          current_period_end: 1900000000,
           cancel_at_period_end: true,
           cancel_at: cancelAt,
-          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' } }] },
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' }, current_period_end: 1900000000, metadata: {} }] },
         },
       },
     })
@@ -465,10 +479,9 @@ describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () =
       data: {
         object: {
           id: 'sub_upd_unknown',
-          current_period_end: 1900000000,
           cancel_at_period_end: false,
           cancel_at: null,
-          items: { data: [{ id: 'si_1', price: { id: 'price_unknown' } }] },
+          items: { data: [{ id: 'si_1', price: { id: 'price_unknown' }, current_period_end: 1900000000, metadata: {} }] },
         },
       },
     })
@@ -502,7 +515,9 @@ describe('POST /api/webhooks/stripe — event-ordering race fix (resolvePlatform
     mockMaybeSingle
       .mockResolvedValueOnce({ data: null }) // bySub misses
       .mockResolvedValueOnce({ data: { id: 'company-race', tier: 'pro' } }) // byId (fallback) hits
-    mockSubscriptionsRetrieve.mockResolvedValue({ current_period_end: 1800000000 })
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      items: { data: [{ current_period_end: 1800000000, price: {}, metadata: {} }] },
+    })
 
     mockConstructEvent.mockReturnValue({
       id: 'evt_race',
@@ -545,8 +560,10 @@ describe('POST /api/webhooks/stripe — event-ordering race fix (resolvePlatform
     // First call is resolvePlatformEventCompanyId's last-resort fallback;
     // second is invoice.paid's own current_period_end read.
     mockSubscriptionsRetrieve
-      .mockResolvedValueOnce({ metadata: { companyId: 'company-fallback' } })
-      .mockResolvedValueOnce({ current_period_end: 1800000000 })
+      .mockResolvedValueOnce({ metadata: { companyId: 'company-fallback' }, items: { data: [] } })
+      .mockResolvedValueOnce({
+        items: { data: [{ current_period_end: 1800000000, price: {}, metadata: {} }] },
+      })
 
     mockConstructEvent.mockReturnValue({
       id: 'evt_race_2',
@@ -616,5 +633,99 @@ describe('POST /api/webhooks/stripe — idempotency (STRIPE-04)', () => {
     expect(res.status).toBe(200)
     // No additional update calls made for the duplicate
     expect(mockUpdate.mock.calls.length).toBe(firstCallUpdateCount)
+  })
+})
+
+describe("POST /api/webhooks/stripe — Fix 3: DB errors on the event's purpose throw (500 + dedup row cleared)", () => {
+  it('checkout.session.completed: a companies.update DB error returns 500 and clears the dedup row', async () => {
+    // Explicit reset so this test's outcome never depends on whichever value
+    // an earlier test happened to leave on this shared mock (vi.clearAllMocks()
+    // clears call history, not the configured resolved value).
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      items: { data: [{ current_period_end: 1800000000, price: {}, metadata: {} }] },
+    })
+    mockEq.mockResolvedValueOnce({ error: { message: 'db down' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_checkout_dberr',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_dberr',
+          mode: 'subscription',
+          customer: 'cus_dberr',
+          subscription: 'sub_dberr',
+          metadata: { companyId: 'company-dberr', plan: 'pro' },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(mockDedupDelete).toHaveBeenCalled()
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_checkout_dberr')
+  })
+
+  it('invoice.paid: a companies.update DB error returns 500 and clears the dedup row', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-invoice-dberr', tier: 'pro' } })
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      items: { data: [{ current_period_end: 1800000000, price: {}, metadata: {} }] },
+    })
+    mockEq.mockResolvedValueOnce({ error: { message: 'db down' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_invoice_paid_dberr',
+      type: 'invoice.paid',
+      data: {
+        object: { id: 'in_dberr', subscription: 'sub_dberr_2' },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(mockDedupDelete).toHaveBeenCalled()
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_invoice_paid_dberr')
+  })
+
+  it('customer.subscription.updated: a companies.update DB error returns 500 and clears the dedup row', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd-dberr' } })
+    mockEq.mockResolvedValueOnce({ error: { message: 'db down' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_dberr',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_upd_dberr',
+          cancel_at_period_end: false,
+          cancel_at: null,
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' }, current_period_end: 1900000000, metadata: {} }] },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(mockDedupDelete).toHaveBeenCalled()
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_sub_updated_dberr')
+  })
+
+  it('customer.subscription.deleted: a companies.update DB error returns 500 and clears the dedup row', async () => {
+    mockEq.mockResolvedValueOnce({ error: { message: 'db down' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_deleted_dberr',
+      type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_del_dberr' } },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(mockDedupDelete).toHaveBeenCalled()
+    expect(mockDedupDeleteEq).toHaveBeenCalledWith('event_id', 'evt_sub_deleted_dberr')
   })
 })

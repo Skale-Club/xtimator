@@ -33,6 +33,17 @@ vi.mock('@/lib/billing/stripe-client', () => ({
     webhooks: { constructEvent: mockConstructEvent },
     subscriptions: { retrieve: mockSubscriptionsRetrieve },
   }),
+  // Fix 1: route.ts now imports readPeriodEnd from this module — mirror the
+  // real implementation (find the PLAN item, read its current_period_end)
+  // rather than leaving it undefined, which would throw on every call site.
+  readPeriodEnd: (sub: { items?: { data?: Array<{ current_period_end?: number; metadata?: { kind?: string } }> } } | null | undefined) => {
+    const items = sub?.items?.data ?? []
+    const planItem = items.find((it) => it?.metadata?.kind !== 'seat') ?? items[0]
+    const periodEnd = planItem?.current_period_end
+    return typeof periodEnd === 'number' && Number.isFinite(periodEnd)
+      ? new Date(periodEnd * 1000).toISOString()
+      : null
+  },
 }))
 
 // ------------------------------------------------------------------
@@ -51,12 +62,16 @@ const mockIs = vi.fn()
 const mockSelect = vi.fn()
 // companies select-by-stripe_subscription_id resolution (invoice.paid grant)
 const mockCompanyMaybeSingle = vi.fn()
+// B5/Fix-3 at-most-once: on a thrown handler error, the route deletes the
+// dedup row via .from('processed_stripe_events').delete().eq('event_id', ...).
+const mockDedupDeleteEq = vi.fn()
+const mockDedupDelete = vi.fn().mockImplementation(() => ({ eq: mockDedupDeleteEq }))
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'processed_stripe_events') {
-        return { insert: mockInsert }
+        return { insert: mockInsert, delete: mockDedupDelete }
       }
       return { insert: mockInsert, update: mockUpdate, select: mockSelect }
     }),
@@ -119,6 +134,7 @@ beforeEach(() => {
   // for these tests we set the return value per-case directly.
   // Default: dedup insert succeeds (not a redelivery).
   mockInsert.mockResolvedValue({ error: null })
+  mockDedupDeleteEq.mockResolvedValue({ error: null })
   mockIs.mockResolvedValue({ error: null, data: null })
   mockEq.mockImplementation(() => {
     const result: Promise<{ error: null; data: null }> & { is?: typeof mockIs } =
@@ -132,8 +148,12 @@ beforeEach(() => {
   mockSelect.mockReturnValue({
     eq: vi.fn().mockReturnValue({ maybeSingle: mockCompanyMaybeSingle }),
   })
-  // subscription retrieve → current_period_end (existing tier_renews_at path)
-  mockSubscriptionsRetrieve.mockResolvedValue({ current_period_end: 1900000000 })
+  // subscription retrieve → current_period_end (existing tier_renews_at path).
+  // Fix 1: current_period_end lives on the PLAN subscription item, not the
+  // Subscription itself (API version 2026-04-22.dahlia) — see readPeriodEnd.
+  mockSubscriptionsRetrieve.mockResolvedValue({
+    items: { data: [{ current_period_end: 1900000000, price: {}, metadata: {} }] },
+  })
   // getBillingConfig resolves the DEFAULT_BILLING_CONFIG-shaped tier grants.
   vi.mocked(getBillingConfig).mockResolvedValue(TEST_CONFIG as never)
 })

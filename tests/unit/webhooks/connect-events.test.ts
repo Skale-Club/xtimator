@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import {
   makeConnectEvent,
   makeConnectInvoiceEvent,
@@ -52,10 +53,21 @@ vi.mock('@/lib/observability/ops-alert', () => ({
 
 // Per-table Supabase mock. Each `.from(table)` returns its own chainable shape.
 const dedupInsert = vi.fn()
+// Fix 3 / B5-style at-most-once: on a thrown handler error, the route deletes
+// the dedup row via .from('processed_stripe_events').delete().eq('event_id', ...).
+const dedupDeleteEq = vi.fn()
+const dedupDelete = vi.fn().mockImplementation(() => ({ eq: dedupDeleteEq }))
 
-// invoices.update().eq().select().single()
+// invoices.update().eq('id', ...).eq('company_id', ...)[.select().single()]
+// Fix 2 scopes every invoice write by company_id — a SECOND .eq() call now
+// sits between the first .eq('id', ...) and the terminal step. invoiceUpdateEq2
+// is a thenable-with-.select attached (mirrors mockEq's .is() trick in
+// stripe-webhook.test.ts) so it serves BOTH shapes off the same mock:
+//   - handleInvoicePaid:                .eq().eq().select().single()
+//   - handleInvoiceStatusChange/Failed: awaited directly after the second .eq()
 const invoiceUpdate = vi.fn()
 const invoiceUpdateEq = vi.fn()
+const invoiceUpdateEq2 = vi.fn()
 const invoiceUpdateSelect = vi.fn()
 const invoiceUpdateSingle = vi.fn()
 
@@ -64,10 +76,14 @@ const invoiceSelect = vi.fn()
 const invoiceSelectEq = vi.fn()
 const invoiceSelectMaybeSingle = vi.fn()
 
-// companies.select().eq().single()  +  companies.update().eq()
+// companies.select().eq().single()  (branding/email lookups)
+// companies.select().eq().maybeSingle()  (Fix 2's assertEventOwnsCompany +
+//   the account.application.deauthorized/account.updated resolution path)
+// companies.update().eq()  (deauthorized/account.updated)
 const companySelect = vi.fn()
 const companySelectEq = vi.fn()
 const companySelectSingle = vi.fn()
+const companySelectMaybeSingle = vi.fn()
 const companyUpdate = vi.fn()
 const companyUpdateEq = vi.fn()
 
@@ -76,9 +92,11 @@ const estimateSelect = vi.fn()
 const estimateSelectEq = vi.fn()
 const estimateSelectSingle = vi.fn()
 
-// estimates.update().eq().select().single() — checkout.session.completed path
+// estimates.update().eq('id', ...).eq('company_id', ...).select().single() —
+// checkout.session.completed path (Fix 2: also company-scoped now).
 const estimateUpdate = vi.fn()
 const estimateUpdateEq = vi.fn()
+const estimateUpdateEq2 = vi.fn()
 const estimateUpdateSelect = vi.fn()
 const estimateUpdateSingle = vi.fn()
 
@@ -89,8 +107,10 @@ const projectSelectSingle = vi.fn()
 
 function resetSupabaseMocks() {
   dedupInsert.mockReset()
+  dedupDeleteEq.mockReset()
   invoiceUpdate.mockReset()
   invoiceUpdateEq.mockReset()
+  invoiceUpdateEq2.mockReset()
   invoiceUpdateSelect.mockReset()
   invoiceUpdateSingle.mockReset()
   invoiceSelect.mockReset()
@@ -99,6 +119,7 @@ function resetSupabaseMocks() {
   companySelect.mockReset()
   companySelectEq.mockReset()
   companySelectSingle.mockReset()
+  companySelectMaybeSingle.mockReset()
   companyUpdate.mockReset()
   companyUpdateEq.mockReset()
   estimateSelect.mockReset()
@@ -106,6 +127,7 @@ function resetSupabaseMocks() {
   estimateSelectSingle.mockReset()
   estimateUpdate.mockReset()
   estimateUpdateEq.mockReset()
+  estimateUpdateEq2.mockReset()
   estimateUpdateSelect.mockReset()
   estimateUpdateSingle.mockReset()
   projectSelect.mockReset()
@@ -114,10 +136,17 @@ function resetSupabaseMocks() {
 
   // Default: dedup insert succeeds (not a duplicate)
   dedupInsert.mockResolvedValue({ error: null })
+  dedupDeleteEq.mockResolvedValue({ error: null })
 
-  // invoices.update().eq().select().single() → returns the snapshot row
+  // invoices.update().eq('id',...).eq('company_id',...)[.select().single()]
   invoiceUpdate.mockReturnValue({ eq: invoiceUpdateEq })
-  invoiceUpdateEq.mockReturnValue({ select: invoiceUpdateSelect })
+  invoiceUpdateEq.mockReturnValue({ eq: invoiceUpdateEq2 })
+  invoiceUpdateEq2.mockImplementation(() => {
+    const result: Promise<{ error: null }> & { select?: typeof invoiceUpdateSelect } =
+      Promise.resolve({ error: null })
+    result.select = invoiceUpdateSelect
+    return result
+  })
   invoiceUpdateSelect.mockReturnValue({ single: invoiceUpdateSingle })
   invoiceUpdateSingle.mockResolvedValue({
     data: {
@@ -144,9 +173,17 @@ function resetSupabaseMocks() {
     error: null,
   })
 
-  // companies.select().eq().single()
+  // companies.select().eq().{single,maybeSingle}() — same .eq() serves both
+  // the branding lookup (.single()) and Fix 2's ownership check / the
+  // account-resolution path (.maybeSingle()). stripe_account_id defaults to
+  // the fixtures' event.account ('acct_test_123') so the happy path's
+  // assertEventOwnsCompany check passes without every existing test needing
+  // to know about it.
   companySelect.mockReturnValue({ eq: companySelectEq })
-  companySelectEq.mockReturnValue({ single: companySelectSingle })
+  companySelectEq.mockReturnValue({
+    single: companySelectSingle,
+    maybeSingle: companySelectMaybeSingle,
+  })
   companySelectSingle.mockResolvedValue({
     data: {
       email: 'owner@business.test',
@@ -155,6 +192,10 @@ function resetSupabaseMocks() {
       user_id: 'user_fixture_1',
       slug: 'acme-co',
     },
+    error: null,
+  })
+  companySelectMaybeSingle.mockResolvedValue({
+    data: { id: 'co_fixture_1', stripe_account_id: 'acct_test_123' },
     error: null,
   })
 
@@ -170,9 +211,11 @@ function resetSupabaseMocks() {
     error: null,
   })
 
-  // estimates.update().eq().select().single() — checkout.session.completed path
+  // estimates.update().eq('id',...).eq('company_id',...).select().single() —
+  // checkout.session.completed path (Fix 2: company-scoped).
   estimateUpdate.mockReturnValue({ eq: estimateUpdateEq })
-  estimateUpdateEq.mockReturnValue({ select: estimateUpdateSelect })
+  estimateUpdateEq.mockReturnValue({ eq: estimateUpdateEq2 })
+  estimateUpdateEq2.mockReturnValue({ select: estimateUpdateSelect })
   estimateUpdateSelect.mockReturnValue({ single: estimateUpdateSingle })
   estimateUpdateSingle.mockResolvedValue({
     data: {
@@ -196,7 +239,7 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'processed_stripe_events') {
-        return { insert: dedupInsert }
+        return { insert: dedupInsert, delete: dedupDelete }
       }
       if (table === 'invoices') {
         return { update: invoiceUpdate, select: invoiceSelect }
@@ -280,6 +323,7 @@ describe('stripe connect webhook — invoice.paid (INVOICE-05)', () => {
 
     // matched by our row PK from metadata.invoice_id
     expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
 
     // Both email helpers fired exactly once (reused from estimate flow)
     expect(sendPaymentReceivedEmail).toHaveBeenCalledTimes(1)
@@ -402,6 +446,7 @@ describe('stripe connect webhook — invoice.voided / invoice.marked_uncollectib
     expect(payload).toMatchObject({ status: 'void' })
     expect(typeof payload.updated_at).toBe('string')
     expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
 
     // No emails/notifications for this terminal status.
     expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
@@ -420,6 +465,7 @@ describe('stripe connect webhook — invoice.voided / invoice.marked_uncollectib
     const payload = invoiceUpdate.mock.calls[0][0]
     expect(payload).toMatchObject({ status: 'uncollectible' })
     expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
 
     expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
     expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
@@ -451,6 +497,7 @@ describe('stripe connect webhook — invoice.payment_failed', () => {
     expect(payload).not.toHaveProperty('status')
     expect(typeof payload.updated_at).toBe('string')
     expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+    expect(invoiceUpdateEq2).toHaveBeenCalledWith('company_id', 'co_fixture_1')
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('invoice.payment_failed'),
@@ -563,5 +610,124 @@ describe('checkout.session.completed — friendly URL (Phase 160, PUBURL-04)', (
     expect(ctx.estimateShareUrl).toBe(
       'https://xtimator.com/estimate/acme-co/bathroom-remodel-friendlytoken1'
     )
+  })
+})
+
+describe('stripe connect webhook — Fix 2: event/company account ownership (security)', () => {
+  it('drops a cross-account invoice.paid event (acct_attacker emitting an event that resolves to acct_victim\'s company) with 200 and makes NO write', async () => {
+    // The resolved company (co_fixture_1) actually belongs to acct_victim —
+    // but the signed event claims to come from acct_attacker. Without the
+    // ownership check, acct_attacker could mark ANY invoice paid just by
+    // crafting metadata.invoice_id pointing at another tenant's row.
+    companySelectMaybeSingle.mockResolvedValue({
+      data: { id: 'co_fixture_1', stripe_account_id: 'acct_victim' },
+      error: null,
+    })
+    const event = { ...makeConnectInvoiceEvent('invoice.paid'), account: 'acct_attacker' }
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'stripe_connect_account_mismatch',
+        severity: 'error',
+        dedupeKey: event.id,
+      })
+    )
+  })
+
+  it('drops a cross-account checkout.session.completed event the same way (estimates write also protected)', async () => {
+    companySelectMaybeSingle.mockResolvedValue({
+      data: { id: 'co_fixture_1', stripe_account_id: 'acct_victim' },
+      error: null,
+    })
+    const event = { ...makeConnectEvent('checkout.session.completed'), account: 'acct_attacker' }
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(estimateUpdate).not.toHaveBeenCalled()
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'stripe_connect_account_mismatch' })
+    )
+  })
+
+  it('the happy path (event.account matches the resolved company.stripe_account_id) still processes and writes normally', async () => {
+    companySelectMaybeSingle.mockResolvedValue({
+      data: { id: 'co_fixture_1', stripe_account_id: 'acct_victim' },
+      error: null,
+    })
+    const event = { ...makeConnectInvoiceEvent('invoice.paid'), account: 'acct_victim' }
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    expect(notifyOps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'stripe_connect_account_mismatch' })
+    )
+  })
+})
+
+describe("stripe connect webhook — Fix 3: DB errors on the event's purpose throw (500 + dedup row cleared)", () => {
+  it('invoice.paid: a DB error marking the invoice paid returns 500, clears the dedup row, and fires no emails/notification', async () => {
+    invoiceUpdateSingle.mockResolvedValueOnce({ data: null, error: { message: 'db down' } })
+    const event = makeConnectInvoiceEvent('invoice.paid')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(dedupDelete).toHaveBeenCalled()
+    expect(dedupDeleteEq).toHaveBeenCalledWith('event_id', event.id)
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('invoice.voided: a DB error marking the invoice void returns 500 and clears the dedup row', async () => {
+    invoiceUpdateEq2.mockResolvedValueOnce({ error: { message: 'db down' } })
+    const event = makeConnectInvoiceEvent('invoice.voided')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(dedupDelete).toHaveBeenCalled()
+    expect(dedupDeleteEq).toHaveBeenCalledWith('event_id', event.id)
+  })
+
+  it('invoice.marked_uncollectible: a DB error returns 500 and clears the dedup row', async () => {
+    invoiceUpdateEq2.mockResolvedValueOnce({ error: { message: 'db down' } })
+    const event = makeConnectInvoiceEvent('invoice.marked_uncollectible')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(dedupDelete).toHaveBeenCalled()
+  })
+
+  it('invoice.payment_failed stays best-effort — a DB error still returns 200 and does NOT clear the dedup row', async () => {
+    invoiceUpdateEq2.mockResolvedValueOnce({ error: { message: 'db down' } })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const event = makeConnectInvoiceEvent('invoice.payment_failed')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(dedupDelete).not.toHaveBeenCalled()
+
+    errSpy.mockRestore()
   })
 })

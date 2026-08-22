@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
-import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getStripeClient, readPeriodEnd } from '@/lib/billing/stripe-client'
 import {
   connectEventRequiresCompanyResolution,
   handleConnectEvent,
@@ -485,13 +485,8 @@ async function handlePlatformEvent(
       let tierRenewsAt: string | null = null
       let subscriptionStatus: string | null = null
       try {
-        const newSub = await stripe.subscriptions.retrieve(newSubId) as unknown as {
-          current_period_end?: number
-          status?: string
-        }
-        if (newSub.current_period_end) {
-          tierRenewsAt = new Date(newSub.current_period_end * 1000).toISOString()
-        }
+        const newSub = await stripe.subscriptions.retrieve(newSubId)
+        tierRenewsAt = readPeriodEnd(newSub)
         // Fresh Checkout completion — a subscription's status genuinely is
         // 'active' at this point in the overwhelming common case, so default
         // to that if Stripe's payload omits `status` for some reason. Only a
@@ -504,6 +499,10 @@ async function handlePlatformEvent(
         )
       }
 
+      // This write is the PURPOSE of the event (tier/subscription mapping) —
+      // throw on failure so the route's catch clears the dedup row and
+      // returns 500, letting Stripe retry instead of silently losing a paid
+      // checkout's tier upgrade (Fix 3).
       const { error } = await svc
         .from('companies')
         .update({
@@ -525,7 +524,7 @@ async function handlePlatformEvent(
         .eq('id', companyId)
 
       if (error) {
-        console.error('[Stripe] checkout.session.completed update failed:', error)
+        throw new Error(`[Stripe] checkout.session.completed update failed: ${error.message}`)
       }
 
       // Mirror the subscription change into Xphere CRM (fire-and-forget).
@@ -605,11 +604,12 @@ async function handlePlatformEvent(
           : null)
       if (!subId) break
 
-      // Retrieve subscription to get current_period_end
-      // Cast through unknown — Stripe API 2026-04-22 moved current_period_end under billing_details
-      // but the runtime object still carries this field; TypeScript types haven't caught up
-      const subscription = await stripe.subscriptions.retrieve(subId) as unknown as { current_period_end: number }
-      const renewsAt = new Date(subscription.current_period_end * 1000).toISOString()
+      // Retrieve subscription to get current_period_end — lives on the PLAN
+      // subscription item in API version 2026-04-22.dahlia, not on the
+      // Subscription itself (see readPeriodEnd's doc comment). null when
+      // absent/malformed — never throws, never produces an Invalid Date.
+      const subscription = await stripe.subscriptions.retrieve(subId)
+      const renewsAt = readPeriodEnd(subscription)
 
       // Resolve the company for this invoice — reading id, tier either way,
       // used below for the tier_renews_at write, the credit grant, AND the
@@ -646,22 +646,32 @@ async function handlePlatformEvent(
       }
 
       if (grantCompany?.id) {
-        // Primary match found the row BY stripe_subscription_id, so updating
-        // by that same column is safe. A fallback match found the row by id
-        // instead -- precisely because stripe_subscription_id is NOT set yet
-        // -- so the update must target id, not the (missing) subscription id.
-        const { error } = mappedByFallback
-          ? await svc
-              .from('companies')
-              .update({ tier_renews_at: renewsAt })
-              .eq('id', grantCompany.id)
-          : await svc
-              .from('companies')
-              .update({ tier_renews_at: renewsAt })
-              .eq('stripe_subscription_id', subId)
+        // Never write null over an existing tier_renews_at — only include the
+        // field when the subscription retrieve actually produced a value
+        // (Fix 1: conditional spread, same contract as the other two arms).
+        // No value → skip the write entirely (an empty PATCH would be rejected
+        // by PostgREST and the throw below would then block the credit grant).
+        if (renewsAt) {
+          // Primary match found the row BY stripe_subscription_id, so updating
+          // by that same column is safe. A fallback match found the row by id
+          // instead -- precisely because stripe_subscription_id is NOT set yet
+          // -- so the update must target id, not the (missing) subscription id.
+          const { error } = mappedByFallback
+            ? await svc
+                .from('companies')
+                .update({ tier_renews_at: renewsAt })
+                .eq('id', grantCompany.id)
+            : await svc
+                .from('companies')
+                .update({ tier_renews_at: renewsAt })
+                .eq('stripe_subscription_id', subId)
 
-        if (error) {
-          console.error('[Stripe] invoice.paid update failed:', error)
+          // This write is the PURPOSE of the event (renewal's tier_renews_at) —
+          // throw so the route's catch clears the dedup row and returns 500,
+          // letting Stripe retry instead of silently losing the renewal date.
+          if (error) {
+            throw new Error(`[Stripe] invoice.paid update failed: ${error.message}`)
+          }
         }
 
         if (mappedByFallback) {
@@ -800,16 +810,18 @@ async function handlePlatformEvent(
       // arrives here, not via checkout.session.completed.
       const subscription = event.data.object as Stripe.Subscription
 
-      // Map the first item's price id to a tier (null when unknown — leave tier as-is).
-      const priceId = subscription.items?.data?.[0]?.price?.id ?? null
+      // Map the PLAN item's price id to a tier (null when unknown — leave tier
+      // as-is). Same plan-item selection as readPeriodEnd — skip our own
+      // metadata-tagged seat item rather than blindly trusting items.data[0].
+      const subItems = subscription.items?.data ?? []
+      const planItem =
+        subItems.find((it) => it.metadata?.kind !== 'seat') ?? subItems[0]
+      const priceId = planItem?.price?.id ?? null
       const resolvedTier = await resolveTierFromPriceId(priceId)
 
-      // current_period_end moved under a nested shape in the 2026-04-22 Stripe API
-      // types but the runtime object still carries it — same cast as invoice.paid.
-      const subWithPeriod = subscription as unknown as { current_period_end?: number | null }
-      const renewsAt = subWithPeriod.current_period_end
-        ? new Date(subWithPeriod.current_period_end * 1000).toISOString()
-        : null
+      // current_period_end lives on the PLAN subscription item in API version
+      // 2026-04-22.dahlia, not on the Subscription itself — see readPeriodEnd.
+      const renewsAt = readPeriodEnd(subscription)
 
       // Pending-cancel tracking: cancel_at is set when cancel_at_period_end is true.
       const cancelledAt = subscription.cancel_at_period_end
@@ -824,28 +836,34 @@ async function handlePlatformEvent(
         .maybeSingle()
 
       const updatePayload: {
-        tier_renews_at: string | null
         tier_cancelled_at: string | null
         stripe_subscription_status: string | null
         tier?: string
+        tier_renews_at?: string
       } = {
-        tier_renews_at: renewsAt,
         tier_cancelled_at: cancelledAt,
         // Mirror Stripe's own subscription.status verbatim (active, trialing,
         // past_due, unpaid, ...) — a second, independent lifecycle signal
         // alongside tier (see the migration comment for why).
         stripe_subscription_status: subscription.status ?? null,
+        // Never write null over an existing tier_renews_at (Fix 1) — only
+        // include the field when the subscription actually carries one.
+        ...(renewsAt ? { tier_renews_at: renewsAt } : {}),
       }
       // Only overwrite tier when the price resolved to a known tier.
       if (resolvedTier) updatePayload.tier = resolvedTier
 
+      // This write is the PURPOSE of the event (subscription lifecycle payload)
+      // — throw on failure so the route's catch clears the dedup row and
+      // returns 500, letting Stripe retry instead of silently losing a portal
+      // plan change / status transition.
       const { error } = await svc
         .from('companies')
         .update(updatePayload)
         .eq('stripe_subscription_id', subscription.id)
 
       if (error) {
-        console.error('[Stripe] customer.subscription.updated update failed:', error)
+        throw new Error(`[Stripe] customer.subscription.updated update failed: ${error.message}`)
       }
 
       // Mirror the change into Xphere CRM (fire-and-forget). No-op if no row matched.
@@ -875,8 +893,12 @@ async function handlePlatformEvent(
         })
         .eq('stripe_subscription_id', subscription.id)
 
+      // This write is the PURPOSE of the event (downgrade to free) — throw on
+      // failure so the route's catch clears the dedup row and returns 500,
+      // letting Stripe retry instead of silently leaving a canceled customer
+      // on a paid tier.
       if (error) {
-        console.error('[Stripe] customer.subscription.deleted update failed:', error)
+        throw new Error(`[Stripe] customer.subscription.deleted update failed: ${error.message}`)
       }
 
       // Mirror the churn into Xphere CRM (mapping forces tier='free' → 'Churned').

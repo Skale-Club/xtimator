@@ -21,6 +21,28 @@ export async function getStripeClient(): Promise<Stripe> {
 export const SEAT_ITEM_METADATA_KIND = 'seat'
 
 /**
+ * `current_period_end` does not exist on `Stripe.Subscription` in API version
+ * 2026-04-22.dahlia — it lives on each `Stripe.SubscriptionItem` instead (see
+ * node_modules/stripe/cjs/resources/SubscriptionItems.d.ts). This helper finds
+ * the PLAN item (the first item NOT tagged with our seat metadata — see
+ * SEAT_ITEM_METADATA_KIND above) and reads its `current_period_end` off the
+ * live runtime object (the SDK's TS types haven't caught up), returning it as
+ * an ISO string or null. Never throws — an absent/malformed field degrades to
+ * null rather than `new Date(undefined * 1000)` producing an Invalid Date /
+ * RangeError, which previously crashed the webhook handler entirely.
+ */
+export function readPeriodEnd(sub: Stripe.Subscription): string | null {
+  const items = sub.items?.data ?? []
+  const planItem =
+    items.find((it) => it.metadata?.kind !== SEAT_ITEM_METADATA_KIND) ?? items[0]
+  const periodEnd = (planItem as unknown as { current_period_end?: number } | undefined)
+    ?.current_period_end
+  return typeof periodEnd === 'number' && Number.isFinite(periodEnd)
+    ? new Date(periodEnd * 1000).toISOString()
+    : null
+}
+
+/**
  * Find-or-create the metadata-tagged seat Product (auto-provisioned, reused
  * across syncs). Subscription-item `price_data` requires a `product` ID (unlike
  * Checkout's inline `product_data`), so we provision ONE tagged product the

@@ -63,10 +63,77 @@ async function readReferencedCompanyId(
 }
 
 /**
+ * Security boundary (Fix 2): Connect events are otherwise resolved by
+ * attacker-controllable metadata (metadata.company_id, estimate_id,
+ * invoice_id, charge.invoice, payment_intent — all values Stripe merely
+ * echoes back from what WE set at creation time on OUR OWN Checkout
+ * sessions/invoices, but nothing stops a malicious connected account from
+ * emitting a crafted event with the same-shaped metadata pointing at a
+ * DIFFERENT company). Every resolution path must be bound to the account that
+ * actually emitted the signed event: read the resolved company's
+ * `stripe_account_id` and compare it against `event.account`. A mismatch
+ * means the event does not actually belong to that company — log a warn, fire
+ * an ops alert (deduped per event id), and return null so the caller treats
+ * this exactly like an unresolved event (dropped with a 200, no writes).
+ */
+async function assertEventOwnsCompany(
+  svc: ServiceClient,
+  companyId: string,
+  event: Stripe.Event,
+): Promise<string | null> {
+  const { data, error } = await svc
+    .from('companies')
+    .select('stripe_account_id')
+    .eq('id', companyId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(
+      `[stripe-webhook][connect] failed to verify company/account ownership: ${error.message}`,
+    )
+  }
+
+  const companyAccountId =
+    (data as { stripe_account_id?: string | null } | null)?.stripe_account_id ?? null
+
+  if (companyAccountId !== event.account) {
+    console.warn(
+      '[stripe-webhook][connect] event.account does not match resolved company.stripe_account_id — dropping event:',
+      'eventId=', event.id,
+      'eventType=', event.type,
+      'companyId=', companyId,
+      'eventAccount=', event.account,
+      'companyAccountId=', companyAccountId,
+    )
+    void notifyOps({
+      kind: 'stripe_connect_account_mismatch',
+      title: 'Stripe Connect event/company account mismatch',
+      message: `event ${event.id} (${event.type}) claims company ${companyId} but that company's stripe_account_id is ${companyAccountId ?? 'null'}, not the emitting account ${event.account}`,
+      severity: 'error',
+      dedupeKey: event.id,
+    })
+    return null
+  }
+
+  return companyId
+}
+
+/**
  * Resolve a Connect event using only Stripe-signed metadata/account fields or
  * referenced rows. Browser cookies are never authority for this machine path.
+ * Every non-null result is verified against the emitting account before being
+ * returned (Fix 2) — a caller can trust whatever this function hands back.
  */
 export async function resolveConnectEventCompanyId(
+  event: Stripe.Event,
+  svc: ServiceClient,
+): Promise<string | null> {
+  const companyId = await resolveConnectEventCompanyIdRaw(event, svc)
+  if (!companyId) return null
+  return assertEventOwnsCompany(svc, companyId, event)
+}
+
+async function resolveConnectEventCompanyIdRaw(
   event: Stripe.Event,
   svc: ServiceClient,
 ): Promise<string | null> {
@@ -181,7 +248,11 @@ export async function handleConnectEvent(
 
   switch (event.type) {
     case 'checkout.session.completed':
-      await handleCheckoutSessionCompleted(event, svc)
+      // companyId is non-null here: checkout.session.completed is in
+      // connectEventRequiresCompanyResolution's list, and the `!companyId &&
+      // connectEventRequiresCompanyResolution(event)` guard above already
+      // returned if it were null.
+      await handleCheckoutSessionCompleted(event, svc, companyId as string)
       return
 
     case 'charge.refunded':
@@ -204,19 +275,19 @@ export async function handleConnectEvent(
       // and the payment.received notification. The PLATFORM invoice.paid
       // (subscription renewals) is handled in handlePlatformEvent — that path
       // never reaches here because it carries no event.account.
-      await handleInvoicePaid(event, svc)
+      await handleInvoicePaid(event, svc, companyId as string)
       return
 
     case 'invoice.voided':
-      await handleInvoiceStatusChange(event, svc, 'void')
+      await handleInvoiceStatusChange(event, svc, 'void', companyId as string)
       return
 
     case 'invoice.marked_uncollectible':
-      await handleInvoiceStatusChange(event, svc, 'uncollectible')
+      await handleInvoiceStatusChange(event, svc, 'uncollectible', companyId as string)
       return
 
     case 'invoice.payment_failed':
-      await handleInvoicePaymentFailed(event, svc)
+      await handleInvoicePaymentFailed(event, svc, companyId as string)
       return
 
     default:
@@ -231,7 +302,8 @@ export async function handleConnectEvent(
 // ------------------------------------------------------------------
 async function handleCheckoutSessionCompleted(
   event: Stripe.Event,
-  svc: ServiceClient
+  svc: ServiceClient,
+  companyId: string
 ): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session
   const estimateId = session.metadata?.estimate_id
@@ -242,7 +314,10 @@ async function handleCheckoutSessionCompleted(
     return
   }
 
-  // Single-shot update — dedup table upstream already prevented duplicate event.
+  // Single-shot update — dedup table upstream already prevented duplicate
+  // event. Scoped to the TRUSTED companyId (Fix 2) — even if metadata.estimate_id
+  // were somehow spoofed to point at another tenant's estimate, this write
+  // cannot cross into a company the emitting account does not own.
   const { data: updated, error } = await svc
     .from('estimates')
     .update({
@@ -253,6 +328,7 @@ async function handleCheckoutSessionCompleted(
       payment_amount_cents: session.amount_total,
     })
     .eq('id', estimateId)
+    .eq('company_id', companyId)
     .select('id, company_id, project_id, share_token, public_slug_token, currency_code')
     .single()
 
@@ -384,7 +460,8 @@ async function handleCheckoutSessionCompleted(
 // ------------------------------------------------------------------
 async function handleInvoicePaid(
   event: Stripe.Event,
-  svc: ServiceClient
+  svc: ServiceClient,
+  companyId: string
 ): Promise<void> {
   const invoice = event.data.object as Stripe.Invoice
   const invoiceRowId = invoice.metadata?.invoice_id
@@ -395,8 +472,12 @@ async function handleInvoicePaid(
     return
   }
 
-  // Mark the invoices row paid (service client bypasses RLS). Read back the
-  // snapshot fields we need for the email/notification payload.
+  // Mark the invoices row paid (service client bypasses RLS). Scoped to the
+  // TRUSTED companyId (Fix 2) so a spoofed metadata.invoice_id can never write
+  // into another tenant's row. Read back the snapshot fields we need for the
+  // email/notification payload. This write IS the purpose of the event — a DB
+  // error throws (Fix 3) so the route clears the dedup row and Stripe retries,
+  // rather than silently leaving a paid invoice marked unpaid forever.
   const { data: updated, error } = await svc
     .from('invoices')
     .update({
@@ -407,15 +488,20 @@ async function handleInvoicePaid(
       updated_at: new Date().toISOString(),
     })
     .eq('id', invoiceRowId)
+    .eq('company_id', companyId)
     .select(
       'id, company_id, estimate_id, amount_cents, currency_code, project_name'
     )
     .single()
 
-  if (error || !updated) {
+  if (error) {
+    throw new Error(
+      `[stripe-webhook][connect] failed to mark invoice paid: ${error.message} invoiceRowId=${invoiceRowId}`
+    )
+  }
+  if (!updated) {
     console.error(
-      '[stripe-webhook][connect] failed to mark invoice paid:',
-      error,
+      '[stripe-webhook][connect] failed to mark invoice paid: no matching row',
       'invoiceRowId=',
       invoiceRowId
     )
@@ -540,7 +626,8 @@ async function handleInvoicePaid(
 async function handleInvoiceStatusChange(
   event: Stripe.Event,
   svc: ServiceClient,
-  status: 'void' | 'uncollectible'
+  status: 'void' | 'uncollectible',
+  companyId: string
 ): Promise<void> {
   const invoice = event.data.object as Stripe.Invoice
   const invoiceRowId = invoice.metadata?.invoice_id
@@ -551,6 +638,9 @@ async function handleInvoiceStatusChange(
     return
   }
 
+  // Scoped to the TRUSTED companyId (Fix 2). This status transition IS the
+  // purpose of the event — throw on a DB error (Fix 3) so the route clears
+  // the dedup row and Stripe retries.
   const { error } = await svc
     .from('invoices')
     .update({
@@ -558,13 +648,11 @@ async function handleInvoiceStatusChange(
       updated_at: new Date().toISOString(),
     })
     .eq('id', invoiceRowId)
+    .eq('company_id', companyId)
 
   if (error) {
-    console.error(
-      `[stripe-webhook][connect] failed to mark invoice ${status}:`,
-      error,
-      'invoiceRowId=',
-      invoiceRowId
+    throw new Error(
+      `[stripe-webhook][connect] failed to mark invoice ${status}: ${error.message} invoiceRowId=${invoiceRowId}`
     )
   }
 }
@@ -580,7 +668,8 @@ async function handleInvoiceStatusChange(
 // ------------------------------------------------------------------
 async function handleInvoicePaymentFailed(
   event: Stripe.Event,
-  svc: ServiceClient
+  svc: ServiceClient,
+  companyId: string
 ): Promise<void> {
   const invoice = event.data.object as Stripe.Invoice
   const invoiceRowId = invoice.metadata?.invoice_id
@@ -599,10 +688,14 @@ async function handleInvoicePaymentFailed(
     invoice.id
   )
 
+  // Scoped to the TRUSTED companyId (Fix 2). This touch is log-only/best-effort
+  // (Stripe itself drives the open → void/uncollectible transition), so a DB
+  // error here stays non-fatal — never throws.
   const { error } = await svc
     .from('invoices')
     .update({ updated_at: new Date().toISOString() })
     .eq('id', invoiceRowId)
+    .eq('company_id', companyId)
 
   if (error) {
     console.error(
