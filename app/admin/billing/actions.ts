@@ -92,26 +92,23 @@ export async function forceTier(
 }
 
 /**
- * ADMIN-BILLING-02: Grant bonus units against the LEGACY count-based quota
- * (usage_events), NOT the Phase 112 credit_ledger / companies.credit_balance
- * system. This inserts a negative usage_events row — it does NOT touch the
- * credit ledger and has no effect on a company's credit balance. For the
- * ledger-backed balance, use adjustCredits below.
+ * ADMIN-BILLING-02: Grant bonus credits against the Phase 112 credit_ledger /
+ * companies.credit_balance system (via grantCredits), NOT the legacy
+ * count-based usage_events quota.
  *
- * The usage_events.event_type CHECK constraint (Phase 55 migration) only allows:
- * 'estimate_generated' | 'photo_analyzed' | 'audio_transcribed'.
- * 'bonus_credits' is NOT in the constraint — service role bypasses RLS but not CHECK.
- *
- * Resolution: insert as event_type='estimate_generated' with negative units and
- * metadata { bonus: true, granted_by: adminEmail } for audit trail.
- *
- * checkQuota currently counts rows (not SUM units). This provides an audit trail
- * and fulfills the spec requirement ("insert negative usage_events row"). Future
- * quota evolution can SUM units to consume these credits automatically.
+ * Historically this inserted a negative `usage_events` row with
+ * event_type='estimate_generated' as a "bonus" trick. That was a bug:
+ * checkQuota (lib/quota.ts) counts ROWS, not SUM(units), so the "bonus" row
+ * itself consumed one estimate-quota slot for the company while the owner
+ * was told they'd received credits. Rewritten to grant real balance on the
+ * ledger through the atomic apply_credit_ledger_entry RPC (same path as
+ * adjustCredits) so a failed grant surfaces as { ok: false } instead of a
+ * false success. The idempotency key is fresh per invocation — an admin who
+ * submits twice grants twice, by design (each click is a separate grant).
  */
 export async function grantBonusCredits(
   companyId: string,
-  units: number, // positive number; stored as negative (credit back)
+  units: number, // positive number; credited to the company's ledger balance
 ): Promise<ActionResult> {
   const ctx = await requireAdmin()
 
@@ -121,14 +118,17 @@ export async function grantBonusCredits(
 
   const svc = requireServiceClient()
 
-  const { error } = await svc.from('usage_events').insert({
-    company_id: companyId,
-    event_type: 'estimate_generated',
-    units: -Math.abs(units),
-    metadata: { bonus: true, granted_by: ctx.email },
+  const { error: grantError } = await svc.rpc('apply_credit_ledger_entry', {
+    p_company_id: companyId,
+    p_delta_credits: Math.round(units),
+    p_reason: 'grant',
+    p_operation_type: null,
+    p_ref_id: 'admin-bonus',
+    p_real_cost_usd: null,
+    p_markup: null,
+    p_idempotency_key: `bonus:${ctx.userId}:${randomUUID()}`,
   })
-
-  if (error) return { ok: false, message: error.message }
+  if (grantError) return { ok: false, message: grantError.message }
 
   revalidatePath('/admin/billing')
 
@@ -168,7 +168,7 @@ export async function grantBonusCredits(
     /* best-effort */
   }
 
-  return { ok: true, message: `Granted ${units} bonus estimate credits` }
+  return { ok: true, message: `Granted ${units} bonus credits` }
 }
 
 /**

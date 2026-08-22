@@ -118,41 +118,46 @@ export async function checkQuota(
   const eventType = QUOTA_TO_EVENT[quotaType]
 
   // Query usage_events for this month, filtered further by start of day.
-  // The mock chain expects: .select().eq().gte(startOfMonth).gte(startOfDay)
+  // The mock chain expects: .select().eq('company_id').eq('event_type').gte(startOfMonth).gte(startOfDay)
   // Result rows represent events that occurred today (most restrictive).
   // We use this count for the day check, and a second query for the month check.
-  const { data: dayRows } = await supabase
+  // BUG (fixed): event_type was never filtered, so other quota types'
+  // usage_events (e.g. price_researched) were counted against this quota.
+  // Uses head:true count instead of select('id') + .length so the count is
+  // not silently capped by PostgREST's default row limit.
+  const { count: dayCount } = await supabase
     .from('usage_events')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('company_id', companyId)
+    .eq('event_type', eventType)
     .gte('created_at', startOfMonth.toISOString())
     .gte('created_at', startOfDay.toISOString())
 
-  const dayCount = (dayRows ?? []).length
-
   // Monthly check: run a separate count for the full month.
   // In tests, monthCount === dayCount so both queries return the same mock data.
-  const { data: monthRows } = await supabase
+  const { count: monthCount } = await supabase
     .from('usage_events')
-    .select('id')
+    .select('id', { count: 'exact', head: true })
     .eq('company_id', companyId)
+    .eq('event_type', eventType)
     .gte('created_at', startOfMonth.toISOString())
     .gte('created_at', startOfMonth.toISOString()) // same gte twice = month boundary
 
-  const monthCount = (monthRows ?? []).length
+  const safeMonthCount = monthCount ?? 0
+  const safeDayCount = dayCount ?? 0
 
   // Monthly limit check (takes precedence for remaining calculation).
-  if (maxEstimatesPerMonth !== null && monthCount >= maxEstimatesPerMonth) {
+  if (maxEstimatesPerMonth !== null && safeMonthCount >= maxEstimatesPerMonth) {
     return { allowed: false, remaining: 0 }
   }
 
   // Daily limit check.
-  if (maxEstimatesPerDay !== null && dayCount >= maxEstimatesPerDay) {
+  if (maxEstimatesPerDay !== null && safeDayCount >= maxEstimatesPerDay) {
     return { allowed: false, remaining: 0 }
   }
 
   // Under both limits.
-  const remaining = maxEstimatesPerMonth !== null ? maxEstimatesPerMonth - monthCount : null
+  const remaining = maxEstimatesPerMonth !== null ? maxEstimatesPerMonth - safeMonthCount : null
   return { allowed: true, remaining }
 }
 

@@ -1,6 +1,14 @@
 // tests/unit/quota.test.ts
 // Phase 56: checkQuota + recordUsage unit tests
 // Covers all 7 behaviors from PLAN.md must_haves.truths
+//
+// QUOTA-EVENTTYPE-01 fix: checkQuota's day/month usage_events queries now
+// filter by .eq('event_type', eventType) (previously they counted ALL usage
+// event types against every quota, so e.g. price_researched events burned
+// the estimate quota). The queries were also switched from
+// select('id') + .length to { count: 'exact', head: true } so the count is
+// not silently capped by PostgREST's default row limit. This file's mock
+// chain reflects both changes.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -26,29 +34,42 @@ import { getEntitlementsForTier } from '@/lib/entitlements-server'
 /**
  * Build a minimal fake Supabase client for quota tests.
  *
- * checkQuota query chain:
- *   companies: .from('companies').select('tier').eq('id', companyId).single() → { data: { tier }, error: null }
- *   usage_events (SELECT): .from('usage_events').select('id').eq('company_id', ...).gte('created_at', ...) → { data: rows, error: null }
+ * checkQuota query chain (for the 'estimate' quota type):
+ *   companies:    .from('companies').select('tier').eq('id', companyId).single()
+ *                 → { data: { tier }, error: null }
+ *   usage_events: .from('usage_events')
+ *                   .select('id', { count: 'exact', head: true })
+ *                   .eq('company_id', companyId)
+ *                   .eq('event_type', eventType)
+ *                   .gte('created_at', startOfMonth)
+ *                   .gte('created_at', startOfDay | startOfMonth)
+ *                 → { count, error: null }
+ *               Called twice: first for the day-scoped count, then for the
+ *               month-scoped count (same order checkQuota issues them in).
  *
  * recordUsage check-then-insert chain:
- *   dedup SELECT: .from('usage_events').select('id').eq('company_id', ...).eq('idempotency_key', ...).limit(1).maybeSingle() → { data: existing }
+ *   dedup SELECT: .from('usage_events').select('id').eq('company_id', ...).eq('idempotency_key', ...).limit(1).maybeSingle()
  *   INSERT:       .from('usage_events').insert({...}) → { error: insertError }
  *
- * monthCount = total rows returned for the month query.
- * dayCount   = rows returned for the day sub-filter (implemented via second .gte() call).
+ * `eventTypeCounts`, when provided, overrides the flat monthCount/dayCount
+ * and instead returns different counts PER event_type — used to prove the
+ * .eq('event_type', ...) filter actually narrows the count (mixed-event-type
+ * regression coverage).
  */
 function makeSupabase({
   tier = 'free',
   monthCount = 0,
   dayCount = 0,
+  eventTypeCounts = null as Record<string, { month: number; day: number }> | null,
   existing = null as unknown,
   insertError = null as unknown,
 } = {}) {
-  // Build rows for month and day counts
-  const monthRows = Array(monthCount).fill({ id: 'x' })
-  const dayRows = Array(dayCount).fill({ id: 'x' })
-
   const insertMock = vi.fn().mockResolvedValue({ error: insertError })
+  // Tracks every ('event_type', <value>) .eq() call across both the day and
+  // month checkQuota queries, so tests can assert the filter was applied to
+  // BOTH queries (not just one).
+  const eventTypeEqCalls: string[] = []
+  let checkQuotaCallIndex = 0 // 0 = day-scoped query, 1 = month-scoped query
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
     if (table === 'companies') {
@@ -62,32 +83,50 @@ function makeSupabase({
     }
 
     if (table === 'usage_events') {
-      // The select() result must serve two different chains:
-      //   checkQuota:  .eq('company_id', id).gte(startOfMonth).gte(startOfDay)
-      //   recordUsage: .eq('company_id', id).eq('idempotency_key', key).limit(1).maybeSingle()
-      const eqMock = vi.fn().mockImplementation(() => {
-        // checkQuota path: .gte() called twice (month, then day).
-        let gteCallCount = 0
-        const gteMock: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(() => {
-          gteCallCount++
-          if (gteCallCount === 1) {
-            return { gte: vi.fn().mockResolvedValue({ data: dayRows, error: null }) }
-          }
-          return Promise.resolve({ data: dayRows, error: null })
-        })
-
-        // recordUsage dedup path: .eq('idempotency_key', ...).limit(1).maybeSingle()
-        const eqIdempotency = vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: existing, error: null }),
-          }),
-        })
-
-        return { gte: gteMock, eq: eqIdempotency }
-      })
-
       return {
-        select: vi.fn().mockReturnValue({ eq: eqMock }),
+        select: vi
+          .fn()
+          .mockImplementation((_cols: string, opts?: { count?: string; head?: boolean }) => {
+            if (opts?.head) {
+              // checkQuota count path: .eq('company_id', ...).eq('event_type', ...).gte().gte()
+              const isDayQuery = checkQuotaCallIndex === 0
+              checkQuotaCallIndex++
+              let capturedEventType = ''
+
+              const eqMock: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(
+                (col: string, val: string) => {
+                  if (col === 'event_type') {
+                    capturedEventType = val
+                    eventTypeEqCalls.push(val)
+                  }
+                  return { eq: eqMock, gte: gteMock }
+                }
+              )
+              const gteMock: ReturnType<typeof vi.fn> = vi.fn().mockImplementation(() => ({
+                gte: vi.fn().mockImplementation(() => {
+                  const count = eventTypeCounts
+                    ? eventTypeCounts[capturedEventType]?.[isDayQuery ? 'day' : 'month'] ?? 0
+                    : isDayQuery
+                      ? dayCount
+                      : monthCount
+                  return Promise.resolve({ count, error: null })
+                }),
+              }))
+
+              return { eq: eqMock }
+            }
+
+            // recordUsage dedup path: .eq('company_id', ...).eq('idempotency_key', ...).limit(1).maybeSingle()
+            return {
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockResolvedValue({ data: existing, error: null }),
+                  }),
+                }),
+              }),
+            }
+          }),
         insert: insertMock,
       }
     }
@@ -97,7 +136,12 @@ function makeSupabase({
     from: fromMock,
     insertMock,
     _insertMock: insertMock,
-  } as unknown as SupabaseClient & { insertMock: ReturnType<typeof vi.fn>; _insertMock: ReturnType<typeof vi.fn> }
+    _eventTypeEqCalls: eventTypeEqCalls,
+  } as unknown as SupabaseClient & {
+    insertMock: ReturnType<typeof vi.fn>
+    _insertMock: ReturnType<typeof vi.fn>
+    _eventTypeEqCalls: string[]
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +212,70 @@ describe('quota', () => {
 
     expect(result.allowed).toBe(true)
     expect(result.remaining).toBeNull()
+  })
+
+  // Test 4b: Both caps null AND the usage_events count would (incorrectly) be
+  // large is still unlimited — belt-and-suspenders on the early-return path.
+  it('checkQuota short-circuits to unlimited before ever counting usage_events when both caps are null', async () => {
+    const supabase = makeSupabase({ tier: 'trial', monthCount: 5000, dayCount: 5000 })
+    mockEntitlements({ maxEstimatesPerMonth: null, maxEstimatesPerDay: null })
+
+    const result = await checkQuota(supabase, 'company-123', 'estimate')
+
+    expect(result).toEqual({ allowed: true, remaining: null })
+  })
+
+  // Test A (QUOTA-EVENTTYPE-01): mixed event types — only estimate_generated
+  // counts toward checkQuota('estimate'). Regression test for the bug where
+  // price_researched events (or any other event_type) silently consumed the
+  // estimate quota because the count queries never filtered by event_type.
+  it('only counts estimate_generated events toward the estimate quota, ignoring other event types', async () => {
+    // 2 estimate_generated events (well under the 10/month, 3/day caps), but
+    // 99 price_researched events in the same window — those must NOT count.
+    const supabase = makeSupabase({
+      tier: 'free',
+      eventTypeCounts: {
+        estimate_generated: { month: 2, day: 2 },
+        price_researched: { month: 99, day: 99 },
+      },
+    })
+    mockEntitlements({ maxEstimatesPerMonth: 10, maxEstimatesPerDay: 3 })
+
+    const result = await checkQuota(supabase, 'company-123', 'estimate')
+
+    // If the bug were present, monthCount would resolve to a mixed/undefined
+    // count and remaining would not be 8 (or the daily cap of 3 would trip).
+    expect(result).toEqual({ allowed: true, remaining: 8 })
+  })
+
+  // Test B (QUOTA-EVENTTYPE-01): .eq('event_type', 'estimate_generated') is
+  // applied to BOTH the day-scoped and the month-scoped usage_events query.
+  it('applies .eq("event_type", "estimate_generated") to both the day and month usage_events queries', async () => {
+    const supabase = makeSupabase({ tier: 'free', monthCount: 1, dayCount: 1 })
+    mockEntitlements({ maxEstimatesPerMonth: 10, maxEstimatesPerDay: 3 })
+
+    await checkQuota(supabase, 'company-123', 'estimate')
+
+    const eventTypeCalls = (supabase as unknown as { _eventTypeEqCalls: string[] })._eventTypeEqCalls
+    expect(eventTypeCalls).toEqual(['estimate_generated', 'estimate_generated'])
+  })
+
+  // Test C (QUOTA-EVENTTYPE-01): null caps remain unlimited regardless of
+  // event-type filtering (duplicate of Test 4's intent, kept explicit here
+  // per the fix's own coverage requirements).
+  it('remains { allowed: true, remaining: null } for null caps even with mixed event-type usage present', async () => {
+    const supabase = makeSupabase({
+      tier: 'business',
+      eventTypeCounts: {
+        estimate_generated: { month: 500, day: 50 },
+        photo_analyzed: { month: 9999, day: 9999 },
+      },
+    })
+    mockEntitlements({ maxEstimatesPerMonth: null, maxEstimatesPerDay: null })
+
+    const result = await checkQuota(supabase, 'company-123', 'estimate')
+
+    expect(result).toEqual({ allowed: true, remaining: null })
   })
 
   // Test 5: recordUsage — new idempotency key → inserts row (insert mock called once)
