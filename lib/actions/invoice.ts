@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { requireServiceClient } from '@/lib/supabase/service'
 import { getAuthContext } from '@/lib/auth/context'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
@@ -66,6 +68,15 @@ export async function generateInvoice(
   if ('error' in ctx) return { error: ctx.error }
   const { companyId } = ctx
 
+  // 1b. Owner gate — issuing an invoice is a billing-adjacent action, so only
+  //     the company owner may do it (mirrors the SEAT-02 role matrix). Role is
+  //     resolved server-side from company_members; never trusted from the client.
+  try {
+    await requireCompanyOwner(companyId)
+  } catch {
+    return { error: 'Only the company owner can issue invoices.' }
+  }
+
   const sessionDenied = await assertWritable()
   if (sessionDenied) return sessionDenied
 
@@ -82,7 +93,9 @@ export async function generateInvoice(
   //    verify ownership against the active company.
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
-    .select('id, company_id, project_id, currency_code, total, deposit_type, deposit_value, project:projects(name)')
+    .select(
+      'id, company_id, project_id, currency_code, total, deposit_type, deposit_value, project:projects(name, client:clients(name, email))',
+    )
     .eq('id', estimateId)
     .single()
 
@@ -120,8 +133,13 @@ export async function generateInvoice(
   let amountCents: number
   if (kind === 'full') {
     amountCents = toMinorUnits(totalDollars, currencyCode)
-  } else if (kind === 'deposit' && hasConfiguredDeposit) {
-    amountCents = resolveChargeAmount(
+  } else if (hasConfiguredDeposit) {
+    // DEP-03: when the estimate has a server-configured deposit, BOTH the
+    // deposit and balance invoices derive from resolveChargeAmount so they
+    // always sum to the total — the free-form depositPct is ignored entirely
+    // (it only drives the legacy ad-hoc split below when no deposit exists).
+    const totalCents = toMinorUnits(totalDollars, currencyCode)
+    const depositCents = resolveChargeAmount(
       {
         total: totalDollars,
         deposit_type: estimate.deposit_type as 'percent' | 'amount',
@@ -129,6 +147,7 @@ export async function generateInvoice(
       },
       currencyCode,
     ).chargeAmountCents
+    amountCents = kind === 'deposit' ? depositCents : totalCents - depositCents
   } else {
     const split = splitDepositBalance(totalDollars, currencyCode, depositPct ?? 0)
     amountCents = kind === 'deposit' ? split.depositCents : split.balanceCents
@@ -152,16 +171,28 @@ export async function generateInvoice(
   const applicationFeeCents = computeApplicationFee(amountCents, estimateFeePct, estimateFeeMinCents)
 
   // 6. Snapshot description / project name (so the invoice renders independently).
-  const projectRel = (estimate as { project?: { name?: string | null } | null }).project
+  const projectRel = (
+    estimate as {
+      project?: { name?: string | null; client?: { name?: string | null; email?: string | null } | null } | null
+    }
+  ).project
   const projectName = projectRel?.name ?? null
   const description = `${projectName ?? 'Estimate'} — ${kind} invoice`
+
+  // 6b. Customer identity for the Stripe Customer (INVOICE-CUST-01). Without an
+  //     email, Stripe's sendInvoice cannot email the hosted invoice to anyone, so
+  //     refuse BEFORE any Stripe call rather than silently issuing an unreachable
+  //     invoice.
+  const customerEmail = projectRel?.client?.email ?? null
+  const customerName = projectRel?.client?.name ?? null
+  if (!customerEmail) {
+    return { error: "Add an email address to this project's client before issuing an invoice." }
+  }
 
   // 7. Customer reuse (D-14): reuse the most recent prior customer id for this
   //    estimate when present. Guarded so an insert-only client doesn't break the
   //    happy path — degrades to a fresh customer when no prior row is readable.
   let existingCustomerId: string | null = null
-  let customerEmail: string | null = null
-  let customerName: string | null = null
   try {
     const { data: priors } = await supabase
       .from('invoices')
@@ -192,7 +223,12 @@ export async function generateInvoice(
       description,
       metadata: { invoice_id: invoiceRowId, company_id: companyId },
       daysUntilDue: 7,
-      idempotencyBase: `inv_${estimateId}_${kind}`,
+      // INVOICE-IDEMPOTENCY-01: keyed on the freshly generated row id (unique
+      // per issue), NOT `${estimateId}_${kind}` — the old key was stable across
+      // every re-issue of the same kind, so a re-issue within Stripe's 24h
+      // idempotency window either 400'd on mismatched params or replayed the
+      // same invoice back, tripping the `stripe_invoice_id` unique constraint.
+      idempotencyBase: `inv_${invoiceRowId}`,
       applicationFeeCents,
     })
   } catch (err) {
@@ -201,7 +237,12 @@ export async function generateInvoice(
   }
 
   // 10. Persist the immutable snapshot row (single insert with the Stripe result).
-  const { data: row, error: insertError } = await supabase
+  //     Financial rows are written server-side only — the tenant INSERT/UPDATE
+  //     RLS policies on `invoices` are gone, so this MUST go through the service
+  //     role. The ownership check in step 2/3 already scoped this action to the
+  //     caller's company; the SELECT read-back above stays on the RLS client.
+  const svc = requireServiceClient()
+  const { data: row, error: insertError } = await svc
     .from('invoices')
     .insert({
       id: invoiceRowId,

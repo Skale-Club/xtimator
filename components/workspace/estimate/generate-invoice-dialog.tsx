@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { generateInvoice } from '@/lib/actions/invoice'
-import { formatMinorUnits } from '@/lib/money/currency'
+import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 type InvoiceKind = 'full' | 'deposit' | 'balance'
@@ -27,6 +27,16 @@ interface GenerateInvoiceDialogProps {
   /** Live editor total in minor units — preview only (the issued snapshot is computed server-side, D-07). */
   estimateTotalCents: number
   onIssued?: () => void
+  /**
+   * DEP-03: when the estimate has a server-configured deposit, the percent
+   * picker is replaced by the configured deposit amount so the preview can
+   * never drift from what the server actually charges (see
+   * lib/actions/invoice.ts's `hasConfiguredDeposit` branch). Optional with
+   * safe defaults ('none' / null) so older call sites degrade to the legacy
+   * percent picker; estimate-editor.tsx passes the estimate's deposit config.
+   */
+  depositType?: 'none' | 'percent' | 'amount' | null
+  depositValue?: number | null
 }
 
 /**
@@ -43,6 +53,8 @@ export function GenerateInvoiceDialog({
   currencyCode,
   estimateTotalCents,
   onIssued,
+  depositType = null,
+  depositValue = null,
 }: GenerateInvoiceDialogProps) {
   const { t } = useTranslation()
   const router = useRouter()
@@ -54,7 +66,27 @@ export function GenerateInvoiceDialog({
   // Clamp the percent to the 1–99 range the action accepts.
   const safePct = Math.min(99, Math.max(1, Math.round(pct) || 1))
 
-  const depositCents = Math.round((estimateTotalCents * safePct) / 100)
+  // DEP-03: when the estimate has a server-configured deposit, the preview
+  // (and the amount actually charged server-side, see lib/actions/invoice.ts's
+  // `hasConfiguredDeposit` branch) is derived from it instead of the free-form
+  // percent — mirrors lib/billing/charge-amount.ts's resolveChargeAmount so this
+  // preview never drifts from what the server will charge.
+  const hasConfiguredDeposit = depositType === 'percent' || depositType === 'amount'
+  const configuredDepositCents = hasConfiguredDeposit
+    ? Math.max(
+        0,
+        Math.min(
+          depositType === 'percent'
+            ? Math.round((estimateTotalCents * (depositValue ?? 0)) / 100)
+            : toMinorUnits(depositValue ?? 0, currencyCode),
+          estimateTotalCents,
+        ),
+      )
+    : null
+
+  const depositCents = hasConfiguredDeposit
+    ? (configuredDepositCents ?? 0)
+    : Math.round((estimateTotalCents * safePct) / 100)
   const previewCents =
     kind === 'full'
       ? estimateTotalCents
@@ -91,7 +123,11 @@ export function GenerateInvoiceDialog({
     { value: 'balance', label: t('Balance') },
   ]
 
-  const showPercent = kind === 'deposit' || kind === 'balance'
+  // DEP-03: when the estimate has a server-configured deposit, the percent
+  // picker is meaningless (the server ignores depositPct entirely in that
+  // case) — show the configured deposit amount instead.
+  const showPercent = (kind === 'deposit' || kind === 'balance') && !hasConfiguredDeposit
+  const showConfiguredDeposit = (kind === 'deposit' || kind === 'balance') && hasConfiguredDeposit
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -138,7 +174,24 @@ export function GenerateInvoiceDialog({
             ))}
           </div>
 
-          {/* Percent picker (deposit / balance only) */}
+          {/* Configured-deposit readout (deposit / balance, when the estimate
+              already has a deposit_type/deposit_value — replaces the percent
+              picker so the preview can't drift from the server-charged amount). */}
+          {showConfiguredDeposit && (
+            <div className="rounded-[var(--radius-md)] border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              {kind === 'deposit'
+                ? t('This estimate has a configured deposit of {amount}.').replace(
+                    '{amount}',
+                    formatMinorUnits(configuredDepositCents ?? 0, currencyCode),
+                  )
+                : t('Balance after the configured deposit of {amount}.').replace(
+                    '{amount}',
+                    formatMinorUnits(configuredDepositCents ?? 0, currencyCode),
+                  )}
+            </div>
+          )}
+
+          {/* Percent picker (deposit / balance only, no configured deposit) */}
           {showPercent && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">

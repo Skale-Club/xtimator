@@ -758,6 +758,8 @@ export function EstimateEditor({
             estimateId={estimate.id}
             currencyCode={state.currency_code}
             estimateTotalCents={Math.round(state.total * 100)}
+            depositType={state.deposit_type as 'none' | 'percent' | 'amount'}
+            depositValue={state.deposit_value}
             onIssued={() => router.refresh()}
           />
         </div>
