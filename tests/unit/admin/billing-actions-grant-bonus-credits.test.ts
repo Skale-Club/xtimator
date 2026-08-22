@@ -16,8 +16,8 @@ vi.mock('@/lib/auth/admin-context', () => ({
   requireAdmin: () => requireAdminMock(),
 }))
 
-const grantCreditsMock = vi.fn(async () => undefined)
-const reconcileBalanceMock = vi.fn(async () => 0)
+const grantCreditsMock = vi.fn(async (_input: unknown) => undefined)
+const reconcileBalanceMock = vi.fn(async (_companyId: unknown) => 0)
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantCredits: (...args: [unknown]) => grantCreditsMock(...args),
   reconcileBalance: (...args: [unknown]) => reconcileBalanceMock(...args),
@@ -45,7 +45,13 @@ const fromMock = vi.fn((table: string) => {
 })
 // rpcMock backs the atomic apply_credit_ledger_entry call — the ONLY write
 // grantBonusCredits performs; its error surfaces as { ok: false }.
-const rpcMock = vi.fn(async () => ({ data: [{ balance_after: 2500, applied: true }], error: null }))
+type RpcResult = { data: unknown; error: { message: string } | null }
+const rpcMock = vi.fn(
+  async (_fn: string, _args: Record<string, unknown>): Promise<RpcResult> => ({
+    data: [{ balance_after: 2500, applied: true }],
+    error: null,
+  }),
+)
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({ from: fromMock, rpc: rpcMock }),
 }))

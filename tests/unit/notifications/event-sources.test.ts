@@ -499,7 +499,7 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
       chain.insert = vi.fn().mockResolvedValue({ error: null })
       return chain
     }
-    const svc = { from: vi.fn().mockImplementation(() => makeChain()) }
+    const svc = { from: vi.fn().mockImplementation(() => makeChain()), rpc: vi.fn(async () => ({ data: [{ balance_after: 2010, applied: true }], error: null })) }
 
     vi.doMock('@/lib/auth/admin-context', () => ({
       requireAdmin: vi.fn().mockResolvedValue({ userId: 'admin_1', email: 'admin@x.com' }),
@@ -544,7 +544,7 @@ describe('admin.tier_changed + admin.bonus_credits_granted instrumentation', () 
       chain.insert = vi.fn().mockResolvedValue({ error: null })
       return chain
     }
-    const svc = { from: vi.fn().mockImplementation(() => makeChain()) }
+    const svc = { from: vi.fn().mockImplementation(() => makeChain()), rpc: vi.fn(async () => ({ data: [{ balance_after: 2010, applied: true }], error: null })) }
 
     vi.doMock('@/lib/auth/admin-context', () => ({
       requireAdmin: vi.fn().mockResolvedValue({ userId: 'admin_1', email: 'admin@x.com' }),
