@@ -7,6 +7,7 @@ import {
   paginate,
   type BillingFilters,
 } from '@/app/admin/billing/billing-table'
+import { adjustCredits } from '@/app/admin/billing/actions'
 
 // The admin Billing table used to render up to 200 unpaginated, unsortable,
 // unfilterable rows. These guards cover the client-side search/filter/sort/
@@ -20,6 +21,8 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 vi.mock('@/app/admin/billing/actions', () => ({
   forceTier: vi.fn(),
   grantBonusCredits: vi.fn(),
+  adjustCredits: vi.fn().mockResolvedValue({ ok: true, message: 'Balance adjusted by 5', balance: 5 }),
+  reconcileCreditBalance: vi.fn().mockResolvedValue({ ok: true, message: 'Balance reconciled to 5', balance: 5 }),
 }))
 
 type TestCompany = Parameters<typeof filterCompanies>[0][number]
@@ -218,5 +221,21 @@ describe('BillingTable', () => {
 
     expect(screen.getByRole('button', { name: 'Force' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Grant' })).toBeTruthy()
+  })
+
+  it('calls adjustCredits with the typed delta and note, and the Reconcile control', () => {
+    renderTable()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Manage' })[0])
+
+    expect(screen.getByRole('button', { name: 'Adjust credits' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reconcile' })).toBeTruthy()
+
+    fireEvent.change(screen.getByPlaceholderText('+/- delta'), { target: { value: '-25' } })
+    fireEvent.change(screen.getByPlaceholderText('Note (required)'), {
+      target: { value: 'goodwill adjustment' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Adjust credits' }))
+
+    expect(adjustCredits).toHaveBeenCalledWith('1', -25, 'goodwill adjustment')
   })
 })

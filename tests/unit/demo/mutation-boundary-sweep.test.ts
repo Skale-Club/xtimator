@@ -423,8 +423,10 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'removePlatformAdmin',
   ]),
   ...excepted('app/admin/billing/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'adjustCredits',
     'forceTier',
     'grantBonusCredits',
+    'reconcileCreditBalance',
   ]),
   ...excepted('app/admin/blog/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
     'createPost',

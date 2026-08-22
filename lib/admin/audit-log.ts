@@ -19,6 +19,8 @@ export type AuditAction =
   | 'company.support_mode_end'
   | 'tier.force'
   | 'bonus_credits.grant'
+  | 'credits.adjust'
+  | 'credits.reconcile'
   | 'branding.save'
   | 'seo.save'
   | 'landing.save'

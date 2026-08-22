@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { forceTier, grantBonusCredits } from './actions'
+import { forceTier, grantBonusCredits, adjustCredits, reconcileCreditBalance } from './actions'
 import type { TierName } from '@/lib/entitlements'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { T } from '@/components/i18n/t'
@@ -67,6 +67,8 @@ function CompanyRow({
   const [selectedTier, setSelectedTier] = useState<TierName>(company.tier as TierName)
   const [expiresAt, setExpiresAt] = useState('')
   const [bonusUnits, setBonusUnits] = useState('')
+  const [adjustDelta, setAdjustDelta] = useState('')
+  const [adjustNote, setAdjustNote] = useState('')
   const [msg, setMsg] = useState('')
   const [manageOpen, setManageOpen] = useState(false)
   const { t } = useTranslation()
@@ -91,6 +93,33 @@ function CompanyRow({
       const result = await grantBonusCredits(company.id, n)
       setMsg(result.ok ? (result.message ?? t('Granted')) : result.message)
       if (result.ok) setBonusUnits('')
+    })
+  }
+
+  const handleAdjustCredits = () => {
+    const delta = parseInt(adjustDelta, 10)
+    if (!Number.isInteger(delta) || delta === 0) {
+      setMsg(t('Enter a non-zero whole number'))
+      return
+    }
+    if (!adjustNote.trim()) {
+      setMsg(t('A note is required'))
+      return
+    }
+    startTransition(async () => {
+      const result = await adjustCredits(company.id, delta, adjustNote.trim())
+      setMsg(result.ok ? (result.message ?? t('Adjusted')) : result.message)
+      if (result.ok) {
+        setAdjustDelta('')
+        setAdjustNote('')
+      }
+    })
+  }
+
+  const handleReconcile = () => {
+    startTransition(async () => {
+      const result = await reconcileCreditBalance(company.id)
+      setMsg(result.ok ? (result.message ?? t('Reconciled')) : result.message)
     })
   }
 
@@ -176,6 +205,29 @@ function CompanyRow({
                 />
                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleGrantCredits}>
                   {t('Grant')}
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="number"
+                  value={adjustDelta}
+                  onChange={(e) => setAdjustDelta(e.target.value)}
+                  className="w-20 h-8 text-xs"
+                  placeholder={t('+/- delta')}
+                />
+                <Input
+                  type="text"
+                  value={adjustNote}
+                  onChange={(e) => setAdjustNote(e.target.value)}
+                  maxLength={200}
+                  className="w-40 h-8 text-xs"
+                  placeholder={t('Note (required)')}
+                />
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleAdjustCredits}>
+                  {t('Adjust credits')}
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={handleReconcile}>
+                  {t('Reconcile')}
                 </Button>
               </div>
               {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
