@@ -16,7 +16,8 @@ import {
 } from '@/lib/platform-config'
 import { integrationKeySchema, billingConfigSchema } from '@/lib/schemas/admin'
 import { validateMarginInvariant, type TierMarginResult } from '@/lib/billing/calibration'
-import { syncAllTierPrices } from '@/lib/billing/stripe-subscription-prices'
+import { syncAllTierPrices, archivePrices } from '@/lib/billing/stripe-subscription-prices'
+import { getStripeClient } from '@/lib/billing/stripe-client'
 import { invalidateStripeDisplayPricesCache } from '@/lib/billing/stripe-display-prices'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 import { sendTelegramMessage } from '@/lib/telegram/client'
@@ -954,12 +955,20 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
   // NEVER blocks a save: a missing Stripe key no-ops (existing ids preserved),
   // and any thrown error is logged while the config still persists with the
   // pre-existing ids.
+  //
+  // ARCHIVE-AFTER-UPSERT ORDERING (bug fix): syncAllTierPrices only CREATES new
+  // Prices here — it never archives the ones they supersede. If we archived
+  // eagerly and the config upsert below then failed, the persisted config would
+  // still point at Prices we had just archived, breaking every checkout for
+  // that tier. Superseded ids are archived ONLY after the upsert succeeds.
+  let supersededPriceIds: string[] = []
   try {
     const priceIds = await syncAllTierPrices(parsed.data)
     parsed.data.tiers.pro.stripePriceIdMonth = priceIds.pro.month
     parsed.data.tiers.pro.stripePriceIdYear = priceIds.pro.year
     parsed.data.tiers.business.stripePriceIdMonth = priceIds.business.month
     parsed.data.tiers.business.stripePriceIdYear = priceIds.business.year
+    supersededPriceIds = priceIds.supersededPriceIds ?? []
   } catch (err) {
     console.error('[saveBillingConfig] Stripe price sync failed — persisting config with existing ids:', err instanceof Error ? err.message : err)
   }
@@ -977,6 +986,20 @@ export async function saveBillingConfig(input: unknown): Promise<ActionResult> {
     { onConflict: 'provider' }
   )
   if (error) return { ok: false, message: error.message }
+
+  // Only now — config is durably persisted — best-effort archive the Prices
+  // the sync above superseded. Never blocks or fails the save.
+  if (supersededPriceIds.length > 0) {
+    try {
+      const stripe = await getStripeClient()
+      await archivePrices(stripe, supersededPriceIds)
+    } catch (err) {
+      console.error(
+        '[saveBillingConfig] failed to archive superseded Stripe Prices:',
+        err instanceof Error ? err.message : err
+      )
+    }
+  }
 
   invalidatePlatformConfig() // runtime apply, no deploy (flushes the billing TTL cache)
   invalidateStripeDisplayPricesCache() // fresh Stripe Price ids → re-resolve displayed prices

@@ -65,11 +65,28 @@ vi.mock('@/lib/platform-config', () => ({
 // v4.18: saveBillingConfig provisions Stripe Prices via syncAllTierPrices before
 // the upsert. Mock it to echo back the config's EXISTING ids (a no-op sync) so
 // the persisted metadata is unchanged and NO real Stripe client is constructed.
-vi.mock('@/lib/billing/stripe-subscription-prices', () => ({
-  syncAllTierPrices: vi.fn(async (cfg: { tiers: Record<string, { stripePriceIdMonth: string | null; stripePriceIdYear: string | null }> }) => ({
+// `supersededPriceIds` defaults to [] (nothing superseded) — individual tests
+// override this to exercise the archive-after-upsert ordering.
+const syncAllTierPricesMock = vi.fn(
+  async (cfg: {
+    tiers: Record<string, { stripePriceIdMonth: string | null; stripePriceIdYear: string | null }>
+  }) => ({
     pro: { month: cfg.tiers.pro.stripePriceIdMonth, year: cfg.tiers.pro.stripePriceIdYear },
     business: { month: cfg.tiers.business.stripePriceIdMonth, year: cfg.tiers.business.stripePriceIdYear },
-  })),
+    supersededPriceIds: [] as string[],
+  })
+)
+const archivePricesMock = vi.fn(async () => undefined)
+vi.mock('@/lib/billing/stripe-subscription-prices', () => ({
+  syncAllTierPrices: (...args: [unknown]) => syncAllTierPricesMock(...args),
+  archivePrices: (...args: [unknown, string[]]) => archivePricesMock(...args),
+}))
+
+// archivePrices needs a Stripe client — mock getStripeClient so the archive
+// step (when it runs) never constructs a real Stripe SDK instance.
+const getStripeClientMock = vi.fn(async () => ({ __fakeStripe: true }))
+vi.mock('@/lib/billing/stripe-client', () => ({
+  getStripeClient: () => getStripeClientMock(),
 }))
 
 vi.mock('@/lib/billing/stripe-display-prices', () => ({
@@ -102,6 +119,20 @@ beforeEach(() => {
   invalidatePlatformConfigMock.mockClear()
   logAdminActionMock.mockClear()
   lastUpsertPayload = null
+  syncAllTierPricesMock.mockClear()
+  syncAllTierPricesMock.mockImplementation(
+    async (cfg: {
+      tiers: Record<string, { stripePriceIdMonth: string | null; stripePriceIdYear: string | null }>
+    }) => ({
+      pro: { month: cfg.tiers.pro.stripePriceIdMonth, year: cfg.tiers.pro.stripePriceIdYear },
+      business: { month: cfg.tiers.business.stripePriceIdMonth, year: cfg.tiers.business.stripePriceIdYear },
+      supersededPriceIds: [] as string[],
+    })
+  )
+  archivePricesMock.mockClear()
+  archivePricesMock.mockResolvedValue(undefined)
+  getStripeClientMock.mockClear()
+  getStripeClientMock.mockResolvedValue({ __fakeStripe: true })
 })
 
 describe('saveBillingConfig — authz position (BILLCFG-03)', () => {
@@ -146,6 +177,70 @@ describe('saveBillingConfig — happy path upsert shape (BILLCFG-02)', () => {
     expect(logAdminActionMock).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'billing_config.save' })
     )
+  })
+})
+
+describe('saveBillingConfig — archive-after-upsert ordering (bug fix)', () => {
+  it('archives superseded Prices ONLY AFTER the config upsert succeeds', async () => {
+    const callOrder: string[] = []
+    upsertMock.mockImplementation(async () => {
+      callOrder.push('upsert')
+      return { error: null }
+    })
+    syncAllTierPricesMock.mockResolvedValueOnce({
+      pro: { month: 'price_pro_m_new', year: 'price_pro_y' },
+      business: { month: 'price_biz_m', year: 'price_biz_y' },
+      supersededPriceIds: ['price_pro_m_old'],
+    })
+    archivePricesMock.mockImplementation(async () => {
+      callOrder.push('archive')
+    })
+
+    const res = await saveBillingConfig(DEFAULT_BILLING_CONFIG)
+
+    expect(res.ok).toBe(true)
+    expect(archivePricesMock).toHaveBeenCalledTimes(1)
+    expect(archivePricesMock).toHaveBeenCalledWith(
+      expect.anything(),
+      ['price_pro_m_old']
+    )
+    expect(callOrder).toEqual(['upsert', 'archive'])
+  })
+
+  it('never archives superseded Prices when the config upsert fails', async () => {
+    upsertMock.mockResolvedValueOnce({ error: { message: 'db down' } })
+    syncAllTierPricesMock.mockResolvedValueOnce({
+      pro: { month: 'price_pro_m_new', year: 'price_pro_y' },
+      business: { month: 'price_biz_m', year: 'price_biz_y' },
+      supersededPriceIds: ['price_pro_m_old'],
+    })
+
+    const res = await saveBillingConfig(DEFAULT_BILLING_CONFIG)
+
+    expect(res.ok).toBe(false)
+    expect(archivePricesMock).not.toHaveBeenCalled()
+  })
+
+  it('does not call archivePrices/getStripeClient at all when nothing was superseded', async () => {
+    const res = await saveBillingConfig(DEFAULT_BILLING_CONFIG)
+
+    expect(res.ok).toBe(true)
+    expect(archivePricesMock).not.toHaveBeenCalled()
+    expect(getStripeClientMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed archive is best-effort and never fails the save', async () => {
+    syncAllTierPricesMock.mockResolvedValueOnce({
+      pro: { month: 'price_pro_m_new', year: 'price_pro_y' },
+      business: { month: 'price_biz_m', year: 'price_biz_y' },
+      supersededPriceIds: ['price_pro_m_old'],
+    })
+    getStripeClientMock.mockRejectedValueOnce(new Error('stripe unavailable'))
+
+    const res = await saveBillingConfig(DEFAULT_BILLING_CONFIG)
+
+    expect(res.ok).toBe(true)
+    expect(archivePricesMock).not.toHaveBeenCalled()
   })
 })
 

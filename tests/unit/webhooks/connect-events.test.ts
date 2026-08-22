@@ -59,6 +59,11 @@ const invoiceUpdateEq = vi.fn()
 const invoiceUpdateSelect = vi.fn()
 const invoiceUpdateSingle = vi.fn()
 
+// invoices.select().eq().maybeSingle() — charge.refunded's invoice-lookup path
+const invoiceSelect = vi.fn()
+const invoiceSelectEq = vi.fn()
+const invoiceSelectMaybeSingle = vi.fn()
+
 // companies.select().eq().single()  +  companies.update().eq()
 const companySelect = vi.fn()
 const companySelectEq = vi.fn()
@@ -88,6 +93,9 @@ function resetSupabaseMocks() {
   invoiceUpdateEq.mockReset()
   invoiceUpdateSelect.mockReset()
   invoiceUpdateSingle.mockReset()
+  invoiceSelect.mockReset()
+  invoiceSelectEq.mockReset()
+  invoiceSelectMaybeSingle.mockReset()
   companySelect.mockReset()
   companySelectEq.mockReset()
   companySelectSingle.mockReset()
@@ -119,6 +127,19 @@ function resetSupabaseMocks() {
       amount_cents: 30000,
       currency_code: 'usd',
       project_name: 'Bathroom remodel',
+    },
+    error: null,
+  })
+
+  // invoices.select().eq().maybeSingle() — charge.refunded's invoice-lookup path
+  invoiceSelect.mockReturnValue({ eq: invoiceSelectEq })
+  invoiceSelectEq.mockReturnValue({ maybeSingle: invoiceSelectMaybeSingle })
+  invoiceSelectMaybeSingle.mockResolvedValue({
+    data: {
+      id: 'inv_row_fixture_1',
+      company_id: 'co_fixture_1',
+      project_name: 'Bathroom remodel',
+      currency_code: 'usd',
     },
     error: null,
   })
@@ -178,7 +199,7 @@ vi.mock('@/lib/supabase/service', () => ({
         return { insert: dedupInsert }
       }
       if (table === 'invoices') {
-        return { update: invoiceUpdate }
+        return { update: invoiceUpdate, select: invoiceSelect }
       }
       if (table === 'companies') {
         return { select: companySelect, update: companyUpdate }
@@ -364,6 +385,167 @@ describe('stripe connect webhook — account.application.deauthorized (unchanged
     // No payment-related side effects
     expect(invoiceUpdate).not.toHaveBeenCalled()
     expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripe connect webhook — invoice.voided / invoice.marked_uncollectible', () => {
+  it('marks the invoices row void on invoice.voided', async () => {
+    const event = makeConnectInvoiceEvent('invoice.voided')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    const payload = invoiceUpdate.mock.calls[0][0]
+    expect(payload).toMatchObject({ status: 'void' })
+    expect(typeof payload.updated_at).toBe('string')
+    expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+
+    // No emails/notifications for this terminal status.
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('marks the invoices row uncollectible on invoice.marked_uncollectible', async () => {
+    const event = makeConnectInvoiceEvent('invoice.marked_uncollectible')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    const payload = invoiceUpdate.mock.calls[0][0]
+    expect(payload).toMatchObject({ status: 'uncollectible' })
+    expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('treats invoice.voided missing metadata.invoice_id as a safe no-op', async () => {
+    const event = makeConnectInvoiceEvent('invoice.voided', { metadata: {} })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripe connect webhook — invoice.payment_failed', () => {
+  it('leaves invoices.status open (no status key in the update) and logs a warn', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const event = makeConnectInvoiceEvent('invoice.payment_failed')
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    const payload = invoiceUpdate.mock.calls[0][0]
+    expect(payload).not.toHaveProperty('status')
+    expect(typeof payload.updated_at).toBe('string')
+    expect(invoiceUpdateEq).toHaveBeenCalledWith('id', 'inv_row_fixture_1')
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('invoice.payment_failed'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    )
+
+    // No EventType fits this event — log-only, no notification/email.
+    expect(notify).not.toHaveBeenCalled()
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+    expect(sendPaymentReceiptEmail).not.toHaveBeenCalled()
+
+    warnSpy.mockRestore()
+  })
+
+  it('treats invoice.payment_failed missing metadata.invoice_id as a safe no-op', async () => {
+    const event = makeConnectInvoiceEvent('invoice.payment_failed', { metadata: {} })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(invoiceUpdate).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripe connect webhook — charge.refunded resolving via charge.invoice', () => {
+  // Minimal connected-account event wrapping a refunded Charge that carries
+  // charge.invoice (the Phase 94+ path) instead of the legacy payment_intent
+  // → estimates.stripe_payment_intent_id lookup.
+  function makeConnectChargeRefundedEvent(
+    overrides: Record<string, unknown> = {}
+  ) {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      object: 'event',
+      type: 'charge.refunded',
+      account: 'acct_test_123',
+      api_version: '2026-04-22.dahlia',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'ch_test_connect_123',
+          object: 'charge',
+          amount_refunded: 30000,
+          refunded: true,
+          invoice: 'in_test_connect_123',
+          payment_intent: null,
+          ...overrides,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 0,
+      request: { id: null, idempotency_key: null },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any
+  }
+
+  it('resolves the company + invoice row via charge.invoice and fires payment.refunded', async () => {
+    const event = makeConnectChargeRefundedEvent()
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    // Looked up by stripe_invoice_id, not the legacy estimates path.
+    expect(invoiceSelectEq).toHaveBeenCalledWith(
+      'stripe_invoice_id',
+      'in_test_connect_123'
+    )
+    expect(estimateSelect).not.toHaveBeenCalled()
+
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify.mock.calls[0][0]).toMatchObject({
+      companyId: 'co_fixture_1',
+      eventType: 'payment.refunded',
+      resourceType: 'invoice',
+      resourceId: 'inv_row_fixture_1',
+    })
+  })
+
+  it('gracefully no-ops (200, no notify) when charge.invoice does not resolve to a known invoices row', async () => {
+    // No row matches this stripe_invoice_id — company resolution (which also
+    // goes through the invoice lookup) comes back empty, so the route
+    // acknowledges the event without reaching the notification handler.
+    invoiceSelectMaybeSingle.mockResolvedValue({ data: null, error: null })
+
+    const event = makeConnectChargeRefundedEvent()
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
     expect(notify).not.toHaveBeenCalled()
   })
 })

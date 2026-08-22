@@ -13,9 +13,19 @@ import type { BillingConfigInput } from '@/lib/schemas/admin'
  * lib/billing/stripe-client.ts: ONE metadata-tagged Product per tier, found and
  * reused across saves; the Price carries the config-driven unit_amount.
  *
- * BEHAVIOR NOTE: changing a tier's price creates a NEW Stripe Price and archives
- * the old one — existing subscribers keep the price they signed up on until they
- * switch plans (standard Stripe behavior). Only NEW checkouts use the new price.
+ * BEHAVIOR NOTE: changing a tier's price creates a NEW Stripe Price; the old
+ * Price is NOT archived here — existing subscribers keep the price they signed
+ * up on until they switch plans (standard Stripe behavior). Only NEW checkouts
+ * use the new price.
+ *
+ * ARCHIVE ORDERING (fix for a pre-existing bug): archiving the superseded
+ * Price used to happen inline inside `syncTierPrice`, BEFORE the caller's
+ * config upsert. If that upsert then failed, the persisted config still
+ * pointed at a Price we had just archived — every subsequent checkout for
+ * that tier broke. `syncTierPrice` now only returns the superseded id
+ * (`supersededPriceId`) and never mutates it; callers (`saveBillingConfig`)
+ * must archive via `archivePrices` ONLY AFTER their own persistence step
+ * succeeds.
  */
 
 type Interval = 'month' | 'year'
@@ -47,14 +57,24 @@ export async function ensureTierProduct(stripe: Stripe, tier: PricedTier): Promi
   return created.id
 }
 
+export interface SyncTierPriceResult {
+  priceId: string | null
+  /** Set when this call created a NEW Price and superseded an old one — the
+   *  old id is returned (never archived here) so the caller can archive it
+   *  once its own persistence step has succeeded. */
+  supersededPriceId: string | null
+}
+
 /**
  * Reconcile ONE tier/interval Price to the config dollar amount.
- *   - amountCents <= 0 → null (free tier / unpriced): nothing to charge.
+ *   - amountCents <= 0 → { priceId: null, supersededPriceId: null } (free
+ *     tier / unpriced): nothing to charge, nothing touched.
  *   - currentPriceId present and still matches (same unit_amount, active, same
  *     recurring interval) → returned unchanged (idempotent — no new Price when
  *     nothing changed, so a no-op save never churns Stripe Prices).
- *   - otherwise → create a new recurring Price and best-effort archive the old
- *     one (a failed archive never throws — the new id is still returned).
+ *   - otherwise → create a new recurring Price and return the OLD id as
+ *     `supersededPriceId`. Does NOT archive it — see the ARCHIVE ORDERING note
+ *     above; callers must call `archivePrices` after their own save succeeds.
  */
 export async function syncTierPrice(
   stripe: Stripe,
@@ -62,8 +82,8 @@ export async function syncTierPrice(
   interval: Interval,
   amountCents: number,
   currentPriceId: string | null
-): Promise<string | null> {
-  if (amountCents <= 0) return null
+): Promise<SyncTierPriceResult> {
+  if (amountCents <= 0) return { priceId: null, supersededPriceId: null }
 
   if (currentPriceId) {
     try {
@@ -73,7 +93,7 @@ export async function syncTierPrice(
         existing.unit_amount === amountCents &&
         existing.recurring?.interval === interval
       ) {
-        return currentPriceId
+        return { priceId: currentPriceId, supersededPriceId: null }
       }
     } catch {
       // Stored id no longer resolves at Stripe — fall through and create a fresh Price.
@@ -89,20 +109,46 @@ export async function syncTierPrice(
     metadata: { kind: `subscription_${tier}`, term: interval },
   })
 
-  if (currentPriceId && currentPriceId !== created.id) {
-    try {
-      await stripe.prices.update(currentPriceId, { active: false })
-    } catch {
-      // Never throw for a bad archive — the new Price is live regardless.
-    }
-  }
+  const supersededPriceId =
+    currentPriceId && currentPriceId !== created.id ? currentPriceId : null
 
-  return created.id
+  return { priceId: created.id, supersededPriceId }
+}
+
+/**
+ * Best-effort archive of superseded Stripe Prices. Callers MUST invoke this
+ * only AFTER their own persistence step (e.g. the billing_config upsert) has
+ * succeeded — see the ARCHIVE ORDERING note above. Never throws: a Price that
+ * fails to archive is logged and skipped, it never blocks or fails the caller.
+ */
+export async function archivePrices(
+  stripe: Stripe,
+  priceIds: string[]
+): Promise<void> {
+  await Promise.all(
+    priceIds.map(async (id) => {
+      try {
+        await stripe.prices.update(id, { active: false })
+      } catch (err) {
+        console.warn(
+          `[stripe-subscription-prices] failed to archive superseded Price ${id}:`,
+          err instanceof Error ? err.message : err
+        )
+      }
+    })
+  )
 }
 
 export type TierPriceIdMap = {
   pro: { month: string | null; year: string | null }
   business: { month: string | null; year: string | null }
+}
+
+export type SyncAllTierPricesResult = TierPriceIdMap & {
+  /** Old Price ids superseded by a new Price this sync created — not yet
+   *  archived. Callers archive them via `archivePrices` after persisting the
+   *  new ids (see the ARCHIVE ORDERING note above). */
+  supersededPriceIds: string[]
 }
 
 /**
@@ -112,7 +158,9 @@ export type TierPriceIdMap = {
  * EXISTING ids are returned unchanged and a warning is logged — saving the
  * config must NEVER fail because Stripe is unconfigured.
  */
-export async function syncAllTierPrices(cfg: BillingConfigInput): Promise<TierPriceIdMap> {
+export async function syncAllTierPrices(
+  cfg: BillingConfigInput
+): Promise<SyncAllTierPricesResult> {
   const existing: TierPriceIdMap = {
     pro: {
       month: cfg.tiers.pro.stripePriceIdMonth,
@@ -132,7 +180,7 @@ export async function syncAllTierPrices(cfg: BillingConfigInput): Promise<TierPr
       '[stripe-subscription-prices] Stripe unconfigured — keeping existing price ids:',
       err instanceof Error ? err.message : err
     )
-    return existing
+    return { ...existing, supersededPriceIds: [] }
   }
 
   const tiers: PricedTier[] = ['pro', 'business']
@@ -140,21 +188,27 @@ export async function syncAllTierPrices(cfg: BillingConfigInput): Promise<TierPr
     pro: { month: null, year: null },
     business: { month: null, year: null },
   }
+  const supersededPriceIds: string[] = []
   for (const tier of tiers) {
-    result[tier].month = await syncTierPrice(
+    const month = await syncTierPrice(
       stripe,
       tier,
       'month',
       cfg.tiers[tier].subscriptionPriceCents,
       existing[tier].month
     )
-    result[tier].year = await syncTierPrice(
+    result[tier].month = month.priceId
+    if (month.supersededPriceId) supersededPriceIds.push(month.supersededPriceId)
+
+    const year = await syncTierPrice(
       stripe,
       tier,
       'year',
       cfg.tiers[tier].subscriptionPriceAnnualCents,
       existing[tier].year
     )
+    result[tier].year = year.priceId
+    if (year.supersededPriceId) supersededPriceIds.push(year.supersededPriceId)
   }
-  return result
+  return { ...result, supersededPriceIds }
 }

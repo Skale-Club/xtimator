@@ -21,7 +21,14 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
  *   - checkout.session.completed → mark estimate paid + fire 2 emails (legacy)
  *   - invoice.paid → mark invoices row paid by metadata.invoice_id + fire 2
  *     emails + payment.received notification (Phase 94, INVOICE-05)
- *   - charge.refunded → payment.refunded notification (best effort)
+ *   - invoice.voided / invoice.marked_uncollectible → mark invoices row
+ *     void/uncollectible by metadata.invoice_id (best effort)
+ *   - invoice.payment_failed → leave invoices.status open, touch updated_at
+ *     and log a warn (no EventType in the notification catalog fits this
+ *     event, so no tenant notification is sent)
+ *   - charge.refunded → payment.refunded notification (best effort);
+ *     resolves via charge.invoice → invoices.stripe_invoice_id, falling
+ *     back to the legacy estimates.stripe_payment_intent_id path
  *   - account.application.deauthorized → clear company connection
  *   - account.updated → sync display name / email (best effort)
  *   - other types → silently ignored
@@ -66,6 +73,7 @@ export async function resolveConnectEventCompanyId(
   const object = event.data.object as {
     metadata?: Record<string, string> | null
     payment_intent?: string | Stripe.PaymentIntent | null
+    invoice?: string | Stripe.Invoice | null
   }
   const metadataCompanyId =
     object.metadata?.company_id ?? object.metadata?.companyId
@@ -83,7 +91,13 @@ export async function resolveConnectEventCompanyId(
     )
   }
 
-  if (event.type === 'invoice.paid' && object.metadata?.invoice_id) {
+  if (
+    (event.type === 'invoice.paid' ||
+      event.type === 'invoice.voided' ||
+      event.type === 'invoice.marked_uncollectible' ||
+      event.type === 'invoice.payment_failed') &&
+    object.metadata?.invoice_id
+  ) {
     return readReferencedCompanyId(
       svc,
       'invoices',
@@ -93,6 +107,19 @@ export async function resolveConnectEventCompanyId(
   }
 
   if (event.type === 'charge.refunded') {
+    const invoiceId =
+      typeof object.invoice === 'string' ? object.invoice : object.invoice?.id
+    if (invoiceId) {
+      const companyId = await readReferencedCompanyId(
+        svc,
+        'invoices',
+        'stripe_invoice_id',
+        invoiceId,
+      )
+      if (companyId) return companyId
+    }
+
+    // Legacy pre-Phase-94 path — see handleChargeRefunded below.
     const paymentIntent =
       typeof object.payment_intent === 'string'
         ? object.payment_intent
@@ -129,6 +156,9 @@ export function connectEventRequiresCompanyResolution(
   return [
     'checkout.session.completed',
     'invoice.paid',
+    'invoice.voided',
+    'invoice.marked_uncollectible',
+    'invoice.payment_failed',
     'charge.refunded',
     'account.application.deauthorized',
     'account.updated',
@@ -175,6 +205,18 @@ export async function handleConnectEvent(
       // (subscription renewals) is handled in handlePlatformEvent — that path
       // never reaches here because it carries no event.account.
       await handleInvoicePaid(event, svc)
+      return
+
+    case 'invoice.voided':
+      await handleInvoiceStatusChange(event, svc, 'void')
+      return
+
+    case 'invoice.marked_uncollectible':
+      await handleInvoiceStatusChange(event, svc, 'uncollectible')
+      return
+
+    case 'invoice.payment_failed':
+      await handleInvoicePaymentFailed(event, svc)
       return
 
     default:
@@ -491,15 +533,114 @@ async function handleInvoicePaid(
 }
 
 // ------------------------------------------------------------------
+// invoice.voided / invoice.marked_uncollectible — mirrors handleInvoicePaid's
+// row resolution by metadata.invoice_id. No emails/notifications for these
+// terminal statuses (unlike invoice.paid) — best-effort, never throws.
+// ------------------------------------------------------------------
+async function handleInvoiceStatusChange(
+  event: Stripe.Event,
+  svc: ServiceClient,
+  status: 'void' | 'uncollectible'
+): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice
+  const invoiceRowId = invoice.metadata?.invoice_id
+  if (!invoiceRowId) {
+    console.warn(
+      `[stripe-webhook][connect] ${event.type} missing metadata.invoice_id`
+    )
+    return
+  }
+
+  const { error } = await svc
+    .from('invoices')
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', invoiceRowId)
+
+  if (error) {
+    console.error(
+      `[stripe-webhook][connect] failed to mark invoice ${status}:`,
+      error,
+      'invoiceRowId=',
+      invoiceRowId
+    )
+  }
+}
+
+// ------------------------------------------------------------------
+// invoice.payment_failed — a payment attempt on the connected-account
+// invoice failed. We deliberately leave invoices.status at 'open' (Stripe
+// itself drives the eventual open → void/uncollectible transition via the
+// sibling events above) but surface the failure via a warn log. No EventType
+// in the notification catalog (lib/notifications/event-types.ts) fits a
+// payment-failure on a tenant's customer invoice, so this is log-only —
+// best-effort, never throws.
+// ------------------------------------------------------------------
+async function handleInvoicePaymentFailed(
+  event: Stripe.Event,
+  svc: ServiceClient
+): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice
+  const invoiceRowId = invoice.metadata?.invoice_id
+  if (!invoiceRowId) {
+    console.warn(
+      '[stripe-webhook][connect] invoice.payment_failed missing metadata.invoice_id'
+    )
+    return
+  }
+
+  console.warn(
+    '[stripe-webhook][connect] invoice.payment_failed — leaving invoices.status open:',
+    'invoiceRowId=',
+    invoiceRowId,
+    'stripeInvoiceId=',
+    invoice.id
+  )
+
+  const { error } = await svc
+    .from('invoices')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', invoiceRowId)
+
+  if (error) {
+    console.error(
+      '[stripe-webhook][connect] invoice.payment_failed updated_at touch failed:',
+      error,
+      'invoiceRowId=',
+      invoiceRowId
+    )
+  }
+}
+
+// ------------------------------------------------------------------
 // charge.refunded — Phase 77 NOTIF-04 payment.refunded notification.
-// We do NOT mutate estimates.payment_status here (refund handling beyond
-// notification is out of scope for v1). Best-effort — failure is ignored.
+// We do NOT mutate invoices/estimates status here (refund handling beyond
+// notification is out of scope for v1 — Stripe itself keeps a refunded
+// invoice `paid`). Best-effort — failure is ignored.
 // ------------------------------------------------------------------
 async function handleChargeRefunded(
   event: Stripe.Event,
   svc: ServiceClient
 ): Promise<void> {
-  const charge = event.data.object as Stripe.Charge
+  // Stripe's TS types dropped Charge.invoice in favor of Invoice.payments, but
+  // the webhook payload can still carry it (older/pinned API versions) — cast
+  // through an intersection rather than losing Stripe.Charge's other fields.
+  const charge = event.data.object as Stripe.Charge & {
+    invoice?: string | Stripe.Invoice | null
+  }
+  const invoiceId =
+    typeof charge.invoice === 'string' ? charge.invoice : (charge.invoice?.id ?? null)
+
+  if (invoiceId) {
+    await handleChargeRefundedViaInvoice(event, svc, charge, invoiceId)
+    return
+  }
+
+  // Legacy pre-Phase-94 path — refunds against Checkout sessions created by
+  // the removed legacy pay-route, which wrote stripe_payment_intent_id
+  // directly onto `estimates` (no `invoices` row, no charge.invoice link).
   const piId = (charge.payment_intent as string | null) ?? null
   if (!piId) return
 
@@ -548,6 +689,70 @@ async function handleChargeRefunded(
       linkUrl: `/projects/${est.project_id}/estimates/${est.id}`,
       resourceType: 'estimate',
       resourceId: est.id,
+      channels: { inApp: true, email: true },
+      metadata: { dedupe_key: event.id },
+    })
+  } catch {
+    /* best-effort */
+  }
+}
+
+// ------------------------------------------------------------------
+// charge.refunded — Phase 94+ path. Resolves the `invoices` row via
+// charge.invoice → invoices.stripe_invoice_id and fires payment.refunded
+// using the invoice snapshot's project_name (no extra estimates/projects
+// lookup needed — the invoices row already carries that snapshot, mirroring
+// handleInvoicePaid). Best-effort — failure is ignored.
+// ------------------------------------------------------------------
+async function handleChargeRefundedViaInvoice(
+  event: Stripe.Event,
+  svc: ServiceClient,
+  charge: Stripe.Charge,
+  stripeInvoiceId: string
+): Promise<void> {
+  const { data: invoiceRow } = await svc
+    .from('invoices')
+    .select('id, company_id, project_name, currency_code')
+    .eq('stripe_invoice_id', stripeInvoiceId)
+    .maybeSingle()
+
+  const inv = invoiceRow as
+    | {
+        id: string
+        company_id: string
+        project_name: string | null
+        currency_code: string | null
+      }
+    | null
+  if (!inv) return
+
+  const { data: company } = await svc
+    .from('companies')
+    .select('user_id')
+    .eq('id', inv.company_id)
+    .single()
+
+  const refundedCents = charge.amount_refunded ?? 0
+  const amountUSD =
+    typeof refundedCents === 'number'
+      ? formatMinorUnits(refundedCents, inv.currency_code)
+      : undefined
+
+  try {
+    const ctx = {
+      amountUSD,
+      projectName: inv.project_name ?? undefined,
+    }
+    const copy = buildNotificationCopy('payment.refunded', ctx)
+    void notify({
+      companyId: inv.company_id,
+      userId: (company as { user_id?: string | null } | null)?.user_id ?? null,
+      eventType: 'payment.refunded',
+      title: copy.title,
+      body: copy.body,
+      copyContext: ctx,
+      resourceType: 'invoice',
+      resourceId: inv.id,
       channels: { inApp: true, email: true },
       metadata: { dedupe_key: event.id },
     })
