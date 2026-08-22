@@ -9,6 +9,7 @@ import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { computeGeminiCostUsd } from '@/lib/ai/pricing/gemini'
 import {
   PHOTO_PROMPT,
   PHOTO_EXTRACTION_PROMPT,
@@ -251,18 +252,20 @@ export async function analyzePhotoStructuredGemini(
   // COST ORDERING mirror (PEXT-05): record BEFORE validating, same rationale
   // as the OpenRouter structured path above — a genuine tool-call attempt (fc
   // present) still cost real money even if its args later fail the zod gate.
-  // Gemini's SDK returns no per-call USD figure (same as
-  // GeminiAdapter.generateEstimate below) — realCostUsd is NULL, never
-  // coerced to 0, but the row still COUNTS the attempt. A response with no
-  // function call at all (fc absent) is not recorded, mirroring the
-  // OpenRouter sibling's `argsJson !== undefined` gate.
+  // Gemini's SDK returns no per-call USD figure — we price it ourselves from
+  // response.usageMetadata's token counts via computeGeminiCostUsd (quick-
+  // 260821). That returns null (never coerced to 0) when usageMetadata is
+  // absent/malformed or the model is unpriced, but the row still COUNTS the
+  // attempt either way. A response with no function call at all (fc absent)
+  // is not recorded, mirroring the OpenRouter sibling's `argsJson !==
+  // undefined` gate.
   if (fc) {
     await recordAICost({
       attemptId: costContext?.attemptId ?? randomUUID(),
       operationType: 'vision',
       provider: 'gemini',
       model: 'gemini-2.5-flash',
-      realCostUsd: null,
+      realCostUsd: computeGeminiCostUsd('gemini-2.5-flash', response.usageMetadata),
       companyId: costContext?.companyId ?? null,
       projectId: costContext?.projectId ?? null,
     })
@@ -377,21 +380,28 @@ export class GeminiAdapter implements AIProvider {
     const args = fc.args as Record<string, unknown>
     const r = normalizeOutput(args)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
-    // Cost-recording observability: this adapter is the SILENT fallback. Record a
-    // gemini/null-cost row so a Gemini-served estimate is not invisible in
-    // ai_cost_events. Gemini's SDK returns no USD cost — record NULL, NEVER 0
-    // (null-vs-0 discipline): a null-cost row still COUNTS the event ("served by
-    // gemini, cost unknown") vs "no row at all". AWAIT (not void): mirrors
-    // openrouter.ts — inside an Inngest step a floating promise can be dropped
-    // when the invocation freezes. recordAICost is internally never-throw, so
-    // awaiting is safe and can never affect the estimate return. Correlation ids
-    // come ONLY from the trusted, non-LLM costContext (never from `args`).
+    // Cost-recording observability: this adapter is the SILENT fallback — it
+    // serves the bulk of prod traffic whenever OpenRouter is unavailable, so a
+    // missing/null cost here means credits never get debited (lib/billing/
+    // credit-ledger.ts:83 treats null realCostUsd as "no debit"). Gemini's SDK
+    // returns no USD cost directly, but DOES return token counts on
+    // response.usageMetadata — computeGeminiCostUsd (lib/ai/pricing/gemini.ts,
+    // quick-260821) prices those against Google's published rate card.
+    // realCostUsd is a NUMBER whenever usageMetadata is present and the model
+    // is priced; it falls back to NULL (never 0 — null-vs-0 discipline) only
+    // when usage is missing/malformed. A null-cost row still COUNTS the event
+    // ("served by gemini, cost unknown") vs "no row at all". AWAIT (not void):
+    // mirrors openrouter.ts — inside an Inngest step a floating promise can be
+    // dropped when the invocation freezes. recordAICost is internally
+    // never-throw, so awaiting is safe and can never affect the estimate
+    // return. Correlation ids come ONLY from the trusted, non-LLM costContext
+    // (never from `args`).
     await recordAICost({
       attemptId: input.costContext?.attemptId ?? randomUUID(),
       operationType: 'estimate',
       provider: 'gemini',
       model: 'gemini-2.5-flash',
-      realCostUsd: null,
+      realCostUsd: computeGeminiCostUsd('gemini-2.5-flash', response.usageMetadata),
       companyId: input.costContext?.companyId ?? null,
       projectId: input.costContext?.projectId ?? null,
     })
@@ -501,16 +511,20 @@ export class GeminiAdapter implements AIProvider {
     const args = fc.args as Record<string, unknown>
     const r = normalizeOutput(args)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
-    // RefineEstimateInput carries no costContext (generate is the correlated path);
-    // still record so the Gemini-served refine is counted, with null ids via randomUUID.
+    // Fix (refine credit attribution): RefineEstimateInput now carries the SAME
+    // costContext shape as EstimateInput — mirrors generateEstimate's recordAICost
+    // call above instead of always recording with null ids/a random attemptId.
+    // realCostUsd priced from response.usageMetadata via computeGeminiCostUsd —
+    // same rationale as generateEstimate above (null only when usage is
+    // missing/malformed, never guessed).
     await recordAICost({
-      attemptId: randomUUID(),
+      attemptId: input.costContext?.attemptId ?? randomUUID(),
       operationType: 'estimate',
       provider: 'gemini',
       model: 'gemini-2.5-flash',
-      realCostUsd: null,
-      companyId: null,
-      projectId: null,
+      realCostUsd: computeGeminiCostUsd('gemini-2.5-flash', response.usageMetadata),
+      companyId: input.costContext?.companyId ?? null,
+      projectId: input.costContext?.projectId ?? null,
     })
     return r.value
   }

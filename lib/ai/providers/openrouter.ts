@@ -172,9 +172,16 @@ export class OpenRouterAdapter implements AIProvider {
       input.retryHint
     )
 
-    // RefineEstimateInput carries no costContext (generate is the COST-01 primary
-    // path); the cost is still captured, correlated with null ids via randomUUID.
-    const raw = await this.callTool({ system, user, operationName: 'refine_estimate' })
+    // Fix (refine credit attribution): RefineEstimateInput now carries the SAME
+    // costContext shape as EstimateInput — threaded from the route via the graph
+    // state so this call's real cost is attributed to the requesting company's
+    // own attemptId instead of a random id + null companyId.
+    const raw = await this.callTool({
+      system,
+      user,
+      operationName: 'refine_estimate',
+      costContext: input.costContext,
+    })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
     return r.value

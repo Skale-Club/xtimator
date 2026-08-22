@@ -112,4 +112,18 @@ export type RefineEstimateInput = {
   industry?: string | null
   language?: 'en' | 'pt' | 'es'
   projectName?: string
+  /**
+   * Fix (refine credit attribution): non-LLM correlation context for cost
+   * capture, mirroring EstimateInput.costContext above. NEVER derived from
+   * model output — threaded from the refine route through the graph state →
+   * refine node → provider so the OpenRouter/Gemini adapter can attribute the
+   * captured real cost to the refine request's own attemptId/companyId instead
+   * of a random id + null companyId. Absent → cost is still recorded, just
+   * uncorrelated (pre-fix behavior).
+   */
+  costContext?: {
+    attemptId?: string | null
+    companyId?: string | null
+    projectId?: string | null
+  }
 }
