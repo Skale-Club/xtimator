@@ -36,10 +36,25 @@ export type TierMarginResult = {
   realCostOfGrantUsd: number
   /** realCostOfGrantUsd / subscriptionPriceUsd. Infinity for zero-price tiers. */
   ratio: number
-  /** true iff ratio ≤ max (always true for skipped/zero-price tiers). */
+  /**
+   * true iff BOTH the monthly ratio and the annual ratio are ≤ max (always
+   * true for a monthly/annual pair that is entirely zero-price/skipped). A
+   * tier can have ratio ≤ max yet still fail here if its annualRatio does not
+   * — see annualRatio/annualPass below.
+   */
   pass: boolean
-  /** true for zero-price tiers (free/trial) — excluded from the gate, still reported. */
+  /** true for zero-price tiers (free/trial) — excluded from the monthly gate, still reported. */
   skipped: boolean
+  /**
+   * 12 × realCostOfGrantUsd / (subscriptionPriceAnnualCents / 100) — the same
+   * full-monthly-grant real cost, annualized against the ANNUAL subscription
+   * price (SEED-038). Infinity for zero-annual-price tiers.
+   */
+  annualRatio: number
+  /** true iff annualRatio ≤ max (always true for annualSkipped tiers). */
+  annualPass: boolean
+  /** true when the annual price is 0 — excluded from the annual gate, still reported. */
+  annualSkipped: boolean
 }
 
 /**
@@ -47,12 +62,19 @@ export type TierMarginResult = {
  *
  * For each tier: realCostOfGrantUsd = (monthlyCreditGrant × creditUnitUsd) / markup
  * (the exact inverse of recordCreditDebit's `credits = round(realCost × markup /
- * creditUnitUsd)`), ratio = realCostOfGrantUsd / (subscriptionPriceCents / 100).
+ * creditUnitUsd)`), ratio = realCostOfGrantUsd / (subscriptionPriceCents / 100),
+ * annualRatio = 12 × realCostOfGrantUsd / (subscriptionPriceAnnualCents / 100) —
+ * the SAME full-monthly-grant real cost measured against a full year of the
+ * annual price, since the grant recurs every month regardless of which price
+ * the subscriber pays.
  *
  * Zero-price tiers (free/trial) have no subscription revenue to measure a margin
- * against, so they are SKIPPED (skipped:true, pass:true) — their burn is still
- * reported via realCostOfGrantUsd. The overall `pass` is the AND over PRICED
- * tiers only. A failing priced tier (ratio > max) makes overall pass false.
+ * against, so the monthly leg is SKIPPED (skipped:true, pass:true) and the
+ * annual leg independently SKIPPED (annualSkipped:true, annualPass:true) when
+ * its own price is 0 — their burn is still reported via realCostOfGrantUsd. A
+ * tier's own `pass` requires BOTH legs to pass (or be skipped); the overall
+ * `pass` is the AND over every tier's `pass`. A failing monthly OR annual ratio
+ * on a priced tier makes both that tier's pass and the overall pass false.
  */
 export function validateMarginInvariant(
   cfg: Pick<BillingConfig, 'markup' | 'creditUnitUsd' | 'tiers'>,
@@ -64,12 +86,29 @@ export function validateMarginInvariant(
   for (const name of tierNames) {
     const t = cfg.tiers[name]
     const realCostOfGrantUsd = (t.monthlyCreditGrant * cfg.creditUnitUsd) / cfg.markup
+
     const priceUsd = t.subscriptionPriceCents / 100
     const skipped = priceUsd <= 0
     const ratio = skipped ? Infinity : realCostOfGrantUsd / priceUsd
-    const pass = skipped ? true : ratio <= max
-    if (!skipped && !pass) overall = false
-    tiers[name] = { realCostOfGrantUsd, ratio, pass, skipped }
+    const monthlyOk = skipped || ratio <= max
+
+    const annualPriceUsd = (t.subscriptionPriceAnnualCents ?? 0) / 100
+    const annualSkipped = annualPriceUsd <= 0
+    const annualRatio = annualSkipped ? Infinity : (12 * realCostOfGrantUsd) / annualPriceUsd
+    const annualOk = annualSkipped || annualRatio <= max
+
+    const pass = monthlyOk && annualOk
+    if (!pass) overall = false
+
+    tiers[name] = {
+      realCostOfGrantUsd,
+      ratio,
+      pass,
+      skipped,
+      annualRatio,
+      annualPass: annualOk,
+      annualSkipped,
+    }
   }
   return { pass: overall, tiers }
 }

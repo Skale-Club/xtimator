@@ -19,10 +19,14 @@ const ALL_VARS = [
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
+  'APP_ORIGIN',
+  'NEXT_PUBLIC_SITE_URL',
   'OPENROUTER_API_KEY',
   'INNGEST_SIGNING_KEY',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
+  'STRIPE_WEBHOOK_SECRET',
+  'APP_ENCRYPTION_KEY',
 ]
 
 function fullyConfiguredEnv(): Record<string, string> {
@@ -92,6 +96,51 @@ describe('validateProductionEnv', () => {
 
     const { validateProductionEnv } = await import('@/lib/observability/env-check')
     expect(() => validateProductionEnv()).not.toThrow()
+  })
+
+  it('throws in production when NEITHER APP_ORIGIN nor NEXT_PUBLIC_SITE_URL is set', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.APP_ORIGIN
+    delete process.env.NEXT_PUBLIC_SITE_URL
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).toThrow()
+  })
+
+  it('does NOT throw when only NEXT_PUBLIC_SITE_URL (not APP_ORIGIN) is set — group check passes', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.APP_ORIGIN
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).not.toThrow()
+  })
+
+  it('warns via console.error but does NOT throw when STRIPE_WEBHOOK_SECRET is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.STRIPE_WEBHOOK_SECRET
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).not.toThrow()
+    expect(errorSpy).toHaveBeenCalledOnce()
+    expect(errorSpy.mock.calls[0][0]).toMatch(/STRIPE_WEBHOOK_SECRET/)
+    errorSpy.mockRestore()
+  })
+
+  it('warns via console.error but does NOT throw when APP_ENCRYPTION_KEY is missing', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.APP_ENCRYPTION_KEY
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).not.toThrow()
+    expect(errorSpy).toHaveBeenCalledOnce()
+    expect(errorSpy.mock.calls[0][0]).toMatch(/APP_ENCRYPTION_KEY/)
+    errorSpy.mockRestore()
   })
 
   it('warns via console.error but does NOT throw when an IMPORTANT var (e.g. UPSTASH_*) is missing', async () => {

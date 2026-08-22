@@ -7,6 +7,7 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
               items: [{ id: item.id, price: priceId, quantity: 1 }],
             },
           },
-          return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?upgraded=1`,
+          return_url: `${getCanonicalBaseUrl()}/settings/billing?upgraded=1`,
         })
         return NextResponse.json({ url: portal.url })
       } catch {
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
         try {
           const portal = await stripe.billingPortal.sessions.create({
             customer: company.stripe_customer_id as string,
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing`,
+            return_url: `${getCanonicalBaseUrl()}/settings/billing`,
           })
           return NextResponse.json({ url: portal.url })
         } catch (err) {
@@ -148,8 +149,8 @@ export async function POST(request: NextRequest) {
     // Always a persisted Stripe Customer — never an orphan created ad hoc by
     // Checkout (TOPUP/CREDITUI parity fix; see lib/billing/stripe-customer.ts).
     customer: await ensureStripeCustomer(stripe, company.id as string),
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?success=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?cancelled=1`,
+    success_url: `${getCanonicalBaseUrl()}/settings/billing?success=1`,
+    cancel_url: `${getCanonicalBaseUrl()}/settings/billing?cancelled=1`,
     // Store plan + companyId + billing_interval in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)
     metadata: { companyId: company.id, plan, billing_interval: billingInterval },
     subscription_data: {

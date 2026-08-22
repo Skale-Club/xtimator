@@ -137,8 +137,26 @@ describe('charge-on gate — REJECT a failing enforcementEnabled flip (CALIB-02 
     expect(lastUpsertPayload).toBeNull()
   })
 
-  it('accepts the margin-safe DEFAULTS with enforcementEnabled:true (Billing v2 ships ON)', async () => {
+  it('rejects the illustrative DEFAULTS by the annual leg (the shipped annual price is still an uncalibrated placeholder — see lib/billing/calibration.ts)', async () => {
     const res = await saveBillingConfig({ ...DEFAULT_BILLING_CONFIG, enforcementEnabled: true })
+    expect(res.ok).toBe(false)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a config whose ANNUAL price also passes the margin invariant with enforcementEnabled:true', async () => {
+    // Same grants as PASSING_ON below (monthly leg passes at the default
+    // prices) — this proves the annual leg passes too under the default
+    // annual prices ($290/$990) once the grant is calibrated down.
+    const marginSafeBothLegs = {
+      ...DEFAULT_BILLING_CONFIG,
+      enforcementEnabled: true,
+      tiers: {
+        ...DEFAULT_BILLING_CONFIG.tiers,
+        pro: { ...DEFAULT_BILLING_CONFIG.tiers.pro, monthlyCreditGrant: 1000 },
+        business: { ...DEFAULT_BILLING_CONFIG.tiers.business, monthlyCreditGrant: 3000 },
+      },
+    }
+    const res = await saveBillingConfig(marginSafeBothLegs)
     expect(res.ok).toBe(true)
     expect(upsertMock).toHaveBeenCalledTimes(1)
   })

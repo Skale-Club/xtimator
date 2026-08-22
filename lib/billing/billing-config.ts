@@ -110,10 +110,15 @@ export type BillingConfig = {
    */
   signupCreditGrant: number
   /**
-   * Master charging switch (CREDIT-05). Billing v2 flips the default to TRUE:
-   * the free-tier wall REQUIRES enforcement (zero balance → block + upgrade
-   * wall). Grant sizes/markup remain calibration knobs in this config; flipping
-   * this off via the admin panel instantly reverts to record-only.
+   * Master charging switch (CREDIT-05). Defaults to FALSE (record-only):
+   * production has no `billing_config` row until an admin saves one, so this
+   * default is what every unconfigured deployment runs on. It may only be
+   * flipped to TRUE through the gated admin save (`saveBillingConfig`), whose
+   * CALIB-02 charge-on gate runs {@link validateMarginInvariant} against the
+   * incoming config first and REJECTS the save if the real cost of any priced
+   * tier's full monthly grant exceeds 30% of its price (monthly AND annual).
+   * That gate is the only legitimate path to `true` in production — never
+   * flip this constant directly without also passing the invariant.
    */
   enforcementEnabled: boolean
   /**
@@ -153,10 +158,14 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
   // for paid tiers so the later-derived annual discount is visible, 0 for free/trial) —
   // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
-  // Billing v2: paid grants sized to SATISFY the CALIB-02 margin invariant at
-  // the default markup (grant real cost ≤ 30% of price) since enforcement now
-  // defaults ON — pro 3500 ≈ 27% of $29, business 12000 ≈ 27% of $99. Still
-  // CALIBRATION PLACEHOLDERS: tune price/grant/markup together in the panel.
+  // Grant sizes are ILLUSTRATIVE — pro 3500 ≈ 27% of the $29 monthly price,
+  // business 12000 ≈ 27% of the $99 monthly price, but BOTH fail the CALIB-02
+  // margin invariant against the placeholder ANNUAL prices (≈32% > the 30%
+  // max — see lib/billing/calibration.ts). enforcementEnabled defaults FALSE
+  // (below) precisely because these numbers are not yet calibrated to charge
+  // on. CALIBRATE BEFORE CHARGING: tune price/grant/markup together in the
+  // admin panel — the charge-on gate will refuse to flip enforcement on until
+  // the numbers you enter actually pass.
   tiers: {
     free: {
       monthlyCreditGrant: 0,
@@ -252,8 +261,11 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // Billing v2: free-tier one-time allowance. CALIBRATE (sized ≈ a handful of
   // estimates at the default markup); adjustable at runtime via the admin panel.
   signupCreditGrant: 2000,
-  // Billing v2: enforcement ON — the free wall depends on it (see type docs).
-  enforcementEnabled: true,
+  // Record-only until an admin explicitly calibrates + saves (see type docs).
+  // Production ships with NO billing_config row, so THIS default is what every
+  // unconfigured deployment enforces — false keeps the credit wall off placeholder
+  // numbers until the CALIB-02 gate has verified them.
+  enforcementEnabled: false,
   // Phase 153 (CREDITUI-07): auto-top-up kill switch defaults OFF, mirroring
   // enforcementEnabled's exact pattern — flip on only after the tenant-facing
   // settings UI (Plan 03) and the trigger core (this plan) are both verified.

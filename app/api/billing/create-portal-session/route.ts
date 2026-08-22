@@ -4,6 +4,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -53,7 +54,7 @@ export async function POST(_request: NextRequest) {
 
   const session = await stripe.billingPortal.sessions.create({
     customer: company.stripe_customer_id,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing`,
+    return_url: `${getCanonicalBaseUrl()}/settings/billing`,
   })
 
   return NextResponse.json({ url: session.url })

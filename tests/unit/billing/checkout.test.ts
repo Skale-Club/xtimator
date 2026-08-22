@@ -25,7 +25,11 @@ vi.mock('@/lib/billing/stripe-customer', () => ({ ensureStripeCustomer: vi.fn() 
 // Set required env vars
 vi.stubEnv('STRIPE_PRICE_PRO', 'price_pro_test')
 vi.stubEnv('STRIPE_PRICE_BUSINESS', 'price_biz_test')
-vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
+// NEXT_PUBLIC_APP_URL is intentionally left unstubbed here — the route now
+// builds redirect URLs via getCanonicalBaseUrl() (lib/utils/site-url.ts),
+// which falls through APP_ORIGIN / NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL
+// to the hardcoded https://xtimator.com production fallback when none are
+// set — exercised for real below (no mock needed).
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
@@ -106,6 +110,11 @@ describe('POST /api/billing/create-checkout-session', () => {
         metadata: expect.objectContaining({ companyId: 'company-1', plan: 'pro' }),
       })
     )
+    // The success_url passed to Stripe resolves via getCanonicalBaseUrl() —
+    // a real https origin pointing at the billing settings page (FIX-3).
+    const call = sessionCreate.mock.calls[0][0]
+    expect(call.success_url).toMatch(/^https:\/\//)
+    expect(call.success_url).toContain('/settings/billing')
     // Never touched the portal for a fresh subscriber.
     expect(mockStripe.billingPortal.sessions.create).not.toHaveBeenCalled()
   })

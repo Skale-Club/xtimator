@@ -6,6 +6,7 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -84,8 +85,8 @@ export async function POST(request: NextRequest) {
     // Always a persisted Stripe Customer — never an orphan created ad hoc by
     // Checkout (see lib/billing/stripe-customer.ts).
     customer: await ensureStripeCustomer(stripe, company.id as string),
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?topup=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings/billing?topup=cancelled`,
+    success_url: `${getCanonicalBaseUrl()}/settings/billing?topup=1`,
+    cancel_url: `${getCanonicalBaseUrl()}/settings/billing?topup=cancelled`,
     metadata: {
       type: 'credit_topup',
       companyId: company.id,

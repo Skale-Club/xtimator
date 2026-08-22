@@ -110,24 +110,27 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
 
 // =============================================================================
 // CREDIT-05 — enforcementEnabled master charging switch
-// Billing v2: default TRUE (the free-tier credit wall depends on it); a stored
-// admin row with false reverts the platform to record-only.
+// HIGH-1 fix: default FALSE (record-only). Production has NO billing_config
+// row until an admin explicitly saves one through the gated
+// saveBillingConfig action (whose CALIB-02 charge-on gate proves the margin
+// invariant first) — this default is what every unconfigured deployment
+// enforces, so it must never charge on uncalibrated placeholder numbers.
 // =============================================================================
-describe('CREDIT-05: enforcementEnabled (Billing v2 default ON)', () => {
-  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is true (the free wall requires it)', () => {
-    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(true)
+describe('CREDIT-05: enforcementEnabled (default OFF — gated admin save only)', () => {
+  it('DEFAULT_BILLING_CONFIG.enforcementEnabled is false (production with no row must never charge)', () => {
+    expect(DEFAULT_BILLING_CONFIG.enforcementEnabled).toBe(false)
   })
 
-  it('a stored row WITHOUT enforcementEnabled resolves to the default (true)', async () => {
+  it('a stored row WITHOUT enforcementEnabled resolves to the default (false)', async () => {
     serviceClientImpl = () => makeServiceClient({ metadata: { markup: 5 } })
     const cfg = await getBillingConfig()
-    expect(cfg.enforcementEnabled).toBe(true)
+    expect(cfg.enforcementEnabled).toBe(false)
   })
 
-  it('a stored row WITH enforcementEnabled: false overrides to record-only', async () => {
-    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: false } })
+  it('a stored row WITH enforcementEnabled: true overrides to charging-on', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { enforcementEnabled: true } })
     const cfg = await getBillingConfig()
-    expect(cfg.enforcementEnabled).toBe(false)
+    expect(cfg.enforcementEnabled).toBe(true)
   })
 
   it('DEFAULT_BILLING_CONFIG.signupCreditGrant is a positive one-time free allowance', () => {

@@ -24,6 +24,13 @@ const CRITICAL_VARS = ['NEXT_PUBLIC_SUPABASE_URL'] as const
 const CRITICAL_VAR_GROUPS = [
   ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
   ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'],
+  // getCanonicalBaseUrl()/resolveBaseUrl() (lib/utils/site-url.ts) resolve every
+  // Stripe redirect URL from APP_ORIGIN → NEXT_PUBLIC_SITE_URL → (legacy)
+  // NEXT_PUBLIC_APP_URL → the hardcoded xtimator.com fallback. Neither of the
+  // first two is declared in the Dockerfile today — missing BOTH silently
+  // degrades every checkout/portal/setup redirect to the hardcoded fallback
+  // domain rather than failing loudly, so it's checked here as a group.
+  ['APP_ORIGIN', 'NEXT_PUBLIC_SITE_URL'],
 ] as const
 
 const IMPORTANT_VARS = [
@@ -31,6 +38,13 @@ const IMPORTANT_VARS = [
   'INNGEST_SIGNING_KEY',
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
+  // Stripe webhook signature verification fails closed without this — every
+  // checkout.session.completed / invoice.paid event silently stops crediting.
+  'STRIPE_WEBHOOK_SECRET',
+  // lib/crypto/aes (BYOK keys, other encrypted platform_integrations rows)
+  // throws on every encrypt/decrypt call without this — degrades a specific
+  // feature set rather than the whole app, so IMPORTANT not CRITICAL.
+  'APP_ENCRYPTION_KEY',
 ] as const
 
 export function validateProductionEnv(): void {

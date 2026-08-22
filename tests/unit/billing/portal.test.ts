@@ -6,7 +6,10 @@ vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
 
-vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
+// NEXT_PUBLIC_APP_URL is intentionally left unstubbed — the route now builds
+// return_url via getCanonicalBaseUrl() (lib/utils/site-url.ts), which falls
+// through to the hardcoded https://xtimator.com fallback when no
+// APP_ORIGIN/NEXT_PUBLIC_SITE_URL/NEXT_PUBLIC_APP_URL is set.
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
@@ -76,6 +79,11 @@ describe('POST /api/billing/create-portal-session', () => {
     expect(mockStripe.billingPortal.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({ customer: 'cus_test123' })
     )
+    // return_url resolves via getCanonicalBaseUrl() — real https origin,
+    // billing settings page (FIX-3).
+    const call = mockStripe.billingPortal.sessions.create.mock.calls[0][0]
+    expect(call.return_url).toMatch(/^https:\/\//)
+    expect(call.return_url).toContain('/settings/billing')
   })
 
   it('returns 400 when company has no stripe_customer_id', async () => {

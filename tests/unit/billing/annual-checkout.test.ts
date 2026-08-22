@@ -74,7 +74,10 @@ vi.mock('@/lib/billing/stripe-customer', () => ({
 // Stub required monthly env vars (always present)
 vi.stubEnv('STRIPE_PRICE_PRO', 'price_test_pro')
 vi.stubEnv('STRIPE_PRICE_BUSINESS', 'price_test_business')
-vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.test')
+// NEXT_PUBLIC_APP_URL is intentionally left unstubbed — the route now builds
+// redirect URLs via getCanonicalBaseUrl() (lib/utils/site-url.ts), which
+// falls through to the hardcoded https://xtimator.com fallback when no
+// APP_ORIGIN/NEXT_PUBLIC_SITE_URL/NEXT_PUBLIC_APP_URL is set.
 
 const { createClient } = await import('@/lib/supabase/server')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
@@ -134,6 +137,10 @@ describe('annual billing interval', () => {
 
     const call = mockSessionsCreate.mock.calls[0][0]
     expect(call.line_items[0].price).toBe('price_test_pro_annual')
+    // success_url resolves via getCanonicalBaseUrl() — real https origin,
+    // billing settings page (FIX-3).
+    expect(call.success_url).toMatch(/^https:\/\//)
+    expect(call.success_url).toContain('/settings/billing')
   })
 
   it('billingInterval: year + plan: pro → billing_interval: year in metadata', async () => {

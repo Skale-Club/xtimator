@@ -96,33 +96,45 @@ describe('CALIB-02: MARGIN_INVARIANT_MAX', () => {
 })
 
 // =============================================================================
-// CALIB-02 — Billing v2: the shipped defaults SATISFY the invariant.
-// Enforcement now defaults ON, so the default grants are sized margin-safe
-// (grant real cost ≤ 30% of price) — otherwise the admin could never save the
-// defaults with charging enabled. Still calibration placeholders.
+// CALIB-02 — Billing v2: the shipped defaults pass the MONTHLY invariant but
+// FAIL the ANNUAL invariant — the annual prices are still uncalibrated
+// placeholders (SEED-038: ≈10× monthly, not derived from real cost). This is
+// exactly why enforcementEnabled now defaults FALSE (fix HIGH-1): the numbers
+// the file itself marks "CALIBRATE BEFORE CHARGING" would otherwise gate
+// nothing until an admin explicitly runs them through this validator via the
+// charge-on gate (saveBillingConfig).
 // =============================================================================
-describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — margin-safe defaults', () => {
-  it('overall pass is TRUE (defaults are internally consistent with enforcement ON)', () => {
+describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — monthly passes, annual fails', () => {
+  it('overall pass is FALSE (annual price is not yet calibrated for either priced tier)', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    expect(res.pass).toBe(true)
+    expect(res.pass).toBe(false)
   })
 
-  it('pro passes: realCost $7.7778, ratio 7.7778/29 ≈ 0.268 ≤ 0.30', () => {
+  it('pro: monthly ratio 7.7778/29 ≈ 0.268 PASSES, annual ratio 12×7.7778/290 ≈ 0.322 FAILS', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
     // 3500 × 0.01 / 4.5 = 7.7778
     expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(7.7778, 3)
     expect(res.tiers.pro.ratio).toBeCloseTo(0.2682, 3)
-    expect(res.tiers.pro.pass).toBe(true)
     expect(res.tiers.pro.skipped).toBe(false)
+    // 12 × 7.7778 / 290 = 0.3218
+    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.3218, 3)
+    expect(res.tiers.pro.annualSkipped).toBe(false)
+    expect(res.tiers.pro.annualPass).toBe(false)
+    // pass requires BOTH legs — the passing monthly leg does not save it.
+    expect(res.tiers.pro.pass).toBe(false)
   })
 
-  it('business passes: realCost $26.6667, ratio 26.6667/99 ≈ 0.269 ≤ 0.30', () => {
+  it('business: monthly ratio 26.6667/99 ≈ 0.269 PASSES, annual ratio 12×26.6667/990 ≈ 0.323 FAILS', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
     // 12000 × 0.01 / 4.5 = 26.6667
     expect(res.tiers.business.realCostOfGrantUsd).toBeCloseTo(26.6667, 3)
     expect(res.tiers.business.ratio).toBeCloseTo(0.2694, 3)
-    expect(res.tiers.business.pass).toBe(true)
     expect(res.tiers.business.skipped).toBe(false)
+    // 12 × 26.6667 / 990 = 0.3232
+    expect(res.tiers.business.annualRatio).toBeCloseTo(0.3232, 3)
+    expect(res.tiers.business.annualSkipped).toBe(false)
+    expect(res.tiers.business.annualPass).toBe(false)
+    expect(res.tiers.business.pass).toBe(false)
   })
 })
 
@@ -130,9 +142,10 @@ describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — margin-s
 // CALIB-02 — zero-price tiers are SKIPPED, never FAIL
 // =============================================================================
 describe('CALIB-02: zero-price tiers skipped', () => {
-  it('free is skipped:true (price 0 → no margin promise to gate)', () => {
+  it('free is skipped:true (price 0 → no margin promise to gate), annual leg also skipped', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
     expect(res.tiers.free.skipped).toBe(true)
+    expect(res.tiers.free.annualSkipped).toBe(true)
     // skipped tiers report a pass:true (excluded from the gate, not failed)
     expect(res.tiers.free.pass).toBe(true)
   })
@@ -193,8 +206,14 @@ describe('CALIB-02: validateMarginInvariant — passing fixture', () => {
     expect(res.pass).toBe(true)
     expect(res.tiers.pro.ratio).toBeCloseTo(0.0766, 3)
     expect(res.tiers.pro.pass).toBe(true)
+    // annual price untouched (default $290/$990) — grant lowered enough that
+    // even the annualized ratio (12× the monthly grant's real cost) passes.
+    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.092, 2)
+    expect(res.tiers.pro.annualPass).toBe(true)
     expect(res.tiers.business.ratio).toBeCloseTo(0.0673, 3)
     expect(res.tiers.business.pass).toBe(true)
+    expect(res.tiers.business.annualRatio).toBeCloseTo(0.0808, 3)
+    expect(res.tiers.business.annualPass).toBe(true)
   })
 })
 

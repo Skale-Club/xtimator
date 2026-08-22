@@ -87,6 +87,7 @@ vi.mock('@/lib/billing/connect-oauth', () => ({
 }))
 vi.mock('@/lib/utils/site-url', () => ({
   resolveBaseUrl: vi.fn(() => 'http://localhost:9633'),
+  getCanonicalBaseUrl: vi.fn(() => 'https://xtimator.com'),
 }))
 vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => ({ set: cookieSet })),
