@@ -87,6 +87,18 @@ export const makeRefineNode =
           // no price book = no injection (same as generate's empty-array path)
         }
 
+        // Fix (refine credit attribution): the SAME non-LLM costContext shape
+        // generate.ts's node builds from state — attemptId/companyId/projectId
+        // are trusted, never LLM-derived. Threading this through
+        // RefineEstimateInput.costContext lets the OpenRouter/Gemini adapter
+        // attribute the refine call's real cost to THIS request instead of a
+        // random attemptId + null companyId.
+        const costContext = {
+          attemptId: state.attemptId ?? null,
+          companyId: state.companyId,
+          projectId: state.projectId,
+        }
+
         const provider = await getAIProviderWithFallback(state.companyId)
         return provider.refineEstimate({
           existingEstimate: state.existingEstimate!,
@@ -95,6 +107,7 @@ export const makeRefineNode =
           currencyCode,
           industry,
           language,
+          costContext,
         })
       })
 

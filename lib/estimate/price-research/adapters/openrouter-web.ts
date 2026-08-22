@@ -21,12 +21,14 @@ import 'server-only'
  * Reuses getIntegrationKey('openrouter') — no new credential, no new dependency.
  * Channel-neutral (ENGINE-01): imports no channel package.
  */
+import { randomUUID } from 'node:crypto'
 import { getIntegrationKey, getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildResearchSearchPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
-import type { PriceResearchProvider, PriceResearchResult, Region } from '../provider'
+import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
 import { langfuseClient } from '@/lib/observability/langfuse'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 
 // Mirror lib/ai/providers/openrouter.ts — same base URL, same plain-fetch path.
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
@@ -69,7 +71,13 @@ type OpenRouterResearchResponse = {
     }
   }>
   error?: { message?: string }
-  usage?: { server_tool_use?: { web_search_requests?: number } }
+  usage?: {
+    server_tool_use?: { web_search_requests?: number }
+    // Fix (price-research cost attribution): real upstream USD cost, returned
+    // when the request carries `usage: { include: true }` — same shape as
+    // lib/ai/providers/openrouter.ts's chat-completion usage block.
+    cost?: number
+  }
 }
 
 /**
@@ -132,7 +140,12 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
   })
 
   return {
-    async lookup(items, region: Region, currency): Promise<PriceResearchResult[]> {
+    async lookup(
+      items,
+      region: Region,
+      currency,
+      costContext?: ResearchCostContext
+    ): Promise<PriceResearchResult[]> {
       if (items.length === 0) return []
 
       const apiKey = await getIntegrationKey('openrouter')
@@ -156,6 +169,10 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
               parameters: { engine, max_results: MAX_SEARCH_RESULTS },
             },
           ],
+          // Fix (price-research cost attribution): request the real upstream
+          // USD cost in the response `usage` block — mirrors COST-01's
+          // `usage: { include: true }` on the estimate/vision/translation calls.
+          usage: { include: true },
         }
 
         const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
@@ -177,6 +194,25 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
 
         const json = (await res.json()) as OpenRouterResearchResponse
         if (json.error?.message) return items.map((i) => missFor(i, currency))
+
+        // Fix (price-research cost attribution): this batched web-search call
+        // spent real money regardless of how many (if any) of its items pass
+        // the evidence gate below — record it ONCE per lookup() call, same
+        // "record before validating" ordering as gemini.ts's structured-vision
+        // path. AWAITED (not void) so the orchestrator's single, non-retrying
+        // read-back can rely on this row already being committed by the time
+        // lookup() resolves. null realCostUsd (never 0) only when OpenRouter's
+        // usage block is absent/malformed.
+        await recordAICost({
+          attemptId: costContext?.attemptId ?? randomUUID(),
+          operationType: 'price_research',
+          provider: 'openrouter',
+          model,
+          realCostUsd: json.usage?.cost ?? null,
+          companyId: costContext?.companyId ?? null,
+          projectId: costContext?.projectId ?? null,
+          units: items.length,
+        })
 
         const message = json.choices?.[0]?.message
         const content = message?.content

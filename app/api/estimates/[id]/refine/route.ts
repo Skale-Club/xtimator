@@ -15,6 +15,7 @@
 // persists later via saveEstimate. The response contract `{ success, refined,
 // instruction }` + status codes (400/422/429/demo-guard) are byte-stable.
 
+import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getEstimateById } from '@/lib/queries/estimate'
@@ -26,9 +27,10 @@ import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
-import { checkCredits } from '@/lib/billing/credit-ledger'
+import { checkCredits, recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isEstimateLocked } from '@/lib/estimate/lock'
+import { requireServiceClient } from '@/lib/supabase/service'
 
 const MAX_PHOTOS = 5
 
@@ -212,6 +214,19 @@ export async function POST(
     }
 
     // -------------------------------------------------------------------------
+    // Fix (refine credit attribution): ONE stable attemptId for this whole
+    // refine request (Whisper + Vision + Claude/Gemini) -- generated ONCE
+    // here, BEFORE any paid call, mirroring the Inngest generate job's
+    // attemptId lineage (lib/inngest/functions/generate-estimate.ts).
+    // Threaded into ingestMultimodal's costContext below AND into the graph
+    // state so every AI call this request makes lands in ai_cost_events
+    // under the SAME attemptId + this company's id instead of a random id +
+    // null companyId.
+    // -------------------------------------------------------------------------
+    const attemptId = randomUUID()
+    const costContext = { attemptId, companyId, projectId: estimate.project_id }
+
+    // -------------------------------------------------------------------------
     // SHARED multimodal ingestion (UNIFY-03): audio + photos + text flow through
     // the one transcription/vision implementation with Phase-99 fallbacks. No
     // storage round-trip — `transcribeAudioOR` accepts the Blob directly (the old
@@ -226,6 +241,7 @@ export async function POST(
         }))
       ),
       texts: instructionText ? [instructionText] : [],
+      costContext,
     })
 
     // Assemble the single instruction string the refine node consumes — matching
@@ -298,6 +314,10 @@ export async function POST(
       channel: 'web',
       existingEstimate,
       instruction,
+      // Fix (refine credit attribution): threaded so the refine node
+      // (lib/estimate/graph/nodes/refine.ts) can build the SAME costContext
+      // for its own OpenRouter/Gemini call.
+      attemptId,
     })
 
     // Activity log — refinement requested. Persistence (if any) happens via the
@@ -313,6 +333,41 @@ export async function POST(
         photo_count: photoFiles.length,
       },
     })
+
+    // -------------------------------------------------------------------------
+    // Fix (refine credit attribution) — HIGH: refine ran Whisper + Vision +
+    // Claude/Gemini above (checkCredits gated it but nothing ever debited),
+    // so a company's real spend on refine never left the ledger. Mirrors
+    // lib/inngest/functions/generate-estimate.ts's record-credit-debit step:
+    // read back the rows THIS attemptId produced, sum only the operation
+    // types refine's own calls use (estimate = Claude/Gemini refine call,
+    // vision = photo analysis, audio_minutes = Whisper), and debit once. Runs
+    // ONLY after a successful refine (mirrors "record usage/debit ONLY on AI
+    // success" -- a failed refine's partial ingestion spend is not billed
+    // here, same as generate). No retry/sleep needed: every recordAICost call
+    // on this synchronous request path is AWAITED by its caller (not a
+    // fire-and-forget void), so by the time graph.invoke resolves every cost
+    // row for this attemptId has already committed -- unlike the Inngest job,
+    // there is no step-suspension gap to poll for. recordCreditDebit never
+    // throws; the whole block is ALSO try/catched so a read-back failure can
+    // never change the response.
+    // -------------------------------------------------------------------------
+    try {
+      const svc = requireServiceClient()
+      const { data } = await svc
+        .from('ai_cost_events')
+        .select('real_cost_usd')
+        .eq('attempt_id', attemptId)
+        .in('operation_type', ['estimate', 'vision', 'audio_minutes'])
+      const rows = (data ?? []) as { real_cost_usd: number | null }[]
+      const known = rows
+        .map((r) => r.real_cost_usd)
+        .filter((c): c is number => c != null)
+      const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+      await recordCreditDebit({ companyId, operationType: 'estimate', realCostUsd, attemptId })
+    } catch (err) {
+      console.warn('[refine] credit-debit read-back failed (non-fatal):', err)
+    }
 
     return NextResponse.json({
       success: true,

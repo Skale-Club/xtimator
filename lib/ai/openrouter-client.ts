@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { computeWhisperCostUsd, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
 import { TruncatedOutputError } from '@/lib/ai/with-fallback'
 import { photoExtractionSchema, photoExtractionToolSchema, type PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 
@@ -115,7 +116,13 @@ export async function getORKey(): Promise<string> {
 export async function transcribeAudioOR(
   audioBlob: Blob,
   ext: string,
-  model = DEFAULT_TRANSCRIBE_MODEL
+  model = DEFAULT_TRANSCRIBE_MODEL,
+  // Fix (refine credit attribution): optional/additive — absent callers keep
+  // recording cost with a random attemptId + null companyId exactly as
+  // before. transcribeAudioOR previously recorded NO cost row at all for this
+  // (non-Inngest) call path; this brings it in line with analyzePhotoOR /
+  // the refine-estimate call, all of which already accept costContext.
+  costContext?: CostContext
 ): Promise<{ text: string; servedBy: 'primary' | 'fallback' }> {
   // OpenRouter needs a vendor-prefixed slug; OpenAI's own API needs the bare id.
   const orModel = model.includes('/') ? model : `openai/${model}`
@@ -199,6 +206,37 @@ export async function transcribeAudioOR(
   if (result.trim().length === 0) {
     throw new Error('Transcription produced no text — no speech detected in the audio')
   }
+
+  // Fix (refine credit attribution): this (non-Inngest) call path previously
+  // recorded NO ai_cost_events row at all for a transcription. GUARDED on an
+  // EXPLICIT costContext (not just a truthy default) — lib/inngest/functions/
+  // transcribe-audio.ts calls transcribeAudioOR with NO 4th argument and
+  // already records its OWN 'audio_minutes' row (with the job's real
+  // attemptId, computed from recordings.duration_seconds). Recording
+  // unconditionally here would double-count that job's Whisper spend under a
+  // second, uncorrelated attemptId. Only a caller that explicitly threads
+  // costContext (e.g. refine, via ingestMultimodal) opts into this capture —
+  // unlike the Inngest job, there is no `recordings.duration_seconds` to read
+  // here, so duration is derived from the blob's own byte size (the same
+  // byte-clamp primitive the Inngest job uses for the under-declaration
+  // exploit, called here with declaredSeconds: null — i.e. always the
+  // byte-derived estimate). null realCostUsd (never 0) only when the blob is
+  // empty. AWAIT (not void) so the caller's later credit-debit read-back can
+  // rely on this row already being committed.
+  if (costContext) {
+    const derived = deriveAudioMinutes({ declaredSeconds: null, blobBytes: audioBlob.size })
+    await recordAICost({
+      attemptId: costContext.attemptId ?? randomUUID(),
+      operationType: 'audio_minutes',
+      provider: servedBy === 'fallback' ? 'openai' : 'openrouter',
+      model: servedBy === 'fallback' ? openaiModel : orModel,
+      realCostUsd: computeWhisperCostUsd(derived.minutes * 60),
+      companyId: costContext.companyId ?? null,
+      projectId: costContext.projectId ?? null,
+      units: derived.minutes > 0 ? derived.minutes : null,
+    })
+  }
+
   return { text: result, servedBy }
 }
 

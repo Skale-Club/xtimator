@@ -20,7 +20,7 @@
  * stays safe under the graph-neutrality invariant when consumed by neutral code.
  */
 
-import { transcribeAudioOR, analyzePhotoOR } from '@/lib/ai/openrouter-client'
+import { transcribeAudioOR, analyzePhotoOR, type CostContext } from '@/lib/ai/openrouter-client'
 import { getTranscriptionModel } from '@/lib/platform-config'
 
 export interface MultimodalRawInput {
@@ -30,6 +30,14 @@ export interface MultimodalRawInput {
   photos?: Array<{ base64: string; mimeType: string }>
   /** Free-form text (instruction text, whatsapp text body). */
   texts?: string[]
+  /**
+   * Fix (refine credit attribution): non-LLM correlation context, optional/
+   * additive — absent callers (pre-fix WhatsApp path) keep recording cost with
+   * null ids exactly as before. Threaded straight through to the Whisper +
+   * vision primitives below so a caller like the refine route can attribute
+   * every AI cost row it produces to its own attemptId/companyId.
+   */
+  costContext?: CostContext
 }
 
 export interface MultimodalIngestResult {
@@ -53,9 +61,12 @@ export async function ingestMultimodal(
     try {
       // Phase 167 (BILL-05): transcribeAudioOR now returns { text, servedBy }
       // (previously discarded servedBy) — this ingestion path only needs the
-      // text; cost/provider attribution for refine/WhatsApp doesn't flow
-      // through here (out of scope for this channel-neutral module).
-      const { text } = await transcribeAudioOR(a.blob, a.ext, sttModel)
+      // text.
+      // Fix (refine credit attribution): input.costContext is threaded through
+      // so transcribeAudioOR's own ai_cost_events row (operation_type
+      // 'audio_minutes') carries the caller's real attemptId/companyId instead
+      // of a random id + null companyId.
+      const { text } = await transcribeAudioOR(a.blob, a.ext, sttModel, input.costContext)
       if (text) transcripts.push(text)
     } catch (e) {
       console.error('[ingest] transcription failed:', e)
@@ -65,7 +76,7 @@ export async function ingestMultimodal(
   const photoDescriptions: string[] = []
   for (const p of input.photos ?? []) {
     try {
-      const d = await analyzePhotoOR(p.base64, p.mimeType)
+      const d = await analyzePhotoOR(p.base64, p.mimeType, undefined, input.costContext)
       if (d) photoDescriptions.push(d)
     } catch (e) {
       console.error('[ingest] vision failed:', e)

@@ -41,15 +41,33 @@ export interface PriceResearchResult {
   confidence?: number | null
 }
 
+/**
+ * Fix (price-research cost attribution): non-LLM correlation context, mirroring
+ * lib/ai/openrouter-client.ts's CostContext shape. The orchestrator generates
+ * ONE id per `researchUnmatchedPrices` call (its OWN attemptId, distinct from
+ * the generation's `ctx.attemptId`) and threads it into every `lookup` call so
+ * an adapter's recordAICost row — and the orchestrator's later read-back — key
+ * off THIS id + operation_type 'price_research', never the generation's own
+ * attemptId (which the 'estimate' op already owns).
+ */
+export interface ResearchCostContext {
+  attemptId?: string | null
+  companyId?: string | null
+  projectId?: string | null
+}
+
 export interface PriceResearchProvider {
   /**
    * BATCHED: all unmatched item names in one call. Per-item-vs-batched stays
    * internal to the adapter. Never throws — adapters catch and return misses.
+   * `costContext` is OPTIONAL/additive — an adapter that ignores it keeps
+   * recording (or not recording) cost exactly as before.
    */
   lookup(
     items: { name: string }[],
     region: Region,
-    currency: string
+    currency: string,
+    costContext?: ResearchCostContext
   ): Promise<PriceResearchResult[]>
 }
 

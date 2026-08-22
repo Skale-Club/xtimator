@@ -20,11 +20,13 @@ import 'server-only'
  *
  * Channel-neutral (ENGINE-01): imports no channel package.
  */
+import { randomUUID } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildResearchSearchPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
-import type { PriceResearchProvider, PriceResearchResult, Region } from '../provider'
+import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 
 // Model id per CLAUDE.md (Anthropic estimate/photo path).
 const MODEL = 'claude-sonnet-4-20250514'
@@ -62,7 +64,12 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
   })
 
   return {
-    async lookup(items, region: Region, currency): Promise<PriceResearchResult[]> {
+    async lookup(
+      items,
+      region: Region,
+      currency,
+      costContext?: ResearchCostContext
+    ): Promise<PriceResearchResult[]> {
       if (items.length === 0) return []
 
       const apiKey = await getIntegrationKey('anthropic')
@@ -96,6 +103,26 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
         } as any)) as unknown as AnthropicResponse
 
         const blocks = response.content ?? []
+
+        // Fix (price-research cost attribution): this batched web-search call
+        // spent real money regardless of how the search tool / evidence gate
+        // resolves below — record it ONCE per lookup() call (mirrors the
+        // openrouter-web sibling). The Anthropic SDK response carries no
+        // dollar figure (unlike OpenRouter's `usage.cost`) and this codebase
+        // has no Anthropic pricing table yet, so realCostUsd is null (never
+        // guessed) — the row still COUNTS the attempt. AWAITED (not void) so
+        // the orchestrator's single, non-retrying read-back can rely on this
+        // row already being committed by the time lookup() resolves.
+        await recordAICost({
+          attemptId: costContext?.attemptId ?? randomUUID(),
+          operationType: 'price_research',
+          provider: 'anthropic',
+          model: MODEL,
+          realCostUsd: null, // cost-unknown: no Anthropic pricing table yet (see lib/ai/pricing/gemini.ts for the pattern)
+          companyId: costContext?.companyId ?? null,
+          projectId: costContext?.projectId ?? null,
+          units: items.length,
+        })
 
         // If the search tool itself errored, every item is a miss.
         const searchErrored = blocks.some(

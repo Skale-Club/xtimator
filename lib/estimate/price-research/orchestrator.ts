@@ -38,6 +38,7 @@ import 'server-only'
  *   partially-priced estimate is not vague). This keeps the orchestrator
  *   DB-schema-neutral and reuses the existing recourse path with zero new state.
  */
+import { randomUUID } from 'node:crypto'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPriceResearchProviderChain, isUsableCandidate } from './provider'
@@ -157,6 +158,14 @@ export async function researchUnmatchedPrices(
   ctx: ResearchContext
 ): Promise<ResearchOutcome> {
   try {
+    // Fix (price-research cost attribution): THIS call's own attemptId --
+    // distinct from ctx.attemptId (the GENERATION's attemptId, which the
+    // 'estimate' op already owns). Threaded into every provider.lookup() call
+    // below as costContext so each adapter's recordAICost row is correlated
+    // with THIS research pass, not accidentally aliased onto the generation's
+    // own Claude-call cost row. Also the key the debit read-back below uses.
+    const priceResearchAttemptId = randomUUID()
+
     // Candidate set: items still tagged 'ai_estimate' after anchoring. price_book +
     // owner-edited (price_source null) items are out of scope (RPRICE-03 precedence).
     const candidates: LineItemOutput[] = []
@@ -287,7 +296,14 @@ export async function researchUnmatchedPrices(
               results = await provider.lookup(
                 lookupItems.map((m) => ({ name: m.description })),
                 ctx.region,
-                ctx.currency
+                ctx.currency,
+                // Fix (price-research cost attribution): THIS research pass's
+                // own attemptId, never ctx.attemptId (the generation's).
+                {
+                  attemptId: priceResearchAttemptId,
+                  companyId: ctx.companyId,
+                  projectId: ctx.projectId,
+                }
               )
             } catch {
               // A provider erroring falls through to the NEXT provider in the chain
@@ -312,44 +328,48 @@ export async function researchUnmatchedPrices(
                 // Metering is best-effort; a ledger error must not drop the price.
               }
 
-              // Phase 112 (CREDIT-02): inline credit debit for price_research. This
-              // call lives INSIDE the per-result loop, so it fires once per result —
-              // BUT recordCreditDebit is idempotent on `${ctx.attemptId}:debit:price_research`,
-              // so every per-result call after the first is a no-op (check-then-insert
+              // Fix (price-research cost attribution) / Phase 112 (CREDIT-02):
+              // inline credit debit for price_research. This call lives INSIDE
+              // the per-result loop, so it fires once per result — BUT
+              // recordCreditDebit is idempotent on
+              // `${priceResearchAttemptId}:debit:price_research`, so every
+              // per-result call after the first is a no-op (check-then-insert
               // / 23505 swallow, Plan 03). Intended cardinality: exactly ONE
-              // price_research debit per attempt; the loop repetition collapses to it.
-              // Only when ctx.attemptId is set (no stable key → no debit). The real
-              // cost was captured by recordAICost at the OpenRouter-web call, keyed by
-              // attemptId — read it back (same bounded shape as the Inngest seams).
-              // Wrapped in try/catch to mirror the best-effort metering contract above.
-              if (ctx.attemptId) {
-                const attemptId = ctx.attemptId
-                try {
-                  let realCostUsd: number | null = null
-                  for (let i = 0; i < 3; i++) {
-                    const { data } = await ctx.supabase
-                      .from('ai_cost_events')
-                      .select('real_cost_usd')
-                      .eq('attempt_id', attemptId)
-                    const rows = (data ?? []) as { real_cost_usd: number | null }[]
-                    if (rows.length > 0) {
-                      const known = rows
-                        .map((r) => r.real_cost_usd)
-                        .filter((c): c is number => c != null)
-                      realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-                      break
-                    }
-                    await new Promise((r) => setTimeout(r, 150))
-                  }
-                  await recordCreditDebit({
-                    companyId: ctx.companyId,
-                    operationType: 'price_research',
-                    realCostUsd,
-                    attemptId,
-                  })
-                } catch {
-                  // Metering is best-effort; a ledger error must not drop the price.
-                }
+              // price_research debit per orchestrator call; the loop
+              // repetition collapses to it.
+              //
+              // Keyed on priceResearchAttemptId (THIS research pass's own id,
+              // generated above) -- NOT ctx.attemptId (the generation's own
+              // attemptId, which the 'estimate' op already owns; reading it
+              // back here previously summed the GENERATION's Claude-call cost
+              // INTO the price_research debit whenever ctx.attemptId happened
+              // to be set). Filtered to operation_type 'price_research' so
+              // only the adapters' own recordAICost rows are summed. A SINGLE
+              // read (no retry/sleep): every recordAICost call the adapters
+              // make is AWAITED before `provider.lookup(...)` above resolves,
+              // so by the time this loop runs the row is already committed --
+              // a miss here means no row, not a not-yet-committed one.
+              // Wrapped in try/catch to mirror the best-effort metering
+              // contract above.
+              try {
+                const { data } = await ctx.supabase
+                  .from('ai_cost_events')
+                  .select('real_cost_usd')
+                  .eq('attempt_id', priceResearchAttemptId)
+                  .eq('operation_type', 'price_research')
+                const rows = (data ?? []) as { real_cost_usd: number | null }[]
+                const known = rows
+                  .map((r) => r.real_cost_usd)
+                  .filter((c): c is number => c != null)
+                const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+                await recordCreditDebit({
+                  companyId: ctx.companyId,
+                  operationType: 'price_research',
+                  realCostUsd,
+                  attemptId: priceResearchAttemptId,
+                })
+              } catch {
+                // Metering is best-effort; a ledger error must not drop the price.
               }
 
               const usable = isUsableCandidate(result) && typeof result.unit_price === 'number'
