@@ -15,6 +15,8 @@ import { render } from '@testing-library/react'
  */
 
 vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: vi.fn() }))
+// Fix 3: the page now resolves the ACTIVE company via getActiveCompanyId().
+vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: vi.fn() }))
 vi.mock('@/lib/platform-config', () => ({ getIntegrationKey: vi.fn() }))
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
@@ -25,6 +27,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 const { getAuthClaims } = await import('@/lib/queries/auth')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { requireServiceClient } = await import('@/lib/supabase/service')
 const { getIntegrationKey } = await import('@/lib/platform-config')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
@@ -59,6 +62,7 @@ const CONNECTED = {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+  vi.mocked(getActiveCompanyId).mockResolvedValue('company_1')
   vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
 })
 
@@ -89,7 +93,10 @@ describe('DISCLOSE-01: fee disclosure at the Connect moment (config-driven %)', 
     expect(html).toContain('data-testid="fee-disclosure"')
   })
 
-  it('does NOT render the fee disclosure once the company is connected', async () => {
+  it('ALSO renders the fee disclosure once the company is connected (Fix 1: no longer connection-moment-only)', async () => {
+    // Before Fix 1, a connected merchant never saw the fee again after the
+    // initial connect — data-testid="fee-disclosure" only existed in the
+    // not_connected branch. It must now render in the connected branch too.
     vi.mocked(getBillingConfig).mockResolvedValue({ estimateFeePct: 0.02 } as never)
     vi.mocked(requireServiceClient).mockReturnValue(mockSupabase(CONNECTED))
 
@@ -97,8 +104,8 @@ describe('DISCLOSE-01: fee disclosure at the Connect moment (config-driven %)', 
     const { container } = render(ui)
     const html = container.innerHTML
 
-    // Disclosure is a connection-moment notice only — absent when connected.
-    expect(html).not.toContain('data-testid="fee-disclosure"')
+    expect(html).toContain('data-testid="fee-disclosure"')
+    expect(html).toContain('2%')
     expect(html).toContain('Demo Biz LLC')
   })
 })

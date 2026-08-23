@@ -99,7 +99,7 @@ async function ProjectTabs({
   const supabase = await createClient()
   const companyPromise = supabase
     .from('companies')
-    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status, estimate_terms_enabled, estimate_terms_text, estimate_template_style')
+    .select('name, owner_name, brand_primary_color, estimate_template_greeting, estimate_template_opener, estimate_template_closer, estimate_template_signature, sms_delivery_enabled, tier, logo_url, phone, email, website, address, city, state, zip, default_tax_rate, default_payment_terms, default_warranty_terms, stripe_account_id, stripe_connect_status, stripe_charges_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style')
     .eq('id', project.company_id)
     .single()
 
@@ -123,6 +123,11 @@ async function ProjectTabs({
   const canIssueInvoice = paymentsEnabled({
     stripe_account_id: (company?.stripe_account_id as string | null) ?? null,
     stripe_connect_status: (company?.stripe_connect_status as string | null) ?? null,
+    // CONNECT-HEALTH-01: without this the affordance stays enabled on an
+    // account Stripe has restricted, and the owner only learns after the
+    // server action refuses — exactly the dead end the predicate exists to
+    // prevent. null (legacy row) stays permissive.
+    stripe_charges_enabled: (company?.stripe_charges_enabled as boolean | null) ?? null,
   })
 
   // Phase 163 (SENDHUB) — resolve WhatsApp availability into a single opaque

@@ -86,6 +86,13 @@ const companySelectSingle = vi.fn()
 const companySelectMaybeSingle = vi.fn()
 const companyUpdate = vi.fn()
 const companyUpdateEq = vi.fn()
+// companies.update().eq(...).neq('stripe_connect_status','disconnected') —
+// account.updated (Fix 1) adds a `.neq()` after the `.eq()`. The deauthorized
+// path still only calls `.update().eq()` with nothing chained after it, so
+// companyUpdateEq's return value must be BOTH directly awaitable (thenable)
+// AND carry a `.neq` for the account.updated path — same thenable-with-extra-
+// method trick as invoiceUpdateEq2 above.
+const companyUpdateEqNeq = vi.fn()
 
 // estimates.select().eq().single()
 const estimateSelect = vi.fn()
@@ -122,6 +129,7 @@ function resetSupabaseMocks() {
   companySelectMaybeSingle.mockReset()
   companyUpdate.mockReset()
   companyUpdateEq.mockReset()
+  companyUpdateEqNeq.mockReset()
   estimateSelect.mockReset()
   estimateSelectEq.mockReset()
   estimateSelectSingle.mockReset()
@@ -201,7 +209,19 @@ function resetSupabaseMocks() {
 
   // companies.update().eq()  — used for deauthorized
   companyUpdate.mockReturnValue({ eq: companyUpdateEq })
-  companyUpdateEq.mockResolvedValue({ error: null })
+  companyUpdateEq.mockImplementation(() => {
+    // account.updated scopes with `.in('stripe_connect_status', [...])` (a
+    // 'pending' onboarding row must not be flipped to 'restricted', and .neq
+    // would also skip NULL rows); deauthorized awaits the .eq() directly.
+    const result: Promise<{ error: null }> & {
+      neq?: typeof companyUpdateEqNeq
+      in?: typeof companyUpdateEqNeq
+    } = Promise.resolve({ error: null })
+    result.neq = companyUpdateEqNeq
+    result.in = companyUpdateEqNeq
+    return result
+  })
+  companyUpdateEqNeq.mockResolvedValue({ error: null })
 
   // estimates.select().eq().single()
   estimateSelect.mockReturnValue({ eq: estimateSelectEq })
@@ -338,6 +358,60 @@ describe('stripe connect webhook — invoice.paid (INVOICE-05)', () => {
     })
   })
 
+  it('flags and uses Stripe amount_paid when it differs from the invoices.amount_cents snapshot', async () => {
+    const event = makeConnectInvoiceEvent('invoice.paid', { amount_paid: 25000 })
+    mockConstructEvent.mockReturnValue(event)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    // The immutable snapshot write itself is untouched — no amount_cents field
+    // in the DB update (status/paid_at/hosted_invoice_url/invoice_pdf_url only).
+    expect(invoiceUpdate).toHaveBeenCalledTimes(1)
+    const updatePayload = invoiceUpdate.mock.calls[0][0]
+    expect(updatePayload).not.toHaveProperty('amount_cents')
+
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'invoice_amount_mismatch',
+        severity: 'error',
+        dedupeKey: event.id,
+      })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('amount_paid'),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    )
+
+    // The ACTUAL Stripe amount (25000), not the snapshot (30000), flows into
+    // the payment-received notification/emails.
+    expect(sendPaymentReceivedEmail).toHaveBeenCalledTimes(1)
+    const ctx = sendPaymentReceivedEmail.mock.calls[0][0] as { amountCents: number }
+    expect(ctx.amountCents).toBe(25000)
+
+    warnSpy.mockRestore()
+  })
+
+  it('does not flag a mismatch when Stripe amount_paid matches the invoices.amount_cents snapshot', async () => {
+    // Default fixture amount_paid is 30000, matching the snapshot amount_cents.
+    const event = makeConnectInvoiceEvent('invoice.paid')
+    mockConstructEvent.mockReturnValue(event)
+
+    await POST(makeRequest())
+
+    expect(notifyOps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'invoice_amount_mismatch' })
+    )
+    const ctx = sendPaymentReceivedEmail.mock.calls[0][0] as { amountCents: number }
+    expect(ctx.amountCents).toBe(30000)
+  })
+
   it('uses the invoice snapshot amount (30000), not a re-derived estimate total, in the email ctx', async () => {
     const event = makeConnectInvoiceEvent('invoice.paid')
     mockConstructEvent.mockReturnValue(event)
@@ -430,6 +504,108 @@ describe('stripe connect webhook — account.application.deauthorized (unchanged
     expect(invoiceUpdate).not.toHaveBeenCalled()
     expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
     expect(notify).not.toHaveBeenCalled()
+  })
+})
+
+describe('stripe connect webhook — account.updated (CONNECT-HEALTH-01, Fix 1)', () => {
+  // No dedicated fixture builder exists for account.updated — build a minimal
+  // Stripe.Account-shaped envelope inline (same pattern as
+  // makeConnectChargeRefundedEvent below).
+  function makeConnectAccountUpdatedEvent(
+    accountOverrides: Record<string, unknown> = {}
+  ) {
+    return {
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      object: 'event',
+      type: 'account.updated',
+      account: 'acct_test_123',
+      api_version: '2026-04-22.dahlia',
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: 'acct_test_123',
+          object: 'account',
+          charges_enabled: true,
+          email: 'owner@business.test',
+          settings: { dashboard: { display_name: 'Test Business Display' } },
+          business_profile: { name: 'Test Business' },
+          requirements: { disabled_reason: null },
+          ...accountOverrides,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 0,
+      request: { id: null, idempotency_key: null },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any
+  }
+
+  it('writes charges_enabled=true + status=active, matched on the VERIFIED event.account (never the payload account.id)', async () => {
+    // The payload's own `id` is deliberately different from event.account —
+    // proves the WHERE clause uses event.account, mirroring handleAccountDeauthorized.
+    const event = makeConnectAccountUpdatedEvent({ id: 'acct_SPOOFED_PAYLOAD_ID' })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(companyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_charges_enabled: true,
+        stripe_connect_status: 'active',
+        stripe_connect_disabled_reason: null,
+      })
+    )
+    expect(companyUpdateEq).toHaveBeenCalledWith('stripe_account_id', 'acct_test_123')
+  })
+
+  it('writes stripe_connect_status=restricted + the disabled_reason when charges_enabled is false', async () => {
+    const event = makeConnectAccountUpdatedEvent({
+      charges_enabled: false,
+      requirements: { disabled_reason: 'requirements.past_due' },
+    })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(companyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_charges_enabled: false,
+        stripe_connect_status: 'restricted',
+        stripe_connect_disabled_reason: 'requirements.past_due',
+      })
+    )
+  })
+
+  it('scopes the write to already-connected rows so it can neither resurrect a disconnected company nor disturb a pending onboarding', async () => {
+    const event = makeConnectAccountUpdatedEvent()
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+    // `.in([...])` rather than `.neq('disconnected')`: a mid-onboarding
+    // 'pending' row must not be flipped to 'restricted', and PostgREST's .neq
+    // would additionally skip rows whose status is NULL.
+    expect(companyUpdateEqNeq).toHaveBeenCalledWith('stripe_connect_status', [
+      'active',
+      'restricted',
+    ])
+  })
+
+  it('still syncs display_name/email alongside the health fields', async () => {
+    const event = makeConnectAccountUpdatedEvent()
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(companyUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_account_email: 'owner@business.test',
+        stripe_account_display_name: 'Test Business Display',
+      })
+    )
   })
 })
 

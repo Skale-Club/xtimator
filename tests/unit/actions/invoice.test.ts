@@ -57,9 +57,33 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(() => ({ from: (t: string) => fromImpl(t) })),
 }))
 
+// Overlap guard (Fix 2) + customer-reuse both read `.from('invoices').select(...)`
+// via the same RLS-scoped client mocked below. A single generic thenable chain
+// (chainable on eq/not/order/limit, awaitable directly) serves both call
+// shapes — the configured `data` array is shared, which is harmless for these
+// tests: the overlap guard reads only `status`/`amount_cents`, customer reuse
+// reads only `stripe_customer_id`, and each ignores fields it doesn't need.
+const invoicesSelectResult: { data: Array<Record<string, unknown>>; error: null } = {
+  data: [],
+  error: null,
+}
+function invoicesSelectChain() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chain: any = {
+    eq: () => chain,
+    not: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+      Promise.resolve(invoicesSelectResult).then(resolve, reject),
+  }
+  return chain
+}
+
 function configureSupabase(opts: {
   estimate?: Record<string, unknown> | null
   company?: Record<string, unknown> | null
+  existingInvoices?: Array<Record<string, unknown>>
 }) {
   const estimate = opts.estimate ?? {
     id: 'est_1',
@@ -83,6 +107,7 @@ function configureSupabase(opts: {
   })
   invoicesInsertSelect.mockReturnValue({ single: invoicesInsertSingle })
   invoicesInsert.mockReturnValue({ select: invoicesInsertSelect })
+  invoicesSelectResult.data = opts.existingInvoices ?? []
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'estimates') {
@@ -104,7 +129,10 @@ function configureSupabase(opts: {
       }
     }
     if (table === 'invoices') {
-      return { insert: invoicesInsert }
+      return {
+        insert: invoicesInsert,
+        select: vi.fn().mockImplementation(() => invoicesSelectChain()),
+      }
     }
     throw new Error(`Unexpected table: ${table}`)
   })
@@ -326,5 +354,118 @@ describe('INVOICE-03: generateInvoice action', () => {
     expect(result).toEqual({ error: 'Only the company owner can issue invoices.' })
     expect(createConnectInvoice).not.toHaveBeenCalled()
     expect(invoicesInsert).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * CONNECT-HEALTH-01 (Fix 1): a distinct, actionable message when the account
+ * is connected + previously active but Stripe has since disabled charges on
+ * it — as opposed to "never connected" (the generic message covered above).
+ */
+describe('CONNECT-HEALTH-01: restricted Connect account blocks invoicing', () => {
+  it('refuses with a distinct message when stripe_charges_enabled is false, and never calls Stripe', async () => {
+    configureSupabase({
+      company: {
+        id: 'co_1',
+        stripe_account_id: 'acct_abc123',
+        stripe_connect_status: 'restricted',
+        stripe_charges_enabled: false,
+      },
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toEqual({
+      error:
+        'Stripe has paused payments on your connected account. Finish verification in Stripe, then try again.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Fix 2: an estimate can otherwise be invoiced beyond its total, and a retry
+ * can double-charge. These cases verify the overlap guard runs before any
+ * Stripe call and rejects both failure modes.
+ */
+describe('Fix 2: overlap guard — cannot invoice beyond the estimate total', () => {
+  it('rejects a deposit/balance invoice whose sum with existing invoices would exceed the total', async () => {
+    // total 1000 usd => 100000 cents; configured deposit 200 usd => 20000
+    // cents deposit / 80000 cents balance. An existing open invoice already
+    // covers 90000 cents, so issuing the 80000-cent balance would push the
+    // running total to 170000 > 100000.
+    configureSupabase({
+      estimate: {
+        id: 'est_1',
+        company_id: 'co_1',
+        currency_code: 'usd',
+        total: 1000,
+        deposit_type: 'amount',
+        deposit_value: 200,
+        project: {
+          name: 'Bathroom remodel',
+          client: { name: 'Jane Doe', email: 'jane@example.com' },
+        },
+      },
+      existingInvoices: [{ status: 'open', amount_cents: 90000 }],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'balance', depositPct: 20 })
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toContain('already fully invoiced')
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('rejects a `full` invoice outright when any non-void invoice already exists, before any Stripe call', async () => {
+    configureSupabase({
+      existingInvoices: [{ status: 'open', amount_cents: 100 }],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toMatch(/already has an invoice issued/)
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('allows a full invoice when only void/uncollectible invoices exist for the estimate', async () => {
+    // The real query filters status NOT IN (void, uncollectible) server-side;
+    // this test exercises the guard logic with an empty active set (as the
+    // filtered query would return), proving the happy path still proceeds.
+    configureSupabase({ existingInvoices: [] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows a deposit + balance sequence that sums exactly to the total', async () => {
+    // total 1000 usd => 100000 cents; deposit 200 usd => 20000 cents already
+    // invoiced; balance (80000 cents) sums exactly to 100000 — must NOT be rejected.
+    configureSupabase({
+      estimate: {
+        id: 'est_1',
+        company_id: 'co_1',
+        currency_code: 'usd',
+        total: 1000,
+        deposit_type: 'amount',
+        deposit_value: 200,
+        project: {
+          name: 'Bathroom remodel',
+          client: { name: 'Jane Doe', email: 'jane@example.com' },
+        },
+      },
+      existingInvoices: [{ status: 'open', amount_cents: 20000 }],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'balance', depositPct: 20 })
+    expect(result).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
+    expect(createConnectInvoice.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ amountCents: 80000 })
+    )
   })
 })

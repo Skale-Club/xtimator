@@ -153,3 +153,56 @@ describe('INVOICE-03: createConnectInvoice (Stripe Connect invoice sequence)', (
     expect(result.invoicePdfUrl).toBe('https://invoice.stripe.com/i/test_pdf')
   })
 })
+
+/**
+ * Fix 2 (double-charge guard): the Invoice must be created BEFORE the
+ * InvoiceItem, with `pending_invoice_items_behavior: 'exclude'`, and the
+ * InvoiceItem must carry `invoice: <id>` so it can never be swept into a
+ * DIFFERENT invoice by a later retry. `sendInvoice` must also carry its own
+ * idempotencyKey (it previously had none).
+ */
+describe('Fix 2: invoice-before-item ordering (double-charge guard)', () => {
+  it('creates the Invoice before the InvoiceItem', async () => {
+    const callOrder: string[] = []
+    invoicesCreate.mockImplementationOnce(async () => {
+      callOrder.push('invoices.create')
+      return { id: 'in_123' }
+    })
+    invoiceItemsCreate.mockImplementationOnce(async () => {
+      callOrder.push('invoiceItems.create')
+      return { id: 'ii_123' }
+    })
+
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    await createConnectInvoice(baseOpts())
+
+    expect(callOrder).toEqual(['invoices.create', 'invoiceItems.create'])
+  })
+
+  it('creates the Invoice with pending_invoice_items_behavior: exclude', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    await createConnectInvoice(baseOpts())
+
+    const invoiceBody = invoicesCreate.mock.calls[0][0]
+    expect(invoiceBody.pending_invoice_items_behavior).toBe('exclude')
+  })
+
+  it('attaches the InvoiceItem to the just-created invoice via `invoice: <id>`', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    await createConnectInvoice(baseOpts())
+
+    const itemBody = invoiceItemsCreate.mock.calls[0][0]
+    expect(itemBody.invoice).toBe('in_123') // invoicesCreate mock resolves { id: 'in_123' }
+  })
+
+  it('passes a stable idempotencyKey on sendInvoice (previously had none)', async () => {
+    const { createConnectInvoice } = await import('@/lib/billing/invoice-service')
+    await createConnectInvoice(baseOpts())
+
+    expect(invoicesSendInvoice).toHaveBeenCalledTimes(1)
+    const sendOpts = invoicesSendInvoice.mock.calls[0][2]
+    expect(typeof sendOpts.idempotencyKey).toBe('string')
+    expect(sendOpts.idempotencyKey.length).toBeGreaterThan(0)
+    expect(sendOpts.stripeAccount).toBe('acct_abc123')
+  })
+})

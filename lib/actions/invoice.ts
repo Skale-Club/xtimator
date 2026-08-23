@@ -13,7 +13,7 @@ import { computeApplicationFee } from '@/lib/billing/estimate-fee'
 import { resolveChargeAmount } from '@/lib/billing/charge-amount'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
-import { toMinorUnits } from '@/lib/money/currency'
+import { toMinorUnits, formatMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
 
 /**
@@ -114,17 +114,28 @@ export async function generateInvoice(
   //    never drift on what "payments are on" means.
   const { data: company } = await supabase
     .from('companies')
-    .select('stripe_account_id, stripe_connect_status')
+    .select('stripe_account_id, stripe_connect_status, stripe_charges_enabled')
     .eq('id', companyId)
     .single()
 
   if (!company || !paymentsEnabled(company)) {
+    // CONNECT-HEALTH-01 (Fix 1): distinguish "Stripe paused charges on an
+    // already-connected account" (actionable — go finish verification) from
+    // "never connected / disconnected" (go connect). Both states fail the same
+    // `paymentsEnabled` predicate, but they need different guidance.
+    if (company?.stripe_account_id && company.stripe_charges_enabled === false) {
+      return {
+        error:
+          'Stripe has paused payments on your connected account. Finish verification in Stripe, then try again.',
+      }
+    }
     return { error: 'Connect a Stripe account in Settings → Payments before issuing invoices.' }
   }
 
   // 5. Compute the snapshot amount in integer minor units.
   const currencyCode = (estimate.currency_code as string) ?? 'USD'
   const totalDollars = (estimate.total as number) ?? 0
+  const totalCents = toMinorUnits(totalDollars, currencyCode)
   // DEP-02: when the estimate has a server-configured deposit, the deposit is the amount the
   // payment link charges (resolveChargeAmount). Falls back to the legacy depositPct split when
   // no deposit is configured on the estimate (backward-compatible with the Phase-94 ad-hoc UI).
@@ -132,13 +143,12 @@ export async function generateInvoice(
     estimate.deposit_type === 'percent' || estimate.deposit_type === 'amount'
   let amountCents: number
   if (kind === 'full') {
-    amountCents = toMinorUnits(totalDollars, currencyCode)
+    amountCents = totalCents
   } else if (hasConfiguredDeposit) {
     // DEP-03: when the estimate has a server-configured deposit, BOTH the
     // deposit and balance invoices derive from resolveChargeAmount so they
     // always sum to the total — the free-form depositPct is ignored entirely
     // (it only drives the legacy ad-hoc split below when no deposit exists).
-    const totalCents = toMinorUnits(totalDollars, currencyCode)
     const depositCents = resolveChargeAmount(
       {
         total: totalDollars,
@@ -153,6 +163,52 @@ export async function generateInvoice(
     amountCents = kind === 'deposit' ? split.depositCents : split.balanceCents
   }
   if (amountCents <= 0) return { error: 'Invalid amount' }
+
+  // 5c. Overlap guard (Fix 2): an estimate can otherwise be invoiced beyond its
+  // total across multiple issues. Reads every non-void/non-uncollectible
+  // invoice already issued for this estimate (RLS-scoped) — AFTER the
+  // owner/Connect gates above, BEFORE any Stripe call below. A `full` invoice
+  // is rejected outright when ANY other active invoice already exists (it is
+  // never valid to "fully" invoice on top of something already issued); every
+  // kind is additionally rejected once the running total would exceed the
+  // estimate's total.
+  const { data: existingInvoices } = await supabase
+    .from('invoices')
+    .select('status, amount_cents, kind')
+    .eq('estimate_id', estimateId)
+    .not('status', 'in', '(void,uncollectible)')
+
+  const activeInvoices = (existingInvoices ?? []) as {
+    status: string
+    amount_cents: number | null
+    kind: string | null
+  }[]
+
+  if (kind === 'full' && activeInvoices.length > 0) {
+    return {
+      error:
+        'This estimate already has an invoice issued. Void the existing invoice before issuing a new full invoice.',
+    }
+  }
+
+  // Per-KIND uniqueness. The sum guard below is not enough on its own: with a
+  // 40% deposit, issuing `deposit` twice sums to 80% ≤ 100% and passes, leaving
+  // the customer two payable deposit invoices AND blocking the real balance.
+  if (activeInvoices.some((inv) => inv.kind === kind)) {
+    return {
+      error: `A ${kind} invoice has already been issued for this estimate. Void it before issuing another.`,
+    }
+  }
+
+  const alreadyInvoicedCents = activeInvoices.reduce(
+    (sum, inv) => sum + (inv.amount_cents ?? 0),
+    0,
+  )
+  if (alreadyInvoicedCents + amountCents > totalCents) {
+    return {
+      error: `This estimate is already fully invoiced (${formatMinorUnits(alreadyInvoicedCents, currencyCode)} of ${formatMinorUnits(totalCents, currencyCode)} already invoiced).`,
+    }
+  }
 
   // 5b. Platform application fee (FEE-03). Read the live fee%/min from
   //     billing_config (never hard-coded, applied without a deploy) and compute

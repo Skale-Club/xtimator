@@ -14,6 +14,11 @@ import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 vi.mock('@/lib/queries/auth', () => ({
   getAuthClaims: vi.fn(),
 }))
+// Fix 3: the page now resolves the ACTIVE company via getActiveCompanyId()
+// instead of `.eq('user_id', claims.sub).single()`.
+vi.mock('@/lib/queries/active-company', () => ({
+  getActiveCompanyId: vi.fn(),
+}))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
@@ -34,6 +39,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 const { getAuthClaims } = await import('@/lib/queries/auth')
+const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { requireServiceClient } = await import('@/lib/supabase/service')
 const { getIntegrationKey } = await import('@/lib/platform-config')
 const PaymentsPageMod = await import('@/app/(app)/settings/integrations/stripe/page')
@@ -52,6 +58,7 @@ function mockSupabase(company: Record<string, unknown> | null) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+  vi.mocked(getActiveCompanyId).mockResolvedValue('company_1')
 })
 
 describe('/settings/payments page', () => {
@@ -98,6 +105,40 @@ describe('/settings/payments page', () => {
     expect(html).toContain('owner@biz.com')
     expect(html).toContain('Disconnect')
     expect(html).not.toContain('Connect Stripe Account')
+  })
+
+  it('renders the restricted state (warning + disabled_reason) when charges are disabled on an active account', async () => {
+    vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
+    vi.mocked(requireServiceClient).mockReturnValue(
+      mockSupabase({
+        id: 'company_1',
+        stripe_account_id: 'acct_abc',
+        stripe_connect_status: 'restricted',
+        stripe_account_email: 'owner@biz.com',
+        stripe_account_display_name: 'Demo Biz LLC',
+        stripe_charges_enabled: false,
+        stripe_connect_disabled_reason: 'requirements.past_due',
+      })
+    )
+
+    const ui = await PaymentsSettingsPage({
+      searchParams: Promise.resolve({}),
+    })
+    const { container } = render(ui)
+    const html = container.innerHTML
+    expect(html).toContain('Demo Biz LLC')
+    expect(html).toContain('data-testid="restricted-warning"')
+    expect(html).toContain('requirements.past_due')
+    expect(html).toContain('Disconnect')
+  })
+
+  it('redirects to /onboarding when the user has no active company', async () => {
+    vi.mocked(getActiveCompanyId).mockResolvedValue(null)
+    vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
+
+    await expect(
+      PaymentsSettingsPage({ searchParams: Promise.resolve({}) })
+    ).rejects.toThrow('REDIRECT:/onboarding')
   })
 
   it('renders the platform-not-configured message when client_id is unset', async () => {

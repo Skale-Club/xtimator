@@ -21,6 +21,18 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
  *   - a stable `idempotencyKey` guards every create against double-issue on retry
  *     (Pitfall 5)
  *   - an existing customer id is reused when present (D-14)
+ *
+ * Fix 2 (double-charge guard): the Invoice is created BEFORE the InvoiceItem,
+ * with `pending_invoice_items_behavior: 'exclude'`, and the InvoiceItem is
+ * created with `invoice: invoice.id` attached explicitly. The old order (item
+ * -> invoice with `pending_invoice_items_behavior: 'include'`) meant an
+ * orphaned item left over from a failed prior attempt on the SAME reused
+ * customer got silently swept into the next invoice — the customer got billed
+ * twice while our `invoices` row recorded only one issue. Creating the invoice
+ * first and attaching the item to it by id makes every issue self-contained:
+ * nothing floating on the customer can leak into it, and it can never leak
+ * into a future one either. `sendInvoice` now also carries its own
+ * `idempotencyKey` (it previously had none).
  */
 export async function createConnectInvoice(opts: {
   stripeAccountId: string
@@ -55,24 +67,17 @@ export async function createConnectInvoice(opts: {
       )
     ).id
 
-  // 2. InvoiceItem (amount-based; no Price object). NEVER any platform fee field.
-  await stripe.invoiceItems.create(
-    {
-      customer: customerId,
-      amount: opts.amountCents,
-      currency: opts.currencyCode.toLowerCase(),
-      description: opts.description,
-    },
-    { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_item` },
-  )
-
-  // 3. Invoice — manual collection (send_invoice) + days_until_due + routing metadata.
+  // 2. Invoice FIRST — draft, manual collection (send_invoice) + days_until_due
+  //    + routing metadata. `pending_invoice_items_behavior: 'exclude'` (Fix 2)
+  //    means nothing floating on the customer (e.g. an orphaned item from a
+  //    prior failed attempt) can get swept into THIS invoice — the InvoiceItem
+  //    below is attached to it explicitly by id instead.
   const invoice = await stripe.invoices.create(
     {
       customer: customerId,
       collection_method: 'send_invoice',
       days_until_due: opts.daysUntilDue,
-      pending_invoice_items_behavior: 'include',
+      pending_invoice_items_behavior: 'exclude',
       metadata: opts.metadata,
       // FEE-01: omit when 0 — Stripe rejects a $0 application fee (Pitfall 1).
       // The { stripeAccount } reqOpt already supplies the Direct-Charge header.
@@ -83,10 +88,27 @@ export async function createConnectInvoice(opts: {
     { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_inv` },
   )
 
+  // 3. InvoiceItem (amount-based; no Price object), attached to the invoice
+  //    just created (Fix 2) — never any platform fee field.
+  await stripe.invoiceItems.create(
+    {
+      customer: customerId,
+      invoice: invoice.id,
+      amount: opts.amountCents,
+      currency: opts.currencyCode.toLowerCase(),
+      description: opts.description,
+    },
+    { ...reqOpt, idempotencyKey: `${opts.idempotencyBase}_item` },
+  )
+
   // 4. Send — finalizes AND emails the hosted invoice in one step. The Stripe
   //    SDK signature is sendInvoice(id, params?, options?) so the connected-account
-  //    request option ({ stripeAccount }) is the THIRD arg.
-  const sent = await stripe.invoices.sendInvoice(invoice.id, {}, reqOpt)
+  //    request option ({ stripeAccount }) is the THIRD arg. Now also carries its
+  //    own idempotencyKey (Fix 2 — it previously had none).
+  const sent = await stripe.invoices.sendInvoice(invoice.id, {}, {
+    ...reqOpt,
+    idempotencyKey: `${opts.idempotencyBase}_send`,
+  })
 
   // 5. Read back the hosted URL + PDF (null on a draft; populated once finalized/sent).
   return {

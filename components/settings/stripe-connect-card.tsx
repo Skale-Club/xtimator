@@ -16,12 +16,23 @@ export type ConnectState =
   | { kind: 'not_configured' }
   | { kind: 'not_connected' }
   | { kind: 'connected'; displayName: string; email: string | null }
+  | {
+      kind: 'restricted'
+      displayName: string
+      email: string | null
+      disabledReason: string | null
+    }
 
 /**
- * Three-state card for the /settings/payments page. The `not_configured`
+ * Four-state card for the /settings/payments page. The `not_configured`
  * branch fires when the platform-level Connect Client ID is unset; the
  * `not_connected` branch shows the Connect CTA; the `connected` branch shows
- * the linked Stripe account + a Disconnect button (POST to disconnect API).
+ * the linked Stripe account + a Disconnect button (POST to disconnect API);
+ * the `restricted` branch (CONNECT-HEALTH-01) shows the same linked-account
+ * info PLUS a warning that Stripe has paused charges on the account (with the
+ * reason, when Stripe supplied one) and a link to finish verification — a
+ * restricted account is still "connected" (has a stripe_account_id) but
+ * cannot currently be paid, so it keeps the Disconnect affordance too.
  */
 export function StripeConnectCard({
   state,
@@ -74,17 +85,9 @@ export function StripeConnectCard({
           </p>
         )}
         {state.kind === 'not_connected' && (
-          <>
-            <p className="text-sm text-muted-foreground">
-              {t('Connect your Stripe account in one click. Test mode works for setup.')}
-            </p>
-            <p
-              data-testid="fee-disclosure"
-              className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
-            >
-              {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
-            </p>
-          </>
+          <p className="text-sm text-muted-foreground">
+            {t('Connect your Stripe account in one click. Test mode works for setup.')}
+          </p>
         )}
         {state.kind === 'connected' && (
           <div className="text-sm">
@@ -96,6 +99,46 @@ export function StripeConnectCard({
               <p className="text-muted-foreground mt-1">{state.email}</p>
             )}
           </div>
+        )}
+        {state.kind === 'restricted' && (
+          <div className="text-sm">
+            <p className="flex items-center">
+              <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 mr-2" />
+              {t('Connected as')} <strong className="ml-1">{state.displayName}</strong>
+            </p>
+            {state.email && (
+              <p className="text-muted-foreground mt-1">{state.email}</p>
+            )}
+            <p
+              data-testid="restricted-warning"
+              className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
+            >
+              {t('Stripe has paused payments on this account — your customers cannot pay invoices until this is resolved.')}
+              {state.disabledReason && (
+                <>
+                  {' '}
+                  {t('Reason')}: {state.disabledReason}.
+                </>
+              )}
+              {' '}
+              <a
+                href="https://dashboard.stripe.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                {t('Finish verification in Stripe')}
+              </a>
+            </p>
+          </div>
+        )}
+        {(state.kind === 'not_connected' || state.kind === 'connected' || state.kind === 'restricted') && (
+          <p
+            data-testid="fee-disclosure"
+            className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
+          >
+            {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
+          </p>
         )}
         {error && (
           <p className="text-sm text-destructive mt-3">{error}</p>
@@ -109,7 +152,7 @@ export function StripeConnectCard({
             </Button>
           </a>
         )}
-        {state.kind === 'connected' && (
+        {(state.kind === 'connected' || state.kind === 'restricted') && (
           <Button
             variant="outline"
             onClick={handleDisconnect}

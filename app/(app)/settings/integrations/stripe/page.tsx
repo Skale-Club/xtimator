@@ -4,6 +4,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { isDemoCompany } from '@/lib/demo/config'
+import { getActiveCompanyId } from '@/lib/queries/active-company'
 import {
   StripeConnectCard,
   type ConnectState,
@@ -21,13 +22,24 @@ export default async function StripeIntegrationPage({
   const claims = await getAuthClaims()
   if (!claims) redirect('/?auth=login')
 
+  // Fix 3: resolve the ACTIVE company (multi-company-safe) instead of
+  // `.eq('user_id', claims.sub).single()`. The old lookup broke for a
+  // multi-company owner (2+ rows → PostgREST error on `.single()` → redirect
+  // to /onboarding) and, for a non-owner member (whose user_id never matches
+  // `companies.user_id`), would also fail to resolve — or, worse, could
+  // show/disconnect the WRONG company if a future schema changed that
+  // assumption. `getActiveCompanyId()` is the same active-company resolver
+  // every other billing route now uses.
+  const activeCompanyId = await getActiveCompanyId()
+  if (!activeCompanyId) redirect('/onboarding')
+
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
     .select(
-      'id, stripe_account_id, stripe_connect_status, stripe_account_email, stripe_account_display_name'
+      'id, stripe_account_id, stripe_connect_status, stripe_account_email, stripe_account_display_name, stripe_charges_enabled, stripe_connect_disabled_reason'
     )
-    .eq('user_id', claims.sub as string)
+    .eq('id', activeCompanyId)
     .single()
   if (!company) redirect('/onboarding')
   if (isDemoCompany(company.id)) redirect('/settings/company')
@@ -47,6 +59,23 @@ export default async function StripeIntegrationPage({
         (company.stripe_account_display_name as string | null) ??
         (company.stripe_account_id as string),
       email: (company.stripe_account_email as string | null) ?? null,
+    }
+  } else if (
+    // CONNECT-HEALTH-01: Stripe restricted a previously-connected account
+    // (failed verification, a rejected review, a paused capability, ...).
+    // The account is still linked (stripe_account_id present) but cannot
+    // currently be paid — surface that distinctly from "never connected".
+    company.stripe_account_id &&
+    company.stripe_connect_status === 'restricted'
+  ) {
+    state = {
+      kind: 'restricted',
+      displayName:
+        (company.stripe_account_display_name as string | null) ??
+        (company.stripe_account_id as string),
+      email: (company.stripe_account_email as string | null) ?? null,
+      disabledReason:
+        (company.stripe_connect_disabled_reason as string | null) ?? null,
     }
   } else {
     state = { kind: 'not_connected' }

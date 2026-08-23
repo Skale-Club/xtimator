@@ -40,4 +40,54 @@ describe('PAYGATE-01: paymentsEnabled predicate', () => {
       paymentsEnabled({ stripe_account_id: null, stripe_connect_status: null })
     ).toBe(false)
   })
+
+  // CONNECT-HEALTH-01
+  it('is false when active but Stripe has disabled charges on the account (restricted)', () => {
+    expect(
+      paymentsEnabled({
+        stripe_account_id: 'acct_1',
+        stripe_connect_status: 'active',
+        stripe_charges_enabled: false,
+      })
+    ).toBe(false)
+  })
+
+  it('is true when active and stripe_charges_enabled is explicitly true', () => {
+    expect(
+      paymentsEnabled({
+        stripe_account_id: 'acct_1',
+        stripe_connect_status: 'active',
+        stripe_charges_enabled: true,
+      })
+    ).toBe(true)
+  })
+
+  it('is true when active and stripe_charges_enabled is null (legacy row, never synced — no regression)', () => {
+    expect(
+      paymentsEnabled({
+        stripe_account_id: 'acct_1',
+        stripe_connect_status: 'active',
+        stripe_charges_enabled: null,
+      })
+    ).toBe(true)
+  })
+
+  it('is true when active and stripe_charges_enabled is omitted entirely (legacy row shape)', () => {
+    expect(
+      paymentsEnabled({
+        stripe_account_id: 'acct_1',
+        stripe_connect_status: 'active',
+      })
+    ).toBe(true)
+  })
+
+  it('is false for a restricted status even if stripe_charges_enabled were somehow true', () => {
+    expect(
+      paymentsEnabled({
+        stripe_account_id: 'acct_1',
+        stripe_connect_status: 'restricted',
+        stripe_charges_enabled: true,
+      })
+    ).toBe(false)
+  })
 })

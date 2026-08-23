@@ -30,7 +30,9 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
  *     resolves via charge.invoice → invoices.stripe_invoice_id, falling
  *     back to the legacy estimates.stripe_payment_intent_id path
  *   - account.application.deauthorized → clear company connection
- *   - account.updated → sync display name / email (best effort)
+ *   - account.updated → sync display name / email AND Connect account health
+ *     (stripe_charges_enabled, stripe_connect_disabled_reason,
+ *     stripe_connect_status active/restricted — CONNECT-HEALTH-01, best effort)
  *   - other types → silently ignored
  *
  * Idempotency is enforced upstream in the route via the existing
@@ -536,12 +538,46 @@ async function handleInvoicePaid(
     | { share_token: string | null; project_id: string | null; public_slug_token: string | null }
     | null
 
+  // Amount-mismatch guard: the immutable snapshot column (`invoices.amount_cents`,
+  // written at issue time) can diverge from what Stripe actually collected —
+  // a partial payment, or an orphaned InvoiceItem swept into this invoice by a
+  // prior failed attempt (the double-charge class Fix 2 in invoice-service.ts
+  // closes going forward, but this still guards every invoice.paid event,
+  // including ones issued before that fix). Detect it via Stripe's own
+  // `amount_paid` on the paid Invoice object, log + alert, and use the ACTUAL
+  // amount in every tenant-facing surface below — the DB snapshot column itself
+  // is never touched (it stays what was charged/intended at issue time).
+  const actualAmountCents =
+    typeof invoice.amount_paid === 'number' ? invoice.amount_paid : updated.amount_cents
+  if (
+    typeof invoice.amount_paid === 'number' &&
+    invoice.amount_paid !== updated.amount_cents
+  ) {
+    console.warn(
+      '[stripe-webhook][connect] invoice.paid amount_paid does not match invoices.amount_cents snapshot:',
+      'invoiceRowId=',
+      updated.id,
+      'snapshotAmountCents=',
+      updated.amount_cents,
+      'stripeAmountPaid=',
+      invoice.amount_paid
+    )
+    void notifyOps({
+      kind: 'invoice_amount_mismatch',
+      title: 'Stripe invoice amount mismatch',
+      message: `invoice ${updated.id} (stripe ${invoice.id}) snapshot amount_cents=${updated.amount_cents} but Stripe amount_paid=${invoice.amount_paid}`,
+      severity: 'error',
+      dedupeKey: event.id,
+    })
+  }
+
   // Phase 77 NOTIF-04: payment.received in-app + email (force channels).
   // Dedupe by Stripe event id so duplicate webhook deliveries collapse.
-  // Amount comes from the INVOICE snapshot, never re-derived from the estimate.
+  // Amount comes from the INVOICE snapshot, corrected to Stripe's actual
+  // amount_paid above when they diverge — never re-derived from the estimate.
   try {
     const amountUSD = formatMinorUnits(
-      updated.amount_cents,
+      actualAmountCents,
       updated.currency_code
     )
     const ctx = {
@@ -592,7 +628,7 @@ async function handleInvoicePaid(
   )
 
   const ctx = {
-    amountCents: updated.amount_cents,
+    amountCents: actualAmountCents,
     currencyCode: updated.currency_code,
     projectName: updated.project_name ?? 'Service estimate',
     estimateShareUrl: estimate?.share_token
@@ -882,25 +918,57 @@ async function handleAccountDeauthorized(
 }
 
 // ------------------------------------------------------------------
-// account.updated — best-effort sync of display fields
+// account.updated — sync display fields AND Connect account health
+// (CONNECT-HEALTH-01, Fix 1).
+//
+// Before this fix, only display_name/email were synced, so
+// stripe_connect_status never left 'active' once a company connected — even
+// after Stripe restricted the account (failed verification, a rejected
+// review, a paused capability, ...). paymentsEnabled() stayed green on a
+// restricted account and tenants kept issuing invoices nobody could pay.
+//
+// Now also reads account.charges_enabled + account.requirements?.disabled_reason
+// and writes stripe_charges_enabled / stripe_connect_disabled_reason /
+// stripe_connect_status ('active' when charges are enabled, else
+// 'restricted'). The write is matched on `event.account` — the Stripe-signed,
+// verified account id — never `account.id` off the event payload body,
+// mirroring handleAccountDeauthorized. A `.neq('stripe_connect_status',
+// 'disconnected')` guard ensures this can never resurrect a company the
+// tenant (or account.application.deauthorized) already disconnected — Stripe
+// can still emit a stray account.updated after deauth, and it must stay a
+// no-op.
 // ------------------------------------------------------------------
 async function handleAccountUpdated(
   event: Stripe.Event,
   svc: ServiceClient
 ): Promise<void> {
+  const acctId = event.account
+  if (!acctId) {
+    console.warn('[stripe-webhook][connect] account.updated missing event.account')
+    return
+  }
+
   const account = event.data.object as Stripe.Account
   const display =
     account.settings?.dashboard?.display_name ??
     account.business_profile?.name ??
     null
-  const updates: Record<string, string> = {}
+  const chargesEnabled = account.charges_enabled === true
+  const disabledReason = account.requirements?.disabled_reason ?? null
+
+  const updates: Record<string, string | boolean | null> = {
+    stripe_charges_enabled: chargesEnabled,
+    stripe_connect_disabled_reason: disabledReason,
+    stripe_connect_status: chargesEnabled ? 'active' : 'restricted',
+  }
   if (account.email) updates.stripe_account_email = account.email
   if (display) updates.stripe_account_display_name = display
-  if (Object.keys(updates).length === 0) return
+
   const { error } = await svc
     .from('companies')
     .update(updates)
-    .eq('stripe_account_id', account.id)
+    .eq('stripe_account_id', acctId)
+    .in('stripe_connect_status', ['active', 'restricted'])
   if (error) {
     console.error(
       '[stripe-webhook][connect] account.updated sync failed:',
