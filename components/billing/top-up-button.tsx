@@ -20,10 +20,15 @@ export function TopUpButton({
   packIndex,
   label = 'Top up credits',
   variant = 'primary',
+  isOwner = true,
 }: {
   packIndex: number
   label?: string
   variant?: 'primary' | 'outline'
+  // False when the signed-in user is a company member, not the owner — the
+  // checkout endpoint is owner-only server-side, so left enabled a member
+  // would be told "Please try again" forever. Defaults to true.
+  isOwner?: boolean
 }) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
@@ -38,7 +43,7 @@ export function TopUpButton({
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error(t('Could not start top-up. Please try again.'))
+        toast.error(data.error ? t(data.error) : t('Could not start top-up. Please try again.'))
         return
       }
       window.location.href = data.url
@@ -50,8 +55,13 @@ export function TopUpButton({
   }
 
   return (
-    <Button onClick={handleTopUp} disabled={loading} size="sm" variant={variant}>
-      {loading ? t('Redirecting...') : t(label)}
-    </Button>
+    <div className="flex flex-col gap-1">
+      <Button onClick={handleTopUp} disabled={loading || !isOwner} size="sm" variant={variant}>
+        {loading ? t('Redirecting...') : t(label)}
+      </Button>
+      {!isOwner && (
+        <p className="text-xs text-muted-foreground">{t('Only the company owner can manage billing.')}</p>
+      )}
+    </div>
   )
 }

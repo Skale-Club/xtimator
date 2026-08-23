@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function UpgradeButtons() {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState<'pro' | 'business' | null>(null)
 
   async function handleUpgrade(plan: 'pro' | 'business') {
@@ -17,12 +19,12 @@ export function UpgradeButtons() {
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error('Could not start checkout. Please try again.')
+        toast.error(data.error ? t(data.error) : t('Could not start checkout. Please try again.'))
         return
       }
       window.location.href = data.url
     } catch {
-      toast.error('Could not start checkout. Please try again.')
+      toast.error(t('Could not start checkout. Please try again.'))
     } finally {
       setLoading(null)
     }
@@ -35,7 +37,7 @@ export function UpgradeButtons() {
         disabled={loading !== null}
         className="flex-1"
       >
-        {loading === 'pro' ? 'Redirecting...' : 'Upgrade to Pro'}
+        {loading === 'pro' ? t('Redirecting...') : t('Upgrade to Pro')}
       </Button>
       <Button
         onClick={() => handleUpgrade('business')}
@@ -43,7 +45,7 @@ export function UpgradeButtons() {
         variant="outline"
         className="flex-1"
       >
-        {loading === 'business' ? 'Redirecting...' : 'Upgrade to Business'}
+        {loading === 'business' ? t('Redirecting...') : t('Upgrade to Business')}
       </Button>
     </div>
   )

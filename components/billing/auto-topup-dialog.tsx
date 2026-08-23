@@ -32,10 +32,13 @@ interface AutoTopupDialogLauncherProps {
   currentThresholdCredits: number | null
   currentPackIndex: number | null
   hasPaymentMethod: boolean
+  // False when the signed-in user is a company member, not the owner —
+  // defaults to true so existing callers keep today's behavior.
+  isOwner?: boolean
 }
 
 export function AutoTopupDialogLauncher({
-  enabled, packs, currentThresholdCredits, currentPackIndex, hasPaymentMethod,
+  enabled, packs, currentThresholdCredits, currentPackIndex, hasPaymentMethod, isOwner = true,
 }: AutoTopupDialogLauncherProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -78,7 +81,12 @@ export function AutoTopupDialogLauncher({
 
   return (
     <>
-      <Button variant={enabled ? 'outline' : 'primary'} size="sm" onClick={() => setOpen(true)}>
+      <Button
+        variant={enabled ? 'outline' : 'primary'}
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={!isOwner}
+      >
         {enabled ? t('Manage') : t('Enable auto-top-up')}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -108,7 +116,7 @@ export function AutoTopupDialogLauncher({
               />
               {thresholdTouched && !thresholdValid ? (
                 <p className="text-xs text-destructive">
-                  {t('Enter an amount between $0 and $10,000.')}
+                  {t('Enter an amount greater than $0, up to $10,000.')}
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
@@ -137,11 +145,15 @@ export function AutoTopupDialogLauncher({
             </div>
             <div className="space-y-1.5">
               <Label>{t('Payment method')}</Label>
-              {hasPaymentMethod ? (
+              {hasPaymentMethod && (
                 <p className="text-sm text-muted-foreground">{t('Payment method on file.')}</p>
-              ) : (
-                <PaymentMethodSetupButton />
               )}
+              {/* Always render the button — a tenant whose card is on file but
+                  FAILING (the lastFailed alert on the card) otherwise has no
+                  way to fix it: only inert "Payment method on file." text
+                  showed here before, regardless of whether that file's card
+                  was actually working. */}
+              <PaymentMethodSetupButton hasPaymentMethod={hasPaymentMethod} />
             </div>
           </div>
           <DialogFooter className="flex items-center justify-between gap-2 sm:justify-between">
@@ -163,7 +175,7 @@ export function AutoTopupDialogLauncher({
               <Button
                 type="button"
                 onClick={handleSave}
-                disabled={isPending || !hasPaymentMethod || !thresholdValid}
+                disabled={isPending || !hasPaymentMethod || !thresholdValid || !isOwner}
               >
                 {isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t('Saving…')}</> : t('Save changes')}
               </Button>
@@ -175,7 +187,7 @@ export function AutoTopupDialogLauncher({
   )
 }
 
-function PaymentMethodSetupButton() {
+function PaymentMethodSetupButton({ hasPaymentMethod }: { hasPaymentMethod: boolean }) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   async function handleAdd() {
@@ -184,7 +196,7 @@ function PaymentMethodSetupButton() {
       const res = await fetch('/api/billing/create-autotopup-setup-session', { method: 'POST' })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error(t('Could not start payment method setup. Please try again.'))
+        toast.error(data.error ? t(data.error) : t('Could not start payment method setup. Please try again.'))
         return
       }
       window.location.href = data.url
@@ -196,9 +208,15 @@ function PaymentMethodSetupButton() {
   }
   return (
     <div className="space-y-1">
-      <p className="text-sm text-muted-foreground">{t('No payment method on file. Add one to enable auto top-up.')}</p>
+      {!hasPaymentMethod && (
+        <p className="text-sm text-muted-foreground">{t('No payment method on file. Add one to enable auto top-up.')}</p>
+      )}
       <Button type="button" variant="outline" size="sm" onClick={handleAdd} disabled={loading}>
-        {loading ? t('Redirecting…') : t('Add payment method')}
+        {loading
+          ? t('Redirecting…')
+          : hasPaymentMethod
+            ? t('Update payment method')
+            : t('Add payment method')}
       </Button>
     </div>
   )

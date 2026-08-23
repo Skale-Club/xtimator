@@ -3,9 +3,11 @@
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export function UpgradeModal() {
   const router = useRouter()
+  const { t } = useTranslation()
 
   useEffect(() => {
     const originalFetch = window.fetch
@@ -33,14 +35,16 @@ export function UpgradeModal() {
                 // thinking everything is locked.
                 const isCredits = body.reason === 'credits'
                 toast.error(
-                  isCredits ? "You're out of AI credits" : 'Plan limit reached',
+                  t(isCredits ? "You're out of AI credits" : 'Plan limit reached'),
                   {
-                    description: isCredits
-                      ? 'You can still build this estimate manually — just add sections and items by hand. To keep using AI, upgrade or top up your credits.'
-                      : "You've hit your plan limit. You can still build estimates manually, or upgrade to keep using AI.",
+                    description: t(
+                      isCredits
+                        ? 'You can still build this estimate manually — just add sections and items by hand. To keep using AI, upgrade or top up your credits.'
+                        : "You've hit your plan limit. You can still build estimates manually, or upgrade to keep using AI."
+                    ),
                     duration: 9000,
                     action: {
-                      label: 'Upgrade or top up',
+                      label: t('Upgrade or top up'),
                       onClick: () => router.push('/settings/billing'),
                     },
                   }
@@ -59,7 +63,7 @@ export function UpgradeModal() {
     return () => {
       window.fetch = originalFetch
     }
-  }, [router])
+  }, [router, t])
 
   return null
 }

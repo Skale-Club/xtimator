@@ -11,6 +11,8 @@ import { formatUsd } from '@/lib/billing/format-usd'
 // lateral/downward switch ("Switch to Pro") relative to the user's current tier.
 const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2 }
 
+export type BillingInterval = 'month' | 'year'
+
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
   annualPrices?: { pro?: number | null; business?: number | null }
@@ -20,6 +22,24 @@ interface TierCardsGridProps {
   // hardcoded TIERS[].features below only when a tier is missing (defensive for
   // isolated renders / tests that don't wire the prop).
   featureBullets?: Partial<Record<Tier, string[]>>
+  // The company's ACTUAL current billing interval — undefined means "unknown"
+  // (keeps pre-Phase-UX behavior: the current tier is always shown as
+  // disabled "Current plan" regardless of which toggle position is selected).
+  // When known and it differs from the selected toggle position, the current
+  // tier's card offers an enabled "Switch to annual"/"Switch to monthly" CTA
+  // instead of a disabled "Current plan" — the monthly→annual upsell was
+  // previously unreachable because `current` ignored interval entirely.
+  currentInterval?: BillingInterval
+  // False when the signed-in user is a company member, not the owner — billing
+  // actions are owner-only server-side, so a non-owner's every CTA here would
+  // otherwise 403 forever with no explanation. Defaults to true so existing
+  // callers (which don't know about ownership) keep today's behavior.
+  isOwner?: boolean
+  // True when the company's subscription is scheduled to cancel at period end
+  // (tier_cancelled_at set). The current tier's card then offers an enabled
+  // "Resume subscription" CTA (via the billing portal's cancel-reversal flow)
+  // instead of a disabled "Current plan" dead end. Defaults to false.
+  pendingCancel?: boolean
 }
 
 /**
@@ -90,10 +110,18 @@ const TIERS: Array<{
   },
 ]
 
-export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, featureBullets }: TierCardsGridProps) {
+export function TierCardsGrid({
+  currentTier,
+  annualPrices,
+  monthlyPricesCents,
+  featureBullets,
+  currentInterval,
+  isOwner = true,
+  pendingCancel = false,
+}: TierCardsGridProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
-  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month')
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>('month')
 
   async function handleSelect(tier: Tier) {
     if (tier === 'free') return
@@ -106,12 +134,32 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, f
       })
       const data = await res.json()
       if (!res.ok || !data.url) {
-        toast.error(t('Could not start checkout. Please try again.'))
+        toast.error(data.error ? t(data.error) : t('Could not start checkout. Please try again.'))
         return
       }
       window.location.href = data.url
     } catch {
       toast.error(t('Could not start checkout. Please try again.'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  // Resume a subscription scheduled to cancel at period end — routes through
+  // the same billing portal as "Manage Subscription" (Stripe's portal exposes
+  // the cancel-reversal action there), never a dedicated checkout.
+  async function handleResume(tier: Tier) {
+    setLoading(tier)
+    try {
+      const res = await fetch('/api/billing/create-portal-session', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.url) {
+        toast.error(data.error ? t(data.error) : t('Could not open subscription portal. Please try again.'))
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      toast.error(t('Could not open subscription portal. Please try again.'))
     } finally {
       setLoading(null)
     }
@@ -143,6 +191,12 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, f
 
   return (
     <div className="space-y-6">
+      {!isOwner && (
+        <p className="text-center text-sm text-muted-foreground">
+          {t('Only the company owner can manage billing.')}
+        </p>
+      )}
+
       {/* Monthly / Annual toggle */}
       <div className="flex items-center justify-center gap-1">
         <button
@@ -184,6 +238,20 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, f
           // so it doesn't read as an enabled no-op.
           const freeDisabledForPaid = tierItem.tier === 'free' && isPaidUser
           const ranksAbove = TIER_RANK[normalized] > TIER_RANK[tierItem.tier]
+
+          const isCurrentTier = normalized === tierItem.tier
+          const sameInterval = currentInterval === undefined || currentInterval === billingInterval
+          // Current tier, cancellation scheduled → offer a way back instead of a
+          // disabled dead end. Free has no subscription to resume.
+          const isPendingCancelCurrent =
+            isCurrentTier && sameInterval && pendingCancel && tierItem.tier !== 'free'
+          // Current tier, but the toggle is on the OTHER interval and we know
+          // the company's actual interval → an enabled interval-switch CTA
+          // instead of a disabled "Current plan" for an unbuyable combination.
+          const isIntervalSwitch =
+            isCurrentTier && !sameInterval && currentInterval !== undefined && !isPendingCancelCurrent
+          const current = isCurrentTier && sameInterval && !isPendingCancelCurrent
+
           const ctaLabel =
             loading === tierItem.tier
               ? 'Redirecting…'
@@ -191,9 +259,16 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, f
                 ? freeDisabledForPaid
                   ? 'Downgrade via portal'
                   : 'Get started'
-                : ranksAbove
-                  ? `Switch to ${tierItem.name}`
-                  : `Upgrade to ${tierItem.name}`
+                : isPendingCancelCurrent
+                  ? 'Resume subscription'
+                  : isIntervalSwitch
+                    ? billingInterval === 'year'
+                      ? 'Switch to annual'
+                      : 'Switch to monthly'
+                    : ranksAbove
+                      ? `Switch to ${tierItem.name}`
+                      : `Upgrade to ${tierItem.name}`
+
           return (
             <TierCard
               key={tierItem.tier}
@@ -203,16 +278,18 @@ export function TierCardsGrid({ currentTier, annualPrices, monthlyPricesCents, f
               period={tierItem.period}
               features={features}
               popular={tierItem.popular}
-              current={normalized === tierItem.tier}
+              current={current}
               showAnnual={billingInterval === 'year'}
               annualPrice={annualDisplay?.annualPrice}
               annualPerMonth={annualDisplay?.annualPerMonth}
               savePct={annualDisplay?.savePct}
               ctaLabel={ctaLabel}
-              disabled={freeDisabledForPaid}
+              disabled={freeDisabledForPaid || !isOwner}
               currentLabel="Current plan"
               popularLabel="Most popular"
-              onSelect={() => handleSelect(tierItem.tier)}
+              onSelect={() =>
+                isPendingCancelCurrent ? handleResume(tierItem.tier) : handleSelect(tierItem.tier)
+              }
             />
           )
         })}

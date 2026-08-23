@@ -124,7 +124,10 @@ describe('BILL-01: refine route credit gate', () => {
       error: 'plan_limit_reached',
       reason: 'credits',
       upgradeUrl: '/settings/billing',
-      topUpUrl: '/settings/billing?topup=1',
+      // `?topup=1` is BillingStatusToast's payment-received param — linking a
+      // 402 there told a user who paid nothing "Payment received". The
+      // affordance now points at the packs anchor (both routes share the helper).
+      topUpUrl: '/settings/billing#topup-packs',
     })
   })
 

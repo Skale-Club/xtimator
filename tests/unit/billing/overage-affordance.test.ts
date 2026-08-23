@@ -14,6 +14,11 @@ import { describe, it, expect } from 'vitest'
  *     buy credits or upgrade — INFORMATIONAL, never a hard block.
  *   - shortfall === 0 → null (no affordance needed).
  *
+ * topUpUrl is '/settings/billing#topup-packs' (an anchor), NOT
+ * '/settings/billing?topup=1' — that query param is BillingStatusToast's
+ * SUCCESS signal ("Payment received…"), which would lie to someone who
+ * hasn't paid yet.
+ *
  * This is the unit-level proof that TOPUP-03 is a PATH, not a block: even with
  * allowed:true (enforcement off), a shortfall still yields an affordance. The
  * checkCredits gate (lib/billing/credit-ledger.ts) keeps allowed:true while
@@ -33,7 +38,7 @@ describe('buildOverageAffordance (TOPUP-03)', () => {
     const result = buildOverageAffordance({ allowed: true, balance: 0, shortfall: 500 })
 
     expect(result).toEqual({
-      topUpUrl: '/settings/billing?topup=1',
+      topUpUrl: '/settings/billing#topup-packs',
       upgradeUrl: '/settings/billing',
     })
   })
@@ -50,6 +55,6 @@ describe('buildOverageAffordance (TOPUP-03)', () => {
     const result = buildOverageAffordance({ allowed: true, balance: 0, shortfall: 1 })
 
     expect(result).not.toBeNull()
-    expect(result?.topUpUrl).toBe('/settings/billing?topup=1')
+    expect(result?.topUpUrl).toBe('/settings/billing#topup-packs')
   })
 })

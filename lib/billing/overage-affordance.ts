@@ -19,7 +19,11 @@ export function buildOverageAffordance(check: {
   shortfall: number
 }): { topUpUrl: string; upgradeUrl: string } | null {
   if (check.shortfall > 0) {
-    return { topUpUrl: '/settings/billing?topup=1', upgradeUrl: '/settings/billing' }
+    // NOT '?topup=1' — that's the BillingStatusToast SUCCESS param ("Payment
+    // received — your credits may take a few seconds to appear."), which
+    // would lie to someone who hasn't paid anything yet. '#topup-packs' just
+    // scrolls the billing page to the existing top-up-packs anchor.
+    return { topUpUrl: '/settings/billing#topup-packs', upgradeUrl: '/settings/billing' }
   }
   return null
 }

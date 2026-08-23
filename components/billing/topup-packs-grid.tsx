@@ -10,7 +10,15 @@ import type { TopUpPack } from '@/lib/billing/billing-config'
  * elsewhere in this file's sibling components (tier-cards-grid.tsx).
  * The middle pack (index 1 of exactly 3) is marked "Best value".
  */
-export function TopUpPacksGrid({ packs }: { packs: TopUpPack[] }) {
+export function TopUpPacksGrid({
+  packs,
+  // Owner-only billing: the routes return 403 for a member, so the cards must
+  // not offer a purchase the server will refuse (audit dead-end #6).
+  isOwner = true,
+}: {
+  packs: TopUpPack[]
+  isOwner?: boolean
+}) {
   const recommendedIndex = packs.length >= 3 ? 1 : -1
   return (
     <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
@@ -21,6 +29,7 @@ export function TopUpPacksGrid({ packs }: { packs: TopUpPack[] }) {
           priceCents={pack.priceCents}
           credits={pack.credits}
           recommended={i === recommendedIndex}
+          isOwner={isOwner}
         />
       ))}
     </div>

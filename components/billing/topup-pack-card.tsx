@@ -19,11 +19,15 @@ export function TopUpPackCard({
   priceCents,
   credits,
   recommended,
+  // Threaded from the page: a non-owner gets a disabled button with a reason
+  // instead of a 403 they cannot interpret.
+  isOwner = true,
 }: {
   packIndex: number
   priceCents: number
   credits: number
   recommended?: boolean
+  isOwner?: boolean
 }) {
   const amount = formatUsd(priceCents)
   return (
@@ -49,6 +53,7 @@ export function TopUpPackCard({
         </CardTitle>
       </CardHeader>
       <TopUpButton
+        isOwner={isOwner}
         packIndex={packIndex}
         label={`Top up ${amount}`}
         variant={recommended ? 'primary' : 'outline'}

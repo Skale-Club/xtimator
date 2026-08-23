@@ -23,6 +23,7 @@ export function AutoTopupCard({
   packs,
   currentThresholdCredits,
   currentPackIndex,
+  isOwner = true,
 }: {
   enabled: boolean
   packAmount: string | null
@@ -32,6 +33,9 @@ export function AutoTopupCard({
   packs: Array<{ priceCents: number; credits: number }>
   currentThresholdCredits: number | null
   currentPackIndex: number | null
+  // False when the signed-in user is a company member, not the owner —
+  // defaults to true so existing callers keep today's behavior.
+  isOwner?: boolean
 }) {
   return (
     <Card variant="glass" className="p-6">
@@ -71,7 +75,13 @@ export function AutoTopupCard({
           currentThresholdCredits={currentThresholdCredits}
           currentPackIndex={currentPackIndex}
           hasPaymentMethod={!!paymentMethodLabel}
+          isOwner={isOwner}
         />
+        {!isOwner && (
+          <p className="text-xs text-muted-foreground">
+            <T>Only the company owner can manage billing.</T>
+          </p>
+        )}
       </CardContent>
     </Card>
   )
