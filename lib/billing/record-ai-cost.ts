@@ -36,6 +36,10 @@ export interface AICostInput {
     | 'price_research'
     | 'translation'
     | 'vision'
+    // MEASURE-ONLY (CR13): absorbed chat spend — recorded so calibration can
+    // see it. Deliberately absent from the chargeable-operation list, so it
+    // can never be billed to a tenant.
+    | 'chat'
   provider: 'openrouter' | 'openai' | 'anthropic' | 'gemini'
   realCostUsd: number | null // null = provider gave no cost (NEVER 0)
   companyId?: string | null

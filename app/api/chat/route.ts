@@ -38,6 +38,7 @@ import { resolveChatModel } from '@/lib/chat/provider'
 import { buildChatTools } from '@/lib/chat/tools'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { CHAT_SYSTEM_PROMPT } from '@/lib/chat/system-prompt'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 import {
   createConversation,
   appendMessage,
@@ -146,6 +147,36 @@ export async function POST(req: Request) {
     tools,
     stopWhen: stepCountIs(5),
   })
+
+  // 5b. MEASURE-ONLY cost capture (CR13). Chat is an ABSORBED cost — it never
+  //     debits credits (this route calls no charging helper at all — the
+  //     CHATMETER-01 guard test enforces that — and 'chat' is not
+  //     in credit_ledger's operation_type CHECK) — but it must still be
+  //     MEASURED, or the calibration model counts absorbed spend as zero.
+  //     OpenRouter reports the turn's real USD cost in providerMetadata once
+  //     the stream settles; a provider that reports nothing records null,
+  //     never a guessed 0. Fire-and-forget: awaiting would delay the stream,
+  //     and recordAICost is itself never-throw.
+  void (async () => {
+    try {
+      const meta = (await result.providerMetadata) as
+        | { openrouter?: { usage?: { cost?: number | null } } }
+        | undefined
+      const cost = meta?.openrouter?.usage?.cost
+      await recordAICost({
+        attemptId: crypto.randomUUID(),
+        operationType: 'chat',
+        provider: 'openrouter',
+        realCostUsd: typeof cost === 'number' && Number.isFinite(cost) ? cost : null,
+        companyId,
+        model: typeof model === 'object' && model && 'modelId' in model
+          ? (model as { modelId?: string }).modelId ?? null
+          : null,
+      })
+    } catch (err) {
+      console.warn('[chat] absorbed-cost capture skipped:', err instanceof Error ? err.message : err)
+    }
+  })()
 
   // 6. Stream back, persisting the NEW tail in onFinish (Pitfall 3 — never
   //    mid-stream). A persistence hiccup must NEVER break the already-streamed

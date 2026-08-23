@@ -893,6 +893,15 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     MACHINE_REASON,
     ['monthlyCreditGrantJob'],
   ),
+  // Read-only reconciliation cron: reports drift via notifyOps, never writes a
+  // tenant row, so there is no demo-write surface to guard.
+  ...excepted(
+    'lib/inngest/functions/billing-reconciliation.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['billingReconciliationJob'],
+  ),
   ...guarded(
     'lib/inngest/functions/notification-channel-send.ts',
     'assertCompanyWritable',

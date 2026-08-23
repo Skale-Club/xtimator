@@ -243,6 +243,27 @@ function EstimateViewInner({
     ? estimate.company.estimate_template_style
     : DEFAULT_ESTIMATE_TEMPLATE_ID
 
+  // Only invoices this view can actually ACT on: a paid one (confirmation) or
+  // an open one carrying its hosted link. Deriving the list before the card
+  // decides to render is what keeps an "Invoices" heading from appearing over
+  // empty space (an open invoice whose hosted_invoice_url has not landed yet
+  // used to produce exactly that). Actionable rows sort first.
+  const renderableInvoices = estimate.invoices
+    .filter((inv) => inv.status === 'paid' || (inv.status === 'open' && !!inv.hosted_invoice_url))
+    .slice()
+    .sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1))
+
+  // Amount still uninvoiced (e.g. the deposit was paid but the balance invoice
+  // has not been issued yet). Without this line the customer sees "Paid:
+  // deposit — $X" and no statement of what remains.
+  // Sum EVERY active invoice, not just the renderable ones: an issued invoice
+  // whose hosted link has not landed yet is still money already invoiced, and
+  // counting only the rendered rows would overstate what remains.
+  const invoicedCents = estimate.invoices
+    .filter((inv) => inv.status !== 'void' && inv.status !== 'uncollectible')
+    .reduce((sum, inv) => sum + (inv.amount_cents ?? 0), 0)
+  const uninvoicedCents = Math.max(0, (estimate.total_amount_cents ?? 0) - invoicedCents)
+
   // ---------------------------------------------------------------------------
   // Respond handlers
   // ---------------------------------------------------------------------------
@@ -355,7 +376,7 @@ function EstimateViewInner({
 
       {/* Phase 94 — issued-invoice pay links. Open invoices get a "Pay" button to
           the Stripe-hosted invoice page; paid invoices show a muted confirmation. */}
-      {estimate.invoices.length > 0 && (
+      {renderableInvoices.length > 0 && (
         <Card variant="glass">
           <CardContent className="p-6 sm:p-8 space-y-4">
             <div className="flex items-center gap-2">
@@ -363,7 +384,7 @@ function EstimateViewInner({
               <h3 className="text-base font-semibold">{t('Invoices')}</h3>
             </div>
             <div className="space-y-3">
-              {estimate.invoices.map((inv) => {
+              {renderableInvoices.map((inv) => {
                 const amount = formatMinorUnits(inv.amount_cents, inv.currency_code)
                 const kindLabel =
                   inv.kind === 'deposit'
@@ -405,6 +426,13 @@ function EstimateViewInner({
 
                 return null
               })}
+
+              {uninvoicedCents > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {t('Remaining, not yet invoiced')}:{' '}
+                  {formatMinorUnits(uninvoicedCents, estimate.currency_code ?? 'USD')}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

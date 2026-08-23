@@ -73,3 +73,33 @@ describe('20260822000001_protect_billing_columns — shape', () => {
     expect(sql.match(/CREATE OR REPLACE FUNCTION public\./g)?.length).toBe(2)
   })
 })
+
+/**
+ * Follow-up guard: 20260823000001 added the Connect-health columns, which are
+ * Stripe-attested (paymentsEnabled reads them) and must be covered by the same
+ * BEFORE UPDATE guard. 20260823000004 replaces the function body to include
+ * them — assert the newer file protects both.
+ */
+const followUpSql = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260823000004_protect_connect_health_columns.sql'),
+  'utf8',
+).replace(/\r\n/g, '\n')
+
+describe('20260823000004_protect_connect_health_columns — shape', () => {
+  it.each(['stripe_charges_enabled', 'stripe_connect_disabled_reason'])(
+    'protects companies.%s',
+    (col) => {
+      expect(followUpSql).toContain(`NEW.${col}`)
+      expect(followUpSql).toContain(`IS DISTINCT FROM OLD.${col}`)
+    },
+  )
+
+  it('replaces the same function the trigger already points at', () => {
+    expect(followUpSql).toContain('CREATE OR REPLACE FUNCTION public.protect_company_billing_columns()')
+    expect(followUpSql).not.toContain('CREATE TRIGGER')
+  })
+
+  it('still guards only client roles', () => {
+    expect(followUpSql).toContain("IF current_user IN ('anon', 'authenticated') THEN")
+  })
+})
