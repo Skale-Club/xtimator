@@ -131,6 +131,10 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
       discountValue: estimateData.discount_value,
       depositType: estimateData.deposit_type ?? 'none',
       depositValue: estimateData.deposit_value ?? null,
+      // The deposit is resolved in MINOR units, so the engine needs the same
+      // currency the invoice will charge in — otherwise a 0-decimal currency
+      // (JPY) rounds on a cents scale it does not have.
+      currencyCode: normalizeCurrencyCode(company.currency_code ?? DEFAULT_CURRENCY_CODE),
     }
   )
 
@@ -710,7 +714,7 @@ async function recalculateEstimateTotals(
 
   const { data: company } = await supabase
     .from('companies')
-    .select('tax_config')
+    .select('tax_config, currency_code')
     .eq('id', estimate.company_id as string)
     .single()
 
@@ -748,6 +752,11 @@ async function recalculateEstimateTotals(
       discountValue: Number(estimate.discount_value ?? 0),
       depositType: (estimate.deposit_type as 'none' | 'percent' | 'amount' | null) ?? 'none',
       depositValue: (estimate.deposit_value as number | null) ?? null,
+      // Same reason as saveEstimate: the deposit rounds in minor units, so the
+      // engine must use the company's real currency scale.
+      currencyCode: normalizeCurrencyCode(
+        (company?.currency_code as string | null) ?? DEFAULT_CURRENCY_CODE
+      ),
     }
   )
 

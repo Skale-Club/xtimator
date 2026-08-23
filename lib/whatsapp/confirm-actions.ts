@@ -12,7 +12,7 @@ import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsap
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
-import { formatMoney } from '@/lib/money/currency'
+import { formatMoney, DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import {
@@ -391,7 +391,7 @@ async function recomputeEstimateTotals(
   const { data: estimate } = await supabase
     .from('estimates')
     .select(
-      'discount_type, discount_value, tax_rate, deposit_type, deposit_value, project_id, company_id'
+      'discount_type, discount_value, tax_rate, deposit_type, deposit_value, project_id, company_id, currency_code'
     )
     .eq('id', estimateId)
     .single()
@@ -452,6 +452,11 @@ async function recomputeEstimateTotals(
       discountValue: Number(estimate.discount_value ?? 0),
       depositType: (estimate.deposit_type as 'none' | 'percent' | 'amount' | null) ?? 'none',
       depositValue: (estimate.deposit_value as number | null) ?? null,
+      // The deposit rounds in minor units — pass the estimate's own currency so
+      // the engine and the Stripe charge share one rounding scale.
+      currencyCode: normalizeCurrencyCode(
+        (estimate.currency_code as string | null) ?? DEFAULT_CURRENCY_CODE
+      ),
     }
   )
 

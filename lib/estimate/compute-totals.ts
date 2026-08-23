@@ -21,6 +21,24 @@
 //   1. rates[item.tax_category]  (when the category resolves to a number)
 //   2. config.default_rate       (when set)
 //   3. the option `taxRate`      (final fallback)
+//
+// BILL-CONSTRAINT-01 (FIX 1 + FIX 2): the deposit is now resolved via
+// lib/billing/charge-amount's resolveChargeAmount — the SAME integer-cents
+// authority the Stripe charge amount uses — instead of an independent
+// dollar-space Math.round. Two consequences, both deliberate:
+//   FIX 1 — resolveChargeAmount clamps its result to [0, totalCents], so a
+//     deposit can never render negative or exceed the grand total even from a
+//     bad legacy row (mirrors the existing balanceDue floor).
+//   FIX 2 — computing in cents (not dollars-then-round) eliminates the
+//     one-minor-unit drift the two engines could previously disagree on for
+//     exact-half-cent totals (e.g. $10.03 at 50% → dollar-space rounds to
+//     $5.01, cents-space rounds to $5.02); the printed deposit and the
+//     invoiced charge are now guaranteed identical.
+// This module stays PURE: lib/money/currency and lib/billing/charge-amount
+// are both pure (no DB, no 'server-only').
+
+import { fromMinorUnits } from '@/lib/money/currency'
+import { resolveChargeAmount } from '@/lib/billing/charge-amount'
 
 export interface TaxConfig {
   rates: { labor?: number; materials?: number; other?: number }
@@ -66,6 +84,11 @@ export interface ComputeTotalsOptions {
   // 'percent' → deposit = round2(grandTotal × deposit_value/100); 'amount' → deposit = round2(deposit_value).
   depositType?: 'none' | 'percent' | 'amount' | null
   depositValue?: number | null
+  // BILL-CONSTRAINT-01 (FIX 2): currency code driving the cents-space deposit
+  // rounding (via resolveChargeAmount / toMinorUnits' minorUnit table). Absent →
+  // 'USD' (byte-identical retrocompat for every existing USD caller — the ONLY
+  // currency in use before this option existed).
+  currencyCode?: string | null
 }
 
 /**
@@ -90,8 +113,17 @@ function isTaxConfig(value: unknown): value is TaxConfig {
  */
 export function computeEstimateTotals(
   sections: ComputeTotalsSection[],
-  { taxRate, taxConfig, discountType, discountValue, depositType, depositValue }: ComputeTotalsOptions
+  {
+    taxRate,
+    taxConfig,
+    discountType,
+    discountValue,
+    depositType,
+    depositValue,
+    currencyCode,
+  }: ComputeTotalsOptions
 ): ComputeTotalsResult {
+  const resolvedCurrencyCode = currencyCode ?? 'USD'
   // WI-2 (HARDEN-GUARD-01): defensively coerce a negative / non-finite tax rate to 0 so the
   // engine never emits negative tax. A valid rate (finite, >=0) passes through unchanged ⇒
   // strict NO-OP for every existing test (their rates are all finite >=0).
@@ -226,17 +258,28 @@ export function computeEstimateTotals(
 
   // DEP-01 (LOCKED sequence): deposit computed from grandTotal; balanceDue = grandTotal − deposit.
   // depositType absent / 'none' / null → deposit 0 → balanceDue = grandTotal (byte-identical retrocompat).
-  // SAME Math.round(x * 100) / 100 form as the totals above (NOT a round2 import) for byte-consistency.
-  // WI-2 (HARDEN-GUARD-01): floor balanceDue at 0 so a deposit exceeding the total yields
-  // balanceDue 0 in the ENGINE (not just the UI), never a negative. Math.max(0, …) is a strict
-  // no-op for every valid deposit (<= grandTotal ⇒ balanceDue already >=0); at generation
-  // deposit is 0 ⇒ balanceDue === grandTotal ⇒ byte-identical for the eval/persistence path.
+  // BILL-CONSTRAINT-01 (FIX 1 + FIX 2): 'percent'/'amount' now resolve through
+  // resolveChargeAmount — the SAME integer-cents math the Stripe charge uses — then
+  // convert back to major units. This is a single-authority reuse, not a duplicate
+  // implementation: resolveChargeAmount already (a) rounds in cents (FIX 2 parity)
+  // and (b) clamps the result to [0, totalCents] (FIX 1 clamp — a deposit can never
+  // come back negative or exceed grandTotal, even from a malformed legacy row).
+  // A valid deposit (<=grandTotal, percent<=100) round-trips byte-identical to the
+  // prior dollar-space Math.round for every existing golden (both compute the same
+  // cents when no floating-point half-cent tie is in play).
   const deposit =
-    depositType === 'percent'
-      ? Math.round(grandTotal * ((depositValue ?? 0) / 100) * 100) / 100
-      : depositType === 'amount'
-        ? Math.round((depositValue ?? 0) * 100) / 100
-        : 0
+    depositType === 'percent' || depositType === 'amount'
+      ? fromMinorUnits(
+          resolveChargeAmount(
+            { total: grandTotal, deposit_type: depositType, deposit_value: depositValue ?? 0 },
+            resolvedCurrencyCode
+          ).chargeAmountCents,
+          resolvedCurrencyCode
+        )
+      : 0
+  // WI-2 (HARDEN-GUARD-01): floor balanceDue at 0 — now a pure no-op safety net, since
+  // resolveChargeAmount already guarantees deposit <= grandTotal (kept for defense in
+  // depth / byte-consistency with the pre-existing form).
   const balanceDue = Math.max(0, Math.round((grandTotal - deposit) * 100) / 100)
 
   return { sections: calculatedSections, subtotal, discountAmount: discGlobal, taxAmount, grandTotal, deposit, balanceDue }

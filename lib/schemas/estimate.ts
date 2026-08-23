@@ -129,10 +129,36 @@ export const saveEstimateSchema = z.object({
   estimate_date: z.string().max(40).nullable(),
   estimate_number: z.string().max(MAX_SHORT_TEXT).nullable(),
   // v4.11 deposit — OPTIONAL with no-op defaults (retrocompat: 'none' / null).
+  // BILL-CONSTRAINT-01 (FIX 1): non-negative — a negative deposit_value previously
+  // inverted balance_due (e.g. deposit_type='amount', value=-500 on a $1,000
+  // estimate persisted balance_due=$1,500). The percent-type upper bound (<=100)
+  // is enforced below via superRefine, not here — 100 is only meaningful when
+  // deposit_type is 'percent' (an 'amount' deposit_value of, say, 5000 is
+  // perfectly valid on a $10,000 estimate and is instead clamped against the
+  // grand total downstream by computeEstimateTotals, since the total is not
+  // known at this schema boundary).
   deposit_type: depositTypeSchema.optional(),
-  deposit_value: z.number().finite().nullable().optional(),
+  deposit_value: z.number().finite().min(0).nullable().optional(),
   presentation_settings: presentationSettingsSchema.optional(),
   expectedUpdatedAt: z.string().min(1).max(60).optional(),
+}).superRefine((data, ctx) => {
+  // BILL-CONSTRAINT-01 (FIX 1): deposit_type 'percent' caps deposit_value at 100.
+  // Without this, deposit_type='percent' + deposit_value=150 on a $1,000 estimate
+  // rendered "Deposit −$1,500 / Balance $0" in the editor, the share doc rendered
+  // "$1,000 / $0", and the invoice charged the full $1,000 — three surfaces
+  // disagreeing on what a >100% deposit even means. Reject it at the boundary
+  // instead. A no-op when deposit_type isn't 'percent' or deposit_value is unset.
+  if (
+    data.deposit_type === 'percent' &&
+    typeof data.deposit_value === 'number' &&
+    data.deposit_value > 100
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'deposit_value must be 100 or less when deposit_type is "percent"',
+      path: ['deposit_value'],
+    })
+  }
 })
 
 export type SaveEstimateInput = z.infer<typeof saveEstimateSchema>

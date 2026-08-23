@@ -466,7 +466,7 @@ export async function generateEstimateForProject(
     discountAmount,
     deposit,
     balanceDue,
-  } = computeEstimateTotals(dedupedSections, { taxRate, taxConfig })
+  } = computeEstimateTotals(dedupedSections, { taxRate, taxConfig, currencyCode })
 
   // GUARD-03: the server recalculation above is the SINGLE authoritative source.
   // Defensively coerce each persisted total to a finite, >= 0 value (no-op on the

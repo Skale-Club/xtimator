@@ -51,7 +51,7 @@ describe('WI-2: compute-totals defensive guards (tax-rate coercion + balanceDue 
     expect(r.grandTotal).toBe(700)
   })
 
-  it("deposit 'amount' 1500 on grandTotal 1100 → balanceDue 0 (floored, NOT -400)", () => {
+  it("deposit 'amount' 1500 on grandTotal 1100 → deposit clamped to 1100, balanceDue 0 (BILL-CONSTRAINT-01 FIX 1)", () => {
     const r = computeEstimateTotals(sections, {
       taxRate: 0.1,
       depositType: 'amount',
@@ -59,7 +59,10 @@ describe('WI-2: compute-totals defensive guards (tax-rate coercion + balanceDue 
     })
 
     expect(r.grandTotal).toBe(1100)
-    expect(r.deposit).toBe(1500)
+    // FIX 1: deposit is now clamped to [0, grandTotal] via resolveChargeAmount
+    // (previously 1500 — a bad legacy row could render a negative balance
+    // elsewhere even though balanceDue itself was already floored).
+    expect(r.deposit).toBe(1100)
     expect(r.balanceDue).toBe(0) // floored — deposit exceeding total → 0, never negative
   })
 
