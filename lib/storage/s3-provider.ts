@@ -56,6 +56,15 @@ export function createS3StorageProvider(config: S3ProviderConfig): StorageProvid
       secretAccessKey: config.secretAccessKey,
     },
     forcePathStyle: config.forcePathStyle ?? true,
+    // A stuck request must fail, never hang. The SDK ships with no request
+    // timeout and a 50-socket pool, so one socket that is never released stays
+    // checked out for the life of the process; enough of them and every later
+    // call queues behind them with nothing to break the wait.
+    requestHandler: {
+      connectionTimeout: 5_000,
+      requestTimeout: 30_000,
+      httpsAgent: { maxSockets: 200 },
+    },
   })
   const publicBase = (config.publicUrlBase ?? config.endpoint).replace(/\/$/, '')
 
