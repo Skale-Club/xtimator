@@ -113,7 +113,7 @@ Required env vars (from `.env.production.example`):
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `RESEND_API_KEY`
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_PRO_MONTHLY`, `STRIPE_PRICE_ID_BUSINESS_MONTHLY`
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_BUSINESS` (optionally `STRIPE_PRICE_PRO_ANNUAL`, `STRIPE_PRICE_BUSINESS_ANNUAL`) — these are a LEGACY FALLBACK only (see `lib/billing/stripe-price-map.ts`); the primary path is the panel-managed Price ids stored in `billing_config` (`tiers[tier].stripePriceIdMonth`/`stripePriceIdYear`, set via the admin billing config UI)
 - `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 - `STORAGE_PROVIDER` (default `supabase`; set to `s3` only when migrating to Hetzner Object Storage — see `docs/STORAGE-MIGRATION.md`)

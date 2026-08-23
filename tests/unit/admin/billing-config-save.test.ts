@@ -76,10 +76,11 @@ const syncAllTierPricesMock = vi.fn(
     supersededPriceIds: [] as string[],
   })
 )
-const archivePricesMock = vi.fn(async () => undefined)
+const archivePricesMock = vi.fn(async (_stripe: unknown, _ids: string[]) => undefined)
+type SyncCfg = Parameters<typeof syncAllTierPricesMock>[0]
 vi.mock('@/lib/billing/stripe-subscription-prices', () => ({
-  syncAllTierPrices: (...args: [unknown]) => syncAllTierPricesMock(...args),
-  archivePrices: (...args: [unknown, string[]]) => archivePricesMock(...args),
+  syncAllTierPrices: (cfg: SyncCfg) => syncAllTierPricesMock(cfg),
+  archivePrices: (stripe: unknown, ids: string[]) => archivePricesMock(stripe, ids),
 }))
 
 // archivePrices needs a Stripe client — mock getStripeClient so the archive

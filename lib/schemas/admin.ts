@@ -261,8 +261,14 @@ export const billingConfigSchema = z.object({
   markup: z.number().positive().max(100),
   creditUnitUsd: z.number().positive().max(1),
   whisperUsdPerMinute: z.number().min(0).max(10),
-  estimateFeePct: z.number().min(0).max(1),
-  estimateFeeMinCents: z.number().int().min(0),
+  // Capped at 0.1 (10%) — a confiscatory fee percentage is a policy bug, not
+  // a valid platform-economics choice. See lib/billing/estimate-fee.ts, which
+  // also enforces this ceiling at compute time as defense-in-depth.
+  estimateFeePct: z.number().min(0).max(0.1),
+  // Capped at 1000 cents ($10) — an admin-set minimum fee floor must not be
+  // able to swallow most/all of a small invoice; the 10% ceiling in
+  // lib/billing/estimate-fee.ts is the other half of that guarantee.
+  estimateFeeMinCents: z.number().int().min(0).max(1000),
   // monthly price of one billable seat in integer cents (no upper bound that would reject a sane price).
   seatPriceCents: z.number().int().min(0),
   // global ANNUAL per-seat price in integer cents (no upper bound that would reject a sane annual price).

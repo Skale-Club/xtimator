@@ -7,6 +7,11 @@
  *   - ai_cost_events      — created_at older than 90 days
  *   - pipeline_events     — created_at older than 90 days
  *   - tour_events         — created_at older than 90 days
+ *   - processed_stripe_events — created_at older than 90 days (Stripe only
+ *                            redelivers webhook events for ~3 days, so this
+ *                            idempotency table has no reason to grow forever;
+ *                            PK is `event_id`, not `id` — see deleteInBatches'
+ *                            `idColumn` param)
  *   - price_research_cache — expires_at < now() (TTL already elapsed; the cache
  *                            module treats expired rows as a miss, so they are
  *                            dead weight the moment they expire)
@@ -57,13 +62,14 @@ async function deleteInBatches(
   table: string,
   column: string,
   cutoffIso: string,
+  idColumn: string = 'id',
 ): Promise<RetentionTableResult> {
   let deleted = 0
 
   for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
     const { data: rows, error: selectErr } = await svc
       .from(table)
-      .select('id')
+      .select(idColumn)
       .lt(column, cutoffIso)
       .limit(DELETE_BATCH)
 
@@ -72,10 +78,10 @@ async function deleteInBatches(
       return { table, deleted, error: selectErr.message }
     }
 
-    const ids = (rows ?? []).map((r) => (r as { id: string }).id)
+    const ids = ((rows ?? []) as unknown as Record<string, string>[]).map((r) => r[idColumn])
     if (ids.length === 0) break
 
-    const { error: deleteErr } = await svc.from(table).delete().in('id', ids)
+    const { error: deleteErr } = await svc.from(table).delete().in(idColumn, ids)
     if (deleteErr) {
       console.warn(`[retention-cleanup] ${table} delete failed:`, deleteErr.message)
       return { table, deleted, error: deleteErr.message }
@@ -106,6 +112,17 @@ export async function runRetentionCleanup(
   ]) {
     tables.push(await deleteInBatches(svc, table, 'created_at', ninetyDaysAgoIso))
   }
+
+  // processed_stripe_events: PK is `event_id`, not `id` — pass idColumn.
+  tables.push(
+    await deleteInBatches(
+      svc,
+      'processed_stripe_events',
+      'created_at',
+      ninetyDaysAgoIso,
+      'event_id',
+    ),
+  )
 
   // TTL-based retention (expires_at already elapsed).
   tables.push(

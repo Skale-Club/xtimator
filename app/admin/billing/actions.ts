@@ -200,6 +200,15 @@ export async function adjustCredits(
 
   const svc = requireServiceClient()
 
+  // RLS-HARDEN-01 follow-up: derive a deterministic idempotency key instead of
+  // a fresh randomUUID() per call, so a double-submitted form (double click,
+  // retried POST) applies the delta once instead of twice. Bucketed to the
+  // minute — a genuinely new adjustment with the same company/delta/note/actor
+  // within the same minute is rare enough that requiring a distinct note (or
+  // waiting a minute) is an acceptable tradeoff for closing the double-apply hole.
+  const minuteBucket = new Date().toISOString().slice(0, 16)
+  const idempotencyKey = `adjust:${companyId}:${deltaCredits}:${ctx.userId}:${minuteBucket}`
+
   const { data: rpcData, error } = await svc.rpc('apply_credit_ledger_entry', {
     p_company_id: companyId,
     p_delta_credits: deltaCredits,
@@ -208,13 +217,18 @@ export async function adjustCredits(
     p_ref_id: trimmedNote,
     p_real_cost_usd: null,
     p_markup: null,
-    p_idempotency_key: `adjust:${randomUUID()}`,
+    p_idempotency_key: idempotencyKey,
   })
   if (error) return { ok: false, message: error.message }
 
   const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
     | { balance_after: number; applied: boolean }
     | undefined
+
+  if (!result?.applied) {
+    return { ok: true, message: 'No change — this adjustment was already applied.' }
+  }
+
   const balance = result?.balance_after
 
   revalidatePath('/admin/billing')

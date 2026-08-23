@@ -62,6 +62,21 @@ export async function saveAutoTopupSettings(input: {
     return { error: 'Invalid top-up pack selected.' }
   }
 
+  // Audit fix: an unbounded threshold means a typo (100000 instead of 1000)
+  // is always "under threshold", so the company gets charged the pack price
+  // every hour (only the 1h cooldown brakes it — ~$2,400/day at worst). Cap
+  // the threshold relative to the selected pack's credits, and add an
+  // absolute ceiling regardless of pack.
+  const candidatePack = cfg.topUpPacks[input.packIndex]
+  const maxThresholdForPack = candidatePack.credits * 5
+  const ABSOLUTE_THRESHOLD_CEILING = 100_000
+  const effectiveMax = Math.min(maxThresholdForPack, ABSOLUTE_THRESHOLD_CEILING)
+  if (input.thresholdCredits > effectiveMax) {
+    return {
+      error: `Threshold must be ${effectiveMax.toLocaleString('en-US')} credits or fewer for the selected pack.`,
+    }
+  }
+
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')

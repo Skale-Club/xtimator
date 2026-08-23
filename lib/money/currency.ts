@@ -89,7 +89,13 @@ export function formatMinorUnits(value: number | null | undefined, currencyCode:
   return formatMoney(fromMinorUnits(value, currencyCode), currencyCode)
 }
 
-export function parseMoneyInput(raw: string, currencyCode: unknown): number {
+export function parseMoneyInput(raw: string, currencyCode: unknown): number | null {
+  // Reject scientific notation BEFORE the strip below runs — `1e3`.replace(/[^\d,.-]/g, '')
+  // drops the "e", silently collapsing "1e3" ($1,000, pasted from a spreadsheet)
+  // into "13" ($13). Detected as an [eE] with a digit on each side (allowing an
+  // optional sign after the e, e.g. "1e+3" / "1E-3") anywhere in the raw input.
+  if (/\d\s*[eE]\s*[-+]?\d/.test(raw)) return null
+
   const currency = getCurrencyConfig(currencyCode)
   const decimalSeparator =
     new Intl.NumberFormat(currency.locale)

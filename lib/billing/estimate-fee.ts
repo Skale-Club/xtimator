@@ -20,5 +20,10 @@ export function computeApplicationFee(
   if (amountCents <= 0 || feePct <= 0) return 0
   const raw = Math.round(amountCents * feePct)
   const floored = Math.max(raw, minCents)
-  return Math.min(floored, amountCents - 1)
+  // Policy ceiling: an admin-set minimum fee (minCents) must never let the
+  // fee eat more than 10% of the charge — e.g. a $5.00 min fee taking $1.49
+  // of a $1.50 invoice. amountCents - 1 remains the hard Stripe-mandated cap
+  // (the fee must be strictly less than the charge amount).
+  const policyCeilingCents = Math.floor(amountCents * 0.1)
+  return Math.max(0, Math.min(floored, policyCeilingCents, amountCents - 1))
 }

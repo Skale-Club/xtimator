@@ -30,6 +30,9 @@ export type SeatCostSummary = {
   enforcementEnabled: boolean
 }
 
+/** Stripe subscription recurring interval — 'month' or 'year'. */
+export type SeatBillingInterval = 'month' | 'year'
+
 /**
  * Build the seat-cost summary for `companyId` given its live `activeMembers`
  * count (the roster member rows). Reuses the pure seat functions over the
@@ -39,10 +42,21 @@ export type SeatCostSummary = {
  * falls back to the free tier's includedSeats (same null-safe posture as the
  * Phase-139 sync — never throw on a bad tier). enforcementEnabled passes through so the
  * UI can show a truthful "not yet billed" note while enforcement is off.
+ *
+ * `interval` — the company's ACTUAL subscription billing interval. The
+ * Phase-139 sync charges `seatPriceAnnualCents` on an annual subscription and
+ * `seatPriceCents` on a monthly one (see lib/billing/seat-billing.ts); this
+ * builder must quote the SAME unit amount or the disclosed cost diverges from
+ * what's actually charged. There is no persisted interval column on
+ * `companies` today, so the caller is responsible for supplying it (e.g. from
+ * a Stripe subscription read) — this defaults to 'month' when omitted, which
+ * silently under-discloses for an annual subscriber, so callers that know the
+ * company is on an annual plan MUST pass `interval: 'year'` explicitly.
  */
 export async function buildSeatCostSummary(
   companyId: string,
   activeMembers: number,
+  interval: SeatBillingInterval = 'month',
 ): Promise<SeatCostSummary> {
   const cfg = await getBillingConfig()
 
@@ -56,15 +70,24 @@ export async function buildSeatCostSummary(
   // null-safe fallback — mirror seat-billing.ts (never throw on a bad tier).
   const includedSeats = cfg.tiers[tier]?.includedSeats ?? cfg.tiers.free.includedSeats
 
+  // Match the unit amount to the interval actually charged. NOTE: `??` would
+  // NOT fall back here — seatPriceAnnualCents is a non-nullable `number`
+  // defaulting to 0 (unpriced placeholder), and `0 ?? x` evaluates to 0. Use
+  // an explicit "> 0" check instead, same pitfall seat-billing.ts guards against.
+  const perSeatCents =
+    interval === 'year' && cfg.seatPriceAnnualCents > 0
+      ? cfg.seatPriceAnnualCents
+      : cfg.seatPriceCents
+
   // REUSE the pure math — do NOT re-implement the seat arithmetic.
   const billableSeats = computeBillableSeats(activeMembers, includedSeats)
-  const monthlyCents = computeSeatChargeCents(billableSeats, cfg.seatPriceCents)
+  const monthlyCents = computeSeatChargeCents(billableSeats, perSeatCents)
 
   return {
     activeSeats: activeMembers,
     includedSeats,
     billableSeats,
-    perSeatCents: cfg.seatPriceCents,
+    perSeatCents,
     monthlyCents,
     enforcementEnabled: cfg.enforcementEnabled,
   }
