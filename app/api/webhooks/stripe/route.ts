@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
-import { getStripeClient, readPeriodEnd } from '@/lib/billing/stripe-client'
+import { getStripeClient, readPeriodEnd, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
 import {
   connectEventRequiresCompanyResolution,
   handleConnectEvent,
@@ -13,7 +13,7 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { assertCompanyWritable } from '@/lib/demo/guard'
-import { accrueCommissionForInvoice } from '@/lib/affiliates/accrual'
+import { accrueCommissionForInvoice, reverseCommissionForInvoice } from '@/lib/affiliates/accrual'
 
 // ------------------------------------------------------------------
 // POST: Stripe webhook handler (STRIPE-02, STRIPE-04)
@@ -306,7 +306,13 @@ function requiresCompanyResolution(event: Stripe.Event): boolean {
     event.type === 'checkout.session.async_payment_succeeded' ||
     event.type === 'invoice.paid' ||
     event.type === 'customer.subscription.updated' ||
-    event.type === 'customer.subscription.deleted'
+    event.type === 'customer.subscription.deleted' ||
+    // STRIPE-REFUND-01 Fix 1 — the credit-clawback write needs a trusted
+    // companyId (same resolution path as every other tenant-effect event).
+    // charge.dispute.created/closed do NOT need it: they resolve the invoice
+    // (and therefore the affiliate commission) via the charge itself, and
+    // the ops alert must fire even when no company mapping exists.
+    event.type === 'charge.refunded'
   ) {
     return true
   }
@@ -364,6 +370,75 @@ async function persistStripeSubscriptionId(
     .is('stripe_subscription_id', null)
   if (error) {
     console.warn('[Stripe] stripe_subscription_id backfill failed:', error.message)
+  }
+}
+
+// ------------------------------------------------------------------
+// STRIPE-REFUND-01 Fix 1 — read a Charge's underlying PaymentIntent metadata
+// (type: 'credit_topup' | 'auto_topup', companyId, credits) so
+// charge.refunded can tell a top-up charge apart from a subscription invoice
+// charge. `charge.payment_intent` is a full expanded PaymentIntent on most
+// webhook payloads (Stripe nests it inline) — only fall back to a live
+// retrieve when it comes through as a bare id. Never throws: a failed
+// retrieve degrades to "no metadata", which the caller treats as "not a
+// topup" (falls through to the commission-reversal branch).
+// ------------------------------------------------------------------
+// `invoice` does not exist on the installed Stripe SDK's `Charge` type for
+// API version 2026-04-22.dahlia (same situation as `current_period_end` on
+// subscription items — see readPeriodEnd's doc comment), but the live API
+// payload still carries it for a charge generated from an invoice. Read it
+// off the runtime object via a cast, mirroring readPeriodEnd's pattern.
+function chargeInvoiceId(charge: Stripe.Charge): string | null {
+  const invoice = (charge as unknown as { invoice?: string | { id?: string } | null }).invoice
+  return typeof invoice === 'string' ? invoice : invoice?.id ?? null
+}
+
+/**
+ * Top-up charges created BEFORE `payment_intent_data.metadata` was added to
+ * create-topup-session carry their metadata only on the Checkout Session, which
+ * a refund event never references. Look the session up by PaymentIntent so an
+ * older pack can still be clawed back. Never throws — a miss just means "not a
+ * top-up", which is the same conclusion the caller would reach anyway.
+ */
+async function resolveTopupMetadataFromSession(
+  paymentIntentId: string,
+  stripe: Stripe,
+): Promise<Record<string, string> | null> {
+  try {
+    const sessions = await stripe.checkout.sessions.list({
+      payment_intent: paymentIntentId,
+      limit: 1,
+    })
+    return (sessions.data[0]?.metadata as Record<string, string> | undefined) ?? null
+  } catch (err) {
+    console.warn(
+      '[Stripe] resolveTopupMetadataFromSession failed:',
+      paymentIntentId,
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
+async function resolveChargePaymentIntentMetadata(
+  charge: Stripe.Charge,
+  stripe: Stripe,
+): Promise<Record<string, string> | null> {
+  const pi = charge.payment_intent
+  if (!pi) return null
+  if (typeof pi !== 'string') {
+    const inline = (pi.metadata as Record<string, string> | undefined) ?? null
+    if (inline?.type) return inline
+    return resolveTopupMetadataFromSession(pi.id, stripe)
+  }
+  try {
+    const retrieved = await stripe.paymentIntents.retrieve(pi)
+    const meta = (retrieved.metadata as Record<string, string> | undefined) ?? null
+    if (meta?.type) return meta
+    return resolveTopupMetadataFromSession(pi, stripe)
+  } catch (err) {
+    console.warn('[Stripe] resolveChargePaymentIntentMetadata: paymentIntents.retrieve failed:', pi, err instanceof Error ? err.message : err)
+    return null
   }
 }
 
@@ -451,9 +526,14 @@ async function handlePlatformEvent(
       const tier = session.metadata?.plan === 'business' ? 'business' : 'pro'
 
       // Safety net: if this company already has a DIFFERENT subscription on file,
-      // a fresh Checkout would leave the old one live and double-bill. Cancel the
-      // old subscription before overwriting the row. Wrapped in try/catch — it may
-      // already be canceled (e.g. the portal update flow migrated the same sub).
+      // a fresh Checkout would leave the old one live and double-bill — it must be
+      // canceled. Read its id now, but do NOT cancel yet (Fix 4a): the cancel call
+      // is deferred until AFTER the new mapping is written below. If the process
+      // died between "cancel" and "write mapping" (the old order), the company was
+      // left with NO live subscription and NO new mapping — a genuine outage.
+      // Writing the mapping first means a crash between the two leaves the company
+      // on its NEW subscription with a stale-but-still-live OLD one (a Stripe
+      // billing cleanup, not a customer-facing outage).
       const { data: existing } = await svc
         .from('companies')
         .select('stripe_subscription_id')
@@ -463,14 +543,6 @@ async function handlePlatformEvent(
       const oldSubId = (existing as { stripe_subscription_id?: string | null } | null)
         ?.stripe_subscription_id
       const newSubId = session.subscription as string
-      if (oldSubId && oldSubId !== newSubId) {
-        try {
-          await stripe.subscriptions.cancel(oldSubId)
-          console.warn('[Stripe] checkout.session.completed canceled superseded subscription:', oldSubId)
-        } catch (err) {
-          console.warn('[Stripe] checkout.session.completed could not cancel old subscription (may already be canceled):', oldSubId, err instanceof Error ? err.message : err)
-        }
-      }
 
       // Event-ordering race fix: retrieve the subscription now for its
       // current_period_end AND status. invoice.paid also writes
@@ -512,6 +584,12 @@ async function handlePlatformEvent(
           tier_trial_ends_at: null, // paid plan — clear trial
           ...(tierRenewsAt ? { tier_renews_at: tierRenewsAt } : {}),
           ...(subscriptionStatus ? { stripe_subscription_status: subscriptionStatus } : {}),
+          // metadata.billing_interval was stamped at checkout creation and, until
+          // now, never read back — so the billing UI could not tell a monthly
+          // subscriber from an annual one and the switch-interval CTA was
+          // unreachable. Persist it; 'year' only when explicitly stamped.
+          stripe_subscription_interval:
+            session.metadata?.billing_interval === 'year' ? 'year' : 'month',
           // Clear any stale pending-cancel marker. A prior lapse
           // (customer.subscription.deleted) sets tier_cancelled_at=now() with
           // stripe_subscription_id=null; a fresh re-subscribe via Checkout skips
@@ -525,6 +603,21 @@ async function handlePlatformEvent(
 
       if (error) {
         throw new Error(`[Stripe] checkout.session.completed update failed: ${error.message}`)
+      }
+
+      // Fix 4a: cancel the superseded subscription AFTER the new mapping is
+      // durably written (see the comment above `existing` for why the order
+      // flipped). Best-effort — it may already be canceled (e.g. the portal
+      // update flow migrated the same sub) — never blocks the response on a
+      // cleanup call that failed for a subscription that is, either way, no
+      // longer the company's subscription of record.
+      if (oldSubId && oldSubId !== newSubId) {
+        try {
+          await stripe.subscriptions.cancel(oldSubId)
+          console.warn('[Stripe] checkout.session.completed canceled superseded subscription:', oldSubId)
+        } catch (err) {
+          console.warn('[Stripe] checkout.session.completed could not cancel old subscription (may already be canceled):', oldSubId, err instanceof Error ? err.message : err)
+        }
       }
 
       // Mirror the subscription change into Xphere CRM (fire-and-forget).
@@ -815,9 +908,15 @@ async function handlePlatformEvent(
       // metadata-tagged seat item rather than blindly trusting items.data[0].
       const subItems = subscription.items?.data ?? []
       const planItem =
-        subItems.find((it) => it.metadata?.kind !== 'seat') ?? subItems[0]
-      const priceId = planItem?.price?.id ?? null
-      const resolvedTier = await resolveTierFromPriceId(priceId)
+        subItems.find((it) => it.metadata?.kind !== SEAT_ITEM_METADATA_KIND) ?? subItems[0]
+      // WP-L extra fix (2): pass the EXPANDED Price object (Stripe always
+      // nests the full Price on a subscription item), not just its id — lets
+      // resolveTierFromPriceId prefer the metadata.kind tag, which survives
+      // an admin price change (old Price archived, new Price id minted) so an
+      // existing subscriber still on the archived Price keeps resolving to
+      // their real tier instead of silently falling to null forever. `stripe`
+      // is passed as a last-resort fallback for the (rare) bare-id case.
+      const resolvedTier = await resolveTierFromPriceId(planItem?.price ?? null, stripe)
 
       // current_period_end lives on the PLAN subscription item in API version
       // 2026-04-22.dahlia, not on the Subscription itself — see readPeriodEnd.
@@ -835,12 +934,23 @@ async function handlePlatformEvent(
         .eq('stripe_subscription_id', subscription.id)
         .maybeSingle()
 
+      // After a portal-driven plan change the Checkout metadata is stale, so the
+      // PLAN item's own recurring interval is the authority here.
+      const planItemInterval =
+        planItem?.price?.recurring?.interval === 'year'
+          ? 'year'
+          : planItem?.price?.recurring?.interval === 'month'
+            ? 'month'
+            : null
+
       const updatePayload: {
         tier_cancelled_at: string | null
         stripe_subscription_status: string | null
         tier?: string
         tier_renews_at?: string
+        stripe_subscription_interval?: string
       } = {
+        ...(planItemInterval ? { stripe_subscription_interval: planItemInterval } : {}),
         tier_cancelled_at: cancelledAt,
         // Mirror Stripe's own subscription.status verbatim (active, trialing,
         // past_due, unpaid, ...) — a second, independent lifecycle signal
@@ -890,6 +1000,9 @@ async function handlePlatformEvent(
           tier_renews_at: null,
           tier_cancelled_at: new Date().toISOString(),
           stripe_subscription_status: 'canceled',
+          // No live subscription → no interval (the UI falls back to
+          // interval-blind rendering rather than showing a stale one).
+          stripe_subscription_interval: null,
         })
         .eq('stripe_subscription_id', subscription.id)
 
@@ -903,6 +1016,173 @@ async function handlePlatformEvent(
 
       // Mirror the churn into Xphere CRM (mapping forces tier='free' → 'Churned').
       if (c?.id) dispatchXphereSync(c.id, 'subscription.updated')
+      break
+    }
+
+    // STRIPE-REFUND-01 Fix 1 — nothing previously reversed a refund. A
+    // refunded charge is either (a) a one-time credit top-up / auto-top-up
+    // payment — claw the granted credits back — or (b) a subscription
+    // invoice payment — reverse the affiliate commission accrued on it.
+    // tier is NEVER touched here: Stripe's own subscription lifecycle events
+    // (customer.subscription.updated/deleted) are the sole source of truth
+    // for tier changes, refunded or not.
+    case 'charge.refunded': {
+      const charge = event.data.object as Stripe.Charge
+
+      // requiresCompanyResolution() lists this event type, so the route
+      // already returned 200 "Company not resolved" above when
+      // resolvedCompanyId is null — this branch only runs with a real id.
+      // Guarded defensively anyway (resolvedCompanyId's static type is
+      // nullable) rather than assuming the caller's invariant always holds.
+      if (!resolvedCompanyId) {
+        console.warn('[Stripe] charge.refunded: no resolved company id for charge:', charge.id)
+        break
+      }
+
+      const piMetadata = await resolveChargePaymentIntentMetadata(charge, stripe)
+      const topupType = piMetadata?.type
+
+      if (topupType === 'credit_topup' || topupType === 'auto_topup') {
+        // Claw back the credits IN PROPORTION to what was actually refunded:
+        // a $1 refund on a $100 pack must not zero all 10,000 credits. Each
+        // Stripe refund is its own object, so keying on the REFUND id (not the
+        // charge) makes partial-then-full sum correctly — two events, two
+        // deltas, together exactly the grant — while a redelivery of either is
+        // still a no-op. NEGATIVE delta via the atomic RPC directly
+        // (grantCredits is positive-only by contract).
+        // Not clamped at zero: a company that already spent the credits goes
+        // negative, which is the honest state; enforcementEnabled decides
+        // whether a negative balance blocks usage, as with any other balance.
+        const credits = Number(piMetadata?.credits)
+        // Newest first per Stripe's list ordering; fall back to the charge's
+        // cumulative amount when the refund list is absent (older payloads).
+        const refund = charge.refunds?.data?.[0] ?? null
+        const refundedCents = refund?.amount ?? charge.amount_refunded ?? 0
+        const chargedCents = charge.amount ?? 0
+        const clawback =
+          chargedCents > 0
+            ? Math.min(credits, Math.round((credits * refundedCents) / chargedCents))
+            : credits
+        if (Number.isFinite(credits) && credits > 0 && clawback > 0) {
+          const { error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+            p_company_id: resolvedCompanyId,
+            p_delta_credits: -clawback,
+            p_reason: 'adjust',
+            p_operation_type: null,
+            p_ref_id: refund?.id ?? charge.id,
+            p_real_cost_usd: null,
+            p_markup: null,
+            p_idempotency_key: `refund:${refund?.id ?? charge.id}`,
+          })
+          // This write IS the purpose of the event — throw so the route's
+          // catch clears the dedup row and returns 500, letting Stripe retry
+          // instead of silently losing a refund clawback.
+          if (rpcError) {
+            throw new Error(`[Stripe] charge.refunded credit clawback failed: ${rpcError.message}`)
+          }
+        }
+      } else {
+        const invoiceId = chargeInvoiceId(charge)
+        if (invoiceId) {
+          // Never throws (see accrual.ts) — a reversal hiccup must not turn a
+          // refund event into a 500 that retries a clawback that already
+          // landed (or doesn't apply to this charge at all).
+          await reverseCommissionForInvoice({ invoiceId, reason: 'refund' })
+        } else {
+          console.warn('[Stripe] charge.refunded: neither a topup nor tied to an invoice:', charge.id)
+        }
+      }
+      break
+    }
+
+    case 'charge.dispute.created': {
+      const dispute = event.data.object as Stripe.Dispute
+      const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id ?? null
+
+      // The dispute object does not carry the invoice id directly — retrieve
+      // the charge to find it. Best-effort: a failed retrieve just means the
+      // commission reversal is skipped this delivery; the ops alert below
+      // still fires unconditionally (the actionable part of this event).
+      let invoiceId: string | null = null
+      if (chargeId) {
+        try {
+          const charge = await stripe.charges.retrieve(chargeId)
+          invoiceId = chargeInvoiceId(charge)
+        } catch (err) {
+          console.warn('[Stripe] charge.dispute.created: charges.retrieve failed:', chargeId, err instanceof Error ? err.message : err)
+        }
+      }
+      if (invoiceId) {
+        await reverseCommissionForInvoice({ invoiceId, reason: 'dispute' })
+      }
+
+      // Best-effort ops alert — a dispute is money already at risk of leaving
+      // the platform's Stripe balance; never throws (route stays 200 either
+      // way, matching every other notifyOps call site in this file).
+      void notifyOps({
+        kind: 'payment_disputed',
+        title: 'Stripe payment disputed',
+        message: `Charge ${chargeId ?? 'unknown'} - dispute ${dispute.id}${
+          typeof dispute.amount === 'number' ? ` - $${(dispute.amount / 100).toFixed(2)}` : ''
+        }`,
+        severity: 'error',
+        dedupeKey: `payment_disputed:${event.id}`,
+      })
+      break
+    }
+
+    case 'charge.dispute.closed': {
+      // Log only — the resolution (won/lost/warning_closed) is informational;
+      // no reconciling write happens here (a lost dispute already reversed
+      // the commission on dispute.created, and no separate "payout runner"
+      // action depends on the closed status yet).
+      const dispute = event.data.object as Stripe.Dispute
+      console.warn('[Stripe] charge.dispute.closed:', dispute.id, 'status:', dispute.status)
+      break
+    }
+
+    // WP-L extra fix (3) — the Stripe Customer no longer exists.
+    // companies.stripe_customer_id now points at a dead id: every future
+    // ensureStripeCustomer() call would keep handing that dead id to Checkout
+    // (500ing) instead of noticing it's gone and provisioning a fresh one, and
+    // chargeAutoTopup would keep attempting off-session charges against a
+    // customer (and payment method) that no longer exists for up to 24h,
+    // logging a misleading "no payment method on file" rather than "no such
+    // customer". Clear the mapping so the NEXT billing action re-provisions,
+    // and turn off auto-top-up (its saved payment method died with the
+    // customer — there's nothing left to charge automatically).
+    case 'customer.deleted': {
+      const customer = event.data.object as Stripe.Customer | Stripe.DeletedCustomer
+      const customerId = customer.id
+      if (!customerId) break
+
+      const { data: c } = await svc
+        .from('companies')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .maybeSingle()
+
+      if (!c) break // no company mapped to this customer — nothing to clear
+
+      // The generic resolver cannot map a Customer object (it has no
+      // `customer` field of its own), so this arm resolves the company itself
+      // and therefore must run the demo guard itself too — otherwise a signed
+      // event could clear the demo company's Stripe mapping.
+      const deletedDenied = await assertCompanyWritable((c as { id: string }).id)
+      if (deletedDenied) break
+
+      const { error } = await svc
+        .from('companies')
+        .update({ stripe_customer_id: null, auto_topup_enabled: false })
+        .eq('stripe_customer_id', customerId)
+
+      // This write is the PURPOSE of the event — throw so the route's catch
+      // clears the dedup row and returns 500, letting Stripe retry instead of
+      // silently leaving a dead stripe_customer_id mapped.
+      if (error) {
+        throw new Error(`[Stripe] customer.deleted update failed: ${error.message}`)
+      }
+      console.warn('[Stripe] customer.deleted: cleared stripe_customer_id and disabled auto-topup for company', (c as { id: string }).id)
       break
     }
 

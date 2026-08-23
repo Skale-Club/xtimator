@@ -12,6 +12,10 @@ const mockSetupIntentRetrieve = vi.fn()
 const mockCustomersUpdate = vi.fn()
 
 vi.mock('@/lib/billing/stripe-client', () => ({
+  // route.ts selects the PLAN item by this tag (never items.data[0], which can
+  // be the seat item) — the mock must export it or every arm that touches
+  // subscription items throws.
+  SEAT_ITEM_METADATA_KIND: 'seat',
   getStripeClient: vi.fn().mockResolvedValue({
     webhooks: { constructEvent: mockConstructEvent },
     subscriptions: { retrieve: mockSubscriptionsRetrieve, cancel: mockSubscriptionsCancel },

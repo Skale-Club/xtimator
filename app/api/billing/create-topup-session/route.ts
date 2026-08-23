@@ -7,6 +7,13 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { rateLimit } from '@/lib/ratelimit'
+
+const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
+  NextResponse.json(
+    { error: 'Too many billing requests. Please try again shortly.', code: 'rate_limit:billing_session' },
+    { status: 429, headers: { 'Retry-After': String(retryAfter ?? 3600) } }
+  )
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -48,6 +55,10 @@ export async function POST(request: NextRequest) {
     } catch {
       return OWNER_REQUIRED_RESPONSE()
     }
+
+    // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
+    const rl = await rateLimit('billingSessionPerHour', companyId)
+    if (!rl.allowed) return RATE_LIMITED_RESPONSE(rl.retryAfter)
   }
 
   const { data: company } = companyId
@@ -70,29 +81,47 @@ export async function POST(request: NextRequest) {
 
   const stripe = await getStripeClient()
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: pack.priceCents, // server-side — never from the body (Pitfall 4)
-          product_data: { name: `${pack.credits} Xtimator credits` },
+  // Fix 4b — a double-click must not mint TWO top-up Checkout Sessions.
+  const idempotencyKey = `topup:${company.id}:${packIndex}:${Math.floor(Date.now() / 60000)}`
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: 'payment',
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: pack.priceCents, // server-side — never from the body (Pitfall 4)
+            product_data: { name: `${pack.credits} Xtimator credits` },
+          },
+        },
+      ],
+      // Always a persisted Stripe Customer — never an orphan created ad hoc by
+      // Checkout (see lib/billing/stripe-customer.ts).
+      customer: await ensureStripeCustomer(stripe, company.id as string),
+      success_url: `${getCanonicalBaseUrl()}/settings/billing?topup=1`,
+      cancel_url: `${getCanonicalBaseUrl()}/settings/billing?topup=cancelled`,
+      metadata: {
+        type: 'credit_topup',
+        companyId: company.id,
+        credits: String(pack.credits), // metadata values are strings
+      },
+      // Stripe does NOT copy Session metadata onto the PaymentIntent, and a
+      // refund event carries only the Charge/PI — without this the
+      // charge.refunded clawback cannot tell a top-up from any other charge
+      // and silently does nothing. Same three keys, so both the grant
+      // (checkout.session.completed) and the clawback read one shape.
+      payment_intent_data: {
+        metadata: {
+          type: 'credit_topup',
+          companyId: company.id,
+          credits: String(pack.credits),
         },
       },
-    ],
-    // Always a persisted Stripe Customer — never an orphan created ad hoc by
-    // Checkout (see lib/billing/stripe-customer.ts).
-    customer: await ensureStripeCustomer(stripe, company.id as string),
-    success_url: `${getCanonicalBaseUrl()}/settings/billing?topup=1`,
-    cancel_url: `${getCanonicalBaseUrl()}/settings/billing?topup=cancelled`,
-    metadata: {
-      type: 'credit_topup',
-      companyId: company.id,
-      credits: String(pack.credits), // metadata values are strings
     },
-  })
+    { idempotencyKey }
+  )
 
   return NextResponse.json({ url: session.url })
 }

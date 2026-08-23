@@ -5,6 +5,9 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({ getStripeClient: vi.fn() }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
+// FIX 3 — rate limit mock. Default allowed:true so every existing test keeps
+// reaching Stripe; the dedicated 429 test below overrides it per-case.
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn() }))
 
 // NEXT_PUBLIC_APP_URL is intentionally left unstubbed — the route now builds
 // return_url via getCanonicalBaseUrl() (lib/utils/site-url.ts), which falls
@@ -15,6 +18,7 @@ const { createClient } = await import('@/lib/supabase/server')
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
 const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
+const { rateLimit } = await import('@/lib/ratelimit')
 const { POST } = await import('@/app/api/billing/create-portal-session/route')
 
 function makeRequest() {
@@ -52,6 +56,7 @@ beforeEach(() => {
     companyId: 'company-1',
     role: 'owner',
   } as never)
+  vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 1, max: 20 })
 })
 
 describe('POST /api/billing/create-portal-session', () => {
@@ -103,5 +108,28 @@ describe('POST /api/billing/create-portal-session', () => {
 
     const res = await POST(makeRequest())
     expect(res.status).toBe(401)
+  })
+
+  it('returns 429 and never calls Stripe when the rate limit is exceeded (FIX 3)', async () => {
+    const mockSupabase = makeSupabaseMock(
+      { sub: 'user-1', email: 'u@test.com' },
+      { id: 'company-1', stripe_customer_id: 'cus_test123' }
+    )
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never)
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: false, count: 21, max: 20, retryAfter: 30 })
+
+    const mockStripe = {
+      billingPortal: { sessions: { create: vi.fn() } },
+    }
+    vi.mocked(getStripeClient).mockResolvedValue(mockStripe as never)
+
+    const res = await POST(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(429)
+    expect(body.code).toBe('rate_limit:billing_session')
+    expect(res.headers.get('Retry-After')).toBe('30')
+    expect(mockStripe.billingPortal.sessions.create).not.toHaveBeenCalled()
+    expect(rateLimit).toHaveBeenCalledWith('billingSessionPerHour', 'company-1')
   })
 })

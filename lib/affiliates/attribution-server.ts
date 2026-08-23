@@ -50,7 +50,7 @@ export async function attributeReferralFromCookie(
     // is deliberate: approval is what makes a code payable.
     const { data: affiliate, error: lookupError } = await svc
       .from('affiliates')
-      .select('id')
+      .select('id, user_id')
       .eq('code', parsed.code)
       .eq('status', 'active')
       .maybeSingle()
@@ -60,7 +60,36 @@ export async function attributeReferralFromCookie(
     }
     if (!affiliate) return
 
-    const affiliateId = (affiliate as { id: string }).id
+    const affiliateId = (affiliate as { id: string; user_id: string | null }).id
+    const affiliateUserId = (affiliate as { id: string; user_id: string | null }).user_id
+
+    // Fix 2 — self-referral guard. Without this, an affiliate can register a
+    // second company, sign up through their OWN referral link, and earn
+    // commission on their own subscription forever. Compare the affiliate's
+    // owning user against the NEW company's owner (companies.user_id) — a
+    // fresh signup always sets that column to the just-created owner (see
+    // lib/actions/company.ts), so this read is always fresh at attribution
+    // time. Skip attribution rather than throw: the signup itself must
+    // still succeed.
+    if (affiliateUserId) {
+      const { data: company, error: companyLookupError } = await svc
+        .from('companies')
+        .select('user_id')
+        .eq('id', companyId)
+        .maybeSingle()
+
+      if (companyLookupError) {
+        throw new Error(`company owner lookup failed: ${companyLookupError.message}`)
+      }
+
+      const companyOwnerId = (company as { user_id: string | null } | null)?.user_id
+      if (companyOwnerId && companyOwnerId === affiliateUserId) {
+        console.warn(
+          `[attributeReferralFromCookie] skipped self-referral: affiliate ${affiliateId} (user ${affiliateUserId}) referred their own company ${companyId}`,
+        )
+        return
+      }
+    }
 
     // Insert-and-swallow-23505 rather than check-then-insert: UNIQUE(company_id)
     // is the real authority, and a concurrent double-submit of the onboarding

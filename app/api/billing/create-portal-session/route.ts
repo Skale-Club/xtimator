@@ -5,6 +5,13 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { rateLimit } from '@/lib/ratelimit'
+
+const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
+  NextResponse.json(
+    { error: 'Too many billing requests. Please try again shortly.', code: 'rate_limit:billing_session' },
+    { status: 429, headers: { 'Retry-After': String(retryAfter ?? 3600) } }
+  )
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -33,6 +40,10 @@ export async function POST(_request: NextRequest) {
     } catch {
       return OWNER_REQUIRED_RESPONSE()
     }
+
+    // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
+    const rl = await rateLimit('billingSessionPerHour', companyId)
+    if (!rl.allowed) return RATE_LIMITED_RESPONSE(rl.retryAfter)
   }
 
   const { data: company } = companyId

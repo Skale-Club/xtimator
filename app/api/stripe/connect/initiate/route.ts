@@ -8,6 +8,7 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
+import { rateLimit } from '@/lib/ratelimit'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -40,6 +41,15 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.redirect(
       new URL('/settings/integrations/stripe?error=owner_required', base)
+    )
+  }
+
+  // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
+  const rl = await rateLimit('stripeConnectInitiatePerHour', companyId)
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many billing requests. Please try again shortly.', code: 'rate_limit:stripe_connect_initiate' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 3600) } }
     )
   }
 

@@ -36,6 +36,12 @@ export type LimitName =
   | 'chatPerMinute'
   // Phase 178 (AGENT-03) — per-company cap on agentic end-customer sends.
   | 'agenticSendPerCompanyPerDay'
+  // STRIPE-REFUND-01 (FIX 3) — billing surfaces that create real Stripe
+  // objects (Checkout/Portal Sessions) and send real email/redirect the
+  // browser to Stripe. Keyed by companyId (not user/session), same pattern
+  // as agenticSendPerCompanyPerDay.
+  | 'billingSessionPerHour'
+  | 'stripeConnectInitiatePerHour'
 
 interface LimitConfig {
   max: number
@@ -77,6 +83,13 @@ export const limits: Record<LimitName, LimitConfig> = {
   // end-customer sends, across both the WhatsApp assistant and MCP tool.
   // Identifier passed to rateLimit() is companyId, never a user/session id.
   agenticSendPerCompanyPerDay: { max: 10, window: 86400 },
+
+  // STRIPE-REFUND-01 (FIX 3) — Checkout/Portal session creation and Connect
+  // OAuth initiation. Generous ceilings: a legitimate owner rarely opens
+  // billing more than a handful of times per hour; this is anti-abuse, not a
+  // UX-facing throttle.
+  billingSessionPerHour: { max: 20, window: 3600 },
+  stripeConnectInitiatePerHour: { max: 10, window: 3600 },
 }
 
 export interface RateLimitResult {

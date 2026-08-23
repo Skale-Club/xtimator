@@ -5,6 +5,9 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn(),
+  // WP-L extra fix (1) — the real constant, so the seat-item-skip test below
+  // actually exercises the fix instead of silently degrading to items[0].
+  SEAT_ITEM_METADATA_KIND: 'seat',
 }))
 // Config price ids null → the route falls back to the STRIPE_PRICE_* env vars,
 // which is the path these cases assert. (Prefer-config-over-env is proven where
@@ -21,6 +24,9 @@ vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))
 vi.mock('@/lib/demo/guard', () => ({ demoGuardResponse: vi.fn().mockResolvedValue(null) }))
 vi.mock('@/lib/auth/require-company-role', () => ({ requireCompanyOwner: vi.fn() }))
 vi.mock('@/lib/billing/stripe-customer', () => ({ ensureStripeCustomer: vi.fn() }))
+// FIX 3 — rate limit mock. Default allowed:true so every existing test keeps
+// reaching Stripe; the dedicated 429 test below overrides it per-case.
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn() }))
 
 // Set required env vars
 vi.stubEnv('STRIPE_PRICE_PRO', 'price_pro_test')
@@ -37,6 +43,7 @@ const { getActiveCompanyId } = await import('@/lib/queries/active-company')
 const { demoGuardResponse } = await import('@/lib/demo/guard')
 const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
 const { ensureStripeCustomer } = await import('@/lib/billing/stripe-customer')
+const { rateLimit } = await import('@/lib/ratelimit')
 const { POST } = await import('@/app/api/billing/create-checkout-session/route')
 
 function makeRequest(body: object) {
@@ -80,6 +87,7 @@ beforeEach(() => {
     role: 'owner',
   } as never)
   vi.mocked(ensureStripeCustomer).mockResolvedValue('cus_ensured')
+  vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 1, max: 20 })
 })
 
 describe('POST /api/billing/create-checkout-session', () => {
@@ -108,7 +116,10 @@ describe('POST /api/billing/create-checkout-session', () => {
     expect(sessionCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({ companyId: 'company-1', plan: 'pro' }),
-      })
+      }),
+      // Fix 4b — idempotencyKey request option, so a double-click never mints
+      // two Checkout Sessions.
+      expect.objectContaining({ idempotencyKey: expect.stringContaining('checkout:company-1:pro:') })
     )
     // The success_url passed to Stripe resolves via getCanonicalBaseUrl() —
     // a real https origin pointing at the billing settings page (FIX-3).
@@ -156,6 +167,55 @@ describe('POST /api/billing/create-checkout-session', () => {
       expect.objectContaining({
         customer: 'cus_1',
         flow_data: expect.objectContaining({ type: 'subscription_update_confirm' }),
+      })
+    )
+  })
+
+  // WP-L extra fix (1) — seat billing adds a SECOND item to the subscription
+  // and Stripe does not guarantee list ordering. Put the SEAT item first
+  // (index 0) to prove the route selects the PLAN item explicitly rather than
+  // blindly trusting items.data[0] — a regression here would swap the seat
+  // item's price (dropping the seat charge and leaving two plan items).
+  it('selects the PLAN item (not items.data[0]) when the seat item happens to be first', async () => {
+    const mockSupabase = makeSupabaseMock(
+      { sub: 'user-1', email: 'u@test.com' },
+      { id: 'company-1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_existing' }
+    )
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never)
+
+    const sessionCreate = vi.fn()
+    const portalCreate = vi.fn().mockResolvedValue({ url: 'https://billing.stripe.com/p/upgrade' })
+    const mockStripe = {
+      checkout: { sessions: { create: sessionCreate } },
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: 'sub_existing',
+          status: 'active',
+          items: {
+            data: [
+              // Seat item FIRST (index 0) — Stripe order is not guaranteed.
+              { id: 'si_seat', price: { id: 'price_seat_x' }, metadata: { kind: 'seat' } },
+              { id: 'si_plan', price: { id: 'price_biz_test' }, metadata: {} },
+            ],
+          },
+        }),
+        cancel: vi.fn(),
+      },
+      billingPortal: { sessions: { create: portalCreate } },
+    }
+    vi.mocked(getStripeClient).mockResolvedValue(mockStripe as never)
+
+    const res = await POST(makeRequest({ plan: 'pro' }))
+
+    expect(res.status).toBe(200)
+    expect(portalCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow_data: expect.objectContaining({
+          subscription_update_confirm: expect.objectContaining({
+            // The PLAN item's id (si_plan), never the seat item's (si_seat).
+            items: [{ id: 'si_plan', price: 'price_pro_test', quantity: 1 }],
+          }),
+        }),
       })
     )
   })
@@ -266,5 +326,32 @@ describe('POST /api/billing/create-checkout-session', () => {
 
     const res = await POST(makeRequest({ plan: 'pro' }))
     expect(res.status).toBe(400)
+  })
+
+  it('returns 429 and never calls Stripe when the rate limit is exceeded (FIX 3)', async () => {
+    const mockSupabase = makeSupabaseMock(
+      { sub: 'user-1', email: 'u@test.com' },
+      { id: 'company-1', stripe_customer_id: null, stripe_subscription_id: null }
+    )
+    vi.mocked(createClient).mockResolvedValue(mockSupabase as never)
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: false, count: 21, max: 20, retryAfter: 20 })
+
+    const sessionCreate = vi.fn()
+    const mockStripe = {
+      checkout: { sessions: { create: sessionCreate } },
+      subscriptions: { retrieve: vi.fn(), cancel: vi.fn() },
+      billingPortal: { sessions: { create: vi.fn() } },
+    }
+    vi.mocked(getStripeClient).mockResolvedValue(mockStripe as never)
+
+    const res = await POST(makeRequest({ plan: 'pro' }))
+    const body = await res.json()
+
+    expect(res.status).toBe(429)
+    expect(body.code).toBe('rate_limit:billing_session')
+    expect(res.headers.get('Retry-After')).toBe('20')
+    expect(sessionCreate).not.toHaveBeenCalled()
+    expect(ensureStripeCustomer).not.toHaveBeenCalled()
+    expect(rateLimit).toHaveBeenCalledWith('billingSessionPerHour', 'company-1')
   })
 })

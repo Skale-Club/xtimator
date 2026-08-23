@@ -123,3 +123,44 @@ export async function accrueCommissionForInvoice(input: {
 export function commissionIdempotencyKey(invoiceId: string): string {
   return `commission:${invoiceId}`
 }
+
+/**
+ * STRIPE-REFUND-01 Fix 1 — reverse a previously accrued commission when its
+ * underlying invoice is refunded or disputed. Flips every commission row for
+ * this invoice from 'pending'/'payable' to 'reversed'.
+ *
+ * Deliberately mirrors accrueCommissionForInvoice's contract:
+ *   - NEVER THROWS. Called from the Stripe webhook's charge.refunded /
+ *     charge.dispute.created arms; a reversal hiccup must not turn a refund
+ *     or dispute event into a 500 that makes Stripe retry the WHOLE event
+ *     (the credit clawback, when present, is the write that event exists to
+ *     make durable — this is a best-effort side effect alongside it).
+ *   - IDEMPOTENT: an UPDATE ... WHERE status IN ('pending','payable') matches
+ *     zero rows on a redelivery (the row is already 'reversed') — a no-op,
+ *     not an error.
+ *
+ * Never touches a 'paid' row (already transferred — see the payout runner)
+ * or an already-'reversed'/'void' row. money never moves here, same as
+ * accrual — the (not-yet-built) payout runner is what would need to claw back
+ * an ALREADY-TRANSFERRED commission, which this function does not attempt.
+ */
+export async function reverseCommissionForInvoice(input: {
+  invoiceId: string
+  /** Audit/log context only (e.g. 'refund' | 'dispute') — not persisted. */
+  reason: string
+}): Promise<void> {
+  try {
+    if (!input.invoiceId) return
+    const svc = requireServiceClient()
+
+    const { error } = await svc
+      .from('affiliate_commissions')
+      .update({ status: 'reversed' })
+      .eq('stripe_invoice_id', input.invoiceId)
+      .in('status', ['pending', 'payable'])
+
+    if (error) throw new Error(`commission reversal failed: ${error.message}`)
+  } catch (err) {
+    console.warn(`[reverseCommissionForInvoice] swallowed failure (${input.reason}):`, err)
+  }
+}

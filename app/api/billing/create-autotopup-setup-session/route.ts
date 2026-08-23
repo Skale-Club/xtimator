@@ -6,6 +6,13 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { rateLimit } from '@/lib/ratelimit'
+
+const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
+  NextResponse.json(
+    { error: 'Too many billing requests. Please try again shortly.', code: 'rate_limit:billing_session' },
+    { status: 429, headers: { 'Retry-After': String(retryAfter ?? 3600) } }
+  )
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -41,6 +48,10 @@ export async function POST(request: NextRequest) {
     } catch {
       return OWNER_REQUIRED_RESPONSE()
     }
+
+    // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
+    const rl = await rateLimit('billingSessionPerHour', companyId)
+    if (!rl.allowed) return RATE_LIMITED_RESPONSE(rl.retryAfter)
   }
 
   const { data: company } = companyId
@@ -57,18 +68,24 @@ export async function POST(request: NextRequest) {
 
   const stripe = await getStripeClient()
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'setup',
-    // Always a persisted Stripe Customer — never an orphan created ad hoc by
-    // Checkout (see lib/billing/stripe-customer.ts).
-    customer: await ensureStripeCustomer(stripe, company.id as string),
-    success_url: `${getCanonicalBaseUrl()}/settings/billing?autotopup_setup=1`,
-    cancel_url: `${getCanonicalBaseUrl()}/settings/billing?autotopup_setup=cancelled`,
-    metadata: {
-      type: 'autotopup_setup',
-      companyId: company.id,
+  // Fix 4b — a double-click must not mint TWO setup Checkout Sessions.
+  const idempotencyKey = `autotopup-setup:${company.id}:${Math.floor(Date.now() / 60000)}`
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: 'setup',
+      // Always a persisted Stripe Customer — never an orphan created ad hoc by
+      // Checkout (see lib/billing/stripe-customer.ts).
+      customer: await ensureStripeCustomer(stripe, company.id as string),
+      success_url: `${getCanonicalBaseUrl()}/settings/billing?autotopup_setup=1`,
+      cancel_url: `${getCanonicalBaseUrl()}/settings/billing?autotopup_setup=cancelled`,
+      metadata: {
+        type: 'autotopup_setup',
+        companyId: company.id,
+      },
     },
-  })
+    { idempotencyKey }
+  )
 
   return NextResponse.json({ url: session.url })
 }

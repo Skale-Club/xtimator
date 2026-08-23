@@ -3,11 +3,19 @@ import type Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
-import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getStripeClient, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { rateLimit } from '@/lib/ratelimit'
+import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
+
+const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
+  NextResponse.json(
+    { error: 'Too many billing requests. Please try again shortly.', code: 'rate_limit:billing_session' },
+    { status: 429, headers: { 'Retry-After': String(retryAfter ?? 3600) } }
+  )
 
 const OWNER_REQUIRED_RESPONSE = () =>
   NextResponse.json(
@@ -43,6 +51,10 @@ export async function POST(request: NextRequest) {
     } catch {
       return OWNER_REQUIRED_RESPONSE()
     }
+
+    // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
+    const rl = await rateLimit('billingSessionPerHour', companyId)
+    if (!rl.allowed) return RATE_LIMITED_RESPONSE(rl.retryAfter)
   }
 
   const { data: company } = companyId
@@ -101,8 +113,28 @@ export async function POST(request: NextRequest) {
     }
 
     if (sub && (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due')) {
-      const item = sub.items.data[0]
-      if (item?.price?.id === priceId) {
+      // WP-L extra fix (1): seat billing adds a SECOND item to the same
+      // subscription and Stripe does not guarantee list ordering — blindly
+      // trusting items.data[0] can select the SEAT item instead of the plan
+      // item. If that happened here, the portal flow below would swap the
+      // seat item to the new plan price (leaving two plan items = double
+      // billing, and dropping the seat charge entirely), and the
+      // "Already on this plan" guard below would never fire (comparing a
+      // seat item's price against a plan price id never matches). Select the
+      // plan item explicitly, same rule as readPeriodEnd/syncSubscriptionSeatItem.
+      const item =
+        sub.items.data.find((it) => it.metadata?.kind !== SEAT_ITEM_METADATA_KIND) ??
+        sub.items.data[0]
+      // WP-L extra fix (2): an admin price change archives the OLD Price and
+      // mints a new id — an existing subscriber still on the archived Price
+      // would never match `item?.price?.id === priceId` again, silently
+      // losing the "already on this plan" guard and pushing them through a
+      // full portal reprice flow for a plan they're already on. Treat "same
+      // tier + same interval" (via the metadata.kind tag, which survives
+      // archival — see stripe-price-map.ts) as equivalent to "same plan".
+      const currentTier = await resolveTierFromPriceId(item?.price ?? null, stripe)
+      const sameInterval = item?.price?.recurring?.interval === billingInterval
+      if (item?.price?.id === priceId || (currentTier === plan && sameInterval)) {
         return NextResponse.json({ error: 'Already on this plan' }, { status: 400 })
       }
       try {
@@ -143,20 +175,29 @@ export async function POST(request: NextRequest) {
     // through to a normal Checkout to start a fresh one.
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    // Always a persisted Stripe Customer — never an orphan created ad hoc by
-    // Checkout (TOPUP/CREDITUI parity fix; see lib/billing/stripe-customer.ts).
-    customer: await ensureStripeCustomer(stripe, company.id as string),
-    success_url: `${getCanonicalBaseUrl()}/settings/billing?success=1`,
-    cancel_url: `${getCanonicalBaseUrl()}/settings/billing?cancelled=1`,
-    // Store plan + companyId + billing_interval in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)
-    metadata: { companyId: company.id, plan, billing_interval: billingInterval },
-    subscription_data: {
+  // Fix 4b — a double-click (or a retried fetch) must not mint TWO Checkout
+  // Sessions. Minute-bucketed per-company+plan+interval key: distinct plan
+  // choices in the same minute still get distinct sessions; a genuine
+  // double-submit of the SAME choice within the minute collapses to one.
+  const idempotencyKey = `checkout:${company.id}:${plan}:${billingInterval}:${Math.floor(Date.now() / 60000)}`
+
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      // Always a persisted Stripe Customer — never an orphan created ad hoc by
+      // Checkout (TOPUP/CREDITUI parity fix; see lib/billing/stripe-customer.ts).
+      customer: await ensureStripeCustomer(stripe, company.id as string),
+      success_url: `${getCanonicalBaseUrl()}/settings/billing?success=1`,
+      cancel_url: `${getCanonicalBaseUrl()}/settings/billing?cancelled=1`,
+      // Store plan + companyId + billing_interval in metadata — avoids line_items expand call in webhook (RESEARCH Pitfall 3)
       metadata: { companyId: company.id, plan, billing_interval: billingInterval },
+      subscription_data: {
+        metadata: { companyId: company.id, plan, billing_interval: billingInterval },
+      },
     },
-  })
+    { idempotencyKey }
+  )
 
   return NextResponse.json({ url: session.url })
 }
