@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// ---- ops-alert mock (notifyOps) ---------------------------------------------
+// Every write-failure path now fires a best-effort notifyOps alert before
+// swallowing. Mocked so tests assert the call shape without touching Redis/
+// Sentry/Telegram.
+const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: (...args: unknown[]) => mockNotifyOps(...args),
+}))
+
 /**
  * Phase 112-03 — credit-ledger metering core (CREDIT-02/03/04/05/06/07).
  *
@@ -185,6 +194,7 @@ beforeEach(() => {
   insertThrows = false
   billingConfig = { markup: 4.5, creditUnitUsd: 0.01, enforcementEnabled: false }
   serviceClientImpl = () => makeServiceClient()
+  mockNotifyOps.mockClear()
 })
 
 // =============================================================================
@@ -263,7 +273,7 @@ describe('CREDIT-07: zero-debit + never-throw', () => {
     expect(captured.inserts).toHaveLength(0)
   })
 
-  it('NEVER throws when the service client insert rejects — logs a warn', async () => {
+  it('NEVER throws when the service client insert rejects — logs a warn AND fires notifyOps', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     insertThrows = true
     await expect(
@@ -275,6 +285,15 @@ describe('CREDIT-07: zero-debit + never-throw', () => {
       })
     ).resolves.toBeUndefined()
     expect(warn).toHaveBeenCalled()
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'credit_ledger_write_failed',
+        severity: 'error',
+        dedupeKey: expect.stringContaining(`credit_ledger_write_failed:${COMPANY}:`),
+        message: expect.stringContaining(COMPANY),
+      })
+    )
     warn.mockRestore()
   })
 })
@@ -335,21 +354,40 @@ describe('CREDIT-03: reconcileBalance', () => {
     expect(sum).toBe(0)
     expect(captured.updates[0].payload.credit_balance).toBe(0)
   })
+
+  it('never throws on a service-client failure — returns 0 and fires notifyOps', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    serviceClientImpl = () => {
+      throw new Error('service client unavailable')
+    }
+    await expect(reconcileBalance(COMPANY)).resolves.toBe(0)
+    expect(warn).toHaveBeenCalled()
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'credit_ledger_write_failed',
+        severity: 'error',
+        message: expect.stringContaining('reconcileBalance'),
+      })
+    )
+    warn.mockRestore()
+  })
 })
 
 // =============================================================================
 // CREDIT-04 — grantCredits
 // =============================================================================
 describe('CREDIT-04: grantCredits', () => {
-  it('inserts a POSITIVE grant row and bumps credit_balance by the granted amount', async () => {
+  it('inserts a POSITIVE grant row and bumps credit_balance by the granted amount, returning { applied: true }', async () => {
     reads.companyBalance = 0
-    await grantCredits({
+    const result = await grantCredits({
       companyId: COMPANY,
       credits: 9000,
       reason: 'grant',
       refId: 'evt_1',
       idempotencyKey: 'evt_1:grant:pro',
     })
+    expect(result).toEqual({ applied: true })
     expect(captured.inserts).toHaveLength(1)
     const row = captured.inserts[0].payload
     expect(row.delta_credits).toBe(9000)
@@ -360,26 +398,40 @@ describe('CREDIT-04: grantCredits', () => {
     expect(captured.updates[0].payload.credit_balance).toBe(9000)
   })
 
-  it('a duplicate idempotencyKey (existing row) is a no-op', async () => {
+  it('a duplicate idempotencyKey (existing row) is a no-op, returning { applied: false }', async () => {
     reads.ledgerExisting = { id: 'existing-grant' }
-    await grantCredits({
+    const result = await grantCredits({
       companyId: COMPANY,
       credits: 9000,
       reason: 'grant',
       refId: 'evt_1',
       idempotencyKey: 'evt_1:grant:pro',
     })
+    expect(result).toEqual({ applied: false })
     expect(captured.inserts).toHaveLength(0)
     expect(captured.updates).toHaveLength(0)
   })
 
-  it('never throws on insert failure', async () => {
+  it('credits <= 0 is a no-op, returning { applied: false } without touching the service client', async () => {
+    const result = await grantCredits({ companyId: COMPANY, credits: 0, reason: 'grant' })
+    expect(result).toEqual({ applied: false })
+    expect(captured.inserts).toHaveLength(0)
+  })
+
+  it('never throws on insert failure — returns { applied: false } and fires notifyOps', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     insertThrows = true
     await expect(
       grantCredits({ companyId: COMPANY, credits: 9000, reason: 'grant' })
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ applied: false })
     expect(warn).toHaveBeenCalled()
+    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'credit_ledger_write_failed',
+        severity: 'error',
+      })
+    )
     warn.mockRestore()
   })
 })

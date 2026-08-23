@@ -35,6 +35,11 @@ vi.mock('@/lib/supabase/service', () => ({
         if (rpcShouldReject) throw new Error('release network blip')
         return { data: null, error: null }
       }
+      if (fn === 'apply_credit_ledger_entry') {
+        // grantCredits' RPC — this file's tests only care about the
+        // acquire/release lock race, so the grant always lands cleanly.
+        return { data: [{ balance_after: 1300, applied: true }], error: null }
+      }
       return { data: null, error: null }
     },
     from: () => ({
@@ -77,6 +82,11 @@ vi.mock('@/lib/billing/billing-config', () => ({
     autoTopupEnabled: true,
     topUpPacks: [{ credits: 1300, priceCents: 2000 }],
   }),
+}))
+
+// ---- ops-alert mock (avoid real Redis/Sentry/Telegram side effects) --------
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ---- import under test (after the mocks) -----------------------------------

@@ -12,7 +12,16 @@ export async function getStripeClient(): Promise<Stripe> {
   if (!key) {
     throw new Error('[Stripe] Secret key not configured. Add via /admin/integrations.')
   }
-  return new Stripe(key, { apiVersion: '2026-04-22.dahlia' })
+  // timeout/maxNetworkRetries: the SDK default has no timeout (Node's own
+  // socket default, effectively unbounded) and no retries — a slow/flaky
+  // Stripe call could hang a request indefinitely. 20s is generous for any
+  // single Stripe call in this codebase; 2 retries covers transient network
+  // blips without compounding a real outage into a long hang.
+  return new Stripe(key, {
+    apiVersion: '2026-04-22.dahlia',
+    timeout: 20_000,
+    maxNetworkRetries: 2,
+  })
 }
 
 /** Stable metadata tag that identifies the per-seat subscription item AND its
@@ -91,8 +100,12 @@ export async function syncSubscriptionSeatItem(
 
   // Read the subscription's billing interval so the seat item's recurring period
   // matches the subscription (annual subs get a yearly seat item, not monthly).
+  // items.data[0] may be the seat item ITSELF (Stripe does not guarantee item
+  // order) — mirror readPeriodEnd's rule above and prefer the first NON-seat
+  // item, falling back to items[0] only when every item is untagged/absent.
+  const planItem = items.find((it) => it.metadata?.kind !== SEAT_ITEM_METADATA_KIND) ?? items[0]
   const subscriptionInterval = (
-    (subscription.items?.data?.[0]?.plan?.interval) ?? 'month'
+    (planItem as unknown as { plan?: { interval?: string } } | undefined)?.plan?.interval ?? 'month'
   ) as 'month' | 'year'
 
   // For annual subscriptions, prefer the caller-supplied annualUnitAmount when

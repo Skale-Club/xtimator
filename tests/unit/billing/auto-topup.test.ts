@@ -24,9 +24,19 @@ let companyRow: {
 
 const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
 
+// Configurable per-test: what apply_credit_ledger_entry (grantCredits' RPC)
+// resolves to. Defaults to a landed grant — tests that need to prove the
+// "charged but not granted" alert override this to { applied: false }.
+let ledgerRpcApplied = true
+
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
-    rpc: async () => ({ data: true, error: null }), // lock always granted in this file's tests
+    rpc: async (fn: string) => {
+      if (fn === 'apply_credit_ledger_entry') {
+        return { data: [{ balance_after: 1300, applied: ledgerRpcApplied }], error: null }
+      }
+      return { data: true, error: null } // lock acquire/release always granted in this file's tests
+    },
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
@@ -67,6 +77,12 @@ vi.mock('@/lib/billing/billing-config', () => ({
   getBillingConfig: async () => billingConfig,
 }))
 
+// ---- ops-alert mock -----------------------------------------------------------
+const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: (...args: unknown[]) => mockNotifyOps(...args),
+}))
+
 // ---- import under test (after the mocks) -------------------------------------
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 
@@ -90,6 +106,8 @@ beforeEach(() => {
   paymentIntentsCreate.mockClear()
   paymentIntentsCreate.mockResolvedValue({ id: 'pi_test' })
   customersRetrieve.mockClear()
+  ledgerRpcApplied = true
+  mockNotifyOps.mockClear()
 })
 
 describe('CREDITUI-07: threshold independence (Pitfall 3)', () => {
@@ -145,6 +163,110 @@ describe('CREDITUI-07: never-throws under failure', () => {
       triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
     ).resolves.toBeUndefined()
     expect(paymentIntentsCreate).not.toHaveBeenCalled()
+  })
+})
+
+// =============================================================================
+// FIX 1 (HIGH): a declined/failed charge must fire notifyOps('auto_topup_charge_failed'),
+// and the logged/alerted payload must NEVER carry the raw Stripe error object
+// (which, for a card error, embeds `payment_intent`/`raw` — card brand, last4,
+// decline code). Only err.code / err.message / the PaymentIntent id survive.
+// =============================================================================
+describe('FIX 1 (HIGH): auto_topup_charge_failed alert + sanitized logging', () => {
+  it('fires notifyOps("auto_topup_charge_failed") with severity error on a declined charge', async () => {
+    paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('Your card was declined.'), {
+        code: 'card_declined',
+        payment_intent: { id: 'pi_declined', last4: '4242', raw: { decline_code: 'generic_decline' } },
+      })
+    )
+
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'auto_topup_charge_failed',
+        severity: 'error',
+        message: expect.stringContaining(COMPANY),
+      })
+    )
+  })
+
+  it('never logs or alerts the raw error object — only code/message/paymentIntentId survive (no payment_intent/raw fields)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    paymentIntentsCreate.mockRejectedValueOnce(
+      Object.assign(new Error('Your card was declined.'), {
+        code: 'card_declined',
+        payment_intent: {
+          id: 'pi_declined',
+          last4: '4242',
+          brand: 'visa',
+          raw: { decline_code: 'generic_decline', card: { last4: '4242' } },
+        },
+      })
+    )
+
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    // console.warn payload: assert no nested payment_intent/raw object leaked.
+    const warnCall = warn.mock.calls.find((c) => String(c[0]).includes('off-session charge failed'))
+    expect(warnCall).toBeDefined()
+    const loggedPayload = warnCall?.[1]
+    expect(loggedPayload).not.toHaveProperty('payment_intent')
+    expect(loggedPayload).not.toHaveProperty('raw')
+    expect(JSON.stringify(loggedPayload)).not.toContain('4242')
+    expect(JSON.stringify(loggedPayload)).not.toContain('visa')
+    expect(loggedPayload).toMatchObject({ code: 'card_declined', paymentIntentId: 'pi_declined' })
+
+    // notifyOps message: same sanitization requirement — no card details/raw object.
+    const alertCall = mockNotifyOps.mock.calls.find(
+      (c) => (c[0] as { kind?: string })?.kind === 'auto_topup_charge_failed'
+    )
+    expect(alertCall).toBeDefined()
+    const alertMessage = (alertCall?.[0] as { message: string }).message
+    expect(alertMessage).not.toContain('4242')
+    expect(alertMessage).not.toContain('visa')
+    expect(alertMessage).toContain('pi_declined')
+
+    warn.mockRestore()
+  })
+})
+
+// =============================================================================
+// Pre-launch audit follow-up: grantCredits' return value now proves whether
+// credits actually landed — a resolved promise alone is not proof (grantCredits
+// is itself never-throw and no-ops on an existing idempotency key).
+// =============================================================================
+describe('FIX 1 (HIGH): verifying the grant landed before clearing the failure flag', () => {
+  it('clears auto_topup_last_failed_at when grantCredits reports applied:true', async () => {
+    ledgerRpcApplied = true
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    const clearUpdate = updates.find(
+      (u) => u.table === 'companies' && u.payload.auto_topup_last_failed_at === null
+    )
+    expect(clearUpdate).toBeDefined()
+    expect(mockNotifyOps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'auto_topup_charged_without_grant' })
+    )
+  })
+
+  it('does NOT clear auto_topup_last_failed_at and fires auto_topup_charged_without_grant when the card was charged but the grant did not apply', async () => {
+    ledgerRpcApplied = false
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+
+    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+    const clearUpdate = updates.find(
+      (u) => u.table === 'companies' && u.payload.auto_topup_last_failed_at === null
+    )
+    expect(clearUpdate).toBeUndefined()
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'auto_topup_charged_without_grant',
+        severity: 'error',
+        message: expect.stringContaining(COMPANY),
+      })
+    )
   })
 })
 

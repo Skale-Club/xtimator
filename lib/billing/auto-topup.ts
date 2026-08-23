@@ -3,6 +3,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { grantCredits } from '@/lib/billing/credit-ledger'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 /**
  * Pre-launch audit fix (B2): hard cooldown between off-session charge
@@ -147,6 +148,30 @@ export async function triggerAutoTopupIfNeeded(input: {
 }
 
 /**
+ * Reduce an unknown thrown error to the minimum safe-to-log/alert fields:
+ * the Stripe error code, its message, and — if the SDK attached one — the
+ * PaymentIntent id. A Stripe.errors.StripeCardError carries `payment_intent`
+ * (the full PaymentIntent object, including `raw` with card brand/last4/
+ * decline_code) — NEVER log/alert that object directly, only the id string.
+ */
+function sanitizeStripeError(err: unknown): {
+  code: string | null
+  message: string
+  paymentIntentId: string | null
+} {
+  const e = err as
+    | { code?: string; message?: string; payment_intent?: { id?: string } | string }
+    | undefined
+  const pi = e?.payment_intent
+  const paymentIntentId = typeof pi === 'string' ? pi : (pi?.id ?? null)
+  return {
+    code: e?.code ?? null,
+    message: e?.message ?? String(err),
+    paymentIntentId,
+  }
+}
+
+/**
  * The actual off-session charge. Separated from the trigger/lock logic so
  * Plan 03's settings-save/failure-surfacing work can extend this function's
  * body (resolve payment method, call paymentIntents.create, handle failure)
@@ -222,7 +247,16 @@ async function chargeAutoTopup(input: {
     // webhook's payment_intent.succeeded handler grants the SAME idempotency
     // key as a durable backstop in case this process crashes before returning,
     // so the two paths dedupe against each other rather than double-granting.
-    await grantCredits({
+    //
+    // Pre-launch audit follow-up: grantCredits is itself never-throw and
+    // no-ops on an existing key, so a resolved promise here does NOT prove
+    // the credits landed. Check the returned `applied` flag (grantCredits'
+    // own verification via the RPC's applied/error contract) — only clear
+    // the failure flag when credits actually moved. A charge that succeeded
+    // but whose grant did NOT apply is a money-affecting state: the tenant
+    // was billed and received nothing — alert it rather than silently
+    // clearing (or silently leaving stale) the failure flag.
+    const grantResult = await grantCredits({
       companyId: input.companyId,
       credits: pack.credits,
       reason: 'topup',
@@ -230,13 +264,37 @@ async function chargeAutoTopup(input: {
       idempotencyKey: `autotopup:${paymentIntent.id}`,
     })
 
-    // Success — clear any prior failure flag so the tenant-facing banner clears.
-    await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)
+    if (grantResult.applied) {
+      // Success — clear any prior failure flag so the tenant-facing banner clears.
+      await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)
+    } else {
+      void notifyOps({
+        kind: 'auto_topup_charged_without_grant',
+        severity: 'error',
+        title: 'Auto top-up charged the card but the credit grant did not land',
+        message: `${input.companyId}: paymentIntent ${paymentIntent.id} charged ${pack.priceCents}c but grantCredits reported applied:false`,
+        dedupeKey: `auto_topup_charged_without_grant:${input.companyId}:${paymentIntent.id}`,
+      })
+    }
   } catch (err) {
     // Failure handling (research decision #7): NEVER retry silently. Record
     // the failure timestamp so the tenant sees "auto-top-up failed" on their
     // next low-balance view; systemic-rate alerting is Plan 03's concern.
-    console.warn('[chargeAutoTopup] off-session charge failed:', err)
+    //
+    // Only the SANITIZED error shape is logged/alerted — a raw Stripe card
+    // error carries `payment_intent`/`raw` (card brand, last4, decline code)
+    // which must never land in stdout or a Sentry/Telegram payload.
+    const sanitized = sanitizeStripeError(err)
+    console.warn('[chargeAutoTopup] off-session charge failed:', sanitized)
+    void notifyOps({
+      kind: 'auto_topup_charge_failed',
+      severity: 'error',
+      title: 'Auto top-up charge failed',
+      message: `${input.companyId}: ${sanitized.code ?? 'unknown_error'} — ${sanitized.message}${
+        sanitized.paymentIntentId ? ` (pi=${sanitized.paymentIntentId})` : ''
+      }`,
+      dedupeKey: `auto_topup_charge_failed:${input.companyId}:${new Date().toISOString().slice(0, 13)}`,
+    })
     await svc
       .from('companies')
       .update({ auto_topup_last_failed_at: new Date().toISOString() })

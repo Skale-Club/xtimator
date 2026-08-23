@@ -5,6 +5,25 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
+import { notifyOps } from '@/lib/observability/ops-alert'
+
+/**
+ * Best-effort ops alert for a swallowed credit-ledger write failure. Shared by
+ * recordCreditDebit / grantCredits / reconcileBalance so a broken RPC (or any
+ * other write-path failure) surfaces to ops instead of vanishing into
+ * console.warn. Hour-bucketed dedupe key so a persistently broken RPC pages
+ * once per company per hour, not once per call.
+ */
+function notifyCreditLedgerWriteFailed(companyId: string, op: string, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err)
+  void notifyOps({
+    kind: 'credit_ledger_write_failed',
+    severity: 'error',
+    title: 'Credit ledger write failed',
+    message: `${companyId} ${op} failed: ${msg}`,
+    dedupeKey: `credit_ledger_write_failed:${companyId}:${new Date().toISOString().slice(0, 13)}`,
+  })
+}
 
 /**
  * Phase 112 — Credit Ledger metering CORE (CREDIT-02/03/04/05/06/07).
@@ -141,6 +160,7 @@ export async function recordCreditDebit(input: {
   } catch (err) {
     // Best-effort: a ledger-write failure must NEVER break generation.
     console.warn('[recordCreditDebit] swallowed write failure:', err)
+    notifyCreditLedgerWriteFailed(input.companyId, 'recordCreditDebit', err)
   }
 }
 
@@ -243,21 +263,29 @@ export async function notifyLowCreditBalance(params: {
  * idempotent, never throws. Ships DORMANT this phase: Phase 113's invoice.paid
  * webhook is the first caller. Dedup by idempotencyKey when provided.
  */
+/**
+ * `applied: true` iff this call newly recorded a ledger row and bumped the
+ * balance. `applied: false` covers every non-write outcome — a no-op
+ * (credits <= 0), an idempotent replay of an already-recorded key, AND a
+ * swallowed failure — callers that need to know "did the credits actually
+ * land" (e.g. auto-topup verifying a charge landed credits) must check this
+ * flag rather than assuming a resolved promise means success.
+ */
 export async function grantCredits(input: {
   companyId: string
   credits: number
   reason: 'grant' | 'topup'
   refId?: string | null
   idempotencyKey?: string | null
-}): Promise<void> {
+}): Promise<{ applied: boolean }> {
   try {
-    if (!(input.credits > 0)) return
+    if (!(input.credits > 0)) return { applied: false }
     const svc = requireServiceClient()
 
     // Atomic RPC (pre-launch audit fix B3) — see recordCreditDebit for the race
     // this closes. `applied: false` means a concurrent/retried call already
     // recorded this exact idempotencyKey; nothing further to do.
-    const { error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+    const { data: rpcData, error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
       p_company_id: input.companyId,
       p_delta_credits: input.credits,
       p_reason: input.reason,
@@ -270,8 +298,14 @@ export async function grantCredits(input: {
     if (rpcError) {
       throw new Error(`grantCredits RPC failed: ${rpcError.message}`)
     }
+    const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+      | { applied?: boolean }
+      | undefined
+    return { applied: Boolean(result?.applied) }
   } catch (err) {
     console.warn('[grantCredits] swallowed write failure:', err)
+    notifyCreditLedgerWriteFailed(input.companyId, 'grantCredits', err)
+    return { applied: false }
   }
 }
 
@@ -397,6 +431,7 @@ export async function reconcileBalance(companyId: string): Promise<number> {
     return sum
   } catch (err) {
     console.warn('[reconcileBalance] swallowed write failure:', err)
+    notifyCreditLedgerWriteFailed(companyId, 'reconcileBalance', err)
     return 0
   }
 }

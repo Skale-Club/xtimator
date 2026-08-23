@@ -23,3 +23,6 @@ export { monthlyCreditGrantJob } from './monthly-credit-grant'
 export { pipelineWatchdogJob } from './pipeline-watchdog'
 // 2026-07-09 perf sweep — daily retention prune of append-only event tables.
 export { retentionCleanupJob } from './retention-cleanup'
+// Pre-launch audit follow-up (FIX 3) — daily read-only billing health sweep
+// (credit-balance drift, paid-tier-without-subscription, stale open invoices).
+export { billingReconciliationJob } from './billing-reconciliation'

@@ -194,6 +194,65 @@ beforeEach(() => {
 })
 
 // ===========================================================================
+// Bug fix: items.data[0] may be the SEAT item itself (Stripe does not
+// guarantee item order) — the interval read must skip it, exactly like
+// readPeriodEnd already does, rather than blindly trusting index 0.
+// ===========================================================================
+describe('FIX 1 (HIGH): syncSubscriptionSeatItem — seat item ordered FIRST in items.data', () => {
+  it('reads the interval off the non-seat plan item even when the seat item is items.data[0]', async () => {
+    const mockStripe = {
+      subscriptions: {
+        retrieve: vi.fn(async () => ({
+          currency: 'usd',
+          items: {
+            data: [
+              // Seat item FIRST — if the fix regresses to items.data[0], this
+              // resolves to undefined/'month' even though the real plan is annual.
+              {
+                id: 'si_seat',
+                metadata: { kind: SEAT_ITEM_METADATA_KIND },
+                quantity: 3,
+                price: { unit_amount: 15000 },
+                plan: { interval: 'month' }, // deliberately WRONG if ever read
+              },
+              {
+                id: 'si_base',
+                metadata: {},
+                quantity: 1,
+                price: { unit_amount: 2900 },
+                plan: { interval: 'year' }, // the TRUE subscription interval
+              },
+            ],
+          },
+        })),
+      },
+      subscriptionItems: {
+        update: subscriptionItemsUpdate,
+        create: subscriptionItemsCreate,
+        del: vi.fn(async () => ({})),
+      },
+      products: { search: productsSearch, create: productsCreate },
+    }
+
+    await syncSubscriptionSeatItem(mockStripe as never, 'sub_seat_first', {
+      quantity: 3,
+      unitAmount: 1500,
+      annualUnitAmount: 15000,
+    })
+
+    // Existing seat item found → update path. The price_data must reflect the
+    // TRUE (year) interval and annualUnitAmount, not the seat item's own
+    // (irrelevant) plan.interval.
+    expect(subscriptionItemsUpdate).toHaveBeenCalledTimes(1)
+    const updateCall = (subscriptionItemsUpdate.mock.calls as unknown as unknown[][])[0][1] as {
+      price_data: PriceData
+    }
+    expect(updateCall.price_data.recurring.interval).toBe('year')
+    expect(updateCall.price_data.unit_amount).toBe(15000)
+  })
+})
+
+// ===========================================================================
 // Test 1: Annual subscription + annualUnitAmount → uses annualUnitAmount +
 //         recurring.interval: 'year'
 // ===========================================================================

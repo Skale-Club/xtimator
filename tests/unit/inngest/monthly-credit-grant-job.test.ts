@@ -28,9 +28,10 @@ import { resolve } from 'node:path'
 // grantCredits is mocked (the contract); monthGrantKey is kept REAL so the
 // cron produces a genuine `grant:{companyId}:{YYYY-MM}` key.
 // vi.hoisted so the fns exist before the hoisted vi.mock factories run.
-const { mockGrantCredits, mockGetBillingConfig } = vi.hoisted(() => ({
+const { mockGrantCredits, mockGetBillingConfig, mockNotifyOps } = vi.hoisted(() => ({
   mockGrantCredits: vi.fn(),
   mockGetBillingConfig: vi.fn(),
+  mockNotifyOps: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
@@ -45,6 +46,10 @@ vi.mock('@/lib/billing/billing-config', () => ({
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
+}))
+
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: mockNotifyOps,
 }))
 
 import {
@@ -90,8 +95,9 @@ function makeSvc(opts: {
 describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGrantCredits.mockResolvedValue(undefined)
+    mockGrantCredits.mockResolvedValue({ applied: true })
     mockGetBillingConfig.mockResolvedValue(TEST_CONFIG)
+    mockNotifyOps.mockResolvedValue(undefined)
   })
 
   it('grants each active paying company its tier grant via grantCredits keyed on the company-month key', async () => {
@@ -103,7 +109,7 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ granted: 2 })
+    expect(result).toEqual({ attempted: 2, granted: 2 })
     expect(svc.from).toHaveBeenCalledWith('companies')
     // Query selects active paying companies only.
     expect(svc.__chain.in).toHaveBeenCalledWith('tier', ['pro', 'business'])
@@ -157,7 +163,7 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ granted: 0 })
+    expect(result).toEqual({ attempted: 0, granted: 0 })
     expect(mockGrantCredits).not.toHaveBeenCalled()
     expect(svc.__chain.in).toHaveBeenCalledWith('tier', ['pro', 'business'])
     expect(svc.__chain.not).toHaveBeenCalledWith(
@@ -168,6 +174,8 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
     expect(svc.__chain.or).toHaveBeenCalledWith(
       'stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)',
     )
+    // attempted:0 → the zero-success alert must NOT fire (nothing was attempted).
+    expect(mockNotifyOps).not.toHaveBeenCalled()
   })
 
   it('per-company resilience: one grantCredits throw does not abort the loop', async () => {
@@ -178,29 +186,63 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
     ]
     const svc = makeSvc({ rows })
     mockGrantCredits
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ applied: true })
       .mockRejectedValueOnce(new Error('grant boom'))
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ applied: true })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    // The failing company is not counted; the others still grant.
-    expect(result).toEqual({ granted: 2 })
+    // The failing company is not counted; the others still grant. All three
+    // were attempted regardless of outcome.
+    expect(result).toEqual({ attempted: 3, granted: 2 })
     expect(mockGrantCredits).toHaveBeenCalledTimes(3)
     warn.mockRestore()
   })
 
-  it('returns { granted: 0 } and never throws when the SELECT errors (best-effort)', async () => {
-    const svc = makeSvc({ rows: null, selectError: { message: 'rls denied' } })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('counts REAL grants only: a resolved grantCredits with applied:false (idempotent no-op) does NOT increment granted', async () => {
+    const rows = [
+      { id: 'co_1', tier: 'pro' },
+      { id: 'co_2', tier: 'pro' },
+    ]
+    const svc = makeSvc({ rows })
+    mockGrantCredits
+      .mockResolvedValueOnce({ applied: true })
+      .mockResolvedValueOnce({ applied: false }) // e.g. already granted by the webhook this month
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ granted: 0 })
+    expect(result).toEqual({ attempted: 2, granted: 1 })
+  })
+
+  it('THROWS (never returns) when the SELECT errors — lets Inngest retry instead of silently skipping the month', async () => {
+    const svc = makeSvc({ rows: null, selectError: { message: 'rls denied' } })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await expect(runMonthlyCreditGrant(svc as never)).rejects.toThrow(/rls denied/)
+
     expect(mockGrantCredits).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('fires notifyOps("monthly_credit_grant_zero_success") when every attempted company fails to grant', async () => {
+    const rows = [
+      { id: 'co_1', tier: 'pro' },
+      { id: 'co_2', tier: 'business' },
+    ]
+    const svc = makeSvc({ rows })
+    mockGrantCredits.mockResolvedValue({ applied: false })
+
+    const result = await runMonthlyCreditGrant(svc as never)
+
+    expect(result).toEqual({ attempted: 2, granted: 0 })
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'monthly_credit_grant_zero_success',
+        severity: 'error',
+      }),
+    )
   })
 })
 
@@ -217,6 +259,11 @@ describe('monthlyCreditGrantJob (Inngest function config)', () => {
     expect(fn.opts.id).toBe('monthly-credit-grant')
     expect(fn.opts.triggers).toBeDefined()
     expect(fn.opts.triggers).toContainEqual({ cron: '0 5 1 * *' })
+  })
+
+  it('is configured with retries: 3 (so a thrown SELECT error is retried, not silently dropped)', () => {
+    const fn = monthlyCreditGrantJob as unknown as { opts: { retries?: number } }
+    expect(fn.opts.retries).toBe(3)
   })
 
   it('function body wraps the grant in step.run("grant-monthly-credits", ...)', () => {

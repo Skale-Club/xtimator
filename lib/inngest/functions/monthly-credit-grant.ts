@@ -46,10 +46,16 @@ import {
   getBillingConfig,
   type BillingTier,
 } from '@/lib/billing/billing-config'
+import { notifyOps } from '@/lib/observability/ops-alert'
 
 type ServiceClientLike = ReturnType<typeof requireServiceClient>
 
 export interface MonthlyCreditGrantResult {
+  /** Number of active paying companies the run attempted to grant. */
+  attempted: number
+  /** Number of companies for which a grant ACTUALLY applied (a new ledger
+   * row landed) — grantCredits is never-throw and no-ops on an existing
+   * idempotency key, so this is NOT the same as the loop's iteration count. */
   granted: number
 }
 
@@ -71,16 +77,23 @@ export async function runMonthlyCreditGrant(
     .or('stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)')
 
   if (error) {
+    // THROW (not return {granted:0}) — a swallowed SELECT error previously
+    // made the cron silently skip an entire month with zero visibility. An
+    // Inngest function that throws out of step.run is retried per the
+    // function's `retries` config, giving the RLS/network blip a real chance
+    // to clear before the month is genuinely missed.
     console.warn('[monthly-credit-grant] select failed:', error.message)
-    return { granted: 0 }
+    throw new Error(`[monthly-credit-grant] select failed: ${error.message}`)
   }
 
   const companies =
     (data ?? []) as Array<{ id: string; tier: string | null }>
   const now = new Date()
 
+  let attempted = 0
   let granted = 0
   for (const company of companies) {
+    attempted += 1
     // Defensive per-company try/catch: grantCredits already swallows its own
     // errors, but a bad tier lookup here must not abort the loop.
     try {
@@ -89,27 +102,46 @@ export async function runMonthlyCreditGrant(
       // grantCredits no-ops on credits <= 0 and on an already-present key —
       // that already-present-key case IS the cron-no-ops-when-the-webhook-
       // granted behavior, by construction (the shared company-month key).
-      await grantCredits({
+      // Count a REAL grant only when grantCredits reports applied:true — the
+      // loop iterating is NOT proof credits moved (grantCredits is never-throw
+      // and silently no-ops on a dup key or a swallowed write failure).
+      const result = await grantCredits({
         companyId: company.id,
         credits,
         reason: 'grant',
         refId: null,
         idempotencyKey: monthGrantKey(company.id, now),
       })
-      granted += 1
+      if (result.applied) {
+        granted += 1
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.warn('[monthly-credit-grant] grant failed for', company.id, msg)
     }
   }
 
-  return { granted }
+  // Every attempted company failed to grant (0 for 0 — the webhook-already-
+  // granted case — is fine and expected some months; > 0 attempted with 0
+  // granted means something is systemically broken, e.g. a dead RPC).
+  if (attempted > 0 && granted === 0) {
+    void notifyOps({
+      kind: 'monthly_credit_grant_zero_success',
+      severity: 'error',
+      title: 'Monthly credit grant cron granted zero companies',
+      message: `attempted=${attempted} granted=0 — every company in this run's grant attempt failed`,
+      dedupeKey: `monthly_credit_grant_zero_success:${now.toISOString().slice(0, 10)}`,
+    })
+  }
+
+  return { attempted, granted }
 }
 
 export const monthlyCreditGrantJob = inngest.createFunction(
   {
     id: 'monthly-credit-grant',
     triggers: [{ cron: '0 5 1 * *' }],
+    retries: 3,
   },
   async ({ step }) => {
     return step.run('grant-monthly-credits', async () => {
