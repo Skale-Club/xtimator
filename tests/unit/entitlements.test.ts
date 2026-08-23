@@ -203,12 +203,38 @@ describe('getEntitlementsForTier (config-sourced, server-side authority)', () =>
     expect(ent.maxPriceResearchPerMonth).toBe(tiers.business.maxPriceResearchPerMonth)
   })
 
-  it('monthlyCreditGrant always comes from the static default (config entitlements omit it)', async () => {
+  it('monthlyCreditGrant falls through to the static default when the config value mirrors it', async () => {
     const cfg = cloneConfig()
     cfg.tiers.pro.entitlements.maxPhotosPerEstimate = 42
     getBillingConfigMock.mockResolvedValue(cfg)
     const ent = await getEntitlementsForTier('pro')
     expect(ent.monthlyCreditGrant).toBe(tiers.pro.monthlyCreditGrant)
+  })
+
+  // CREDITFIX-04 (audit finding #5, current milestone): monthlyCreditGrant
+  // used to be re-overridden with the STATIC fallback after the config
+  // spread, so a super-admin editing the tier's grant in the billing panel
+  // (billing_config.tiers[tier].monthlyCreditGrant) never showed up here.
+  // monthlyCreditGrant lives on TierBilling, not inside the nested
+  // `entitlements` sub-object, so it must be pulled in from the tier config
+  // directly (not assumed to ride along with `...configured`).
+  it('CONFIG WINS: an admin-edited monthlyCreditGrant flows through, not the static default', async () => {
+    const cfg = cloneConfig()
+    cfg.tiers.pro.monthlyCreditGrant = 9999
+    getBillingConfigMock.mockResolvedValue(cfg)
+
+    const ent = await getEntitlementsForTier('pro')
+    expect(ent.monthlyCreditGrant).toBe(9999)
+    expect(ent.monthlyCreditGrant).not.toBe(tiers.pro.monthlyCreditGrant)
+  })
+
+  it('CONFIG WINS: works independently per tier (business edit does not affect pro)', async () => {
+    const cfg = cloneConfig()
+    cfg.tiers.business.monthlyCreditGrant = 20000
+    getBillingConfigMock.mockResolvedValue(cfg)
+
+    expect((await getEntitlementsForTier('business')).monthlyCreditGrant).toBe(20000)
+    expect((await getEntitlementsForTier('pro')).monthlyCreditGrant).toBe(tiers.pro.monthlyCreditGrant)
   })
 
   it('resolves an unknown tier to static free entitlements', async () => {

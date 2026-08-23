@@ -123,6 +123,49 @@ describe('getBillingData (company-scoped)', () => {
     expect(result!.stripeSubscriptionId).toBe('sub_123')
   })
 
+  // CREDITFIX (audit findings #4, #6): stripe_customer_id gates the "Manage
+  // subscription" card (create-portal-session 400s without it — an
+  // admin-set tier has no Stripe customer), and stripe_subscription_status
+  // drives the past_due/unpaid dunning-window warning banner.
+  it('passes through stripeCustomerId and stripeSubscriptionStatus', async () => {
+    const pastDueCompany = {
+      ...MOCK_COMPANY_ROW,
+      stripe_customer_id: 'cus_abc',
+      stripe_subscription_status: 'past_due',
+    }
+    const mockClient = buildClient({ data: pastDueCompany, error: null }, MOCK_COUNTS)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockClient)
+
+    const result = await getBillingData(MOCK_COMPANY_ID)
+
+    expect(result!.stripeCustomerId).toBe('cus_abc')
+    expect(result!.stripeSubscriptionStatus).toBe('past_due')
+  })
+
+  it('defaults stripeCustomerId and stripeSubscriptionStatus to null when absent (admin-set tier, no Stripe customer)', async () => {
+    const mockClient = buildClient({ data: MOCK_COMPANY_ROW, error: null }, MOCK_COUNTS)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockClient)
+
+    const result = await getBillingData(MOCK_COMPANY_ID)
+
+    expect(result!.stripeCustomerId).toBeNull()
+    expect(result!.stripeSubscriptionStatus).toBeNull()
+  })
+
+  it('selects stripe_customer_id and stripe_subscription_status from companies', async () => {
+    const mockClient = buildClient({ data: MOCK_COMPANY_ROW, error: null }, MOCK_COUNTS)
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockClient)
+
+    await getBillingData(MOCK_COMPANY_ID)
+
+    const companiesChain = mockClient.from.mock.results.find(
+      (r) => typeof (r.value as { maybeSingle?: unknown }).maybeSingle === 'function'
+    )!.value as { select: ReturnType<typeof vi.fn> }
+    const selectArg = companiesChain.select.mock.calls[0][0] as string
+    expect(selectArg).toContain('stripe_customer_id')
+    expect(selectArg).toContain('stripe_subscription_status')
+  })
+
   it('returns null when the company does not exist', async () => {
     const mockClient = buildClient({ data: null, error: null }, {})
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockClient)

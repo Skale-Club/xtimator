@@ -27,15 +27,25 @@ import { UsageProgressBar } from '@/components/billing/usage-progress-bar'
  * Cardinal rule: the owner sees a USAGE PERCENTAGE only — no dollar amounts,
  * no raw credit count, no per-op cost math. Enforcement is OFF this
  * milestone, so the warning copy is a heads-up nudge, never "blocked"/"denied".
+ *
+ * CREDITFIX-01 exception: `percentUsed` is nullable — when nothing has been
+ * granted this cycle yet (a fresh signup mid-migration, a data gap, etc.) a
+ * percentage has no valid denominator, so no bar/band/warning is shown at
+ * all; UsageProgressBar falls back to rendering the raw `balance` instead of
+ * a misleading 0%/100% bar. `balance` is therefore only ever read in that
+ * fallback path.
  */
 export function CreditBalanceCard({
   percentUsed,
   tier,
+  balance,
 }: {
-  percentUsed: number
+  percentUsed: number | null
   tier: string
+  balance?: number
 }) {
-  const band = percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
+  const band =
+    percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
 
   const resetCaption =
     tier === 'free'
@@ -56,7 +66,7 @@ export function CreditBalanceCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3 px-0 pt-4 text-sm">
-        <UsageProgressBar percentUsed={percentUsed} />
+        <UsageProgressBar percentUsed={percentUsed} balance={balance} label="Usage this billing cycle" />
 
         <p className="text-xs text-muted-foreground">
           <T text={resetCaption} />

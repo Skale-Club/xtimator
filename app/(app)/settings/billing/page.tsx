@@ -1,11 +1,12 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { CreditCard, TrendingUp } from 'lucide-react'
+import { CreditCard, TrendingUp, AlertTriangle } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
+import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
-import { getCreditOverview } from '@/lib/queries/credits'
+import { getCreditOverview, getCycleGrantedCredits } from '@/lib/queries/credits'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
@@ -25,7 +26,7 @@ import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
-import { formatUsd } from '@/lib/billing/format-usd'
+import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
 import { T } from '@/components/i18n/t'
 
 export const metadata = { title: 'Billing & Plans' }
@@ -50,26 +51,50 @@ export default async function BillingPage() {
     redirect('/onboarding')
   }
 
+  // Owner-only billing: the routes already enforce it server-side (403), but the
+  // UI must not offer controls that will be refused — a member clicking Upgrade
+  // and being told "try again" forever was the audit's dead-end #6. Reuse the
+  // SAME gate the routes use so the two can never drift; a denial is a plain
+  // boolean here, never an exception.
+  const isOwner = await requireCompanyOwner(company.id)
+    .then(() => true)
+    .catch(() => false)
+
   if (isDemoCompany(company.id)) redirect('/settings/company')
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
-  const [data, credits, cfg, stripePrices] = await Promise.all([
+  const [data, credits, cfg, stripePrices, grantedThisCycle] = await Promise.all([
     getBillingData(company.id),
     getCreditOverview(company.id),
     getBillingConfig(),
     getStripeDisplayPrices(),
+    // CREDITFIX-01: actual credit_ledger 'grant'/'topup' sum for the current
+    // UTC cycle — replaces the static configured monthlyCreditGrant as the
+    // usage bar's denominator (see computeUsagePercent below).
+    getCycleGrantedCredits(company.id),
   ])
 
   if (!data) {
     redirect('/onboarding')
   }
 
-  const cycleGrant =
-    data.tier === 'free'
-      ? cfg.signupCreditGrant
-      : cfg.tiers[data.tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
-  const percentUsed = computeUsagePercent({ balance: credits.balance, cycleGrant })
+  // CREDITFIX-01 (audit finding #1): the denominator is what was ACTUALLY
+  // granted this cycle, not the static config amount — a Business company
+  // with balance 2000 and a configured grant of 12000 used to render "83%
+  // used" having used nothing (the config grant and the ledger disagreed),
+  // and a company that bought a top-up used to clamp to "0% used" forever
+  // (the static grant never grew to reflect the top-up). When nothing has
+  // been granted this cycle (grantedThisCycle === 0), there's no valid
+  // denominator at all — percentUsed is null and the UI renders the raw
+  // balance instead of a misleading bar.
+  const percentUsed =
+    grantedThisCycle === 0
+      ? null
+      : computeUsagePercent({
+          balance: credits.balance,
+          cycleGrant: Math.max(grantedThisCycle, credits.balance),
+        })
   // Invariant: the tier card must show what Stripe will actually charge — the
   // live Stripe price (when resolvable) OVERRIDES the billing_config price;
   // null Stripe slots fall back to config exactly as before.
@@ -141,9 +166,12 @@ export default async function BillingPage() {
     autoTopupCompany?.auto_topup_pack_price_cents ?? autoTopupPack?.priceCents ?? null
   const autoTopupPackAmount =
     autoTopupPackPriceCents != null ? formatUsd(autoTopupPackPriceCents) : null
+  // CREDITFIX-03 (audit finding #3): auto_topup_threshold_credits is a CREDIT
+  // count, not a cents figure — running it through formatUsd rendered "500
+  // credits" as "$5". formatCredits renders the credit count as-is.
   const autoTopupThresholdAmount =
     autoTopupCompany?.auto_topup_threshold_credits != null
-      ? formatUsd(autoTopupCompany.auto_topup_threshold_credits)
+      ? formatCredits(autoTopupCompany.auto_topup_threshold_credits)
       : null
 
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
@@ -152,6 +180,23 @@ export default async function BillingPage() {
     new Date(iso).toLocaleDateString('en-US', { dateStyle: 'medium' })
 
   const isPaid = data.tier === 'pro' || data.tier === 'business'
+
+  // CREDITFIX (audit finding #4): during Stripe's whole dunning window a
+  // failing customer's tier is still 'pro'/'business' (the downgrade only
+  // happens once Stripe gives up) — the page must surface that ahead of
+  // time, not just show a normal "Renews: <date>" until the silent drop to
+  // Free. Kept separate from the pending-cancel banner below (that one is a
+  // deliberate cancellation; this one is an unintentional payment failure).
+  const isPastDue =
+    isPaid &&
+    (data.stripeSubscriptionStatus === 'past_due' || data.stripeSubscriptionStatus === 'unpaid')
+
+  // CREDITFIX (audit finding #6): create-portal-session 400s without a
+  // stripe_customer_id — a company whose tier was set directly by an admin
+  // (never went through Stripe Checkout) has no Stripe customer, so the
+  // "Manage subscription" button would 400 forever. Gate it on the customer
+  // id actually being present.
+  const hasStripeCustomer = !!data.stripeCustomerId
 
   return (
     <div className="space-y-6 p-6">
@@ -170,6 +215,21 @@ export default async function BillingPage() {
       </header>
 
       <div className="w-full space-y-8">
+        {isPastDue && (
+          <div
+            data-testid="past-due-banner"
+            className="flex flex-col gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-600 dark:text-red-400 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="text-sm">
+                <T>We couldn&rsquo;t charge your card — update your payment method to keep your plan.</T>
+              </p>
+            </div>
+            {hasStripeCustomer && <ManageSubscriptionButton isOwner={isOwner} />}
+          </div>
+        )}
+
         {/* Current plan + usage */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card variant="glass" className="p-6">
@@ -246,7 +306,7 @@ export default async function BillingPage() {
         {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
             (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} />
+          <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} balance={credits.balance} />
           <CreditHistoryList rows={credits.history} />
         </div>
 
@@ -254,7 +314,7 @@ export default async function BillingPage() {
             visible (not gated behind the low-balance warning). */}
         <div id="topup-packs" className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
-          <TopUpPacksGrid packs={cfg.topUpPacks} />
+          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
         </div>
 
         {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
@@ -280,6 +340,9 @@ export default async function BillingPage() {
           <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
           <TierCardsGrid
             currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
+            currentInterval={data.stripeSubscriptionInterval ?? undefined}
+            isOwner={isOwner}
+            pendingCancel={!!data.tierCancelledAt}
             annualPrices={annualPrices}
             monthlyPricesCents={monthlyPricesCents}
             featureBullets={{
@@ -290,7 +353,11 @@ export default async function BillingPage() {
           />
         </div>
 
-        {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04) */}
+        {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04).
+            CREDITFIX (audit finding #6): create-portal-session requires
+            stripe_customer_id — an admin-set tier (both paid companies in
+            prod, per the audit) has none, so the button 400s forever. Gate
+            the action on hasStripeCustomer; explain instead when absent. */}
         {isPaid && (
           <Card variant="glass" className="p-6">
             <CardHeader className="p-0">
@@ -300,7 +367,13 @@ export default async function BillingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="px-0 pt-4">
-              <ManageSubscriptionButton />
+              {hasStripeCustomer ? (
+                <ManageSubscriptionButton />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  <T>This plan was set by support — contact us to change it.</T>
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

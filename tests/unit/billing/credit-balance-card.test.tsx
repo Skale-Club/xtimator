@@ -89,4 +89,29 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(html.toLowerCase()).not.toContain('markup')
     expect(html.toLowerCase()).not.toContain('token')
   })
+
+  // CREDITFIX-01 (audit finding #1): percentUsed is nullable — when nothing
+  // has been granted this cycle a percentage has no valid denominator, so no
+  // bar/band/warning renders; the raw balance is shown instead of a
+  // misleading 0%/100% bar.
+  describe('null percentUsed (nothing granted this cycle) — CREDITFIX-01', () => {
+    it('Test 8: renders the balance instead of a "% used" bar', () => {
+      const { container } = render(<CreditBalanceCard percentUsed={null} tier="pro" balance={2000} />)
+      const html = container.innerHTML
+      expect(html).toContain('2,000')
+      expect(html).not.toContain('% used')
+    })
+
+    it('Test 9: renders no low-balance warning banner (no valid band to escalate)', () => {
+      const { queryByTestId } = render(
+        <CreditBalanceCard percentUsed={null} tier="pro" balance={2000} />
+      )
+      expect(queryByTestId('credit-low-warning')).toBeNull()
+    })
+
+    it('Test 10: defaults to 0 when balance is omitted', () => {
+      const { container } = render(<CreditBalanceCard percentUsed={null} tier="pro" />)
+      expect(container.innerHTML).toContain('0')
+    })
+  })
 })

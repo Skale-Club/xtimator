@@ -23,16 +23,29 @@ import { getEntitlements, type Entitlements, type TierName } from './entitlement
  * getBillingConfig is server-only and pulled in via a DYNAMIC import so the cost
  * of the billing module graph is only paid on the server code paths that call
  * this resolver.
+ *
+ * CREDITFIX-04: `monthlyCreditGrant` used to be re-overridden with the STATIC
+ * fallback after the config spread, so this resolver always reported the
+ * hardcoded number even after a super-admin edited the tier's grant in the
+ * billing panel. `monthlyCreditGrant` lives on `TierBilling` (billing-config.ts),
+ * one level up from the `entitlements` sub-object (`TierEntitlements` never
+ * carries it — see that type's comment) — so it has to be pulled in
+ * explicitly alongside the `...configured` spread rather than assumed to ride
+ * along with it. Config wins per field, same as every other entitlement.
  */
 export async function getEntitlementsForTier(tier: string): Promise<Entitlements> {
   const fallback = getEntitlements(tier)
   try {
     const { getBillingConfig } = await import('@/lib/billing/billing-config')
     const cfg = await getBillingConfig()
-    const configured = cfg.tiers[tier as TierName]?.entitlements
-    if (!configured) return fallback
+    const tierCfg = cfg.tiers[tier as TierName]
+    if (!tierCfg) return fallback
     // Config wins per field; unset fields fall through to the static default.
-    return { ...fallback, ...configured, monthlyCreditGrant: fallback.monthlyCreditGrant }
+    return {
+      ...fallback,
+      ...tierCfg.entitlements,
+      monthlyCreditGrant: tierCfg.monthlyCreditGrant ?? fallback.monthlyCreditGrant,
+    }
   } catch {
     // Static build / service client unavailable — degrade to the static default.
     return fallback

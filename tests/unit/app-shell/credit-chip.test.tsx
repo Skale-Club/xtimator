@@ -51,4 +51,25 @@ describe('CreditChip (CREDITFIX-02 / CREDITUI-04)', () => {
     const bar = container.querySelector('[data-slot="progress"]')
     expect(bar?.className).toContain('--danger')
   })
+
+  // CREDITFIX-01 (audit finding #1): percentUsed is nullable — when nothing
+  // has been granted this cycle, render the raw balance instead of a
+  // misleading 0%/100% bar.
+  describe('null percentUsed (nothing granted this cycle) — CREDITFIX-01', () => {
+    it('Test 13: renders the balance, not a progress bar', () => {
+      const { container } = render(<CreditChip percentUsed={null} balance={7500} />)
+      expect(container.textContent).toContain('7,500')
+      expect(container.querySelector('[data-slot="progress"]')).toBeNull()
+    })
+
+    it('Test 14: never renders "%" when percentUsed is null', () => {
+      const { container } = render(<CreditChip percentUsed={null} balance={7500} />)
+      expect(container.textContent).not.toContain('%')
+    })
+
+    it('Test 15: defaults to 0 when balance is omitted', () => {
+      const { container } = render(<CreditChip percentUsed={null} />)
+      expect(container.textContent).toContain('0')
+    })
+  })
 })

@@ -38,6 +38,46 @@ export interface CreditOverview {
 /** Owner-safe history columns. EXACTLY these four — see the cardinal rule above. */
 const OWNER_SAFE_LEDGER_COLUMNS = 'operation_type, delta_credits, reason, created_at'
 
+/**
+ * Phase (CREDITFIX) — actual cycle-grant lookup, replacing the old assumption
+ * that every cycle starts at exactly the configured `monthlyCreditGrant`. Sums
+ * `credit_ledger.delta_credits` for rows credited this UTC calendar month with
+ * reason 'grant' (the monthly/signup grant) or 'topup' (a purchased pack) —
+ * the two reasons that actually ADD to a company's allowance for the cycle.
+ * Debits ('debit'/'adjust' etc.) are excluded so a mid-cycle top-up correctly
+ * raises the denominator instead of being invisible.
+ *
+ * Service client (credit_ledger has deny-all RLS, mirrors getCreditOverview
+ * above). Never throws — returns 0 on any failure so a transient read error
+ * degrades to "nothing granted this cycle" (caller then hides the usage bar
+ * entirely rather than showing a wrong percentage).
+ */
+export async function getCycleGrantedCredits(companyId: string): Promise<number> {
+  try {
+    const svc = requireServiceClient()
+    const now = new Date()
+    const startOfMonthIso = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    ).toISOString()
+
+    const { data, error } = await svc
+      .from('credit_ledger')
+      .select('delta_credits')
+      .eq('company_id', companyId)
+      .in('reason', ['grant', 'topup'])
+      .gte('created_at', startOfMonthIso)
+
+    if (error || !data) return 0
+
+    return (data as { delta_credits: number }[]).reduce(
+      (sum, row) => sum + (row.delta_credits ?? 0),
+      0
+    )
+  } catch {
+    return 0
+  }
+}
+
 export async function getCreditOverview(companyId: string): Promise<CreditOverview> {
   const svc = requireServiceClient()
 

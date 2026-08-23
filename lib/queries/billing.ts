@@ -11,6 +11,9 @@ export interface BillingData {
   tierRenewsAt: string | null           // ISO string from DB
   tierCancelledAt: string | null        // ISO string from DB — set while a paid sub is pending-cancel
   stripeSubscriptionId: string | null
+  stripeCustomerId: string | null       // null when the tier was set by an admin/support, never via Stripe Checkout
+  stripeSubscriptionStatus: string | null // Stripe subscription status ('active' | 'past_due' | 'unpaid' | ... | null)
+  stripeSubscriptionInterval: 'month' | 'year' | null // billing interval of the live subscription; null = unknown/none
   estimatesThisMonth: number            // COUNT of 'estimate_generated' events this UTC month
   photosThisMonth: number               // COUNT of 'photo_analyzed' events this UTC month
   entitlements: Entitlements            // from getEntitlements(tier)
@@ -33,7 +36,9 @@ export async function getBillingData(companyId: string): Promise<BillingData | n
   // Fetch the company row by id.
   const { data: company } = await serviceClient
     .from('companies')
-    .select('id, tier, tier_renews_at, tier_cancelled_at, stripe_subscription_id')
+    .select(
+      'id, tier, tier_renews_at, tier_cancelled_at, stripe_subscription_id, stripe_customer_id, stripe_subscription_status, stripe_subscription_interval'
+    )
     .eq('id', companyId)
     .maybeSingle()
 
@@ -45,6 +50,14 @@ export async function getBillingData(companyId: string): Promise<BillingData | n
   const tierRenewsAt: string | null = (company as { tier_renews_at: string | null }).tier_renews_at
   const tierCancelledAt: string | null = (company as { tier_cancelled_at: string | null }).tier_cancelled_at
   const stripeSubscriptionId: string | null = (company as { stripe_subscription_id: string | null }).stripe_subscription_id
+  const stripeCustomerId: string | null =
+    (company as { stripe_customer_id?: string | null }).stripe_customer_id ?? null
+  const stripeSubscriptionStatus: string | null =
+    (company as { stripe_subscription_status?: string | null }).stripe_subscription_status ?? null
+  const rawInterval =
+    (company as { stripe_subscription_interval?: string | null }).stripe_subscription_interval ?? null
+  const stripeSubscriptionInterval: 'month' | 'year' | null =
+    rawInterval === 'month' || rawInterval === 'year' ? rawInterval : null
 
   // Compute start of current UTC month.
   const now = new Date()
@@ -76,6 +89,9 @@ export async function getBillingData(companyId: string): Promise<BillingData | n
     tierRenewsAt,
     tierCancelledAt,
     stripeSubscriptionId,
+    stripeCustomerId,
+    stripeSubscriptionStatus,
+    stripeSubscriptionInterval,
     estimatesThisMonth,
     photosThisMonth,
     entitlements: await getEntitlementsForTier(tier),

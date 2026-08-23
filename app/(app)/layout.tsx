@@ -4,8 +4,8 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany, getMembershipCompanies } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
-import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
+import { getCycleGrantedCredits } from '@/lib/queries/credits'
 import { getSupportModeSession } from '@/lib/auth/support-mode'
 import { SupportModeBanner } from '@/components/admin/support-mode-banner'
 import { Sidebar } from '@/components/app-shell/sidebar'
@@ -68,10 +68,10 @@ export default async function AppShellLayout({
       // adminRow existence is already re-verified inside getSupportModeSession()
       // itself (never trust the cookie's claim alone) — this read is only to
       // obtain the admin's display email for the banner, not a security check.
-      const [{ data: adminAuthUser }, branding, cfg] = await Promise.all([
+      const [{ data: adminAuthUser }, branding, supportGrantedThisCycle] = await Promise.all([
         svc.auth.admin.getUserById(supportSession.adminUserId),
         brandingPromise,
-        getBillingConfig(),
+        getCycleGrantedCredits(supportSession.companyId),
       ])
       const adminEmail = adminAuthUser.user?.email ?? ''
       const navUser = { email: adminEmail, avatarUrl: null }
@@ -81,15 +81,24 @@ export default async function AppShellLayout({
       // a hardcoded 0 here would show every tenant as "0% used" while an
       // admin is in Support Mode, which is misleading (not a security issue,
       // but an accuracy gap the milestone's integration check flagged).
-      const supportTier = supportCompany.tier ?? 'free'
-      const supportCycleGrant =
-        supportTier === 'free'
-          ? cfg.signupCreditGrant
-          : cfg.tiers[supportTier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
-      const supportPercentUsed = computeUsagePercent({
-        balance: supportCompany.credit_balance ?? 0,
-        cycleGrant: supportCycleGrant,
-      })
+      //
+      // CREDITFIX-01: the denominator is now what was ACTUALLY granted this
+      // UTC cycle (credit_ledger 'grant'/'topup' rows), not the static
+      // configured monthlyCreditGrant — a company that never received its
+      // full grant this cycle no longer renders a false high percentage, and
+      // a mid-cycle top-up no longer clamps to a permanent 0%. When nothing
+      // was granted this cycle, percentUsed is null (no valid denominator) —
+      // Topbar only renders CreditChip for a `number`, so `?? undefined`
+      // degrades to "no chip" rather than a misleading bar (Topbar itself is
+      // out of this fix's scope).
+      const supportBalance = supportCompany.credit_balance ?? 0
+      const supportPercentUsed =
+        supportGrantedThisCycle === 0
+          ? null
+          : computeUsagePercent({
+              balance: supportBalance,
+              cycleGrant: Math.max(supportGrantedThisCycle, supportBalance),
+            })
 
       return (
         <TourProvider>
@@ -108,7 +117,7 @@ export default async function AppShellLayout({
                   company={supportCompany}
                   userId={supportSession.adminUserId}
                   isAdmin={true}
-                  percentUsed={supportPercentUsed}
+                  percentUsed={supportPercentUsed ?? undefined}
                 />
                 <MobileHeader
                   branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
@@ -164,34 +173,45 @@ export default async function AppShellLayout({
   const isDemo = isDemoCompany(activeCompanyId)
 
   const supabase = await createClient()
-  const [branding, adminRow, billingRow, memberships, { data: userData }, cfg] = await Promise.all([
-    brandingPromise, // already in flight
-    requireServiceClient()
-      .from('platform_admins')
-      .select('user_id')
-      .eq('user_id', claims.sub)
-      .maybeSingle(),
-    // Phase 79 (D-10): billing row keyed by activeCompanyId. Replaces the prior
-    // user-keyed lookup which presumed a 1:1 user→company relationship.
-    requireServiceClient()
-      .from('companies')
-      .select('tier, tier_trial_ends_at, credit_balance')
-      .eq('id', activeCompanyId)
-      .single(),
-    // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
-    // Parallel fetch — no dependency on the prior awaits beyond auth (claims).
-    getMembershipCompanies(),
-    supabase.auth.getUser(),
-    // Phase 152 (CREDITUI-03): cycle grant lookup for the topbar usage chip's
-    // percentUsed computation below.
-    getBillingConfig(),
-  ])
+  const [branding, adminRow, billingRow, memberships, { data: userData }, grantedThisCycle] =
+    await Promise.all([
+      brandingPromise, // already in flight
+      requireServiceClient()
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', claims.sub)
+        .maybeSingle(),
+      // Phase 79 (D-10): billing row keyed by activeCompanyId. Replaces the prior
+      // user-keyed lookup which presumed a 1:1 user→company relationship.
+      requireServiceClient()
+        .from('companies')
+        .select('tier, tier_trial_ends_at, credit_balance')
+        .eq('id', activeCompanyId)
+        .single(),
+      // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
+      // Parallel fetch — no dependency on the prior awaits beyond auth (claims).
+      getMembershipCompanies(),
+      supabase.auth.getUser(),
+      // Phase 152 (CREDITUI-03) / CREDITFIX-01: actual credit_ledger
+      // 'grant'/'topup' sum for the current UTC cycle — the topbar usage
+      // chip's percentUsed denominator. Replaces the static configured
+      // monthlyCreditGrant, which lied whenever the ledger and the config
+      // disagreed (a company that never received its full grant this cycle,
+      // or one that topped up mid-cycle).
+      getCycleGrantedCredits(activeCompanyId),
+    ])
   const isAdmin = !!adminRow.data
 
   const tier = billingRow.data?.tier ?? 'free'
-  const cycleGrant =
-    tier === 'free' ? cfg.signupCreditGrant : cfg.tiers[tier as 'pro' | 'business']?.monthlyCreditGrant ?? 0
-  const percentUsed = computeUsagePercent({ balance: billingRow.data?.credit_balance ?? 0, cycleGrant })
+  const balance = billingRow.data?.credit_balance ?? 0
+  // When nothing has been granted this cycle, there's no valid denominator —
+  // percentUsed is null (Topbar only renders CreditChip for a `number`, so
+  // `?? undefined` below degrades to "no chip" rather than a misleading bar;
+  // Topbar itself is out of this fix's scope).
+  const percentUsed =
+    grantedThisCycle === 0
+      ? null
+      : computeUsagePercent({ balance, cycleGrant: Math.max(grantedThisCycle, balance) })
 
   const trialDaysRemaining =
     billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
@@ -231,7 +251,7 @@ export default async function AppShellLayout({
               company={company}
               userId={claims.sub as string}
               isAdmin={isAdmin}
-              percentUsed={percentUsed}
+              percentUsed={percentUsed ?? undefined}
             />
             <MobileHeader
               branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}

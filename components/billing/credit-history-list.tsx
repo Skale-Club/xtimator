@@ -8,6 +8,8 @@ import {
 import { History, TrendingUp, TrendingDown } from 'lucide-react'
 import { T } from '@/components/i18n/t'
 import type { CreditHistoryRow } from '@/lib/queries/credits'
+import { formatCredits } from '@/lib/billing/format-usd'
+import { cn } from '@/lib/utils'
 
 /**
  * Phase 115 (CREDITUI-01) — owner-safe credit consumption history.
@@ -15,11 +17,17 @@ import type { CreditHistoryRow } from '@/lib/queries/credits'
  * Renders the recent ledger rows from getCreditOverview as a simple list:
  * a human label (from operation_type / reason), a SIGNED delta, and the date.
  *
- * Cardinal rule: NEVER renders the underlying real-cost or price-multiplier
- * figures, and NEVER renders the post-transaction credit total — none of
- * that is even present on CreditHistoryRow (the Plan-01 owner-safe
- * projection never selected it). The owner sees credits consumed, never
- * the cost math.
+ * CREDITFIX-06: a v4.15 pass (CREDITUI-04) stripped the numeric delta down to
+ * a bare TrendingUp/TrendingDown icon — a tenant who just paid $100 for a
+ * top-up saw no evidence of it, only an up-arrow. That over-applied the
+ * "never show cost math" cardinal rule: the CREDIT delta itself (not the
+ * underlying real-cost/markup figure) is exactly the number the owner is
+ * entitled to see — it's their own ledger. The signed CREDIT amount (e.g.
+ * "+7,500" / "−12") is restored via formatCredits, with
+ * font-variant-numeric: tabular-nums so the digits stay aligned column-style
+ * as rows scroll. Still NEVER renders real_cost_usd / markup / balance_after —
+ * those columns aren't even selected by getCreditOverview's owner-safe
+ * projection (see that function's doc comment).
  */
 
 function rowLabel(row: CreditHistoryRow): React.ReactNode {
@@ -80,6 +88,16 @@ export function CreditHistoryList({ rows }: { rows: CreditHistoryRow[] }) {
                       aria-label="Credit used"
                     />
                   )}
+                  <span
+                    data-testid="activity-delta"
+                    className={cn(
+                      'whitespace-nowrap font-mono text-sm font-medium [font-variant-numeric:tabular-nums]',
+                      positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                    )}
+                  >
+                    {positive ? '+' : '−'}
+                    {formatCredits(Math.abs(row.delta_credits))}
+                  </span>
                   <span className="whitespace-nowrap text-xs text-muted-foreground">
                     {new Date(row.created_at).toLocaleDateString('en-US', {
                       dateStyle: 'medium',

@@ -8,7 +8,7 @@ vi.mock('@/lib/billing/billing-config', () => ({
   getBillingConfig: vi.fn(),
 }))
 
-import { getCreditOverview } from '@/lib/queries/credits'
+import { getCreditOverview, getCycleGrantedCredits } from '@/lib/queries/credits'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 
@@ -145,5 +145,89 @@ describe('getCreditOverview', () => {
     const result = await getCreditOverview(COMPANY_ID)
     expect(result.balance).toBe(0)
     expect(result.history).toEqual([])
+  })
+})
+
+/**
+ * CREDITFIX-01 (audit finding #1, current milestone) — getCycleGrantedCredits
+ * sums credit_ledger.delta_credits for 'grant'/'topup' rows created since the
+ * start of the current UTC month. The percent-used bar's denominator now
+ * comes from THIS (what was actually granted this cycle), not the static
+ * configured monthlyCreditGrant.
+ */
+describe('getCycleGrantedCredits', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function buildLedgerClient(response: { data: unknown; error: null | { message: string } }) {
+    const selectSpy = vi.fn().mockReturnThis()
+    const inSpy = vi.fn().mockReturnThis()
+    const eqSpy = vi.fn().mockReturnThis()
+    const gteSpy = vi.fn().mockResolvedValue(response)
+    const client = {
+      from: vi.fn().mockImplementation(() => ({
+        select: selectSpy,
+        eq: eqSpy,
+        in: inSpy,
+        gte: gteSpy,
+      })),
+    }
+    return { client, selectSpy, inSpy, eqSpy, gteSpy }
+  }
+
+  it('sums delta_credits across the returned rows', async () => {
+    const { client } = buildLedgerClient({
+      data: [{ delta_credits: 3500 }, { delta_credits: 5000 }],
+      error: null,
+    })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    const result = await getCycleGrantedCredits(COMPANY_ID)
+    expect(result).toBe(8500)
+  })
+
+  it('filters reason IN (grant, topup)', async () => {
+    const { client, inSpy } = buildLedgerClient({ data: [], error: null })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    await getCycleGrantedCredits(COMPANY_ID)
+    expect(inSpy).toHaveBeenCalledWith('reason', ['grant', 'topup'])
+  })
+
+  it('filters created_at >= start of the current UTC month', async () => {
+    const { client, gteSpy } = buildLedgerClient({ data: [], error: null })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    await getCycleGrantedCredits(COMPANY_ID)
+    const [col, iso] = gteSpy.mock.calls[0]
+    expect(col).toBe('created_at')
+    const now = new Date()
+    expect(iso).toBe(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString())
+  })
+
+  it('returns 0 when the query errors (never throws)', async () => {
+    const { client } = buildLedgerClient({ data: null, error: { message: 'boom' } })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    const result = await getCycleGrantedCredits(COMPANY_ID)
+    expect(result).toBe(0)
+  })
+
+  it('returns 0 when requireServiceClient throws (never throws)', async () => {
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('no service client')
+    })
+
+    const result = await getCycleGrantedCredits(COMPANY_ID)
+    expect(result).toBe(0)
+  })
+
+  it('returns 0 for an empty result set (nothing granted this cycle)', async () => {
+    const { client } = buildLedgerClient({ data: [], error: null })
+    ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
+
+    const result = await getCycleGrantedCredits(COMPANY_ID)
+    expect(result).toBe(0)
   })
 })
