@@ -757,10 +757,14 @@ export type Database = {
           stripe_account_display_name: string | null
           stripe_account_email: string | null
           stripe_account_id: string | null
+          stripe_charges_enabled: boolean | null
+          stripe_connect_disabled_reason: string | null
           stripe_connect_status: string | null
           stripe_connected_at: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
+          stripe_subscription_interval: string | null
+          stripe_subscription_status: string | null
           subdomain: string | null
           tax_config: Json | null
           theme_preference: string | null
@@ -833,10 +837,14 @@ export type Database = {
           stripe_account_display_name?: string | null
           stripe_account_email?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_connect_disabled_reason?: string | null
           stripe_connect_status?: string | null
           stripe_connected_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_subscription_interval?: string | null
+          stripe_subscription_status?: string | null
           subdomain?: string | null
           tax_config?: Json | null
           theme_preference?: string | null
@@ -909,10 +917,14 @@ export type Database = {
           stripe_account_display_name?: string | null
           stripe_account_email?: string | null
           stripe_account_id?: string | null
+          stripe_charges_enabled?: boolean | null
+          stripe_connect_disabled_reason?: string | null
           stripe_connect_status?: string | null
           stripe_connected_at?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
+          stripe_subscription_interval?: string | null
+          stripe_subscription_status?: string | null
           subdomain?: string | null
           tax_config?: Json | null
           theme_preference?: string | null
@@ -1359,6 +1371,72 @@ export type Database = {
           },
         ]
       }
+      estimate_engagement_events: {
+        Row: {
+          company_id: string
+          created_at: string
+          device: string | null
+          doc_h: number | null
+          estimate_id: string
+          event_type: string
+          id: string
+          metadata: Json
+          session_id: string
+          target: string | null
+          viewport_w: number | null
+          visitor_id: string
+          x_pct: number | null
+          y_px: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          device?: string | null
+          doc_h?: number | null
+          estimate_id: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          session_id: string
+          target?: string | null
+          viewport_w?: number | null
+          visitor_id: string
+          x_pct?: number | null
+          y_px?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          device?: string | null
+          doc_h?: number | null
+          estimate_id?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          session_id?: string
+          target?: string | null
+          viewport_w?: number | null
+          visitor_id?: string
+          x_pct?: number | null
+          y_px?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_engagement_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_engagement_events_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       estimate_items: {
         Row: {
           company_id: string
@@ -1597,6 +1675,7 @@ export type Database = {
           id: string
           is_current: boolean
           language: string
+          last_viewed_at: string | null
           notes: string | null
           paid_at: string | null
           payment_amount_cents: number | null
@@ -1608,6 +1687,8 @@ export type Database = {
           responded_at: string | null
           sent_at: string | null
           share_expires_at: string | null
+          share_password_hash: string | null
+          share_password_set_at: string | null
           share_token: string | null
           status: string
           stripe_checkout_session_id: string | null
@@ -1620,6 +1701,7 @@ export type Database = {
           total: number | null
           updated_at: string
           version: number
+          view_count: number
           viewed_at: string | null
           warranty_terms: string | null
           workflow_status: string
@@ -1644,6 +1726,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           language?: string
+          last_viewed_at?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_amount_cents?: number | null
@@ -1655,6 +1738,8 @@ export type Database = {
           responded_at?: string | null
           sent_at?: string | null
           share_expires_at?: string | null
+          share_password_hash?: string | null
+          share_password_set_at?: string | null
           share_token?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
@@ -1667,6 +1752,7 @@ export type Database = {
           total?: number | null
           updated_at?: string
           version?: number
+          view_count?: number
           viewed_at?: string | null
           warranty_terms?: string | null
           workflow_status?: string
@@ -1691,6 +1777,7 @@ export type Database = {
           id?: string
           is_current?: boolean
           language?: string
+          last_viewed_at?: string | null
           notes?: string | null
           paid_at?: string | null
           payment_amount_cents?: number | null
@@ -1702,6 +1789,8 @@ export type Database = {
           responded_at?: string | null
           sent_at?: string | null
           share_expires_at?: string | null
+          share_password_hash?: string | null
+          share_password_set_at?: string | null
           share_token?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
@@ -1714,6 +1803,7 @@ export type Database = {
           total?: number | null
           updated_at?: string
           version?: number
+          view_count?: number
           viewed_at?: string | null
           warranty_terms?: string | null
           workflow_status?: string
@@ -2763,6 +2853,42 @@ export type Database = {
           },
         ]
       }
+      storage_url_rewrites: {
+        Row: {
+          batch_id: string
+          id: number
+          new_value: Json
+          old_value: Json
+          reverted_at: string | null
+          rewritten_at: string
+          row_pk: string
+          target: string
+          value_kind: string
+        }
+        Insert: {
+          batch_id: string
+          id?: never
+          new_value: Json
+          old_value: Json
+          reverted_at?: string | null
+          rewritten_at?: string
+          row_pk: string
+          target: string
+          value_kind: string
+        }
+        Update: {
+          batch_id?: string
+          id?: never
+          new_value?: Json
+          old_value?: Json
+          reverted_at?: string | null
+          rewritten_at?: string
+          row_pk?: string
+          target?: string
+          value_kind?: string
+        }
+        Relationships: []
+      }
       tour_events: {
         Row: {
           company_id: string
@@ -3256,6 +3382,10 @@ export type Database = {
           deleted_count: number
         }[]
       }
+      erase_company_for_compliance: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       get_platform_user_count: { Args: never; Returns: number }
       is_demo_company: { Args: { candidate: string }; Returns: boolean }
       is_demo_user: { Args: never; Returns: boolean }
@@ -3287,6 +3417,22 @@ export type Database = {
           p_expected_updated_at: string
           p_header: Json
           p_sections: Json
+        }
+        Returns: Json
+      }
+      sign_estimate_atomic: {
+        Args: {
+          p_estimate_id: string
+          p_expected_updated_at: string
+          p_ip_address: unknown
+          p_share_token: string
+          p_signature_data: string
+          p_signed_content: Json
+          p_signed_total: number
+          p_signer_email: string
+          p_signer_name: string
+          p_snapshot_sha256: string
+          p_user_agent: string
         }
         Returns: Json
       }
