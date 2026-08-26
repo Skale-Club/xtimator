@@ -3170,8 +3170,10 @@ Production storage today is **51 objects / 14.3 MB** (photos 11 MB, platform-bra
 - [x] **Phase 187: R2 Provisioning & Same-Origin Asset Proxy** — five R2 buckets with a scoped credential, plus a same-origin route that streams any object from R2 and transparently falls back to Supabase, so nothing can 404 in either direction (completed 2026-08-06)
 - [x] **Phase 188: Server-Wide Provider Selection Integrity** — one provider resolution for every server-side read and write, a build-time guard against reintroducing hardcoded Supabase paths, and the WhatsApp inbound media path proven end-to-end on one backend (completed 2026-08-06)
 - [ ] **Phase 189: Browser Uploads Without Browser Credentials** — the five browser upload call sites move to server-issued presigned PUTs, preserving retry and offline/queue behavior, with no storage credential in client code
-- [x] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed (completed 2026-08-07)
-- [x] **Phase 191: Object Migration & Verification** — a re-runnable command copies all 51 objects into R2 and proves per-object count, size, and content type; the runbook documents cutover and rollback with no real secrets (completed 2026-08-07)
+- [x] **Phase 190: Portable Same-Origin Asset URLs** — new assets persist same-origin relative URLs that every surface resolves, including the server-side PDF renderer; CSP updated and narrowed
+ (completed 2026-08-07)
+- [x] **Phase 191: Object Migration & Verification** — a re-runnable command copies all 51 objects into R2 and proves per-object count, size, and content type; the runbook documents cutover and rollback with no real secrets
+ (completed 2026-08-07)
 - [ ] **Phase 192: URL Rewrite Cutover & CDN Verification** — existing rows rewritten off `*.supabase.co` with a reversible record, and the landing page's images proven to arrive from `xtimator.com` with a Cloudflare cache HIT
 
 ### Phase Details
@@ -3334,4 +3336,19 @@ Plans: 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 193. Estimate Engagement Observability + Share Password | 0/3 | Planned |  |
+| 193. Estimate Engagement Observability + Share Password | 3/3 | Complete | 2026-08-26 |
+
+### v4.25 Notes
+
+- Migrations `20260825000001` (events table + counters + password columns) and
+  `20260825000002` (view-counter isolation) were applied to production before the
+  code landed, per this project's manual-migration workflow.
+- `20260825000002` exists because the counter write would otherwise restamp
+  `estimates.updated_at`, which is an optimistic-concurrency token
+  (`p_expected_updated_at` in `saveEstimate` and `sign_estimate_atomic`) and the PDF
+  cache key — a prospect merely opening the estimate could have failed the owner's
+  in-flight save and the client's own signature attempt.
+- Remaining verification gap: the live browser flow (set password -> private-window
+  visit -> wrong-password throttle -> unlock -> reload persistence -> remove password)
+  has not been exercised against a running app. Unit/RTL coverage and code inspection
+  stand in for it so far.
