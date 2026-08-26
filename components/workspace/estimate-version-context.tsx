@@ -22,6 +22,15 @@ export interface VersionSlot {
    *  required fields would be internally inconsistent with that convention. */
   viewMode?: EstimateViewMode
   onViewModeChange?: (mode: EstimateViewMode) => void
+  /** Phase 193 (193-03) — engagement chip data for the header's Insights
+   *  trigger, sourced from the estimate row estimate-editor.tsx already has
+   *  loaded (no extra query for the chip). Same optional-field convention as
+   *  viewMode above: undefined until the first setSlot() call publishes it. */
+  viewCount?: number
+  lastViewedAt?: string | null
+  /** null = never sent — the header hides the whole chip in that case. */
+  sentAt?: string | null
+  hasPassword?: boolean
 }
 
 interface EstimateVersionCtx {

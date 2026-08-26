@@ -46,6 +46,14 @@ export interface Estimate {
   sent_at: string | null
   viewed_at: string | null
   responded_at: string | null
+  /** Phase 193 engagement counters (migration 20260825000001). viewed_at above
+   *  stays the FIRST view; these two track every subsequent open. Written only
+   *  by bump_estimate_view_count() so they never restamp updated_at. */
+  view_count: number
+  last_viewed_at: string | null
+  /** Phase 193: scrypt hash of the optional share-link password. NULL = open link. */
+  share_password_hash: string | null
+  share_password_set_at: string | null
   client_response: string | null
   created_at: string
   updated_at: string

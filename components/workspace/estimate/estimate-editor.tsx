@@ -320,6 +320,11 @@ export function EstimateEditor({
     return () => mql.removeEventListener('change', check)
   }, [viewMode])
 
+  // Phase 193 (193-03) — engagement chip fields, declared on the shared
+  // Estimate interface (lib/queries/estimate.ts) alongside the other lifecycle
+  // timestamps, so no cast is needed here.
+  const engagementFields = estimate
+
   const isCurrent = state.is_current
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
   // route): sent_at OR client_response OR an existing signature row (the
@@ -664,9 +669,28 @@ export function EstimateEditor({
       saveStatus: slotSaveStatus,
       viewMode,
       onViewModeChange: handleViewModeChange,
+      viewCount: engagementFields.view_count,
+      lastViewedAt: engagementFields.last_viewed_at,
+      sentAt: state.sent_at,
+      hasPassword: engagementFields.share_password_hash != null,
     })
     return () => setSlot(null)
-  }, [currentVersionId, versions, state.version, state.isDirty, isContentReadOnly, setSlot, localProjectName, slotSaveStatus, viewMode, handleViewModeChange])
+  }, [
+    currentVersionId,
+    versions,
+    state.version,
+    state.isDirty,
+    isContentReadOnly,
+    setSlot,
+    localProjectName,
+    slotSaveStatus,
+    viewMode,
+    handleViewModeChange,
+    engagementFields.view_count,
+    engagementFields.last_viewed_at,
+    engagementFields.share_password_hash,
+    state.sent_at,
+  ])
 
   // -------------------------------------------------------------------------
   // Render

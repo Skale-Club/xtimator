@@ -7,6 +7,7 @@ import { useEstimateVersionSlot } from './estimate-version-context'
 import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-header-button'
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { ViewModeToggle } from '@/components/workspace/view-mode-toggle'
+import { EngagementButton } from '@/components/workspace/estimate/engagement-button'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -50,6 +51,18 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             >
               {slot.saveStatus === 'saving' ? 'Saving…' : 'Saved'}
             </span>
+          )}
+          {/* Phase 193 (193-03) — Insights chip/trigger. Hidden entirely until
+              the estimate has been sent (slot.sentAt); the user explicitly
+              rejected the bottom floating pill for this, so it lives here,
+              left of ViewModeToggle, matching its ghost/outline weight. */}
+          {slot?.sentAt && (
+            <EngagementButton
+              estimateId={slot.currentVersionId}
+              viewCount={slot.viewCount ?? 0}
+              lastViewedAt={slot.lastViewedAt ?? null}
+              hasPassword={slot.hasPassword ?? false}
+            />
           )}
           <ViewModeToggle mode={slot?.viewMode} onModeChange={slot?.onViewModeChange} />
           <EditEstimateHeaderButton projectId={project.id} />
