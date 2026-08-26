@@ -72,6 +72,13 @@ export function isPublicRoute(pathname: string): boolean {
   if (pathname === '/api/csp-report') {
     return true
   }
+  // Phase 193-01 — anonymous share-page visitors POST engagement beacons
+  // here (sendBeacon/fetch keepalive, no Supabase session). Without this
+  // exemption every beacon 307s to /?auth=login and is silently dropped —
+  // see app/api/track/estimate/route.ts.
+  if (pathname === '/api/track/estimate') {
+    return true
+  }
   // /api/mcp authenticates every request itself via RFC 6750 Bearer tokens
   // (lib/mcp/auth.ts) — it has no Supabase session concept. Without this
   // exemption, an MCP client's unauthenticated discovery request gets a 307 to

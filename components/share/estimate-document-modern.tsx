@@ -132,6 +132,7 @@ export function EstimateDocumentModern({
     >
       {/* Company header — thin hairline rule instead of Classic's brand-filled top border */}
       <div
+        data-track-section="header"
         className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 px-8 sm:px-12 py-8 border-b border-t"
         style={{ borderTopColor: brandColor, borderBottomColor: '#e4e4e7' }}
       >
@@ -247,7 +248,7 @@ export function EstimateDocumentModern({
       )}
 
       {/* Sections */}
-      <div className="divide-y divide-border/50">
+      <div data-track-section="line-items" className="divide-y divide-border/50">
         {visibleSections.map((section) => (
           <div key={section.id}>
             {/* Section header — plain serif text with thin bottom border, no brand fill */}
@@ -323,7 +324,7 @@ export function EstimateDocumentModern({
       </div>
 
       {/* Totals — hero grand total, hairline separators, generous margin */}
-      <div className="px-8 sm:px-12 py-8 border-t" style={{ borderTopColor: '#e4e4e7' }}>
+      <div data-track-section="totals" className="px-8 sm:px-12 py-8 border-t" style={{ borderTopColor: '#e4e4e7' }}>
         <div className="flex justify-end">
           <div className="w-full max-w-sm space-y-3">
             <div className="flex justify-between text-base">
@@ -383,10 +384,10 @@ export function EstimateDocumentModern({
 
       {/* Terms — each block only when filled */}
       {hasTerms && (
-        <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
+        <div data-track-section="terms" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
           {isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null && (
             <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
                 {L.paymentTerms}
               </p>
               <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -395,8 +396,8 @@ export function EstimateDocumentModern({
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null && (
-            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+            <div data-track-section="timeline" className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
                 {L.timeline}
               </p>
               <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -406,7 +407,7 @@ export function EstimateDocumentModern({
           )}
           {isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null && (
             <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
                 {L.warranty}
               </p>
               <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -416,7 +417,7 @@ export function EstimateDocumentModern({
           )}
           {isSectionVisible(resolvedSettings, 'notes') && data.notes != null && (
             <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
                 {L.notes}
               </p>
               <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -431,7 +432,7 @@ export function EstimateDocumentModern({
           presentation_settings key exists for it per CONTEXT.md's locked
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
-        <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
+        <div data-track-section="signature" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
           <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
               {L.signedBy}
@@ -454,7 +455,7 @@ export function EstimateDocumentModern({
 
       {/* Attached photos — conditional on non-empty array + SENDHUB-04 resolver gate */}
       {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
-        <div className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
+        <div data-track-section="photos" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}
           </p>

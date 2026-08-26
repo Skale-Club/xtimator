@@ -1,14 +1,39 @@
 'use server'
 
+import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
-import { emailFrom } from '@/lib/email/sender'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 import { notifyEstimateResponse } from '@/lib/estimate/notify-response'
+import { resolveClientIp } from '@/lib/http/client-ip'
+import { rateLimit } from '@/lib/ratelimit'
+import { inngest } from '@/lib/inngest/client'
+import { EVENT_ESTIMATE_VIEWED_NOTIFICATION } from '@/lib/inngest/events'
 
 export async function logEstimateView(token: string): Promise<void> {
+  // Phase 193-01 — this is called fire-and-forget from an anonymous share
+  // page's initial render (app/estimate/[token]/page.tsx and its
+  // friendly-URL sibling), so it needs the same throttle-before-anything
+  // discipline as the public track/sign endpoints. Shares the
+  // trackEstimatePerMinute bucket with app/api/track/estimate/route.ts — one
+  // real page load fires both, so a single generous bucket is simpler than
+  // two separate ones. Silent drop on exceed: this is a best-effort view
+  // log, never something to surface an error for.
+  let ip: string | null = null
+  try {
+    const headersList = await headers()
+    ip = resolveClientIp(headersList)
+  } catch {
+    // headers() throws when called outside a request scope. logEstimateView
+    // is always invoked from within a request in production (the two share
+    // pages, fire-and-forget), but degrade to the shared "no-ip" bucket
+    // rather than let a harness quirk turn "log this view" into "crash".
+    ip = null
+  }
+  const rl = await rateLimit('trackEstimatePerMinute', ip ?? 'no-ip')
+  if (!rl.allowed) return
+
   const supabase = requireServiceClient()
 
   // Look up estimate by share_token. Select extra fields needed for the
@@ -78,38 +103,32 @@ export async function logEstimateView(token: string): Promise<void> {
     /* best-effort */
   }
 
-  // Check company notification preferences
+  // Check company notification preferences. The gate itself stays inline
+  // (one cheap read, avoids emitting an event for companies that don't want
+  // one) — but Phase 193-01 moved the actual Resend HTTP call OFF this
+  // anonymous request path: it now runs in
+  // lib/inngest/functions/estimate-viewed-notification.ts, which re-derives
+  // company/project fresh rather than trusting anything from this event
+  // beyond the two ids.
   const { data: company } = await supabase
     .from('companies')
-    .select('notify_on_view, email, name')
+    .select('notify_on_view, email')
     .eq('id', estimateRow.company_id)
     .single()
 
   if (company?.notify_on_view && company.email) {
-    // Load Resend key from DB-backed loader (ADMIN-06)
-    const resendKey = await getIntegrationKey('resend')
-    if (resendKey) {
-      // Fetch project name for the email
-      const { data: project } = await supabase
-        .from('projects')
-        .select('name')
-        .eq('id', estimateRow.project_id)
-        .single()
-
-      try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(resendKey)
-        const branding = await getBranding()
-        const appName = branding.appName
-        await resend.emails.send({
-          from: emailFrom(appName),
-          to: company.email,
-          subject: `Your estimate was viewed - ${project?.name ?? 'Unknown Project'}`,
-          text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" was just viewed by the client.\n\nLog in to ${appName} to see more details.`,
-        })
-      } catch {
-        // Resend not installed yet or send failed — skip silently
-      }
+    try {
+      await inngest.send({
+        name: EVENT_ESTIMATE_VIEWED_NOTIFICATION,
+        data: {
+          companyId: estimateRow.company_id,
+          projectId: estimateRow.project_id,
+        },
+      })
+    } catch (err) {
+      // Best-effort — a dispatch failure must never surface to the
+      // anonymous visitor whose page render triggered this.
+      console.warn('[logEstimateView] failed to dispatch view-notification event:', err)
     }
   }
 }

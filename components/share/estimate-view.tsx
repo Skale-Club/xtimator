@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,6 +17,7 @@ import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { SignaturePad } from '@/components/share/signature-pad'
+import { useEstimateTracking } from '@/hooks/use-estimate-tracking'
 import type {
   EstimateDocumentData,
   DocumentCompany,
@@ -120,6 +121,15 @@ function EstimateViewInner({
   const [signerEmail, setSignerEmail] = useState('')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
+
+  // Phase 193-01 — scoped to the rendered document surface only (not the
+  // whole page: the Accept/Decline CTA, invoice cards, etc. live outside
+  // it), so click coordinates and doc_h stay meaningful for a future
+  // heatmap overlay. `enabled` will gate off while a password-locked
+  // estimate's DOM is unproven (Phase 193-02); no lock exists yet, so it
+  // is always-on here.
+  const documentContainerRef = useRef<HTMLDivElement | null>(null)
+  useEstimateTracking({ token, containerRef: documentContainerRef })
 
   const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
   const { company, project } = estimate
@@ -329,33 +339,38 @@ function EstimateViewInner({
         </div>
       )}
 
-      {/* Document body — registry-resolved templateId selects Classic vs Modern */}
-      {templateId === 'modern' ? (
-        <EstimateDocumentModern
-          data={documentData}
-          company={documentCompany}
-          client={documentClient}
-          projectName={project.name}
-          projectType={project.project_type}
-          language={(estimate.language ?? 'en') as EstimateLanguage}
-          estimateVersion={estimate.version}
-          estimateSeq={estimate.estimate_seq}
-          estimateCreatedAt={estimate.created_at}
-        />
-      ) : (
-        <EstimateDocument
-          mode="view"
-          data={documentData}
-          company={documentCompany}
-          client={documentClient}
-          projectName={project.name}
-          projectType={project.project_type}
-          language={(estimate.language ?? 'en') as EstimateLanguage}
-          estimateVersion={estimate.version}
-          estimateSeq={estimate.estimate_seq}
-          estimateCreatedAt={estimate.created_at}
-        />
-      )}
+      {/* Document body — registry-resolved templateId selects Classic vs Modern.
+          Wrapped in a ref'd div (not the outer page) so use-estimate-tracking's
+          click/section/heatmap coordinates are measured against the rendered
+          document surface only. */}
+      <div ref={documentContainerRef}>
+        {templateId === 'modern' ? (
+          <EstimateDocumentModern
+            data={documentData}
+            company={documentCompany}
+            client={documentClient}
+            projectName={project.name}
+            projectType={project.project_type}
+            language={(estimate.language ?? 'en') as EstimateLanguage}
+            estimateVersion={estimate.version}
+            estimateSeq={estimate.estimate_seq}
+            estimateCreatedAt={estimate.created_at}
+          />
+        ) : (
+          <EstimateDocument
+            mode="view"
+            data={documentData}
+            company={documentCompany}
+            client={documentClient}
+            projectName={project.name}
+            projectType={project.project_type}
+            language={(estimate.language ?? 'en') as EstimateLanguage}
+            estimateVersion={estimate.version}
+            estimateSeq={estimate.estimate_seq}
+            estimateCreatedAt={estimate.created_at}
+          />
+        )}
+      </div>
 
       {/* Estimate Terms (company-level) */}
       {estimate.company.estimate_terms_enabled && estimate.company.estimate_terms_text && (

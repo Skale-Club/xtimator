@@ -226,3 +226,21 @@ export type XphereSyncRequestedPayload = {
   /** ISO8601; the job falls back to "now" if absent. */
   occurredAt?: string
 }
+
+/**
+ * Phase 193-01 — first-view owner-notification email, moved OFF the public
+ * share-page request path. app/estimate/[token]/actions.ts's logEstimateView
+ * still does the first-view `viewed_at` write, the `estimate_activity` row,
+ * and the in-app notify() call inline (all cheap, same-request writes) — only
+ * the Resend send (an external HTTP call) is deferred to this event, handled
+ * by lib/inngest/functions/estimate-viewed-notification.ts. Deliberately
+ * carries no PII: the job re-reads company/project fresh by id, the same
+ * "re-derive, don't trust the event payload" discipline as
+ * notification-email-digest.ts.
+ */
+export const EVENT_ESTIMATE_VIEWED_NOTIFICATION = 'estimate/viewed.notification' as const
+
+export type EstimateViewedNotificationPayload = {
+  companyId: string
+  projectId: string
+}

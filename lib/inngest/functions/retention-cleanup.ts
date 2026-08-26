@@ -7,6 +7,9 @@
  *   - ai_cost_events      — created_at older than 90 days
  *   - pipeline_events     — created_at older than 90 days
  *   - tour_events         — created_at older than 90 days
+ *   - estimate_engagement_events — created_at older than 90 days (Phase 193-01;
+ *                            same anonymous session-event shape as tour_events,
+ *                            no code path deletes from it otherwise)
  *   - processed_stripe_events — created_at older than 90 days (Stripe only
  *                            redelivers webhook events for ~3 days, so this
  *                            idempotency table has no reason to grow forever;
@@ -109,6 +112,7 @@ export async function runRetentionCleanup(
     'ai_cost_events',
     'pipeline_events',
     'tour_events',
+    'estimate_engagement_events',
   ]) {
     tables.push(await deleteInBatches(svc, table, 'created_at', ninetyDaysAgoIso))
   }

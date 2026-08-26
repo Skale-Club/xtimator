@@ -42,6 +42,11 @@ export type LimitName =
   // as agenticSendPerCompanyPerDay.
   | 'billingSessionPerHour'
   | 'stripeConnectInitiatePerHour'
+  // Phase 193-01 — public estimate-engagement beacon collector (no auth, only
+  // a share/public token gates it; shares the sign endpoint's IP-keyed
+  // discipline). Generous ceiling: a real visit fires several batched flushes
+  // (view + clicks + scroll + heartbeats) within a minute.
+  | 'trackEstimatePerMinute'
 
 interface LimitConfig {
   max: number
@@ -90,6 +95,11 @@ export const limits: Record<LimitName, LimitConfig> = {
   // UX-facing throttle.
   billingSessionPerHour: { max: 20, window: 3600 },
   stripeConnectInitiatePerHour: { max: 10, window: 3600 },
+
+  // Phase 193-01 — the public engagement-tracking beacon
+  // (app/api/track/estimate/route.ts). Keyed by resolveClientIp(); shared
+  // bucket also covers logEstimateView's hardened rate limit.
+  trackEstimatePerMinute: { max: 60, window: 60 },
 }
 
 export interface RateLimitResult {

@@ -594,6 +594,11 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/api/stripe/connect/callback/route.ts', 'demoGuardResponse', ['GET']),
   ...guarded('app/api/stripe/connect/disconnect/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/stripe/connect/initiate/route.ts', 'demoGuardResponse', ['GET']),
+  // Phase 193-01 — public engagement beacon collector, no Supabase session
+  // (anonymous share-page visitor). Demo posture mirrors
+  // app/estimate/[token]/actions.ts: assertCompanyWritable(companyId) after
+  // token resolution, before any insert/update. Always 204 regardless.
+  ...guarded('app/api/track/estimate/route.ts', 'assertCompanyWritable', ['POST']),
   ...guarded('app/api/transcribe/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/translate/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/webhooks/stripe/route.ts', 'assertCompanyWritable', ['POST']),
@@ -882,6 +887,15 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     MACHINE_AUTHORITY,
     MACHINE_REASON,
     ['cleanupAudioJob'],
+  ),
+  // Phase 193-01 — the actual Resend send is best-effort (never throws) and
+  // gated on the company's own notify_on_view/email prefs, but it is still a
+  // real external side effect for a tenant, so this is guarded like the
+  // other notification workers rather than machine-signed/excepted.
+  ...guarded(
+    'lib/inngest/functions/estimate-viewed-notification.ts',
+    'assertCompanyWritable',
+    ['estimateViewedNotificationJob'],
   ),
   ...guarded('lib/inngest/functions/generate-estimate.ts', 'assertCompanyWritable', [
     'generateEstimateJob',

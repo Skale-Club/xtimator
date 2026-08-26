@@ -25,6 +25,7 @@ import {
   retentionCleanupJob,
   storageOrphanCleanupJob,
   billingReconciliationJob,
+  estimateViewedNotificationJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -45,5 +46,6 @@ export const { GET, POST, PUT } = serve({
     retentionCleanupJob,
     storageOrphanCleanupJob,
     billingReconciliationJob,
+    estimateViewedNotificationJob,
   ],
 })

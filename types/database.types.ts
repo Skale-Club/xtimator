@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -3375,6 +3375,10 @@ export type Database = {
           applied: boolean
           balance_after: number
         }[]
+      }
+      bump_estimate_view_count: {
+        Args: { p_delta: number; p_estimate_id: string }
+        Returns: undefined
       }
       cleanup_orphan_draft_projects: {
         Args: never

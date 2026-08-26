@@ -82,7 +82,13 @@ describe('SAFE-01/SAFE-02: invoice, client, and public estimate mutation boundar
     expectGuardBefore(body, /\.update\s*\(/, 'logEstimateView')
     expectGuardBefore(body, /estimate_activity/, 'logEstimateView')
     expectGuardBefore(body, /notify\s*\(/, 'logEstimateView')
-    expectGuardBefore(body, /resend\.emails\.send\s*\(/, 'logEstimateView')
+    // Phase 193-01 moved the owner "your estimate was viewed" email OFF the
+    // request path: logEstimateView now emits an Inngest event and the Resend
+    // HTTP call happens in estimate-viewed-notification.ts. Same retarget the
+    // respondToEstimate case below already does for its extracted notifier —
+    // the guard-before-outward-effect property is what matters, not which
+    // transport carries it.
+    expectGuardBefore(body, /inngest\.send\s*\(/, 'logEstimateView')
   })
 
   it('denies a demo target before public response persistence, activity, notification, or email', () => {

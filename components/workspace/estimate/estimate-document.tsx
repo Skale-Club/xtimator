@@ -196,7 +196,7 @@ interface EstimateDocumentProps {
 const INLINE_INPUT_CLS =
   'w-full bg-transparent text-base p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
 const INLINE_TEXTAREA_CLS =
-  'w-full bg-transparent text-base text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
+  'w-[calc(100%+0.5rem)] -mx-1 bg-transparent text-base text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
 
 // Section-scoped horizontal padding — every doc surface below the ESTIMATE
 // title band aligns to `px-6 sm:px-10` (Phase 162-03 3a alignment pass,
@@ -208,6 +208,13 @@ const INLINE_TEXTAREA_CLS =
 //   - Info grid, DocumentTotals, Add-section row, Terms, Attached Photos
 //     already use this literal string via px-6 sm:px-10; SECTION_PX is
 //     the future-proof extraction so any drift is one-line-fixable.
+//   - The company header (it drifted at p-4 sm:p-6, putting the company
+//     name 16px left of every label under it).
+//   - The item tables: the zebra/head BANDS stay full-bleed (same width as
+//     the solid section-header bar), but the outer cells carry the gutter
+//     (pl-6 sm:pl-10 / pr-6 sm:pr-10) so the Description text starts and
+//     the Total text ends on this same rail as the section title above and
+//     the section subtotal + grand total below.
 const SECTION_PX = 'px-6 sm:px-10'
 
 // ---------------------------------------------------------------------------
@@ -492,7 +499,7 @@ function SortableDocumentItemRow({
         />
       </td>
       {/* total */}
-      <td className="py-1 pr-3 pl-1 w-28 text-right text-base tabular-nums font-medium align-middle">
+      <td className="py-1 pl-0 pr-6 sm:pr-10 w-36 text-right text-base tabular-nums font-medium align-middle whitespace-nowrap">
         {formatMoney(item.total, currencyCode)}
       </td>
     </tr>
@@ -653,7 +660,7 @@ function DocumentSectionBlock({
           ) : (
             <div
               key={item.id}
-              className={`${SECTION_PX} py-2.5 mx-4 my-1.5 rounded-lg border border-border/40`}
+              className="px-4 py-2.5 mx-6 my-1.5 rounded-lg border border-border/40"
             >
               <p className="text-base font-medium">{item.description}</p>
               <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
@@ -695,7 +702,7 @@ function DocumentSectionBlock({
                         discount — see showDiscountCol above. */}
                     {showDiscountCol && <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>}
                     <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>
-                    <th className="py-1.5 px-2 w-28 text-right font-medium">{L.total}</th>
+                    <th className="py-1.5 pl-0 pr-6 sm:pr-10 w-36 text-right font-medium">{L.total}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -723,11 +730,11 @@ function DocumentSectionBlock({
           <table className="w-full">
             <thead>
               <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50">
-                <th className="py-1.5 px-3 text-left font-medium w-[40%]">{L.description}</th>
+                <th className="py-1.5 pl-6 sm:pl-10 pr-2 text-left font-medium w-[40%]">{L.description}</th>
                 <th className="py-1.5 px-2 w-[12%] text-center font-medium">{L.qty}</th>
                 <th className="py-1.5 px-2 w-[13%] text-center font-medium">{L.unit}</th>
                 <th className="py-1.5 px-2 w-[17%] text-right font-medium">{L.unitPrice}</th>
-                <th className="py-1.5 px-3 w-[18%] text-right font-medium">{L.total}</th>
+                <th className="py-1.5 pl-0 pr-6 sm:pr-10 w-[18%] text-right font-medium">{L.total}</th>
               </tr>
             </thead>
             <tbody>
@@ -736,13 +743,13 @@ function DocumentSectionBlock({
                   key={item.id}
                   className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? 'bg-muted/40' : ''}`}
                 >
-                  <td className="py-2 px-3 text-base">{item.description}</td>
+                  <td className="py-2 pl-6 sm:pl-10 pr-2 text-base">{item.description}</td>
                   <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
                   <td className="py-2 px-2 text-base text-center">{item.unit ?? ''}</td>
-                  <td className="py-2 px-2 text-base text-right tabular-nums">
+                  <td className="py-2 px-2 text-base text-right tabular-nums whitespace-nowrap">
                     {formatMoney(item.unit_price, currencyCode)}
                   </td>
-                  <td className="py-2 px-3 text-base text-right tabular-nums font-medium">
+                  <td className="py-2 pl-0 pr-6 sm:pr-10 text-base text-right tabular-nums font-medium whitespace-nowrap">
                     {formatMoney(item.total, currencyCode)}
                   </td>
                 </tr>
@@ -868,7 +875,7 @@ function DocumentTotals({
   })
 
   return (
-    <div data-page-block-id="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
+    <div data-page-block-id="totals" data-track-section="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
       <div className="w-full max-w-xs space-y-2">
         {/* Subtotal */}
         <div className="flex justify-between text-base">
@@ -1176,7 +1183,7 @@ function TermsBlock({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
           {label}
         </p>
         {isEditable && hasDefault && dispatch ? (
@@ -1544,7 +1551,8 @@ export function EstimateDocument({
       {/* Company header — only when company provided (share/view mode + editor) */}
       {company && (
         <div
-          className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 sm:p-6 border-b border-border"
+          data-track-section="header"
+          className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 ${SECTION_PX} py-4 sm:py-6 border-b border-border`}
           style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
@@ -1730,7 +1738,7 @@ export function EstimateDocument({
       )}
 
       {/* Sections */}
-      <div className="divide-y divide-border">
+      <div data-track-section="line-items" className="divide-y divide-border">
         {isEditable && dispatch ? (
           <DndContext
             id="dnd-sections"
@@ -1817,7 +1825,7 @@ export function EstimateDocument({
           for legacy estimates). Edit mode always renders visible sections
           so the owner has a textarea to type into. */}
       {hasTerms && (
-        <div className="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4">
+        <div data-track-section="terms" className="px-6 sm:px-10 py-6 border-t border-border/50 space-y-4">
           {/* Phase 185 (PGMODE-02/03) — company-level "Estimate Terms" card,
               read-only (no dispatch — company-level data, not editable
               through this surface). Rendered FIRST, matching the PDF's
@@ -1829,7 +1837,7 @@ export function EstimateDocument({
               className="rounded-lg border border-border/50 p-4"
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
-              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
                 {L.estimateTerms}
               </p>
               <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -1860,6 +1868,7 @@ export function EstimateDocument({
             (isEditable || data.timeline != null) && (
             <div
               data-page-block-id="terms-timeline"
+              data-track-section="timeline"
               className="rounded-lg border border-border/50 p-4"
               style={{ backgroundColor: cardTintFill(brandColor) }}
             >
@@ -1918,7 +1927,7 @@ export function EstimateDocument({
           presentation_settings key exists for it per CONTEXT.md's locked
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
-        <div data-page-block-id="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
+        <div data-page-block-id="signature" data-track-section="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <div
             className="rounded-lg border border-border/50 p-4"
             style={{ backgroundColor: cardTintFill(brandColor) }}
@@ -1952,7 +1961,7 @@ export function EstimateDocument({
           break shows an approximate (not exact) sheet boundary there — a
           documented, accepted gap. */}
       {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
-        <div data-page-block-id="photo-row-0" className="px-6 sm:px-10 py-6 border-t border-border/50">
+        <div data-page-block-id="photo-row-0" data-track-section="photos" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
             {L.photos}
           </p>
