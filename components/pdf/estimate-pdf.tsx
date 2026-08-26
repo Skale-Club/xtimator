@@ -245,8 +245,14 @@ const styles = StyleSheet.create({
     lineHeight: 1.5,
   },
   // Section
+  // The brand-filled band keeps its 8pt breathing room, but bleeds 8pt back
+  // out through marginHorizontal so the TITLE itself lands on the page's own
+  // 40pt rail — the same rail the company header, info grid, totals block,
+  // terms, signature and photos already sit on.
   sectionHeader: {
-    padding: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginHorizontal: -8,
     marginTop: 16,
     marginBottom: 0,
   },
@@ -257,18 +263,23 @@ const styles = StyleSheet.create({
     lineHeight: LINE_HEIGHT['Inter-Bold'],
   },
   // Table
+  // paddingHorizontal 0: the row spans the page's content box, so the
+  // Description column starts and the Total column ends on the page's own
+  // 40pt rail instead of 8pt inside it. This ALSO makes the real description
+  // column width (40% of 532pt) exactly the width the pagination engine
+  // already assumes (ESTIMATE_PAGE_GEOMETRY.classic.colDescriptionWidthPt).
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f3f4f6',
     paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
   tableRow: {
     flexDirection: 'row',
     paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderBottomWidth: 0.5,
     borderBottomColor: '#e5e7eb',
   },
@@ -294,7 +305,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderTopWidth: 1,
     borderTopColor: '#d1d5db',
   },
@@ -354,13 +365,22 @@ const styles = StyleSheet.create({
   // Plan 04, PGBRK-02): the container itself is no longer atomic/margined,
   // spacing now lands on whichever card is emitted first.
   termsSection: {},
+  // Same eyebrow treatment as infoLabel (PROJECT / BILL TO / SUMMARY /
+  // PREPARED BY) — one label style for the whole document, matching the
+  // webview + share page + print preview, which all use a single
+  // `text-xs uppercase tracking-widest text-muted-foreground` label. The
+  // old 11pt Title-Case-with-a-rule treatment made Terms / Signature /
+  // Photos read as a different kind of heading from every other label, and
+  // made the PDF disagree with the on-screen document.
+  // GEOMETRY: fontSize + marginBottom feed blocks-from-model.ts's
+  // termsTitleFontSizePt / termsTitleSpacingContributionPt — keep in sync.
   termsTitle: {
-    fontSize: 11,
+    fontSize: 8,
     fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
     marginBottom: 6,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   termsText: {
     fontSize: 9,

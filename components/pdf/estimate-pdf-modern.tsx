@@ -265,17 +265,20 @@ const styles = StyleSheet.create({
     lineHeight: LINE_HEIGHT['Lora-Bold'],
   },
   // Table — lighter/thinner divider rules, no filled header background, airier feel.
+  // paddingHorizontal 0 — see the Classic template's note: puts the
+  // Description/Total columns on the page's own 52pt rail, which is where the
+  // section title, totals block and terms already sit.
   tableHeader: {
     flexDirection: 'row',
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderBottomWidth: 0.5,
     borderBottomColor: '#d1d5db',
   },
   tableRow: {
     flexDirection: 'row',
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderBottomWidth: 0.5,
     borderBottomColor: '#f0f1f3',
   },
@@ -302,7 +305,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
     borderTopWidth: 0.5,
     borderTopColor: '#d1d5db',
   },
@@ -365,13 +368,16 @@ const styles = StyleSheet.create({
   // Plan 04, PGBRK-02): the container itself is no longer atomic/margined,
   // spacing now lands on whichever card is emitted first.
   termsSection: {},
+  // See the Classic template's note — one eyebrow label style for the whole
+  // document, identical to infoLabel. GEOMETRY: fontSize + marginBottom feed
+  // blocks-from-model.ts's termsTitle* literals — keep in sync.
   termsTitle: {
-    fontSize: 10.5,
+    fontSize: 8,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+    color: '#9ca3af',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
     marginBottom: 7,
-    paddingBottom: 5,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#d1d5db',
   },
   termsText: {
     fontSize: 9,

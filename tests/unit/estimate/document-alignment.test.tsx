@@ -136,13 +136,18 @@ describe('EstimateDocument alignment (DOCUX-05)', () => {
     void header
   })
 
-  it('section padding — read-only mobile stacked-item row uses px-6 sm:px-10 (not px-3)', () => {
+  it('section padding — read-only mobile stacked-item CARD sits ON the gutter (mx-6), not inside it', () => {
     const { container } = render(<EstimateDocument mode="view" {...baseProps} />)
+    // It is a CARD, not a bare section surface, so the gutter belongs on its
+    // OUTER edge (mx-6 = the mobile SECTION_PX value), with its own inner
+    // padding inside that. The old `mx-4 px-6` pair put the card edge at 16px
+    // and its text at 40px, i.e. on neither rail.
     // Read-only branch: the mobile stacked row contains the item description.
     const rows = Array.from(container.querySelectorAll('div.sm\\:hidden > div'))
     expect(rows.length).toBeGreaterThan(0)
     const row = rows[0] as HTMLElement
-    expect(classHas(row, 'px-6', 'sm:px-10')).toBe(true)
+    expect(classHas(row, 'mx-6')).toBe(true)
+    expect(row.className.split(/\s+/).includes('mx-4')).toBe(false)
     expect(row.className.split(/\s+/).includes('px-3')).toBe(false)
   })
 

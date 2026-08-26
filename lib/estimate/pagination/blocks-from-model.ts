@@ -242,8 +242,8 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     totalsRowHeightPt: 4 * 2 + 0.5, // styles.totalsRow.paddingVertical×2 + borderBottomWidth
     grandTotalHeightPt: 8 * 2 + 2 + 4, // styles.grandTotalRow.paddingVertical×2 + borderTopWidth + marginTop
     depositRowFirstBonusPt: 0, // Classic's deposit row carries no extra margin (unlike Modern)
-    termsTitleFontSizePt: 11, // styles.termsTitle.fontSize
-    termsTitleSpacingContributionPt: 6 + 4 + 1, // styles.termsTitle.marginBottom + paddingBottom + borderBottomWidth
+    termsTitleFontSizePt: 8, // styles.termsTitle.fontSize
+    termsTitleSpacingContributionPt: 6, // styles.termsTitle.marginBottom (the paddingBottom + rule were dropped when the title became an eyebrow label)
     termsCardFirstBonusPt: 24, // removed styles.termsSection.marginTop, now PdfTermsSection topMarginPt
     signatureMarginTopPt: 16, // PdfSignatureBlock outer View marginTop
     signatureImageHeightPt: 40, // PdfSignatureBlock Image height
@@ -272,8 +272,8 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     totalsRowHeightPt: 6 * 2 + 0.5, // styles.totalsRow.paddingVertical×2 + borderBottomWidth
     grandTotalHeightPt: 16 + 4 + 9 + 30, // grandTotalBlock.marginTop + grandTotalLabel.marginBottom + grandTotalLabel.fontSize + grandTotalValue.fontSize
     depositRowFirstBonusPt: 16, // pdf-totals-block.tsx Modern-only: {...styles.totalsRow, marginTop: 16} on the FIRST deposit row
-    termsTitleFontSizePt: 10.5, // styles.termsTitle.fontSize
-    termsTitleSpacingContributionPt: 7 + 5 + 0.5, // marginBottom + paddingBottom + borderBottomWidth
+    termsTitleFontSizePt: 8, // styles.termsTitle.fontSize
+    termsTitleSpacingContributionPt: 7, // styles.termsTitle.marginBottom (the paddingBottom + rule were dropped when the title became an eyebrow label)
     termsCardFirstBonusPt: 32, // removed styles.termsSection.marginTop, now PdfTermsSection topMarginPt
     signatureMarginTopPt: 16, // PdfSignatureBlock outer View marginTop (shared component)
     signatureImageHeightPt: 40, // PdfSignatureBlock Image height (shared component)

@@ -113,11 +113,11 @@ function TableHead({ L, testId }: { L: DocumentLabels; testId?: string }) {
   return (
     <thead data-testid={testId}>
       <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50">
-        <th className="py-1.5 px-3 text-left font-medium">{L.description}</th>
+        <th className="py-1.5 pl-10 pr-2 text-left font-medium">{L.description}</th>
         <th className="py-1.5 px-2 text-center font-medium">{L.qty}</th>
         <th className="py-1.5 px-2 text-center font-medium">{L.unit}</th>
         <th className="py-1.5 px-2 text-right font-medium">{L.unitPrice}</th>
-        <th className="py-1.5 px-3 text-right font-medium">{L.total}</th>
+        <th className="py-1.5 pl-0 pr-10 text-right font-medium">{L.total}</th>
       </tr>
     </thead>
   )
@@ -305,6 +305,11 @@ function renderItemTable(
 ) {
   const items = ctx.itemsBySection.get(sectionId) ?? []
   return (
+    // The zebra/header bands stay full-bleed (same width as the solid
+    // section-header bar and the ESTIMATE banner above them); the GUTTER
+    // lives on the outer cells instead — pl-10/pr-10 — so the Description
+    // text starts and the Total text ends on exactly the same 40px gutter
+    // every other block (section title, section subtotal, totals) sits on.
     <table key={key} className="w-full table-fixed">
       <ItemTableColgroup />
       {withHead && <TableHead L={ctx.L} testId={headTestId} />}
@@ -321,11 +326,11 @@ function renderItemTable(
               data-item-id={item.id}
               className={`border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
             >
-              <td className="py-2 px-3 text-base">{item.description}</td>
+              <td className="py-2 pl-10 pr-2 text-base">{item.description}</td>
               <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
               <td className="py-2 px-2 text-base text-center">{item.unit ?? ''}</td>
-              <td className="py-2 px-2 text-base text-right tabular-nums">{ctx.fmt(item.unit_price)}</td>
-              <td className="py-2 px-3 text-base text-right tabular-nums font-medium">{ctx.fmt(item.total)}</td>
+              <td className="py-2 px-2 text-base text-right tabular-nums whitespace-nowrap">{ctx.fmt(item.unit_price)}</td>
+              <td className="py-2 pl-0 pr-10 text-base text-right tabular-nums font-medium whitespace-nowrap">{ctx.fmt(item.total)}</td>
             </tr>
           )
         })}
@@ -358,7 +363,7 @@ function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
     return (
       <div key={block.id} data-page-block-id="terms-estimate" className="px-10 py-6 border-t border-border/50">
         <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
-          <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
             {ctx.L.estimateTerms}
           </p>
           <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
@@ -381,7 +386,7 @@ function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
   return (
     <div key={block.id} data-page-block-id={`terms-${key}`} className="px-10 py-6 border-t border-border/50">
       <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
-        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground select-none mb-1.5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
           {entry.label}
         </p>
         <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">{entry.value}</p>
@@ -579,7 +584,7 @@ function FullCompanyHeader({ ctx }: { ctx: RenderCtx }) {
   const { company, brandColor, brandText, companyAddr } = ctx
   return (
     <div
-      className="flex items-start justify-between gap-4 p-6 border-b border-border"
+      className="flex items-start justify-between gap-4 px-10 py-6 border-b border-border"
       style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
     >
       <div className="min-w-0">
