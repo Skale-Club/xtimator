@@ -16,6 +16,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +39,8 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Lock,
+  LockOpen,
   Mail,
   MessageSquare,
   RotateCcw,
@@ -44,7 +48,7 @@ import {
   Share2,
 } from 'lucide-react'
 import { LanguageFlagChip } from './language-flag-chip'
-import { logDeliveryAction } from '@/lib/actions/estimate'
+import { logDeliveryAction, setEstimateSharePassword } from '@/lib/actions/estimate'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 import {
   resolveTemplate,
@@ -325,6 +329,17 @@ export function SendHubDialog({
           </div>
         </div>
 
+        {/* --- Phase 193-02: optional password lock on the share link. Keyed
+            by estimate.id so switching estimates/versions remounts fresh
+            local state instead of carrying over the previous estimate's
+            editing state (same reasoning as `draft?.id === estimate.id`
+            above for the message block). --- */}
+        <SharePasswordControl
+          key={estimate.id}
+          estimateId={estimate.id}
+          initiallyProtected={!!estimate.share_password_hash}
+        />
+
         {/* --- Copy-ready message: always visible + editable inline. Share
             intents above carry this text (plus the link). --- */}
         <MessageTextBlock
@@ -335,6 +350,119 @@ export function SendHubDialog({
         />
       </DialogContent>
     </Dialog>
+  )
+}
+
+// -----------------------------------------------------------------------------
+// SharePasswordControl: Phase 193-02 — set/remove a password on the share
+// link. Local optimistic state (mirrors urlCopied above); router.refresh()
+// after a successful save re-runs the project page's server components so
+// the header's Insights chip lock badge (components/workspace/estimate/
+// engagement-button.tsx, already wired to estimate.share_password_hash)
+// picks up the change without a full reload.
+// -----------------------------------------------------------------------------
+// Exported (only) so tests/unit/estimate/share-password-control.test.tsx can
+// exercise the toggle/set/remove behavior directly without assembling the
+// full SendHubDialog estimate/company fixture -- SendHubDialog itself still
+// only ever renders it inline above, never imports it from elsewhere.
+export function SharePasswordControl({
+  estimateId,
+  initiallyProtected,
+}: {
+  estimateId: string
+  initiallyProtected: boolean
+}) {
+  const router = useRouter()
+  const [isProtected, setIsProtected] = useState(initiallyProtected)
+  const [editing, setEditing] = useState(false)
+  const [password, setPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSetPassword() {
+    setSaving(true)
+    setError(null)
+    const result = await setEstimateSharePassword(estimateId, password)
+    setSaving(false)
+    if (result.success) {
+      setIsProtected(true)
+      setEditing(false)
+      setPassword('')
+      toast.success('Password set')
+      router.refresh()
+    } else {
+      setError(result.error ?? 'Failed to set password')
+    }
+  }
+
+  async function handleRemovePassword() {
+    setSaving(true)
+    setError(null)
+    const result = await setEstimateSharePassword(estimateId, null)
+    setSaving(false)
+    if (result.success) {
+      setIsProtected(false)
+      toast.success('Password removed')
+      router.refresh()
+    } else {
+      setError(result.error ?? 'Failed to remove password')
+    }
+  }
+
+  return (
+    <div
+      data-testid="send-hub-share-password"
+      className="flex flex-col gap-2 rounded-md border border-input p-3"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {isProtected ? (
+            <>
+              <Lock className="h-3.5 w-3.5" />
+              <span>Password protected</span>
+            </>
+          ) : (
+            <>
+              <LockOpen className="h-3.5 w-3.5" />
+              <span>Anyone with the link can view</span>
+            </>
+          )}
+        </div>
+        {isProtected ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={saving}
+            onClick={() => void handleRemovePassword()}
+          >
+            Remove
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
+            {editing ? 'Cancel' : 'Protect with password'}
+          </Button>
+        )}
+      </div>
+      {editing && !isProtected && (
+        <div className="flex items-center gap-2">
+          <Input
+            type="password"
+            placeholder="Set a password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="h-8 text-sm"
+          />
+          <Button
+            size="sm"
+            disabled={saving || password.trim().length < 4}
+            onClick={() => void handleSetPassword()}
+          >
+            Save
+          </Button>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
   )
 }
 

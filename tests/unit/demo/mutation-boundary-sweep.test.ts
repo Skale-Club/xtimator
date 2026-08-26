@@ -617,6 +617,12 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/estimate/[token]/actions.ts', 'assertWritable', [
     'logEstimateView',
     'respondToEstimate',
+    // Phase 193-02 — unlockEstimate calls assertWritable() directly (same
+    // no-arg idiom as logEstimateView/respondToEstimate above: the caller is
+    // an anonymous share-page visitor, so this resolves off THAT request's
+    // own session, not the locked estimate's owner) before ever writing an
+    // unlock_ok/unlock_fail engagement event.
+    'unlockEstimate',
   ]),
   ...guarded('app/oauth/authorize/actions.ts', 'assertWritable', ['handleAuthorize']),
   ...guarded('app/oauth/register/route.ts', 'assertWritable', ['POST'], [
@@ -749,6 +755,13 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...excepted('lib/actions/estimate.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getEstimateByIdAction',
+  ]),
+  // Phase 193-02 — owner-side share-password set/remove. Guarded by
+  // assertCompanyWritable(companyId) (not the bare assertWritable() the rest
+  // of this file uses) so a demo tenant can never lock or unlock a share
+  // link, matching the plan's explicit demo-guard requirement.
+  ...guarded('lib/actions/estimate.ts', 'assertCompanyWritable', [
+    'setEstimateSharePassword',
   ]),
   ...guarded('lib/actions/invite-accept.ts', 'assertWritable', ['acceptInvite']),
   ...guarded('lib/actions/invoice.ts', 'assertWritable', ['generateInvoice']),

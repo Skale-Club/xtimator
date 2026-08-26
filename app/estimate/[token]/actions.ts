@@ -10,6 +10,7 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
 import { inngest } from '@/lib/inngest/client'
 import { EVENT_ESTIMATE_VIEWED_NOTIFICATION } from '@/lib/inngest/events'
+import { sha256Hex, setUnlockCookie, verifySharePassword } from '@/lib/auth/share-password'
 
 export async function logEstimateView(token: string): Promise<void> {
   // Phase 193-01 — this is called fire-and-forget from an anonymous share
@@ -207,5 +208,95 @@ export async function respondToEstimate(
 
   await notifyEstimateResponse(est, response)
 
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// unlockEstimate — Phase 193-02: verify a share-link password and, on
+// success, mint the signed unlock cookie for this estimate.
+// ---------------------------------------------------------------------------
+
+const UNLOCK_GENERIC_ERROR = 'Incorrect password. Please try again.'
+const UNLOCK_RATE_LIMITED_ERROR = 'Too many attempts. Please wait a minute and try again.'
+
+export async function unlockEstimate(
+  token: string,
+  password: string
+): Promise<{ success: boolean; error?: string }> {
+  // 1. Rate limit FIRST — before any lookup or verification work, mirroring
+  // app/api/estimates/[id]/sign/route.ts and app/api/track/estimate's
+  // ordering discipline. Keyed by ip + a truncated token hash (never the raw
+  // token in a Redis key), so throttling is per-visitor-per-estimate.
+  let ip: string | null = null
+  try {
+    const headersList = await headers()
+    ip = resolveClientIp(headersList)
+  } catch {
+    ip = null
+  }
+  const tokenKeyFragment = sha256Hex(token).slice(0, 16)
+  const rl = await rateLimit('estimateUnlockPerMinute', `${ip ?? 'no-ip'}:${tokenKeyFragment}`)
+  if (!rl.allowed) {
+    return { success: false, error: UNLOCK_RATE_LIMITED_ERROR }
+  }
+
+  // 2. Resolve the estimate by its share_token. Deliberately selects only
+  // the 3 columns needed here -- never the full document.
+  const supabase = requireServiceClient()
+  const { data } = await supabase
+    .from('estimates')
+    .select('id, company_id, share_password_hash')
+    .eq('share_token', token)
+    .maybeSingle()
+
+  const estimate = data as
+    | { id: string; company_id: string; share_password_hash: string | null }
+    | null
+
+  // Demo-tenant posture mirrors logEstimateView/respondToEstimate above:
+  // assertWritable() covers the (rare) case of an authenticated demo browser
+  // session hitting this anonymous action; assertCompanyWritable(companyId)
+  // covers a demo-owned estimate regardless of caller session. Neither
+  // blocks the password check/cookie itself (a demo tenant can never HAVE a
+  // password set -- setEstimateSharePassword in lib/actions/estimate.ts
+  // gates on the same two checks) -- it only suppresses the engagement-event
+  // write, matching the 193-01 collector's demo posture.
+  const denied = (await assertWritable()) ?? (estimate ? await assertCompanyWritable(estimate.company_id) : null)
+
+  async function recordUnlockEvent(eventType: 'unlock_ok' | 'unlock_fail'): Promise<void> {
+    if (!estimate || denied) return
+    try {
+      await supabase.from('estimate_engagement_events').insert({
+        estimate_id: estimate.id,
+        company_id: estimate.company_id,
+        // Server-emitted event -- no real visitor/session id exists for it
+        // (the public collector at app/api/track/estimate deliberately
+        // rejects these two event types from anonymous callers).
+        visitor_id: 'server-unlock',
+        session_id: `unlock-${Date.now()}`,
+        event_type: eventType,
+        metadata: {},
+      })
+    } catch (err) {
+      // Best-effort telemetry -- never let a logging failure change the
+      // unlock/deny outcome already decided below.
+      console.warn('[unlockEstimate] failed to record engagement event:', err)
+    }
+  }
+
+  // 3. No oracle: an unknown token, an estimate with no password set, and a
+  // wrong password all return the SAME generic error.
+  if (!estimate || !estimate.share_password_hash) {
+    await recordUnlockEvent('unlock_fail')
+    return { success: false, error: UNLOCK_GENERIC_ERROR }
+  }
+
+  if (!verifySharePassword(password, estimate.share_password_hash)) {
+    await recordUnlockEvent('unlock_fail')
+    return { success: false, error: UNLOCK_GENERIC_ERROR }
+  }
+
+  await setUnlockCookie(token)
+  await recordUnlockEvent('unlock_ok')
   return { success: true }
 }

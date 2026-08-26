@@ -1,14 +1,21 @@
 import type { CSSProperties } from 'react'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import { getEstimateByPublicToken, getShareLinkStateByPublicToken } from '@/lib/queries/share'
+import { headers, cookies } from 'next/headers'
+import {
+  getEstimateByPublicToken,
+  getShareLinkStateByPublicToken,
+  getShareLockCheckByPublicToken,
+} from '@/lib/queries/share'
 import { parsePublicSlugParam } from '@/lib/estimate/public-url'
 import { logEstimateView } from '@/app/estimate/[token]/actions'
 import { EstimateView } from '@/components/share/estimate-view'
+import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
 import { getBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
+import { ESTIMATE_UNLOCK_COOKIE, hasValidUnlock } from '@/lib/auth/share-password'
+import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
 
 interface FriendlySharePageProps {
   // The first URL segment carries the COMPANY SLUG, but the param key is
@@ -29,6 +36,18 @@ export async function generateMetadata({
   const parsed = parsePublicSlugParam(estimateSlug)
   if (!parsed) return { title: 'Estimate Not Found' }
 
+  // Phase 193-02: same lock-before-content discipline as the canonical
+  // route's generateMetadata — see that file's identical comment.
+  const lock = await getShareLockCheckByPublicToken(parsed.shortToken)
+  if (lock.status !== 'ok') return { title: 'Estimate Not Found' }
+  if (lock.passwordHash) {
+    const cookieStore = await cookies()
+    const cookieValue = cookieStore.get(ESTIMATE_UNLOCK_COOKIE)?.value
+    if (!hasValidUnlock(cookieValue, lock.shareToken)) {
+      return { title: 'Protected estimate' }
+    }
+  }
+
   const data = await getEstimateByPublicToken(parsed.shortToken)
   if (!data) return { title: 'Estimate Not Found' }
 
@@ -42,6 +61,41 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
   const { estimateSlug } = await params
   const parsed = parsePublicSlugParam(estimateSlug)
   if (!parsed) notFound()
+
+  // Phase 193-02 — password gate, checked BEFORE any estimate content is
+  // fetched. Resolved off the REAL share_token (PUBURL-05 discipline, same
+  // as logEstimateView below) so the unlock cookie is shared with the
+  // canonical /estimate/[token] route for the same estimate.
+  const lock = await getShareLockCheckByPublicToken(parsed.shortToken)
+  if (lock.status === 'missing') notFound()
+  if (lock.status === 'expired') {
+    return (
+      <main className="max-w-lg mx-auto px-4 py-24 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
+        <p className="mt-3 text-muted-foreground">
+          For your security, estimate links expire after a period of inactivity. Please ask the
+          sender to re-send the estimate — that will give you a fresh, working link.
+        </p>
+      </main>
+    )
+  }
+
+  if (lock.passwordHash) {
+    const cookieStore = await cookies()
+    const cookieValue = cookieStore.get(ESTIMATE_UNLOCK_COOKIE)?.value
+    if (!hasValidUnlock(cookieValue, lock.shareToken)) {
+      return (
+        <ScopedLanguageProvider language={lock.language as Language} setLanguage={() => {}}>
+          <EstimateUnlockForm
+            token={lock.shareToken}
+            companyName={lock.branding.companyName}
+            logoUrl={lock.branding.logoUrl}
+            brandColor={lock.branding.brandColor}
+          />
+        </ScopedLanguageProvider>
+      )
+    }
+  }
 
   const data = await getEstimateByPublicToken(parsed.shortToken)
 

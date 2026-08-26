@@ -562,3 +562,109 @@ export async function getShareLinkStateByPublicToken(
   if (isShareLinkExpired(exp)) return 'expired'
   return 'active'
 }
+
+// ---------------------------------------------------------------------------
+// Phase 193-02 — password-lock check, run BEFORE any estimate content is
+// fetched.
+//
+// Deliberately a NEW, additive-only pair of functions rather than a change
+// to getEstimateByShareToken/getEstimateByPublicToken's return shape: those
+// two are exercised by ~30 existing assertions across
+// tests/unit/share-query.test.ts, tests/unit/estimates/public-token.test.ts,
+// and tests/unit/storage/anonymous-surface-invariant.test.ts, and changing
+// their return type would be a much larger blast radius for zero benefit —
+// the goal ("no estimate content/metadata produced before the gate") is
+// better served by never CALLING the heavy fetch at all while locked, which
+// is exactly what these lightweight lookups make possible.
+//
+// Each selects ONLY share_password_hash + share_expires_at + language +
+// company_id from `estimates` — no sections/items/project/client — and only
+// resolves company branding (name/logo/brand color; no PII) when a password
+// is actually set. An open (unprotected) link never touches `companies`
+// here at all.
+// ---------------------------------------------------------------------------
+
+export interface ShareLockBranding {
+  companyName: string
+  logoUrl: string | null
+  brandColor: string | null
+}
+
+export type ShareLockCheck =
+  | { status: 'missing' }
+  | { status: 'expired' }
+  | {
+      status: 'ok'
+      /** The estimate's REAL share_token — the unlock cookie binds to THIS
+       *  value even when resolved via the friendly public_slug_token route,
+       *  so both public routes share one unlock session per estimate. */
+      shareToken: string
+      passwordHash: string | null
+      branding: ShareLockBranding
+      language: 'en' | 'pt' | 'es'
+    }
+
+type LockRow = {
+  share_token: string
+  company_id: string
+  share_password_hash: string | null
+  share_expires_at: string | null
+  language: string | null
+}
+
+async function loadShareLockBranding(
+  supabase: ReturnType<typeof requireServiceClient>,
+  companyId: string
+): Promise<ShareLockBranding> {
+  const { data } = await supabase
+    .from('companies')
+    .select('name, logo_url, brand_primary_color')
+    .eq('id', companyId)
+    .maybeSingle()
+  const row = data as { name?: string; logo_url?: string | null; brand_primary_color?: string | null } | null
+  return {
+    companyName: row?.name ?? '',
+    logoUrl: row?.logo_url ?? null,
+    brandColor: row?.brand_primary_color ?? null,
+  }
+}
+
+async function resolveShareLockCheck(row: LockRow | null): Promise<ShareLockCheck> {
+  if (!row) return { status: 'missing' }
+  if (isShareLinkExpired(row.share_expires_at)) return { status: 'expired' }
+
+  const supabase = requireServiceClient()
+  const branding = row.share_password_hash
+    ? await loadShareLockBranding(supabase, row.company_id)
+    : { companyName: '', logoUrl: null, brandColor: null }
+
+  return {
+    status: 'ok',
+    shareToken: row.share_token,
+    passwordHash: row.share_password_hash,
+    branding,
+    language: (row.language as 'en' | 'pt' | 'es' | null) ?? 'en',
+  }
+}
+
+export async function getShareLockCheck(token: string): Promise<ShareLockCheck> {
+  const supabase = requireServiceClient()
+  const { data } = await supabase
+    .from('estimates')
+    .select('share_token, company_id, share_password_hash, share_expires_at, language')
+    .eq('share_token', token)
+    .maybeSingle()
+
+  return resolveShareLockCheck(data as LockRow | null)
+}
+
+export async function getShareLockCheckByPublicToken(shortToken: string): Promise<ShareLockCheck> {
+  const supabase = requireServiceClient()
+  const { data } = await supabase
+    .from('estimates')
+    .select('share_token, company_id, share_password_hash, share_expires_at, language')
+    .eq('public_slug_token', shortToken)
+    .maybeSingle()
+
+  return resolveShareLockCheck(data as LockRow | null)
+}

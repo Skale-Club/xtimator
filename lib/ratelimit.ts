@@ -47,6 +47,10 @@ export type LimitName =
   // discipline). Generous ceiling: a real visit fires several batched flushes
   // (view + clicks + scroll + heartbeats) within a minute.
   | 'trackEstimatePerMinute'
+  // Phase 193-02 — password-unlock attempts on a locked share link. Keyed by
+  // `${ip}:${tokenHashPrefix}` (never the raw token) — a tight ceiling since
+  // this is a brute-force guard on a 4-72 char password, not a UX throttle.
+  | 'estimateUnlockPerMinute'
 
 interface LimitConfig {
   max: number
@@ -100,6 +104,11 @@ export const limits: Record<LimitName, LimitConfig> = {
   // (app/api/track/estimate/route.ts). Keyed by resolveClientIp(); shared
   // bucket also covers logEstimateView's hardened rate limit.
   trackEstimatePerMinute: { max: 60, window: 60 },
+
+  // Phase 193-02 — password-unlock brute-force guard (unlockEstimate,
+  // app/estimate/[token]/actions.ts). Checked BEFORE any password
+  // verification work.
+  estimateUnlockPerMinute: { max: 5, window: 60 },
 }
 
 export interface RateLimitResult {

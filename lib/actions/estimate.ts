@@ -16,8 +16,13 @@ import {
   type SaveEstimateInput,
 } from '@/lib/schemas/estimate'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
-import { assertWritable } from '@/lib/demo/guard'
+import { assertWritable, assertCompanyWritable } from '@/lib/demo/guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
+import {
+  hashSharePassword,
+  SHARE_PASSWORD_MIN_LENGTH,
+  SHARE_PASSWORD_MAX_LENGTH,
+} from '@/lib/auth/share-password'
 
 // ---------------------------------------------------------------------------
 // Discount-type domain mapping (quick-260728-6ts)
@@ -973,4 +978,66 @@ export async function logDeliveryAction(input: {
   } catch (err) {
     console.error('[163-05] logDeliveryAction threw', err)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Action 8 (Phase 193-02): setEstimateSharePassword
+// ---------------------------------------------------------------------------
+//
+// Owner-side set/remove for the share-link password lock. `password: null`
+// clears the lock (link reverts to open); a non-null password is hashed
+// (scrypt, lib/auth/share-password.ts) before it ever reaches the database —
+// the plaintext lives only in this function's argument and is never logged.
+//
+// Auth: getAuthContext() (authenticated company member) + assertCompanyWritable
+// (demo tenants must never be able to lock -- or unlock -- a share link) +
+// an explicit `.eq('company_id', ...)` re-check on the UPDATE itself, mirroring
+// logDeliveryAction's belt-and-suspenders discipline above RLS.
+
+export async function setEstimateSharePassword(
+  estimateId: string,
+  password: string | null
+): Promise<{ success: boolean; error?: string }> {
+  if (typeof estimateId !== 'string' || !estimateId) {
+    return { success: false, error: 'Invalid estimate id' }
+  }
+
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { success: false, error: ctx.error }
+  const { supabase, company } = ctx
+  const companyId = company.id as string
+
+  const denied = await assertCompanyWritable(companyId)
+  if (denied) return { success: false, error: denied.error }
+
+  let update: { share_password_hash: string | null; share_password_set_at: string | null }
+
+  if (password === null) {
+    update = { share_password_hash: null, share_password_set_at: null }
+  } else {
+    const trimmed = password.trim()
+    if (trimmed.length < SHARE_PASSWORD_MIN_LENGTH || trimmed.length > SHARE_PASSWORD_MAX_LENGTH) {
+      return {
+        success: false,
+        error: `Password must be between ${SHARE_PASSWORD_MIN_LENGTH} and ${SHARE_PASSWORD_MAX_LENGTH} characters.`,
+      }
+    }
+    update = {
+      share_password_hash: hashSharePassword(trimmed),
+      share_password_set_at: new Date().toISOString(),
+    }
+  }
+
+  const { data: updatedRows, error } = await supabase
+    .from('estimates')
+    .update(update)
+    .eq('id', estimateId)
+    .eq('company_id', companyId)
+    .select('id')
+
+  if (error || !updatedRows || updatedRows.length === 0) {
+    return { success: false, error: 'Failed to update the estimate password.' }
+  }
+
+  return { success: true }
 }

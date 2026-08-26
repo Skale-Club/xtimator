@@ -30,6 +30,7 @@ const ACTIONS = {
       'deleteEstimateItem',
       'markAsSentAction',
       'logDeliveryAction',
+      'setEstimateSharePassword',
     ],
     reads: ['getEstimateByIdAction'],
   },
