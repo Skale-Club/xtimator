@@ -3308,3 +3308,30 @@ Plans:
 | MIG-02 | 191 |
 | MIG-03 | 187 |
 | MIG-04 | 191 |
+
+## 🚧 v4.25 Estimate Engagement Observability (Phase 193) — ROADMAP CREATED 2026-08-25
+
+**Goal:** After sending an estimate, the owner can see whether the client engaged —
+opens count, unique visitors, time on page, read depth, clicks with a heatmap over the
+actual document — and can optionally lock the share link behind a password.
+
+**Branch:** `feat/estimate-engagement`
+
+### Phases
+
+**193. Estimate Engagement Observability + Share Password**
+Plans: 3
+- 193-01 — Engagement schema + tracking pipeline (`estimate_engagement_events` table,
+  `POST /api/track/estimate` beacon collector, client tracking hook on the share page,
+  `logEstimateView` hardening: view_count, last_viewed_at, rate limit, notification
+  moved off the request path, 90-day retention)
+- 193-02 — Optional password lock (scrypt hash on `estimates`, HMAC-signed unlock cookie
+  per support-mode pattern, gate on both public routes, brute-force rate limit)
+- 193-03 — Engagement dashboard + click heatmap (aggregation queries, engagement panel
+  in the estimate tab, canvas density overlay over the real template renderer)
+
+### v4.25 Progress
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 193. Estimate Engagement Observability + Share Password | 0/3 | Planned |  |
