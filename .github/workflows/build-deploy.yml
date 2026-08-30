@@ -208,3 +208,52 @@ jobs:
             echo "::endgroup::"
           fi
           exit 1
+
+      # ── Deploy outcome to Telegram ────────────────────────────────────────
+      # Appended at the END of this job's step list, deliberately. The step
+      # above is the Inngest re-sync, whose `run:` block runs all the way to
+      # what used to be the last line of this file — inserting anywhere above
+      # here would have split that script in half.
+      #
+      # SECURITY: the commit subject arrives via `env:` and is referenced as
+      # "$COMMIT_MSG". It must NEVER be written as
+      # ${{ github.event.workflow_run.head_commit.message }} inside `run:` —
+      # GitHub substitutes ${{ }} into the script TEXT before bash parses it, so
+      # a commit message containing a quote, a backtick or $(...) stops being
+      # data and becomes shell. That is both a command-injection hole and a way
+      # for an innocent apostrophe to break the deploy.
+      #
+      # continue-on-error, plus telegram-notify.sh's unconditional exit 0: a
+      # notification must never turn a successful deploy red, nor let a
+      # Telegram outage disguise a failed one.
+      - name: Notify Telegram (deploy succeeded)
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # First line only: a commit body is unbounded and Telegram's
+          # sendMessage caps at 4096 characters.
+          subject=$(printf '%s' "${COMMIT_MSG:-(no commit message)}" | head -n1)
+          bash scripts/telegram-notify.sh \
+            "🚀 <b>Xtimator deployed</b>" \
+            "${DEPLOY_SHA:0:7} $subject\n\nImage pushed to GHCR, Coolify rolled it out, and Inngest re-synced against the new container.\n\n$RUN_URL"
+
+      - name: Notify Telegram (deploy FAILED)
+        if: failure()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          subject=$(printf '%s' "${COMMIT_MSG:-(no commit message)}" | head -n1)
+          bash scripts/telegram-notify.sh \
+            "🚨 <b>Xtimator deploy FAILED</b>" \
+            "${DEPLOY_SHA:0:7} $subject\n\nProduction is still serving the PREVIOUS image — Coolify only cuts traffic over to a healthy container — so this is not an outage, but the change did not ship.\n\n$RUN_URL"

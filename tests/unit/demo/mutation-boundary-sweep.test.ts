@@ -540,6 +540,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/api/estimates/[id]/send/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/sign/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/generate-estimate/route.ts', 'demoGuardResponse', ['POST']),
+  ...excepted('app/api/health/crons/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted('app/api/health/live/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted('app/api/health/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted('app/api/inngest/route.ts', 'machine-signed', MACHINE_AUTHORITY, MACHINE_REASON, [

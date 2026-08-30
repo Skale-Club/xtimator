@@ -9,6 +9,7 @@
  */
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
+import { recordServerError } from '@/lib/observability/error-spike'
 import { ZodError } from 'zod'
 import {
   type ErrorType,
@@ -22,6 +23,18 @@ import {
 // Only errors that require engineering action get sent to Sentry.
 // 4xx user errors, rate limits, and auth failures are intentional — not bugs.
 const SENTRY_CAPTURE_TYPES = new Set<ErrorType>(['internal', 'offline'])
+
+/**
+ * Layer 3 (aggregate) tap. The SAME set decides what counts toward the error
+ * rate as what reaches Sentry, and for the same reason: a tenant hitting their
+ * quota or sending a malformed body is the system working, and counting those
+ * would make the spike alert fire on ordinary traffic — the flood that gets a
+ * channel muted. Deliberately reusing SENTRY_CAPTURE_TYPES rather than a
+ * parallel list, so the two definitions of "real error" cannot drift apart.
+ */
+function tapErrorRate(code: string): void {
+  recordServerError(code)
+}
 
 export { ErrorType, Surface }
 
@@ -86,6 +99,7 @@ export function asResponse(err: unknown): NextResponse {
     console.error(`[${err.code}]`, err.message, err.meta ?? '', err.cause ?? '')
 
     if (SENTRY_CAPTURE_TYPES.has(err.type)) {
+      tapErrorRate(err.code)
       Sentry.withScope((scope) => {
         scope.setTag('error.code', err.code)
         scope.setTag('error.surface', err.surface)
@@ -127,6 +141,7 @@ export function asResponse(err: unknown): NextResponse {
 
   // Unknown error — always capture: we can't tell if it's benign
   console.error('[internal:unknown]', err)
+  tapErrorRate('internal:unknown')
   Sentry.captureException(err)
   return NextResponse.json(
     { error: defaultMessageByType.internal, code: 'internal:unknown' },

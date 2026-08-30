@@ -1,0 +1,360 @@
+name: Uptime Probe
+
+# LAYER 1 of three (see docs/TELEGRAM-ALERTS.md).
+#
+# The only alerting that survives the app dying. Every in-app path — notifyOps,
+# the pipeline watchdog, the error-spike counter — runs INSIDE the process it is
+# meant to report on, so a hung or crashed container reports nothing. This runs
+# on GitHub's infrastructure: outside the container, outside the host, outside
+# Hetzner. If the box disappears, this still notices and still has a route to
+# Telegram.
+#
+# ── Alerting discipline ──
+# Alerts fire ONLY on transitions: one message when it goes down, one when it
+# comes back. Never one per check. The state store is the open `outage` issue
+# itself, not an Actions cache — the issue is already the per-outage record, and
+# a cache is a second source of truth that can be evicted independently of it.
+#
+# ── Why the timeout is 90s and not 30s ──
+# Measured 2026-08-29: after a long idle period the FIRST request to
+# xtimator.com returned zero bytes for 45s+, then answered in 160ms once warm.
+# A 30s probe would have called that an outage, alerted, recovered, and repeated
+# — flapping is how a channel earns being muted. 90s tolerates the cold start;
+# anything past that is a real fault. A side effect worth knowing: probing every
+# 10 minutes keeps the container warm, so this partly suppresses the very
+# cold-start it was sized around. That is a bonus, not the mechanism.
+#
+# ── Rules this file must keep ──
+#  * The Telegram steps NEVER fail the run. supabase-keepalive-monitor.yml reads
+#    this repo's workflow-run history to make decisions; a bad bot token must not
+#    colour a run and corrupt that. Only the probe result may set red/green.
+#  * Never interpolate untrusted text (commit messages, issue bodies, API
+#    output) directly into a `run:` block — ${{ }} is substituted BEFORE bash
+#    parses the script, so any quote or backtick in the content becomes shell.
+#    Everything variable is passed through `env:` and referenced as "$VAR".
+
+on:
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'   # every 10 min, offset from :00 to dodge congestion
+  workflow_dispatch:
+    inputs:
+      force_failure:
+        description: 'Set to "true" to force a failed probe and test the alert path end-to-end'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: uptime-probe
+  cancel-in-progress: false
+
+env:
+  SITE_URL: https://xtimator.com
+  # Generous: see the cold-start note above.
+  PROBE_TIMEOUT: '90'
+
+jobs:
+  probe:
+    name: Probe production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (for scripts/telegram-notify.sh)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # The probe itself. /api/health/live is dependency-free by contract, so a
+      # failure here means the Node process is not answering HTTP at all — not
+      # that Supabase blipped. The deep /api/health (DB + storage) is checked
+      # after it, so a green liveness with a red readiness is distinguishable.
+      - name: Probe health endpoints
+        id: probe
+        env:
+          FORCE_FAILURE: ${{ github.event.inputs.force_failure }}
+        run: |
+          set -uo pipefail
+
+          if [ "${FORCE_FAILURE:-false}" = "true" ]; then
+            echo "Forced failure requested via workflow_dispatch."
+            echo "detail=Forced failure (workflow_dispatch test), not a real outage." >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          probe() {
+            # $1 = path. Echoes exactly one line: "<http_code> <total_seconds>".
+            #
+            # The `if` form matters twice. First, a failing command substitution
+            # would abort the step under bash -e (GitHub runs `run:` as
+            # `bash -e {0}`), and a probe that cannot report a failure is worse
+            # than no probe. Second, `curl ... || echo` is WRONG here: curl still
+            # writes its -w output before exiting non-zero, and that output has
+            # no trailing newline, so the fallback echo concatenates onto it and
+            # read() sees "000 0.027647000 90" as one line — a garbage duration
+            # in the very alert meant to explain the outage.
+            local out
+            if out=$(curl -sS -o /tmp/body.json -w '%{http_code} %{time_total}' \
+                       --max-time "${PROBE_TIMEOUT}" "${SITE_URL}$1" 2>/dev/null); then
+              echo "$out"
+            else
+              echo "000 ${PROBE_TIMEOUT}"
+            fi
+          }
+
+          # Up to 3 attempts. A single failure is not an outage — a rolling
+          # Coolify deploy briefly has no healthy container, and alerting on
+          # that would page on every normal deploy.
+          attempt=1
+          live_code=000
+          live_time=0
+          while [ $attempt -le 3 ]; do
+            read -r live_code live_time <<< "$(probe /api/health/live)"
+            echo "attempt $attempt: /api/health/live -> HTTP $live_code in ${live_time}s"
+            [ "$live_code" = "200" ] && break
+            attempt=$((attempt + 1))
+            [ $attempt -le 3 ] && sleep 15
+          done
+
+          if [ "$live_code" != "200" ]; then
+            echo "::error::Liveness probe failed after 3 attempts (last HTTP $live_code)."
+            # ASCII only: this string is machine-generated and travels through a
+            # shell, the GitHub API and Telegram. Non-ASCII survives all three
+            # when every hop is UTF-8, and silently degrades when one is not.
+            echo "detail=/api/health/live did not return 200 after 3 attempts (up to ~5 min: 3 x ${PROBE_TIMEOUT}s timeout plus two 15s waits). Last status: HTTP $live_code. That endpoint makes zero external calls, so this is the Node process not answering HTTP at all - not a database or storage problem." >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          # Readiness: DB + storage. Reported separately so a Supabase blip is
+          # never mistaken for the app being down.
+          read -r deep_code deep_time <<< "$(probe /api/health)"
+          echo "/api/health -> HTTP $deep_code in ${deep_time}s"
+          body=$(head -c 400 /tmp/body.json)
+          echo "body: $body"
+
+          if [ "$deep_code" != "200" ]; then
+            echo "::error::Readiness probe failed (HTTP $deep_code)."
+            {
+              echo "detail=/api/health/live is OK (the process is alive) but /api/health returned HTTP $deep_code - a downstream dependency (Supabase DB or storage) is failing."
+              echo "body<<XEOF"
+              echo "$body"
+              echo "XEOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "Healthy. live=${live_time}s deep=${deep_time}s"
+          echo "live_time=$live_time" >> "$GITHUB_OUTPUT"
+
+      # ONE issue per outage: the first failure files it, later failures comment
+      # on it, recovery closes it. Whether THIS run is the START of the outage is
+      # read from whether an open issue already exists — that same flag is what
+      # gates the Telegram push below, so a long outage is one message, not one
+      # every ten minutes.
+      - name: File or update the outage issue
+        id: outage
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          gh label create outage --color B60205 \
+            --description "Production health probe is failing" 2>/dev/null || true
+
+          existing=$(gh issue list --label outage --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+
+          if [ -n "$existing" ]; then
+            echo "new_outage=false" >> "$GITHUB_OUTPUT"
+            gh issue comment "$existing" --body "Still failing — $RUN_URL"$'\n\n'"$DETAIL" || true
+          else
+            echo "new_outage=true" >> "$GITHUB_OUTPUT"
+            gh issue create --label outage \
+              --title "Production health probe failing on ${SITE_URL}" \
+              --body "$(printf '%s\n' \
+                "$DETAIL" \
+                "" \
+                "First failing run: $RUN_URL" \
+                "" \
+                "Filed automatically by \`.github/workflows/uptime-probe.yml\`; it closes itself once the probe passes again. Later failures are added as comments, not new issues." \
+                "" \
+                "If the app is HUNG rather than crashed, Sentry will show nothing — a hang throws no exception. Check the container logs for the window before it stopped answering, then redeploy to restart it.")"
+          fi
+
+      # The push that reaches a phone. The issue above is the durable record but
+      # nothing about it is loud. Fires ONLY on the down transition.
+      #
+      # `continue-on-error` is belt-and-braces: telegram-notify.sh already exits 0
+      # unconditionally, so this should be unreachable — but the guarantee that
+      # the alert channel cannot colour this run is load-bearing enough to state
+      # twice rather than depend on a script staying correct forever.
+      - name: Push the outage to Telegram
+        if: failure() && steps.outage.outputs.new_outage == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/telegram-notify.sh \
+            "🚨 <b>Xtimator is DOWN</b>" \
+            "$DETAIL\n\nChecked from GitHub Actions, outside the server — so this alert survives the app, the container and the host being gone.\n\n$RUN_URL"
+
+      - name: Close the outage issue on recovery
+        id: recovery
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          existing=$(gh issue list --label outage --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Probe is green again — $RUN_URL" || true
+            echo "recovered=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only after an outage we actually announced. A green run following a green
+      # run says nothing — a channel that reports "still fine" every ten minutes
+      # is one people stop reading.
+      - name: Push the recovery to Telegram
+        if: success() && steps.recovery.outputs.recovered == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/telegram-notify.sh \
+            "✅ <b>Xtimator is back UP</b>" \
+            "${SITE_URL} is answering healthy again.\n\n$RUN_URL"
+
+  # ── Deadman for the scheduled jobs ────────────────────────────────────────
+  # Scheduling lives in the skale-cron crontab on the Coolify VPS: every
+  # `schedule:` was removed from cron-jobs.yml. The cron ROUTES alert loudly when
+  # they fail (notifyOps kind 'cron_failed', a locked event), but a crontab that
+  # stops firing produces no failure — only silence, which nothing else detects.
+  #
+  # Separate job, gated on the probe passing: if the app is down there is nothing
+  # to ask, and reporting "crons are stale" during an outage is noise on top of
+  # an alert that already says more.
+  crons:
+    name: Cron deadman
+    needs: probe
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (for scripts/telegram-notify.sh)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Check cron heartbeats
+        id: check
+        env:
+          SITE_URL: https://xtimator.com
+        run: |
+          set -uo pipefail
+          code=$(curl -sS -o /tmp/crons.json -w '%{http_code}' --max-time 60 \
+            "${SITE_URL}/api/health/crons" 2>/dev/null || echo 000)
+          echo "HTTP $code"
+          cat /tmp/crons.json 2>/dev/null | jq . || true
+
+          if [ "$code" != "200" ]; then
+            echo "::warning::Could not read /api/health/crons (HTTP $code) — skipping the deadman check."
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ok=$(jq -r '.ok' /tmp/crons.json)
+          if [ "$ok" = "true" ]; then
+            echo "All cron heartbeats fresh."
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          summary=$(jq -r '[.jobs[] | select(.stale) | "\(.job): last success \(if .ageMinutes == null then "never" else "\(.ageMinutes) min ago" end) (expected every \(.schedule), stale after \(.staleAfterMinutes) min)"] | join("\n")' /tmp/crons.json)
+          echo "::warning::Stale cron heartbeats detected."
+          echo "$summary"
+          echo "stale=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "summary<<XEOF"
+            echo "$summary"
+            echo "XEOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Transition-only, same discipline as the outage issue: one message when
+      # the crons go quiet, one when they come back. The `cron-stale` label is a
+      # SEPARATE store from `outage` on purpose — a silent crontab and a dead app
+      # are different incidents with different runbooks, and sharing one issue
+      # would let recovery from one close the other.
+      - name: File or close the cron-stale issue
+        id: state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STALE: ${{ steps.check.outputs.stale }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          gh label create cron-stale --color D93F0B \
+            --description "A scheduled job has stopped reporting heartbeats" 2>/dev/null || true
+
+          existing=$(gh issue list --label cron-stale --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+
+          if [ "$STALE" = "true" ]; then
+            if [ -n "$existing" ]; then
+              echo "new_stale=false" >> "$GITHUB_OUTPUT"
+              gh issue comment "$existing" --body "Still stale — $RUN_URL"$'\n\n'"$SUMMARY" || true
+            else
+              echo "new_stale=true" >> "$GITHUB_OUTPUT"
+              gh issue create --label cron-stale \
+                --title "Scheduled jobs have stopped reporting" \
+                --body "$(printf '%s\n' \
+                  "One or more cron jobs have not recorded a successful run within their expected window:" \
+                  "" \
+                  "$SUMMARY" \
+                  "" \
+                  "Run: $RUN_URL" \
+                  "" \
+                  "Scheduling lives in the **skale-cron crontab on the Coolify VPS**, not in GitHub Actions — check that box first. Common causes: the crontab was edited or lost in a rebuild, CRON_SECRET rotated (the routes would 401), or the container cannot reach itself." \
+                  "" \
+                  "Filed automatically by \`.github/workflows/uptime-probe.yml\`; it closes itself once every job reports again.")"
+            fi
+          else
+            echo "new_stale=false" >> "$GITHUB_OUTPUT"
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "All cron heartbeats fresh again — $RUN_URL" || true
+              echo "recovered=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Push cron staleness to Telegram
+        if: steps.state.outputs.new_stale == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/telegram-notify.sh \
+            "⚠️ <b>Xtimator crons have gone quiet</b>" \
+            "$SUMMARY\n\nThe app is UP — this is the schedule, not the site. Scheduling lives in the skale-cron crontab on the Coolify VPS.\n\n$RUN_URL"
+
+      - name: Push cron recovery to Telegram
+        if: steps.state.outputs.recovered == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/telegram-notify.sh \
+            "✅ <b>Xtimator crons are running again</b>" \
+            "Every scheduled job has reported a fresh heartbeat.\n\n$RUN_URL"

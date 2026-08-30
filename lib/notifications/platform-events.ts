@@ -39,6 +39,7 @@ export type PlatformEventKind =
   | 'ai_fallback'
   | 'pipeline_stuck'
   | 'cron_failed'
+  | 'error_spike'
 
 export type PlatformEventCategory = 'tenant' | 'job_failure' | 'critical'
 
@@ -69,6 +70,16 @@ export const PLATFORM_EVENTS: Record<PlatformEventKind, PlatformEventDef> = {
   ai_fallback: { kind: 'ai_fallback', label: 'AI provider fallback engaged', category: 'critical', locked: false },
   pipeline_stuck: { kind: 'pipeline_stuck', label: 'Generation pipeline stuck', category: 'critical', locked: true },
   cron_failed: { kind: 'cron_failed', label: 'Scheduled cron job failed', category: 'critical', locked: true },
+  // Layer 3 (aggregate): one alert per error RATE, not per error. `critical` in
+  // category, but deliberately NOT locked. The two locked kinds above name a
+  // specific, unambiguous outage; this one is a heuristic over a threshold that
+  // has not yet been calibrated against real traffic (see the measurement note
+  // in lib/observability/error-spike.ts). A heuristic that cannot be switched
+  // off is exactly how a channel earns being muted wholesale — and muting the
+  // channel would take pipeline_stuck and cron_failed down with it. Being
+  // toggleable means a noisy threshold costs this one kind, not all of them.
+  // It still defaults to ON: a missing preferences row reads as enabled.
+  error_spike: { kind: 'error_spike', label: 'Server error rate spike', category: 'critical', locked: false },
 }
 
 export const PLATFORM_EVENT_KINDS = Object.keys(PLATFORM_EVENTS) as PlatformEventKind[]

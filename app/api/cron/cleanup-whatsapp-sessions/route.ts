@@ -4,6 +4,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { recordCronHeartbeat } from '@/lib/observability/cron-heartbeat'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 
 export async function GET(request: Request) {
@@ -67,6 +68,14 @@ export async function GET(request: Request) {
         await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
       })
     )
+
+    // Deadman: record that this job actually ran to completion. Success path
+    // only — a failed run must leave the heartbeat stale so the external probe
+    // can still see the silence. Awaited (not fire-and-forget) so the write
+    // isn't cut off when the serverless invocation ends; it never throws.
+    await recordCronHeartbeat('cleanup-whatsapp-sessions', {
+      cleaned: sessions.length,
+    })
 
     return NextResponse.json({ cleaned: sessions.length }, { status: 200 })
   } catch (err) {
