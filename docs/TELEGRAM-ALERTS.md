@@ -156,6 +156,15 @@ probe reads `/api/health/crons` and alerts when a heartbeat goes stale.
   the watch starts counting at install time instead of alerting the moment it
   ships. That marker means "watch started here", never "the job ran".
 
+> **Baseline a new job at its DEPLOY, not at its migration.** This was got wrong
+> the first time. The table was created at 03:24 UTC and the recorder went live
+> at ~12:32 UTC; for those nine hours nothing could write a heartbeat, so the
+> baseline aged out and `/api/health/crons` reported `stale: true` — blaming the
+> VPS crontab for the code's absence. Migrations here are applied by hand, ahead
+> of the deploy, so schema-time and code-time are never the same moment. Fixed
+> in `20260830000001_rebaseline_cron_heartbeats.sql`; the same trap applies to
+> every job added to `CRON_JOBS` later.
+
 ## Failure is always silent
 
 `scripts/telegram-notify.sh` **always exits 0**, and `notifyOps()` **never
