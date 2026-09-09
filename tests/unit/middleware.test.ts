@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 // the real, live middleware entry point, so this test previously provided
 // ZERO coverage of actual routing/auth behavior. Fixed to import the real
 // module.
-import { isPublicRoute, isProtectedRoute } from '@/proxy'
+import { isPublicRoute, isProtectedRoute, getCanonicalHostRedirect } from '@/proxy'
 
 /** Mirrors proxy.ts's exact anonymous-redirect guard:
  *  `!claims && isProtectedRoute(pathname) && !isPublicRoute(pathname)`. */
@@ -127,5 +127,51 @@ describe('Landing root (/) routing rules (D-01, D-02)', () => {
     url.searchParams.set('auth', 'login')
     expect(url.pathname).toBe('/')
     expect(url.searchParams.get('auth')).toBe('login')
+  })
+})
+
+describe('Canonical host redirect (quick-260909-eul)', () => {
+  const canonical = 'https://xtimator.com'
+
+  it('redirects www.xtimator.com to xtimator.com, preserving path + query', () => {
+    expect(
+      getCanonicalHostRedirect('https://www.xtimator.com', '/dashboard', '?tab=1', canonical)
+    ).toBe('https://xtimator.com/dashboard?tab=1')
+  })
+
+  it('is case-insensitive on the request host', () => {
+    expect(getCanonicalHostRedirect('https://WWW.Xtimator.com', '/', '', canonical)).toBe(
+      'https://xtimator.com/'
+    )
+  })
+
+  it('does not redirect the apex host itself', () => {
+    expect(getCanonicalHostRedirect('https://xtimator.com', '/dashboard', '', canonical)).toBeNull()
+  })
+
+  it('does not redirect localhost', () => {
+    expect(getCanonicalHostRedirect('http://localhost:3000', '/dashboard', '', canonical)).toBeNull()
+  })
+
+  it('does not redirect the demo host', () => {
+    expect(
+      getCanonicalHostRedirect('https://demo.xtimator.com', '/dashboard', '', canonical)
+    ).toBeNull()
+  })
+
+  it('does not redirect an unrelated host', () => {
+    expect(
+      getCanonicalHostRedirect('https://other.example.com', '/dashboard', '', canonical)
+    ).toBeNull()
+  })
+
+  it('never redirects when the canonical base is http (dev)', () => {
+    expect(
+      getCanonicalHostRedirect('http://www.localhost:3000', '/dashboard', '', 'http://localhost:3000')
+    ).toBeNull()
+  })
+
+  it('never throws on a garbage requestOrigin', () => {
+    expect(getCanonicalHostRedirect('not a url', '/dashboard', '', canonical)).toBeNull()
   })
 })

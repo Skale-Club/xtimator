@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getDemoAppOrigin } from '@/lib/demo/config'
 import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
+import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import {
   REFERRAL_COOKIE,
   REFERRAL_COOKIE_OPTIONS,
@@ -95,6 +96,39 @@ export function isProtectedRoute(pathname: string): boolean {
 }
 
 /**
+ * Quick-260909-eul — collapse the `www.` alias into the canonical host.
+ *
+ * Both `www.xtimator.com` and `xtimator.com` are served by this container and
+ * cookies are host-scoped, so a session created on `www` was invisible on the
+ * apex: the OAuth callback (which redirects to APP_ORIGIN) and every absolute
+ * link built from getCanonicalBaseUrl() landed the user on a host with no
+ * cookies → /?auth=login → "I had to log in twice". One cookie jar, one host.
+ *
+ * Returns the absolute redirect target, or null when no redirect applies.
+ * ONLY the exact `www.` + canonical hostname alias is redirected — localhost,
+ * the demo host, tenant custom domains and anything else pass through — and
+ * only when the canonical base is https (never in http dev).
+ */
+export function getCanonicalHostRedirect(
+  requestOrigin: string,
+  pathname: string,
+  search: string,
+  canonicalBase: string
+): string | null {
+  let req: URL
+  let canon: URL
+  try {
+    req = new URL(requestOrigin)
+    canon = new URL(canonicalBase)
+  } catch {
+    return null
+  }
+  if (canon.protocol !== 'https:') return null
+  if (req.hostname.toLowerCase() !== `www.${canon.hostname.toLowerCase()}`) return null
+  return `${canon.origin}${pathname}${search}`
+}
+
+/**
  * Machine-to-machine API routes that authenticate via their OWN mechanism
  * (Stripe/webhook signatures, Inngest's X-Inngest-Signature, cron's CRON_SECRET
  * bearer) or are fully public (health probes, browser CSP reports). They NEVER
@@ -147,7 +181,16 @@ function applyReferralCookie(
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
+  const canonicalTarget = getCanonicalHostRedirect(
+    getRequestOrigin(request),
+    pathname,
+    search,
+    getCanonicalBaseUrl()
+  )
+  if (canonicalTarget) {
+    return NextResponse.redirect(canonicalTarget, 308)
+  }
   const demoEntry = classifyDemoEntryRequest(request)
 
   // The apex handoff must not construct an Auth client or touch apex cookies.
