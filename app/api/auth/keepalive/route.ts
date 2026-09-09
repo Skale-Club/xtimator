@@ -13,7 +13,8 @@ import { createClient } from '@/lib/supabase/server'
 //
 // This route is a lightweight, same-origin GET that the app fires on foreground
 // (visibilitychange/pageshow/focus). Because it hits `/api/*` it:
-//   1. is NetworkOnly in the service worker (public/sw.js) — never served from cache,
+//   1. is never served by a service worker (public/sw.js is a no-fetch worker that only
+//      cleans old caches), so it always hits the network,
 //   2. passes through the middleware (proxy.ts), whose getClaims() call refreshes an
 //      expired access token server-side and re-emits the auth cookies via Set-Cookie.
 // That server-set write re-stamps the refresh-token cookie as ITP-exempt, resetting
