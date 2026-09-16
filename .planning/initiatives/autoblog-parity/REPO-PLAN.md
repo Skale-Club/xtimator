@@ -32,20 +32,38 @@ Single-site (MASTER D-10): no `tenant_id`, no super-admin gate, platform AI key 
 
 | id | task | notes |
 |---|---|---|
-| **XT-01** | `lib/blog/contract.ts` — enums and types from MASTER §3 | P0 for this repo |
-| **XT-02** | Migration: extend `blog_posts` with `tags`, `author_name`, `focus_keyword`, `reading_time_minutes`, `ai_generated`, `feature_image_url` | today the table has only title/slug/content/excerpt/cover/status/meta |
-| **XT-03** | Migration: create `blog_settings`, `blog_generation_jobs`, `blog_post_feedback`, `blog_rss_sources`, `blog_rss_items` (single-site shape), `ai_generation_logs` — **RLS on every table**, service-role write, no public read except published posts | matches the repo's existing RLS convention |
-| **XT-04** | Migration: `telegram_settings` — promote the current platform-alerts `chat_id` into a full row with `chat_ids text[]`, `approvals_enabled`, `approvals_bot_token`, `approvals_chat_ids`, `webhook_secret`; backfill the existing alert chat id | keep platform alerts working through the same row |
-| **XT-05** | Port `lib/blog/prompt.ts` and `lib/blog/schedule.ts` from xkedule, adapted to Xtimator's own content (services offered, service area, published posts for internal links) | pure modules, no I/O — port verbatim where possible |
-| **XT-06** | `lib/blog/generator.ts` — the full pipeline: pillar/RSS topic → content → sanitise + 600–4000 bounds → image (best-effort, WebP, 16:9, curated fallback) → Supabase Storage upload → draft or publish per `auto_publish` → job row with `durations_ms` → cost logged | uses `lib/ai/with-fallback.ts` for text; OpenRouter for image |
-| **XT-07** | Port `lib/blog/rss-fetcher.ts` + `lib/blog/rss-selector.ts` from skaleclub; RSS optional per D-02 | new dep: `rss-parser` |
-| **XT-08** | Port the retry/timeout helpers (`lib/blog/ai-retry.ts`) and the content validator (`lib/blog/content-validator.ts`) from skaleclub | |
-| **XT-09** | Inngest function `autoblog-sweep`, `triggers: [{ cron: '15 * * * *' }]`, plus a `blog/rss.fetch` cron at `45 * * * *` and a `blog/generate.requested` event for manual runs | follow the repo's existing cron functions (`billing-reconciliation`, `cleanup-audio`) for the `step.run` / never-throw discipline |
-| **XT-10** | Route handlers for MASTER §4, including `POST /api/blog/cron/generate` + `/fetch-rss` on `CRON_SECRET` as break-glass when an Inngest sync is missed | the repo has a documented history of missed Inngest re-syncs silently stopping event-triggered jobs — the HTTP path is the safety net |
-| **XT-11** | `POST /api/telegram/webhook` + approvals per MASTER §6: separate approvals bot, group and thread support, `setWebhook` on save, reconcile job, per-chat test button | |
-| **XT-12** | Admin UI: an **Automation** tab under `app/admin/blog/` — settings, posting hour with "next post at …", approval queue, jobs with retry/cancel and stage timings, preview, RSS sources, feedback history, cost panel | mirror the tab layout of xkedule's `BlogSettings.tsx` |
-| **XT-13** | DB lock (`blog_settings.lock_acquired_at`, stale after 10 min) so the Inngest path and the HTTP path cannot double-generate | never an in-memory guard — Next.js runs multiple instances |
-| **XT-14** | Tests in `tests/unit/`: schedule, RSS selector, sanitiser bounds, retry classifier | runs under the existing `vitest run tests/unit tests/eval` gate, which must pass on `main` before `build-deploy.yml` fires |
+| ~~XT-01~~ | ~~`lib/blog/contract.ts`~~ | **DONE** |
+| ~~XT-02~~ | ~~Extend `blog_posts`~~ | **DONE** — no `feature_image_url`: `cover_image_url` already is the contract's feature image, and a second column would only raise the question of which one renders |
+| ~~XT-03~~ | ~~Operational tables + RLS~~ | **DONE** — `20260916190000_autoblog_schema.sql`. `blog_settings` is pinned to id 1 by a check constraint so an upsert cannot create a second config |
+| ~~XT-04~~ | ~~`telegram_settings`~~ | **DONE** — new table with the array shape. **Not wired to the existing platform-alerts chat_id**: that lives in the integrations panel and moving it is a separate change |
+| ~~XT-05~~ | ~~`prompt.ts` + `schedule.ts`~~ | **DONE** — schedule is byte-identical; the 8 pillars are Xtimator's own. Every other product writes as a business to its customers; this blog is a SaaS writing to the contractors who use it |
+| **XT-06** | Generator | **DONE except images** — pillar/RSS topic → content → link sanitiser → tag allowlist → 600–4000 bounds → draft or publish → job row with stage timings → cost logged from OpenRouter's own `usage.cost`. **No cover generation yet**: `durations_ms.image` is null and posts publish without one |
+| ~~XT-07~~ | ~~RSS fetcher + selector~~ | **DONE** — one `lib/blog/rss.ts`. Upsert uses `ignoreDuplicates` so a later sweep cannot resurrect a used item; `MIN_RSS_SCORE` falls back to the pillar rotation rather than picking the least bad of fifty |
+| ~~XT-08~~ | ~~`ai-retry.ts` + `content-validator.ts`~~ | **DONE** — ported verbatim |
+| ~~XT-09~~ | ~~Inngest crons~~ | **DONE** — `autoblog-sweep` hourly at :15, `autoblog-rss-fetch` every 2h at :45. Manual runs go through the server action rather than an event, which keeps the admin's result synchronous |
+| **XT-10** | Route handlers | **PARTLY DONE** — `/api/blog/cron/generate` and `/fetch-rss` on `CRON_SECRET` (with `?manual=1` as break-glass). The admin-facing surface is server actions, not REST, which is this repo's convention. **No `/preview`, `/health` or `/jobs/:id/retry` endpoints** |
+| **XT-11** | Telegram approvals | **PARTLY DONE** — separate approvals bot, group + forum-topic delivery, fan-out that survives one bad destination, chat-id validation at save, approve/reject webhook authenticated by the shared secret. **No `setWebhook` call on save and no reconcile job**: the secret must be registered manually for now |
+| **XT-12** | Admin UI | **SERVER SIDE DONE** — `automation-actions.ts` covers settings, next-run, generate-now, approve/reject, RSS sources, fetch-now and Telegram, all admin-gated and audited. **The React tab that calls them is not built** |
+| ~~XT-13~~ | ~~DB lock~~ | **DONE** — one conditional UPDATE, stale after 10 min |
+| ~~XT-14~~ | ~~Tests~~ | **DONE** — 47 tests in `tests/unit/blog/`: schedule, rotation, link sanitiser, HTML allowlist, retry classifier, RSS ranking, Telegram callbacks |
+
+## Still open
+
+- **Cover images.** The generator publishes without one. The other products crop
+  to 16:9 and re-encode as WebP; porting that here needs an image model choice
+  and a Storage write path, and is the single biggest remaining gap.
+- **`setWebhook` on save + a reconcile job.** Without them a revoked token or a
+  domain change leaves the Approve/Reject buttons dead with no signal in the
+  product: sending still works, only the taps go nowhere.
+- **The admin React tab.** Every server action exists and is tested; nothing
+  renders them yet.
+- **`types/database.types.ts` regeneration.** It is generated from the live
+  schema, so it does not know the new tables. The new code casts its rows
+  explicitly, which is why typecheck passes — regenerate after applying the
+  migration.
+- **GSD.** This repo's CLAUDE.md requires starting through a GSD command. The
+  `.claude/` directory is absent in the environment this ran in, so there was no
+  command to start; the work was done directly and is recorded here instead.
 
 ## Guardrails specific to this repo
 

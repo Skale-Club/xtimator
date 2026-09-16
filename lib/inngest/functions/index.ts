@@ -29,3 +29,5 @@ export { billingReconciliationJob } from './billing-reconciliation'
 // Phase 193-01 — first-view owner-notification email, moved off the public
 // share-page request path (see lib/inngest/events.ts's doc comment).
 export { estimateViewedNotificationJob } from './estimate-viewed-notification'
+// Auto-blog parity XT-09 — hourly generation sweep + RSS ingestion.
+export { autoBlogSweepJob, autoBlogRssFetchJob } from './autoblog'

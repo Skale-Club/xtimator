@@ -42,6 +42,16 @@ export type AuditAction =
   | 'platform_event.toggle'
   | 'notification_template.save'
   | 'notification_template.test_send'
+  // Auto-blog parity XT-12 — the automated blog changes what gets published
+  // under the company's name without a human writing it, so every knob that
+  // governs it is audited like the manual CRUD above.
+  | 'blog_automation.settings'
+  | 'blog_automation.generate_now'
+  | 'blog_automation.draft_approved'
+  | 'blog_automation.draft_rejected'
+  | 'blog_automation.rss_source_added'
+  | 'blog_automation.rss_source_deleted'
+  | 'blog_automation.telegram_settings'
 
 interface LogParams {
   actorId: string
