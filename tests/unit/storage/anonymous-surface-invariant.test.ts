@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Node's Blob, NOT jsdom's global one: jsdom's has no `.stream()`, and
+// `new Response(blob)` (undici's) calls it. See the same import in
+// tests/unit/api/storage-proxy-route.test.ts for the full reasoning —
+// production hands the route a platform Blob or a ReadableStream, so this is
+// the fixture matching reality, not a workaround.
+import { Blob } from 'node:buffer'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 

@@ -1,4 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Node's Blob, NOT jsdom's global one.
+//
+// This suite runs under vitest's jsdom environment, where `globalThis.Blob` is
+// jsdom's implementation — and jsdom's Blob has no `.stream()`. `new Response(body)`
+// is undici's, and it calls `.stream()` on a Blob body, so a jsdom Blob fixture
+// made every 200-path case fail with "object.stream is not a function" inside
+// the route, on a line the route never gets wrong in production.
+//
+// Production hands the route a real platform Blob (from `res.blob()`) or a
+// ReadableStream — see StoredAsset in lib/storage/asset-source.ts. Importing the
+// Node Blob is what makes the fixture the same KIND of object the route actually
+// receives, rather than papering over the mismatch with an ArrayBuffer that
+// undici accepts but production never sends.
+import { Blob } from 'node:buffer'
 
 /**
  * Phase 187 Plan 03 — PROXY-01..04: contract coverage for

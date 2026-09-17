@@ -434,6 +434,24 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'togglePostStatus',
     'updatePost',
   ]),
+  // Auto-blog operator actions (autoblog-parity XT-12). Each one calls
+  // requireAdmin() before touching anything, exactly like its siblings in
+  // ./actions.ts above, so none of them is reachable by a tenant or a demo
+  // principal. loadAutomationState is listed with them rather than as
+  // 'read-only' because what excludes it from the demo-write surface is the
+  // same admin gate, not the absence of a write.
+  ...excepted('app/admin/blog/automation-actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
+    'addRssSource',
+    'approveDraft',
+    'deleteRssSource',
+    'fetchRssNow',
+    'generateNow',
+    'loadAutomationState',
+    'rejectDraft',
+    'saveAutomationSettings',
+    'saveTelegramSettings',
+    'toggleRssSource',
+  ]),
   ...excepted('app/admin/branding/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
     'saveBranding',
   ]),
@@ -507,6 +525,33 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/api/billing/create-autotopup-setup-session/route.ts', 'demoGuardResponse', [
     'POST',
   ]),
+  // Auto-blog cron endpoints: CRON_SECRET bearer token checked before any work
+  // (isAuthorizedCron), so the caller is the org's scheduler, never a browser.
+  ...excepted(
+    'app/api/blog/cron/fetch-rss/route.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['POST'],
+  ),
+  ...excepted(
+    'app/api/blog/cron/generate/route.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['POST'],
+  ),
+  // Telegram approval callbacks. Public by necessity — Telegram's servers
+  // cannot authenticate any other way — and authenticated by the secret it
+  // echoes in X-Telegram-Bot-Api-Secret-Token, compared in constant time before
+  // any post is touched. A browser cannot forge it.
+  ...excepted(
+    'app/api/blog/telegram/webhook/route.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['POST'],
+  ),
   ...guarded('app/api/billing/create-checkout-session/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/billing/create-portal-session/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/billing/create-topup-session/route.ts', 'demoGuardResponse', ['POST']),
@@ -895,6 +940,17 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/inngest/functions/analyze-photos.ts', 'assertCompanyWritable', [
     'analyzePhotosJob',
   ]),
+  // Auto-blog scheduled jobs. They write the PLATFORM's own marketing blog —
+  // blog_posts/blog_settings carry no company_id and no tenant owns them — so
+  // there is no tenant row for assertCompanyWritable to guard. Fired by the
+  // Inngest scheduler on a cron, never by a browser.
+  ...excepted(
+    'lib/inngest/functions/autoblog.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['autoBlogRssFetchJob', 'autoBlogSweepJob'],
+  ),
   ...excepted(
     'lib/inngest/functions/cleanup-audio.ts',
     'machine-signed',
