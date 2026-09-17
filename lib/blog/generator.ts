@@ -31,6 +31,7 @@ import {
   slugifyTitle,
 } from '@/lib/blog/content-validator'
 import { isRunDue } from '@/lib/blog/schedule'
+import { generateCoverImage } from '@/lib/blog/cover-image'
 import {
   assignPillar,
   buildInternalLinksSection,
@@ -518,11 +519,28 @@ export async function generateBlogPost(opts: {
       )
     }
 
-    timings.image = null
-    timings.upload = 0
-
     const slug = await uniqueSlug(svc, generated.title)
     const publish = settings.auto_publish
+
+    // Autoblog-parity XT-06. Best-effort by construction: a post with no cover
+    // is a worse post, but a generation that DIED because an image model was
+    // busy is a missed publication, which is worse still. generateCoverImage
+    // never throws — null simply means no cover this time.
+    //
+    // The image and upload stages are not split here because they are one call:
+    // reporting a fabricated boundary between them would be worse than
+    // reporting the honest total under `image`.
+    const coverStarted = Date.now()
+    const cover = await generateCoverImage(svc, {
+      model: settings.image_model,
+      title: generated.title,
+      focusKeyword: generated.focusKeyword || null,
+      slug,
+    })
+    // null when the stage was SKIPPED (no model configured) — which is not the
+    // same as an image that took 0ms, and the contract distinguishes them.
+    timings.image = settings.image_model?.trim() ? Date.now() - coverStarted : null
+    timings.upload = 0
 
     const { data: postRow, error: postError } = await svc
       .from('blog_posts')
@@ -535,6 +553,7 @@ export async function generateBlogPost(opts: {
         focus_keyword: generated.focusKeyword || null,
         tags: generated.tags || null,
         author_name: 'Xtimator',
+        cover_image_url: cover?.url ?? null,
         reading_time_minutes: readingTimeMinutes(generated.content),
         ai_generated: true,
         status: publish ? 'published' : 'draft',
