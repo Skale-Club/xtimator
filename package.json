@@ -21,7 +21,8 @@
     "migrate:r2": "npx tsx scripts/r2-migrate.ts",
     "rewrite:asset-urls": "npx tsx scripts/rewrite-asset-urls.ts",
     "db:seed:demo": "node --env-file=.env.local scripts/seed-demo-workspace.mjs",
-    "db:seed:demo:reset": "node --env-file=.env.local scripts/seed-demo-workspace.mjs --reset"
+    "db:seed:demo:reset": "node --env-file=.env.local scripts/seed-demo-workspace.mjs --reset",
+    "db:migrate": "node scripts/apply-migrations.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.211",
