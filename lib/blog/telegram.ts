@@ -170,3 +170,97 @@ export async function sendDraftForApproval(
     ],
   })
 }
+
+// ─── Webhook registration (autoblog-parity XT-11) ───────────────────────────
+//
+// Approvals do nothing until Telegram is told where to deliver callbacks.
+// Registering it by hand was the gap: the panel could report "approvals on"
+// while no webhook existed, and the only symptom was buttons that did nothing.
+
+/** Where this app serves the callback. */
+export const TELEGRAM_WEBHOOK_PATH = '/api/blog/telegram/webhook'
+
+/**
+ * The public HTTPS URL Telegram must call.
+ *
+ * Telegram refuses a non-https webhook, and the scheme is never taken from a
+ * request — behind the proxy that is plain HTTP. Single site, so one
+ * process-wide base URL is the correct source here (it would NOT be on the
+ * multi-tenant products, where it would point every tenant's bot at one host).
+ */
+export function webhookUrl(): string | null {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || '').trim().replace(/\/+$/, '')
+  if (!base) return null
+  const host = base.replace(/^https?:\/\//i, '')
+  return host ? `https://${host}${TELEGRAM_WEBHOOK_PATH}` : null
+}
+
+/**
+ * Point the bot at our webhook. `allowed_updates` is narrowed to callback_query
+ * so the bot never receives chat messages it has no handler for, and a busy
+ * group cannot flood the endpoint.
+ */
+export async function setTelegramWebhook(
+  botToken: string,
+  url: string,
+  secretToken: string,
+): Promise<{ ok: boolean; message?: string }> {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/setWebhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, secret_token: secretToken, allowed_updates: ['callback_query'] }),
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    })
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string }
+    if (!res.ok || !json.ok) {
+      return { ok: false, message: json.description ?? `Telegram setWebhook failed (${res.status})` }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: (err as Error).message }
+  }
+}
+
+/** What Telegram currently believes the webhook is — the reconciler's input. */
+export async function getTelegramWebhookInfo(
+  botToken: string,
+): Promise<{ ok: boolean; url?: string; lastErrorMessage?: string; message?: string }> {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/getWebhookInfo`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    })
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      description?: string
+      result?: { url?: string; last_error_message?: string }
+    }
+    if (!res.ok || !json.ok) {
+      return { ok: false, message: json.description ?? `Telegram getWebhookInfo failed (${res.status})` }
+    }
+    return {
+      ok: true,
+      url: typeof json.result?.url === 'string' ? json.result.url : '',
+      lastErrorMessage: json.result?.last_error_message,
+    }
+  } catch (err) {
+    return { ok: false, message: (err as Error).message }
+  }
+}
+
+export async function deleteTelegramWebhook(botToken: string): Promise<{ ok: boolean; message?: string }> {
+  try {
+    const res = await fetch(`${TELEGRAM_API}/bot${botToken}/deleteWebhook`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(TELEGRAM_TIMEOUT_MS),
+    })
+    const json = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string }
+    if (!res.ok || !json.ok) {
+      return { ok: false, message: json.description ?? `Telegram deleteWebhook failed (${res.status})` }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, message: (err as Error).message }
+  }
+}

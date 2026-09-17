@@ -447,6 +447,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'fetchRssNow',
     'generateNow',
     'loadAutomationState',
+    'reconcileTelegramWebhook',
     'rejectDraft',
     'saveAutomationSettings',
     'saveTelegramSettings',

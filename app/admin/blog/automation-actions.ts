@@ -20,6 +20,13 @@ import { generateBlogPost } from '@/lib/blog/generator'
 import { fetchAllRssSources } from '@/lib/blog/rss'
 import { nextScheduledRun } from '@/lib/blog/schedule'
 import { parseTelegramTarget } from '@/lib/blog/contract'
+import {
+  deleteTelegramWebhook,
+  getTelegramWebhookInfo,
+  setTelegramWebhook,
+  webhookUrl,
+} from '@/lib/blog/telegram'
+import { randomBytes } from 'node:crypto'
 
 export type ActionResult<T = undefined> =
   | ({ ok: true } & (T extends undefined ? Record<string, never> : { data: T }))
@@ -412,16 +419,59 @@ export async function saveTelegramSettings(
   const svc = requireServiceClient()
   const { data: existing } = await svc
     .from('telegram_settings')
-    .select('bot_token')
+    .select('bot_token, approvals_bot_token, approvals_enabled, webhook_secret')
     .eq('id', 1)
     .maybeSingle()
+  const prev = existing as {
+    bot_token: string | null
+    approvals_bot_token: string | null
+    approvals_enabled: boolean | null
+    webhook_secret: string | null
+  } | null
 
   // The masked sentinel (or an omitted field) means "keep the stored token".
   const incoming = parsed.data.botToken?.trim()
-  const botToken =
-    !incoming || incoming === MASKED_TOKEN
-      ? ((existing as { bot_token: string | null } | null)?.bot_token ?? null)
-      : incoming
+  const botToken = !incoming || incoming === MASKED_TOKEN ? (prev?.bot_token ?? null) : incoming
+
+  // Autoblog-parity XT-11. Approvals do NOTHING until Telegram is told where to
+  // deliver callbacks, and registering that by hand was the gap: the panel could
+  // report "approvals on" while no webhook existed, and the only symptom was
+  // buttons that did nothing when pressed.
+  let webhookSecret = prev?.webhook_secret ?? null
+  if (parsed.data.approvalsEnabled) {
+    const approvalsToken = prev?.approvals_bot_token?.trim() || botToken?.trim() || null
+    if (!approvalsToken) {
+      return { ok: false, message: 'A Telegram bot token is required before blog approvals can be enabled.' }
+    }
+    const url = webhookUrl()
+    if (!url) {
+      return { ok: false, message: 'NEXT_PUBLIC_SITE_URL is not set, so there is no public URL for the Telegram webhook.' }
+    }
+    // Rotated on a FRESH enable — a secret that leaked while approvals were off
+    // must not still be valid when they come back on — but kept across a plain
+    // re-save, so saving the panel is not a silent invalidation of a working
+    // webhook.
+    if (!prev?.approvals_enabled || !webhookSecret) {
+      webhookSecret = randomBytes(32).toString('hex')
+    }
+    // Registration BEFORE persistence: storing approvals_enabled for a webhook
+    // Telegram rejected would leave a panel claiming a feature that cannot fire.
+    const registered = await setTelegramWebhook(approvalsToken, url, webhookSecret)
+    if (!registered.ok) {
+      return { ok: false, message: `Telegram rejected the webhook: ${registered.message}` }
+    }
+  } else if (prev?.approvals_enabled) {
+    const approvalsToken = prev.approvals_bot_token?.trim() || prev.bot_token?.trim() || null
+    if (approvalsToken) {
+      const removed = await deleteTelegramWebhook(approvalsToken)
+      if (!removed.ok) {
+        // Not fatal: the secret is dropped below, so the endpoint refuses every
+        // later delivery even if Telegram still holds the URL.
+        console.warn('[blog] could not deregister the Telegram webhook:', removed.message)
+      }
+    }
+    webhookSecret = null
+  }
 
   const { error } = await svc.from('telegram_settings').upsert(
     {
@@ -431,6 +481,7 @@ export async function saveTelegramSettings(
       chat_ids: chatIds,
       approvals_enabled: parsed.data.approvalsEnabled,
       approvals_chat_ids: approvalsChatIds,
+      webhook_secret: webhookSecret,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'id' },
@@ -448,4 +499,54 @@ export async function saveTelegramSettings(
 
   revalidatePath('/admin/blog')
   return { ok: true } as ActionResult
+}
+
+/**
+ * Re-register a webhook that went stale (autoblog-parity XT-11).
+ *
+ * Telegram silently drops a webhook whose URL stops resolving — after a domain
+ * change, or a long outage — and the only symptom is approval buttons that stop
+ * doing anything. Comparing what Telegram believes the URL is against what it
+ * should be is the difference between noticing in one click and noticing when
+ * someone asks why a draft was never published.
+ */
+export async function reconcileTelegramWebhook(): Promise<
+  ActionResult<{ reRegistered: boolean; previousUrl?: string; previousError?: string | null }>
+> {
+  await requireAdmin()
+  const svc = requireServiceClient()
+  const { data } = await svc
+    .from('telegram_settings')
+    .select('bot_token, approvals_bot_token, approvals_enabled, webhook_secret')
+    .eq('id', 1)
+    .maybeSingle()
+  const row = data as {
+    bot_token: string | null
+    approvals_bot_token: string | null
+    approvals_enabled: boolean | null
+    webhook_secret: string | null
+  } | null
+
+  if (!row?.approvals_enabled || !row.webhook_secret) {
+    return { ok: false, message: 'Blog approvals are not enabled.' }
+  }
+  const token = row.approvals_bot_token?.trim() || row.bot_token?.trim() || null
+  const url = webhookUrl()
+  if (!token || !url) {
+    return { ok: false, message: 'Telegram is not configured well enough to reconcile the webhook.' }
+  }
+
+  const info = await getTelegramWebhookInfo(token)
+  if (!info.ok) return { ok: false, message: info.message ?? 'Telegram did not answer.' }
+  if (info.url === url && !info.lastErrorMessage) {
+    return { ok: true, data: { reRegistered: false } }
+  }
+
+  const registered = await setTelegramWebhook(token, url, row.webhook_secret)
+  if (!registered.ok) return { ok: false, message: `Telegram rejected the webhook: ${registered.message}` }
+
+  return {
+    ok: true,
+    data: { reRegistered: true, previousUrl: info.url, previousError: info.lastErrorMessage ?? null },
+  }
 }

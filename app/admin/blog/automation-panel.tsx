@@ -24,8 +24,8 @@ import {
 import { T } from '@/components/i18n/t'
 import {
   addRssSource, approveDraft, deleteRssSource, fetchRssNow, generateNow,
-  loadAutomationState, rejectDraft, saveAutomationSettings, saveTelegramSettings,
-  toggleRssSource, type BlogAutomationSettingsInput,
+  loadAutomationState, reconcileTelegramWebhook, rejectDraft, saveAutomationSettings,
+  saveTelegramSettings, toggleRssSource, type BlogAutomationSettingsInput,
 } from './automation-actions'
 
 /** Matches the server: "keep the stored token", as opposed to clearing it. */
@@ -508,7 +508,21 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
             )} />
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          {/* Telegram silently drops a webhook whose URL stops resolving, and
+              the only symptom is approval buttons that stop working — so
+              checking has to be one click, not a support conversation. */}
+          {state.telegram.approvalsEnabled && (
+            <Button variant="ghost" disabled={pending}
+              onClick={() => startTransition(async () => {
+                const result = await reconcileTelegramWebhook()
+                if (!result.ok) { toast.error(result.message); return }
+                toast.success(result.data.reRegistered ? 'Webhook re-registered' : 'Webhook is healthy')
+                await refresh()
+              })}>
+              <T>Check webhook</T>
+            </Button>
+          )}
           <Button variant="secondary" disabled={pending}
             onClick={() => run(
               async () => {
