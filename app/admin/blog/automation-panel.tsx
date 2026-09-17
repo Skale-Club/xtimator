@@ -24,8 +24,9 @@ import {
 import { T } from '@/components/i18n/t'
 import {
   addRssSource, approveDraft, deleteRssSource, fetchRssNow, generateNow,
-  loadAutomationState, reconcileTelegramWebhook, rejectDraft, saveAutomationSettings,
-  saveTelegramSettings, toggleRssSource, type BlogAutomationSettingsInput,
+  loadAutomationState, previewPost, reconcileTelegramWebhook, rejectDraft,
+  saveAutomationSettings, savePreviewedPost, saveTelegramSettings, toggleRssSource,
+  type BlogAutomationSettingsInput,
 } from './automation-actions'
 
 /** Matches the server: "keep the stored token", as opposed to clearing it. */
@@ -42,6 +43,9 @@ const TIMEZONES = [
 // "No fixed time" is a real choice and must stay representable: it is the
 // behaviour with no hour pinned, and the only way back once one is set.
 const DRIFTING = 'drifting'
+
+type PreviewResult = Awaited<ReturnType<typeof previewPost>>
+type PreviewPayload = Extract<PreviewResult, { ok: true }>['data']
 
 type State = Awaited<ReturnType<typeof loadAutomationState>>
 export type AutomationState = Extract<State, { ok: true }>['data']
@@ -134,6 +138,7 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
   const [chatIdsText, setChatIdsText] = useState(() => initialState.telegram.chatIds.join('\n'))
   const [approvalChatIdsText, setApprovalChatIdsText] = useState(() => initialState.telegram.approvalsChatIds.join('\n'))
   const [botToken, setBotToken] = useState('')
+  const [preview, setPreview] = useState<PreviewPayload | null>(null)
 
   async function refresh() {
     const result = await loadAutomationState()
@@ -176,13 +181,28 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
               <T>The AI writes posts for your blog on a schedule. Every draft waits for your approval unless you turn that off.</T>
             </p>
           </div>
-          <Button
-            variant="secondary"
-            disabled={pending}
-            onClick={() => run(generateNow, 'Generation started')}
-          >
-            <T>Generate now</T>
-          </Button>
+          <div className="flex gap-2">
+            {/* Generate now publishes (or queues) straight away; Preview shows
+                what the current settings produce and saves nothing until asked. */}
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => startTransition(async () => {
+                const result = await previewPost()
+                if (!result.ok) { toast.error(result.message); return }
+                setPreview(result.data)
+              })}
+            >
+              <T>Preview</T>
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={pending}
+              onClick={() => run(generateNow, 'Generation started')}
+            >
+              <T>Generate now</T>
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -311,6 +331,60 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           </Button>
         </div>
       </Card>
+
+      {/* ── Preview ────────────────────────────────────────────────────── */}
+      {preview && (
+        <Card variant="glass" className="space-y-4 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold">{preview.title}</h2>
+              {preview.excerpt && <p className="mt-1 text-sm text-muted-foreground">{preview.excerpt}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {/* Which pillar and which subject source produced this — the two
+                    settings a preview exists to let someone judge. */}
+                <Badge variant="outline">{preview.pillarId}</Badge>
+                <Badge variant="outline">{preview.source}</Badge>
+                {preview.focusKeyword && <Badge variant="secondary">{preview.focusKeyword}</Badge>}
+                <span className="text-xs text-muted-foreground">/{preview.slug}</span>
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="ghost" disabled={pending} onClick={() => setPreview(null)}>
+                <T>Discard</T>
+              </Button>
+              <Button variant="secondary" disabled={pending}
+                onClick={() => run(
+                  async () => {
+                    const result = await savePreviewedPost({ ...preview, publish: false })
+                    // The preview is spent once saved: leaving it on screen
+                    // invites a second click that would duplicate the post.
+                    if (result.ok) setPreview(null)
+                    return result
+                  },
+                  'Saved as a draft',
+                )}>
+                <T>Save as draft</T>
+              </Button>
+              <Button variant="primary" disabled={pending}
+                onClick={() => run(
+                  async () => {
+                    const result = await savePreviewedPost({ ...preview, publish: true })
+                    if (result.ok) setPreview(null)
+                    return result
+                  },
+                  'Published',
+                )}>
+                <T>Publish</T>
+              </Button>
+            </div>
+          </div>
+          {/* Server-sanitised through the same allowlist the real pipeline uses,
+              and re-sanitised on save — this pane is never the only thing
+              standing between the model and a live page. */}
+          <div className="prose prose-sm max-w-none dark:prose-invert"
+            dangerouslySetInnerHTML={{ __html: preview.content }} />
+        </Card>
+      )}
 
       {/* ── Approval queue ─────────────────────────────────────────────── */}
       <Card variant="glass" className="space-y-4 p-6">

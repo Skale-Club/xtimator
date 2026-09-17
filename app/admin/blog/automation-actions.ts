@@ -16,7 +16,9 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { generateBlogPost } from '@/lib/blog/generator'
+import { generateBlogPost, previewBlogPost } from '@/lib/blog/generator'
+import { getPlainTextLength, sanitizeBlogHtml } from '@/lib/blog/content-validator'
+import { MAX_PLAIN_TEXT_CHARS, MIN_PLAIN_TEXT_CHARS } from '@/lib/blog/contract'
 import { fetchAllRssSources } from '@/lib/blog/rss'
 import { nextScheduledRun } from '@/lib/blog/schedule'
 import { parseTelegramTarget } from '@/lib/blog/contract'
@@ -549,4 +551,106 @@ export async function reconcileTelegramWebhook(): Promise<
     ok: true,
     data: { reRegistered: true, previousUrl: info.url, previousError: info.lastErrorMessage ?? null },
   }
+}
+
+/**
+ * Generate a post without saving it (autoblog-parity XT-10).
+ *
+ * "Generate now" publishes or queues immediately. This is how someone sees what
+ * the current prompts, pillar rotation and models actually produce before
+ * turning automation on — a misconfiguration there is visible in the output and
+ * nowhere else.
+ */
+export async function previewPost(): Promise<
+  ActionResult<Awaited<ReturnType<typeof previewBlogPost>> extends { ok: true; preview: infer P } | { ok: false; reason: string } ? P : never>
+> {
+  const ctx = await requireAdmin()
+  const result = await previewBlogPost()
+  if (!result.ok) return { ok: false, message: result.reason }
+
+  await logAdminAction({
+    action: 'blog_automation.preview',
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    // A preview is a real, billed provider call, so it belongs in the audit
+    // log even though it changed nothing.
+    metadata: { pillarId: result.preview.pillarId, source: result.preview.source },
+  })
+
+  return { ok: true, data: result.preview }
+}
+
+const fromPreviewSchema = z.object({
+  title: z.string().min(1).max(300),
+  content: z.string().min(1),
+  excerpt: z.string().max(1000).optional(),
+  metaDescription: z.string().max(500).optional(),
+  focusKeyword: z.string().max(200).optional(),
+  tags: z.string().max(500).optional(),
+  slug: z.string().min(1).max(300),
+  publish: z.boolean(),
+  rssItemId: z.string().uuid().nullable().optional(),
+})
+
+/** Save a preview the admin decided to keep. */
+export async function savePreviewedPost(input: z.infer<typeof fromPreviewSchema>): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const parsed = fromPreviewSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? 'Validation failed' }
+  }
+
+  // Re-sanitised rather than trusted: the payload made a round trip through a
+  // browser, so by the time it comes back it is ordinary user input. An admin
+  // who edited the HTML in the preview pane is exactly the path that would
+  // otherwise put a <script> on a live page.
+  const content = sanitizeBlogHtml(parsed.data.content)
+  const plainTextLength = getPlainTextLength(content)
+  if (plainTextLength < MIN_PLAIN_TEXT_CHARS || plainTextLength > MAX_PLAIN_TEXT_CHARS) {
+    return {
+      ok: false,
+      message: `content_length_out_of_bounds: ${plainTextLength} plain-text chars, expected ${MIN_PLAIN_TEXT_CHARS}-${MAX_PLAIN_TEXT_CHARS}`,
+    }
+  }
+
+  const svc = requireServiceClient()
+  const now = new Date().toISOString()
+  const { data: postRow, error } = await svc
+    .from('blog_posts')
+    .insert({
+      title: parsed.data.title,
+      slug: parsed.data.slug,
+      content,
+      excerpt: parsed.data.excerpt || null,
+      meta_description: parsed.data.metaDescription || null,
+      focus_keyword: parsed.data.focusKeyword || null,
+      tags: parsed.data.tags || null,
+      author_name: 'Xtimator',
+      ai_generated: true,
+      status: parsed.data.publish ? 'published' : 'draft',
+      published_at: parsed.data.publish ? now : null,
+    })
+    .select('id')
+    .single()
+  if (error) return { ok: false, message: error.message }
+
+  // Only now: the item is spent when a post about it actually exists.
+  if (parsed.data.rssItemId) {
+    await svc
+      .from('blog_rss_items')
+      .update({ status: 'used', used_at: now, used_post_id: (postRow as { id: string }).id })
+      .eq('id', parsed.data.rssItemId)
+      .then(undefined, () => undefined)
+  }
+
+  await logAdminAction({
+    action: parsed.data.publish ? 'blog_automation.draft_approved' : 'blog_automation.preview_saved',
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    metadata: { postId: (postRow as { id: string }).id, publish: parsed.data.publish },
+  })
+
+  revalidatePath('/admin/blog')
+  revalidatePath('/blog')
+  return { ok: true } as ActionResult
 }

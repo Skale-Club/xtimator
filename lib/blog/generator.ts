@@ -655,3 +655,128 @@ function hashSeed(id: string): number {
   for (let i = 0; i < id.length; i++) h = (h * 33) ^ id.charCodeAt(i)
   return Math.abs(h | 0)
 }
+
+/**
+ * Generate a post WITHOUT persisting anything (autoblog-parity XT-10).
+ *
+ * Same settings, same pillar rotation, same system message, same link
+ * sanitiser, same tag allowlist and the same length bounds as a real run — a
+ * preview that skipped any of those would show something the pipeline would
+ * never actually publish, which is worse than no preview.
+ *
+ * What it deliberately does NOT do:
+ *   - take the generation lock. A preview must not block the scheduled run
+ *     behind someone poking at the panel.
+ *   - write a job row. That table records what the SCHEDULE did, and filling it
+ *     with discarded previews makes the history useless and the cadence stats
+ *     wrong.
+ *   - advance last_run_at, mark an RSS item used, or generate a cover. Nothing
+ *     is being published, and a cover costs a second model call for an image
+ *     that would be thrown away.
+ *
+ * The rotation seed comes from the clock rather than a job id: there is no job,
+ * and it only decides which pillar and title shape this preview demonstrates.
+ */
+export async function previewBlogPost(): Promise<
+  | { ok: false; reason: string }
+  | {
+      ok: true
+      preview: {
+        title: string
+        slug: string
+        content: string
+        excerpt: string
+        metaDescription: string
+        focusKeyword: string
+        tags: string
+        pillarId: string
+        source: BlogJobSource
+        topic: string
+        rssItemId: string | null
+      }
+    }
+> {
+  const svc = requireServiceClient()
+  const settings = await loadBlogSettings(svc)
+  if (!settings) return { ok: false, reason: 'no_settings' }
+
+  const apiKey = await getIntegrationKey('openrouter').catch(() => null)
+  const textModel = settings.text_model?.trim()
+  if (!apiKey || !textModel) return { ok: false, reason: 'not_configured' }
+
+  try {
+    let rssItem: RssItemRow | null = null
+    if (settings.rss_enabled) {
+      try {
+        rssItem = (await selectNextRssItem(svc, settings.seo_keywords, new Date()))?.item ?? null
+      } catch {
+        // A missing table or a transient read must never cost the preview.
+      }
+    }
+
+    const { data: recentJobs } = await svc
+      .from('blog_generation_jobs')
+      .select('pillar_id')
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(12)
+    const recentPillarIds = ((recentJobs ?? []) as Array<{ pillar_id: string | null }>)
+      .map((j) => j.pillar_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+    const assignment = assignPillar(recentPillarIds, { hasRssItem: !!rssItem }, Date.now())
+    const { systemMessage, allowedLinkPaths } = await buildSystemMessage(svc, settings, assignment, rssItem)
+
+    const topic = (
+      await callTextModel(
+        apiKey,
+        textModel,
+        systemMessage,
+        rssItem
+          ? 'Turn the SOURCE MATERIAL into a single blog post topic, shaped by the EDITORIAL ASSIGNMENT. The topic must be about what the source means for our reader, not a retelling of it. Return ONLY the topic, nothing else.'
+          : 'Propose a single blog post topic that fulfils the EDITORIAL ASSIGNMENT: its pillar, its title shape, one subject. Return ONLY the topic, nothing else.',
+      )
+    ).trim()
+
+    const raw = await callTextModel(
+      apiKey,
+      textModel,
+      systemMessage,
+      [
+        `Write the post about "${topic}", following the EDITORIAL ASSIGNMENT (pillar, title shape, length target).`,
+        'Return strictly valid JSON with exactly these fields:',
+        '{"title":"","content":"","excerpt":"","metaDescription":"","focusKeyword":"","tags":""}',
+        'content is publication-ready HTML using ONLY <p>, <h2>, <h3>, <ul>, <ol>, <li>, <strong>, <em>, <a>, <blockquote>. No <h1>, no <html>/<body>, no images, no scripts.',
+        'tags is a comma-separated list of 3-5 tags. metaDescription is under 160 characters.',
+        'Do not wrap the JSON in a markdown code block.',
+      ].join('\n\n'),
+    )
+
+    const generated = parseGeneratedPost(raw)
+    generated.content = sanitizeBlogHtml(sanitizeGeneratedLinks(generated.content, allowedLinkPaths))
+
+    const plainTextLength = getPlainTextLength(generated.content)
+    if (plainTextLength < MIN_PLAIN_TEXT_CHARS || plainTextLength > MAX_PLAIN_TEXT_CHARS) {
+      return {
+        ok: false,
+        reason: `content_length_out_of_bounds: ${plainTextLength} plain-text chars, expected ${MIN_PLAIN_TEXT_CHARS}-${MAX_PLAIN_TEXT_CHARS}`,
+      }
+    }
+
+    return {
+      ok: true,
+      preview: {
+        ...generated,
+        // The real slug, uniqueness included, so saving cannot surprise anyone
+        // with a different URL than the one previewed.
+        slug: await uniqueSlug(svc, generated.title),
+        pillarId: assignment.pillar.id,
+        source: rssItem ? 'rss' : 'pillar',
+        topic,
+        rssItemId: rssItem?.id ?? null,
+      },
+    }
+  } catch (err) {
+    return { ok: false, reason: (err as Error).message }
+  }
+}
