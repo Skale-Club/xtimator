@@ -50,6 +50,7 @@ export type AuditAction =
   | 'blog_automation.draft_approved'
   | 'blog_automation.draft_rejected'
   | 'blog_automation.rss_source_added'
+  | 'blog_automation.rss_source_toggled'
   | 'blog_automation.rss_source_deleted'
   | 'blog_automation.telegram_settings'
 

@@ -99,6 +99,15 @@ export async function loadAutomationState(): Promise<
     nextScheduledRunAt: string | null
     recentJobs: Array<Record<string, unknown>>
     pendingDrafts: Array<Record<string, unknown>>
+    rssSources: Array<Record<string, unknown>>
+    pendingRssItems: number
+    telegram: {
+      enabled: boolean
+      approvalsEnabled: boolean
+      hasBotToken: boolean
+      chatIds: string[]
+      approvalsChatIds: string[]
+    }
   }>
 > {
   await requireAdmin()
@@ -120,6 +129,34 @@ export async function loadAutomationState(): Promise<
     .order('created_at', { ascending: false })
     .limit(50)
 
+  const { data: rssSources } = await svc
+    .from('blog_rss_sources')
+    .select('id, name, url, enabled, last_fetched_at, last_fetched_status, error_message')
+    .order('created_at', { ascending: true })
+
+  // A count, not the rows: the panel only reports how much is queued, and
+  // pulling fifty item bodies to render one number is waste.
+  const { count: pendingRssItems } = await svc
+    .from('blog_rss_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+
+  // The bot token is NEVER returned — the panel only needs to know one is
+  // stored, and a token that reaches a browser is a token in a browser's
+  // memory, its devtools and its extensions.
+  const { data: telegram } = await svc
+    .from('telegram_settings')
+    .select('enabled, bot_token, chat_ids, approvals_enabled, approvals_chat_ids')
+    .eq('id', 1)
+    .maybeSingle()
+  const tg = telegram as {
+    enabled: boolean | null
+    bot_token: string | null
+    chat_ids: string[] | null
+    approvals_enabled: boolean | null
+    approvals_chat_ids: string[] | null
+  } | null
+
   const row = settings as { posting_hour: number | null; posts_per_day: number; timezone: string } | null
 
   return {
@@ -140,6 +177,15 @@ export async function loadAutomationState(): Promise<
         : null,
       recentJobs: (jobs ?? []) as Array<Record<string, unknown>>,
       pendingDrafts: (drafts ?? []) as Array<Record<string, unknown>>,
+      rssSources: (rssSources ?? []) as Array<Record<string, unknown>>,
+      pendingRssItems: pendingRssItems ?? 0,
+      telegram: {
+        enabled: tg?.enabled ?? false,
+        approvalsEnabled: tg?.approvals_enabled ?? false,
+        hasBotToken: Boolean(tg?.bot_token),
+        chatIds: tg?.chat_ids ?? [],
+        approvalsChatIds: tg?.approvals_chat_ids ?? [],
+      },
     },
   }
 }
@@ -265,6 +311,27 @@ export async function addRssSource(input: z.infer<typeof rssSourceSchema>): Prom
   if (error) return { ok: false, message: error.message }
 
   await logAdminAction({ action: 'blog_automation.rss_source_added', actorId: ctx.userId, actorEmail: ctx.email, metadata: { url: parsed.data.url } })
+  revalidatePath('/admin/blog')
+  return { ok: true } as ActionResult
+}
+
+/**
+ * Pause a feed without losing it.
+ *
+ * The alternative people reach for is deleting and re-adding, which throws away
+ * every item already ingested from it and re-ingests the publisher's whole
+ * current window as if it were new.
+ */
+export async function toggleRssSource(id: string, enabled: boolean): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const svc = requireServiceClient()
+  const { error } = await svc
+    .from('blog_rss_sources')
+    .update({ enabled, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) return { ok: false, message: error.message }
+
+  await logAdminAction({ action: 'blog_automation.rss_source_toggled', actorId: ctx.userId, actorEmail: ctx.email, metadata: { id, enabled } })
   revalidatePath('/admin/blog')
   return { ok: true } as ActionResult
 }

@@ -57,7 +57,9 @@ test("an unusable entry is dropped rather than half-parsed", () => {
 test("formatting is the exact inverse of parsing", () => {
   for (const raw of ["123456789", "-1001234567890", "-1001234567890:42"]) {
     const parsed = parseTelegramTarget(raw);
-    expect(parsed, `expected ${raw} to parse`).toBeTruthy();
+    // Asserted rather than expect()-ed so the type narrows: expect().toBeTruthy()
+    // is not a type guard, and the whole-repo typecheck reads this file too.
+    if (!parsed) throw new Error(`expected ${raw} to parse`);
     expectEqual(formatTelegramTarget(parsed), raw);
   }
 });
