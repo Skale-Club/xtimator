@@ -525,6 +525,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ),
   ...guarded('app/api/analyze-photos/route.ts', 'demoGuardResponse', ['POST']),
   ...excepted('app/api/auth/keepalive/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  // O feed RSS do blog: lê posts publicados e devolve XML. Não toca em estado
+  // nenhum, e é lido por leitores de feeds e rastreadores, nunca por um sessão.
+  ...excepted('app/blog/rss.xml/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...guarded('app/api/billing/create-autotopup-setup-session/route.ts', 'demoGuardResponse', [
     'POST',
   ]),

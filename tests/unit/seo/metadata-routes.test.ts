@@ -12,6 +12,11 @@ vi.mock('@/lib/queries/blog', () => ({
       updated_at: '2026-07-02T00:00:00.000Z',
     },
   ]),
+  // O sitemap passou a listar também as etiquetas e os arquivos que EXISTEM.
+  // O mock declara-os porque um mock incompleto faria o módulo real ser
+  // carregado para as funções em falta — e aí o teste tocaria na base de dados.
+  getBlogArchive: vi.fn().mockResolvedValue([{ year: 2026, month: 7, count: 1 }]),
+  getBlogTags: vi.fn().mockResolvedValue([{ slug: 'pricing', name: 'Pricing', count: 1 }]),
 }))
 
 describe('SEO metadata routes', () => {
@@ -33,6 +38,12 @@ describe('SEO metadata routes', () => {
     const urls = result.map((entry) => entry.url)
     expect(urls).toContain('https://xtimator.com/')
     expect(urls).toContain('https://xtimator.com/blog/estimating-guide')
+    expect(urls).toContain('https://xtimator.com/blog/tag/pricing')
+    // Só os arquivos que existem: o ano e o mês vêm da contagem, nunca de um
+    // ciclo de 1 a 12 — o sitemap não pode prometer páginas que dão 404.
+    expect(urls).toContain('https://xtimator.com/blog/archive/2026')
+    expect(urls).toContain('https://xtimator.com/blog/archive/2026/07')
+    expect(urls.filter((url) => url.includes('/blog/archive/'))).toHaveLength(2)
     expect(urls.every((url) => !/\/(admin|api|demo|estimate|settings)(\/|$)/.test(url))).toBe(true)
   })
 })
