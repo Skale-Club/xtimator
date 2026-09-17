@@ -4,7 +4,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // tests/unit/api/storage-proxy-route.test.ts for the full reasoning —
 // production hands the route a platform Blob or a ReadableStream, so this is
 // the fixture matching reality, not a workaround.
-import { Blob } from 'node:buffer'
+import { Blob as NodeBlob } from 'node:buffer'
+
+// TypeScript resolves the bare name `Blob` to the DOM lib type, which is not
+// the same declaration as node:buffer's even though at runtime — outside
+// jsdom, which is where this code actually runs — globalThis.Blob IS
+// node:buffer's Blob. The alias keeps StoredAsset's `body: ... | Blob` (the DOM
+// one) satisfied without widening a production type for a test's benefit.
+const Blob = NodeBlob as unknown as typeof globalThis.Blob
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 

@@ -152,7 +152,11 @@ describe('generateCoverImage', () => {
 
     await generateCoverImage({} as never, ARGS)
 
-    const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string)
+    // `vi.fn(async () => ...)` infers a zero-arg signature, so the recorded
+    // call tuple is typed empty. The cast is on the ARGUMENT shape only — the
+    // assertions below still read the real recorded request.
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
     expect(body.modalities).toEqual(['image', 'text'])
     expect(body.model).toBe('test/image-model')
     const prompt: string = body.messages[0].content

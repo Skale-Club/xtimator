@@ -12,7 +12,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Node Blob is what makes the fixture the same KIND of object the route actually
 // receives, rather than papering over the mismatch with an ArrayBuffer that
 // undici accepts but production never sends.
-import { Blob } from 'node:buffer'
+import { Blob as NodeBlob } from 'node:buffer'
+
+// TypeScript resolves the bare name `Blob` to the DOM lib type, which is not
+// the same declaration as node:buffer's even though at runtime — outside
+// jsdom, which is where this code actually runs — globalThis.Blob IS
+// node:buffer's Blob. The alias keeps StoredAsset's `body: ... | Blob` (the DOM
+// one) satisfied without widening a production type for a test's benefit.
+const Blob = NodeBlob as unknown as typeof globalThis.Blob
 
 /**
  * Phase 187 Plan 03 — PROXY-01..04: contract coverage for
