@@ -1,4 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Node's Blob, NOT jsdom's global one.
+//
+// This suite runs under vitest's jsdom environment, where `globalThis.Blob` is
+// jsdom's implementation — and jsdom's Blob has no `.stream()`. `new Response(body)`
+// is undici's, and it calls `.stream()` on a Blob body, so a jsdom Blob fixture
+// made every 200-path case fail with "object.stream is not a function" inside
+// the route, on a line the route never gets wrong in production.
+//
+// Production hands the route a real platform Blob (from `res.blob()`) or a
+// ReadableStream — see StoredAsset in lib/storage/asset-source.ts. Importing the
+// Node Blob is what makes the fixture the same KIND of object the route actually
+// receives, rather than papering over the mismatch with an ArrayBuffer that
+// undici accepts but production never sends.
+import { Blob as NodeBlob } from 'node:buffer'
+
+// TypeScript resolves the bare name `Blob` to the DOM lib type, which is not
+// the same declaration as node:buffer's even though at runtime — outside
+// jsdom, which is where this code actually runs — globalThis.Blob IS
+// node:buffer's Blob. The alias keeps StoredAsset's `body: ... | Blob` (the DOM
+// one) satisfied without widening a production type for a test's benefit.
+const Blob = NodeBlob as unknown as typeof globalThis.Blob
 
 /**
  * Phase 187 Plan 03 — PROXY-01..04: contract coverage for

@@ -181,6 +181,7 @@ const STORAGE_SEAM_MANIFEST: Row[] = [
   { id: 'lib/actions/price-book.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/recording.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/settings.ts#serverStorage', disposition: 'server-provider' },
+  { id: 'lib/blog/cover-image.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/estimate/adapters/whatsapp.ts#getServerStorage', disposition: 'server-provider' },
   {
     id: 'lib/inngest/functions/analyze-photos.ts#serverStorage',

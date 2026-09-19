@@ -3,6 +3,8 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type { BlogPost } from '@/lib/queries/blog'
 import { BlogPostActions } from './blog-post-actions'
+import { BlogAutomationPanel } from './automation-panel'
+import { loadAutomationState } from './automation-actions'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +21,11 @@ export default async function AdminBlogPage() {
     .order('created_at', { ascending: false })
 
   const posts = (data ?? []) as BlogPost[]
+
+  // Read here rather than in a client effect: the panel then renders with real
+  // values instead of flashing empty, and this page is already admin-gated and
+  // already awaiting Supabase.
+  const automation = await loadAutomationState()
 
   return (
     <div className="space-y-8">
@@ -88,6 +95,11 @@ export default async function AdminBlogPage() {
           </table>
         )}
       </Card>
+
+      {/* Autoblog-parity XT-12. Every server action behind this panel already
+          existed; without it, automated posting could only be configured by
+          editing rows in Supabase, which is not a feature anyone can use. */}
+      {automation.ok && <BlogAutomationPanel initialState={automation.data} />}
     </div>
   )
 }
