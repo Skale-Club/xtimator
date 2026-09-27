@@ -12,7 +12,9 @@ Sentry.init({
   // debugging; only images/video are blocked.
   sendDefaultPii: false,
   tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
-  replaysSessionSampleRate: 0.05,
+  // Only record replays when an error happens: session replays of normal traffic
+  // burned the org-wide Sentry replay quota. Errors still get a full replay.
+  replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
   enableLogs: true,
   // Session Replay is loaded lazily AFTER init (see loadReplay below) so its
