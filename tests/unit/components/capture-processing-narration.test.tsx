@@ -215,6 +215,7 @@ describe('CaptureProcessingOverlay: checklist (260927)', () => {
         completedSteps={['save_recording']}
         activeStep="generate_estimate"
         activeStepStartedAt={ago(10)}
+        showLeaveHint
         onContinueInBackground={onContinue}
       />
     )
@@ -223,6 +224,20 @@ describe('CaptureProcessingOverlay: checklist (260927)', () => {
     )
     fireEvent.click(screen.getByTestId('capture-continue-in-background'))
     expect(onContinue).toHaveBeenCalledOnce()
+  })
+
+  it('never claims leaving is safe before the capture is dispatched', () => {
+    render(
+      <CaptureProcessingOverlay
+        stage="saving"
+        mode="audio"
+        completedSteps={[]}
+        activeStep={null}
+        activeStepStartedAt={null}
+      />
+    )
+    expect(screen.queryByTestId('capture-processing-leave-hint')).toBeNull()
+    expect(screen.queryByTestId('capture-continue-in-background')).toBeNull()
   })
 
   it('keeps the plain loader for callers that pass no mode', () => {

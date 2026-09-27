@@ -51,6 +51,12 @@ export interface CaptureProcessingOverlayProps {
    */
   onContinueInBackground?: () => void
   /**
+   * 260927: say that leaving is safe. Only true once the attempt is
+   * DISPATCHED: while the capture is still uploading ('saving'), leaving would
+   * lose it, and the screen must not claim otherwise.
+   */
+  showLeaveHint?: boolean
+  /**
    * Positioning. `overlay` (default) covers its positioned parent, as in the
    * New Xtimate popup. `inline` flows in the page, for surfaces that render it
    * as the page's main content (the fullscreen /capture route, the project
@@ -72,6 +78,7 @@ export function CaptureProcessingOverlay({
   stepTimings,
   phaseVisits,
   onContinueInBackground,
+  showLeaveHint = false,
   layout = 'overlay',
 }: CaptureProcessingOverlayProps) {
   // useAppTranslation, not useTranslation: in the New Xtimate popup this
@@ -190,7 +197,7 @@ export function CaptureProcessingOverlay({
 
         <CaptureProgressChecklist rows={snapshot.rows} mode={mode} t={t} />
 
-        {!isDone && (
+        {!isDone && showLeaveHint && (
           <div className="space-y-2 border-t pt-4 text-center">
             <p className="text-xs text-muted-foreground" data-testid="capture-processing-leave-hint">
               {t('You can leave this screen. The estimate keeps generating and we will let you know when it is ready.')}

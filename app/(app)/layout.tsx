@@ -27,6 +27,7 @@ import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
+import { BackgroundGenerationWatcher } from '@/components/capture/background-generation-watcher'
 import { ChatBubble } from '@/components/chat/chat-bubble'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
@@ -136,6 +137,7 @@ export default async function AppShellLayout({
               <BottomNav isDemo={false} />
               <NewProjectDialog />
               <EstimateCreationPopup />
+              <BackgroundGenerationWatcher />
               <TranslationLoadingOverlay />
               <UpgradeModal />
               <WelcomeModal />
@@ -277,6 +279,7 @@ export default async function AppShellLayout({
           {!isDemo && <ChatBubble chatEnabled={chatEnabled} />}
           <NewProjectDialog />
           <EstimateCreationPopup />
+          <BackgroundGenerationWatcher />
           <TranslationLoadingOverlay />
           <UpgradeModal />
           <WelcomeModal />

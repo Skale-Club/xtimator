@@ -34,6 +34,8 @@ import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { useWakeLock } from '@/hooks/use-wake-lock'
+import { addBackgroundGeneration } from '@/lib/estimate/background-generations'
+import { isPlaceholderName } from '@/lib/constants/project'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { CaptureMode } from '@/components/projects/estimate-creation-popup'
@@ -247,11 +249,10 @@ export function CaptureRecorder({
   variant = 'fullscreen',
   mode,
   onComplete,
-  // onCancel is part of the public prop signature so callers (e.g. estimate-creation-popup)
-  // can keep passing handleCancel. After the 260525-wdj fix, "Edit manually" always pushes
-  // to /projects/{projectId} via router.push, so the recorder itself never calls onCancel —
-  // the popup chrome (Dialog onOpenChange) owns the X/overlay close path.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // onCancel: after the 260525-wdj fix, "Edit manually" always pushes to
+  // /projects/{projectId} via router.push, and the popup chrome (Dialog
+  // onOpenChange) owns the X/overlay close path. 260927: the recorder calls it
+  // for "Continue in the background", to close the popup it lives in.
   onCancel,
   estimateLanguage: estimateLanguageProp,
   setEstimateLanguage: setEstimateLanguageProp,
@@ -651,6 +652,49 @@ export function CaptureRecorder({
     abortControllerRef.current?.abort()
   }, [])
 
+  // 260927: true while this recorder is watching a DISPATCHED attempt (the
+  // server owns the pipeline from that point). Leaving now is safe for the
+  // estimate; what it used to lose was the operator hearing about the result.
+  const watchingRef = useRef(false)
+
+  // Hands the watched attempt to the app-shell watcher
+  // (components/capture/background-generation-watcher.tsx), which keeps reading
+  // the journal and announces the outcome wherever the operator went.
+  const handOffToBackground = useCallback(() => {
+    const attemptId = attemptIdRef.current
+    if (!watchingRef.current || !attemptId) return
+    addBackgroundGeneration({
+      attemptId,
+      projectId,
+      projectName: isPlaceholderName(project.name) ? undefined : project.name,
+      since: new Date().toISOString(),
+    })
+  }, [projectId, project.name])
+
+  // Closing the popup (X, Escape, outside click) or navigating away mid-run.
+  const handOffRef = useRef(handOffToBackground)
+  useEffect(() => {
+    handOffRef.current = handOffToBackground
+  }, [handOffToBackground])
+  useEffect(() => () => handOffRef.current(), [])
+
+  // "Continue in the background": the same hand-off, on purpose. Asks for
+  // notification permission first, inside the click, since browsers only
+  // grant the prompt from a user gesture.
+  const handleContinueInBackground = useCallback(() => {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission().catch(() => {})
+      }
+    } catch {
+      // Notifications unsupported: the in-app notice still fires.
+    }
+    handOffToBackground()
+    if (onCancel) onCancel()
+    else router.push(`/projects/${projectId}`)
+  }, [handOffToBackground, onCancel, router, projectId])
+
+
   // Revoke all photo preview object URLs on unmount (no leaks).
   useEffect(() => () => {
     for (const it of photoItemsRef.current) URL.revokeObjectURL(it.previewUrl)
@@ -727,6 +771,25 @@ export function CaptureRecorder({
       phaseVisits: progress.phaseVisits,
     })
   }, [])
+
+  // Every dispatch path watches its outcome through here, so watchingRef is
+  // set for exactly as long as a dispatched attempt is being watched.
+  const watchOutcome = useCallback(async () => {
+    watchingRef.current = true
+    try {
+      return await pollEstimateOutcome({
+        projectId,
+        previousEstimateId: previousEstimateIdRef.current ?? null,
+        signal: abortControllerRef.current.signal,
+        attemptId: attemptIdRef.current ?? undefined,
+        onStageProgress: handleStageProgress,
+      })
+    } finally {
+      // An abort means the recorder is unmounting: the hand-off above still
+      // needs to see this attempt as watched, so only a settled poll clears it.
+      if (!abortControllerRef.current.signal.aborted) watchingRef.current = false
+    }
+  }, [projectId, handleStageProgress])
 
   // 260707-hhp (P1 client half): shared outcome handling for all three
   // dispatch-and-watch paths (audio/text/photos) — completed → done/onComplete;
@@ -966,13 +1029,7 @@ export function CaptureRecorder({
 
     setStage('transcribing')
     try {
-      const outcome = await pollEstimateOutcome({
-        projectId,
-        previousEstimateId: previousEstimateIdRef.current ?? null,
-        signal: abortControllerRef.current.signal,
-        attemptId: attemptIdRef.current ?? undefined,
-        onStageProgress: handleStageProgress,
-      })
+      const outcome = await watchOutcome()
 
       handleEstimateOutcome(
         outcome,
@@ -982,7 +1039,7 @@ export function CaptureRecorder({
       if (isAbortSignal(err)) return  // unmount; not a user-facing failure
       failAt('generating', (err as Error).message ?? t('Estimate generation failed'))
     }
-  }, [projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, t, failAt, handleEstimateOutcome, pendingCaptureKey])
+  }, [projectId, estimateLanguage, ensureAttempt, captureOutcomeBaseline, watchOutcome, ensureStepMedians, t, failAt, handleEstimateOutcome, pendingCaptureKey])
 
   // Mirror the latest runPipeline closure into a ref — recorder.onstop is bound
   // ONCE at recording start and must invoke the LATEST closure (fresh
@@ -1043,13 +1100,7 @@ export function CaptureRecorder({
       if ('error' in recording) { failAt('saving', recording.error ?? t('Failed to save description')); return }
       setStage('generating')
       try {
-        const outcome = await pollEstimateOutcome({
-          projectId,
-          previousEstimateId: previousEstimateIdRef.current ?? null,
-          signal: abortControllerRef.current.signal,
-          attemptId: attemptIdRef.current ?? undefined,
-          onStageProgress: handleStageProgress,
-        })
+        const outcome = await watchOutcome()
         handleEstimateOutcome(
           outcome,
           t('Description too vague — please add more detail with specific tasks, materials, and quantities')
@@ -1088,13 +1139,7 @@ export function CaptureRecorder({
           return
         }
 
-        const outcome = await pollEstimateOutcome({
-          projectId,
-          previousEstimateId: previousEstimateIdRef.current ?? null,
-          signal: abortControllerRef.current.signal,
-          attemptId: attemptIdRef.current ?? undefined,
-          onStageProgress: handleStageProgress,
-        })
+        const outcome = await watchOutcome()
 
         handleEstimateOutcome(
           outcome,
@@ -1105,7 +1150,7 @@ export function CaptureRecorder({
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, handleStageProgress, ensureStepMedians, failAt, handleEstimateOutcome])
+  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, watchOutcome, ensureStepMedians, failAt, handleEstimateOutcome])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -1355,6 +1400,8 @@ export function CaptureRecorder({
               failedCount={attemptProgress.failedCount}
               stepTimings={attemptProgress.stepTimings}
               phaseVisits={attemptProgress.phaseVisits}
+              showLeaveHint={stage !== 'saving'}
+              onContinueInBackground={stage === 'saving' ? undefined : handleContinueInBackground}
             />
           )}
           {failedAt && (

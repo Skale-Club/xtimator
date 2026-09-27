@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { FolderOpen, Pencil } from 'lucide-react'
+import { FolderOpen, Loader2, Pencil } from 'lucide-react'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { ClientPicker } from '@/components/clients/client-picker'
@@ -13,6 +13,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { createClient } from '@/lib/supabase/client'
 import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
+import { useBackgroundGeneration } from '@/hooks/use-background-generations'
 
 export interface ProjectTableRow {
   id: string
@@ -81,6 +82,26 @@ function ProjectClientCell({
         </button>
       )}
     </div>
+  )
+}
+
+/**
+ * 260927: "Generating estimate" pill for a project whose generation the
+ * operator left running (lib/estimate/background-generations.ts). It clears on
+ * its own when the app-shell watcher reads the outcome from the journal.
+ */
+function ProjectGeneratingBadge({ projectId }: { projectId: string }) {
+  const generation = useBackgroundGeneration(projectId)
+  const { t } = useTranslation()
+  if (!generation) return null
+  return (
+    <span
+      className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+      data-testid="project-generating-badge"
+    >
+      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+      {t('Generating estimate')}
+    </span>
   )
 }
 
@@ -159,6 +180,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             tabIndex={-1}
           />
           <span className="font-medium hover:underline">{project.name}</span>
+          <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
       ),
@@ -329,6 +351,7 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="font-medium truncate">{project.name}</span>
+          <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
