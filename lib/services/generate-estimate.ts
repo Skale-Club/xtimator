@@ -37,6 +37,11 @@ import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 
+/** 260927: minimum gap between two live drafting reports in the journal. */
+const DRAFT_REPORT_MIN_INTERVAL_MS = 2_000
+/** 260927: section titles carried per drafting report (the checklist shows the last few). */
+const MAX_REPORTED_DRAFT_TITLES = 8
+
 export type ClientSuggestion = {
   detectedName: string
   matchedClientId: string | null
@@ -275,9 +280,33 @@ export async function generateEstimateForProject(
   // The estimator LLM call, the single longest stretch of the whole capture
   // (the bulk of the 4m40s `generate_estimate` step measured on 2026-08-06).
   // inputCount is what the model actually has to work from.
-  phase('drafting', {
-    inputCount: transcripts.length + photoDescriptions.length + prompts.length,
-  })
+  const inputCount = transcripts.length + photoDescriptions.length + prompts.length
+  phase('drafting', { inputCount })
+
+  // 260927: live drafting progress. The estimator call streams its tool-call
+  // arguments (lib/ai/providers/openrouter-stream.ts), so this stretch is no
+  // longer blind: each NEW section the model starts is reported to the journal
+  // as another `drafting` row, which the capture checklist shows as
+  // "3 sections so far: Demo, Framing, Electrical". Rate-limited so a fast
+  // model writing many short sections cannot flood the journal; the pricing
+  // phase's entry report carries the final counts regardless.
+  let reportedSections = 0
+  let lastDraftReportAt = 0
+  // Only when there is an attempt to report into: without one every phase
+  // report is a no-op, so streaming would buy nothing.
+  if (options.costContext?.attemptId) estimateInput.onDraftProgress = (progress) => {
+    const now = Date.now()
+    if (progress.sections <= reportedSections) return
+    if (now - lastDraftReportAt < DRAFT_REPORT_MIN_INTERVAL_MS) return
+    reportedSections = progress.sections
+    lastDraftReportAt = now
+    phase('drafting', {
+      inputCount,
+      sectionsDrafted: progress.sections,
+      itemsDrafted: progress.items,
+      draftSections: progress.titles.slice(-MAX_REPORTED_DRAFT_TITLES),
+    })
+  }
 
   const provider = await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)

@@ -32,6 +32,12 @@ vi.mock('@/lib/ai', () => ({
   getAIProvider: vi.fn(),
 }))
 
+// 260927: phase reports are journal writes; spied here to pin the live
+// drafting reports without touching pipeline_events.
+vi.mock('@/lib/observability/generation-phase', () => ({
+  reportGeneratePhase: vi.fn(),
+}))
+
 vi.mock('@/lib/estimate/public-url', () => ({
   generatePublicSlugToken: vi.fn().mockReturnValue('deterministic-token-1'),
 }))
@@ -42,6 +48,7 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getAIProvider } from '@/lib/ai'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
+import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 
 const DEFAULT_AI_OUTPUT: EstimateOutput = {
   suggested_project_name: 'Smith Kitchen Reno',
@@ -286,6 +293,46 @@ describe('generateEstimateForProject', () => {
     const input = generateEstimateMock.mock.calls[0][0] as { industry: string; priceBookItems: unknown[] }
     expect(input.industry).toBe('construction')
     expect(Array.isArray(input.priceBookItems)).toBe(true)
+  })
+
+  it('reports sections to the journal as the model drafts them, rate-limited (260927)', async () => {
+    const { fromMock } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const now = vi.spyOn(Date, 'now')
+    generateEstimateMock.mockImplementation(async (input: { onDraftProgress?: (p: unknown) => void }) => {
+      now.mockReturnValue(10_000)
+      input.onDraftProgress?.({ sections: 1, items: 2, titles: ['Demo'] })
+      now.mockReturnValue(10_500) // too soon after the last report: skipped
+      input.onDraftProgress?.({ sections: 2, items: 4, titles: ['Demo', 'Framing'] })
+      now.mockReturnValue(13_000) // past the interval, and 2 is still news to the journal
+      input.onDraftProgress?.({ sections: 2, items: 6, titles: ['Demo', 'Framing'] })
+      input.onDraftProgress?.({ sections: 2, items: 7, titles: ['Demo', 'Framing'] }) // no new section
+      now.mockReturnValue(13_200) // new section, but too soon: pricing reports the final count
+      input.onDraftProgress?.({ sections: 3, items: 8, titles: ['Demo', 'Framing', 'Paint'] })
+      return DEFAULT_AI_OUTPUT
+    })
+
+    await generateEstimateForProject('company-1', 'project-1', {
+      costContext: { attemptId: 'attempt-1', companyId: 'company-1', projectId: 'project-1' },
+    })
+    now.mockRestore()
+
+    const drafting = vi
+      .mocked(reportGeneratePhase)
+      .mock.calls.map(([arg]) => arg)
+      .filter((arg) => arg.phase === 'drafting' && arg.detail?.sectionsDrafted !== undefined)
+    expect(drafting.map((arg) => arg.detail)).toEqual([
+      expect.objectContaining({ sectionsDrafted: 1, itemsDrafted: 2, draftSections: ['Demo'] }),
+      expect.objectContaining({ sectionsDrafted: 2, itemsDrafted: 6, draftSections: ['Demo', 'Framing'] }),
+    ])
+  })
+
+  it('does not ask the provider to stream when there is no attempt to report into', async () => {
+    const { fromMock } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    await generateEstimateForProject('company-1', 'project-1')
+    const input = generateEstimateMock.mock.calls[0][0] as { onDraftProgress?: unknown }
+    expect(input.onDraftProgress).toBeUndefined()
   })
 
   it('throws when project not found', async () => {

@@ -1,5 +1,6 @@
 // lib/ai/types.ts
 import type { EstimateOutput } from './schema'
+import type { DraftProgress } from './providers/openrouter-stream'
 
 export type PriceBookEntry = {
   folder_name: string | null
@@ -90,6 +91,14 @@ export type EstimateInput = {
     companyId?: string | null
     projectId?: string | null
   }
+  /**
+   * 260927: live drafting progress, read off the streamed tool-call arguments
+   * (lib/ai/providers/openrouter-stream.ts). When set, a provider that can
+   * stream reports what the model has written so far; one that cannot simply
+   * never calls it. Must not throw, and must stay cheap: it runs while the
+   * model is still writing.
+   */
+  onDraftProgress?: (progress: DraftProgress) => void
 }
 
 export type RefineEstimateInput = {

@@ -20,6 +20,10 @@ import { recordAICost } from '@/lib/billing/record-ai-cost'
 // AIREL-01: single source of truth for the 120s chat-completion budget — see
 // openrouter-client.ts's comment for the AbortSignal.timeout rationale.
 import { AI_CHAT_TIMEOUT_MS } from '../openrouter-client'
+import { draftProgressFromArguments, readChatCompletionStream } from './openrouter-stream'
+
+/** How often the partial tool-call JSON is re-scanned for draft progress. */
+const DRAFT_PROGRESS_INTERVAL_MS = 750
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
@@ -150,11 +154,25 @@ export class OpenRouterAdapter implements AIProvider {
 
   async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {
     const user = appendRetryHint(buildUserContent(input), input.retryHint)
+    // 260927: stream only when someone is listening for progress. Re-scanning
+    // the growing JSON on every token would be wasted work, so it is throttled;
+    // the next pipeline phase reports the final counts anyway.
+    const onDraftProgress = input.onDraftProgress
+    let lastScanAt = 0
+    const onToolArguments = onDraftProgress
+      ? (argumentsSoFar: string) => {
+          const now = Date.now()
+          if (now - lastScanAt < DRAFT_PROGRESS_INTERVAL_MS) return
+          lastScanAt = now
+          onDraftProgress(draftProgressFromArguments(argumentsSoFar))
+        }
+      : undefined
     const raw = await this.callTool({
       system: buildSystemPrompt(input),
       user,
       operationName: 'generate_estimate',
       costContext: input.costContext,
+      onToolArguments,
     })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
@@ -198,6 +216,12 @@ export class OpenRouterAdapter implements AIProvider {
       companyId?: string | null
       projectId?: string | null
     }
+    /**
+     * 260927: when set, the request is STREAMED and this receives the growing
+     * tool-call argument text. The assembled response then runs through the
+     * exact same checks as a buffered one.
+     */
+    onToolArguments?: (argumentsSoFar: string) => void
   }): Promise<Record<string, unknown>> {
     // BYOK: the per-company key override wins; otherwise the platform key.
     const apiKey = this.apiKeyOverride ?? (await getIntegrationKey('openrouter'))
@@ -238,6 +262,7 @@ export class OpenRouterAdapter implements AIProvider {
       // response `usage` block. Without this, `usage.cost` is often absent and
       // credit debiting has nothing to charge against.
       usage: { include: true },
+      ...(args.onToolArguments ? { stream: true } : {}),
     }
 
     const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
@@ -264,7 +289,10 @@ export class OpenRouterAdapter implements AIProvider {
       )
     }
 
-    const json = (await res.json()) as OpenRouterChatResponse
+    const json: OpenRouterChatResponse =
+      args.onToolArguments && res.body
+        ? await readChatCompletionStream(res.body, args.onToolArguments)
+        : ((await res.json()) as OpenRouterChatResponse)
     if (json.error?.message) {
       throw new Error(`OpenRouter error: ${json.error.message}`)
     }
