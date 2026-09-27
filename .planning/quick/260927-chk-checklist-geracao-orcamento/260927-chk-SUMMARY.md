@@ -44,7 +44,28 @@
 - Capturas visuais (pt claro, en escuro, largura de celular) dos estados redação ao
   vivo, precificação, segunda passada, atrasado e pronto.
 
+## Revisão pós-implementação (correções)
+- Popup "New Xtimate": o overlay absoluto ficava cortado no contêiner de 260px
+  (checklist ~470px). Agora flui em linha e o contêiner rola quando necessário.
+  Medido no navegador: desktop sem rolagem; iPhone SE rola 2px no pior caso.
+- Aba do orçamento: um `attempt` estranho na URL (outra empresa ou inexistente)
+  travava a aba num checklist eterno. O hook desiste após `unauthorized` ou 30s
+  sem linhas no journal; a aba limpa os parâmetros e o registro em segundo plano.
+- Corrida ao concluir: o resultado "concluído" fica retido por 20s depois que o
+  registro em segundo plano some, para a aba não criar um orçamento em branco
+  no intervalo até o refresh.
+- Observador global: descarta a tentativa após 3 leituras `unauthorized` seguidas
+  (troca de empresa ou de conta), em vez de consultar por 45 minutos.
+- Medianas: a consulta busca só `metadata->>phase`, não o JSON inteiro.
+- Painel de admin: linhas `started` consecutivas do mesmo passo viram uma entrada
+  com contador (×N), para as dezenas de reportes de redação não virarem um muro.
+
 ## Pendências conhecidas
+- Aviso no celular com o app fechado ou tela bloqueada exige push por service
+  worker ou WhatsApp; hoje o aviso depende do app aberto (e `new Notification`
+  não existe no iOS).
+- Com a página do projeto aberta, a aba e o observador global consultam o journal
+  em paralelo (2,5s e 5s). É desperdício pequeno, não erro.
 - A segunda passada usa a faixa de 95% a 99% da barra; o detalhe da linha mostra a
   sub-fase atual.
 - O streaming da redação só vale para o OpenRouter. O fallback do Gemini segue sem

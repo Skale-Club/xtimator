@@ -88,3 +88,36 @@ export function formatDuration(ms: number | null): string {
   if (ms == null) return '—' // em-dash U+2014
   return `${ms} ms`
 }
+
+// ── collapseStartedRuns ────────────────────────────────────────────────────────
+// 260927: the generate step reports its sub-phases (and, while drafting, each
+// new section) as extra `started` rows on the same step. A single attempt can
+// carry dozens of `generate_estimate / started` rows, which turned the timeline
+// into a wall. Consecutive rows with the same step AND status `started` collapse
+// into ONE entry (the first row of the run, which is the true start time) that
+// remembers how many rows it stands for. Succeeded/failed rows never collapse.
+export interface TimelineEntry<E extends { step: string | null; status: string | null }> {
+  event: E
+  /** Rows folded into this entry (1 when nothing was folded). */
+  count: number
+}
+
+export function collapseStartedRuns<E extends { step: string | null; status: string | null }>(
+  events: E[]
+): TimelineEntry<E>[] {
+  const out: TimelineEntry<E>[] = []
+  for (const event of events) {
+    const last = out[out.length - 1]
+    if (
+      last &&
+      event.status === 'started' &&
+      last.event.status === 'started' &&
+      last.event.step === event.step
+    ) {
+      last.count += 1
+      continue
+    }
+    out.push({ event, count: 1 })
+  }
+  return out
+}

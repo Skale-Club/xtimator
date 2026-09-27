@@ -20,6 +20,7 @@ import {
 } from './client-suggestion-toast'
 import { useWakeLock } from '@/hooks/use-wake-lock'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
+import { removeBackgroundGeneration } from '@/lib/estimate/background-generations'
 import { useAttemptProgress, type AttemptProgressSnapshot } from '@/hooks/use-attempt-progress'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { GenerationProgressBanner } from '@/components/capture/generation-progress-banner'
@@ -142,7 +143,23 @@ export function EstimateTab({
   const watchedAttemptId = attemptParam ?? backgroundGeneration?.attemptId ?? null
   const { state: attemptState, medians: attemptMedians } = useAttemptProgress(watchedAttemptId)
   const attemptOutcome = attemptState.outcome
-  const generationRunning = !!watchedAttemptId && !attemptOutcome
+  const attemptGaveUp = attemptState.gaveUp
+  const generationRunning = !!watchedAttemptId && !attemptOutcome && !attemptGaveUp
+
+  // 260927: an attempt this tab cannot narrate (another company's, or one the
+  // journal never heard of) must not pin the tab on a checklist forever. Drop
+  // it from the URL and from the background store, then behave as if nothing
+  // were generating.
+  useEffect(() => {
+    if (!attemptGaveUp || !watchedAttemptId) return
+    removeBackgroundGeneration(watchedAttemptId)
+    if (!attemptParam && !isAutoGenerating) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('autoGenerating')
+    params.delete('attempt')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  }, [attemptGaveUp, watchedAttemptId, attemptParam, isAutoGenerating, searchParams, pathname, router])
 
   // A terminal outcome for the watched attempt. Completed: refresh so the new
   // estimate renders. Needs details / failed: drop the waiting params so the
@@ -206,7 +223,7 @@ export function EstimateTab({
   // (its estimate is about to arrive with the refresh), so the tab never
   // materializes a blank the generation would then have to replace.
   const waitingForGeneration =
-    (isAutoGenerating && !attemptOutcome) ||
+    (isAutoGenerating && !attemptOutcome && !attemptGaveUp) ||
     generationRunning ||
     attemptOutcome?.state === 'completed'
   useEffect(() => {

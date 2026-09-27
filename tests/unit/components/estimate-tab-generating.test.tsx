@@ -50,11 +50,16 @@ let backgroundGeneration: { attemptId: string; projectId: string; mode?: string;
 vi.mock('@/hooks/use-background-generations', () => ({
   useBackgroundGeneration: () => backgroundGeneration,
 }))
+const removeBackgroundGeneration = vi.fn()
+vi.mock('@/lib/estimate/background-generations', () => ({
+  removeBackgroundGeneration: (id: string) => removeBackgroundGeneration(id),
+}))
 
-let attemptState: { attemptId: string | null; progress: unknown; outcome: unknown } = {
+let attemptState: { attemptId: string | null; progress: unknown; outcome: unknown; gaveUp: boolean } = {
   attemptId: null,
   progress: null,
   outcome: null,
+  gaveUp: false,
 }
 const useAttemptProgress = vi.fn()
 vi.mock('@/hooks/use-attempt-progress', () => ({
@@ -103,14 +108,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   search = ''
   backgroundGeneration = null
-  attemptState = { attemptId: null, progress: null, outcome: null }
+  attemptState = { attemptId: null, progress: null, outcome: null, gaveUp: false }
   createBlankEstimate.mockResolvedValue({ data: { estimateId: 'blank' } })
 })
 
 describe('EstimateTab while an estimate generates (260927)', () => {
   it('shows the live checklist for the attempt in the URL, and does not create a blank', () => {
     search = 'autoGenerating=true&attempt=a1'
-    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: null }
+    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: null, gaveUp: false }
     renderTab()
     expect(useAttemptProgress).toHaveBeenCalledWith('a1')
     expect(screen.getByTestId('capture-progress-checklist')).toBeTruthy()
@@ -120,7 +125,7 @@ describe('EstimateTab while an estimate generates (260927)', () => {
 
   it('narrates a generation the operator left running in the popup', () => {
     backgroundGeneration = { attemptId: 'bg1', projectId: 'p1', mode: 'text', since: new Date().toISOString() }
-    attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null }
+    attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null, gaveUp: false }
     renderTab()
     expect(useAttemptProgress).toHaveBeenCalledWith('bg1')
     // Text mode: no transcription row.
@@ -130,7 +135,7 @@ describe('EstimateTab while an estimate generates (260927)', () => {
 
   it('shows a banner, not the full checklist, when a new version generates over an estimate', () => {
     backgroundGeneration = { attemptId: 'bg1', projectId: 'p1', mode: 'audio', since: new Date().toISOString() }
-    attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null }
+    attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null, gaveUp: false }
     renderTab({ id: 'e1' })
     expect(screen.getByTestId('generation-progress-banner')).toBeTruthy()
     expect(screen.getByTestId('estimate-editor')).toBeTruthy()
@@ -139,7 +144,7 @@ describe('EstimateTab while an estimate generates (260927)', () => {
 
   it('refreshes when the journal says the estimate is ready', () => {
     search = 'autoGenerating=true&attempt=a1'
-    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: { state: 'completed', estimateId: 'e9' } }
+    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: { state: 'completed', estimateId: 'e9' }, gaveUp: false }
     renderTab()
     expect(refresh).toHaveBeenCalled()
     expect(createBlankEstimate).not.toHaveBeenCalled()
@@ -147,13 +152,23 @@ describe('EstimateTab while an estimate generates (260927)', () => {
 
   it('drops the waiting params on failure so the tab falls back to an editable estimate', () => {
     search = 'autoGenerating=true&attempt=a1&tab=estimate'
-    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: { state: 'failed', step: 'generate_estimate', reason: 'x' } }
+    attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: { state: 'failed', step: 'generate_estimate', reason: 'x' }, gaveUp: false }
     renderTab()
     expect(replace).toHaveBeenCalledWith('/projects/p1?tab=estimate', { scroll: false })
   })
 
   it('still creates the blank estimate when nothing is generating', () => {
     renderTab()
+    expect(createBlankEstimate).toHaveBeenCalledWith('p1')
+  })
+
+  it('drops an attempt it cannot narrate and falls back to the blank estimate', () => {
+    search = 'autoGenerating=true&attempt=foreign'
+    attemptState = { attemptId: 'foreign', progress: null, outcome: null, gaveUp: true }
+    renderTab()
+    expect(removeBackgroundGeneration).toHaveBeenCalledWith('foreign')
+    expect(replace).toHaveBeenCalledWith('/projects/p1', { scroll: false })
+    expect(screen.queryByTestId('capture-progress-checklist')).toBeNull()
     expect(createBlankEstimate).toHaveBeenCalledWith('p1')
   })
 })

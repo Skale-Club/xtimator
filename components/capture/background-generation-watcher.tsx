@@ -15,6 +15,13 @@ import { useAppTranslation } from '@/lib/i18n/use-translation'
 export const BACKGROUND_POLL_MS = 5_000
 
 /**
+ * `unauthorized` reads in a row before an entry is dropped. One can be a
+ * stale-claims blip; three in a row means the operator switched company or
+ * signed into another account, and this attempt is not theirs to announce.
+ */
+export const UNAUTHORIZED_DROP_AFTER = 3
+
+/**
  * Announces the result of every estimate generation the operator walked away
  * from (lib/estimate/background-generations.ts). Mounted once in the app shell,
  * so it keeps watching on every page.
@@ -42,6 +49,7 @@ export function BackgroundGenerationWatcher() {
   })
 
   const inFlight = useRef(new Set<string>())
+  const unauthorizedRuns = useRef(new Map<string, number>())
   const hasWork = generations.length > 0
 
   useEffect(() => {
@@ -110,7 +118,17 @@ export function BackgroundGenerationWatcher() {
             })
             notifyBrowser(tr('Estimate generation failed'), g.projectName, projectUrl, g.attemptId)
           }
-          // pending / unauthorized: keep watching; the entry expires on its own.
+          else if (outcome.state === 'unauthorized') {
+            const runs = (unauthorizedRuns.current.get(g.attemptId) ?? 0) + 1
+            unauthorizedRuns.current.set(g.attemptId, runs)
+            if (runs >= UNAUTHORIZED_DROP_AFTER) {
+              unauthorizedRuns.current.delete(g.attemptId)
+              removeBackgroundGeneration(g.attemptId)
+            }
+          } else {
+            unauthorizedRuns.current.delete(g.attemptId)
+          }
+          // pending: keep watching; the entry expires on its own.
         } catch {
           // A failed read (offline, deploy in progress) is retried next tick.
         } finally {

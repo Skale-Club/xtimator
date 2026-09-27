@@ -1396,16 +1396,19 @@ export function CaptureRecorder({
           />
         </>
       ) : isPopup ? (
-        // Popup variant — calm three-blue-dots overlay over a neutral surface.
-        // `relative` provides the positioning context for the absolutely-positioned
-        // overlay; `min-h-[260px]` ensures the overlay has visible space even on
-        // short content (the parent Dialog already constrains max-height).
-        <div className="relative flex-1 min-h-[260px]">
+        // Popup variant. 260927: the checklist flows in the page instead of
+        // being absolutely positioned. The recorder UI is not rendered once the
+        // pipeline runs, so there is nothing to cover, and an absolute overlay
+        // was clipped to the container's 260px minimum (the checklist is ~470px
+        // tall). `overflow-y-auto` keeps a tall photos-mode checklist inside
+        // the Dialog's max-height on short phones.
+        <div className="relative flex-1 min-h-[260px] overflow-y-auto">
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
           {!failedAt && !needsDetailsInfo && (
             <CaptureProcessingOverlay
+              layout="inline"
               stage={stage}
               mode={activeMode}
               completedSteps={attemptProgress.completedSteps}

@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { terminalStatus, formatDuration } from '@/lib/admin/events-helpers'
+import { terminalStatus, formatDuration, collapseStartedRuns } from '@/lib/admin/events-helpers'
 
 // ── terminalStatus v2 (latest-event semantics) ─────────────────────────────────
 // 260707-hhp: replaces the old failed > started > succeeded precedence — rows
@@ -105,5 +105,43 @@ describe('ADMINLOG-05: EventStepTimeline source whitelist guard', () => {
     } catch {
       expect.fail('Wave 0: lib/admin/events-helpers.ts not yet written')
     }
+  })
+})
+
+describe('collapseStartedRuns (260927: sub-phase progress rows)', () => {
+  const row = (step: string, status: string) => ({ step, status })
+
+  it('folds consecutive started rows of one step into a single counted entry', () => {
+    const entries = collapseStartedRuns([
+      row('transcribe', 'started'),
+      row('transcribe', 'succeeded'),
+      row('generate_estimate', 'started'),
+      row('generate_estimate', 'started'),
+      row('generate_estimate', 'started'),
+      row('generate_estimate', 'succeeded'),
+    ])
+    expect(entries.map((e) => [e.event.step, e.event.status, e.count])).toEqual([
+      ['transcribe', 'started', 1],
+      ['transcribe', 'succeeded', 1],
+      ['generate_estimate', 'started', 3],
+      ['generate_estimate', 'succeeded', 1],
+    ])
+  })
+
+  it('never folds across steps, across statuses, or over a terminal row', () => {
+    const entries = collapseStartedRuns([
+      row('generate_estimate', 'started'),
+      row('generate_estimate', 'failed'),
+      row('generate_estimate', 'started'),
+      row('preview_redirect', 'started'),
+    ])
+    expect(entries).toHaveLength(4)
+    expect(entries.every((e) => e.count === 1)).toBe(true)
+  })
+
+  it('keeps the FIRST row of a run, the true start time', () => {
+    const first = { step: 'generate_estimate', status: 'started', created_at: 'a' }
+    const later = { step: 'generate_estimate', status: 'started', created_at: 'b' }
+    expect(collapseStartedRuns([first, later])[0].event).toBe(first)
   })
 })

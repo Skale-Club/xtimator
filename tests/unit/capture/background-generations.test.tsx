@@ -46,6 +46,7 @@ import {
 } from '@/lib/estimate/background-generations'
 import {
   BACKGROUND_POLL_MS,
+  UNAUTHORIZED_DROP_AFTER,
   BackgroundGenerationWatcher,
 } from '@/components/capture/background-generation-watcher'
 
@@ -162,5 +163,26 @@ describe('BackgroundGenerationWatcher', () => {
     render(<BackgroundGenerationWatcher />)
     await tick()
     expect(getAttemptOutcome).not.toHaveBeenCalled()
+  })
+
+  it('drops an attempt that is repeatedly not this account\'s, without announcing it', async () => {
+    addBackgroundGeneration(entry('foreign'))
+    getAttemptOutcome.mockResolvedValue({ state: 'unauthorized' })
+    render(<BackgroundGenerationWatcher />)
+    for (let i = 0; i < UNAUTHORIZED_DROP_AFTER; i++) await tick()
+    expect(listBackgroundGenerations(NOW)).toEqual([])
+    expect(toastSuccess).not.toHaveBeenCalled()
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('forgives a single unauthorized blip', async () => {
+    addBackgroundGeneration(entry('a1'))
+    getAttemptOutcome
+      .mockResolvedValueOnce({ state: 'unauthorized' })
+      .mockResolvedValue({ state: 'pending', lastStep: 'transcribe', lastStatus: 'started', completedSteps: [], activeStepStartedAt: null })
+    render(<BackgroundGenerationWatcher />)
+    await tick()
+    await tick()
+    expect(listBackgroundGenerations(NOW)).toHaveLength(1)
   })
 })

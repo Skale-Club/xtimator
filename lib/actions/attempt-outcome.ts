@@ -353,7 +353,8 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
  * observability read hiccup.
  *
  * Bounded window: the most recent 6000 started/succeeded rows of the last 30
- * days (~400 attempts), read in created_at order off the existing index.
+ * days (~150 attempts now that drafting reports add rows), read in created_at
+ * order off the existing index, with only the phase name pulled from metadata.
  *
  * Call ONCE per capture session (the client caches it), NOT per poll tick.
  */
@@ -371,17 +372,30 @@ export async function getStepMedians(): Promise<Record<string, number>> {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const { data, error } = await svc
       .from('pipeline_events')
-      .select('attempt_id,step,status,created_at,metadata')
+      // Only the phase name out of `metadata`: the live drafting reports carry
+      // section titles, and 6000 of those would be megabytes for nothing.
+      .select('attempt_id,step,status,created_at,phase:metadata->>phase')
       .in('status', ['started', 'succeeded'])
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(6000)
     if (error) return { ...FALLBACK_MEDIANS_MS }
 
-    return {
-      ...FALLBACK_MEDIANS_MS,
-      ...computeJournalMedians((data ?? []) as MedianJournalRow[]),
-    }
+    const rows: MedianJournalRow[] = ((data ?? []) as unknown as Array<{
+      attempt_id: string | null
+      step: string
+      status: string
+      created_at: string
+      phase: string | null
+    }>).map((r) => ({
+      attempt_id: r.attempt_id,
+      step: r.step,
+      status: r.status,
+      created_at: r.created_at,
+      metadata: r.phase ? { phase: r.phase } : null,
+    }))
+
+    return { ...FALLBACK_MEDIANS_MS, ...computeJournalMedians(rows) }
   } catch (err) {
     console.warn('[getStepMedians] swallowed read failure:', err)
     return { ...FALLBACK_MEDIANS_MS }

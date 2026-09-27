@@ -1,4 +1,4 @@
-import { SAFE_EVENT_COLUMNS, SafeEvent, formatDuration, terminalStatus } from '@/lib/admin/events-helpers'
+import { SAFE_EVENT_COLUMNS, SafeEvent, collapseStartedRuns, formatDuration, terminalStatus } from '@/lib/admin/events-helpers'
 import { T } from '@/components/i18n/t'
 import { Card } from '@/components/ui/card'
 
@@ -96,9 +96,9 @@ export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps)
         </p>
       ) : (
         <div className="flex flex-col gap-6">
-          {events.map((ev, idx) => {
+          {collapseStartedRuns(events).map(({ event: ev, count }, idx, entries) => {
             const { pill, dot } = statusClasses(ev.status)
-            const isLast = idx === events.length - 1
+            const isLast = idx === entries.length - 1
             return (
               <div key={ev.id} className="flex gap-4">
                 {/* Left rail: dot + connector */}
@@ -122,6 +122,14 @@ export function EventStepTimeline({ events, attemptId }: EventStepTimelineProps)
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pill}`}>
                         {ev.status ?? 'N/A'}
                       </span>
+                      {count > 1 && (
+                        <span
+                          className="rounded-full bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground"
+                          title="Consecutive progress reports on this step, folded into one entry"
+                        >
+                          ×{count}
+                        </span>
+                      )}
                       <span className="text-xs text-muted-foreground font-mono">
                         {ev.created_at ? new Date(ev.created_at).toLocaleString() : 'N/A'}
                       </span>
