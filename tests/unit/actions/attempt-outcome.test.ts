@@ -368,6 +368,14 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
       // return type; it used to leak the row's raw undefined).
       completedSteps: ['save_recording'],
       activeStepStartedAt: null,
+      // 260927: checklist payload. The mock rows carry no created_at, so the
+      // timings are null rather than a leaked undefined.
+      stepTimings: [
+        { step: 'save_recording', startedAt: null, finishedAt: null },
+        { step: 'transcribe', startedAt: null, finishedAt: null },
+      ],
+      phaseVisits: [],
+      lastEventAt: null,
     })
   })
 
@@ -416,6 +424,9 @@ describe('getAttemptOutcome — journal rule precedence (260707-lyq)', () => {
       // 260707-o7a: degraded pending carries the empty progress payload.
       completedSteps: [],
       activeStepStartedAt: null,
+      stepTimings: [],
+      phaseVisits: [],
+      lastEventAt: null,
     })
   })
 })
@@ -475,6 +486,39 @@ describe('getAttemptOutcome: generate sub-phase narration (260806)', () => {
         startedAt: '2026-08-06T21:49:10Z',
         detail: { candidates: 38, researched: 12 },
       },
+    })
+  })
+
+  it('returns every phase visit, step timings and the heartbeat for the checklist (260927)', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          { ...base, step: 'transcribe', status: 'started', created_at: '2026-08-06T21:48:15Z' },
+          { ...base, step: 'transcribe', status: 'succeeded', created_at: '2026-08-06T21:48:25Z' },
+          { ...base, step: 'generate_estimate', status: 'started', created_at: '2026-08-06T21:48:26Z' },
+          phaseRow('context', '2026-08-06T21:48:27Z'),
+          phaseRow('drafting', '2026-08-06T21:48:29Z', { sectionsDrafted: 2 }),
+          phaseRow('drafting', '2026-08-06T21:48:50Z', { sectionsDrafted: 4 }),
+          phaseRow('pricing', '2026-08-06T21:49:10Z', { candidates: 38 }),
+        ],
+      }) as never
+    )
+
+    const result = await getAttemptOutcome('attempt-checklist')
+
+    expect(result).toMatchObject({
+      state: 'pending',
+      stepTimings: [
+        { step: 'transcribe', startedAt: '2026-08-06T21:48:15Z', finishedAt: '2026-08-06T21:48:25Z' },
+        { step: 'generate_estimate', startedAt: '2026-08-06T21:48:26Z', finishedAt: null },
+      ],
+      phaseVisits: [
+        { phase: 'context', startedAt: '2026-08-06T21:48:27Z', detail: {} },
+        // Repeated drafting reports collapse into one visit, latest count wins.
+        { phase: 'drafting', startedAt: '2026-08-06T21:48:29Z', detail: { sectionsDrafted: 4 } },
+        { phase: 'pricing', startedAt: '2026-08-06T21:49:10Z', detail: { candidates: 38 } },
+      ],
+      lastEventAt: '2026-08-06T21:49:10Z',
     })
   })
 

@@ -33,11 +33,7 @@ function renderInPopup(appLanguage: 'en' | 'pt' | 'es', estimateLanguage: 'en' |
           completedSteps={['save_recording', 'transcribe']}
           activeStep="generate_estimate"
           activeStepStartedAt={new Date().toISOString()}
-          generatePhase={{
-            phase: 'pricing',
-            furthestPhase: 'pricing',
-            startedAt: new Date().toISOString(),
-          }}
+          phaseVisits={[{ phase: 'pricing', startedAt: new Date().toISOString(), detail: {} }]}
         />
       </ScopedLanguageProvider>
     </LanguageProvider>
@@ -49,25 +45,27 @@ describe('CaptureProcessingOverlay language scope (260806)', () => {
     localStorage.clear()
   })
 
+  const checklistText = () => screen.getByTestId('capture-progress-checklist').textContent ?? ''
+
   it('renders in the app language even when the estimate language differs', () => {
     renderInPopup('pt', 'en')
-    expect(screen.getByTestId('capture-processing-label').textContent).toContain(
-      'Precificando os itens'
-    )
+    expect(screen.getByTestId('capture-processing-label').textContent).toBe('Gerando seu orçamento')
+    expect(checklistText()).toContain('Precificando os itens')
+    expect(checklistText()).toContain('Áudio transcrito')
   })
 
   it('does not follow the estimate language into Portuguese for an English app', () => {
     renderInPopup('en', 'pt')
-    const label = screen.getByTestId('capture-processing-label').textContent ?? ''
-    expect(label).toContain('Pricing the line items')
-    expect(label).not.toContain('Precificando')
+    expect(checklistText()).toContain('Pricing the line items')
+    expect(checklistText()).not.toContain('Precificando')
   })
 
-  it('translates the quip line too, from the same app language', () => {
+  it('pre-seeds every checklist string, so Portuguese never flashes English', () => {
     renderInPopup('pt', 'en')
-    const quip = screen.getByTestId('capture-processing-quip').textContent ?? ''
-    // Every quip in the pricing pool is pre-seeded in the static dictionary, so
-    // there is no English flash while an API round-trip resolves.
-    expect(quip).not.toMatch(/Calling around|Haggling|Checking what/)
+    // The static dictionary covers every label, the header, the time-left line
+    // and the leave hint: no English word may reach the screen while an
+    // /api/translate round-trip resolves.
+    const text = screen.getByTestId('capture-processing-overlay').textContent ?? ''
+    expect(text).not.toMatch(/Saving|Transcrib|Reading|Writing|Pricing|Putting|Checking|left|leave/)
   })
 })

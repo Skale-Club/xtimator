@@ -134,6 +134,10 @@ describe('getAttemptOutcome — analyze coverage counts (PHOTO-02 UI half)', () 
       analyzedCount: 20,
       totalCount: 35,
       failedCount: 0,
+      // 260927: checklist payload (the fixture rows carry no timestamps).
+      stepTimings: expect.any(Array),
+      phaseVisits: [],
+      lastEventAt: null,
     })
   })
 
@@ -195,6 +199,9 @@ describe('getAttemptOutcome — analyze coverage counts (PHOTO-02 UI half)', () 
       // null rather than the row's raw undefined. The lookup coalesces to
       // match the declared `string | null` return type.
       activeStepStartedAt: null,
+      stepTimings: expect.any(Array),
+      phaseVisits: [],
+      lastEventAt: null,
     })
     expect(result).not.toHaveProperty('analyzedCount')
     expect(result).not.toHaveProperty('totalCount')

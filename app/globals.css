@@ -767,3 +767,17 @@
 
 [data-testid="app-topbar"]  { border-top-width: 0; border-left-width: 0; border-right-width: 0; }
 
+
+/* Capture checklist (components/capture/capture-progress-checklist.tsx): the
+   check mark pops in when the journal confirms a step, so the moment a row
+   completes is felt, not just seen. Motion is decoration only. */
+@keyframes checklist-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.checklist-pop {
+  animation: checklist-pop 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .checklist-pop { animation: none; }
+}

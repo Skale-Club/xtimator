@@ -29,14 +29,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
-import { FALLBACK_MEDIANS_MS } from '@/lib/estimate/progress-model'
+import { FALLBACK_MEDIANS_MS, type StepTiming } from '@/lib/estimate/progress-model'
 import {
   GENERATE_PHASE_INDEX,
-  isGeneratePhase,
+  buildPhaseVisits,
   type GeneratePhase,
-  type GeneratePhaseDetail,
   type GeneratePhaseProgress,
+  type GeneratePhaseVisit,
 } from '@/lib/estimate/generation-phases'
+import { computeJournalMedians, type MedianJournalRow } from '@/lib/estimate/journal-medians'
 
 export type AttemptOutcome =
   | { state: 'completed'; estimateId: string }
@@ -74,8 +75,35 @@ export type AttemptOutcome =
        * build that predates the phase reports.
        */
       generatePhase?: GeneratePhaseProgress
+      /**
+       * 260927: per-step first-started / first-succeeded timestamps, so the
+       * checklist can show how long each finished step took.
+       */
+      stepTimings?: StepTiming[]
+      /**
+       * 260927: every generate sub-phase visit in journal order, with its
+       * merged detail. The checklist keeps finished phases on screen with the
+       * facts they reported, which a single "current phase" cannot do.
+       */
+      phaseVisits?: GeneratePhaseVisit[]
+      /**
+       * 260927: created_at of the newest journal row. The client's poll uses it
+       * as a heartbeat: while the server keeps writing, a long run is alive.
+       */
+      lastEventAt?: string | null
     }
   | { state: 'unauthorized' }
+
+const EMPTY_PENDING = {
+  state: 'pending' as const,
+  lastStep: null,
+  lastStatus: null,
+  completedSteps: [] as string[],
+  activeStepStartedAt: null,
+  stepTimings: [] as StepTiming[],
+  phaseVisits: [] as GeneratePhaseVisit[],
+  lastEventAt: null,
+}
 
 interface JournalRow {
   step: string
@@ -152,7 +180,7 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
 
     const rows = (data ?? []) as JournalRow[]
     if (rows.length === 0) {
-      return { state: 'pending', lastStep: null, lastStatus: null, completedSteps: [], activeStepStartedAt: null }
+      return { ...EMPTY_PENDING }
     }
 
     // Company scope: at least one row must match the caller's active company
@@ -229,38 +257,48 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
       : null
 
     // 260806: reconstruct the generate_estimate sub-phase narration.
+    // 260927: from the ordered visit list (lib/estimate/generation-phases.ts),
+    // which the checklist consumes whole. generatePhase is the legacy summary
+    // of it:
     //   phase:         the LAST phase reported, i.e. what is happening now.
-    //   furthestPhase: the furthest phase reached, by declared order. The
-    //                   auto-refine loop re-enters drafting/pricing for a
-    //                   second round, and the progress bar must never rewind.
-    //   startedAt:     created_at of the latest row for the CURRENT phase, so
-    //                   the in-phase creep restarts with each real transition
-    //                   (a repeated report of the same phase, e.g. pricing's
-    //                   entry/exit pair, deliberately re-anchors it).
+    //   furthestPhase: the furthest phase reached, by declared order.
+    //   startedAt:     created_at of the latest row for the CURRENT phase.
+    const phaseVisits = activeStep === 'generate_estimate' ? buildPhaseVisits(rows) : []
     let generatePhase: GeneratePhaseProgress | undefined
-    if (activeStep === 'generate_estimate') {
-      let latest: { phase: GeneratePhase; at: string; detail: GeneratePhaseDetail } | null = null
-      let furthest: GeneratePhase | null = null
-      for (const r of rows) {
-        if (r.step !== 'generate_estimate' || r.status !== 'started') continue
-        const { phase, ...detail } = (r.metadata ?? {}) as {
-          phase?: unknown
-        } & GeneratePhaseDetail
-        if (!isGeneratePhase(phase)) continue
-        latest = { phase, at: r.created_at, detail }
-        if (!furthest || GENERATE_PHASE_INDEX[phase] > GENERATE_PHASE_INDEX[furthest]) {
-          furthest = phase
-        }
+    if (phaseVisits.length > 0) {
+      const latest = phaseVisits[phaseVisits.length - 1]
+      let furthest: GeneratePhase = latest.phase
+      for (const v of phaseVisits) {
+        if (GENERATE_PHASE_INDEX[v.phase] > GENERATE_PHASE_INDEX[furthest]) furthest = v.phase
       }
-      if (latest && furthest) {
-        generatePhase = {
-          phase: latest.phase,
-          furthestPhase: furthest,
-          startedAt: latest.at,
-          detail: latest.detail,
-        }
+      const latestRow = [...rows]
+        .reverse()
+        .find(
+          (r) =>
+            r.step === 'generate_estimate' &&
+            r.status === 'started' &&
+            (r.metadata as { phase?: unknown } | null)?.phase === latest.phase
+        )
+      generatePhase = {
+        phase: latest.phase,
+        furthestPhase: furthest,
+        startedAt: latestRow?.created_at ?? latest.startedAt,
+        detail: latest.detail,
       }
     }
+
+    // 260927: first started / first succeeded per step, journal order.
+    const timingByStep = new Map<string, StepTiming>()
+    for (const r of rows) {
+      let t = timingByStep.get(r.step)
+      if (!t) {
+        t = { step: r.step, startedAt: null, finishedAt: null }
+        timingByStep.set(r.step, t)
+      }
+      if (r.status === 'started' && !t.startedAt) t.startedAt = r.created_at ?? null
+      if (r.status === 'succeeded' && !t.finishedAt) t.finishedAt = r.created_at ?? null
+    }
+    const stepTimings = [...timingByStep.values()]
 
     // Phase 168 (PHOTO-02 UI half): surface the analyze step's coverage
     // counts (168-01's analyze-photos.ts metadata) so the client can render
@@ -288,28 +326,34 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
       ...(totalCount !== undefined ? { totalCount } : {}),
       ...(failedCount !== undefined ? { failedCount } : {}),
       ...(generatePhase ? { generatePhase } : {}),
+      stepTimings,
+      phaseVisits,
+      lastEventAt: last.created_at ?? null,
     }
   } catch (err) {
     // Never throw — a read failure must not break the client's polling loop.
     console.warn('[getAttemptOutcome] swallowed read failure:', err)
-    return { state: 'pending', lastStep: null, lastStatus: null, completedSteps: [], activeStepStartedAt: null }
+    return { ...EMPTY_PENDING }
   }
 }
 
 /**
- * 260707-o7a — live step-duration medians for the real progress bar.
+ * Live typical durations for the capture checklist (lib/estimate/progress-model.ts).
  *
- * Company-AGNOSTIC aggregate (durations only — no tenant data leaks) over the
- * last 30 days of `succeeded` pipeline_events with a recorded duration_ms,
- * merged over {@link FALLBACK_MEDIANS_MS}. Auth-gated like getAttemptOutcome
- * (claims + active company required); on ANY failure (unauthenticated, query
- * error, empty data) it degrades to the static fallbacks — the progress bar
- * must never break on an observability read hiccup.
+ * 260927: measured as gaps between journal timestamps of the same attempt
+ * (computeJournalMedians): per step, and per generate sub-phase under
+ * `generate_estimate:<phase>` keys. The sub-phase keys are what let the
+ * checklist weight "Writing the scope of work" as the long stretch it really
+ * is instead of a fixed guess. Merged over {@link FALLBACK_MEDIANS_MS}; any key
+ * with too few samples is left to the model's own fallbacks.
  *
- * percentile_disc(0.5) semantics are computed in JS over a bounded recent
- * window (most-recent 2000 rows): PostgREST cannot express a grouped
- * percentile aggregate without a dedicated DB function, and this plan ships
- * no migration. Identical result for the window read.
+ * Company-AGNOSTIC aggregate (timestamps and phase names only, no tenant data
+ * leaves this function). Auth-gated like getAttemptOutcome. On ANY failure it
+ * degrades to the static fallbacks: the checklist must never break on an
+ * observability read hiccup.
+ *
+ * Bounded window: the most recent 6000 started/succeeded rows of the last 30
+ * days (~400 attempts), read in created_at order off the existing index.
  *
  * Call ONCE per capture session (the client caches it), NOT per poll tick.
  */
@@ -327,29 +371,17 @@ export async function getStepMedians(): Promise<Record<string, number>> {
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     const { data, error } = await svc
       .from('pipeline_events')
-      .select('step,duration_ms')
-      .eq('status', 'succeeded')
-      .not('duration_ms', 'is', null)
+      .select('attempt_id,step,status,created_at,metadata')
+      .in('status', ['started', 'succeeded'])
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .limit(2000)
+      .limit(6000)
     if (error) return { ...FALLBACK_MEDIANS_MS }
 
-    const byStep = new Map<string, number[]>()
-    for (const row of (data ?? []) as { step: string; duration_ms: number | null }[]) {
-      if (typeof row.duration_ms !== 'number' || row.duration_ms <= 0) continue
-      const list = byStep.get(row.step)
-      if (list) list.push(row.duration_ms)
-      else byStep.set(row.step, [row.duration_ms])
+    return {
+      ...FALLBACK_MEDIANS_MS,
+      ...computeJournalMedians((data ?? []) as MedianJournalRow[]),
     }
-
-    const medians: Record<string, number> = { ...FALLBACK_MEDIANS_MS }
-    for (const [step, durations] of byStep) {
-      durations.sort((a, b) => a - b)
-      // percentile_disc(0.5): smallest value with cumulative distribution >= 0.5.
-      medians[step] = durations[Math.ceil(durations.length * 0.5) - 1]
-    }
-    return medians
   } catch (err) {
     console.warn('[getStepMedians] swallowed read failure:', err)
     return { ...FALLBACK_MEDIANS_MS }

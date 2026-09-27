@@ -36,7 +36,8 @@
  */
 import { createClient } from '@/lib/supabase/client'
 import { getAttemptOutcome } from '@/lib/actions/attempt-outcome'
-import type { GeneratePhaseProgress } from '@/lib/estimate/generation-phases'
+import type { GeneratePhaseProgress, GeneratePhaseVisit } from '@/lib/estimate/generation-phases'
+import type { StepTiming } from '@/lib/estimate/progress-model'
 
 export type EstimateOutcome =
   | { state: 'completed'; estimateId: string }
@@ -50,7 +51,7 @@ export type EstimateOutcome =
 
 /**
  * 260707-o7a: journal-derived progress payload forwarded on every `pending`
- * tick — drives the REAL progress bar (lib/estimate/progress-model.ts).
+ * tick — drives the capture checklist (lib/estimate/progress-model.ts).
  */
 export interface StageProgress {
   /** Step of the last journal row (started OR succeeded), null before any row. */
@@ -75,6 +76,10 @@ export interface StageProgress {
    * first phase row lands (and for attempts that predate phase reporting).
    */
   generatePhase?: GeneratePhaseProgress
+  /** 260927: per-step first-started / first-succeeded timestamps (checklist durations). */
+  stepTimings?: StepTiming[]
+  /** 260927: every generate sub-phase visit so far, with its reported detail. */
+  phaseVisits?: GeneratePhaseVisit[]
 }
 
 /**
@@ -204,6 +209,8 @@ export async function pollEstimateOutcome(opts: {
             totalCount: attemptOutcome.totalCount,
             failedCount: attemptOutcome.failedCount,
             generatePhase: attemptOutcome.generatePhase,
+            stepTimings: attemptOutcome.stepTimings,
+            phaseVisits: attemptOutcome.phaseVisits,
           })
         }
         // 'unauthorized' — a scoping edge (e.g. a stale claims read); never
