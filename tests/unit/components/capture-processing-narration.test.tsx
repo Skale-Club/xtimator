@@ -204,6 +204,22 @@ describe('CaptureProcessingOverlay: checklist (260927)', () => {
         .every((el) => el.getAttribute('data-state') === 'done')
     ).toBe(true)
     expect(screen.queryByTestId('capture-processing-leave-hint')).toBeNull()
+    expect(screen.getByTestId('capture-processing-label').textContent).toBe('__t(Your estimate is ready)__')
+  })
+
+  it('reports the total time when done instead of repeating that it is ready', () => {
+    render(
+      <CaptureProcessingOverlay
+        stage="done"
+        mode="text"
+        completedSteps={['save_recording', 'generate_estimate']}
+        activeStep={null}
+        activeStepStartedAt={null}
+        stepTimings={[{ step: 'save_recording', startedAt: ago(95), finishedAt: ago(93) }]}
+      />
+    )
+    expect(screen.getByTestId('capture-processing-remaining').textContent).toBe('__t(Finished in)__ 1:35')
+    expect(screen.queryByTestId('capture-processing-elapsed')).toBeNull()
   })
 
   it('tells the operator they can leave, and offers to continue in the background', () => {

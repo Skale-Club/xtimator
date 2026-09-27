@@ -143,8 +143,12 @@ export function CaptureProcessingOverlay({
   const fraction = snapshot.fraction
 
   const remaining = remainingLine(snapshot.remainingMs, snapshot.overdue)
+  // Done: the headline already says it is ready, so the sub-line reports how
+  // long it took instead of repeating it. The elapsed clock chip goes away.
   const remainingText = isDone
-    ? t('Estimate ready')
+    ? snapshot.elapsedMs > 0
+      ? `${t('Finished in')} ${formatElapsed(snapshot.elapsedMs)}`
+      : ''
     : remaining.kind === 'overdue'
       ? t('Bigger job than usual, still working on it')
       : remaining.kind === 'under_a_minute'
