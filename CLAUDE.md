@@ -69,18 +69,20 @@ To check deploy status: `gh run list`/`gh run watch` for the `Test` and
 `Build and Deploy` workflow runs on `main`, not any Vercel API/dashboard.
 <!-- GSD:architecture-end -->
 
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
+## GSD Workflow (optional)
 
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+Using a GSD command is **not required** before editing files in this repo. Direct
+edits are fine, including in environments where the GSD commands are not
+installed (e.g. Claude Code on the web).
 
-Use these entry points:
+When the GSD commands are available and the task benefits from planning
+artifacts, these entry points are still recommended:
 - `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
 - `/gsd:debug` for investigation and bug fixing
 - `/gsd:execute-phase` for planned phase work
 
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
+For larger changes made without GSD, a short plan and summary under
+`.planning/quick/` keeps the planning history consistent.
 
 
 
