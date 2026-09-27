@@ -16,6 +16,7 @@ import { useLanguage } from '@/lib/i18n/language-context'
 import { useWakeLock } from '@/hooks/use-wake-lock'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { HARD_CAP_MS, WARN_AT_MS, AMBER_AT_MS, RED_AT_MS } from '@/components/capture/capture-recorder'
+import { addBackgroundGeneration } from '@/lib/estimate/background-generations'
 
 const TICK_MS = 250
 
@@ -188,11 +189,21 @@ export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAud
       return
     }
 
-    // Navigate immediately — pipeline continues server-side via Inngest
+    // Navigate immediately — pipeline continues server-side via Inngest.
+    // 260927: hand the attempt to the app-shell watcher so the operator hears
+    // when the estimate is ready (the "add details" dialog closes right here,
+    // and used to leave them with no signal at all), and pass it to the
+    // estimate tab so it can show the live checklist.
+    const attemptId = attemptIdRef.current
+    if (attemptId) {
+      addBackgroundGeneration({ attemptId, projectId, mode: 'audio', since: new Date().toISOString() })
+    }
     if (onComplete) {
       onComplete()
     } else {
-      router.push(`/projects/${projectId}?autoGenerating=true`)
+      router.push(
+        `/projects/${projectId}?autoGenerating=true${attemptId ? `&attempt=${encodeURIComponent(attemptId)}` : ''}`
+      )
     }
   }, [projectId, estimateLanguage, ensureAttempt, onComplete, router, t])
 

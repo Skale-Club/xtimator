@@ -21,9 +21,13 @@
  * wrapped: private mode or blocked site data degrade to an in-memory list.
  */
 
+import type { CaptureProgressMode } from './progress-model'
+
 export interface BackgroundGeneration {
   attemptId: string
   projectId: string
+  /** Which checklist rows apply (audio transcribes, photos analyze, text does neither). */
+  mode?: CaptureProgressMode
   /** Shown in the "estimate ready" notice. Absent for placeholder names. */
   projectName?: string
   /** ISO time the operator left it. Entries expire after MAX_AGE_MS. */

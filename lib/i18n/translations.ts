@@ -276,8 +276,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Open': 'Abrir',
     'The estimate needs more details': 'O orçamento precisa de mais detalhes',
     'Estimate generation failed': 'A geração do orçamento falhou',
-    'Still generating. Open the project to follow along.':
-      'Ainda gerando. Abra o projeto para acompanhar.',
+    'Generating a new version of this estimate': 'Gerando uma nova versão deste orçamento',
+    'This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.':
+      'Está demorando mais que o normal. O orçamento continua sendo gerado em segundo plano e avisamos quando ficar pronto.',
     'items in': 'itens em',
     'sections': 'seções',
     'Pass': 'Passada',
@@ -556,8 +557,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Open': 'Abrir',
     'The estimate needs more details': 'El presupuesto necesita más detalles',
     'Estimate generation failed': 'La generación del presupuesto falló',
-    'Still generating. Open the project to follow along.':
-      'Todavía se está generando. Abra el proyecto para seguirlo.',
+    'Generating a new version of this estimate': 'Generando una nueva versión de este presupuesto',
+    'This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.':
+      'Está tardando más de lo normal. El presupuesto se sigue generando en segundo plano y le avisaremos cuando esté listo.',
     'items in': 'partidas en',
     'sections': 'secciones',
     'Pass': 'Pasada',

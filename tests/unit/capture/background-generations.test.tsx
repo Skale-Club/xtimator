@@ -123,13 +123,15 @@ describe('BackgroundGenerationWatcher', () => {
     expect(toastSuccess).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes the page when the operator is already looking at that project', async () => {
+  it('refreshes the page instead of toasting when the operator is already looking at that project', async () => {
     pathname = '/projects/p1'
     addBackgroundGeneration(entry('a1'))
     getAttemptOutcome.mockResolvedValue({ state: 'completed', estimateId: 'e9' })
     render(<BackgroundGenerationWatcher />)
     await tick()
     expect(refresh).toHaveBeenCalled()
+    expect(toastSuccess).not.toHaveBeenCalled()
+    expect(listBackgroundGenerations(NOW)).toEqual([])
   })
 
   it('keeps watching while the journal says pending', async () => {

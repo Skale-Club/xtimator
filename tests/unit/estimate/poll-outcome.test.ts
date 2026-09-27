@@ -262,6 +262,55 @@ describe('260707-lyq (P4 Wave 2): pollEstimateOutcome — journal-first', () => 
     })
   })
 
+  it('keeps waiting past the idle window while the journal keeps moving (260927)', async () => {
+    // Every tick reports a NEW journal row: the server is demonstrably alive.
+    let n = 0
+    mockGetAttemptOutcome.mockImplementation(async () => ({
+      state: 'pending',
+      lastStep: 'generate_estimate',
+      lastStatus: 'started',
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
+      lastEventAt: `2026-07-07T12:00:${String(n++ % 60).padStart(2, '0')}.000Z`,
+    }))
+    const started = Date.now()
+    const outcome = await pollEstimateOutcome({
+      projectId: 'proj-1',
+      previousEstimateId: null,
+      signal: new AbortController().signal,
+      attemptId: 'attempt-1',
+      intervalMs: 5,
+      timeoutMs: 40,
+      maxTotalMs: 150,
+    })
+    // Timed out only on the absolute cap, well past the 40ms idle window.
+    expect(outcome).toEqual({ state: 'timeout' })
+    expect(Date.now() - started).toBeGreaterThanOrEqual(150)
+  })
+
+  it('gives up after the idle window when the journal goes quiet (260927)', async () => {
+    mockGetAttemptOutcome.mockResolvedValue({
+      state: 'pending',
+      lastStep: 'generate_estimate',
+      lastStatus: 'started',
+      completedSteps: ['save_recording'],
+      activeStepStartedAt: '2026-07-07T12:00:00.000Z',
+      lastEventAt: '2026-07-07T12:00:00.000Z',
+    })
+    const started = Date.now()
+    const outcome = await pollEstimateOutcome({
+      projectId: 'proj-1',
+      previousEstimateId: null,
+      signal: new AbortController().signal,
+      attemptId: 'attempt-1',
+      intervalMs: 5,
+      timeoutMs: 40,
+      maxTotalMs: 10_000,
+    })
+    expect(outcome).toEqual({ state: 'timeout' })
+    expect(Date.now() - started).toBeLessThan(1_000)
+  })
+
   it('stale projects.status=awaiting_details is IGNORED when attemptId is present (production stale-status regression)', async () => {
     // Production evidence: a project row left at status='awaiting_details' from
     // a PRIOR attempt must not fool a brand-new, still-pending retry's poll —

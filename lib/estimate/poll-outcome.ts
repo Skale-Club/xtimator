@@ -142,15 +142,23 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
  * otherwise (or on a journal `pending`/`unauthorized`) falls through to the
  * DB-truth estimates/projects check. Individual tick errors (flaky mobile
  * network) are swallowed — a failed tick is simply skipped, retried on the
- * next interval. Only an aborted signal or `timeoutMs` elapsing end the loop
+ * next interval. Only an aborted signal or the timeout (an idle window that
+ * journal activity restarts, capped by `maxTotalMs`) end the loop
  * early (-> `{ state: 'timeout' }`).
  */
 export async function pollEstimateOutcome(opts: {
   projectId: string
   previousEstimateId: string | null
   signal: AbortSignal
-  /** Default 6 minutes. */
+  /**
+   * Default 6 minutes. 260927: with an `attemptId`, this is an IDLE window,
+   * not a hard deadline: every new journal row (the server reports each
+   * phase, and now each drafted section) restarts it. A big estimate that is
+   * visibly progressing is never cut off at six minutes; a silent one still is.
+   */
   timeoutMs?: number
+  /** 260927: absolute ceiling however active the journal is. Default 20 minutes. */
+  maxTotalMs?: number
   /** Default 2.5 seconds. */
   intervalMs?: number
   /**
@@ -174,15 +182,21 @@ export async function pollEstimateOutcome(opts: {
     previousEstimateId,
     signal,
     timeoutMs = 6 * 60_000,
+    maxTotalMs = 20 * 60_000,
     intervalMs = 2_500,
     attemptId,
     onStageProgress,
   } = opts
   const startedAt = Date.now()
+  // 260927: heartbeat. The newest journal row seen so far; when it changes,
+  // the server is demonstrably still working and the idle window restarts.
+  let lastActivityAt = startedAt
+  let lastEventAt: string | null | undefined
 
   while (true) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-    if (Date.now() - startedAt > timeoutMs) return { state: 'timeout' }
+    const now = Date.now()
+    if (now - lastActivityAt > timeoutMs || now - startedAt > maxTotalMs) return { state: 'timeout' }
 
     try {
       if (attemptId) {
@@ -201,6 +215,10 @@ export async function pollEstimateOutcome(opts: {
           return { state: 'failed', step: attemptOutcome.step, reason: attemptOutcome.reason }
         }
         if (attemptOutcome.state === 'pending') {
+          if (attemptOutcome.lastEventAt && attemptOutcome.lastEventAt !== lastEventAt) {
+            lastEventAt = attemptOutcome.lastEventAt
+            lastActivityAt = Date.now()
+          }
           onStageProgress?.({
             lastStep: attemptOutcome.lastStep,
             completedSteps: attemptOutcome.completedSteps,

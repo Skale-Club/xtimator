@@ -18,12 +18,36 @@ import {
   popStoredClientSuggestion,
   showClientSuggestionToast,
 } from './client-suggestion-toast'
-import { useTranslation } from '@/lib/i18n/use-translation'
 import { useWakeLock } from '@/hooks/use-wake-lock'
+import { useBackgroundGeneration } from '@/hooks/use-background-generations'
+import { useAttemptProgress, type AttemptProgressSnapshot } from '@/hooks/use-attempt-progress'
+import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
+import { GenerationProgressBanner } from '@/components/capture/generation-progress-banner'
+import type { CaptureProgressMode } from '@/lib/estimate/progress-model'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
+
+/**
+ * 260927: which checklist rows apply to a generation this tab did not start.
+ * The stored mode wins; otherwise the journal says (a transcribe row means
+ * audio, an analyze row means photos).
+ */
+function inferMode(
+  stored: CaptureProgressMode | undefined,
+  progress: AttemptProgressSnapshot | null,
+  fallback: CaptureProgressMode
+): CaptureProgressMode {
+  if (stored) return stored
+  const steps = new Set([
+    ...(progress?.completedSteps ?? []),
+    ...(progress?.stepTimings ?? []).map((s) => s.step),
+  ])
+  if (steps.has('transcribe')) return 'audio'
+  if (steps.has('analyze')) return 'photos'
+  return fallback
+}
 
 interface EstimateTabProps {
   projectId: string
@@ -99,7 +123,6 @@ export function EstimateTab({
   whatsappEnabled,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
-  const { t } = useTranslation()
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -110,17 +133,40 @@ export function EstimateTab({
   // estimate appears, then clear the param.
   const isAutoGenerating = searchParams.get('autoGenerating') === 'true'
 
+  // 260927: the generation this tab can narrate. Either the inline recorder
+  // passed its attempt in the URL, or the operator left a capture running
+  // (lib/estimate/background-generations.ts). Either way the tab reads the
+  // journal directly and shows the same checklist as the capture popup.
+  const attemptParam = searchParams.get('attempt')
+  const backgroundGeneration = useBackgroundGeneration(projectId)
+  const watchedAttemptId = attemptParam ?? backgroundGeneration?.attemptId ?? null
+  const { state: attemptState, medians: attemptMedians } = useAttemptProgress(watchedAttemptId)
+  const attemptOutcome = attemptState.outcome
+  const generationRunning = !!watchedAttemptId && !attemptOutcome
+
+  // A terminal outcome for the watched attempt. Completed: refresh so the new
+  // estimate renders. Needs details / failed: drop the waiting params so the
+  // tab falls back to an editable estimate; the app-shell watcher already
+  // says what happened.
   useEffect(() => {
-    if (!isAutoGenerating || currentEstimate) return
-    // The freshly generated estimate only becomes visible to this surface
-    // through an RSC refetch (router.refresh) — no estimate-generation jobId is
-    // threaded here (it's minted in a chained server-side Inngest step after
-    // transcription), so the lightweight /api/jobs/[jobId] status hook can't be
-    // wired at this layer. Instead of a flat 2s interval that refetched the
-    // whole route ~30x over a 30-60s generation, back off progressively:
-    // responsive early, gentle later. The effect re-runs and short-circuits at
-    // the guard above the moment `currentEstimate` lands, so refreshing stops
-    // immediately on completion.
+    if (!attemptOutcome) return
+    if (attemptOutcome.state === 'completed') {
+      router.refresh()
+      return
+    }
+    if (!isAutoGenerating && !attemptParam) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('autoGenerating')
+    params.delete('attempt')
+    const q = params.toString()
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
+  }, [attemptOutcome, isAutoGenerating, attemptParam, searchParams, pathname, router])
+
+  // Legacy fallback: an autoGenerating link with no attempt to read. The
+  // estimate only becomes visible through an RSC refetch, so refresh with a
+  // gentle backoff until it lands.
+  useEffect(() => {
+    if (!isAutoGenerating || currentEstimate || watchedAttemptId) return
     let cancelled = false
     let delay = 2000
     const MAX_DELAY = 10000
@@ -136,15 +182,19 @@ export function EstimateTab({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [isAutoGenerating, currentEstimate, router])
+  }, [isAutoGenerating, currentEstimate, watchedAttemptId, router])
 
   useEffect(() => {
-    if (!isAutoGenerating || !currentEstimate) return
+    if (!(isAutoGenerating || attemptParam) || !currentEstimate) return
+    // Keep watching a regeneration: an existing estimate does not mean THIS
+    // attempt finished. Clear the params once it has.
+    if (generationRunning) return
     const params = new URLSearchParams(searchParams.toString())
     params.delete('autoGenerating')
+    params.delete('attempt')
     const q = params.toString()
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false })
-  }, [isAutoGenerating, currentEstimate, searchParams, pathname, router])
+  }, [isAutoGenerating, attemptParam, generationRunning, currentEstimate, searchParams, pathname, router])
 
   // Lazy materialization — a project with no estimate and no in-flight AI
   // generation should simply BE a blank, editable estimate (not an empty-state
@@ -152,8 +202,15 @@ export function EstimateTab({
   // on !isAutoGenerating so this never races the AI-generation path (which
   // creates the estimate itself). createBlankEstimate is idempotent as a
   // backstop against a double-fire.
+  // 260927: also held while a watched generation runs or has just completed
+  // (its estimate is about to arrive with the refresh), so the tab never
+  // materializes a blank the generation would then have to replace.
+  const waitingForGeneration =
+    (isAutoGenerating && !attemptOutcome) ||
+    generationRunning ||
+    attemptOutcome?.state === 'completed'
   useEffect(() => {
-    if (currentEstimate || isAutoGenerating || blankFiredRef.current) return
+    if (currentEstimate || waitingForGeneration || blankFiredRef.current) return
     blankFiredRef.current = true
     createBlankEstimate(projectId).then((result) => {
       if (result.error) {
@@ -163,7 +220,7 @@ export function EstimateTab({
       }
       router.refresh()
     })
-  }, [currentEstimate, isAutoGenerating, projectId, router])
+  }, [currentEstimate, waitingForGeneration, projectId, router])
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)
@@ -177,19 +234,43 @@ export function EstimateTab({
   // The auto-generating screen is a pure wait — the user watches it without
   // touching the phone, so the OS idle timer would otherwise blank the screen
   // mid-generation. Must sit above the early returns below (hook order).
-  useWakeLock(isAutoGenerating && !currentEstimate)
+  useWakeLock(waitingForGeneration && !currentEstimate)
 
-  if (isAutoGenerating && !currentEstimate) {
-    const hasTranscript = recordings.some(r => r.transcript && r.transcript.trim().length > 0)
-    const statusLabel = hasTranscript ? t('Generating estimate...') : t('Transcribing audio...')
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '-0.3s' }} />
-          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '-0.15s' }} />
-          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0s' }} />
+  const generationMode = inferMode(
+    backgroundGeneration?.mode,
+    attemptState.progress,
+    isAutoGenerating ? 'audio' : 'text'
+  )
+
+  if (waitingForGeneration && !currentEstimate) {
+    if (watchedAttemptId) {
+      // 260927: the same journal-driven checklist as the capture popup,
+      // instead of three bouncing dots and one static label.
+      const progress = attemptState.progress
+      return (
+        <div className="py-6" data-testid="estimate-tab-generating">
+          <CaptureProcessingOverlay
+            layout="inline"
+            stage={attemptOutcome?.state === 'completed' ? 'done' : 'generating'}
+            mode={generationMode}
+            completedSteps={progress?.completedSteps ?? []}
+            activeStep={progress?.activeStep ?? null}
+            activeStepStartedAt={progress?.activeStepStartedAt ?? null}
+            stepTimings={progress?.stepTimings}
+            phaseVisits={progress?.phaseVisits}
+            analyzedCount={progress?.analyzedCount}
+            totalCount={progress?.totalCount}
+            failedCount={progress?.failedCount}
+            medians={attemptMedians}
+            showLeaveHint
+          />
         </div>
-        <p className="text-sm text-muted-foreground">{statusLabel}</p>
+      )
+    }
+    const hasTranscript = recordings.some(r => r.transcript && r.transcript.trim().length > 0)
+    return (
+      <div className="relative py-24" data-testid="estimate-tab-generating">
+        <CaptureProcessingOverlay layout="inline" stage={hasTranscript ? 'generating' : 'transcribing'} />
       </div>
     )
   }
@@ -197,6 +278,13 @@ export function EstimateTab({
   if (currentEstimate) {
     return (
       <>
+        {generationRunning && (
+          <GenerationProgressBanner
+            mode={generationMode}
+            progress={attemptState.progress}
+            medians={attemptMedians}
+          />
+        )}
         <EstimateEditor
           estimate={currentEstimate}
           versions={allVersions}

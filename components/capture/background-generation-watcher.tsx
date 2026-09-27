@@ -22,7 +22,7 @@ export const BACKGROUND_POLL_MS = 5_000
  * On a terminal journal outcome it drops the entry and says what happened:
  *   - completed: "Estimate ready", with a button that opens it; if the
  *     operator is already on that project, the page refreshes so the estimate
- *     simply appears;
+ *     simply appears, and no toast repeats what the page already shows;
  *   - needs_details / failed: a notice that opens the project, where the
  *     operator can add details or retry.
  * When the tab is hidden and the operator allowed notifications, a browser
@@ -79,7 +79,12 @@ export function BackgroundGenerationWatcher() {
           if (outcome.state === 'completed') {
             removeBackgroundGeneration(g.attemptId)
             const url = `${projectUrl}?tab=estimate&estimate=${outcome.estimateId}`
-            if (onProject) r.refresh()
+            if (onProject) {
+              r.refresh()
+              // Already looking at it: the estimate tab's checklist completes
+              // and the estimate appears in place. A toast would only repeat it.
+              if (!document.hidden) continue
+            }
             toast.success(tr('Estimate ready'), {
               description: g.projectName,
               duration: 15_000,

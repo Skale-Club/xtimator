@@ -7,7 +7,6 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { CaptureTimer } from '@/components/capture/capture-timer'
-import { CaptureStepper } from '@/components/capture/capture-stepper'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { CaptureNeedsDetails } from '@/components/capture/capture-needs-details'
@@ -34,7 +33,11 @@ import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useLanguage } from '@/lib/i18n/language-context'
 import { useWakeLock } from '@/hooks/use-wake-lock'
-import { addBackgroundGeneration } from '@/lib/estimate/background-generations'
+import {
+  addBackgroundGeneration,
+  removeBackgroundGeneration,
+  type BackgroundGeneration,
+} from '@/lib/estimate/background-generations'
 import { isPlaceholderName } from '@/lib/constants/project'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -660,16 +663,22 @@ export function CaptureRecorder({
   // Hands the watched attempt to the app-shell watcher
   // (components/capture/background-generation-watcher.tsx), which keeps reading
   // the journal and announces the outcome wherever the operator went.
-  const handOffToBackground = useCallback(() => {
+  const backgroundEntry = useCallback((): BackgroundGeneration | null => {
     const attemptId = attemptIdRef.current
-    if (!watchingRef.current || !attemptId) return
-    addBackgroundGeneration({
+    if (!attemptId) return null
+    return {
       attemptId,
       projectId,
+      mode: mode ?? (audioBlob ? 'audio' : uploadedPhotos.length > 0 ? 'photos' : 'text'),
       projectName: isPlaceholderName(project.name) ? undefined : project.name,
       since: new Date().toISOString(),
-    })
-  }, [projectId, project.name])
+    }
+  }, [projectId, project.name, mode, audioBlob, uploadedPhotos.length])
+  const handOffToBackground = useCallback(() => {
+    if (!watchingRef.current) return
+    const entry = backgroundEntry()
+    if (entry) addBackgroundGeneration(entry)
+  }, [backgroundEntry])
 
   // Closing the popup (X, Escape, outside click) or navigating away mid-run.
   const handOffRef = useRef(handOffToBackground)
@@ -837,9 +846,14 @@ export function CaptureRecorder({
       failAt(stepToStageKey(outcome.step), outcome.reason, { skipReport: true })
       return
     }
-    // timeout
-    failAt('generating', t('Generation is taking longer than expected. It may still complete in the background — check the project in a minute, or retry.'))
-  }, [onComplete, projectId, router, t, failAt, stepToStageKey])
+    // timeout. 260927: the journal went quiet for the whole idle window (or
+    // the absolute cap passed). The server may still finish, so hand the
+    // attempt to the app-shell watcher: if it does, the operator hears about
+    // it instead of being told to go check.
+    const entry = backgroundEntry()
+    if (entry) addBackgroundGeneration(entry)
+    failAt('generating', t('This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.'))
+  }, [onComplete, projectId, router, t, failAt, stepToStageKey, backgroundEntry])
 
   // QUICK-psh-02: the needs-details panel's "Record again" action — dismisses
   // the panel and reveals the (already-reset) recorder UI.
@@ -1273,6 +1287,9 @@ export function CaptureRecorder({
     setRetriesUsed(r => r + 1)
     dispatchNonceRef.current += 1
     requestIdRef.current = null
+    // 260927: this recorder watches the attempt again from here, so the
+    // background watcher must not announce it a second time.
+    if (attemptIdRef.current) removeBackgroundGeneration(attemptIdRef.current)
     ensureAttempt()
     if (audioBlob) {
       runPipeline(audioBlob)
@@ -1433,14 +1450,28 @@ export function CaptureRecorder({
           )}
         </div>
       ) : (
-        // Legacy fullscreen /capture route — keep the existing CaptureStepper UX.
+        // Legacy fullscreen /capture route. 260927: the same journal-driven
+        // checklist as the popup, in place of the old four-dot stepper.
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
-            {/* 260707-hhp (P1 client half): the dispatch-and-watch model no longer reads
-                the transcript text client-side (only a journal-driven stage-progression
-                signal, see handleStageProgress) — the mid-generation transcript preview
-                is dropped. */}
-            <CaptureStepper currentStage={stage} failedAt={failedAt} mode={activeMode} />
+            {!failedAt && !needsDetailsInfo && (
+              <CaptureProcessingOverlay
+                layout="inline"
+                stage={stage}
+                mode={activeMode}
+                completedSteps={attemptProgress.completedSteps}
+                activeStep={attemptProgress.activeStep}
+                activeStepStartedAt={attemptProgress.activeStepStartedAt}
+                medians={stepMedians}
+                analyzedCount={attemptProgress.analyzedCount}
+                totalCount={attemptProgress.totalCount}
+                failedCount={attemptProgress.failedCount}
+                stepTimings={attemptProgress.stepTimings}
+                phaseVisits={attemptProgress.phaseVisits}
+                showLeaveHint={stage !== 'saving'}
+                onContinueInBackground={stage === 'saving' ? undefined : handleContinueInBackground}
+              />
+            )}
             {failedAt && (
               <CaptureFailure
                 errorMessage={errorMessage ?? t('Something went wrong')}
