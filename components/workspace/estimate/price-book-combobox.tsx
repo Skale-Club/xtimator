@@ -26,6 +26,8 @@ interface PriceBookComboboxProps {
   placeholder?: string
   className?: string
   noMatchesLabel?: string
+  disabled?: boolean
+  'aria-label'?: string
 }
 
 export function PriceBookCombobox({
@@ -37,6 +39,8 @@ export function PriceBookCombobox({
   placeholder,
   className,
   noMatchesLabel,
+  disabled,
+  'aria-label': ariaLabel,
 }: PriceBookComboboxProps) {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -63,6 +67,8 @@ export function PriceBookCombobox({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={className}
+        disabled={disabled}
+        aria-label={ariaLabel}
       />
     )
   }
@@ -90,6 +96,8 @@ export function PriceBookCombobox({
           }}
           placeholder={placeholder}
           className={className}
+          disabled={disabled}
+          aria-label={ariaLabel}
         />
       </PopoverAnchor>
       <PopoverContent

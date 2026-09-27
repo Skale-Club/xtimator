@@ -69,9 +69,9 @@ import type {
   DocumentPhoto,
   EstimateDocumentData,
 } from '@/lib/estimate/document/model'
-import { ItemCardMobile } from './item-card-mobile'
+import { ItemCardMobile, ItemCardMobileHeader } from './item-card-mobile'
 import { PriceBookCombobox } from './price-book-combobox'
-import type { EstimateAction, EditorItem } from './use-estimate-reducer'
+import type { EstimateAction } from './use-estimate-reducer'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
@@ -507,6 +507,72 @@ function SortableDocumentItemRow({
 }
 
 // ---------------------------------------------------------------------------
+// SortableItemCardMobile — the desktop row folded for the sm:hidden branch.
+// Same dnd-kit wiring and dispatches as SortableDocumentItemRow; the card
+// itself lives in item-card-mobile.tsx.
+// ---------------------------------------------------------------------------
+
+function SortableItemCardMobile({
+  item,
+  sectionId,
+  dispatch,
+  currencyCode,
+  lang,
+  priceBookItems,
+  L,
+  isDiscountDraft,
+  onAddDiscountDraft,
+  onRemoveDiscountDraft,
+}: {
+  item: DocumentItem
+  sectionId: string
+  dispatch: React.Dispatch<EstimateAction>
+  currencyCode: string
+  lang: EstimateLanguage
+  priceBookItems: PriceBookItem[]
+  L: DocLabels
+  isDiscountDraft: boolean
+  onAddDiscountDraft: (itemId: string) => void
+  onRemoveDiscountDraft: (itemId: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <ItemCardMobile
+      item={item}
+      onUpdate={(field, value) =>
+        dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field, value })
+      }
+      onRemove={() => dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })}
+      onSelectPriceBookItem={(pb) =>
+        dispatch({
+          type: 'APPLY_PRICE_BOOK_ITEM',
+          sectionId,
+          itemId: item.id,
+          item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
+        })
+      }
+      priceBookItems={priceBookItems}
+      currencyCode={currencyCode}
+      unitOptions={resolveUnitOptions(lang, item.unit ?? null)}
+      labels={L}
+      showDiscount={(item.discount ?? 0) !== 0 || isDiscountDraft}
+      onAddDiscount={() => onAddDiscountDraft(item.id)}
+      onRemoveDiscount={() => onRemoveDiscountDraft(item.id)}
+      dragHandleProps={{ ...attributes, ...listeners }}
+      sortableRef={setNodeRef}
+      style={style}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
 // DocumentSectionBlock
 // ---------------------------------------------------------------------------
 
@@ -634,30 +700,41 @@ function DocumentSectionBlock({
         )}
       </div>
 
-      {/* Mobile: stacked cards */}
+      {/* Mobile: the desktop table folded — same header, same row
+          controls, same dnd-kit reorder (own DndContext so the hidden
+          desktop table never shares droppable ids with it). */}
       <div className="sm:hidden">
-        {section.items.map((item) =>
-          isEditable && dispatch ? (
-            <ItemCardMobile
-              key={item.id}
-              item={item as unknown as EditorItem}
-              onUpdate={(field, value) =>
-                dispatch({
-                  type: 'UPDATE_ITEM',
-                  sectionId: section.id,
-                  itemId: item.id,
-                  field,
-                  value,
-                })
-              }
-              onRemove={() =>
-                dispatch({ type: 'REMOVE_ITEM', sectionId: section.id, itemId: item.id })
-              }
-              isReadOnly={false}
-              currencyCode={currencyCode}
-              unitOptions={resolveUnitOptions(lang, item.unit ?? null)}
-            />
-          ) : (
+        {isEditable && dispatch ? (
+          <DndContext
+            id={`${itemDndId}-mobile`}
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleItemDragEnd}
+          >
+            <SortableContext
+              items={section.items.map((i) => i.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ItemCardMobileHeader labels={L} />
+              {section.items.map((item) => (
+                <SortableItemCardMobile
+                  key={item.id}
+                  item={item}
+                  sectionId={section.id}
+                  dispatch={dispatch}
+                  currencyCode={currencyCode}
+                  lang={lang}
+                  priceBookItems={priceBookItems}
+                  L={L}
+                  isDiscountDraft={validDiscountDraftIds.includes(item.id)}
+                  onAddDiscountDraft={addDiscountDraft}
+                  onRemoveDiscountDraft={removeDiscountDraft}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          section.items.map((item) => (
             <div
               key={item.id}
               className="px-4 py-2.5 mx-6 my-1.5 rounded-lg border border-border/40"
@@ -673,7 +750,7 @@ function DocumentSectionBlock({
                 </span>
               </div>
             </div>
-          )
+          ))
         )}
       </div>
 
