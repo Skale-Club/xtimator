@@ -35,6 +35,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useAppLanguage } from '@/lib/i18n/language-context'
 import { CategoryIcon } from '@/components/notifications/category-icon'
 import {
   enableBrowserPush,
@@ -113,6 +114,7 @@ export function NotificationsForm({
   readOnly = false,
 }: NotificationsFormProps) {
   const { t } = useTranslation()
+  const appLanguage = useAppLanguage()
   const [isPending, startTransition] = useTransition()
   const [pushBusy, setPushBusy] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(initial.push_enabled)
@@ -202,12 +204,14 @@ export function NotificationsForm({
         toast.success(t('Browser notifications disabled.'))
         return
       }
-      const result = await enableBrowserPush()
+      const result = await enableBrowserPush(appLanguage)
       if (result.ok) {
         setPushEnabled(true)
         toast.success(t('Browser notifications enabled.'))
       } else if (result.reason === 'denied') {
         toast.error(t('Permission denied | enable in browser settings.'))
+      } else if (result.reason === 'not_configured') {
+        toast.error(t('Push notifications are not available yet.'))
       } else if (result.reason === 'unsupported') {
         toast.error(t('Browser notifications not supported in this browser.'))
       } else {

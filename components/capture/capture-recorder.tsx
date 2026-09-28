@@ -31,7 +31,7 @@ import type { GeneratePhaseVisit } from '@/lib/estimate/generation-phases'
 import type { StepTiming } from '@/lib/estimate/progress-model'
 import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { useLanguage } from '@/lib/i18n/language-context'
+import { useAppLanguage, useLanguage } from '@/lib/i18n/language-context'
 import { useWakeLock } from '@/hooks/use-wake-lock'
 import {
   addBackgroundGeneration,
@@ -39,6 +39,7 @@ import {
   type BackgroundGeneration,
 } from '@/lib/estimate/background-generations'
 import { isPlaceholderName } from '@/lib/constants/project'
+import { canOfferPushNow, enableBrowserPush } from '@/lib/notifications/push-client'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { CaptureMode } from '@/components/projects/estimate-creation-popup'
@@ -265,6 +266,9 @@ export function CaptureRecorder({
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
+  // The APP language, not the popup's scoped estimate language: a push
+  // notification is read by the operator, like the processing screen.
+  const pushLanguage = useAppLanguage()
   const router = useRouter()
 
   // Recording state
@@ -687,21 +691,17 @@ export function CaptureRecorder({
   }, [handOffToBackground])
   useEffect(() => () => handOffRef.current(), [])
 
-  // "Continue in the background": the same hand-off, on purpose. Asks for
-  // notification permission first, inside the click, since browsers only
-  // grant the prompt from a user gesture.
+  // "Continue in the background": the same hand-off, on purpose.
   const handleContinueInBackground = useCallback(() => {
-    try {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        void Notification.requestPermission().catch(() => {})
-      }
-    } catch {
-      // Notifications unsupported: the in-app notice still fires.
-    }
+    // 260928: subscribe this device to Web Push when that is on offer, so the
+    // result reaches the phone even after the app is closed. Not awaited: the
+    // permission prompt it opens must stay inside this click, and closing the
+    // popup below must not wait for it.
+    if (canOfferPushNow()) void enableBrowserPush(pushLanguage)
     handOffToBackground()
     if (onCancel) onCancel()
     else router.push(`/projects/${projectId}`)
-  }, [handOffToBackground, onCancel, router, projectId])
+  }, [handOffToBackground, onCancel, router, projectId, pushLanguage])
 
 
   // Revoke all photo preview object URLs on unmount (no leaks).

@@ -630,6 +630,14 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'DELETE',
     'POST',
   ]),
+  // 260928: GET only returns the server's public VAPID key (no write).
+  ...excepted(
+    'app/api/notifications/push/subscribe/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
   // Structured price-book export for first-party programmatic consumers
   // (Thumb Scrap). Bearer-token authenticated via the same verifyMcpRequest +
   // requireScope('mcp:read') path as /api/mcp; scoped exclusively to

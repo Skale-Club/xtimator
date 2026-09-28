@@ -11,6 +11,7 @@ import {
 import type { GeneratePhaseVisit } from '@/lib/estimate/generation-phases'
 import { formatElapsed, remainingLine } from './processing-narration'
 import { CaptureProgressChecklist } from './capture-progress-checklist'
+import { PushOptIn } from './push-opt-in'
 
 export type CaptureProcessingStage =
   | 'idle'
@@ -206,6 +207,9 @@ export function CaptureProcessingOverlay({
             <p className="text-xs text-muted-foreground" data-testid="capture-processing-leave-hint">
               {t('You can leave this screen. The estimate keeps generating and we will let you know when it is ready.')}
             </p>
+            {/* 260928: the "let you know" reaches a locked phone only through
+                Web Push, which needs this device's opt-in. */}
+            <PushOptIn />
             {onContinueInBackground && (
               <button
                 type="button"

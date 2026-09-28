@@ -124,6 +124,8 @@ export async function POST(request: Request) {
       requestId,
       attemptId,
       inputType: 'photo',
+      // 260928: who gets the "estimate ready" push.
+      notifyUserId: typeof claims.sub === 'string' ? claims.sub : undefined,
       ...(autoGenerateEstimate && { autoGenerateEstimate, estimateLanguage }),
     }
     const { ids } = await inngest.send({

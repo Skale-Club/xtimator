@@ -356,6 +356,8 @@ export const analyzePhotosJob = inngest.createFunction(
             attemptId,
             inputType: 'photo' as const,
             channel: 'web' as const,
+            // 260928: who gets the "estimate ready" push.
+            notifyUserId: data.notifyUserId,
           },
         })
       })
