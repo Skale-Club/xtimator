@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { banRemainingMs, checkTrap, clientIpFromHeaders } from '@/lib/security/bot-defense'
 import { getDemoAppOrigin } from '@/lib/demo/config'
 import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
@@ -180,7 +181,33 @@ function applyReferralCookie(
   return response
 }
 
+/**
+ * Bot defense, before anything else: a banned IP gets 403, a scanner probing a
+ * trap path (/.env, /.git/, xmlrpc.php, …) gets 404 plus an escalating ban
+ * (1h → 24h → 7d). In-memory only — no network, no database. Health probes are
+ * never blocked, so the orchestrator cannot be locked out. BOT_DEFENSE_MODE=
+ * log|off dials it down. See lib/security/bot-defense.ts.
+ */
+export function botDefenseResponse(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl
+  if (pathname === '/api/health' || pathname.startsWith('/api/health/')) return null
+  const ip = clientIpFromHeaders(request.headers)
+  const remaining = banRemainingMs(ip)
+  if (remaining > 0) {
+    return new NextResponse('Forbidden', {
+      status: 403,
+      headers: { 'Cache-Control': 'no-store', 'Retry-After': String(Math.ceil(remaining / 1000)) },
+    })
+  }
+  if (checkTrap(pathname, ip, request.headers.get('user-agent')).trapped) {
+    return new NextResponse('Not Found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
+  }
+  return null
+}
+
 export async function proxy(request: NextRequest) {
+  const blocked = botDefenseResponse(request)
+  if (blocked) return blocked
   const { pathname, search } = request.nextUrl
   const canonicalTarget = getCanonicalHostRedirect(
     getRequestOrigin(request),
