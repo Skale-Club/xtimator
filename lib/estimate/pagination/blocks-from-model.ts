@@ -103,6 +103,10 @@ interface TemplateLiterals {
   /** Classic: sectionHeader padding(8)×2 + marginTop(16) = 32.
    *  Modern: sectionHeader paddingVertical(6)×2 + marginTop(22) + borderBottomWidth(1) = 35. */
   sectionHeaderBaseHeightPt: number
+  /** sectionHeader paddingHorizontal (classic 10, modern 0). The band itself spans
+   *  the full content width, so the section title's real text box is
+   *  contentWidthPt - 2 x this — the width the title is measured (wrapped) at. */
+  sectionTitleHorizontalPaddingPt: number
   /** tableRow paddingVertical×2 (classic 6×2=12, modern 8×2=16). */
   itemRowBaseHeightPt: number
   /** sectionSubtotal paddingVertical×2 + borderTopWidth + labelFontSize (single-line proxy). */
@@ -167,6 +171,7 @@ function buildTemplateLiterals(p: {
   infoRowMarginBottomPt: number
   termsTextMarginBottomPt: number
   sectionHeaderPaddingContributionPt: number
+  sectionTitleHorizontalPaddingPt: number
   itemRowPaddingContributionPt: number
   sectionSubtotalPaddingContributionPt: number
   sectionSubtotalLabelFontSizePt: number
@@ -202,6 +207,7 @@ function buildTemplateLiterals(p: {
     summaryBaseHeightPt:
       p.labelFontSizePt * p.proseLineHeightMultiplier + p.labelMarginBottomPt + p.termsTextMarginBottomPt,
     sectionHeaderBaseHeightPt: p.sectionHeaderPaddingContributionPt,
+    sectionTitleHorizontalPaddingPt: p.sectionTitleHorizontalPaddingPt,
     itemRowBaseHeightPt: p.itemRowPaddingContributionPt,
     sectionSubtotalBaseHeightPt: p.sectionSubtotalPaddingContributionPt + p.sectionSubtotalLabelFontSizePt,
     totalsContainerMarginTopPt: p.totalsContainerMarginTopPt,
@@ -235,6 +241,7 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     infoRowMarginBottomPt: 20, // styles.infoRow.marginBottom
     termsTextMarginBottomPt: 12, // styles.termsText.marginBottom
     sectionHeaderPaddingContributionPt: 8 * 2 + 16, // styles.sectionHeader.padding×2 + marginTop
+    sectionTitleHorizontalPaddingPt: 10, // styles.sectionHeader.paddingHorizontal (title text box = contentWidthPt - 2×10)
     itemRowPaddingContributionPt: 6 * 2, // styles.tableRow.paddingVertical×2
     sectionSubtotalPaddingContributionPt: 6 * 2 + 1, // styles.sectionSubtotal.paddingVertical×2 + borderTopWidth
     sectionSubtotalLabelFontSizePt: 9, // styles.sectionSubtotalLabel/Value.fontSize
@@ -265,6 +272,7 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     infoRowMarginBottomPt: 28, // styles.infoRow.marginBottom
     termsTextMarginBottomPt: 14, // styles.termsText.marginBottom
     sectionHeaderPaddingContributionPt: 6 * 2 + 22 + 1, // paddingVertical×2 + marginTop + borderBottomWidth
+    sectionTitleHorizontalPaddingPt: 0, // styles.sectionHeader has no paddingHorizontal (title text box = full contentWidthPt)
     itemRowPaddingContributionPt: 8 * 2, // styles.tableRow.paddingVertical×2
     sectionSubtotalPaddingContributionPt: 8 * 2 + 0.5, // paddingVertical×2 + borderTopWidth
     sectionSubtotalLabelFontSizePt: 9, // styles.sectionSubtotalLabel/Value.fontSize
@@ -380,7 +388,9 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
           styleKey: design.fontFamilyBold,
           fontSizePt: geometry.sectionTitleFontSizePt,
           lineHeightMultiplier: LINE_HEIGHT[design.fontFamilyBold],
-          maxWidthPt: geometry.contentWidthPt,
+          // The title sits inside the section band's horizontal padding, so it
+          // wraps at the band's INNER width, not the full content width.
+          maxWidthPt: geometry.contentWidthPt - 2 * lit.sectionTitleHorizontalPaddingPt,
         },
         keepWithNextId: rowIds[0],
         atomic: true,

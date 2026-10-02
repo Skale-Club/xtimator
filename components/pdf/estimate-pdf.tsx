@@ -245,14 +245,16 @@ const styles = StyleSheet.create({
     lineHeight: 1.5,
   },
   // Section
-  // The brand-filled band keeps its 8pt breathing room, but bleeds 8pt back
-  // out through marginHorizontal so the TITLE itself lands on the page's own
-  // 40pt rail — the same rail the company header, info grid, totals block,
-  // terms, signature and photos already sit on.
+  // The brand-filled band spans exactly the page's 40pt content rail (no
+  // horizontal bleed), so its left/right edges line up with the ESTIMATE title
+  // banner above it and with the table below. paddingHorizontal 10 insets the
+  // title text inside the band. The pagination engine wraps the section title
+  // at contentWidthPt - 2 x 10 (TEMPLATE_LITERALS.classic.
+  // sectionTitleHorizontalPaddingPt in blocks-from-model.ts) — keep the two in
+  // step. paddingVertical + marginTop match the engine's `8 * 2 + 16` charge.
   sectionHeader: {
     paddingVertical: 8,
-    paddingHorizontal: 8,
-    marginHorizontal: -8,
+    paddingHorizontal: 10,
     marginTop: 16,
     marginBottom: 0,
   },

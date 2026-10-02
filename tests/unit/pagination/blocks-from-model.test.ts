@@ -10,6 +10,8 @@ import { describe, it, expect } from 'vitest'
 import { blocksFromModel, type BlocksFromModelInput } from '@/lib/estimate/pagination/blocks-from-model'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import { LABELS } from '@/lib/estimate/document/labels'
+import { ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
+import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import type { DocumentSection } from '@/lib/estimate/document/model'
 
 function baseInput(overrides: Partial<BlocksFromModelInput> = {}): BlocksFromModelInput {
@@ -381,5 +383,49 @@ describe('blocksFromModel — full document order', () => {
       'photo-row',
       'prepared-by',
     ])
+  })
+})
+
+describe('blocksFromModel — section-title measurement width', () => {
+  const classicTitleMeasurement = () => {
+    const blocks = blocksFromModel(
+      baseInput({ sections: [section({ title: 'T', items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })] }),
+    )
+    return blocks.find((b) => b.kind === 'section-header')!.measurement!
+  }
+
+  it('Classic measures the section title at contentWidthPt - 2x10 (the band inner width), Modern at the full contentWidthPt', () => {
+    expect(classicTitleMeasurement().maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt - 20)
+
+    const modern = blocksFromModel(
+      baseInput({
+        templateId: 'modern',
+        sections: [section({ title: 'T', items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })],
+      }),
+    ).find((b) => b.kind === 'section-header')!.measurement!
+    expect(modern.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
+  })
+
+  it('a Classic title wider than contentWidthPt - 20 but narrower than contentWidthPt wraps to 2 lines (would be 1 at the full width)', () => {
+    const provider = createFontkitMeasurementProvider()
+    const { styleKey, fontSizePt } = classicTitleMeasurement()
+    const full = ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt
+
+    // Grow a multi-word title until it no longer fits the inner width but still fits the full width.
+    let title = ''
+    let found = ''
+    for (let i = 0; i < 200 && !found; i++) {
+      title += (i ? ' ' : '') + 'Kitchen'
+      if (provider.lineCount(title, styleKey, fontSizePt, full - 20) === 2 && provider.lineCount(title, styleKey, fontSizePt, full) === 1) {
+        found = title
+      }
+    }
+    expect(found, 'a title fitting in (contentWidth-20, contentWidth] must exist').not.toBe('')
+
+    const block = blocksFromModel(
+      baseInput({ sections: [section({ title: found, items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })] }),
+    ).find((b) => b.kind === 'section-header')!
+    const m = block.measurement!
+    expect(provider.lineCount(m.text, m.styleKey, m.fontSizePt, m.maxWidthPt)).toBe(2)
   })
 })

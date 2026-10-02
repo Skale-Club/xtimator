@@ -207,7 +207,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textDecoration: 'none',
   },
+  // Must carry the same color as companyName: the website-wrapped name renders
+  // as a <Link>, and react-pdf paints links its default blue unless the Link's
+  // own style sets a color (a color on the parent <Text> does not reach it).
   nameLink: {
+    color: '#1f2937',
     textDecoration: 'none',
   },
   infoValueLink: {
