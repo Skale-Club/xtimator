@@ -964,8 +964,11 @@ function DocumentTotals({
 
         {/* Discount */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-base">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div
+            data-testid="totals-discount-row"
+            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base"
+          >
+            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.discount}</span>
               <Select
                 value={discountTypeVal}
@@ -1025,7 +1028,7 @@ function DocumentTotals({
               )}
             </div>
             {data.discount_amount > 0 && (
-              <span className="tabular-nums text-destructive font-medium shrink-0">
+              <span className="tabular-nums text-destructive font-medium shrink-0 ml-auto">
                 -{fmt(data.discount_amount)}
               </span>
             )}
@@ -1101,8 +1104,11 @@ function DocumentTotals({
 
         {/* Deposit — none/percent/amount. Preview only; server recomputes on save (GUARD-03). */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-base pt-2">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div
+            data-testid="totals-deposit-row"
+            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base pt-2"
+          >
+            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.deposit}</span>
               <Select
                 value={depositTypeVal}
@@ -1162,7 +1168,7 @@ function DocumentTotals({
               )}
             </div>
             {data.deposit > 0 && (
-              <span className="tabular-nums text-muted-foreground font-medium shrink-0">
+              <span className="tabular-nums text-muted-foreground font-medium shrink-0 ml-auto">
                 -{fmt(data.deposit)}
               </span>
             )}

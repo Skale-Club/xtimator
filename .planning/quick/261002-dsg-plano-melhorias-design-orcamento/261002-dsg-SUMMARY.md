@@ -62,6 +62,8 @@ do commit.
 | `b501b1d` | Preview com os pesos, tamanhos e espaçamento entre letras do PDF; teste impede pesos 500/600 no preview |
 | `b3518b4` | Margens entre blocos do preview somam como no PDF; cabeçalho sem a linha do responsável e com separador "\|" |
 
+Correção extra: no editor em ~360px, os campos de desconto e sinal sobrepunham o valor ("10 %$150.00"); agora o valor desce para a linha de baixo no celular, desktop inalterado.
+
 Regra fixada durante a execução: **o preview segue o PDF** (tamanho, peso, espaçamento); a hierarquia maior de projeto/cliente vale só para a página web e o editor.
 
 ## Verificação final
@@ -73,6 +75,5 @@ Regra fixada durante a execução: **o preview segue o PDF** (tamanho, peso, esp
 
 ## Pendências
 
-- **Editor no celular:** sobreposição dos campos de desconto e sinal em ~360px está sendo tratada numa sessão separada.
 - **Precisão restante do modelo:** nome do projeto e endereço do cliente muito longos no bloco de informações são cobertos pela folga de 12pt, não medidos exatamente; os avisos `[pdf_page_drift]` no Sentry mostram se isso acontece em produção.
 - **Imposto no WhatsApp** mostra "(10%)" e no PDF "(10.00%)".
