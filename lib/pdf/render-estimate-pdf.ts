@@ -274,6 +274,15 @@ export async function renderEstimatePdf(
     preparedBy,
     L,
     templateId,
+    // Project / Bill To columns are measured line by line — the SAME values the template hands
+    // PdfInfoGrid below (projectName / projectType / client / estimate / language).
+    infoGrid: {
+      projectName,
+      projectType,
+      client,
+      estimate,
+      language: estimateLanguage,
+    },
   })
   const computePages = (extraSafetyMarginPt: number) =>
     computePageBreaks(

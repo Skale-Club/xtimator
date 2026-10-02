@@ -39,6 +39,26 @@ export function packLines(font: PackableFont, text: string, fontSizePt: number, 
   // fonts unconditionally regardless of any individual call's text.
   if (text.length === 0) return 0
 
+  // react-pdf (@react-pdf/textkit splitParagraphs) cuts a Text at every '\n' and
+  // line-breaks each paragraph on its own, so a hard newline ALWAYS starts a new line
+  // (an empty paragraph is one blank line) — e.g. the info grid's `street\ncity, ST zip`
+  // address is 2+ lines even though each half fits on one. A newline at the very end of
+  // the text adds no extra line. Without this the greedy loop below saw the whole text as
+  // one paragraph and under-counted every multi-paragraph text by one line per newline.
+  if (text.includes('\n')) {
+    const paragraphs = text.split('\n')
+    if (paragraphs[paragraphs.length - 1] === '') paragraphs.pop()
+    let total = 0
+    for (const paragraph of paragraphs) total += Math.max(1, packParagraph(font, paragraph, fontSizePt, maxWidthPt))
+    return total
+  }
+  return packParagraph(font, text, fontSizePt, maxWidthPt)
+}
+
+/** Greedy-packs ONE paragraph (no '\n') — the pre-existing loop, unchanged. */
+function packParagraph(font: PackableFont, text: string, fontSizePt: number, maxWidthPt: number): number {
+  if (text.length === 0) return 0
+
   const scale = fontSizePt / font.unitsPerEm
   const breaker = new LineBreaker(text)
   let lineWidthPt = 0

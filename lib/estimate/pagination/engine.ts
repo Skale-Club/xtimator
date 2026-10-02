@@ -44,12 +44,22 @@ function textHeightPt(m: TextMeasurement, provider: MeasurementProvider): number
   return provider.lineCount(m.text, m.styleKey, m.fontSizePt, m.maxWidthPt) * m.lineHeightMultiplier * m.fontSizePt
 }
 
-function blockHeightPt(block: PageBlock, provider: MeasurementProvider): number {
+/** Exported for tests and diagnostics: the height computePageBreaks charges one block. */
+export function blockHeightPt(block: PageBlock, provider: MeasurementProvider): number {
   let height = block.baseHeightPt
   if (block.measurement) height += textHeightPt(block.measurement, provider)
   // Side-by-side text boxes (photo-row captions): the row is as tall as the tallest.
   if (block.parallelMeasurements && block.parallelMeasurements.length > 0) {
     height += Math.max(...block.parallelMeasurements.map((m) => textHeightPt(m, provider)))
+  }
+  // Side-by-side stacked columns (info-grid Project | Bill To): each column is the SUM of its
+  // lines, the row is as tall as the tallest column.
+  if (block.columns && block.columns.length > 0) {
+    height += Math.max(
+      ...block.columns.map(
+        (column) => column.fixedHeightPt + column.measurements.reduce((sum, m) => sum + textHeightPt(m, provider), 0)
+      )
+    )
   }
   return height
 }

@@ -33,13 +33,16 @@ import {
   photoTileWidthPt,
   photosPerRow,
 } from '@/lib/estimate/document/tokens'
+import { formatAddress, formatDate, formatEstimateNumber, formatProjectType } from '@/lib/estimate/document/format'
+import { formatPhoneForDisplay } from '@/lib/phone/format'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 // PDF-PHOTO-01 — the SAME gate the render sites apply. Pure and browser-safe
 // (lib/pdf/pdf-image-support.ts imports nothing but lib/storage/asset-url), so
 // it does not breach this module's client-safety contract.
 import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
 import { isSectionVisible, type ResolvedPresentationSettings } from '@/lib/estimate/presentation-settings'
-import type { PageBlock } from './types'
+import type { PageBlock, StackedColumn, TextMeasurement } from './types'
 
 export interface BlocksFromModelPhoto {
   url: string
@@ -54,6 +57,40 @@ export interface BlocksFromModelPhoto {
 export interface BlocksFromModelCompany {
   estimate_terms_enabled?: boolean
   estimate_terms_text?: string | null
+}
+
+/** The Bill To client fields the info grid draws (structurally the same shape as
+ *  components/pdf/shared/pdf-info-grid.tsx's PdfInfoGridClient — redeclared here because this
+ *  module must not import components/*). */
+export interface BlocksFromModelClient {
+  name: string
+  email: string | null
+  phone: string | null
+  address: string | null
+  city: string | null
+  state: string | null
+  zip: string | null
+}
+
+/** Everything components/pdf/shared/pdf-info-grid.tsx draws, so the info grid is MEASURED
+ *  (every wrapped line of both columns) instead of estimated. REQUIRED on
+ *  BlocksFromModelInput: omitting it would silently charge a project/client-less grid. */
+export interface BlocksFromModelInfoGrid {
+  projectName: string
+  projectType: string | null
+  /** null = no client linked: the PDF draws NO Bill To column at all. */
+  client: BlocksFromModelClient | null
+  /** The date line is `${L.date}: ${formatDate(estimate_date ?? created_at, language)}`
+   *  and the number line `${L.estimateNum}${formatEstimateNumber(estimate)}` — the exact
+   *  strings the templates pass to PdfInfoGrid. */
+  estimate: {
+    estimate_date: string | null
+    created_at: string
+    estimate_number: string | null
+    estimate_seq: number
+  }
+  /** The document language the date is formatted in (the templates' `fmtDate`). */
+  language: EstimateLanguage
 }
 
 export interface BlocksFromModelInput {
@@ -78,7 +115,13 @@ export interface BlocksFromModelInput {
    *  only needs to know WHICH terms are present, not their display titles. */
   L: DocumentLabels
   templateId: EstimateTemplateId
+  /** Project / Bill To content — measured line by line, see BlocksFromModelInfoGrid. */
+  infoGrid: BlocksFromModelInfoGrid
 }
+
+/** pdf-info-grid.tsx's two `infoBlock`s are each `width: '48%'` of the info row (both
+ *  templates' styles.infoBlock) — the width every info-grid line wraps at. */
+const INFO_BLOCK_WIDTH_FRACTION = 0.48
 
 /** Per-template layout constants that are NOT part of the shared
  *  lib/estimate/document/tokens.ts module (private StyleSheet values, one
@@ -93,13 +136,16 @@ interface TemplateLiterals {
   /** styles.estimateTitle.fontSize (24 classic / 13 modern). */
   titleBannerFontSizePt: number
   /** Classic: banner paddingVertical(16)×2 + estimateTitle/banner marginBottom(20) = 52.
-   *  Modern: estimateTitle marginBottom(6) + estimateTitleRule marginBottom(28) = 34. */
+   *  Modern: estimateTitle marginBottom(6) + estimateTitleRule borderBottomWidth(0.75) + marginBottom(28) = 34.75.
+   *  The title's own line (natural bold line height) is measured on top of this. */
   titleBannerBaseHeightPt: number
-  /** blocksFromModel's input carries no project/client text (see
-   *  BlocksFromModelInput) — this is a conservative FIXED estimate for
-   *  info-grid's "up to 5 lines" (project name/type/date/estimate# or
-   *  client name/email/phone/2-line address), not a real text measurement. */
+  /** styles.infoRow.marginBottom (20 classic / 28 modern) — the only non-column part of the info-grid block. */
   infoGridBaseHeightPt: number
+  /** One info column's non-text height: the infoLabel line (8 x LINE_HEIGHT[bold family] — infoLabel sets no
+   *  lineHeight) + styles.infoLabel.marginBottom. Both columns carry the same label. */
+  infoColumnLabelHeightPt: number
+  /** The date line's extra inline `marginTop: 4` (left column only, pdf-info-grid.tsx; same in both templates). */
+  infoDateMarginTopPt: number
   /** infoLabel line + labelMarginBottom + the space BELOW the summary text (classic: termsText.marginBottom 12; modern: the summary Text's own marginBottom override 6, see estimate-pdf-modern.tsx's summary case) — the non-measured part of the summary block. */
   summaryBaseHeightPt: number
   /** The section band PLUS the column-header row PdfTableHeaderOnly draws right under it
@@ -187,6 +233,8 @@ function buildTemplateLiterals(p: {
   titleBannerFontSizePt: number
   titleBannerBaseHeightPt: number
   proseLineHeightMultiplier: number
+  infoLabelLineHeightMultiplier: number
+  infoDateMarginTopPt: number
   infoRowMarginBottomPt: number
   termsTextMarginBottomPt: number
   sectionHeaderPaddingContributionPt: number
@@ -218,25 +266,15 @@ function buildTemplateLiterals(p: {
   photoRowFirstBonusPt: number
   preparedByMarginTopPt: number
 }): TemplateLiterals {
-  // "up to 5 lines" — see BlocksFromModelInput/infoGridBaseHeightPt doc. The taller column is
-  // Bill To for a fully-populated client: name + email + phone + a 2-line street/city-state-zip
-  // address (formatAddress joins the two with '\n') = 5 value lines. The Project column is 4 lines
-  // (+ a 4pt marginTop on the date line), so 5 bounds both. Verified against a real render with a
-  // full client (calibration rich fixture): real Classic 108.7pt / Modern 123.2pt vs charged
-  // 111 / 125.8 — it was 4 lines (96 / 109.8, i.e. 12-13pt short) until 2026-10-02.
-  const infoGridMaxLines = 5
-
   return {
     labelFontSizePt: p.labelFontSizePt,
     labelMarginBottomPt: p.labelMarginBottomPt,
     valueFontSizePt: p.valueFontSizePt,
     titleBannerFontSizePt: p.titleBannerFontSizePt,
     titleBannerBaseHeightPt: p.titleBannerBaseHeightPt,
-    infoGridBaseHeightPt:
-      p.infoRowMarginBottomPt +
-      p.labelFontSizePt * p.proseLineHeightMultiplier +
-      p.labelMarginBottomPt +
-      p.valueFontSizePt * p.proseLineHeightMultiplier * infoGridMaxLines,
+    infoGridBaseHeightPt: p.infoRowMarginBottomPt,
+    infoColumnLabelHeightPt: p.labelFontSizePt * p.infoLabelLineHeightMultiplier + p.labelMarginBottomPt,
+    infoDateMarginTopPt: p.infoDateMarginTopPt,
     summaryBaseHeightPt:
       p.labelFontSizePt * p.proseLineHeightMultiplier + p.labelMarginBottomPt + p.summaryBottomSpacingPt,
     sectionHeaderBaseHeightPt: p.sectionHeaderPaddingContributionPt + p.tableHeaderHeightPt,
@@ -285,6 +323,8 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     titleBannerFontSizePt: 24, // styles.estimateTitle.fontSize
     titleBannerBaseHeightPt: 16 * 2 + 20, // PdfTitleBanner solid-fill: paddingVertical×2 + marginBottom
     proseLineHeightMultiplier: ESTIMATE_PAGE_GEOMETRY.classic.proseLineHeightMultiplier,
+    infoLabelLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold], // styles.infoLabel.fontFamily (Inter-Bold), no lineHeight: natural line height
+    infoDateMarginTopPt: 4, // pdf-info-grid.tsx date Text `marginTop: 4`
     infoRowMarginBottomPt: 20, // styles.infoRow.marginBottom
     termsTextMarginBottomPt: 12, // styles.termsText.marginBottom
     sectionHeaderPaddingContributionPt: 8 * 2 + 16, // styles.sectionHeader.padding×2 + marginTop
@@ -322,8 +362,10 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     labelMarginBottomPt: 5, // styles.infoLabel.marginBottom
     valueFontSizePt: 10, // styles.infoValue.fontSize
     titleBannerFontSizePt: 13, // styles.estimateTitle.fontSize
-    titleBannerBaseHeightPt: 6 + 28, // estimateTitle.marginBottom + estimateTitleRule.marginBottom
+    titleBannerBaseHeightPt: 6 + 0.75 + 28, // estimateTitle.marginBottom + estimateTitleRule.borderBottomWidth + estimateTitleRule.marginBottom
     proseLineHeightMultiplier: ESTIMATE_PAGE_GEOMETRY.modern.proseLineHeightMultiplier,
+    infoLabelLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.infoLabel.fontFamily (Lora-Bold), no lineHeight: natural line height
+    infoDateMarginTopPt: 4, // pdf-info-grid.tsx date Text `marginTop: 4`
     infoRowMarginBottomPt: 28, // styles.infoRow.marginBottom
     termsTextMarginBottomPt: 14, // styles.termsText.marginBottom
     sectionHeaderPaddingContributionPt: 6 * 2 + 22 + 1, // paddingVertical×2 + marginTop + borderBottomWidth
@@ -355,6 +397,54 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     photoRowFirstBonusPt: 20, // estimate-pdf-modern.tsx's PdfPhotoGrid topMargin call-site value (first chunk: marginTop ABOVE the Photos label)
     preparedByMarginTopPt: 20, // Prepared-by View marginTop
   }),
+}
+
+/** The info grid's two side-by-side columns, line for line what
+ *  components/pdf/shared/pdf-info-grid.tsx draws (same conditions, same strings):
+ *   Project: label + name + [formatted project type] + date (marginTop 4) + estimate number
+ *   Bill To: label + name (bold family) + [email] + [phone, formatted] + [address, '\n'-joined]
+ *            — and NO second column at all when there is no client.
+ *  Each line is its own `Text` of the column's width (48% of the content width), so each wraps
+ *  independently; a column's height is the SUM of its lines and the row takes the taller column.
+ *  Every value Text uses styles.infoValue (10pt, lineHeight = the template's prose multiplier). */
+function infoGridColumns(info: BlocksFromModelInfoGrid, L: DocumentLabels, templateId: EstimateTemplateId): StackedColumn[] {
+  const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
+  const design = ESTIMATE_DESIGN_TOKENS[templateId]
+  const lit = TEMPLATE_LITERALS[templateId]
+  const maxWidthPt = geometry.contentWidthPt * INFO_BLOCK_WIDTH_FRACTION
+  const line = (text: string, styleKey: string): TextMeasurement => ({
+    text,
+    styleKey,
+    fontSizePt: lit.valueFontSizePt,
+    lineHeightMultiplier: geometry.proseLineHeightMultiplier,
+    maxWidthPt,
+  })
+  const regular = (text: string) => line(text, design.fontFamily)
+
+  const projectLines: TextMeasurement[] = [regular(info.projectName)]
+  const projectTypeText = formatProjectType(info.projectType)
+  if (projectTypeText) projectLines.push(regular(projectTypeText))
+  projectLines.push(
+    regular(`${L.date}: ${formatDate(info.estimate.estimate_date ?? info.estimate.created_at, info.language)}`),
+    regular(`${L.estimateNum}${formatEstimateNumber(info.estimate)}`)
+  )
+  const columns: StackedColumn[] = [
+    {
+      fixedHeightPt: lit.infoColumnLabelHeightPt + lit.infoDateMarginTopPt,
+      measurements: projectLines,
+    },
+  ]
+
+  const client = info.client
+  if (client) {
+    const clientLines: TextMeasurement[] = [line(client.name, design.fontFamilyBold)]
+    if (client.email) clientLines.push(regular(client.email))
+    if (client.phone) clientLines.push(regular(formatPhoneForDisplay(client.phone)))
+    const clientAddress = formatAddress(client)
+    if (clientAddress) clientLines.push(regular(clientAddress))
+    columns.push({ fixedHeightPt: lit.infoColumnLabelHeightPt, measurements: clientLines })
+  }
+  return columns
 }
 
 /** Fixed, pinned emission order (Plan-checker blocker 3) — mirrors
@@ -398,18 +488,23 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
       text: input.L.estimate,
       styleKey: design.fontFamilyBold,
       fontSizePt: lit.titleBannerFontSizePt,
-      lineHeightMultiplier: prose,
+      // styles.estimateTitle sets no lineHeight, so the title line is the bold family's NATURAL
+      // line height (Classic 24 x 1.21 = 29.04, Modern 13 x 1.28 = 16.64) — NOT the prose
+      // multiplier (that charged 36 / 20.8: 6.96 / 4.16pt too much, measured against real PDF text
+      // positions on 2026-10-02).
+      lineHeightMultiplier: LINE_HEIGHT[design.fontFamilyBold],
       maxWidthPt: geometry.contentWidthPt,
     },
     atomic: true,
     page1Only: true,
   })
 
-  // --- info-grid (page1Only, fixed — see TemplateLiterals.infoGridBaseHeightPt doc) ---
+  // --- info-grid (page1Only; MEASURED — every line of both columns, see infoGridColumns) ---
   blocks.push({
     kind: 'info-grid',
     id: 'info-grid',
     baseHeightPt: lit.infoGridBaseHeightPt,
+    columns: infoGridColumns(input.infoGrid, input.L, templateId),
     atomic: true,
     page1Only: true,
   })

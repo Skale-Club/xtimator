@@ -22,6 +22,10 @@
 //    block with discount + tax + deposit (charged 84.5pt vs a real 161.9pt) plus a
 //    signature and several terms cards on the same pages; the flat 89pt margin was
 //    the only thing absorbing those uncharged text lines.
+//  - infogrid-* (2026-10-02): the info grid used to be charged a FIXED 5 lines. A 40-word project name
+//    (7-8 wrapped lines) or a 40-word client address (8+ lines) overflowed page 1 into an extra page
+//    the plan did not know about (OLD plan = 1 page, real = 2; each case was run against the old fixed
+//    formula to prove it). blocksFromModel now measures every line of both columns.
 import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToBuffer } from '@react-pdf/renderer'
@@ -30,11 +34,13 @@ import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import { buildPagesForFixture } from './_pages-for-fixture'
 import regressions from './fixtures/pagination-fuzz-regressions.json'
+import { buildFixtureEstimate, FIXTURE_COMPANY } from '../estimate/fixtures/document-fixtures'
 
 async function img(w: number, h: number, c: string, f: 'png' | 'jpeg') {
   const b = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="${c}"/></svg>`))[f]().toBuffer()
   return `data:image/${f};base64,${b.toString('base64')}`
 }
+const PROJECT_TYPE = 'Remodeling'
 const countPages = (buf: Buffer) => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
 
 describe('engine page count == real PDF page count (fuzz regressions)', () => {
@@ -52,6 +58,10 @@ describe('engine page count == real PDF page count (fuzz regressions)', () => {
         signature,
         preparedBy: c.preparedBy,
         language: c.language,
+        // The info grid is measured line by line — plan with the SAME project / client the render draws.
+        projectName: c.projectName,
+        projectType: PROJECT_TYPE,
+        client: c.client,
       })
       const Comp = c.tid === 'classic' ? EstimatePDF : EstimatePDFModern
       const buf = Buffer.from(
@@ -61,7 +71,7 @@ describe('engine page count == real PDF page count (fuzz regressions)', () => {
             company,
             client: c.client,
             projectName: c.projectName,
-            projectType: 'Remodeling',
+            projectType: PROJECT_TYPE,
             language: c.language,
             preparedBy: c.preparedBy,
             attachedPhotos,
@@ -71,6 +81,81 @@ describe('engine page count == real PDF page count (fuzz regressions)', () => {
         )
       )
       expect(countPages(buf)).toBe(pages.length)
+    }, 60000)
+  }
+})
+
+// A short estimate must NOT be split across two pages by the safety reserve: ONE item, discount 10% + tax
+// 8.25% + 30% deposit, no summary/terms, project "Test". The model is exact for it (predicted page-1 usage ==
+// real, Modern 520.19pt of 551.85), so the plan is 1 page and the real render is 1 page.
+describe('a short one-item estimate prints on exactly ONE page (engine pages == real pages == 1)', () => {
+  const section = {
+    id: 's0',
+    estimate_id: 'e',
+    company_id: 'c',
+    title: 'Labor',
+    sort_order: 1,
+    subtotal: 100,
+    items: [
+      { id: 'i0', section_id: 's0', company_id: 'c', description: 'Install fixture', quantity: 1, unit: 'ea', unit_price: 100, total: 100, sort_order: 1, price_source: null },
+    ],
+  }
+  const tax = Math.round(90 * 0.0825 * 100) / 100
+  const total = Math.round((100 - 10 + tax) * 100) / 100
+  const estimate = buildFixtureEstimate({
+    sections: [section],
+    subtotal: 100,
+    total,
+    discount_type: 'percentage',
+    discount_value: 10,
+    discount_amount: 10,
+    tax_rate: 0.0825,
+    tax_amount: tax,
+    deposit_type: 'percent',
+    deposit_value: 30,
+    balance_due: Math.round(total * 0.7 * 100) / 100,
+    summary: null,
+    timeline: null,
+    payment_terms: null,
+    warranty_terms: null,
+    notes: null,
+  })
+  const typicalClient = {
+    name: 'Michael Thompson',
+    email: 'm.thompson@email.com',
+    phone: '+15125550199',
+    address: '4821 Oak Hollow Dr',
+    city: 'Austin',
+    state: 'TX',
+    zip: '78745',
+  }
+  const cases: { name: string; tid: 'classic' | 'modern'; client: typeof typicalClient | null; logo: boolean }[] = [
+    { name: 'Classic, no client', tid: 'classic', client: null, logo: false },
+    { name: 'Classic, typical client', tid: 'classic', client: typicalClient, logo: false },
+    { name: 'Classic, typical client + logo', tid: 'classic', client: typicalClient, logo: true },
+    { name: 'Modern, no client', tid: 'modern', client: null, logo: false },
+    { name: 'Modern, no client + logo', tid: 'modern', client: null, logo: true },
+  ]
+  for (const c of cases) {
+    it(c.name, async () => {
+      const company = { ...FIXTURE_COMPANY, logo_url: c.logo ? await img(300, 200, '#0f766e', 'png') : null }
+      const pages = buildPagesForFixture(estimate, company, c.tid, { projectName: 'Test', client: c.client })
+      expect(pages).toHaveLength(1)
+      const Comp = c.tid === 'classic' ? EstimatePDF : EstimatePDFModern
+      const buf = Buffer.from(
+        await renderToBuffer(
+          createElement(Comp as typeof EstimatePDF, {
+            estimate,
+            company,
+            client: c.client,
+            projectName: 'Test',
+            projectType: null,
+            language: 'en',
+            pages,
+          } as never) as never
+        )
+      )
+      expect(countPages(buf)).toBe(1)
     }, 60000)
   }
 })

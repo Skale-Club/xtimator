@@ -15,7 +15,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
+import type { DocumentClient, DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
@@ -39,6 +39,15 @@ export interface UsePaginatedPreviewInput {
   templateId: EstimateTemplateId
   preparedBy: string | null
   language: EstimateLanguage
+  /** Project / Bill To content of the info grid — measured line by line (blocksFromModel's
+   *  `infoGrid`), so a long project name or client address that wraps is charged. The same
+   *  values the document renders. REQUIRED: omitting them would under-measure page 1. */
+  projectName: string
+  projectType: string | null
+  client: DocumentClient | null
+  /** estimate.estimate_seq / created_at — the fallbacks of the info grid's date and number lines. */
+  estimateSeq: number
+  estimateCreatedAt: string
   /** false = do no work at all (no font fetch, no compute) — pages stays null. */
   enabled: boolean
 }
@@ -79,7 +88,20 @@ function getMeasurementProvider(templateId: EstimateTemplateId): Promise<Measure
 }
 
 export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginatedPreviewResult {
-  const { data, structuralEpoch, company, templateId, preparedBy, language, enabled } = input
+  const {
+    data,
+    structuralEpoch,
+    company,
+    templateId,
+    preparedBy,
+    language,
+    enabled,
+    projectName,
+    projectType,
+    client,
+    estimateSeq,
+    estimateCreatedAt,
+  } = input
   const [pages, setPages] = useState<PageAssignment[] | null>(null)
 
   // Phase 185 Plan 04 (PGMODE-03) — the last structuralEpoch this hook
@@ -136,6 +158,18 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
           preparedBy,
           L,
           templateId,
+          infoGrid: {
+            projectName,
+            projectType,
+            client,
+            estimate: {
+              estimate_date: data.estimate_date,
+              created_at: estimateCreatedAt,
+              estimate_number: data.estimate_number,
+              estimate_seq: estimateSeq,
+            },
+            language,
+          },
         })
         // Parity note (Phase 190, revised by PDF-LOGO-01):
         // lib/pdf/render-estimate-pdf.ts resolves company.logo_url to a
@@ -178,7 +212,20 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
       cancelled = true
       if (debounceTimer) clearTimeout(debounceTimer)
     }
-  }, [enabled, data, structuralEpoch, company, templateId, preparedBy, language])
+  }, [
+    enabled,
+    data,
+    structuralEpoch,
+    company,
+    templateId,
+    preparedBy,
+    language,
+    projectName,
+    projectType,
+    client,
+    estimateSeq,
+    estimateCreatedAt,
+  ])
 
   return { pages }
 }

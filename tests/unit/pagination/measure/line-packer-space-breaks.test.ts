@@ -40,3 +40,21 @@ describe('packLines — breaks only where react-pdf can break', () => {
     expect(lines('', 100)).toBe(0)
   })
 })
+
+describe('packLines — hard newlines (react-pdf splits a Text into paragraphs at every "\\n")', () => {
+  it('a newline always starts a new line, even when both halves fit on one', () => {
+    expect(lines('aaaa\nbbbb', 100)).toBe(2) // the info grid's "street\ncity, ST zip" address
+    expect(lines('aaaa\nbbbb\ncccc', 100)).toBe(3)
+  })
+
+  it('each paragraph wraps on its own', () => {
+    expect(lines('aaaa bbbb cccc\nddd', 8)).toBe(4) // 3 + 1
+    expect(lines('aa\nbbbb cccc dddd', 8)).toBe(1 + 3)
+  })
+
+  it('an empty paragraph is one blank line; a trailing newline adds none', () => {
+    expect(lines('aaaa\n\nbbbb', 100)).toBe(3)
+    expect(lines('aaaa\n', 100)).toBe(1)
+    expect(lines('aaaa\nbbbb\n', 100)).toBe(2)
+  })
+})

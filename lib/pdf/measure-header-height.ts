@@ -367,7 +367,7 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
  * 60,77 all mismatches=0). The smallest non-negative zero-mismatch value is
  * therefore **0pt** (negative values only matter for the fixed one-line
  * SAFETY_MARGIN_LINES term, which stays) — that is what the CALIBRATION FIXTURES alone said.
- * The fuzz below is stricter and sets the final value (24).
+ * The fuzz below is stricter and set the then-final value (24); the last re-run below sets the current one (12).
  * Randomized engine-vs-renderer fuzz (600 renders per seed — random sections/items,
  * description and section-title lengths, summary/terms on/off, company terms, 0-9
  * photos with 1-16 word captions, signature, logo, long company name/address, long
@@ -392,11 +392,40 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
  *   margin 24: 0,0,0,0,0,0 = 0
  *   margin 36: 0,0,0,0,0,0 = 0
  * and the calibration script gave marginPt=0 mismatches=0, marginPt=12 mismatches=0. The
- * smallest margin clean in BOTH is 12pt, so the constant is **24pt** (12 + 12). Production
- * additionally runs lib/pdf/render-with-page-guard.ts: a real page count that still differs
- * from the plan is re-planned with +48pt, then +96pt, and reported to Sentry. Re-run
- * that script (`CAL_CANDIDATES=` narrows the sweep) and the fuzz, and update this comment +
- * the constant, if `blocks-from-model.ts` / `measure-header-height.ts` / either
- * template's StyleSheet ever changes.
+ * smallest margin clean in BOTH was then 12pt, so the constant was 24pt (12 + 12) — kept ONLY because
+ * of the info-grid under-measurement named above.
+ *
+ * Re-run 2026-10-02 (info grid MEASURED), which is why the constant is now **12pt**:
+ *   - blocksFromModel measures every wrapped line of both info-grid columns (Project: name / formatted
+ *     type / date / estimate #; Bill To: bold name / email / phone / '\n'-joined address, or no column
+ *     with no client) at 48% of the content width, via `PageBlock.columns`. Predicted vs real info-grid
+ *     height (pdftotext -bbox, render with vs without the block): 0.00pt difference in 29 of 32 cases
+ *     in both templates (short, long name 2-4 lines, long type, long client name, long email, long
+ *     address, no client, blank/trailing newline in the address, es/pt). The rest: a Classic address
+ *     whose last line fits only because react-pdf's Knuth-Plass shrinks spaces (we charge 1 line more,
+ *     +15pt, safe) and an unbreakable 64-char estimate number that react-pdf splits mid-word after
+ *     another word (we charge 1 line fewer, -4pt; margin-covered, not a realistic input).
+ *   - Two model errors found on the way and fixed: (1) the line packer ignored hard newlines (react-pdf
+ *     splits a Text at every '\n'), so every 'street\ncity' address was one line short per newline —
+ *     it also affects any multi-paragraph summary/terms text; (2) the title banner was charged at the
+ *     prose line height (Classic +6.96pt, Modern +4.16pt over; Modern's 0.75pt rule was uncharged).
+ *     A short one-item estimate is now predicted EXACTLY (predicted 520.19pt = real 520.19pt page-1
+ *     usage, Modern, no client, discount + tax + 30% deposit).
+ *   - Randomized fuzz (300 renders per seed, N=150 x 2 templates; seeds 101, 202, 303, 404 + 505, 606,
+ *     707, 808, with 30% of cases using a 25-40 word project name and a 3+ line client address; harness
+ *     MARGIN override = this constant's value for the run; the fixed 1-line SAFETY_MARGIN_LINES term
+ *     stays):
+ *       margin 24: 0,0,0,0 mismatches                     (seeds 101,202,303,404)
+ *       margin 12: 0,0,0,0                                (seeds 101,202,303,404)
+ *       margin  0: 0,0,0,0 and 0,0,0,0                    (seeds 101,202,303,404 and 505,606,707,808)
+ *       margin -12: 3,5,0,4 = 12                          (seeds 101,202,303,404; informational)
+ *     (the -12 failures are real residual drift — e.g. Knuth-Plass vs the greedy packer — so 0 is the
+ *     smallest clean value, not an artifact.) The calibration script gave marginPt=-10, 0, 12, 24
+ *     mismatches=0 each. Smallest clean in BOTH = 0pt (fuzz) / -10pt (calibration) -> the constant is
+ *     **12pt** (0 + 12 buffer for content neither covers). Production additionally runs
+ *     lib/pdf/render-with-page-guard.ts: a real page count that still differs from the plan is
+ *     re-planned with +48pt, then +96pt, and reported to Sentry. Re-run that script
+ *     (`CAL_CANDIDATES=` narrows the sweep) and the fuzz, and update this comment + the constant, if
+ *     `blocks-from-model.ts` / `measure-header-height.ts` / either template's StyleSheet ever changes.
  */
-export const PDF_RENDER_SAFETY_MARGIN_PT = 24
+export const PDF_RENDER_SAFETY_MARGIN_PT = 12

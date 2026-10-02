@@ -42,6 +42,11 @@ function baseProps(overrides: Partial<Parameters<typeof usePaginatedPreview>[0]>
     templateId,
     preparedBy: null,
     language: 'en' as const,
+    projectName: 'Test Project',
+    projectType: null,
+    client: null,
+    estimateSeq: 1,
+    estimateCreatedAt: '2026-01-15T00:00:00Z',
     enabled: true,
     ...overrides,
   }

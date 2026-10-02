@@ -8,7 +8,7 @@
 // and the persistent continuation-header reservation invariant.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { computePageBreaks } from '@/lib/estimate/pagination/engine'
+import { blockHeightPt, computePageBreaks } from '@/lib/estimate/pagination/engine'
 import type { PageBlock, PageConstraints } from '@/lib/estimate/pagination/types'
 import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
 
@@ -371,5 +371,44 @@ describe('computePageBreaks — parallelMeasurements (side-by-side photo caption
     // ...but one more line in the tallest caption pushes the next block to a new page.
     const taller = makeBlock({ kind: 'photo-row', id: 'r', baseHeightPt: 50, parallelMeasurements: [m('aaaaaa')] })
     expect(computePageBreaks([taller, next], makeConstraints({ contentHeightPt: 100 }), byLength)).toHaveLength(2)
+  })
+})
+
+describe('blockHeightPt — stacked side-by-side columns (info-grid)', () => {
+  const m = (text: string) => ({ text, styleKey: 'Inter', fontSizePt: 10, lineHeightMultiplier: 1.5, maxWidthPt: 100 })
+  // Fake provider: one line per 10 chars.
+  const provider: MeasurementProvider = { lineCount: (text) => Math.ceil(text.length / 10) }
+
+  it('each column is fixed + the SUM of its lines; the block takes the TALLEST column on top of baseHeightPt', () => {
+    const block = makeBlock({
+      kind: 'info-grid',
+      id: 'info',
+      baseHeightPt: 20,
+      columns: [
+        { fixedHeightPt: 17, measurements: [m('0123456789'), m('0123456789012345678'), m('x')] }, // 1+2+1 = 4 lines = 60 + 17 = 77
+        { fixedHeightPt: 13, measurements: [m('01234567890123456789012345678')] }, // 3 lines = 45 + 13 = 58
+      ],
+    })
+    expect(blockHeightPt(block, provider)).toBe(20 + 77)
+  })
+
+  it('a missing / empty `columns` adds nothing', () => {
+    expect(blockHeightPt(makeBlock({ kind: 'info-grid', id: 'a', baseHeightPt: 20 }), provider)).toBe(20)
+    expect(blockHeightPt(makeBlock({ kind: 'info-grid', id: 'b', baseHeightPt: 20, columns: [] }), provider)).toBe(20)
+  })
+
+  it('the engine charges the columns against page 0 (a tall wrapped info grid pushes the next chain to page 2)', () => {
+    const grid = (text: string) =>
+      makeBlock({
+        kind: 'info-grid',
+        id: 'info',
+        baseHeightPt: 0,
+        page1Only: true,
+        columns: [{ fixedHeightPt: 0, measurements: [m(text)] }],
+      })
+    const rest = makeBlock({ kind: 'totals', id: 'totals', baseHeightPt: 40 })
+    const constraints = makeConstraints({ contentHeightPt: 100 })
+    expect(computePageBreaks([grid('0123456789'), rest], constraints, provider)).toHaveLength(1) // 15 + 40 <= 100
+    expect(computePageBreaks([grid('0'.repeat(50)), rest], constraints, provider)).toHaveLength(2) // 75 + 40 > 100
   })
 })

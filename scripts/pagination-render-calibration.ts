@@ -114,6 +114,18 @@ function getFont(fontFamily: string): fontkit.Font {
 }
 function estimateLineCount(text: string, fontFamily: string, fontSizePt: number, maxWidthPt: number): number {
   if (text.length === 0) return 0
+  // Mirrors lib/estimate/pagination/measure/line-packer.ts's packLines(): react-pdf splits a Text at
+  // every '\n' and wraps each paragraph on its own (an empty paragraph is one blank line; a trailing
+  // newline adds none).
+  if (text.includes('\n')) {
+    const paragraphs = text.split('\n')
+    if (paragraphs[paragraphs.length - 1] === '') paragraphs.pop()
+    return paragraphs.reduce((sum, paragraph) => sum + Math.max(1, estimateParagraphLineCount(paragraph, fontFamily, fontSizePt, maxWidthPt)), 0)
+  }
+  return estimateParagraphLineCount(text, fontFamily, fontSizePt, maxWidthPt)
+}
+function estimateParagraphLineCount(text: string, fontFamily: string, fontSizePt: number, maxWidthPt: number): number {
+  if (text.length === 0) return 0
   const font = getFont(fontFamily)
   const scale = fontSizePt / font.unitsPerEm
   const breaker = new LineBreaker(text)
@@ -158,6 +170,19 @@ const FIXTURE_COMPANY = {
   zip: '78701',
   logo_url: null as string | null,
   brand_primary_color: '#2563eb',
+}
+
+/** The project name every calibration document renders with AND the engine measures. */
+const CAL_PROJECT_NAME = 'Calibration Test'
+
+/** The estimate fields the info grid's date / number lines read (baseEstimateFields leaves estimate_date null, so the date line falls back to created_at). */
+function estimateInfo(estimate: Record<string, unknown>) {
+  return {
+    estimate_date: (estimate.estimate_date as string | null) ?? null,
+    created_at: estimate.created_at as string,
+    estimate_number: (estimate.estimate_number as string | null) ?? null,
+    estimate_seq: estimate.estimate_seq as number,
+  }
 }
 
 function baseEstimateFields(overrides: Record<string, unknown>): Record<string, unknown> {
@@ -414,7 +439,7 @@ interface RenderExtras {
   signature?: { signerName: string; signedAt: string; signatureDataUrl: string } | null
   photos?: { url: string; caption: string | null }[]
   preparedBy?: string | null
-  /** Bill To client (info-grid column). The engine never sees it (blocksFromModel's info-grid height is a fixed estimate), so the rich fixtures pass a FULL one to prove that estimate bounds the real grid. */
+  /** Bill To client (info-grid column). blocksFromModel MEASURES it (every wrapped line of both info-grid columns), and the rich fixtures pass a FULL one so the Bill To column is the taller one. */
   client?: { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null } | null
 }
 
@@ -532,6 +557,14 @@ function buildPages(
     preparedBy: extras.preparedBy ?? null,
     L: PDF_LABELS.en,
     templateId,
+    // The SAME project name / client / estimate fields realPageCount() renders with.
+    infoGrid: {
+      projectName: CAL_PROJECT_NAME,
+      projectType: null,
+      client: extras.client ?? null,
+      estimate: estimateInfo(estimate),
+      language: 'en',
+    },
   })
   return computePageBreaks(blocks, constraints, createLocalFontkitMeasurementProvider())
 }
@@ -546,7 +579,7 @@ async function realPageCount(
     estimate: estimate as any,
     company: (extras.company ?? FIXTURE_COMPANY) as any,
     client: (extras.client ?? null) as any,
-    projectName: 'Calibration Test',
+    projectName: CAL_PROJECT_NAME,
     projectType: null,
     language: 'en',
     signature: extras.signature ?? null,

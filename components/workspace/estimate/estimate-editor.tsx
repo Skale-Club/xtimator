@@ -304,6 +304,11 @@ export function EstimateEditor({
     templateId: estimateTemplateId,
     preparedBy,
     language: (estimate.language ?? 'en') as EstimateLanguage,
+    projectName: localProjectName,
+    projectType,
+    client,
+    estimateSeq: state.estimate_seq,
+    estimateCreatedAt: estimate.created_at,
     enabled: viewMode === 'page',
   })
 

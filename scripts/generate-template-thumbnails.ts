@@ -89,6 +89,8 @@ const DEMO_CLIENT = {
   zip: null as string | null,
 }
 
+const DEMO_PROJECT_NAME = 'Kitchen Remodel'
+
 function item(sectionId: string, i: number, description: string, quantity: number, unit: string, unitPrice: number) {
   return {
     id: `${sectionId}-item-${i}`,
@@ -194,6 +196,19 @@ async function renderPdf(templateId: EstimateTemplateId): Promise<Buffer> {
     preparedBy: null,
     L: PDF_LABELS.en,
     templateId,
+    // The SAME project/client/estimate the element below renders with.
+    infoGrid: {
+      projectName: DEMO_PROJECT_NAME,
+      projectType: null,
+      client: DEMO_CLIENT,
+      estimate: {
+        estimate_date: (estimate.estimate_date as string | null) ?? null,
+        created_at: estimate.created_at as string,
+        estimate_number: (estimate.estimate_number as string | null) ?? null,
+        estimate_seq: estimate.estimate_seq as number,
+      },
+      language: 'en',
+    },
   })
   const pages = computePageBreaks(blocks, constraints, provider)
   if (pages.length !== 1) {
@@ -205,7 +220,7 @@ async function renderPdf(templateId: EstimateTemplateId): Promise<Buffer> {
     estimate: estimate as any,
     company: DEMO_COMPANY,
     client: DEMO_CLIENT,
-    projectName: 'Kitchen Remodel',
+    projectName: DEMO_PROJECT_NAME,
     projectType: null,
     language: 'en',
     preparedBy: null,

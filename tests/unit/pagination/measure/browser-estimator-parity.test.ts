@@ -129,6 +129,23 @@ function buildFixtureInput(templateId: EstimateTemplateId): BlocksFromModelInput
     preparedBy: 'John Smith',
     L: LABELS.en,
     templateId,
+    // A wrapping project name and a full Bill To client (bold name, 2-line address) so the info grid's
+    // regular AND bold measurements both go through the server/browser provider comparison.
+    infoGrid: {
+      projectName: 'Thompson Residence Complete Kitchen, Pantry and Mudroom Remodel with Structural Changes',
+      projectType: 'kitchen_remodel',
+      client: {
+        name: 'Michael Thompson',
+        email: 'm.thompson@email.com',
+        phone: '+15125550199',
+        address: '4821 Oak Hollow Drive',
+        city: 'Austin',
+        state: 'TX',
+        zip: '78745',
+      },
+      estimate: { estimate_date: '2026-09-28', created_at: '2026-01-01T00:00:00Z', estimate_number: 'EST-1042', estimate_seq: 1 },
+      language: 'en',
+    },
   }
 }
 

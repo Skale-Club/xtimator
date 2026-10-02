@@ -387,6 +387,13 @@ describe('PDF-PHOTO-01 — the measurement desync', () => {
       preparedBy: null,
       L: LABELS.en,
       templateId: 'classic',
+      infoGrid: {
+        projectName: 'Test Project',
+        projectType: null,
+        client: null,
+        estimate: { estimate_date: null, created_at: '2026-01-15T00:00:00Z', estimate_number: null, estimate_seq: 1 },
+        language: 'en',
+      },
     }).filter((b) => b.kind === 'photo-row')
   }
 

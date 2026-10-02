@@ -7,7 +7,7 @@
 // order + first-card height bonus, photo-row chunking + first-row height
 // bonus, and full document-order output.
 import { describe, it, expect } from 'vitest'
-import { blocksFromModel, type BlocksFromModelInput } from '@/lib/estimate/pagination/blocks-from-model'
+import { blocksFromModel, type BlocksFromModelInfoGrid, type BlocksFromModelInput } from '@/lib/estimate/pagination/blocks-from-model'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import { LABELS } from '@/lib/estimate/document/labels'
 import {
@@ -19,6 +19,14 @@ import {
 } from '@/lib/estimate/document/tokens'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import type { DocumentSection } from '@/lib/estimate/document/model'
+
+const SHORT_INFO_GRID: BlocksFromModelInfoGrid = {
+  projectName: 'Kitchen Remodel',
+  projectType: null,
+  client: null,
+  estimate: { estimate_date: '2026-09-28', created_at: '2026-01-01T00:00:00Z', estimate_number: null, estimate_seq: 1 },
+  language: 'en',
+}
 
 function baseInput(overrides: Partial<BlocksFromModelInput> = {}): BlocksFromModelInput {
   return {
@@ -38,6 +46,7 @@ function baseInput(overrides: Partial<BlocksFromModelInput> = {}): BlocksFromMod
     preparedBy: null,
     L: LABELS.en,
     templateId: 'classic',
+    infoGrid: SHORT_INFO_GRID,
     ...overrides,
   }
 }

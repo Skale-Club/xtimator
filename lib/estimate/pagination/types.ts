@@ -37,6 +37,14 @@ export interface TextMeasurement {
   maxWidthPt: number
 }
 
+/** One column of a side-by-side block: a stack of text boxes laid out top to bottom. */
+export interface StackedColumn {
+  /** Height of the column that is NOT wrapped text (label line + its margin, extra line margins). */
+  fixedHeightPt: number
+  /** Stacked text boxes — the column's text height is the SUM of their wrapped heights. */
+  measurements: TextMeasurement[]
+}
+
 /** Which document entity a block refers to — populated by Plan 184-03's
  *  blocksFromModel, consumed by Plan 184-05's renderer to look up exactly
  *  what to render for a given block (no more guessing "which of the 5 terms
@@ -72,6 +80,12 @@ export interface PageBlock {
    *  the TALLEST of them (max over entries of wrapped lines x lineHeight x fontSize),
    *  not the sum — and it is added on top of baseHeightPt. Absent/empty = no text. */
   parallelMeasurements?: TextMeasurement[]
+  /** Present only on the 'info-grid' block: SIDE-BY-SIDE columns (Project | Bill To), each a
+   *  vertical STACK of independently wrapping text lines. Unlike `parallelMeasurements` (one
+   *  box per side-by-side item), a column's height is a SUM — its non-measured part plus every
+   *  stacked line — and the block takes the TALLEST column (flex row, `align-items: stretch`),
+   *  added on top of baseHeightPt. Absent/empty = no columns. */
+  columns?: StackedColumn[]
   /** Set ONLY on 'section-header' blocks: the id of the item-row block that
    *  MUST land on the same page (the section's first row). */
   keepWithNextId?: string

@@ -18,7 +18,7 @@ import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
-import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
+import { blocksFromModel, type BlocksFromModelClient } from '@/lib/estimate/pagination/blocks-from-model'
 import { computePageBreaks } from '@/lib/estimate/pagination/engine'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import type { PageAssignment } from '@/lib/estimate/pagination/types'
@@ -40,6 +40,14 @@ export interface BuildPagesForFixtureOpts {
    *  with — a test that renders with `language: 'es'` MUST build its pages with the
    *  same value here, or the pages are measured against the wrong header/labels. */
   language?: EstimateLanguage
+  /** The project name / type / Bill To client the test RENDERS with — they are measured line by
+   *  line into page 1's info grid, so a test that renders a long project name or a client whose
+   *  address wraps MUST pass the same values here (the page plan is only exact for the content it
+   *  was measured with). Defaults — a short name, no type, no client — suit every test that
+   *  renders the info grid with that same short content. */
+  projectName?: string
+  projectType?: string | null
+  client?: BlocksFromModelClient | null
   /** Fuzz/calibration only: replaces PDF_RENDER_SAFETY_MARGIN_PT in the page budget (the fixed 1-line SAFETY_MARGIN_LINES term stays). */
   extraMarginPt?: number
 }
@@ -94,6 +102,18 @@ export function buildPagesForFixture(
     preparedBy: opts.preparedBy ?? null,
     L,
     templateId,
+    infoGrid: {
+      projectName: opts.projectName ?? 'Test Project',
+      projectType: opts.projectType ?? null,
+      client: opts.client ?? null,
+      estimate: {
+        estimate_date: (estimate.estimate_date as string | null | undefined) ?? null,
+        created_at: (estimate.created_at as string | undefined) ?? '2026-01-15T00:00:00Z',
+        estimate_number: (estimate.estimate_number as string | null | undefined) ?? null,
+        estimate_seq: (estimate.estimate_seq as number | undefined) ?? 1,
+      },
+      language,
+    },
   })
 
   return computePageBreaks(blocks, constraints, provider)
