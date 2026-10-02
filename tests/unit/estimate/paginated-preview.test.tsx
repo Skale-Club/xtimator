@@ -135,6 +135,7 @@ function renderPreview(overrides: Partial<PaginatedPreviewProps> = {}) {
       estimateSeq={1}
       estimateCreatedAt="2026-01-01T00:00:00Z"
       companyTerms={null}
+      templateId="classic"
       {...overrides}
     />
   )

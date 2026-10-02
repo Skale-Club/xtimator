@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { History } from 'lucide-react'
+import { History, Info } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -726,12 +726,39 @@ export function EstimateEditor({
           chrome (sticky header, floating action pill). IssuedInvoicesPanel/
           GenerateInvoiceDialog render as SIBLINGS below, in BOTH view modes,
           so unrelated invoice surfaces never sit inside the paginated tray. */}
+      {/* The editable 'width' document is always drawn in the standard (Classic)
+          layout; only the Page-view preview renders the company's Modern
+          template. Say so, and offer the one-click way to see it. Page view is
+          desktop-only (the effect above forces 'width' below lg), so the note —
+          and its button — only exist at lg+. */}
+      {estimateTemplateId === 'modern' && viewMode === 'width' && (
+        <div
+          data-testid="modern-layout-note"
+          className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {t('Editing in the standard layout. Clients see the Modern template — switch to Page view to preview it.')}
+          </span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => handleViewModeChange('page')}
+          >
+            {t('Open Page view')}
+          </Button>
+        </div>
+      )}
+
       <div className={viewMode === 'page' ? 'isolate w-full' : 'isolate'}>
         {viewMode === 'page' ? (
           <PaginatedPreview
             data={documentData}
             pages={paginatedPages}
             company={company}
+            templateId={estimateTemplateId}
             language={(estimate.language ?? 'en') as EstimateLanguage}
             brandColor={companyBrandColor ?? undefined}
             client={client}

@@ -39,12 +39,17 @@ function buildFixture(templateId: EstimateTemplateId) {
   return { data, pages }
 }
 
-function renderPreview(data: EstimateDocumentData, pages: ReturnType<typeof buildPagesForFixture>) {
+function renderPreview(
+  data: EstimateDocumentData,
+  pages: ReturnType<typeof buildPagesForFixture>,
+  templateId: EstimateTemplateId
+) {
   return render(
     <PaginatedPreview
       data={data}
       pages={pages}
       company={company}
+      templateId={templateId}
       language="en"
       client={null}
       projectName="Test Project"
@@ -65,7 +70,7 @@ describe.each(['classic', 'modern'] as const)(
       const { data, pages } = buildFixture(templateId)
       expect(pages.length, 'buildMultiPageFixtureEstimate() must force a multi-page fixture').toBeGreaterThan(1)
 
-      const { container } = renderPreview(data, pages)
+      const { container } = renderPreview(data, pages, templateId)
 
       expect(container.querySelectorAll('[data-page-sheet]').length).toBe(pages.length)
     })
@@ -75,7 +80,7 @@ describe.each(['classic', 'modern'] as const)(
       const continuationIndexes = pages.map((p, i) => (p.continuesTable ? i : -1)).filter((i) => i !== -1)
       expect(continuationIndexes.length, 'fixture must produce at least 1 continuation page').toBeGreaterThan(0)
 
-      const { container } = renderPreview(data, pages)
+      const { container } = renderPreview(data, pages, templateId)
 
       const allHeaders = container.querySelectorAll('[data-testid="continuation-header"]')
       expect(allHeaders.length).toBe(continuationIndexes.length)
@@ -94,7 +99,7 @@ describe.each(['classic', 'modern'] as const)(
 
     it('renders the "<Section> (cont.)" title band ABOVE the repeated column header, ONLY on continuesTable pages', () => {
       const { data, pages } = buildFixture(templateId)
-      const { container } = renderPreview(data, pages)
+      const { container } = renderPreview(data, pages, templateId)
 
       const allTitles = container.querySelectorAll('[data-testid="continuation-title"]')
       expect(allTitles.length).toBe(pages.filter((p) => p.continuesTable).length)
@@ -117,7 +122,7 @@ describe.each(['classic', 'modern'] as const)(
 
     it('shows the "Page N of M" caption under every sheet, using the resolved language labels', () => {
       const { data, pages } = buildFixture(templateId)
-      renderPreview(data, pages)
+      renderPreview(data, pages, templateId)
 
       const L = LABELS.en
       pages.forEach((_, i) => {
@@ -135,6 +140,7 @@ describe.each(['classic', 'modern'] as const)(
           data={data}
           pages={pages}
           company={company}
+          templateId={templateId}
           language="pt"
           client={null}
           projectName="Test Project"
