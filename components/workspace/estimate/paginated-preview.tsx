@@ -324,7 +324,9 @@ function PageSheet({
     <div className="flex flex-col items-center" style={{ marginTop: pageIndex === 0 ? 0 : PAGE_GAP_PX }}>
       <div
         data-page-sheet={pageIndex}
-        className={`bg-white shadow-xl ${tpl.sheetClassName}`.trim()}
+        // flex column like a react-pdf <Page>: vertical margins between blocks
+        // ADD (as in the PDF) instead of collapsing the way block margins do.
+        className={`flex flex-col bg-white shadow-xl ${tpl.sheetClassName}`.trim()}
         style={{
           width: LETTER_WIDTH_PX,
           minHeight: LETTER_HEIGHT_PX,
