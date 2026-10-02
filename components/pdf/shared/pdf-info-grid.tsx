@@ -12,7 +12,7 @@
 
 import { View, Text, Link } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
-import { formatAddress } from '@/lib/estimate/document/format'
+import { formatAddress, formatEstimateNumber } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
 
@@ -85,7 +85,7 @@ export function PdfInfoGrid({
         </Text>
         <Text style={[styles.infoValue, { color: '#6b7280' }]}>
           {L.estimateNum}
-          {estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')}
+          {formatEstimateNumber(estimate)}
         </Text>
       </View>
 

@@ -44,9 +44,18 @@ export function packLines(font: PackableFont, text: string, fontSizePt: number, 
   let lineWidthPt = 0
   let lines = 1
   let last = 0
-  let bk: { position: number } | null
+  let bk: { position: number; required?: boolean } | null
 
   while ((bk = breaker.nextBreak())) {
+    // react-pdf (@react-pdf/textkit wrapWords) splits text ONLY at ASCII
+    // spaces, and lib/pdf/register-fonts.ts disables hyphenation, so a word
+    // such as "Sherwin-Williams", "2x4/6x6" or "kitchen—bath" is one
+    // unbreakable box in the PDF. UAX#14 (`linebreak`) would also offer a
+    // break after the "-", "/" or "—"; taking it here would let this
+    // estimator wrap a line the renderer cannot, under-counting lines.
+    // So accept a break only after a space (or a mandatory newline break /
+    // the end of text); otherwise let the chunk keep growing.
+    if (!bk.required && bk.position < text.length && text[bk.position - 1] !== ' ') continue
     const chunk = text.slice(last, bk.position)
     const { advanceWidth } = font.layout(chunk)
     const chunkWidthPt = advanceWidth * scale

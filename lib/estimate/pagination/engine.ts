@@ -58,8 +58,13 @@ export function computePageBreaks(
 ): PageAssignment[] {
   const chains = buildChains(blocks)
 
-  // Flat per-page reserve, computed ONCE — never added per-block.
-  const effectiveContentHeightPt = constraints.contentHeightPt - constraints.safetyMarginPt
+  // Flat per-page reserve, subtracted ONCE per page — never added per-block.
+  // Page 1 carries the FULL header (contentHeightPt); every later page carries
+  // the COMPACT header (continuationContentHeightPt), so the budget depends on
+  // the page index.
+  const effectiveContentHeightFor = (pageIndex: number) =>
+    (pageIndex === 0 ? constraints.contentHeightPt : constraints.continuationContentHeightPt) -
+    constraints.safetyMarginPt
 
   // Parallel arrays: pages[n] holds the blocks for page n, heightUsed[n]
   // holds that page's running consumed budget (page1Only charges included).
@@ -96,7 +101,8 @@ export function computePageBreaks(
     let isFirstOnPage = pages[currentPageIndex].length === 0
     let reservationPt =
       isFirstOnPage && chain[0].kind === 'item-row' ? constraints.continuationTableHeaderHeightPt : 0
-    const availableHeightPt = effectiveContentHeightPt - heightUsed[currentPageIndex] - reservationPt
+    const availableHeightPt =
+      effectiveContentHeightFor(currentPageIndex) - heightUsed[currentPageIndex] - reservationPt
     const thisChainHeightPt = chainHeightPt(chain, measurementProvider)
 
     if (!(thisChainHeightPt <= availableHeightPt || isFirstOnPage)) {

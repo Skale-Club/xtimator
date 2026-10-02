@@ -303,8 +303,8 @@ describe('PDF-LOGO-01 — the measurement desync', () => {
     const withNone = { ...base, logo_url: null }
 
     for (const templateId of ['classic', 'modern'] as EstimateTemplateId[]) {
-      expect(measureHeaderHeightPt(withWebp, templateId)).toBe(
-        measureHeaderHeightPt(withNone, templateId)
+      expect(measureHeaderHeightPt(withWebp, templateId, 'en')).toBe(
+        measureHeaderHeightPt(withNone, templateId, 'en')
       )
     }
   })
@@ -314,16 +314,16 @@ describe('PDF-LOGO-01 — the measurement desync', () => {
       ...base,
       logo_url: 'https://prmqgcrnpuvpzruyzvuv.supabase.co/storage/v1/object/public/logos/co-1/logo.webp',
     }
-    expect(measureHeaderHeightPt(legacy, 'classic')).toBe(
-      measureHeaderHeightPt({ ...base, logo_url: null }, 'classic')
+    expect(measureHeaderHeightPt(legacy, 'classic', 'en')).toBe(
+      measureHeaderHeightPt({ ...base, logo_url: null }, 'classic', 'en')
     )
   })
 
   it('a logo that WILL be drawn is still charged (the fix does not just delete the reservation)', () => {
     const drawn = { ...base, logo_url: 'data:image/png;base64,AAAA' }
-    // Classic: styles.headerRight.gap 6 + styles.logo.height 72.
-    expect(measureHeaderHeightPt(drawn, 'classic')).toBeGreaterThan(
-      measureHeaderHeightPt({ ...base, logo_url: null }, 'classic')
+    // Classic, English (no language chip, so no headerRight.gap): styles.logo.height 72.
+    expect(measureHeaderHeightPt(drawn, 'classic', 'en')).toBeGreaterThan(
+      measureHeaderHeightPt({ ...base, logo_url: null }, 'classic', 'en')
     )
   })
 
@@ -334,8 +334,8 @@ describe('PDF-LOGO-01 — the measurement desync', () => {
     const resolved = await resolvePdfLogo(LOGO_PATH)
 
     for (const templateId of ['classic', 'modern'] as EstimateTemplateId[]) {
-      expect(measureHeaderHeightPt({ ...base, logo_url: LOGO_PATH }, templateId)).toBe(
-        measureHeaderHeightPt({ ...base, logo_url: resolved }, templateId)
+      expect(measureHeaderHeightPt({ ...base, logo_url: LOGO_PATH }, templateId, 'en')).toBe(
+        measureHeaderHeightPt({ ...base, logo_url: resolved }, templateId, 'en')
       )
     }
   })

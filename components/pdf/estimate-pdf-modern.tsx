@@ -30,8 +30,8 @@ import {
 // document engine module — see lib/estimate/document/labels.ts.
 // ---------------------------------------------------------------------------
 
-import { LABELS as PDF_LABELS, LANG_INDICATOR } from '@/lib/estimate/document/labels'
-import { formatDate } from '@/lib/estimate/document/format'
+import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
+import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
 import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
 // PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
 // FULL array before photoRange slices it (see the helper's docblock).
@@ -39,6 +39,7 @@ import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
 import { visibleSectionItems } from '@/lib/estimate/document/visible-items'
 import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import { PdfHeader } from './shared/pdf-header'
+import { PdfCompactHeader } from './shared/pdf-compact-header'
 import { PdfInfoGrid } from './shared/pdf-info-grid'
 import { PdfFooter } from './shared/pdf-footer'
 import { PdfTitleBanner } from './shared/pdf-title-banner'
@@ -191,6 +192,31 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     objectFit: 'contain' as const,
+  },
+  // Compact header — pages 2..N only (components/pdf/shared/pdf-compact-header.tsx).
+  // lib/pdf/measure-header-height.ts's HEADER_LAYOUT.modern.compact* cite these
+  // exact values; change one, change the other.
+  compactHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 18,
+    paddingBottom: 8,
+    borderBottomWidth: 0.75,
+    borderBottomColor: '#d1d5db',
+  },
+  compactCompanyName: {
+    fontSize: 11,
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+    color: '#1f2937',
+    flexShrink: 1,
+  },
+  compactEstimateId: {
+    fontSize: 8.5,
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
+    color: '#6b7280',
+    flexShrink: 0,
   },
   companyName: {
     fontSize: 15,
@@ -451,7 +477,7 @@ export default function EstimatePDFModern({
   // never recompute). showDeposit is false for legacy / deposit_type 'none' rows.
   const dep = deriveDepositDisplay(estimate)
   const fmtDate = (s: string) => formatDate(s, language)
-  const langLabel = LANG_INDICATOR[language] ?? 'EN'
+  const estimateNumber = formatEstimateNumber(estimate)
 
   const sectionsById = new Map(estimate.sections.map((section) => [section.id, section]))
   const termsCardMap = buildTermsCardMap(company, estimate, L, brandText)
@@ -662,23 +688,37 @@ export default function EstimatePDFModern({
         const itemRowGroups = buildItemRowGroups(page.blocks, sectionsById)
         return (
           <Page key={page.pageIndex} size="LETTER" style={styles.page}>
-            {/* Header - fixed on every page. Called as a plain function (not JSX) —
-                see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-            {PdfHeader({
-              company,
-              langLabel,
-              styles: {
-                header: styles.header,
-                headerLeft: styles.headerLeft,
-                headerRight: styles.headerRight,
-                logo: styles.logo,
-                companyName: styles.companyName,
-                companyContact: styles.companyContact,
-                contactLink: styles.contactLink,
-                nameLink: styles.nameLink,
-                langBadge: styles.langBadge,
-              },
-            })}
+            {/* Header - FULL on page 1, COMPACT (name + estimate #) on pages 2+.
+                Its height is charged to the matching page budget by
+                computeEstimatePageConstraints (contentHeightPt for page 1,
+                continuationContentHeightPt for the rest) — the two MUST stay in
+                step. Called as a plain function (not JSX) — see
+                components/pdf/shared/pdf-header.tsx's top comment for why. */}
+            {page.pageIndex === 0
+              ? PdfHeader({
+                  company,
+                  language,
+                  styles: {
+                    header: styles.header,
+                    headerLeft: styles.headerLeft,
+                    headerRight: styles.headerRight,
+                    logo: styles.logo,
+                    companyName: styles.companyName,
+                    companyContact: styles.companyContact,
+                    contactLink: styles.contactLink,
+                    nameLink: styles.nameLink,
+                    langBadge: styles.langBadge,
+                  },
+                })
+              : PdfCompactHeader({
+                  companyName: company.name,
+                  estimateIdentifier: `${L.estimateNum}${estimateNumber}`,
+                  styles: {
+                    compactHeader: styles.compactHeader,
+                    compactCompanyName: styles.compactCompanyName,
+                    compactEstimateId: styles.compactEstimateId,
+                  },
+                })}
 
             {/* PGBRK-03 — repeated items-table column header, ONE MORE time
                 at the very top of a page whose FIRST block continues a
@@ -707,9 +747,9 @@ export default function EstimatePDFModern({
                 `i === 0` literal, matching `page.blocks`' own order exactly. */}
             {page.blocks.map((block) => renderBlockForKind(block, itemRowGroups))}
 
-            {/* Footer - Page numbers on every page. Called as a plain function
+            {/* Footer - company · estimate # · page numbers on every page. Called as a plain function
                 (not JSX) — see components/pdf/shared/pdf-header.tsx's top comment for why. */}
-            {PdfFooter({ styles: { footer: styles.footer }, L })}
+            {PdfFooter({ styles: { footer: styles.footer }, L, companyName: company.name, estimateNumber })}
           </Page>
         )
       })}

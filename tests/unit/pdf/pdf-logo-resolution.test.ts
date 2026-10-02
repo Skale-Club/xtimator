@@ -46,6 +46,7 @@ vi.mock('@/lib/pdf/resolve-pdf-logo', () => ({ resolvePdfLogo: vi.fn() }))
 vi.mock('@/lib/estimate/pagination/page-constraints', () => ({
   computeEstimatePageConstraints: vi.fn().mockReturnValue({
     contentHeightPt: 600,
+    continuationContentHeightPt: 640,
     continuationTableHeaderHeightPt: 22,
     safetyMarginPt: 100,
   }),
@@ -141,6 +142,7 @@ beforeEach(() => {
   mockLoadSnapshot.mockResolvedValue(null)
   mockConstraints.mockReturnValue({
     contentHeightPt: 600,
+    continuationContentHeightPt: 640,
     continuationTableHeaderHeightPt: 22,
     safetyMarginPt: 100,
   })
@@ -279,6 +281,21 @@ describe('resolveEstimatePdfContext — the cheap ETag path is unchanged', () =>
     expect(mockResolveAsset).not.toHaveBeenCalled()
     expect(context?.company.logo_url).toBe(RELATIVE_LOGO)
   })
+})
+
+describe('renderEstimatePdf — language reaches the page-constraints header measurement', () => {
+  it.each(['en', 'es', 'pt'] as const)(
+    'passes the estimate language (%s) as the REQUIRED 3rd arg of computeEstimatePageConstraints, and the same value to the template',
+    async (language) => {
+      mockGetEstimate.mockResolvedValue(contextWithLogo(null, { language }) as never)
+      mockResolveAsset.mockResolvedValue(null)
+
+      await renderEstimatePdf('est-1', makeSupabase())
+
+      expect(mockConstraints.mock.calls[0][2]).toBe(language)
+      expect((mockCreateElement.mock.calls[0][1] as { language: string }).language).toBe(language)
+    }
+  )
 })
 
 describe('W3 — paginated-preview parity is documented at BOTH call sites', () => {

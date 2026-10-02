@@ -16,8 +16,10 @@
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { ESTIMATE_DESIGN_TOKENS, ESTIMATE_PAGE_GEOMETRY, LINE_HEIGHT, LETTER_HEIGHT_PT } from '@/lib/estimate/document/tokens'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import {
   measureHeaderHeightPt,
+  measureCompactHeaderHeightPt,
   CONTINUATION_TABLE_HEADER_HEIGHT_PT,
   PDF_RENDER_SAFETY_MARGIN_PT,
 } from '@/lib/pdf/measure-header-height'
@@ -25,22 +27,33 @@ import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-ma
 import type { PageConstraints } from './types'
 
 /**
- * Computes PageConstraints (contentHeightPt/continuationTableHeaderHeightPt/
- * safetyMarginPt) for a given company + templateId — a pure relocation of
- * the formula that used to be hand-copied at BOTH render-estimate-pdf.ts and
- * _pages-for-fixture.ts. Not a single number changed by this extraction.
+ * Computes PageConstraints for a given company + templateId + language.
+ *
+ *  - contentHeightPt: PAGE 1, which draws the FULL header (its height depends
+ *    on the company's contacts/address/logo and — via `language` — on whether
+ *    the non-English language chip is drawn).
+ *  - continuationContentHeightPt: pages 2..N, which draw the one-line COMPACT
+ *    header (data-independent).
+ *  - continuationTableHeaderHeightPt / safetyMarginPt: as before.
+ *
+ * `language` is REQUIRED: it changes the header the PDF draws, so a caller that
+ * forgot it would paginate against a header the renderer does not produce.
  */
 export function computeEstimatePageConstraints(
   company: PdfHeaderCompany,
-  templateId: EstimateTemplateId
+  templateId: EstimateTemplateId,
+  language: EstimateLanguage
 ): PageConstraints {
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
-  const headerHeightPt = measureHeaderHeightPt(company, templateId)
+  const pageBodyHeightPt = LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt
+  const headerHeightPt = measureHeaderHeightPt(company, templateId, language)
+  const compactHeaderHeightPt = measureCompactHeaderHeightPt(templateId)
   const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
   const safetyMarginPt =
     SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily]) + PDF_RENDER_SAFETY_MARGIN_PT
   return {
-    contentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - headerHeightPt,
+    contentHeightPt: pageBodyHeightPt - headerHeightPt,
+    continuationContentHeightPt: pageBodyHeightPt - compactHeaderHeightPt,
     continuationTableHeaderHeightPt: CONTINUATION_TABLE_HEADER_HEIGHT_PT[templateId],
     safetyMarginPt,
   }

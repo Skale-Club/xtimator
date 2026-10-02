@@ -16,6 +16,7 @@ import type { DocumentSection, DocumentSignature } from '@/lib/estimate/document
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
 import { computePageBreaks } from '@/lib/estimate/pagination/engine'
@@ -33,6 +34,11 @@ export interface BuildPagesForFixtureOpts {
   signature?: DocumentSignature | null
   attachedPhotos?: { url: string; caption: string | null }[]
   preparedBy?: string | null
+  /** Document language (default 'en'). It changes the page-1 header the PDF draws
+   *  (the language chip is non-English only) AND the labels blocksFromModel measures
+   *  with — a test that renders with `language: 'es'` MUST build its pages with the
+   *  same value here, or the pages are measured against the wrong header/labels. */
+  language?: EstimateLanguage
 }
 
 /**
@@ -46,12 +52,13 @@ export function buildPagesForFixture(
   templateId: EstimateTemplateId,
   opts: BuildPagesForFixtureOpts = {}
 ): PageAssignment[] {
-  const L = PDF_LABELS.en
+  const language = opts.language ?? 'en'
+  const L = PDF_LABELS[language]
   // Phase 185 Plan 01 (PGBRK-01/04) — repointed at the ONE shared constraints
   // function also used by lib/pdf/render-estimate-pdf.ts, instead of this
   // file's own independent copy of the same formula (plan-checker warning
   // 10 — a THIRD copy is exactly the failure mode PGBRK-01/04 must prevent).
-  const constraints = computeEstimatePageConstraints(company, templateId)
+  const constraints = computeEstimatePageConstraints(company, templateId, language)
 
   const depositRow: DepositDisplayRow = {
     total: (estimate.total as number | undefined) ?? 0,

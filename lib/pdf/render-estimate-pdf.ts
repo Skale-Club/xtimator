@@ -251,7 +251,7 @@ export async function renderEstimatePdf(
   // shared function also used by tests/unit/pdf/_pages-for-fixture.ts (and,
   // starting Plan 185-03, the web preview) — never a second, independently-
   // maintained derivation (see 185-RESEARCH.md's constraints-parity finding).
-  const constraints = computeEstimatePageConstraints(companyForRender, templateId)
+  const constraints = computeEstimatePageConstraints(companyForRender, templateId, estimateLanguage)
   const L = PDF_LABELS[estimateLanguage] ?? PDF_LABELS.en
   const blocks = blocksFromModel({
     sections: estimate.sections,

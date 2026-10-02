@@ -152,7 +152,7 @@ describe.each(['classic', 'modern'] as const)(
     it('produces byte-identical PageAssignment[] for a multi-page, every-block-kind fixture', async () => {
       const input = buildFixtureInput(templateId)
       const blocks = blocksFromModel(input)
-      const constraints = computeEstimatePageConstraints(FIXTURE_COMPANY, templateId)
+      const constraints = computeEstimatePageConstraints(FIXTURE_COMPANY, templateId, 'en')
 
       const serverPages = computePageBreaks(blocks, constraints, createFontkitMeasurementProvider())
       expect(serverPages.length).toBeGreaterThan(1)

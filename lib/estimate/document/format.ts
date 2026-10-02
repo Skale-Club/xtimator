@@ -43,3 +43,14 @@ export function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): stri
     day: 'numeric',
   })
 }
+
+/**
+ * The estimate identifier shown after the "Estimate #" label on a document:
+ * the user-facing `estimate_number` when set, otherwise the sequence zero-padded
+ * to 4 digits ("0001"). ONE definition for the PDF info grid, the PDF compact
+ * header (pages 2+) and the PDF footer, so the number can never read
+ * differently in two places on the same document.
+ */
+export function formatEstimateNumber(estimate: { estimate_number: string | null; estimate_seq: number }): string {
+  return estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')
+}

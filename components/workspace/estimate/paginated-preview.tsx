@@ -608,13 +608,22 @@ function FullCompanyHeader({ ctx }: { ctx: RenderCtx }) {
   )
 }
 
+// Mirrors the PDF's pages-2+ compact header (components/pdf/shared/
+// pdf-compact-header.tsx): ONE line — company name left, "Estimate #<number>"
+// right (same label + number the info grid shows) — over a bottom rule.
 function CompactHeader({ ctx }: { ctx: RenderCtx }) {
+  const { company, brandText, L, data, defaultEstimateNumber } = ctx
   return (
-    <div className="flex flex-col justify-center px-10 py-3 select-none">
-      <span className="text-sm font-semibold leading-tight" style={{ color: ctx.brandColor }}>
-        {ctx.company.name}
-      </span>
-      <span className="mt-1 block border-b border-zinc-200" />
+    <div className="px-10 pt-3 select-none">
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-1.5">
+        <span className="min-w-0 truncate text-sm font-semibold leading-tight" style={{ color: brandText }}>
+          {company.name}
+        </span>
+        <span className="flex-shrink-0 text-xs text-muted-foreground">
+          {L.estimateNum}
+          {data.estimate_number ?? defaultEstimateNumber}
+        </span>
+      </div>
     </div>
   )
 }

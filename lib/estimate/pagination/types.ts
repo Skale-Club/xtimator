@@ -92,18 +92,22 @@ export interface PageBlock {
 }
 
 export interface PageConstraints {
-  /** Usable content height on EVERY page, points — pageHeightPt minus
-   *  top/bottom padding minus the (data-dependent, per-render-computed)
-   *  header height. The header repeats via `fixed` on every page, so it
-   *  always consumes this budget, page 1 included. */
+  /** Usable content height on PAGE 1 (pageIndex 0), points — pageHeightPt minus
+   *  top/bottom padding minus the (data-dependent, per-render-computed) FULL
+   *  header height (logo, contacts, address, optional language chip). */
   contentHeightPt: number
+  /** Usable content height on every page AFTER the first (pageIndex >= 1),
+   *  points — pageHeightPt minus top/bottom padding minus the COMPACT header
+   *  height (company name + estimate #, one line). Pages 2+ draw that compact
+   *  header instead of the full one, so they have more room. */
+  continuationContentHeightPt: number
   /** Extra height a page must reserve when its first placed chain begins with
    *  an 'item-row' continuing a section whose header was on an earlier page
    *  (i.e., PGBRK-03's repeated table header). 0 otherwise. This reservation
    *  MUST be persisted into the page's running heightUsed once accepted, not
    *  merely applied transiently to the first chain's fit-check. */
   continuationTableHeaderHeightPt: number
-  /** FLAT reserve subtracted ONCE from every page's usable height (NOT
+  /** FLAT reserve subtracted ONCE from every page's usable height (first-page and continuation budgets alike) (NOT
    *  added per-block/per-measured-field) — derived by the caller (Plan
    *  184-05) from Plan 184-01's SAFETY_MARGIN_LINES. See Plan 184-01's
    *  184-DRIFT-REPORT.md "Margin Application Semantics" section for why

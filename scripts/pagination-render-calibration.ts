@@ -19,6 +19,12 @@
  * per-page drift that additive box-model height formulas (Plan 184-03)
  * inevitably accrue against Yoga's real flexbox layout.
  *
+ * Page 1 draws the FULL header and pages 2+ the COMPACT one, each with its
+ * own budget (PageConstraints.contentHeightPt / continuationContentHeightPt);
+ * the single-section sweep (1..60 items) and the 4x10-item fixture are
+ * multi-page, so the continuation budget is genuinely exercised (main()
+ * asserts the 4x10 fixture spans >= 3 pages).
+ *
  * Method: build 3 fixture families per template (a single-section sweep of
  * 1..60 items, a 4-section/40-item multi-page fixture, and a content-rich
  * single-page-ish baseline fixture with summary/2-terms-cards/discount/tax/
@@ -29,6 +35,7 @@
  *
  * Usage:
  *   npx tsx scripts/pagination-render-calibration.ts
+ *   CAL_CANDIDATES=71,72,73 npx tsx scripts/pagination-render-calibration.ts   # refine a range
  *
  * Output: a console.table of { marginPt, mismatches }, plus per-mismatch
  * detail lines. The verbatim result of the run AFTER the GAP-1 header
@@ -53,7 +60,11 @@ import {
   LINE_HEIGHT,
   LETTER_HEIGHT_PT,
 } from '../lib/estimate/document/tokens'
-import { measureHeaderHeightPt, CONTINUATION_TABLE_HEADER_HEIGHT_PT } from '../lib/pdf/measure-header-height'
+import {
+  measureHeaderHeightPt,
+  measureCompactHeaderHeightPt,
+  CONTINUATION_TABLE_HEADER_HEIGHT_PT,
+} from '../lib/pdf/measure-header-height'
 import { SAFETY_MARGIN_LINES } from '../lib/estimate/pagination/measure/safety-margin'
 import { blocksFromModel } from '../lib/estimate/pagination/blocks-from-model'
 import { computePageBreaks } from '../lib/estimate/pagination/engine'
@@ -99,8 +110,11 @@ function estimateLineCount(text: string, fontFamily: string, fontSizePt: number,
   let lineWidthPt = 0
   let lines = 1
   let last = 0
-  let bk: { position: number } | null
+  let bk: { position: number; required?: boolean } | null
   while ((bk = breaker.nextBreak())) {
+    // Mirrors lib/estimate/pagination/measure/line-packer.ts: react-pdf breaks
+    // ONLY at spaces (hyphenation is disabled in lib/pdf/register-fonts.ts).
+    if (!bk.required && bk.position < text.length && text[bk.position - 1] !== ' ') continue
     const chunk = text.slice(last, bk.position)
     const { advanceWidth } = font.layout(chunk)
     const chunkWidthPt = advanceWidth * scale
@@ -388,11 +402,16 @@ function buildPages(
   extraMarginPt: number
 ): PageAssignment[] {
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
-  const headerHeightPt = measureHeaderHeightPt(FIXTURE_COMPANY, templateId)
+  // Calibration documents are English (no language chip) — see realPageCount's `language: 'en'`.
+  const headerHeightPt = measureHeaderHeightPt(FIXTURE_COMPANY, templateId, 'en')
+  const compactHeaderHeightPt = measureCompactHeaderHeightPt(templateId)
   const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
   const safetyMarginPt = SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily]) + extraMarginPt
   const constraints: PageConstraints = {
     contentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - headerHeightPt,
+    // Pages 2+ draw the compact header — the budget the continuation pages of the
+    // multi-page fixtures below actually exercise.
+    continuationContentHeightPt: LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt - compactHeaderHeightPt,
     continuationTableHeaderHeightPt: CONTINUATION_TABLE_HEADER_HEIGHT_PT[templateId],
     safetyMarginPt,
   }
@@ -445,7 +464,11 @@ async function realPageCount(
 }
 
 async function main() {
-  const candidates = [0, 10, 20, 30, 40, 50, 60, 70, 78, 80, 90, 100]
+  // CAL_CANDIDATES="71,72,73" narrows the sweep (e.g. to refine the boundary
+  // between the last failing and first passing value of a coarse run).
+  const candidates = process.env.CAL_CANDIDATES
+    ? process.env.CAL_CANDIDATES.split(',').map((v) => Number(v.trim()))
+    : [0, 10, 20, 30, 40, 50, 60, 70, 78, 80, 90, 100]
   const summary: { marginPt: number; mismatches: number }[] = []
 
   for (const marginPt of candidates) {
@@ -472,9 +495,13 @@ async function main() {
       ] as const) {
         const pages = buildPages(estimate, templateId, marginPt)
         const real = await realPageCount(component, estimate, pages)
+        if (label.startsWith('multi-section') && pages.length < 3) {
+          // The continuation budget (pages 2+) is only tested by documents with >= 3 pages.
+          throw new Error(`${templateId} ${label}: expected >= 3 pages at marginPt=${marginPt}, got ${pages.length}`)
+        }
         if (real !== pages.length) {
           mismatches += 1
-          details.push(`${templateId} ${label}: engine=${pages.length} real=${real}`)
+          details.push(`${templateId} ${label}: engine=${pages.length} real=${real} (pages incl. continuation)`)
         }
       }
     }
