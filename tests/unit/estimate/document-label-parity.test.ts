@@ -132,8 +132,14 @@ describe('depositRequired — read-only deposit row label', () => {
   it('is distinct from the editor-select label `deposit` in every language and extends its noun', () => {
     for (const lang of LANGS) {
       expect(LABELS[lang].depositRequired).not.toBe(LABELS[lang].deposit)
-      expect(LABELS[lang].depositRequired.startsWith(LABELS[lang].deposit)).toBe(true)
+      // pt reads "Valor de entrada" (noun in the middle), so match the noun
+      // case-insensitively anywhere rather than as a prefix.
+      expect(
+        LABELS[lang].depositRequired.toLowerCase().includes(LABELS[lang].deposit.toLowerCase()),
+      ).toBe(true)
     }
     expect(LABELS.en.depositRequired).toBe('Deposit required')
+    expect(LABELS.pt.depositRequired).toBe('Valor de entrada')
+    expect(LABELS.es.depositRequired).toBe('Depósito requerido')
   })
 })

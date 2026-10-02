@@ -70,3 +70,18 @@ export function formatProjectType(raw: string | null): string | null {
   if (!text) return null
   return text.replace(/(^|\s)(\S)/g, (_m, sp: string, ch: string) => sp + ch.toUpperCase())
 }
+
+/**
+ * ONE percent string for every surface (PDF, web Classic/Modern, print preview,
+ * WhatsApp): up to 2 decimals, trailing zeros trimmed, "." as the decimal
+ * separator. `value` is already in percent units (10 -> "10%", 8.25 -> "8.25%").
+ * Callers holding a fraction (tax_rate 0.0825) multiply by 100 first; the
+ * 2-decimal rounding also absorbs float noise (0.07 * 100 = 7.000000000000001).
+ */
+export function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return '0%'
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100
+  // Avoid "-0%".
+  const text = (Object.is(rounded, -0) ? 0 : rounded).toFixed(2).replace(/\.?0+$/, '')
+  return `${text}%`
+}

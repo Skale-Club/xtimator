@@ -13,7 +13,7 @@
 import Image from 'next/image'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
-import { formatDate, formatProjectType } from '@/lib/estimate/document/format'
+import { formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 import { CLASSIC_CARD_BOX, PHOTO_TILE_GAP_PT, PX_PER_PT, cardTintFill } from '@/lib/estimate/document/tokens'
 import type { CSSProperties } from 'react'
 import { INTER_LH, font, pt, tracking } from './units'
@@ -122,7 +122,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
           <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className="text-muted-foreground select-none">
               {L.discount}
-              {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
+              {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
             </span>
             <span className="text-destructive">-{fmt(data.discount_amount)}</span>
           </div>
@@ -130,7 +130,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
         {data.tax_amount > 0 && (
           <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className="text-muted-foreground select-none">
-              {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
+              {L.tax} ({formatPercent(data.tax_rate * 100)})
             </span>
             <span>{fmt(data.tax_amount)}</span>
           </div>

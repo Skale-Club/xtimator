@@ -100,7 +100,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     description: 'Descrição', qty: 'Qtd', unit: 'Unidade', unitPrice: 'Preço Unitário',
     lineDiscount: 'Desc.', taxable: 'Imposto', total: 'Total', sectionSubtotal: 'Subtotal da Seção',
     subtotal: 'Subtotal', discount: 'Desconto', discountNone: 'Nenhum', discountPct: '% off',
-    discountFixed: 'Fixo', deposit: 'Entrada', depositRequired: 'Entrada exigida', depositNone: 'Nenhum', depositPct: '%',
+    discountFixed: 'Fixo', deposit: 'Entrada', depositRequired: 'Valor de entrada', depositNone: 'Nenhum', depositPct: '%',
     depositAmount: 'Valor', balanceDue: 'Saldo Devedor', tax: 'Imposto', grandTotal: 'Total',
     paymentTerms: 'Condições de Pagamento', timeline: 'Prazo', warranty: 'Garantia', notes: 'Observações',
     date: 'Data', estimateNum: 'Orçamento Nº', noClient: 'Nenhum cliente vinculado', addItem: 'Adicionar item',

@@ -40,7 +40,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate, formatProjectType } from '@/lib/estimate/document/format'
+import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 
 // ---------------------------------------------------------------------------
 // Public props
@@ -342,7 +342,7 @@ export function EstimateDocumentModern({
               <div className="flex justify-between text-base">
                 <span className="text-muted-foreground select-none">
                   {L.discount}
-                  {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
+                  {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
                 </span>
                 <span className="tabular-nums font-medium">-{fmt(data.discount_amount)}</span>
               </div>
@@ -351,7 +351,7 @@ export function EstimateDocumentModern({
             {data.tax_amount > 0 && (
               <div className="flex justify-between text-base">
                 <span className="text-muted-foreground select-none">
-                  {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
+                  {L.tax} ({formatPercent(data.tax_rate * 100)})
                 </span>
                 <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
               </div>

@@ -11,6 +11,7 @@
  */
 import { formatMoney } from '@/lib/money/currency'
 import { LABELS as DOCUMENT_LABELS } from '@/lib/estimate/document/labels'
+import { formatPercent } from '@/lib/estimate/document/format'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import {
   resolvePresentationSettings,
@@ -98,8 +99,8 @@ function totalsLabels(language: 'en' | 'pt' | 'es') {
   return {
     subtotal: D.subtotal,
     discount: (type: string | null | undefined, value: number) =>
-      type === 'percentage' ? `${D.discount} (${value}%)` : D.discount,
-    tax: (pct: string) => `${D.tax} (${pct}%)`,
+      type === 'percentage' ? `${D.discount} (${formatPercent(value)})` : D.discount,
+    tax: (pct: string) => `${D.tax} (${pct})`,
     // The document's grand-total label ("Total") — not the former "Total Estimate".
     total: D.grandTotal,
     deposit: D.depositRequired,
@@ -174,7 +175,7 @@ export function formatEstimateForWhatsApp(
   }
   if (hasTax) {
     lines.push(
-      `${L.tax((estimate.tax_rate * 100).toFixed(0))}: ${money(estimate.tax_amount)}`
+      `${L.tax(formatPercent(estimate.tax_rate * 100))}: ${money(estimate.tax_amount)}`
     )
   }
   lines.push('')

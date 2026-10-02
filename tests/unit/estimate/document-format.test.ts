@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDate, formatAddress, formatProjectType } from '@/lib/estimate/document/format'
+import { formatDate, formatAddress, formatProjectType, formatPercent } from '@/lib/estimate/document/format'
 
 describe('formatDate — local-midnight fix (ENGINE-01)', () => {
   it('formats a date-only string as the SAME calendar day the string says', () => {
@@ -43,5 +43,26 @@ describe('formatProjectType — matches the web (replace(/_/g, " ") + CSS capita
   })
   it('collapses repeated separators the way HTML whitespace collapsing does on the web', () => {
     expect(formatProjectType('kitchen__remodel_')).toBe('Kitchen Remodel')
+  })
+})
+
+describe('formatPercent — ONE percent string for PDF, web, preview and WhatsApp', () => {
+  it('trims trailing zeros', () => {
+    expect(formatPercent(10)).toBe('10%')
+    expect(formatPercent(8.5)).toBe('8.5%')
+    expect(formatPercent(8.25)).toBe('8.25%')
+    expect(formatPercent(100)).toBe('100%')
+  })
+  it('renders zero as 0%', () => {
+    expect(formatPercent(0)).toBe('0%')
+    expect(formatPercent(-0)).toBe('0%')
+  })
+  it('rounds to at most 2 decimals', () => {
+    expect(formatPercent(7.125)).toBe('7.13%')
+    expect(formatPercent(33.333)).toBe('33.33%')
+  })
+  it('absorbs float noise from fraction * 100 call sites', () => {
+    expect(formatPercent(0.07 * 100)).toBe('7%')
+    expect(formatPercent(0.0825 * 100)).toBe('8.25%')
   })
 })

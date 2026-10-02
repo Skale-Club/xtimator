@@ -174,7 +174,7 @@ describe('formatEstimateForWhatsApp', () => {
       balance_due: 1925,
     }
     const result = formatEstimateForWhatsApp(withDeposit, null, null)
-    expect(result).toMatch(/Entrada exigida: -\$825\.00/)
+    expect(result).toMatch(/Valor de entrada: -\$825\.00/)
     expect(result).toMatch(/Saldo Devedor: \$1,925\.00/)
   })
 

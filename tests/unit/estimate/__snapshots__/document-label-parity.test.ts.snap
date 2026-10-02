@@ -132,7 +132,7 @@ exports[`lib/estimate/document/labels — state-tolerant golden parity (ENGINE-0
     "depositAmount": "Valor",
     "depositNone": "Nenhum",
     "depositPct": "%",
-    "depositRequired": "Entrada exigida",
+    "depositRequired": "Valor de entrada",
     "description": "Descrição",
     "discount": "Desconto",
     "discountFixed": "Fixo",
