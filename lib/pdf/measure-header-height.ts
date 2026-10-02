@@ -6,20 +6,28 @@
 // column (company name always; ONE contact line joined by "  |  " only if
 // any of phone/email/website is present; an ADDRESS block — 1 or 2 lines,
 // see measureHeaderHeightPt's inline comment — only if formatAddress() is
-// truthy) and a RIGHT column (langBadge always; +logo ONLY if
-// willPdfRenderLogo(logo_url) — PDF-LOGO-01, NOT mere truthiness — stacked
-// below the badge with its own gap). A react-pdf flex row's
+// truthy) and a RIGHT column (langBadge ONLY for a non-English document —
+// showsLanguageBadge(language); +logo ONLY if willPdfRenderLogo(logo_url) —
+// PDF-LOGO-01, NOT mere truthiness — stacked below the badge, with its own
+// gap charged only when the badge is also drawn). A react-pdf flex row's
 // rendered height is max(leftColumnHeight, rightColumnHeight) — NEVER the
 // sum of both columns (Plan-checker warning 8) — so NO `headerLeft.gap`
 // term is added here (the prior draft incorrectly summed it in).
 //
-// Consumed by lib/pdf/render-estimate-pdf.ts to derive
-// PageConstraints.contentHeightPt (the header repeats via `fixed` on every
-// page, so its height is subtracted from every page's usable content height,
-// page 1 included) — see lib/estimate/pagination/types.ts's doc comment.
-import { LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
+// Consumed (via lib/estimate/pagination/page-constraints.ts) to derive
+// PageConstraints.contentHeightPt — PAGE 1 only, which draws this full header.
+// Pages 2..N draw the one-line COMPACT header instead
+// (components/pdf/shared/pdf-compact-header.tsx), measured by
+// measureCompactHeaderHeightPt below and feeding
+// PageConstraints.continuationContentHeightPt — see
+// lib/estimate/pagination/types.ts's doc comments.
+import { LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY, ESTIMATE_DESIGN_TOKENS } from '@/lib/estimate/document/tokens'
 import { formatAddress } from '@/lib/estimate/document/format'
 import { willPdfRenderLogo } from '@/lib/pdf/pdf-image-support'
+import { showsLanguageBadge } from '@/lib/pdf/language-badge'
+import { formatPhoneForDisplay } from '@/lib/phone/format'
+import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
 
@@ -38,10 +46,12 @@ interface HeaderLayoutConstants {
   contactFontSizePt: number
   /** styles.langBadge.fontSize */
   langBadgeFontSizePt: number
-  /** styles.headerRight.gap — charged ONLY when a logo is present (stacks langBadge above the logo). */
+  /** styles.headerRight.gap — charged ONLY when BOTH the langBadge and a logo are drawn (the gap sits between them). */
   headerRightGapPt: number
   /** styles.logo.height */
   logoHeightPt: number
+  /** styles.logo.width — the right column's width when a logo is drawn (it bounds the left column). */
+  logoWidthPt: number
   /** styles.header.paddingBottom */
   headerPaddingBottomPt: number
   /** styles.header.marginBottom */
@@ -49,6 +59,30 @@ interface HeaderLayoutConstants {
   /** styles.header.borderBottomWidth */
   headerBorderBottomWidthPt: number
 }
+
+/** Per-template COMPACT-header (pages 2+) layout constants — cited to each
+ *  template's compact* StyleSheet keys. The compact header is a single row
+ *  (name left, estimate # right), so its height is the taller of the two
+ *  one-line Texts plus the row's padding/margin/rule. */
+interface CompactHeaderLayoutConstants {
+  /** styles.compactCompanyName.fontSize */
+  nameFontSizePt: number
+  /** styles.compactCompanyName.fontFamily — keys LINE_HEIGHT. */
+  nameFontFamily: string
+  /** styles.compactEstimateId.fontSize */
+  idFontSizePt: number
+  /** styles.compactEstimateId.fontFamily — keys LINE_HEIGHT. */
+  idFontFamily: string
+  /** styles.compactHeader.paddingBottom */
+  paddingBottomPt: number
+  /** styles.compactHeader.marginBottom */
+  marginBottomPt: number
+  /** styles.compactHeader.borderBottomWidth */
+  borderBottomWidthPt: number
+}
+
+/** Over-estimate of the language chip's width ("EN"/"PT"/"ES" at 8.5-9pt is ~14pt). */
+const BADGE_WIDTH_UPPER_BOUND_PT = 30
 
 const HEADER_LAYOUT: Record<EstimateTemplateId, HeaderLayoutConstants> = {
   // Cited to components/pdf/estimate-pdf.tsx's StyleSheet.
@@ -60,6 +94,7 @@ const HEADER_LAYOUT: Record<EstimateTemplateId, HeaderLayoutConstants> = {
     langBadgeFontSizePt: 9, // styles.langBadge.fontSize
     headerRightGapPt: 6, // styles.headerRight.gap
     logoHeightPt: 72, // styles.logo.height
+    logoWidthPt: 72, // styles.logo.width
     headerPaddingBottomPt: 16, // styles.header.paddingBottom
     headerMarginBottomPt: 24, // styles.header.marginBottom
     headerBorderBottomWidthPt: 2, // styles.header.borderBottomWidth
@@ -73,41 +108,108 @@ const HEADER_LAYOUT: Record<EstimateTemplateId, HeaderLayoutConstants> = {
     langBadgeFontSizePt: 8.5, // styles.langBadge.fontSize
     headerRightGapPt: 8, // styles.headerRight.gap
     logoHeightPt: 64, // styles.logo.height
+    logoWidthPt: 64, // styles.logo.width
     headerPaddingBottomPt: 20, // styles.header.paddingBottom
     headerMarginBottomPt: 32, // styles.header.marginBottom
     headerBorderBottomWidthPt: 0.75, // styles.header.borderBottomWidth
   },
 }
 
+const COMPACT_HEADER_LAYOUT: Record<EstimateTemplateId, CompactHeaderLayoutConstants> = {
+  // Cited to components/pdf/estimate-pdf.tsx's StyleSheet.
+  classic: {
+    nameFontSizePt: 11, // styles.compactCompanyName.fontSize
+    nameFontFamily: 'Inter-Bold', // styles.compactCompanyName.fontFamily
+    idFontSizePt: 9, // styles.compactEstimateId.fontSize
+    idFontFamily: 'Inter', // styles.compactEstimateId.fontFamily
+    paddingBottomPt: 6, // styles.compactHeader.paddingBottom
+    marginBottomPt: 14, // styles.compactHeader.marginBottom
+    borderBottomWidthPt: 1, // styles.compactHeader.borderBottomWidth
+  },
+  // Cited to components/pdf/estimate-pdf-modern.tsx's StyleSheet.
+  modern: {
+    nameFontSizePt: 11, // styles.compactCompanyName.fontSize
+    nameFontFamily: 'Lora-Bold', // styles.compactCompanyName.fontFamily
+    idFontSizePt: 8.5, // styles.compactEstimateId.fontSize
+    idFontFamily: 'Lora', // styles.compactEstimateId.fontFamily
+    paddingBottomPt: 8, // styles.compactHeader.paddingBottom
+    marginBottomPt: 18, // styles.compactHeader.marginBottom
+    borderBottomWidthPt: 0.75, // styles.compactHeader.borderBottomWidth
+  },
+}
+
 /**
- * Data-dependent header-row height in pt, computed per render (never a
- * hardcoded literal) — see this file's top comment for the corrected
- * max(leftColumn, rightColumn) formula.
+ * Height in pt of the COMPACT header drawn on pages 2..N
+ * (components/pdf/shared/pdf-compact-header.tsx): one row holding the company
+ * name (left) and the estimate identifier (right), both forced to a SINGLE
+ * line (`maxLines={1}` on the name; the identifier is a short static string),
+ * so — unlike the full header — it is data-independent: no fontkit
+ * measurement, no company/logo/language inputs. Neither Text sets an explicit
+ * lineHeight, so each line is fontSize × LINE_HEIGHT[family] (the same
+ * natural-line-height token the full header charges companyName with); the
+ * row is as tall as the taller of the two (alignItems: 'center'), then
+ * paddingBottom + marginBottom + the rule. Never includes the language chip.
  */
-export function measureHeaderHeightPt(company: PdfHeaderCompany, templateId: EstimateTemplateId): number {
+export function measureCompactHeaderHeightPt(templateId: EstimateTemplateId): number {
+  const layout = COMPACT_HEADER_LAYOUT[templateId]
+  const nameLinePt = layout.nameFontSizePt * LINE_HEIGHT[layout.nameFontFamily]
+  const idLinePt = layout.idFontSizePt * LINE_HEIGHT[layout.idFontFamily]
+  return Math.max(nameLinePt, idLinePt) + layout.paddingBottomPt + layout.marginBottomPt + layout.borderBottomWidthPt
+}
+
+/**
+ * Data-dependent header-row height in pt of the FULL (page 1) header, computed
+ * per render (never a hardcoded literal) — see this file's top comment for the
+ * corrected max(leftColumn, rightColumn) formula. `language` is REQUIRED (no
+ * default) so no caller can silently measure a language chip the renderer
+ * does not draw, or vice versa.
+ */
+export function measureHeaderHeightPt(
+  company: PdfHeaderCompany,
+  templateId: EstimateTemplateId,
+  language: EstimateLanguage,
+  provider: MeasurementProvider
+): number {
   const layout = HEADER_LAYOUT[templateId]
   const prose = ESTIMATE_PAGE_GEOMETRY[templateId].proseLineHeightMultiplier
 
-  // Phase 185 pre-flight verification finding (2026-07-28, GAP 1): the
-  // contact line is genuinely single-line by construction — phone/email/
-  // website are joined with the literal separator "  |  " (no embedded
-  // newline), see pdf-header.tsx's companyContact Text. The ADDRESS line is
-  // NOT: lib/estimate/document/format.ts:30's formatAddress() joins the
-  // street part and the city/state/zip part with '\n' when BOTH exist, and
-  // pdf-header.tsx renders the whole (possibly 2-line) string in ONE <Text>
-  // — so charging it as a flat single line under-measured the header by
-  // exactly one prose line (13.5pt Classic / 14.4pt Modern) for any company
-  // with a full US street + city/state/zip address. Derive the real line
-  // count from the actual formatted string instead of assuming 1.
-  const hasContactLine = !!(company.phone || company.email || company.website)
+  const contactParts = [
+    company.phone ? formatPhoneForDisplay(company.phone) : null,
+    company.email,
+    company.website,
+  ].filter(Boolean) as string[]
   const addressText = formatAddress(company)
-  const addressLines = addressText ? addressText.split('\n').length : 0
+  const addressLineTexts = addressText ? addressText.split('\n') : []
+
+  // The right column (language chip stacked over the logo) is as wide as its widest child
+  // (alignItems flex-end), and the space-between row leaves the left column the REST of the
+  // content width — which is where the company name / contact / address WRAP. A long company
+  // name ("BrightPath Residential Remodeling & Custom Carpentry Services of Central Texas
+  // LLC") wraps onto a 2nd line there; measuring it as one line under-charged the header and
+  // overflowed page 1 (found by the randomized fuzz: every failure had an 82-char name).
+  // The chip is a 2-letter 8.5-9pt Text; BADGE_WIDTH_UPPER_BOUND_PT over-estimates it so a
+  // borderline name is measured as wrapping rather than not.
+  const drawsLogo = willPdfRenderLogo(company.logo_url)
+  const drawsBadge = showsLanguageBadge(language)
+  const rightColumnWidthPt = drawsLogo ? layout.logoWidthPt : drawsBadge ? BADGE_WIDTH_UPPER_BOUND_PT : 0
+  const leftColumnWidthPt = ESTIMATE_PAGE_GEOMETRY[templateId].contentWidthPt - rightColumnWidthPt
+  const tokens = ESTIMATE_DESIGN_TOKENS[templateId]
+  const wrapped = (text: string, family: string, fontSizePt: number) =>
+    Math.max(1, provider.lineCount(text, family, fontSizePt, leftColumnWidthPt))
+
+  // companyName / companyContact: name has no lineHeight (natural bold line); contact + address
+  // share styles.companyContact (explicit lineHeight = the template's prose multiplier).
+  const nameLines = wrapped(company.name ?? '', tokens.fontFamilyBold, layout.companyNameFontSizePt)
+  const contactLines = contactParts.length > 0 ? wrapped(contactParts.join('  |  '), tokens.fontFamily, layout.contactFontSizePt) : 0
+  const addressLines = addressLineTexts.reduce(
+    (sum, line) => sum + wrapped(line, tokens.fontFamily, layout.contactFontSizePt),
+    0
+  )
 
   const leftColumnHeightPt =
-    layout.companyNameFontSizePt * LINE_HEIGHT[layout.companyNameFontFamilyBold] +
+    nameLines * layout.companyNameFontSizePt * LINE_HEIGHT[layout.companyNameFontFamilyBold] +
     layout.companyNameMarginBottomPt +
-    (hasContactLine ? layout.contactFontSizePt * prose : 0) +
-    addressLines * layout.contactFontSizePt * prose
+    (contactLines + addressLines) * layout.contactFontSizePt * prose
 
   // PDF-LOGO-01: charge the logo block only when a logo will ACTUALLY BE DRAWN.
   // This previously keyed on `company.logo_url` being a non-empty string, which
@@ -116,9 +218,13 @@ export function measureHeaderHeightPt(company: PdfHeaderCompany, templateId: Est
   // logo that never appeared. `willPdfRenderLogo` is the SAME predicate
   // components/pdf/shared/pdf-header.tsx gates its <Image> on — measurement and
   // render now answer one question, not two.
-  const drawsLogo = willPdfRenderLogo(company.logo_url)
+  // The language chip is drawn only for non-English documents
+  // (showsLanguageBadge — the SAME predicate pdf-header.tsx gates it on). When
+  // it is hidden neither its line nor the headerRight gap (which only exists
+  // BETWEEN the chip and the logo) is charged.
   const rightColumnHeightPt =
-    layout.langBadgeFontSizePt * prose + (drawsLogo ? layout.headerRightGapPt + layout.logoHeightPt : 0)
+    (drawsBadge ? layout.langBadgeFontSizePt * prose : 0) +
+    (drawsLogo ? (drawsBadge ? layout.headerRightGapPt : 0) + layout.logoHeightPt : 0)
 
   const headerRowHeightPt = Math.max(leftColumnHeightPt, rightColumnHeightPt)
 
@@ -128,24 +234,62 @@ export function measureHeaderHeightPt(company: PdfHeaderCompany, templateId: Est
 }
 
 /**
- * Continuation-page items-table column-header row height in pt — feeds
- * PageConstraints.continuationTableHeaderHeightPt (the reservation charged
- * when a page's first placed chain begins with an 'item-row', i.e. PGBRK-03's
- * repeated table header). The 5 column labels (Description/Qty/Unit/Unit
- * Price/Total) are always short, static, single-line strings that never
- * wrap, so — mirroring lib/estimate/pagination/blocks-from-model.ts's own
- * `sectionSubtotalBaseHeightPt` treatment of other fixed, never-wrapping
- * label cells (padding contribution + fontSize as a single-line proxy, no
- * LINE_HEIGHT multiplier) — no fontkit measurement is needed here either.
- * Cited to components/pdf/shared/pdf-section-block.tsx's
- * PdfTableHeaderOnly, reading each template's OWN tableHeader/tableHeaderText
- * StyleSheet values (components/pdf/estimate-pdf.tsx / -modern.tsx).
+ * Continuation-page SECTION TITLE band height in pt: the one-line
+ * "<Section title> (cont.)" header drawn above the repeated column header at the
+ * top of a page that opens mid-section (components/pdf/shared/
+ * pdf-section-block.tsx's PdfSectionHeader with `continuedLabel`). It is that
+ * template's own sectionHeader style with `marginTop` forced to 0 (the compact
+ * page header above already carries its marginBottom), so the height is the
+ * band's padding + (Modern) its bottom rule + ONE title line. The title is
+ * truncated to a single line in the renderer (maxLines 1 + ellipsis), so this
+ * never grows with the title text — which is why it can be a constant and needs
+ * no fontkit measurement. Title line = sectionTitle.fontSize x LINE_HEIGHT[bold
+ * family] (sectionTitle sets lineHeight: LINE_HEIGHT[...] explicitly).
+ */
+export const CONTINUATION_SECTION_TITLE_HEIGHT_PT: Record<EstimateTemplateId, number> = {
+  // sectionHeader.paddingVertical(8)×2 + sectionTitle.fontSize(11) × LINE_HEIGHT['Inter-Bold']
+  classic:
+    8 * 2 +
+    ESTIMATE_PAGE_GEOMETRY.classic.sectionTitleFontSizePt * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold],
+  // sectionHeader.paddingVertical(6)×2 + borderBottomWidth(1) + sectionTitle.fontSize(11) × LINE_HEIGHT['Lora-Bold']
+  modern:
+    6 * 2 +
+    1 +
+    ESTIMATE_PAGE_GEOMETRY.modern.sectionTitleFontSizePt * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold],
+}
+
+/**
+ * Continuation-page items-table column-header row height in pt (ONLY the column
+ * labels — see CONTINUATION_TABLE_HEADER_HEIGHT_PT below for the full reservation).
+ * The 5 column labels (Description/Qty/Unit/Unit Price/Total) are always short,
+ * static, single-line strings that never wrap, so one natural line (fontSize ×
+ * LINE_HEIGHT[bold family], tableHeaderText sets no lineHeight) is charged and no
+ * fontkit measurement is needed. (Until 2026-10-02 this charged the bare fontSize,
+ * 1.9 / 2.4pt short of the real row.) Cited to components/pdf/shared/
+ * pdf-section-block.tsx's PdfTableHeaderOnly, reading each template's OWN
+ * tableHeader/tableHeaderText StyleSheet values (components/pdf/estimate-pdf.tsx
+ * / -modern.tsx).
+ */
+const CONTINUATION_COLUMN_HEADER_HEIGHT_PT: Record<EstimateTemplateId, number> = {
+  // tableHeader.paddingVertical(6)×2 + borderBottomWidth(1) + tableHeaderText.fontSize(9) × LINE_HEIGHT['Inter-Bold'] (= blocks-from-model.ts's classic tableHeaderHeightPt)
+  classic: 6 * 2 + 1 + 9 * LINE_HEIGHT['Inter-Bold'],
+  // tableHeader.paddingVertical(8)×2 + borderBottomWidth(0.5) + tableHeaderText.fontSize(8.5) × LINE_HEIGHT['Lora-Bold'] (= blocks-from-model.ts's modern tableHeaderHeightPt)
+  modern: 8 * 2 + 0.5 + 8.5 * LINE_HEIGHT['Lora-Bold'],
+}
+
+/**
+ * Continuation-page repeated-header reservation in pt — feeds
+ * PageConstraints.continuationTableHeaderHeightPt (the reservation charged when a
+ * page's first placed chain begins with an 'item-row', i.e. PGBRK-03's repeated
+ * table header). A continuation page now repeats TWO things above its first
+ * row, both drawn by the templates when `page.continuesTable`: the one-line
+ * "<Section title> (cont.)" band (CONTINUATION_SECTION_TITLE_HEIGHT_PT) and the
+ * column-label row (CONTINUATION_COLUMN_HEADER_HEIGHT_PT). The reservation is
+ * their sum. Classic 23.89 + 29.31, Modern 27.38 + 27.08.
  */
 export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, number> = {
-  // tableHeader.paddingVertical(6)×2 + borderBottomWidth(1) + tableHeaderText.fontSize(9)
-  classic: 6 * 2 + 1 + 9,
-  // tableHeader.paddingVertical(8)×2 + borderBottomWidth(0.5) + tableHeaderText.fontSize(8.5)
-  modern: 8 * 2 + 0.5 + 8.5,
+  classic: CONTINUATION_SECTION_TITLE_HEIGHT_PT.classic + CONTINUATION_COLUMN_HEADER_HEIGHT_PT.classic,
+  modern: CONTINUATION_SECTION_TITLE_HEIGHT_PT.modern + CONTINUATION_COLUMN_HEADER_HEIGHT_PT.modern,
 }
 
 /**
@@ -175,20 +319,113 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
  * threshold, which per-field accuracy fixes alone cannot fully eliminate
  * (there will always exist SOME content combination near the boundary).
  *
- * Calibrated via `scripts/pagination-render-calibration.ts`, run AFTER the
- * GAP-1 header-address-line-count fix (`measureHeaderHeightPt`) and the
- * GAP-1b totals-formula fixes above (2026-07-28): comparing
+ * Calibrated via `scripts/pagination-render-calibration.ts`: comparing
  * `computePageBreaks()`'s page count against the REAL generated PDF's
  * `/Type /Page` object count across a single-section 1..60-item sweep, a
- * 4-section/40-item multi-page fixture, the content-rich baseline fixture
- * (summary + 2 terms cards + discount/tax/deposit), and an isolated
- * "summary + deposit only" worst-case-boundary fixture — for BOTH
- * templates — the smallest zero-mismatch value was **78pt** (76pt still had
- * 1 mismatch: Classic's "summary + deposit only" fixture, engine=1
- * page/real=2 pages). **90pt** is used here (78pt + 12pt buffer) for
- * headroom against real-world content this exact sweep didn't cover. Re-run
- * that script and update this comment + the constant if
- * `blocks-from-model.ts` / `measure-header-height.ts` / either template's
- * StyleSheet ever changes.
+ * 4-section/40-item multi-page fixture (>= 3 pages — the script asserts it, so
+ * the CONTINUATION budget / compact header is genuinely exercised), the
+ * content-rich baseline fixture (summary + 2 terms cards + discount/tax/
+ * deposit), and an isolated "summary + deposit only" worst-case-boundary
+ * fixture — for BOTH templates.
+ *
+ * Re-run 2026-10-02 (earlier the same day), after pages 2+ switched to the
+ * compact header (`measureCompactHeaderHeightPt` /
+ * `PageConstraints.continuationContentHeightPt`), the language chip became
+ * non-English-only, hyphenation was disabled and the line packer began breaking
+ * only at spaces: the coarse sweep (0,10,...,70,78,80,90,100) gave
+ * 8,7,3,2,2,2,1,1,0,0,0,0 mismatches; the 71..77 refinement gave mismatches=1
+ * for 71..76 and mismatches=0 at 77 (that run's fixtures: single-section 1..60
+ * sweep, 4x10 multi-page, baseline, summary + deposit boundary combo). Smallest
+ * zero-mismatch value then: 77pt, used as 89pt (77 + 12).
+ *
+ * Re-run 2026-10-02 (final), after the Classic card padding, full-width photo
+ * tiles, photo label inside its row View, "Prepared by" before the photos, the
+ * Modern summary spacing, the "<Section> (cont.)" continuation title, AND a
+ * correction of the height model itself, and with the sweep EXTENDED by a rich
+ * fixture (summary + all 5 terms cards + discount/tax/deposit + signature +
+ * prepared-by + full Bill To client + 3 or 7 photos, first section growing
+ * 1..30 items so signature / terms cards / photo rows land on every page
+ * boundary and rows spill onto a continuation page). Why the old 77/89 was
+ * never a "residual drift": that fixture failed at 89 on the COMMITTED code
+ * (HEAD a0efe64: marginPt=89 mismatches=16, all Classic rich) and, on the first
+ * version of this change, on Modern at 89/90/91 (mismatches=6, e.g.
+ * "modern rich (3 photos) n=5: engine=4 real=5"; clean from 92). Ablation
+ * (drop one feature at a time) localised it to the TOTALS block: real PDF text
+ * positions showed the totals block was charged 165.5pt (Modern) / 84.5pt
+ * (Classic) against a real 240.42pt / 161.94pt — totalsRow charged padding +
+ * border but NO text line (12.8 / 12.1pt per row), grandTotal charged bare font
+ * sizes instead of line heights, and a section's PdfTableHeaderOnly column row,
+ * item-row/-subtotal borders, terms/signature/caption/label line heights and
+ * margins and Classic's summary wrapper margin (16) were uncharged or charged
+ * as bare font sizes. The flat margin was silently absorbing ~75-80pt per
+ * totals block. All of those are now charged from their StyleSheet values
+ * (blocks-from-model.ts, each with a cite-the-style comment); the info-grid's
+ * fixed estimate is 5 lines (a full Bill To client) instead of 4.
+ * Result of the sweep on the corrected model: marginPt=-30 mismatches=122,
+ * marginPt=-20 mismatches=107, marginPt=-10 mismatches=0, marginPt=0
+ * mismatches=0, marginPt=12 mismatches=0 (earlier coarse run: 0,6,12,16,20,40,
+ * 60,77 all mismatches=0). The smallest non-negative zero-mismatch value is
+ * therefore **0pt** (negative values only matter for the fixed one-line
+ * SAFETY_MARGIN_LINES term, which stays) — that is what the CALIBRATION FIXTURES alone said.
+ * The fuzz below is stricter and set the then-final value (24); the last re-run below sets the current one (12).
+ * Randomized engine-vs-renderer fuzz (600 renders per seed — random sections/items,
+ * description and section-title lengths, summary/terms on/off, company terms, 0-9
+ * photos with 1-16 word captions, signature, logo, long company name/address, long
+ * project name, long client name/address, null client, en/es/pt, discount/tax/deposit,
+ * both templates; engine page count vs real PDF page count) found, in turn:
+ *   1. wrapping photo captions (Modern, 8-9 photos): the photo-row charged ONE caption
+ *      line -> each caption is now measured at the tile width and the row takes the
+ *      tallest (`PageBlock.parallelMeasurements`);
+ *   2. a long company name (82 chars) in the page-1 header: the name WRAPS in the left
+ *      column (right column = logo / language chip) but was charged as one line, so
+ *      page 1 overflowed and react-pdf split the `fixed` header onto an extra page
+ *      (seeds 4242 c38, 8675309 c2, 123 c70 — the photos in those cases were a red
+ *      herring) -> measureHeaderHeightPt now measures name / contact / address at the
+ *      left-column width (it takes the MeasurementProvider).
+ * After both: seeds 7, 99, 2026, 31337 (N=150) 0 mismatches, and with seeds
+ * 11, 222, 3333, 44444, 555555, 6666666 (N=150 each, 1800 renders) swept over the
+ * extra margin (harness MARGIN override = this constant's value for the run):
+ *   margin  0: mismatches 2,2,4,1,0,1 = 10  (every one has a Bill To client: the info-grid's
+ *                                            FIXED 5-line estimate under-measures a client name /
+ *                                            address that wraps)
+ *   margin 12: 0,0,0,0,0,0 = 0
+ *   margin 24: 0,0,0,0,0,0 = 0
+ *   margin 36: 0,0,0,0,0,0 = 0
+ * and the calibration script gave marginPt=0 mismatches=0, marginPt=12 mismatches=0. The
+ * smallest margin clean in BOTH was then 12pt, so the constant was 24pt (12 + 12) — kept ONLY because
+ * of the info-grid under-measurement named above.
+ *
+ * Re-run 2026-10-02 (info grid MEASURED), which is why the constant is now **12pt**:
+ *   - blocksFromModel measures every wrapped line of both info-grid columns (Project: name / formatted
+ *     type / date / estimate #; Bill To: bold name / email / phone / '\n'-joined address, or no column
+ *     with no client) at 48% of the content width, via `PageBlock.columns`. Predicted vs real info-grid
+ *     height (pdftotext -bbox, render with vs without the block): 0.00pt difference in 29 of 32 cases
+ *     in both templates (short, long name 2-4 lines, long type, long client name, long email, long
+ *     address, no client, blank/trailing newline in the address, es/pt). The rest: a Classic address
+ *     whose last line fits only because react-pdf's Knuth-Plass shrinks spaces (we charge 1 line more,
+ *     +15pt, safe) and an unbreakable 64-char estimate number that react-pdf splits mid-word after
+ *     another word (we charge 1 line fewer, -4pt; margin-covered, not a realistic input).
+ *   - Two model errors found on the way and fixed: (1) the line packer ignored hard newlines (react-pdf
+ *     splits a Text at every '\n'), so every 'street\ncity' address was one line short per newline —
+ *     it also affects any multi-paragraph summary/terms text; (2) the title banner was charged at the
+ *     prose line height (Classic +6.96pt, Modern +4.16pt over; Modern's 0.75pt rule was uncharged).
+ *     A short one-item estimate is now predicted EXACTLY (predicted 520.19pt = real 520.19pt page-1
+ *     usage, Modern, no client, discount + tax + 30% deposit).
+ *   - Randomized fuzz (300 renders per seed, N=150 x 2 templates; seeds 101, 202, 303, 404 + 505, 606,
+ *     707, 808, with 30% of cases using a 25-40 word project name and a 3+ line client address; harness
+ *     MARGIN override = this constant's value for the run; the fixed 1-line SAFETY_MARGIN_LINES term
+ *     stays):
+ *       margin 24: 0,0,0,0 mismatches                     (seeds 101,202,303,404)
+ *       margin 12: 0,0,0,0                                (seeds 101,202,303,404)
+ *       margin  0: 0,0,0,0 and 0,0,0,0                    (seeds 101,202,303,404 and 505,606,707,808)
+ *       margin -12: 3,5,0,4 = 12                          (seeds 101,202,303,404; informational)
+ *     (the -12 failures are real residual drift — e.g. Knuth-Plass vs the greedy packer — so 0 is the
+ *     smallest clean value, not an artifact.) The calibration script gave marginPt=-10, 0, 12, 24
+ *     mismatches=0 each. Smallest clean in BOTH = 0pt (fuzz) / -10pt (calibration) -> the constant is
+ *     **12pt** (0 + 12 buffer for content neither covers). Production additionally runs
+ *     lib/pdf/render-with-page-guard.ts: a real page count that still differs from the plan is
+ *     re-planned with +48pt, then +96pt, and reported to Sentry. Re-run that script
+ *     (`CAL_CANDIDATES=` narrows the sweep) and the fuzz, and update this comment + the constant, if
+ *     `blocks-from-model.ts` / `measure-header-height.ts` / either template's StyleSheet ever changes.
  */
-export const PDF_RENDER_SAFETY_MARGIN_PT = 90
+export const PDF_RENDER_SAFETY_MARGIN_PT = 12

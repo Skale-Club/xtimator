@@ -10,6 +10,8 @@
  * only translates the structural labels (Subtotal, Total, Timeline, etc.).
  */
 import { formatMoney } from '@/lib/money/currency'
+import { LABELS as DOCUMENT_LABELS } from '@/lib/estimate/document/labels'
+import { formatPercent } from '@/lib/estimate/document/format'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import {
   resolvePresentationSettings,
@@ -52,34 +54,22 @@ export type FormatterEstimate = {
   currency_code?: string | null
 }
 
-interface FormatterLabels {
+/** WhatsApp-only copy: no equivalent key exists in the document labels. */
+interface WhatsAppOnlyLabels {
   greetingWithName: (name: string) => string
   greetingAnon: string
   intro: (company: string) => string
   introAnon: string
-  subtotal: string
-  discount: (type: string | null | undefined, value: number) => string
-  tax: (pct: string) => string
-  total: string
-  deposit: string
-  balanceDue: string
   closing: string
   regards: string
 }
 
-const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
+const WHATSAPP_ONLY_LABELS: Record<'en' | 'pt' | 'es', WhatsAppOnlyLabels> = {
   en: {
     greetingWithName: (n) => `Hello ${n},`,
     greetingAnon: 'Hello,',
     intro: (c) => `Thank you for reaching out to ${c}! Here's your estimate:`,
     introAnon: "Here's your estimate:",
-    subtotal: 'Subtotal',
-    discount: (type, value) =>
-      type === 'percentage' ? `Discount (${value}%)` : 'Discount',
-    tax: (pct) => `Tax (${pct}%)`,
-    total: 'Total Estimate',
-    deposit: 'Deposit',
-    balanceDue: 'Balance Due',
     closing:
       "Let me know if you have any questions or would like to schedule. I'd be happy to assist you!",
     regards: 'Best regards,',
@@ -89,13 +79,6 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
     greetingAnon: 'Olá,',
     intro: (c) => `Obrigado por entrar em contato com ${c}! Segue seu orçamento:`,
     introAnon: 'Segue seu orçamento:',
-    subtotal: 'Subtotal',
-    discount: (type, value) =>
-      type === 'percentage' ? `Desconto (${value}%)` : 'Desconto',
-    tax: (pct) => `Imposto (${pct}%)`,
-    total: 'Total do Orçamento',
-    deposit: 'Entrada',
-    balanceDue: 'Saldo Devedor',
     closing: 'Fique à vontade para entrar em contato com dúvidas ou para agendar. Terei prazer em ajudar!',
     regards: 'Atenciosamente,',
   },
@@ -104,17 +87,25 @@ const LABELS: Record<'en' | 'pt' | 'es', FormatterLabels> = {
     greetingAnon: 'Hola,',
     intro: (c) => `¡Gracias por contactar a ${c}! Aquí está su presupuesto:`,
     introAnon: 'Aquí está su presupuesto:',
-    subtotal: 'Subtotal',
-    discount: (type, value) =>
-      type === 'percentage' ? `Descuento (${value}%)` : 'Descuento',
-    tax: (pct) => `Impuesto (${pct}%)`,
-    total: 'Total del Presupuesto',
-    deposit: 'Depósito',
-    balanceDue: 'Saldo Pendiente',
     closing:
       '¿Preguntas? Con gusto le ayudamos a programar. ¡Estamos a su disposición!',
     regards: 'Saludos,',
   },
+}
+
+/** Totals-block labels, sourced from the document labels so WhatsApp, PDF and web agree. */
+function totalsLabels(language: 'en' | 'pt' | 'es') {
+  const D = DOCUMENT_LABELS[language]
+  return {
+    subtotal: D.subtotal,
+    discount: (type: string | null | undefined, value: number) =>
+      type === 'percentage' ? `${D.discount} (${formatPercent(value)})` : D.discount,
+    tax: (pct: string) => `${D.tax} (${pct})`,
+    // The document's grand-total label ("Total") — not the former "Total Estimate".
+    total: D.grandTotal,
+    deposit: D.depositRequired,
+    balanceDue: D.balanceDue,
+  }
 }
 
 /**
@@ -138,7 +129,7 @@ export function formatEstimateForWhatsApp(
   presentation_settings?: PresentationSettings | null,
 ): string {
   const language = estimate.language ?? 'en'
-  const L = LABELS[language]
+  const L = { ...WHATSAPP_ONLY_LABELS[language], ...totalsLabels(language) }
   const money = (n: number) => formatMoney(n, estimate.currency_code)
   const lines: string[] = []
 
@@ -184,7 +175,7 @@ export function formatEstimateForWhatsApp(
   }
   if (hasTax) {
     lines.push(
-      `${L.tax((estimate.tax_rate * 100).toFixed(0))}: ${money(estimate.tax_amount)}`
+      `${L.tax(formatPercent(estimate.tax_rate * 100))}: ${money(estimate.tax_amount)}`
     )
   }
   lines.push('')

@@ -135,6 +135,7 @@ function renderPreview(overrides: Partial<PaginatedPreviewProps> = {}) {
       estimateSeq={1}
       estimateCreatedAt="2026-01-01T00:00:00Z"
       companyTerms={null}
+      templateId="classic"
       {...overrides}
     />
   )
@@ -161,6 +162,27 @@ describe('PaginatedPreview — block resolution', () => {
       expect(sheet1!.querySelector(`[data-item-id="${id}"]`), `item ${id} must render inside sheet 1`).toBeTruthy()
       expect(sheet0!.querySelector(`[data-item-id="${id}"]`), `item ${id} must NOT render inside sheet 0`).toBeNull()
     }
+  })
+})
+
+describe('PaginatedPreview — compact header on pages 2+ (mirrors the PDF)', () => {
+  it('page 2 shows ONLY the company name and "Estimate #<number>"; page 1 keeps the full header', () => {
+    const { container } = renderPreview()
+    const sheet0 = container.querySelector('[data-page-sheet="0"]')!
+    const sheet1 = container.querySelector('[data-page-sheet="1"]')!
+
+    // Page 1: full header (contact line).
+    expect(sheet0.textContent).toContain(company.email as string)
+    // Page 2: compact header — name + identifier (estimateSeq=1 -> "0001", same as the info grid), no contacts.
+    expect(sheet1.textContent).toContain(company.name)
+    expect(sheet1.textContent).toContain('Estimate #0001')
+    expect(sheet1.textContent).not.toContain(company.email as string)
+  })
+
+  it('uses the persisted estimate_number when present, like the PDF', () => {
+    const { data, pages } = buildTwoPageFixture()
+    const { container } = renderPreview({ data: { ...data, estimate_number: 'EST-1042' } as typeof data, pages })
+    expect(container.querySelector('[data-page-sheet="1"]')!.textContent).toContain('Estimate #EST-1042')
   })
 })
 

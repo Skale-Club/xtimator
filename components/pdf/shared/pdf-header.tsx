@@ -22,6 +22,9 @@ import type { Style } from '@react-pdf/types'
 import { formatAddress } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { willPdfRenderLogo } from '@/lib/pdf/pdf-image-support'
+import { showsLanguageBadge } from '@/lib/pdf/language-badge'
+import { LANG_INDICATOR } from '@/lib/estimate/document/labels'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 export interface PdfHeaderCompany {
   name: string
@@ -53,7 +56,9 @@ export interface PdfHeaderProps {
   headerBorderColor?: string
   /** Classic passes brandText here (company name + name-link color override). Modern passes undefined — its company name color is fully static. */
   companyNameColor?: string
-  langLabel: string
+  /** Document language. Drives the language chip, which is drawn ONLY for non-English
+   *  documents (lib/pdf/language-badge.ts — the same predicate measureHeaderHeightPt charges with). */
+  language: EstimateLanguage
   styles: PdfHeaderStyles
 }
 
@@ -61,7 +66,7 @@ export function PdfHeader({
   company,
   headerBorderColor,
   companyNameColor,
-  langLabel,
+  language,
   styles,
 }: PdfHeaderProps) {
   const companyAddress = formatAddress(company)
@@ -140,10 +145,12 @@ export function PdfHeader({
           )}
         </View>
       </View>
-      {/* RIGHT — language badge stacked above logo (Quick-260526-jo4) */}
+      {/* RIGHT — language badge (non-English only) stacked above logo (Quick-260526-jo4) */}
       <View style={styles.headerRight}>
         {/* Language indicator chip — text-based (SVG flags not supported in react-pdf) */}
-        <Text style={styles.langBadge}>{langLabel}</Text>
+        {showsLanguageBadge(language) && (
+          <Text style={styles.langBadge}>{LANG_INDICATOR[language]}</Text>
+        )}
         {/* PDF-LOGO-01 — gated on the SAME predicate lib/pdf/measure-header-height.ts
             charges the logo block with, never on bare truthiness. Rendering an
             <Image> react-pdf cannot decode does not throw (@react-pdf/layout's

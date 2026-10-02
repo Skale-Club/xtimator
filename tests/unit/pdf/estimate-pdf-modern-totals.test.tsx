@@ -134,6 +134,7 @@ describe('EstimatePDFModern totals block — deposit / balance due (PUI-02)', ()
     expect(texts).toContain('Total')
     // No deposit rows at all — byte-identical to pre-v4.11
     expect(texts).not.toContain('Deposit')
+    expect(texts).not.toContain('Deposit required')
     expect(texts).not.toContain('Balance Due')
   })
 
@@ -147,12 +148,13 @@ describe('EstimatePDFModern totals block — deposit / balance due (PUI-02)', ()
         balance_due: 700,
       })
     )
-    expect(texts).toContain('Deposit')
+    expect(texts).toContain('Deposit required')
+    expect(texts).not.toContain('Deposit') // PDF reads "Deposit required", never the bare editor label
     expect(texts).toContain('Balance Due')
 
     const iSubtotal = texts.indexOf('Subtotal')
     const iGrandTotal = texts.lastIndexOf('Total')
-    const iDeposit = texts.indexOf('Deposit')
+    const iDeposit = texts.indexOf('Deposit required')
     const iBalance = texts.indexOf('Balance Due')
 
     // Locked order: Subtotal → … → Total → Deposit → Balance Due

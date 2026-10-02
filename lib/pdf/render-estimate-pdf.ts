@@ -42,6 +42,7 @@ import {
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
+import { renderWithPageGuard, reportPageDrift } from '@/lib/pdf/render-with-page-guard'
 import { computePageBreaks } from '@/lib/estimate/pagination/engine'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
@@ -251,7 +252,8 @@ export async function renderEstimatePdf(
   // shared function also used by tests/unit/pdf/_pages-for-fixture.ts (and,
   // starting Plan 185-03, the web preview) — never a second, independently-
   // maintained derivation (see 185-RESEARCH.md's constraints-parity finding).
-  const constraints = computeEstimatePageConstraints(companyForRender, templateId)
+  const measurementProvider = createFontkitMeasurementProvider()
+  const constraints = computeEstimatePageConstraints(companyForRender, templateId, estimateLanguage, measurementProvider)
   const L = PDF_LABELS[estimateLanguage] ?? PDF_LABELS.en
   const blocks = blocksFromModel({
     sections: estimate.sections,
@@ -272,26 +274,50 @@ export async function renderEstimatePdf(
     preparedBy,
     L,
     templateId,
+    // Project / Bill To columns are measured line by line — the SAME values the template hands
+    // PdfInfoGrid below (projectName / projectType / client / estimate / language).
+    infoGrid: {
+      projectName,
+      projectType,
+      client,
+      estimate,
+      language: estimateLanguage,
+    },
   })
-  const pages = computePageBreaks(blocks, constraints, createFontkitMeasurementProvider())
+  const computePages = (extraSafetyMarginPt: number) =>
+    computePageBreaks(
+      blocks,
+      { ...constraints, safetyMarginPt: constraints.safetyMarginPt + extraSafetyMarginPt },
+      measurementProvider
+    )
 
   // `EstimatePDFProps` declares `signature?: DocumentSignature | null` for
   // real as of Plan 183-06 (both template files now own the field) — no
   // widening cast needed here anymore.
   const PDFComponent = PDF_TEMPLATE_COMPONENTS[templateId]
-  const element = createElement(PDFComponent, {
-    estimate,
-    company: companyForRender,
-    client,
-    projectName,
-    projectType,
-    language: estimateLanguage,
-    preparedBy,
-    attachedPhotos,
-    signature,
-    pages,
+  // Runtime page-count guard (lib/pdf/render-with-page-guard.ts): if react-pdf's real layout
+  // adds a page the engine did not plan, re-plan with a larger per-page margin (+48, +96pt)
+  // and re-render, reporting every drift to Sentry (no PII).
+  const guarded = await renderWithPageGuard({
+    computePages,
+    render: async (pages) => {
+      const element = createElement(PDFComponent, {
+        estimate,
+        company: companyForRender,
+        client,
+        projectName,
+        projectType,
+        language: estimateLanguage,
+        preparedBy,
+        attachedPhotos,
+        signature,
+        pages,
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return Buffer.from(await renderToBuffer(element as any))
+    },
+    onDrift: (report) => reportPageDrift({ estimateId, templateId, language: estimateLanguage }, report),
   })
-  const pdfBuffer = await renderToBuffer(element as any)
 
-  return { buffer: Buffer.from(pdfBuffer), templateId, contentKey, projectName }
+  return { buffer: guarded.buffer, templateId, contentKey, projectName }
 }

@@ -8,24 +8,34 @@
 // block-dispatch pattern instead of the old overlay's measure-then-anchor
 // approach. Zero inputs, zero dnd, zero dispatch — every editable affordance
 // EstimateDocument has in pageView mode is intentionally absent here.
+//
+// TEMPLATE LOOK: this file owns everything template-agnostic (page walking,
+// visibility gates, which terms card / photos / signature a block resolves
+// to, sheet chrome, zoom, thumbnail rail). The LOOK of every block comes from
+// ONE PreviewTemplate picked once from PREVIEW_TEMPLATES by `templateId` —
+// Classic (preview-template/classic.tsx) or Modern (preview-template/
+// modern.tsx), mirroring components/pdf/estimate-pdf.tsx and
+// estimate-pdf-modern.tsx respectively. Each sheet is padded with the chosen
+// template's own PDF page margins (ESTIMATE_PAGE_GEOMETRY), so wrapping
+// inside the sheet approximates the PDF's.
 'use client'
 
-import Image from 'next/image'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
-import { createClient } from '@/lib/supabase/client'
-import { createStorage } from '@/lib/storage'
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
-import { isPercentageDiscount } from '@/lib/estimate/discount-display'
-import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { resolvePresentationSettings, isSectionVisible } from '@/lib/estimate/presentation-settings'
-import { LABELS as DOC_LABELS, type DocumentLabels } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate } from '@/lib/estimate/document/format'
-import { LETTER_WIDTH_PX, LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
+import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
+import { formatAddress } from '@/lib/estimate/document/format'
+import {
+  ESTIMATE_PAGE_GEOMETRY,
+  LETTER_WIDTH_PT,
+  LETTER_WIDTH_PX,
+  LETTER_HEIGHT_PX,
+  PX_PER_PT,
+} from '@/lib/estimate/document/tokens'
 // PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
 // FULL array before photoRange slices it (see the helper's docblock). A no-op
 // for a real workspace photo (it always has a storage_path), but it is what
@@ -36,18 +46,39 @@ import type {
   DocumentCompany,
   DocumentClient,
   DocumentItem,
-  DocumentPhoto,
-  DocumentSection,
   EstimateDocumentData,
 } from '@/lib/estimate/document/model'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
-import type { DepositDisplay } from '@/lib/estimate/deposit-display'
-import type { ResolvedPresentationSettings } from '@/lib/estimate/presentation-settings'
+import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
+import { classicTemplate } from './preview-template/classic'
+import { modernTemplate } from './preview-template/modern'
+import { ItemTableColgroup } from './preview-template/shared'
+import type { PreviewTemplate, RenderCtx, ResolvedTermsCard } from './preview-template/types'
 
 // 185-UI-SPEC.md §2's page-gap between sheets — kept as the same design
 // constant the old overlay used.
 const PAGE_GAP_PX = 32
+
+// The ONE place a template id picks its look.
+const PREVIEW_TEMPLATES: Record<EstimateTemplateId, PreviewTemplate> = {
+  classic: classicTemplate,
+  modern: modernTemplate,
+}
+
+/** The sheet's inner padding for a template, in px — the PDF page margins
+ *  (top/bottom from ESTIMATE_PAGE_GEOMETRY, horizontal = the half of the page
+ *  width the content box leaves over), so the content box is exactly
+ *  contentWidthPt wide like the PDF's. */
+function sheetPaddingPx(templateId: EstimateTemplateId) {
+  const g = ESTIMATE_PAGE_GEOMETRY[templateId]
+  return {
+    paddingTop: g.topPaddingPt * PX_PER_PT,
+    paddingBottom: g.bottomPaddingPt * PX_PER_PT,
+    paddingLeft: ((LETTER_WIDTH_PT - g.contentWidthPt) / 2) * PX_PER_PT,
+    paddingRight: ((LETTER_WIDTH_PT - g.contentWidthPt) / 2) * PX_PER_PT,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Public props
@@ -58,6 +89,8 @@ export interface PaginatedPreviewProps {
   /** null = engine still computing / fonts loading — renders the skeleton, never the editable tree. */
   pages: PageAssignment[] | null
   company: DocumentCompany
+  /** The company's estimate template — the SAME id usePaginatedPreview paginates with. Picks the look drawn on the sheets. */
+  templateId: EstimateTemplateId
   language?: EstimateLanguage | null
   /** Override brand color (mirrors EstimateDocumentProps — falls back to company.brand_primary_color). */
   brandColor?: string
@@ -72,219 +105,70 @@ export interface PaginatedPreviewProps {
 }
 
 // ---------------------------------------------------------------------------
-// RenderCtx — everything a block resolver needs, built once per render
+// Block resolution — decides WHAT a block shows (visibility gates, which terms
+// card, which photos) and hands the resolved values to the template, which
+// only decides how it looks. Returns null for a block that draws nothing.
 // ---------------------------------------------------------------------------
 
-interface RenderCtx {
-  data: EstimateDocumentData
-  L: DocumentLabels
-  lang: EstimateLanguage
-  company: DocumentCompany
-  brandColor: string
-  brandText: string
-  brandOnFill: string
-  fmt: (v: number) => string
-  dep: DepositDisplay
-  resolvedSettings: ResolvedPresentationSettings
-  itemsBySection: Map<string, DocumentItem[]>
-  sectionsById: Map<string, DocumentSection>
-  client: DocumentClient | null
-  companyAddr: string | null
-  clientAddr: string | null
-  projectName: string
-  projectType: string | null
-  preparedBy: string | null
-  estimateCreatedAt: string
-  defaultEstimateNumber: string
-  companyTerms: { enabled: boolean; text: string | null } | null
-  hasCompanyTerms: boolean
+function resolveTermsCard(block: PageBlock, ctx: RenderCtx, firstTermsCardBlockId: string | undefined): ResolvedTermsCard | null {
+  const key = block.ref?.termsKey
+  if (!key) return null
+  const isFirst = block.id === firstTermsCardBlockId
+  if (key === 'estimate') {
+    if (!ctx.hasCompanyTerms) return null
+    return { key, label: ctx.L.estimateTerms, text: ctx.companyTerms?.text ?? '', isFirst }
+  }
+  const fields: Record<'payment' | 'timeline' | 'warranty' | 'notes', { label: string; value: string | null }> = {
+    payment: { label: ctx.L.paymentTerms, value: ctx.data.payment_terms },
+    timeline: { label: ctx.L.timeline, value: ctx.data.timeline },
+    warranty: { label: ctx.L.warranty, value: ctx.data.warranty_terms },
+    notes: { label: ctx.L.notes, value: ctx.data.notes },
+  }
+  const entry = fields[key]
+  if (!entry || !entry.value) return null
+  return { key, label: entry.label, text: entry.value, isFirst }
 }
 
-// ---------------------------------------------------------------------------
-// TableHead — the shared column-header row (Description/Qty/Unit/Unit
-// Price/Total at 40/12/13/17/18%), reused for a section's own table AND the
-// page-opening repeated header on a continuesTable page — same markup as
-// estimate-document.tsx's read-only table head (L661-669). `testId`, when
-// given, is stamped on the <thead> itself (only the continuation slice's own
-// first table passes one — see renderPageBlocks).
-// ---------------------------------------------------------------------------
-
-function TableHead({ L, testId }: { L: DocumentLabels; testId?: string }) {
-  return (
-    <thead data-testid={testId}>
-      <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50">
-        <th className="py-1.5 pl-10 pr-2 text-left font-medium">{L.description}</th>
-        <th className="py-1.5 px-2 text-center font-medium">{L.qty}</th>
-        <th className="py-1.5 px-2 text-center font-medium">{L.unit}</th>
-        <th className="py-1.5 px-2 text-right font-medium">{L.unitPrice}</th>
-        <th className="py-1.5 pl-0 pr-10 text-right font-medium">{L.total}</th>
-      </tr>
-    </thead>
-  )
-}
-
-// ItemTableColgroup — the ONE source of the 40/12/13/17/18% column geometry,
-// applied via <col> (not per-<th> width classes) so EVERY item table on
-// EVERY page — headed or headless, new-section or continuation slice — sizes
-// its 5 columns identically under table-fixed layout. Without this, a
-// continuation page's headless rows table and a headed table elsewhere would
-// auto-size independently and columns would drift out of alignment.
-function ItemTableColgroup() {
-  return (
-    <colgroup>
-      <col style={{ width: '40%' }} />
-      <col style={{ width: '12%' }} />
-      <col style={{ width: '13%' }} />
-      <col style={{ width: '17%' }} />
-      <col style={{ width: '18%' }} />
-    </colgroup>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// ReadOnlyPhotoThumb — mirrors estimate-document.tsx's private
-// AttachedPhotoThumb (not exported, so re-implemented here against the same
-// createClient/createStorage utilities) minus the onRemove affordance.
-// ---------------------------------------------------------------------------
-
-function ReadOnlyPhotoThumb({ photo }: { photo: DocumentPhoto }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(photo.url ?? null)
-
-  useEffect(() => {
-    if (photo.url) {
-      setImageUrl(photo.url)
-      return
+function renderSingleBlock(
+  block: PageBlock,
+  ctx: RenderCtx,
+  tpl: PreviewTemplate,
+  firstTermsCardBlockId: string | undefined
+): React.ReactNode {
+  switch (block.kind) {
+    case 'title-banner':
+      return tpl.titleBanner(block.id, ctx)
+    case 'info-grid':
+      return tpl.infoGrid(block.id, ctx)
+    case 'summary':
+      return isSectionVisible(ctx.resolvedSettings, 'summary') && ctx.data.summary
+        ? tpl.summary(block.id, ctx.data.summary, ctx)
+        : null
+    case 'section-subtotal': {
+      const section = ctx.sectionsById.get(block.ref?.sectionId ?? '')
+      return tpl.sectionSubtotal(block, section?.subtotal ?? 0, ctx)
     }
-    const supabase = createClient()
-    createStorage(supabase)
-      .getSignedUrl('photos', photo.storage_path, 3600)
-      .then((signedUrl) => setImageUrl(signedUrl))
-      .catch(() => {
-        // signed URL failed — leave skeleton in place
-      })
-  }, [photo.url, photo.storage_path])
-
-  return (
-    <div>
-      <div className="aspect-square overflow-hidden rounded-lg relative ring-1 ring-border/50">
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={photo.caption ?? ''} className="object-cover w-full h-full" />
-        ) : (
-          <Skeleton className="w-full h-full" />
-        )}
-      </div>
-      {photo.caption && <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{photo.caption}</p>}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Single-block resolvers — mirror EstimateDocument's read-only (isEditable
-// = false) branches, minus every edit affordance.
-// ---------------------------------------------------------------------------
-
-function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
-  const { data, L, lang, client, clientAddr, projectName, projectType, estimateCreatedAt, defaultEstimateNumber } = ctx
-  return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-10 py-8 border-b border-border/50">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-          {L.project}
-        </p>
-        <p className="text-2xl font-bold">{projectName}</p>
-        {projectType && (
-          <p className="text-base text-muted-foreground mt-2 capitalize">{projectType.replace(/_/g, ' ')}</p>
-        )}
-        <p className="text-base text-muted-foreground mt-3">
-          {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
-        </p>
-        <p className="text-base text-muted-foreground mt-2 tabular-nums">
-          {L.estimateNum}{data.estimate_number ?? defaultEstimateNumber}
-        </p>
-      </div>
-      {client && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {L.billTo}
-          </p>
-          <div className="space-y-0.5">
-            <p className="text-2xl font-bold">{client.name}</p>
-            {client.email && <p className="text-base text-muted-foreground mt-1">{client.email}</p>}
-            {client.phone && (
-              <p className="text-base text-muted-foreground">{formatPhoneForDisplay(client.phone)}</p>
-            )}
-            {clientAddr && <p className="text-base text-muted-foreground whitespace-pre-line">{clientAddr}</p>}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
-  const { data, L, brandText, fmt, dep } = ctx
-  return (
-    <div data-page-block-id="totals" className="flex justify-end px-10 py-6 border-t border-border/50">
-      <div className="w-full max-w-xs space-y-2">
-        <div className="flex justify-between text-base">
-          <span className="text-muted-foreground select-none">{L.subtotal}</span>
-          <span className="tabular-nums font-medium">{fmt(data.subtotal)}</span>
-        </div>
-        {data.discount_amount > 0 && (
-          <div className="flex justify-between text-base">
-            <span className="text-muted-foreground select-none">
-              {L.discount}
-              {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
-            </span>
-            <span className="tabular-nums text-destructive font-medium">-{fmt(data.discount_amount)}</span>
-          </div>
-        )}
-        {data.tax_amount > 0 && (
-          <div className="flex justify-between text-base">
-            <span className="text-muted-foreground select-none">
-              {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
-            </span>
-            <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
-          </div>
-        )}
-        <div className="flex justify-between items-baseline pt-3 border-t-2" style={{ borderTopColor: brandText }}>
-          <span className="text-3xl font-extrabold select-none">{L.grandTotal}</span>
-          <span className="text-3xl font-extrabold tabular-nums" style={{ color: brandText }}>
-            {fmt(data.total)}
-          </span>
-        </div>
-        {dep.showDeposit && (
-          <div className="flex justify-between text-base pt-2">
-            <span className="text-muted-foreground select-none">{L.deposit}</span>
-            <span className="tabular-nums text-muted-foreground font-medium">-{fmt(dep.depositAmount)}</span>
-          </div>
-        )}
-        {dep.showDeposit && (
-          <div className="flex justify-between items-baseline">
-            <span className="text-base font-semibold text-muted-foreground select-none">{L.balanceDue}</span>
-            <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx) {
-  const section = ctx.sectionsById.get(sectionId)
-  return (
-    <div
-      key={`${sectionId}-header`}
-      data-page-block-id={`${sectionId}-header`}
-      className="flex items-center gap-2 px-10 py-2"
-      style={{ backgroundColor: ctx.brandColor }}
-    >
-      <span className="flex-1 font-semibold text-base tracking-wide select-none" style={{ color: ctx.brandOnFill }}>
-        {section?.title ?? ''}
-      </span>
-    </div>
-  )
+    case 'totals':
+      return tpl.totals(block.id, ctx)
+    case 'terms-card': {
+      const card = resolveTermsCard(block, ctx, firstTermsCardBlockId)
+      return card ? tpl.termsCard(block, card, ctx) : null
+    }
+    case 'signature':
+      return ctx.data.signature ? tpl.signature(block, ctx.data.signature, ctx) : null
+    case 'photo-row': {
+      const range = block.ref?.photoRange
+      if (!range) return null
+      if (!isSectionVisible(ctx.resolvedSettings, 'photos')) return null
+      const photos = drawablePdfPhotos(ctx.data.attachedPhotos ?? []).slice(range[0], range[1])
+      if (photos.length === 0) return null
+      return tpl.photoRow(block, photos, range[0] === 0, ctx)
+    }
+    case 'prepared-by':
+      return ctx.preparedBy ? tpl.preparedBy(block, ctx.preparedBy, ctx) : null
+    default:
+      return null
+  }
 }
 
 /** Renders one contiguous run of item-row blocks (same section, same page) as
@@ -294,211 +178,33 @@ function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx) {
  *  `headTestId="continuation-header"` is passed so the page-level repeated
  *  column header renders as this table's own <thead> instead of a separate
  *  sibling table — keeping every item table's column geometry identical via
- *  ItemTableColgroup + table-fixed, headed or not). */
+ *  ItemTableColgroup + table-fixed, headed or not). The table spans the sheet's
+ *  content box, so the Description text starts and the Total text ends on the
+ *  same page rail every other block sits on. */
 function renderItemTable(
   sectionId: string,
   rowBlocks: PageBlock[],
   ctx: RenderCtx,
+  tpl: PreviewTemplate,
   withHead: boolean,
   key: string,
   headTestId?: string
 ) {
   const items = ctx.itemsBySection.get(sectionId) ?? []
   return (
-    // The zebra/header bands stay full-bleed (same width as the solid
-    // section-header bar and the ESTIMATE banner above them); the GUTTER
-    // lives on the outer cells instead — pl-10/pr-10 — so the Description
-    // text starts and the Total text ends on exactly the same 40px gutter
-    // every other block (section title, section subtotal, totals) sits on.
     <table key={key} className="w-full table-fixed">
       <ItemTableColgroup />
-      {withHead && <TableHead L={ctx.L} testId={headTestId} />}
+      {withHead && tpl.tableHead(ctx, headTestId)}
       <tbody>
         {rowBlocks.map((block) => {
           const itemIndex = block.ref?.itemIndex
-          const item = itemIndex !== undefined ? items[itemIndex] : undefined
+          const item: DocumentItem | undefined = itemIndex !== undefined ? items[itemIndex] : undefined
           if (!item) return null
-          const zebra = (itemIndex ?? 0) % 2 === 1
-          return (
-            <tr
-              key={block.id}
-              data-page-block-id={block.id}
-              data-item-id={item.id}
-              className={`border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
-            >
-              <td className="py-2 pl-10 pr-2 text-base">{item.description}</td>
-              <td className="py-2 px-2 text-base text-center tabular-nums">{item.quantity}</td>
-              <td className="py-2 px-2 text-base text-center">{item.unit ?? ''}</td>
-              <td className="py-2 px-2 text-base text-right tabular-nums whitespace-nowrap">{ctx.fmt(item.unit_price)}</td>
-              <td className="py-2 pl-0 pr-10 text-base text-right tabular-nums font-medium whitespace-nowrap">{ctx.fmt(item.total)}</td>
-            </tr>
-          )
+          return tpl.itemRow(block, item, itemIndex ?? 0, ctx)
         })}
       </tbody>
     </table>
   )
-}
-
-function renderSectionSubtotal(block: PageBlock, ctx: RenderCtx) {
-  const sectionId = block.ref?.sectionId ?? ''
-  const section = ctx.sectionsById.get(sectionId)
-  return (
-    <div
-      key={block.id}
-      data-page-block-id={block.id}
-      className="flex justify-end items-center gap-3 px-10 py-2 border-t border-border/50 bg-muted/10"
-    >
-      <span className="text-sm text-muted-foreground select-none">{ctx.L.sectionSubtotal}</span>
-      <span className="text-sm font-semibold tabular-nums">{ctx.fmt(section?.subtotal ?? 0)}</span>
-    </div>
-  )
-}
-
-function renderTermsCard(block: PageBlock, ctx: RenderCtx) {
-  const key = block.ref?.termsKey
-  if (!key) return null
-
-  if (key === 'estimate') {
-    if (!ctx.hasCompanyTerms) return null
-    return (
-      <div key={block.id} data-page-block-id="terms-estimate" className="px-10 py-6 border-t border-border/50">
-        <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
-            {ctx.L.estimateTerms}
-          </p>
-          <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
-            {ctx.companyTerms?.text}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const fields: Record<'payment' | 'timeline' | 'warranty' | 'notes', { label: string; value: string | null }> = {
-    payment: { label: ctx.L.paymentTerms, value: ctx.data.payment_terms },
-    timeline: { label: ctx.L.timeline, value: ctx.data.timeline },
-    warranty: { label: ctx.L.warranty, value: ctx.data.warranty_terms },
-    notes: { label: ctx.L.notes, value: ctx.data.notes },
-  }
-  const entry = fields[key]
-  if (!entry || !entry.value) return null
-
-  return (
-    <div key={block.id} data-page-block-id={`terms-${key}`} className="px-10 py-6 border-t border-border/50">
-      <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
-          {entry.label}
-        </p>
-        <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">{entry.value}</p>
-      </div>
-    </div>
-  )
-}
-
-function renderSignature(block: PageBlock, ctx: RenderCtx) {
-  if (!ctx.data.signature) return null
-  return (
-    <div key={block.id} data-page-block-id="signature" className="px-10 py-6 border-t border-border/50">
-      <div className="rounded-lg border border-border/50 p-4" style={{ backgroundColor: cardTintFill(ctx.brandColor) }}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
-          {ctx.L.signedBy}
-        </p>
-        <div className="flex items-start gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={ctx.data.signature.signatureDataUrl}
-            alt={ctx.L.signedBy}
-            className="h-16 w-auto max-w-[240px] object-contain"
-          />
-          <div>
-            <p className="text-base font-semibold">{ctx.data.signature.signerName}</p>
-            <p className="text-sm text-muted-foreground">{formatDate(ctx.data.signature.signedAt, ctx.lang)}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function renderPhotoRow(block: PageBlock, ctx: RenderCtx) {
-  const range = block.ref?.photoRange
-  if (!range) return null
-  if (!isSectionVisible(ctx.resolvedSettings, 'photos')) return null
-  const photos = drawablePdfPhotos(ctx.data.attachedPhotos ?? []).slice(range[0], range[1])
-  if (photos.length === 0) return null
-  const showLabel = range[0] === 0
-  return (
-    <div key={block.id} data-page-block-id={block.id} className="px-10 py-6 border-t border-border/50">
-      {showLabel && (
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
-          {ctx.L.photos}
-        </p>
-      )}
-      {/* Fixed grid-cols-3 — matches the engine's photosPerRow chunk size
-          (lib/estimate/document/tokens.ts's photosPerRow, always 3 for both
-          templates' contentWidthPt) exactly, so a 3-photo chunk never lands
-          in a wider grid with a dead trailing cell. Sheets are always
-          LETTER_WIDTH_PX wide — no viewport breakpoint applies here. */}
-      <div className="grid grid-cols-3 gap-3">
-        {photos.map((photo) => (
-          <ReadOnlyPhotoThumb key={photo.id} photo={photo} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function renderPreparedBy(block: PageBlock, ctx: RenderCtx) {
-  if (!ctx.preparedBy) return null
-  return (
-    <div key={block.id} data-page-block-id="prepared-by" className="px-10 py-6 border-t border-border/50">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-        {ctx.L.preparedBy}
-      </p>
-      <p className="text-base text-muted-foreground">{ctx.preparedBy}</p>
-    </div>
-  )
-}
-
-function renderSingleBlock(block: PageBlock, ctx: RenderCtx) {
-  switch (block.kind) {
-    case 'title-banner':
-      return (
-        <div key={block.id} className="py-6 px-10 text-center" style={{ backgroundColor: ctx.brandColor }}>
-          <h1
-            className="text-4xl font-bold tracking-widest select-none"
-            style={{ color: ctx.brandOnFill }}
-          >
-            {ctx.L.estimate}
-          </h1>
-        </div>
-      )
-    case 'info-grid':
-      return <InfoGridBlock key={block.id} ctx={ctx} />
-    case 'summary':
-      return isSectionVisible(ctx.resolvedSettings, 'summary') && ctx.data.summary ? (
-        <div key={block.id} className="px-10 py-4 border-b border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {ctx.L.summary}
-          </p>
-          <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">{ctx.data.summary}</p>
-        </div>
-      ) : null
-    case 'section-subtotal':
-      return renderSectionSubtotal(block, ctx)
-    case 'totals':
-      return <TotalsBlockView key={block.id} ctx={ctx} />
-    case 'terms-card':
-      return renderTermsCard(block, ctx)
-    case 'signature':
-      return renderSignature(block, ctx)
-    case 'photo-row':
-      return renderPhotoRow(block, ctx)
-    case 'prepared-by':
-      return renderPreparedBy(block, ctx)
-    default:
-      return null
-  }
 }
 
 /** Walks one page's blocks in order, grouping consecutive item-row blocks of
@@ -510,7 +216,13 @@ function renderSingleBlock(block: PageBlock, ctx: RenderCtx) {
  *  === 'item-row') marks that the very first group is a continuation slice —
  *  it gets the repeated column header as its OWN <thead> (headTestId=
  *  'continuation-header'), never a separate sibling table. */
-function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx, continuesTable: boolean): React.ReactNode[] {
+function renderPageBlocks(
+  blocks: PageBlock[],
+  ctx: RenderCtx,
+  tpl: PreviewTemplate,
+  continuesTable: boolean,
+  firstTermsCardBlockId: string | undefined
+): React.ReactNode[] {
   const out: React.ReactNode[] = []
   let i = 0
   while (i < blocks.length) {
@@ -523,8 +235,8 @@ function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx, continuesTable: b
       const rowBlocks = blocks.slice(i + 1, j)
       out.push(
         <div key={block.id}>
-          {renderSectionHeaderBar(sectionId, ctx)}
-          {rowBlocks.length > 0 && renderItemTable(sectionId, rowBlocks, ctx, true, `${block.id}-table`)}
+          {tpl.sectionHeader(`${sectionId}-header`, sectionId, ctx, false)}
+          {rowBlocks.length > 0 && renderItemTable(sectionId, rowBlocks, ctx, tpl, true, `${block.id}-table`)}
         </div>
       )
       i = j
@@ -537,21 +249,32 @@ function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx, continuesTable: b
       while (j < blocks.length && blocks[j].kind === 'item-row' && blocks[j].ref?.sectionId === sectionId) j += 1
       const rowBlocks = blocks.slice(i, j)
       const isContinuationSlice = continuesTable && i === 0
+      const table = renderItemTable(
+        sectionId,
+        rowBlocks,
+        ctx,
+        tpl,
+        isContinuationSlice,
+        `${sectionId}-continued-${i}`,
+        isContinuationSlice ? 'continuation-header' : undefined
+      )
       out.push(
-        renderItemTable(
-          sectionId,
-          rowBlocks,
-          ctx,
-          isContinuationSlice,
-          `${sectionId}-continued-${i}`,
-          isContinuationSlice ? 'continuation-header' : undefined
+        isContinuationSlice ? (
+          // The continuation slice opens the page: section title + "(cont.)" band
+          // ABOVE the repeated column header, as the PDF draws them.
+          <div key={`${sectionId}-continued-${i}-group`}>
+            {tpl.sectionHeader(`${sectionId}-continued-title`, sectionId, ctx, true)}
+            {table}
+          </div>
+        ) : (
+          table
         )
       )
       i = j
       continue
     }
 
-    out.push(renderSingleBlock(block, ctx))
+    out.push(renderSingleBlock(block, ctx, tpl, firstTermsCardBlockId))
     i += 1
   }
   return out
@@ -580,65 +303,40 @@ const LIGHT_PIN_STYLE = {
   color: 'hsl(240 10% 3.9%)',
 } as React.CSSProperties
 
-function FullCompanyHeader({ ctx }: { ctx: RenderCtx }) {
-  const { company, brandColor, brandText, companyAddr } = ctx
-  return (
-    <div
-      className="flex items-start justify-between gap-4 px-10 py-6 border-b border-border"
-      style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
-    >
-      <div className="min-w-0">
-        <p className="font-bold text-lg leading-tight" style={{ color: brandText }}>
-          {company.name}
-        </p>
-        {company.owner_name && <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>}
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {[company.phone && formatPhoneForDisplay(company.phone), company.email, company.website]
-            .filter(Boolean)
-            .join('  ·  ')}
-        </p>
-        {companyAddr && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">{companyAddr}</p>}
-      </div>
-      {company.logo_url && (
-        <div className="flex-shrink-0">
-          <Image src={company.logo_url} alt={company.name} width={64} height={64} className="rounded object-contain" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CompactHeader({ ctx }: { ctx: RenderCtx }) {
-  return (
-    <div className="flex flex-col justify-center px-10 py-3 select-none">
-      <span className="text-sm font-semibold leading-tight" style={{ color: ctx.brandColor }}>
-        {ctx.company.name}
-      </span>
-      <span className="mt-1 block border-b border-zinc-200" />
-    </div>
-  )
-}
-
 function PageSheet({
   page,
   pageIndex,
   totalPages,
   ctx,
+  templateId,
+  tpl,
+  firstTermsCardBlockId,
 }: {
   page: PageAssignment
   pageIndex: number
   totalPages: number
   ctx: RenderCtx
+  templateId: EstimateTemplateId
+  tpl: PreviewTemplate
+  firstTermsCardBlockId: string | undefined
 }) {
   return (
     <div className="flex flex-col items-center" style={{ marginTop: pageIndex === 0 ? 0 : PAGE_GAP_PX }}>
       <div
         data-page-sheet={pageIndex}
-        className="bg-white shadow-xl"
-        style={{ width: LETTER_WIDTH_PX, minHeight: LETTER_HEIGHT_PX, scrollMarginTop: 140, ...LIGHT_PIN_STYLE }}
+        // flex column like a react-pdf <Page>: vertical margins between blocks
+        // ADD (as in the PDF) instead of collapsing the way block margins do.
+        className={`flex flex-col bg-white shadow-xl ${tpl.sheetClassName}`.trim()}
+        style={{
+          width: LETTER_WIDTH_PX,
+          minHeight: LETTER_HEIGHT_PX,
+          scrollMarginTop: 140,
+          ...sheetPaddingPx(templateId),
+          ...LIGHT_PIN_STYLE,
+        }}
       >
-        {pageIndex === 0 ? <FullCompanyHeader ctx={ctx} /> : <CompactHeader ctx={ctx} />}
-        {renderPageBlocks(page.blocks, ctx, page.continuesTable)}
+        {pageIndex === 0 ? tpl.header(ctx) : tpl.compactHeader(ctx)}
+        {renderPageBlocks(page.blocks, ctx, tpl, page.continuesTable, firstTermsCardBlockId)}
       </div>
       <p className="select-none pt-2 text-center text-xs text-muted-foreground" style={{ width: LETTER_WIDTH_PX }}>
         {ctx.L.page} {pageIndex + 1} {ctx.L.of} {totalPages}
@@ -694,6 +392,7 @@ export function PaginatedPreview({
   data,
   pages,
   company,
+  templateId,
   language,
   brandColor: brandColorProp,
   client,
@@ -729,6 +428,16 @@ export function PaginatedPreview({
     return m
   }, [data.sections])
   const sectionsById = useMemo(() => new Map(data.sections.map((s) => [s.id, s])), [data.sections])
+  // Defensive: a stale/garbage persisted template id falls back to Classic,
+  // like the PDF pipeline does.
+  const resolvedTemplateId: EstimateTemplateId = templateId in PREVIEW_TEMPLATES ? templateId : 'classic'
+  const tpl = PREVIEW_TEMPLATES[resolvedTemplateId]
+  // Computed ONCE across ALL pages (not per-page), like estimate-pdf-modern.tsx:
+  // the id of the first terms-card block anywhere is the one that may carry the
+  // PDF's extra top spacing.
+  const firstTermsCardBlockId = pages
+    ?.flatMap((page) => page.blocks)
+    .find((block) => block.kind === 'terms-card')?.id
 
   const ctx: RenderCtx = {
     data,
@@ -914,7 +623,16 @@ export function PaginatedPreview({
             }}
           >
             {pages.map((page, idx) => (
-              <PageSheet key={page.pageIndex} page={page} pageIndex={idx} totalPages={pages.length} ctx={ctx} />
+              <PageSheet
+                key={page.pageIndex}
+                page={page}
+                pageIndex={idx}
+                totalPages={pages.length}
+                ctx={ctx}
+                templateId={resolvedTemplateId}
+                tpl={tpl}
+                firstTermsCardBlockId={firstTermsCardBlockId}
+              />
             ))}
           </div>
         </div>

@@ -150,6 +150,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
           estimate={data.estimate}
           client={data.client}
           token={data.realShareToken}
+          preparedBy={data.preparedBy}
           alreadyResponded={alreadyResponded}
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}

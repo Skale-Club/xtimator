@@ -49,6 +49,7 @@ import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { CompanyContactLinks } from '@/components/estimate/company-contact-links'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { ClientPicker } from '@/components/clients/client-picker'
@@ -58,7 +59,7 @@ import {
   type PresentationSettings,
 } from '@/lib/estimate/presentation-settings'
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 import { LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
 import type {
   DocumentCompany,
@@ -94,6 +95,7 @@ interface DocLabels {
   discountPct: string
   discountFixed: string
   deposit: string
+  depositRequired: string
   depositNone: string
   depositPct: string
   depositAmount: string
@@ -745,7 +747,7 @@ function DocumentSectionBlock({
                   {item.quantity} {item.unit ? item.unit : ''} ×{' '}
                   {formatMoney(item.unit_price, currencyCode)}
                 </span>
-                <span className="font-medium text-foreground tabular-nums">
+                <span className="font-semibold text-foreground tabular-nums">
                   {formatMoney(item.total, currencyCode)}
                 </span>
               </div>
@@ -962,8 +964,11 @@ function DocumentTotals({
 
         {/* Discount */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-base">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div
+            data-testid="totals-discount-row"
+            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base"
+          >
+            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.discount}</span>
               <Select
                 value={discountTypeVal}
@@ -1023,7 +1028,7 @@ function DocumentTotals({
               )}
             </div>
             {data.discount_amount > 0 && (
-              <span className="tabular-nums text-destructive font-medium shrink-0">
+              <span className="tabular-nums text-destructive font-medium shrink-0 ml-auto">
                 -{fmt(data.discount_amount)}
               </span>
             )}
@@ -1032,7 +1037,7 @@ function DocumentTotals({
           <div className="flex justify-between text-base">
             <span className="text-muted-foreground select-none">
               {L.discount}
-              {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
+              {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
             </span>
             <span className="tabular-nums text-destructive font-medium">
               -{fmt(data.discount_amount)}
@@ -1080,7 +1085,7 @@ function DocumentTotals({
         ) : data.tax_amount > 0 ? (
           <div className="flex justify-between text-base">
             <span className="text-muted-foreground select-none">
-              {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
+              {L.tax} ({formatPercent(data.tax_rate * 100)})
             </span>
             <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
           </div>
@@ -1099,8 +1104,11 @@ function DocumentTotals({
 
         {/* Deposit — none/percent/amount. Preview only; server recomputes on save (GUARD-03). */}
         {isEditable && dispatch ? (
-          <div className="flex items-center justify-between gap-2 text-base pt-2">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div
+            data-testid="totals-deposit-row"
+            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base pt-2"
+          >
+            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.deposit}</span>
               <Select
                 value={depositTypeVal}
@@ -1160,7 +1168,7 @@ function DocumentTotals({
               )}
             </div>
             {data.deposit > 0 && (
-              <span className="tabular-nums text-muted-foreground font-medium shrink-0">
+              <span className="tabular-nums text-muted-foreground font-medium shrink-0 ml-auto">
                 -{fmt(data.deposit)}
               </span>
             )}
@@ -1168,7 +1176,7 @@ function DocumentTotals({
         ) : dep.showDeposit ? (
           /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
           <div className="flex justify-between text-base pt-2">
-            <span className="text-muted-foreground select-none">{L.deposit}</span>
+            <span className="text-muted-foreground select-none">{L.depositRequired}</span>
             <span className="tabular-nums text-muted-foreground font-medium">-{fmt(dep.depositAmount)}</span>
           </div>
         ) : null}
@@ -1407,14 +1415,14 @@ export function InlineProjectName({
         disabled={isPending}
         maxLength={200}
         aria-label={t('Project name')}
-        className="text-2xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
+        className="text-xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
       />
     )
   }
 
   return (
     <p
-      className="text-2xl font-bold cursor-pointer transition-colors border-b border-transparent hover:border-foreground/40 focus-visible:border-foreground/40 outline-none"
+      className="text-xl font-bold cursor-pointer transition-colors border-b border-transparent hover:border-foreground/40 focus-visible:border-foreground/40 outline-none"
       tabIndex={0}
       onClick={enterEdit}
       onKeyDown={(e) => {
@@ -1634,21 +1642,17 @@ export function EstimateDocument({
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
-            <p className="font-bold text-lg leading-tight" style={{ color: brandText }}>
+            <p className="font-bold text-2xl leading-tight" style={{ color: brandText }}>
               {company.name}
             </p>
             {company.owner_name && (
               <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {[
-                company.phone && formatPhoneForDisplay(company.phone),
-                company.email,
-                company.website,
-              ]
-                .filter(Boolean)
-                .join('  ·  ')}
-            </p>
+            <CompanyContactLinks
+              phone={company.phone}
+              email={company.email}
+              website={company.website}
+            />
             {companyAddr && (
               <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
                 {companyAddr}
@@ -1680,11 +1684,11 @@ export function EstimateDocument({
 
       {/* ESTIMATE title */}
       <div
-        className="py-6 px-6 sm:px-10 text-center"
+        className="py-3 sm:py-6 px-6 sm:px-10 text-center"
         style={{ backgroundColor: brandColor }}
       >
         <h1
-          className="text-3xl sm:text-4xl font-bold tracking-widest select-none"
+          className="text-2xl sm:text-4xl font-bold tracking-widest select-none"
           style={{ color: brandOnFill }}
         >
           {L.estimate}
@@ -1701,11 +1705,11 @@ export function EstimateDocument({
           {isEditable && onRenameProject ? (
             <InlineProjectName name={projectName} onRename={onRenameProject} />
           ) : (
-            <p className="text-2xl font-bold">{projectName}</p>
+            <p className="text-xl font-bold">{projectName}</p>
           )}
           {projectType && (
             <p className="text-base text-muted-foreground mt-2 capitalize">
-              {projectType.replace(/_/g, ' ')}
+              {formatProjectType(projectType)}
             </p>
           )}
           {isEditable && dispatch ? (
@@ -1725,7 +1729,7 @@ export function EstimateDocument({
             </p>
           )}
           {isEditable && dispatch ? (
-            <div className="mt-2 flex items-center gap-1 text-base text-muted-foreground">
+            <div className="mt-2 flex items-center text-base text-muted-foreground">
               <span className="shrink-0 select-none">{L.estimateNum}</span>
               <input
                 value={data.estimate_number ?? defaultEstimateNumber}
@@ -1764,7 +1768,7 @@ export function EstimateDocument({
               )}
             </div>
             <div className="space-y-0.5">
-              <p className="text-2xl font-bold">{client.name}</p>
+              <p className="text-xl font-bold">{client.name}</p>
               {client.email && (
                 <p className="text-base text-muted-foreground mt-1">{client.email}</p>
               )}
@@ -2002,7 +2006,7 @@ export function EstimateDocument({
 
       {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
           presentation_settings key exists for it per CONTEXT.md's locked
-          rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
+          rule — Pitfall 3). Position: Terms -> Signature -> Prepared-by -> Photos. */}
       {data.signature && (
         <div data-page-block-id="signature" data-track-section="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <div
@@ -2025,6 +2029,20 @@ export function EstimateDocument({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Prepared-by — Phase 185 (PGMODE-02/03), net-new. Rendered ONLY when
+          the caller supplies `preparedBy` (the editor's two call sites do;
+          the public share webview passes neither prop and never renders
+          this). Position matches the PDF / blocksFromModel order:
+          Terms -> Signature -> Prepared-by -> Photos. */}
+      {preparedBy && (
+        <div data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+            {L.preparedBy}
+          </p>
+          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
 
@@ -2055,20 +2073,6 @@ export function EstimateDocument({
               />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Prepared-by — Phase 185 (PGMODE-02/03), net-new. Rendered ONLY when
-          the caller supplies `preparedBy` (the editor's two call sites do;
-          the public share webview passes neither prop and never renders
-          this). Position matches the PDF's content order: Terms -> Signature
-          -> Photos -> Prepared-by. */}
-      {preparedBy && (
-        <div data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {L.preparedBy}
-          </p>
-          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
     </div>

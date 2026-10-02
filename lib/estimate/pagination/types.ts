@@ -37,6 +37,14 @@ export interface TextMeasurement {
   maxWidthPt: number
 }
 
+/** One column of a side-by-side block: a stack of text boxes laid out top to bottom. */
+export interface StackedColumn {
+  /** Height of the column that is NOT wrapped text (label line + its margin, extra line margins). */
+  fixedHeightPt: number
+  /** Stacked text boxes — the column's text height is the SUM of their wrapped heights. */
+  measurements: TextMeasurement[]
+}
+
 /** Which document entity a block refers to — populated by Plan 184-03's
  *  blocksFromModel, consumed by Plan 184-05's renderer to look up exactly
  *  what to render for a given block (no more guessing "which of the 5 terms
@@ -67,6 +75,17 @@ export interface PageBlock {
    *  info-grid's client name/address). Absent for fixed-height blocks
    *  (section-subtotal, totals, signature, photo-row, prepared-by). */
   measurement?: TextMeasurement
+  /** Present only on 'photo-row' blocks: SIDE-BY-SIDE text boxes (one per captioned
+   *  tile in the row). They sit next to each other, so the block's text height is
+   *  the TALLEST of them (max over entries of wrapped lines x lineHeight x fontSize),
+   *  not the sum — and it is added on top of baseHeightPt. Absent/empty = no text. */
+  parallelMeasurements?: TextMeasurement[]
+  /** Present only on the 'info-grid' block: SIDE-BY-SIDE columns (Project | Bill To), each a
+   *  vertical STACK of independently wrapping text lines. Unlike `parallelMeasurements` (one
+   *  box per side-by-side item), a column's height is a SUM — its non-measured part plus every
+   *  stacked line — and the block takes the TALLEST column (flex row, `align-items: stretch`),
+   *  added on top of baseHeightPt. Absent/empty = no columns. */
+  columns?: StackedColumn[]
   /** Set ONLY on 'section-header' blocks: the id of the item-row block that
    *  MUST land on the same page (the section's first row). */
   keepWithNextId?: string
@@ -92,18 +111,22 @@ export interface PageBlock {
 }
 
 export interface PageConstraints {
-  /** Usable content height on EVERY page, points — pageHeightPt minus
-   *  top/bottom padding minus the (data-dependent, per-render-computed)
-   *  header height. The header repeats via `fixed` on every page, so it
-   *  always consumes this budget, page 1 included. */
+  /** Usable content height on PAGE 1 (pageIndex 0), points — pageHeightPt minus
+   *  top/bottom padding minus the (data-dependent, per-render-computed) FULL
+   *  header height (logo, contacts, address, optional language chip). */
   contentHeightPt: number
+  /** Usable content height on every page AFTER the first (pageIndex >= 1),
+   *  points — pageHeightPt minus top/bottom padding minus the COMPACT header
+   *  height (company name + estimate #, one line). Pages 2+ draw that compact
+   *  header instead of the full one, so they have more room. */
+  continuationContentHeightPt: number
   /** Extra height a page must reserve when its first placed chain begins with
    *  an 'item-row' continuing a section whose header was on an earlier page
    *  (i.e., PGBRK-03's repeated table header). 0 otherwise. This reservation
    *  MUST be persisted into the page's running heightUsed once accepted, not
    *  merely applied transiently to the first chain's fit-check. */
   continuationTableHeaderHeightPt: number
-  /** FLAT reserve subtracted ONCE from every page's usable height (NOT
+  /** FLAT reserve subtracted ONCE from every page's usable height (first-page and continuation budgets alike) (NOT
    *  added per-block/per-measured-field) — derived by the caller (Plan
    *  184-05) from Plan 184-01's SAFETY_MARGIN_LINES. See Plan 184-01's
    *  184-DRIFT-REPORT.md "Margin Application Semantics" section for why

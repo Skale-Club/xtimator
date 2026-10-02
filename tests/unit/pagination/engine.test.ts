@@ -8,7 +8,7 @@
 // and the persistent continuation-header reservation invariant.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { computePageBreaks } from '@/lib/estimate/pagination/engine'
+import { blockHeightPt, computePageBreaks } from '@/lib/estimate/pagination/engine'
 import type { PageBlock, PageConstraints } from '@/lib/estimate/pagination/types'
 import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
 
@@ -22,6 +22,10 @@ function makeBlock(overrides: Partial<PageBlock> & Pick<PageBlock, 'kind' | 'id'
 function makeConstraints(overrides: Partial<PageConstraints> = {}): PageConstraints {
   return {
     contentHeightPt: 1000,
+    // Defaults to the first-page budget (i.e. "same header height on every page")
+    // so the pre-compact-header tests below keep their one-budget arithmetic; the
+    // first-page-vs-continuation tests pass it explicitly.
+    continuationContentHeightPt: overrides.contentHeightPt ?? 1000,
     continuationTableHeaderHeightPt: 0,
     safetyMarginPt: 0,
     ...overrides,
@@ -263,6 +267,69 @@ describe('computePageBreaks — per-page (not per-block) safety margin', () => {
   })
 })
 
+describe('computePageBreaks — first-page vs continuation budgets (compact header on pages 2+)', () => {
+  const rows = (n: number, h: number) =>
+    Array.from({ length: n }, (_, i) => makeBlock({ kind: 'item-row', id: `row-${i}`, baseHeightPt: h }))
+
+  it('page 1 uses contentHeightPt; every later page uses continuationContentHeightPt', () => {
+    // First page budget 100 -> 2 rows of 40 fit (80; a third would be 120).
+    // Continuation budget 130 -> 3 rows of 40 fit (120; a 4th would be 160).
+    // 8 rows => page 0: 2, page 1: 3, page 2: 3.
+    const pages = computePageBreaks(
+      rows(8, 40),
+      makeConstraints({ contentHeightPt: 100, continuationContentHeightPt: 130 }),
+      fakeProvider(0)
+    )
+    expect(pages.map((p) => p.blocks.length)).toEqual([2, 3, 3])
+  })
+
+  it('with a SMALLER continuation budget later pages hold fewer blocks (the budget is not "max of both")', () => {
+    const pages = computePageBreaks(
+      rows(6, 40),
+      makeConstraints({ contentHeightPt: 130, continuationContentHeightPt: 100 }),
+      fakeProvider(0)
+    )
+    expect(pages.map((p) => p.blocks.length)).toEqual([3, 2, 1])
+  })
+
+  it('the per-page safety margin is subtracted from BOTH budgets', () => {
+    // 100-20=80 -> 2 rows on page 0; 130-20=110 -> 2 rows (a 3rd = 120 > 110) on page 1.
+    const pages = computePageBreaks(
+      rows(6, 40),
+      makeConstraints({ contentHeightPt: 100, continuationContentHeightPt: 130, safetyMarginPt: 20 }),
+      fakeProvider(0)
+    )
+    expect(pages.map((p) => p.blocks.length)).toEqual([2, 2, 2])
+  })
+
+  it('page1Only blocks are charged to the FIRST-page budget only', () => {
+    const blocks: PageBlock[] = [
+      makeBlock({ kind: 'title-banner', id: 'banner', baseHeightPt: 60, page1Only: true }),
+      ...rows(4, 40),
+    ]
+    // Page 0: banner 60 -> 40 left -> 1 row. Continuation 130 -> 3 rows.
+    const pages = computePageBreaks(
+      blocks,
+      makeConstraints({ contentHeightPt: 100, continuationContentHeightPt: 130 }),
+      fakeProvider(0)
+    )
+    expect(pages.map((p) => p.blocks.map((b) => b.id))).toEqual([
+      ['banner', 'row-0'],
+      ['row-1', 'row-2', 'row-3'],
+    ])
+  })
+
+  it('the continuation-table-header reservation is charged against the CONTINUATION budget', () => {
+    // Page 1 (continuation): reservation 20 + rows of 40 against 130 -> 110 left -> 2 rows.
+    const pages = computePageBreaks(
+      rows(5, 40),
+      makeConstraints({ contentHeightPt: 100, continuationContentHeightPt: 130, continuationTableHeaderHeightPt: 20 }),
+      fakeProvider(0)
+    )
+    expect(pages.map((p) => p.blocks.length)).toEqual([2, 2, 1])
+  })
+})
+
 describe('computePageBreaks — persistent continuation-header reservation', () => {
   it('persists the continuation reservation into heightUsed so it constrains EVERY subsequent chain on that page, not just the first', () => {
     const blocks: PageBlock[] = [
@@ -287,5 +354,61 @@ describe('computePageBreaks — persistent continuation-header reservation', () 
     expect(pages[1].continuesTable).toBe(true)
     expect(pages[1].blocks.map((b) => b.id)).toEqual(['row-a', 'row-b'])
     expect(pages[2].blocks.map((b) => b.id)).toEqual(['row-c'])
+  })
+})
+
+describe('computePageBreaks — parallelMeasurements (side-by-side photo captions)', () => {
+  const m = (text: string) => ({ text, styleKey: 'Inter', fontSizePt: 8, lineHeightMultiplier: 1, maxWidthPt: 100 })
+  // line count = text length (so heights are easy to read): 'a' -> 1 line, 'aaa' -> 3 lines
+  const byLength: MeasurementProvider = { lineCount: (text) => text.length }
+
+  it('a block\'s height is baseHeightPt + the TALLEST parallel measurement (max, not sum)', () => {
+    const row = makeBlock({ kind: 'photo-row', id: 'r', baseHeightPt: 50, parallelMeasurements: [m('a'), m('aaaaa'), m('aa')] })
+    // 50 + max(1,5,2) x 8 = 90. A page of exactly 90 holds it AND a second 10pt block; sum (8x8=64 -> 114) would not.
+    const next = makeBlock({ kind: 'prepared-by', id: 'p', baseHeightPt: 10 })
+    const pages = computePageBreaks([row, next], makeConstraints({ contentHeightPt: 100 }), byLength)
+    expect(pages).toHaveLength(1)
+    // ...but one more line in the tallest caption pushes the next block to a new page.
+    const taller = makeBlock({ kind: 'photo-row', id: 'r', baseHeightPt: 50, parallelMeasurements: [m('aaaaaa')] })
+    expect(computePageBreaks([taller, next], makeConstraints({ contentHeightPt: 100 }), byLength)).toHaveLength(2)
+  })
+})
+
+describe('blockHeightPt — stacked side-by-side columns (info-grid)', () => {
+  const m = (text: string) => ({ text, styleKey: 'Inter', fontSizePt: 10, lineHeightMultiplier: 1.5, maxWidthPt: 100 })
+  // Fake provider: one line per 10 chars.
+  const provider: MeasurementProvider = { lineCount: (text) => Math.ceil(text.length / 10) }
+
+  it('each column is fixed + the SUM of its lines; the block takes the TALLEST column on top of baseHeightPt', () => {
+    const block = makeBlock({
+      kind: 'info-grid',
+      id: 'info',
+      baseHeightPt: 20,
+      columns: [
+        { fixedHeightPt: 17, measurements: [m('0123456789'), m('0123456789012345678'), m('x')] }, // 1+2+1 = 4 lines = 60 + 17 = 77
+        { fixedHeightPt: 13, measurements: [m('01234567890123456789012345678')] }, // 3 lines = 45 + 13 = 58
+      ],
+    })
+    expect(blockHeightPt(block, provider)).toBe(20 + 77)
+  })
+
+  it('a missing / empty `columns` adds nothing', () => {
+    expect(blockHeightPt(makeBlock({ kind: 'info-grid', id: 'a', baseHeightPt: 20 }), provider)).toBe(20)
+    expect(blockHeightPt(makeBlock({ kind: 'info-grid', id: 'b', baseHeightPt: 20, columns: [] }), provider)).toBe(20)
+  })
+
+  it('the engine charges the columns against page 0 (a tall wrapped info grid pushes the next chain to page 2)', () => {
+    const grid = (text: string) =>
+      makeBlock({
+        kind: 'info-grid',
+        id: 'info',
+        baseHeightPt: 0,
+        page1Only: true,
+        columns: [{ fixedHeightPt: 0, measurements: [m(text)] }],
+      })
+    const rest = makeBlock({ kind: 'totals', id: 'totals', baseHeightPt: 40 })
+    const constraints = makeConstraints({ contentHeightPt: 100 })
+    expect(computePageBreaks([grid('0123456789'), rest], constraints, provider)).toHaveLength(1) // 15 + 40 <= 100
+    expect(computePageBreaks([grid('0'.repeat(50)), rest], constraints, provider)).toHaveLength(2) // 75 + 40 > 100
   })
 })

@@ -16,12 +16,14 @@ import type { DocumentSection, DocumentSignature } from '@/lib/estimate/document
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
-import { blocksFromModel } from '@/lib/estimate/pagination/blocks-from-model'
+import { blocksFromModel, type BlocksFromModelClient } from '@/lib/estimate/pagination/blocks-from-model'
 import { computePageBreaks } from '@/lib/estimate/pagination/engine'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import type { PageAssignment } from '@/lib/estimate/pagination/types'
 import { deriveDepositDisplay, type DepositDisplayRow } from '@/lib/estimate/deposit-display'
+import { PDF_RENDER_SAFETY_MARGIN_PT } from '@/lib/pdf/measure-header-height'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 
 export interface BuildPagesForFixtureCompany extends PdfHeaderCompany {
@@ -33,6 +35,21 @@ export interface BuildPagesForFixtureOpts {
   signature?: DocumentSignature | null
   attachedPhotos?: { url: string; caption: string | null }[]
   preparedBy?: string | null
+  /** Document language (default 'en'). It changes the page-1 header the PDF draws
+   *  (the language chip is non-English only) AND the labels blocksFromModel measures
+   *  with — a test that renders with `language: 'es'` MUST build its pages with the
+   *  same value here, or the pages are measured against the wrong header/labels. */
+  language?: EstimateLanguage
+  /** The project name / type / Bill To client the test RENDERS with — they are measured line by
+   *  line into page 1's info grid, so a test that renders a long project name or a client whose
+   *  address wraps MUST pass the same values here (the page plan is only exact for the content it
+   *  was measured with). Defaults — a short name, no type, no client — suit every test that
+   *  renders the info grid with that same short content. */
+  projectName?: string
+  projectType?: string | null
+  client?: BlocksFromModelClient | null
+  /** Fuzz/calibration only: replaces PDF_RENDER_SAFETY_MARGIN_PT in the page budget (the fixed 1-line SAFETY_MARGIN_LINES term stays). */
+  extraMarginPt?: number
 }
 
 /**
@@ -46,12 +63,18 @@ export function buildPagesForFixture(
   templateId: EstimateTemplateId,
   opts: BuildPagesForFixtureOpts = {}
 ): PageAssignment[] {
-  const L = PDF_LABELS.en
+  const language = opts.language ?? 'en'
+  const L = PDF_LABELS[language]
   // Phase 185 Plan 01 (PGBRK-01/04) — repointed at the ONE shared constraints
   // function also used by lib/pdf/render-estimate-pdf.ts, instead of this
   // file's own independent copy of the same formula (plan-checker warning
   // 10 — a THIRD copy is exactly the failure mode PGBRK-01/04 must prevent).
-  const constraints = computeEstimatePageConstraints(company, templateId)
+  const provider = createFontkitMeasurementProvider()
+  const baseConstraints = computeEstimatePageConstraints(company, templateId, language, provider)
+  const constraints =
+    opts.extraMarginPt === undefined
+      ? baseConstraints
+      : { ...baseConstraints, safetyMarginPt: baseConstraints.safetyMarginPt - PDF_RENDER_SAFETY_MARGIN_PT + opts.extraMarginPt }
 
   const depositRow: DepositDisplayRow = {
     total: (estimate.total as number | undefined) ?? 0,
@@ -79,7 +102,19 @@ export function buildPagesForFixture(
     preparedBy: opts.preparedBy ?? null,
     L,
     templateId,
+    infoGrid: {
+      projectName: opts.projectName ?? 'Test Project',
+      projectType: opts.projectType ?? null,
+      client: opts.client ?? null,
+      estimate: {
+        estimate_date: (estimate.estimate_date as string | null | undefined) ?? null,
+        created_at: (estimate.created_at as string | undefined) ?? '2026-01-15T00:00:00Z',
+        estimate_number: (estimate.estimate_number as string | null | undefined) ?? null,
+        estimate_seq: (estimate.estimate_seq as number | undefined) ?? 1,
+      },
+      language,
+    },
   })
 
-  return computePageBreaks(blocks, constraints, createFontkitMeasurementProvider())
+  return computePageBreaks(blocks, constraints, provider)
 }

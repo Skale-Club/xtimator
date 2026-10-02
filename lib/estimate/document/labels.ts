@@ -27,6 +27,9 @@ export interface DocumentLabels {
   discountPct: string
   discountFixed: string
   deposit: string
+  /** READ-ONLY surfaces (PDF, web view, WhatsApp): "Deposit required" — reads as an amount
+   *  owed up front, not a discount. `deposit` stays the editor's <select> label. */
+  depositRequired: string
   depositNone: string
   depositPct: string
   depositAmount: string
@@ -68,6 +71,9 @@ export interface DocumentLabels {
   deleteSection: string
   rowActions: string
   sectionActions: string
+  /** Suffix appended to a section title on the page that CONTINUES that
+   *  section's item rows from the previous page (PDF + paginated preview). */
+  continued: string
 }
 
 export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
@@ -76,7 +82,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     description: 'Description', qty: 'Qty', unit: 'Unit', unitPrice: 'Unit Price',
     lineDiscount: 'Disc.', taxable: 'Tax', total: 'Total', sectionSubtotal: 'Section Subtotal',
     subtotal: 'Subtotal', discount: 'Discount', discountNone: 'None', discountPct: '% off',
-    discountFixed: 'Fixed', deposit: 'Deposit', depositNone: 'None', depositPct: '%',
+    discountFixed: 'Fixed', deposit: 'Deposit', depositRequired: 'Deposit required', depositNone: 'None', depositPct: '%',
     depositAmount: 'Amount', balanceDue: 'Balance Due', tax: 'Tax', grandTotal: 'Total',
     paymentTerms: 'Payment Terms', timeline: 'Timeline', warranty: 'Warranty', notes: 'Notes',
     date: 'Date', estimateNum: 'Estimate #', noClient: 'No client linked', addItem: 'Add item',
@@ -87,13 +93,14 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Signed by', estimateTerms: 'Estimate Terms',
     addDiscount: 'Add discount', removeDiscount: 'Remove discount', deleteLine: 'Delete line',
     deleteSection: 'Delete section', rowActions: 'Line actions', sectionActions: 'Section actions',
+    continued: '(cont.)',
   },
   pt: {
     estimate: 'ORÇAMENTO', project: 'Projeto', billTo: 'Faturar Para', summary: 'Resumo',
     description: 'Descrição', qty: 'Qtd', unit: 'Unidade', unitPrice: 'Preço Unitário',
     lineDiscount: 'Desc.', taxable: 'Imposto', total: 'Total', sectionSubtotal: 'Subtotal da Seção',
     subtotal: 'Subtotal', discount: 'Desconto', discountNone: 'Nenhum', discountPct: '% off',
-    discountFixed: 'Fixo', deposit: 'Entrada', depositNone: 'Nenhum', depositPct: '%',
+    discountFixed: 'Fixo', deposit: 'Entrada', depositRequired: 'Valor de entrada', depositNone: 'Nenhum', depositPct: '%',
     depositAmount: 'Valor', balanceDue: 'Saldo Devedor', tax: 'Imposto', grandTotal: 'Total',
     paymentTerms: 'Condições de Pagamento', timeline: 'Prazo', warranty: 'Garantia', notes: 'Observações',
     date: 'Data', estimateNum: 'Orçamento Nº', noClient: 'Nenhum cliente vinculado', addItem: 'Adicionar item',
@@ -104,13 +111,14 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Assinado por', estimateTerms: 'Termos do Orçamento',
     addDiscount: 'Adicionar desconto', removeDiscount: 'Remover desconto', deleteLine: 'Excluir linha',
     deleteSection: 'Excluir seção', rowActions: 'Ações da linha', sectionActions: 'Ações da seção',
+    continued: '(cont.)',
   },
   es: {
     estimate: 'PRESUPUESTO', project: 'Proyecto', billTo: 'Facturar A', summary: 'Resumen',
     description: 'Descripción', qty: 'Cant', unit: 'Unidad', unitPrice: 'Precio Unitario',
     lineDiscount: 'Desc.', taxable: 'Impuesto', total: 'Total', sectionSubtotal: 'Subtotal de Sección',
     subtotal: 'Subtotal', discount: 'Descuento', discountNone: 'Ninguno', discountPct: '% off',
-    discountFixed: 'Fijo', deposit: 'Depósito', depositNone: 'Ninguno', depositPct: '%',
+    discountFixed: 'Fijo', deposit: 'Depósito', depositRequired: 'Depósito requerido', depositNone: 'Ninguno', depositPct: '%',
     depositAmount: 'Monto', balanceDue: 'Saldo Pendiente', tax: 'Impuesto', grandTotal: 'Total',
     paymentTerms: 'Términos de Pago', timeline: 'Plazo', warranty: 'Garantía', notes: 'Notas',
     date: 'Fecha', estimateNum: 'Presupuesto Nº', noClient: 'Sin cliente vinculado', addItem: 'Agregar ítem',
@@ -121,6 +129,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Firmado por', estimateTerms: 'Términos del Presupuesto',
     addDiscount: 'Agregar descuento', removeDiscount: 'Quitar descuento', deleteLine: 'Eliminar línea',
     deleteSection: 'Eliminar sección', rowActions: 'Acciones de línea', sectionActions: 'Acciones de sección',
+    continued: '(cont.)',
   },
 }
 

@@ -85,6 +85,7 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
     expect(screen.getByText('Subtotal')).toBeTruthy()
     expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
     // No extra rows
+    expect(screen.queryByText('Deposit required')).toBeNull()
     expect(screen.queryByText('Deposit')).toBeNull()
     expect(screen.queryByText('Balance Due')).toBeNull()
   })
@@ -102,7 +103,9 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
 
     expect(screen.getByText('Subtotal')).toBeTruthy()
     expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
-    expect(screen.getByText('Deposit')).toBeTruthy()
+    // View mode reads "Deposit required" (not the editor's bare "Deposit", which reads like a discount next to "-$300.00").
+    expect(screen.getByText('Deposit required')).toBeTruthy()
+    expect(screen.queryByText('Deposit')).toBeNull()
     expect(screen.getByText('Balance Due')).toBeTruthy()
     expect(screen.getByText('-$300.00')).toBeTruthy()
     expect(screen.getByText('$700.00')).toBeTruthy()
@@ -120,7 +123,7 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
       })
     )
 
-    expect(screen.getByText('Deposit')).toBeTruthy()
+    expect(screen.getByText('Deposit required')).toBeTruthy()
     expect(screen.getByText('-$240.00')).toBeTruthy()
     expect(screen.getByText('Balance Due')).toBeTruthy()
     expect(screen.getByText('$760.00')).toBeTruthy()

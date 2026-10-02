@@ -43,3 +43,45 @@ export function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): stri
     day: 'numeric',
   })
 }
+
+/**
+ * The estimate identifier shown after the "Estimate #" label on a document:
+ * the user-facing `estimate_number` when set, otherwise the sequence zero-padded
+ * to 4 digits ("0001"). ONE definition for the PDF info grid, the PDF compact
+ * header (pages 2+) and the PDF footer, so the number can never read
+ * differently in two places on the same document.
+ */
+export function formatEstimateNumber(estimate: { estimate_number: string | null; estimate_seq: number }): string {
+  return estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')
+}
+
+/**
+ * Human-readable project type: `kitchen_remodel` -> `Kitchen Remodel`.
+ * Matches what the web documents show today (`replace(/_/g, ' ')` + CSS
+ * `capitalize`): underscores become spaces and the first letter of each word is
+ * upper-cased. Like CSS `capitalize`, the rest of each word is left as-is (it
+ * does NOT lower-case, so already-capitalised input is unchanged). Runs of
+ * whitespace collapse to one space, as HTML rendering does on the web. Returns
+ * null for null / blank input so callers can keep their `{value && ...}` guard.
+ */
+export function formatProjectType(raw: string | null): string | null {
+  if (!raw) return null
+  const text = raw.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return null
+  return text.replace(/(^|\s)(\S)/g, (_m, sp: string, ch: string) => sp + ch.toUpperCase())
+}
+
+/**
+ * ONE percent string for every surface (PDF, web Classic/Modern, print preview,
+ * WhatsApp): up to 2 decimals, trailing zeros trimmed, "." as the decimal
+ * separator. `value` is already in percent units (10 -> "10%", 8.25 -> "8.25%").
+ * Callers holding a fraction (tax_rate 0.0825) multiply by 100 first; the
+ * 2-decimal rounding also absorbs float noise (0.07 * 100 = 7.000000000000001).
+ */
+export function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return '0%'
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100
+  // Avoid "-0%".
+  const text = (Object.is(rounded, -0) ? 0 : rounded).toFixed(2).replace(/\.?0+$/, '')
+  return `${text}%`
+}

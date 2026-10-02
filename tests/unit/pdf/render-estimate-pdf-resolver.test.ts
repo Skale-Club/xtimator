@@ -15,6 +15,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@react-pdf/renderer', () => ({
   renderToBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-pdf')),
 }))
+const captureMessage = vi.fn()
+vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a) }))
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>()
   return { ...actual, createElement: vi.fn().mockReturnValue('mock-element') }
@@ -99,9 +101,14 @@ function baseContext(overrides: { templateStyle?: string } = {}) {
   }
 }
 
+// One fake page object: matches the single page the (section-less) fixtures plan, so the
+// runtime page-count guard (lib/pdf/render-with-page-guard.ts) sees no drift in the tests
+// that are not about it.
+const ONE_PAGE_PDF = Buffer.from('<< /Type /Page /Parent 1 0 R >>')
+
 beforeEach(() => {
   vi.clearAllMocks()
-  mockRenderToBuffer.mockResolvedValue(Buffer.from('mock-pdf'))
+  mockRenderToBuffer.mockResolvedValue(ONE_PAGE_PDF)
 })
 
 describe('renderEstimatePdf (PDFPAR-04)', () => {
@@ -251,5 +258,40 @@ describe('renderEstimatePdf (PDFPAR-04)', () => {
       signedAt: '2026-02-01T00:00:00Z',
       signatureDataUrl: 'data:image/png;base64,AAA',
     })
+  })
+})
+
+describe('renderEstimatePdf — runtime page-count guard', () => {
+  it('a render whose real page count differs from the plan is retried with +48pt then +96pt margins, each drift reported to Sentry without PII, and the last render is returned', async () => {
+    mockGetEstimate.mockResolvedValue(baseContext() as never)
+    mockLoadSnapshot.mockResolvedValue(null)
+    const drifted = Buffer.from('<< /Type /Page >> << /Type /Page >> << /Type /Page >>') // 3 real pages vs 1 planned
+    mockRenderToBuffer.mockResolvedValue(drifted)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const result = await renderEstimatePdf('est-1', makeSupabase())
+
+    expect(mockRenderToBuffer).toHaveBeenCalledTimes(3)
+    expect(result?.buffer.equals(drifted)).toBe(true)
+    expect(captureMessage).toHaveBeenCalledTimes(3)
+    const calls = captureMessage.mock.calls.map((c) => c[1])
+    expect(calls.map((c) => c.tags.attempt)).toEqual(['1', '2', '3'])
+    expect(calls.map((c) => c.extra.extraSafetyMarginPt)).toEqual([0, 48, 96])
+    for (const c of calls) {
+      expect(c.level).toBe('warning')
+      expect(c.tags).toMatchObject({ estimate_id: 'est-1', template_id: 'classic', language: 'en' })
+      expect(c.extra).toMatchObject({ plannedPages: 1, realPages: 3 })
+      // ids / counts only: nothing from the estimate content (project name, owner, totals) leaks
+      expect(JSON.stringify(c)).not.toMatch(/Kitchen Reno|Owner Name|1000/)
+    }
+    warn.mockRestore()
+  })
+
+  it('a render that matches its plan is rendered once and reports nothing', async () => {
+    mockGetEstimate.mockResolvedValue(baseContext() as never)
+    mockLoadSnapshot.mockResolvedValue(null)
+    await renderEstimatePdf('est-1', makeSupabase())
+    expect(mockRenderToBuffer).toHaveBeenCalledTimes(1)
+    expect(captureMessage).not.toHaveBeenCalled()
   })
 })

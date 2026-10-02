@@ -7,10 +7,26 @@
 // order + first-card height bonus, photo-row chunking + first-row height
 // bonus, and full document-order output.
 import { describe, it, expect } from 'vitest'
-import { blocksFromModel, type BlocksFromModelInput } from '@/lib/estimate/pagination/blocks-from-model'
+import { blocksFromModel, type BlocksFromModelInfoGrid, type BlocksFromModelInput } from '@/lib/estimate/pagination/blocks-from-model'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import { LABELS } from '@/lib/estimate/document/labels'
+import {
+  CLASSIC_CARD_BOX,
+  ESTIMATE_PAGE_GEOMETRY,
+  LINE_HEIGHT,
+  PHOTO_TILE_GAP_PT,
+  photoTileWidthPt,
+} from '@/lib/estimate/document/tokens'
+import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
 import type { DocumentSection } from '@/lib/estimate/document/model'
+
+const SHORT_INFO_GRID: BlocksFromModelInfoGrid = {
+  projectName: 'Kitchen Remodel',
+  projectType: null,
+  client: null,
+  estimate: { estimate_date: '2026-09-28', created_at: '2026-01-01T00:00:00Z', estimate_number: null, estimate_seq: 1 },
+  language: 'en',
+}
 
 function baseInput(overrides: Partial<BlocksFromModelInput> = {}): BlocksFromModelInput {
   return {
@@ -30,6 +46,7 @@ function baseInput(overrides: Partial<BlocksFromModelInput> = {}): BlocksFromMod
     preparedBy: null,
     L: LABELS.en,
     templateId: 'classic',
+    infoGrid: SHORT_INFO_GRID,
     ...overrides,
   }
 }
@@ -166,13 +183,13 @@ describe('blocksFromModel — terms-card mapping, pinned order, and first-card h
     const input = baseInput({ payment_terms: 'Payment terms text', notes: 'Notes text', templateId: 'classic' })
     const cards = blocksFromModel(input).filter((b) => b.kind === 'terms-card')
     expect(cards).toHaveLength(2)
-    expect(cards[0].baseHeightPt - cards[1].baseHeightPt).toBe(24)
+    expect(cards[0].baseHeightPt - cards[1].baseHeightPt).toBeCloseTo(24, 9)
   })
 
   it('the same bonus is 32pt on Modern', () => {
     const input = baseInput({ payment_terms: 'Payment terms text', notes: 'Notes text', templateId: 'modern' })
     const cards = blocksFromModel(input).filter((b) => b.kind === 'terms-card')
-    expect(cards[0].baseHeightPt - cards[1].baseHeightPt).toBe(32)
+    expect(cards[0].baseHeightPt - cards[1].baseHeightPt).toBeCloseTo(32, 9)
   })
 
   it('when only "estimate" is present, it alone gets the first-card bonus', () => {
@@ -216,20 +233,32 @@ describe('blocksFromModel — photo-row chunking and first-row height bonus', ()
     ])
   })
 
-  it('only the block whose ref.photoRange[0] === 0 gets the topMargin bonus (16pt Classic) — the other row gets +0', () => {
-    const photos = Array.from({ length: 4 }, (_, i) => ({ url: `https://x/${i}.jpg`, caption: null }))
-    const input = baseInput({ photos, templateId: 'classic' })
-    const rows = blocksFromModel(input).filter((b) => b.kind === 'photo-row')
+  const fourPhotos = Array.from({ length: 4 }, (_, i) => ({ url: `https://x/${i}.jpg`, caption: null }))
+
+  it('Classic: the FIRST chunk charges tile + the 16pt margin above the label + the label line + its 6pt marginBottom; later chunks charge tile + the 8pt row gap only', () => {
+    const rows = blocksFromModel(baseInput({ photos: fourPhotos, templateId: 'classic' })).filter((b) => b.kind === 'photo-row')
     expect(rows).toHaveLength(2)
     expect(rows[0].ref?.photoRange?.[0]).toBe(0)
-    expect(rows[0].baseHeightPt - rows[1].baseHeightPt).toBe(16)
+    const tile = photoTileWidthPt(ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt)
+    expect(tile).toBe(172)
+    // termsTitle: fontSize 8, Inter-Bold natural line height, marginBottom 6
+    expect(rows[0].baseHeightPt).toBeCloseTo(tile + 16 + 8 * LINE_HEIGHT['Inter-Bold'] + 6, 6)
+    expect(rows[1].baseHeightPt).toBeCloseTo(tile + PHOTO_TILE_GAP_PT, 6)
   })
 
-  it('the same bonus is 20pt on Modern', () => {
-    const photos = Array.from({ length: 4 }, (_, i) => ({ url: `https://x/${i}.jpg`, caption: null }))
-    const input = baseInput({ photos, templateId: 'modern' })
-    const rows = blocksFromModel(input).filter((b) => b.kind === 'photo-row')
-    expect(rows[0].baseHeightPt - rows[1].baseHeightPt).toBe(20)
+  it('Modern: same structure with the 20pt top margin, Lora-Bold label line and 7pt label marginBottom', () => {
+    const rows = blocksFromModel(baseInput({ photos: fourPhotos, templateId: 'modern' })).filter((b) => b.kind === 'photo-row')
+    const tile = photoTileWidthPt(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
+    expect(tile).toBe(164)
+    expect(rows[0].baseHeightPt).toBeCloseTo(tile + 20 + 8 * LINE_HEIGHT['Lora-Bold'] + 7, 6)
+    expect(rows[1].baseHeightPt).toBeCloseTo(tile + PHOTO_TILE_GAP_PT, 6)
+  })
+
+  it('a full row of tiles spans the whole content width in both templates (3 tiles + 2 gaps === contentWidthPt)', () => {
+    for (const t of ['classic', 'modern'] as const) {
+      const w = ESTIMATE_PAGE_GEOMETRY[t].contentWidthPt
+      expect(3 * photoTileWidthPt(w) + 2 * PHOTO_TILE_GAP_PT).toBeCloseTo(w, 9)
+    }
   })
 
   it('a row-chunk with any captioned photo gets extra height vs. an identical uncaptioned chunk', () => {
@@ -351,7 +380,7 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
 })
 
 describe('blocksFromModel — full document order', () => {
-  it('emits title-banner, info-grid, summary, per-section (header, rows, subtotal), totals, terms-cards, signature, photo-rows, prepared-by — in that order', () => {
+  it('emits title-banner, info-grid, summary, per-section (header, rows, subtotal), totals, terms-cards, signature, prepared-by, photo-rows — in that order', () => {
     const input = baseInput({
       summary: 'Summary text',
       sections: [
@@ -378,8 +407,165 @@ describe('blocksFromModel — full document order', () => {
       'terms-card',
       'terms-card',
       'signature',
-      'photo-row',
       'prepared-by',
+      'photo-row',
     ])
+  })
+
+  it('"Prepared by" comes right after the signature block and BEFORE the photos — in both templates', () => {
+    for (const templateId of ['classic', 'modern'] as const) {
+      const kinds = blocksFromModel(
+        baseInput({
+          templateId,
+          payment_terms: 'Payment terms',
+          signature: { signerName: 'Jane', signedAt: '2026-01-01T00:00:00Z', signatureDataUrl: 'data:image/png;base64,x' },
+          photos: [{ url: 'https://x/1.jpg', caption: null }],
+          preparedBy: 'Jamie Lee',
+        })
+      ).map((b) => b.kind)
+      const iPrepared = kinds.indexOf('prepared-by')
+      expect(iPrepared).toBe(kinds.indexOf('signature') + 1)
+      expect(iPrepared).toBeLessThan(kinds.indexOf('photo-row'))
+      expect(kinds[kinds.length - 1]).toBe('photo-row')
+    }
+  })
+
+  it('with NO signature, "Prepared by" follows the last terms card and still precedes the photos', () => {
+    const kinds = blocksFromModel(
+      baseInput({
+        payment_terms: 'Payment terms',
+        notes: 'Notes',
+        photos: [{ url: 'https://x/1.jpg', caption: null }],
+        preparedBy: 'Jamie Lee',
+      })
+    ).map((b) => b.kind)
+    expect(kinds.slice(-4)).toEqual(['terms-card', 'terms-card', 'prepared-by', 'photo-row'])
+  })
+})
+
+describe('blocksFromModel — Classic card box (inner padding) vs Modern (box-less)', () => {
+  const twoTerms = { payment_terms: 'Payment terms text', notes: 'Notes text' }
+
+  it('Classic terms card: height = title line (8 x Inter-Bold 1.21) + marginBottom 6 + text marginBottom 0 + vertical padding 2x10 + card marginBottom 8 (the first card additionally carries the 24pt top margin)', () => {
+    expect(CLASSIC_CARD_BOX).toEqual({ paddingPt: 10, radiusPt: 4, marginBottomPt: 8 })
+    const cards = blocksFromModel(baseInput({ ...twoTerms, templateId: 'classic' })).filter((b) => b.kind === 'terms-card')
+    const titleLine = 8 * LINE_HEIGHT['Inter-Bold']
+    expect(cards[1].baseHeightPt).toBeCloseTo(titleLine + 6 + 0 + 2 * 10 + 8, 9)
+    expect(cards[0].baseHeightPt).toBeCloseTo(titleLine + 6 + 0 + 2 * 10 + 8 + 24, 9)
+  })
+
+  it('Classic terms card text is measured at the INNER width (contentWidthPt - 2x10 = 512); Modern, box-less, at the full 508', () => {
+    const classic = blocksFromModel(baseInput({ ...twoTerms, templateId: 'classic' })).filter((b) => b.kind === 'terms-card')
+    for (const card of classic) {
+      expect(card.measurement?.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt - 20)
+    }
+    const modern = blocksFromModel(baseInput({ ...twoTerms, templateId: 'modern' })).filter((b) => b.kind === 'terms-card')
+    for (const card of modern) {
+      expect(card.measurement?.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
+    }
+  })
+
+  it('Modern terms card stays box-less: title line (8 x Lora-Bold 1.28) + marginBottom 7 + text marginBottom 14', () => {
+    const cards = blocksFromModel(baseInput({ ...twoTerms, templateId: 'modern' })).filter((b) => b.kind === 'terms-card')
+    expect(cards[1].baseHeightPt).toBeCloseTo(8 * LINE_HEIGHT['Lora-Bold'] + 7 + 14, 9)
+  })
+
+  it('signature card: marginTop 16 + title line + title marginBottom + image 40 + signer marginTop 4 + 2 text lines; Classic additionally the card box (2x10 padding + 8 marginBottom), Modern does not', () => {
+    const signature = { signerName: 'Jane', signedAt: '2026-01-01T00:00:00Z', signatureDataUrl: 'data:image/png;base64,x' }
+    const sig = (templateId: 'classic' | 'modern') =>
+      blocksFromModel(baseInput({ signature, templateId })).find((b) => b.kind === 'signature')!
+    const modern = 16 + 8 * LINE_HEIGHT['Lora-Bold'] + 7 + 40 + 4 + 2 * 9 * LINE_HEIGHT.Lora
+    const classic = 16 + 8 * LINE_HEIGHT['Inter-Bold'] + 6 + 40 + 4 + 2 * 9 * LINE_HEIGHT.Inter
+    expect(sig('modern').baseHeightPt).toBeCloseTo(modern, 9)
+    expect(sig('classic').baseHeightPt).toBeCloseTo(classic + 2 * 10 + 8, 9)
+  })
+})
+
+describe('blocksFromModel — section-title measurement width', () => {
+  const classicTitleMeasurement = () => {
+    const blocks = blocksFromModel(
+      baseInput({ sections: [section({ title: 'T', items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })] }),
+    )
+    return blocks.find((b) => b.kind === 'section-header')!.measurement!
+  }
+
+  it('Classic measures the section title at contentWidthPt - 2x10 (the band inner width), Modern at the full contentWidthPt', () => {
+    expect(classicTitleMeasurement().maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt - 20)
+
+    const modern = blocksFromModel(
+      baseInput({
+        templateId: 'modern',
+        sections: [section({ title: 'T', items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })],
+      }),
+    ).find((b) => b.kind === 'section-header')!.measurement!
+    expect(modern.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
+  })
+
+  it('a Classic title wider than contentWidthPt - 20 but narrower than contentWidthPt wraps to 2 lines (would be 1 at the full width)', () => {
+    const provider = createFontkitMeasurementProvider()
+    const { styleKey, fontSizePt } = classicTitleMeasurement()
+    const full = ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt
+
+    // Grow a multi-word title until it no longer fits the inner width but still fits the full width.
+    let title = ''
+    let found = ''
+    for (let i = 0; i < 200 && !found; i++) {
+      title += (i ? ' ' : '') + 'Kitchen'
+      if (provider.lineCount(title, styleKey, fontSizePt, full - 20) === 2 && provider.lineCount(title, styleKey, fontSizePt, full) === 1) {
+        found = title
+      }
+    }
+    expect(found, 'a title fitting in (contentWidth-20, contentWidth] must exist').not.toBe('')
+
+    const block = blocksFromModel(
+      baseInput({ sections: [section({ title: found, items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })] }),
+    ).find((b) => b.kind === 'section-header')!
+    const m = block.measurement!
+    expect(provider.lineCount(m.text, m.styleKey, m.fontSizePt, m.maxWidthPt)).toBe(2)
+  })
+})
+
+describe('blocksFromModel — totals block height matches the real rendered height', () => {
+  // Real heights were measured from generated PDFs (pdftotext -bbox row pitches:
+  // Modern 25.3 per row, Tax -> Deposit 111.22; Classic 20.6 per row, Total -> Deposit
+  // 28.94). Before 2026-10-02 the row text lines were not charged at all (Modern 165.5 /
+  // Classic 84.5 predicted vs 240.42 / 161.94 real), which the flat safety margin hid.
+  const full = { discount_amount: 15, tax_amount: 111.38, dep: { showDeposit: true, depositAmount: 118.91, balanceDue: 277.47 } }
+
+  it('Modern, subtotal + discount + tax + grand total + deposit + balance due = 240.42pt', () => {
+    const totals = blocksFromModel(baseInput({ ...full, templateId: 'modern' })).find((b) => b.kind === 'totals')!
+    // 28 container marginTop + 5 rows x 25.3 + grand total block 69.92 + deposit row marginTop 16
+    expect(totals.baseHeightPt).toBeCloseTo(28 + 5 * 25.3 + 69.92 + 16, 2)
+    expect(totals.baseHeightPt).toBeCloseTo(240.42, 2)
+  })
+
+  it('Classic, the same rows = 161.94pt', () => {
+    const totals = blocksFromModel(baseInput({ ...full, templateId: 'classic' })).find((b) => b.kind === 'totals')!
+    expect(totals.baseHeightPt).toBeCloseTo(161.94, 2)
+  })
+})
+
+describe('blocksFromModel — photo captions are measured at the tile width', () => {
+  it('each captioned photo gets a parallel measurement (caption font, tile width, page-font line height); uncaptioned photos get none', () => {
+    const photos = [
+      { url: 'https://x/1.jpg', caption: 'A long caption that will certainly wrap onto several lines inside one tile' },
+      { url: 'https://x/2.jpg', caption: null },
+      { url: 'https://x/3.jpg', caption: 'Short' },
+    ]
+    for (const [templateId, family] of [['classic', 'Inter'], ['modern', 'Lora']] as const) {
+      const row = blocksFromModel(baseInput({ photos, templateId })).find((b) => b.kind === 'photo-row')!
+      expect(row.parallelMeasurements).toHaveLength(2)
+      for (const m of row.parallelMeasurements!) {
+        expect(m.maxWidthPt).toBe(photoTileWidthPt(ESTIMATE_PAGE_GEOMETRY[templateId].contentWidthPt))
+        expect(m.fontSizePt).toBe(8)
+        expect(m.styleKey).toBe(family)
+        expect(m.lineHeightMultiplier).toBe(LINE_HEIGHT[family])
+      }
+    }
+  })
+
+  it('a chunk without captions carries no parallel measurements and no caption margin', () => {
+    const row = blocksFromModel(baseInput({ photos: [{ url: 'https://x/1.jpg', caption: null }], templateId: 'classic' })).find((b) => b.kind === 'photo-row')!
+    expect(row.parallelMeasurements).toEqual([])
   })
 })

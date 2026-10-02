@@ -138,6 +138,7 @@ export default async function SharePage({ params }: SharePageProps) {
           estimate={data.estimate}
           client={data.client}
           token={token}
+          preparedBy={data.preparedBy}
           alreadyResponded={alreadyResponded}
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}

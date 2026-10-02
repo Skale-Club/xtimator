@@ -56,17 +56,27 @@ export interface PdfTermsCardProps {
   /** Phase 186 Plan 02 (POLISH-01) — optional subtle brand-tint background,
    * sourced from lib/estimate/document/tokens.ts's cardTintFill(). Classic
    * only; Modern's call sites never pass this, keeping Modern fill-free by
-   * omission. background-color ONLY — never touches padding/margin/border-
-   * width/font-size (those drive lib/estimate/pagination/blocks-from-model.ts's
-   * termsCardBaseHeightPt formula; this prop must stay geometry-inert). */
+   * omission. background-color ONLY — geometry (padding/radius/margin) comes
+   * from `box` below, which drives blocks-from-model.ts's termsCardBaseHeightPt. */
   cardFill?: string
+  /** Classic-only inner card box (tokens.ts CLASSIC_CARD_BOX): `padding` on all
+   * four sides, a corner `borderRadius`, and a `marginBottom` separating this
+   * card from the next so consecutive cards read as separate cards. Because the
+   * padding already supplies the bottom inset, the card's text drops
+   * styles.termsText.marginBottom (12) — otherwise the bottom inset would be
+   * 22pt against 10pt on the other sides. Modern omits this prop (fill-free,
+   * box-less), keeping its original geometry. Independent of `cardFill`: a
+   * malformed brand colour omits the tint but must not change the geometry
+   * blocks-from-model.ts measured. These values feed that file's
+   * termsCardBaseHeightPt / terms text width — keep them in step. */
+  box?: { paddingPt: number; radiusPt: number; marginBottomPt: number }
   styles: Pick<PdfTermsSectionStyles, 'termsTitle' | 'termsText'>
 }
 
 /** One atomic terms card — never splits across a page boundary. Exported for
  * direct per-card rendering by Plan 184-05's dispatcher; PdfTermsSection
  * composes it internally below for single-page reproduction. */
-export function PdfTermsCard({ title, text, titleColor, topMarginPt, cardFill, styles }: PdfTermsCardProps) {
+export function PdfTermsCard({ title, text, titleColor, topMarginPt, cardFill, box, styles }: PdfTermsCardProps) {
   return (
     <View
       key={title}
@@ -74,12 +84,13 @@ export function PdfTermsCard({ title, text, titleColor, topMarginPt, cardFill, s
       style={{
         ...(topMarginPt ? { marginTop: topMarginPt } : {}),
         ...(cardFill ? { backgroundColor: cardFill } : {}),
+        ...(box ? { padding: box.paddingPt, borderRadius: box.radiusPt, marginBottom: box.marginBottomPt } : {}),
       }}
     >
       <Text style={titleColor ? [styles.termsTitle, { color: titleColor }] : styles.termsTitle}>
         {title}
       </Text>
-      <Text style={styles.termsText}>{text}</Text>
+      <Text style={box ? [styles.termsText, { marginBottom: 0 }] : styles.termsText}>{text}</Text>
     </View>
   )
 }

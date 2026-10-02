@@ -11,7 +11,7 @@ import type { CompanySettings } from '@/lib/queries/company'
 import { updateCompanySettings } from '@/lib/actions/settings'
 import { resolveIndustries, splitIndustries, isKnownIndustry } from '@/lib/industries'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
-import { ESTIMATE_TEMPLATES, DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
+import { DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -20,7 +20,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { EstimateTemplatePicker } from '@/components/settings/estimate-template-picker'
 import { IndustrySelector } from '@/components/onboarding/industry-selector'
 import { ColorPickerPopover } from '@/components/ui/color-picker-popover'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -480,25 +480,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormDescription className="text-xs text-muted-foreground">
                         {t('Choose the visual style used for PDF and shared estimate links.')}
                       </FormDescription>
-                      <RadioGroup
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        className="grid gap-3 sm:grid-cols-2 mt-2"
-                      >
-                        {ESTIMATE_TEMPLATES.map((tpl) => (
-                          <label
-                            key={tpl.id}
-                            htmlFor={`estimate-template-${tpl.id}`}
-                            className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/20 has-[[data-state=checked]]:border-primary"
-                          >
-                            <RadioGroupItem value={tpl.id} id={`estimate-template-${tpl.id}`} className="mt-0.5" />
-                            <span>
-                              <span className="block text-sm font-medium text-foreground">{t(tpl.label)}</span>
-                              <span className="block text-xs text-muted-foreground mt-0.5">{t(tpl.description)}</span>
-                            </span>
-                          </label>
-                        ))}
-                      </RadioGroup>
+                      <EstimateTemplatePicker value={field.value} onValueChange={field.onChange} />
                       <FormMessage />
                     </FormItem>
                   )}

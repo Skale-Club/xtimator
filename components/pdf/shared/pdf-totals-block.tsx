@@ -28,6 +28,7 @@ import { View, Text } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import type { DepositDisplay } from '@/lib/estimate/deposit-display'
+import { formatPercent } from '@/lib/estimate/document/format'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
 
 export interface PdfTotalsBlockEstimate {
@@ -77,7 +78,7 @@ export function PdfTotalsBlock({
     <View style={styles.totalsRow}>
       <Text style={styles.totalsLabel}>
         {L.discount}
-        {isPercentageDiscount(estimate.discount_type) ? ` (${estimate.discount_value}%)` : ''}
+        {isPercentageDiscount(estimate.discount_type) ? ` (${formatPercent(estimate.discount_value)})` : ''}
       </Text>
       <Text style={[styles.totalsValue, { color: '#dc2626' }]}>
         -{fmt(estimate.discount_amount)}
@@ -88,7 +89,7 @@ export function PdfTotalsBlock({
   const taxRow = estimate.tax_amount > 0 && (
     <View style={styles.totalsRow}>
       <Text style={styles.totalsLabel}>
-        {L.tax} ({(estimate.tax_rate * 100).toFixed(2)}%)
+        {L.tax} ({formatPercent(estimate.tax_rate * 100)})
       </Text>
       <Text style={styles.totalsValue}>{fmt(estimate.tax_amount)}</Text>
     </View>
@@ -119,7 +120,7 @@ export function PdfTotalsBlock({
               Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
           {dep.showDeposit && (
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.deposit}</Text>
+              <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
               <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
             </View>
           )}
@@ -159,7 +160,7 @@ export function PdfTotalsBlock({
             Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
         {dep.showDeposit && (
           <View style={[styles.totalsRow, { marginTop: 16 }]}>
-            <Text style={styles.totalsLabel}>{L.deposit}</Text>
+            <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
             <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
           </View>
         )}

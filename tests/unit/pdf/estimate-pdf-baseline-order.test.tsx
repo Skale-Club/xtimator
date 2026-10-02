@@ -148,7 +148,7 @@ function assertBaselineOrder(texts: string[], label: string) {
   const iDiscount = texts.findIndex((t) => t.startsWith('Discount'))
   const iTax = texts.findIndex((t) => t.startsWith('Tax'))
   const iGrandTotal = texts.lastIndexOf('Total')
-  const iDeposit = texts.indexOf('Deposit')
+  const iDeposit = texts.indexOf('Deposit required')
   const iBalance = texts.indexOf('Balance Due')
 
   expect(iSubtotal, `${label}: Subtotal row present`).toBeGreaterThan(-1)

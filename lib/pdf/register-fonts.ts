@@ -16,3 +16,16 @@ Font.register({ family: 'Inter', src: path.join(FONTS_DIR, 'inter', 'Inter-Regul
 Font.register({ family: 'Inter-Bold', src: path.join(FONTS_DIR, 'inter', 'Inter-Bold.ttf') })
 Font.register({ family: 'Lora', src: path.join(FONTS_DIR, 'lora', 'Lora-Regular.ttf') })
 Font.register({ family: 'Lora-Bold', src: path.join(FONTS_DIR, 'lora', 'Lora-Bold.ttf') })
+
+// Disable react-pdf's automatic hyphenation. By default @react-pdf/textkit
+// runs every word through an English hyphenation dictionary and may break it
+// across lines ("coun-tertops", "Sher-win-Williams") — wrong for brand/product
+// names and unprofessional in a client-facing estimate. Returning the word
+// whole as a single syllable means line breaks only happen at the break
+// opportunities UAX#14 (the `linebreak` package) already defines: spaces and
+// after an EXISTING hyphen-minus in the source text ("Sherwin-" / "Williams"),
+// which is exactly what lib/estimate/pagination/measure/line-packer.ts (also
+// `linebreak`-based) measures with — so measurement and render now agree on
+// where a line can break. Process-global (Font is a singleton), set once at
+// module load alongside the Font.register calls above.
+Font.registerHyphenationCallback((word) => [word])

@@ -231,7 +231,7 @@ const STORAGE_SEAM_MANIFEST: Row[] = [
     reason: READ_REASON,
   },
   {
-    id: 'components/workspace/estimate/paginated-preview.tsx#createStorage',
+    id: 'components/workspace/estimate/preview-template/shared.tsx#createStorage',
     disposition: 'browser-supabase',
     authority: "The client component's own authenticated browser Supabase auth context",
     reason: READ_REASON,
