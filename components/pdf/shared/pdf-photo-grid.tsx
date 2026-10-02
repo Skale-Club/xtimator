@@ -2,7 +2,7 @@
 //
 // Phase 183 Plan 06 (PDFPAR-03 + ENGINE-03) — shared attached-photos grid for
 // both PDF templates. Structure is byte-identical between Classic/Modern
-// (label + wrapping flex-wrap row of photos); this is also the one change
+// (label + row of photos); this is also the one change
 // point that adds a per-photo caption, conditionally rendered beneath each
 // image (no empty space when a photo has no caption).
 //
@@ -11,9 +11,10 @@
 // here, so the client-safe pagination core never has to import from
 // components/pdf/*). The grid now renders one `wrap={false}` View PER ROW
 // (chunk), not one `wrap={false}` around the whole grid — the photo grid
-// breaks only between visual rows, per the locked break rule. Only the FIRST
-// row-chunk carries `marginTop: topMargin`; the "Photos" section label
-// renders exactly once (`showLabel`), never repeated per row-chunk.
+// breaks only between visual rows, per the locked break rule. Every chunk's
+// View carries `marginTop: topMargin` (see the spacing note below); the "Photos"
+// section label renders exactly once (`showLabel`), inside the first chunk's
+// View, never repeated per row-chunk.
 //
 // The outer visibility gate (`isSectionVisible(resolvedSettings, 'photos') &&
 // attachedPhotos && attachedPhotos.length > 0`) stays in each template file —
@@ -28,14 +29,26 @@
 // array before it is sliced by `PageBlock.ref.photoRange`, because that range is
 // a pair of indexes: filtering here, after the slice, would silently disagree
 // with the index domain the pagination engine measured. See that helper's
-// docblock. The tile size is the shared PHOTO_TILE_WIDTH_PT token — the same
-// number lib/pdf/resolve-pdf-photos.ts downscales each photo to.
+// docblock.
+//
+// Tile size: each row spans the FULL content width. The tile is a square of
+// `photoTileWidthPt(contentWidthPt)` (shared token fn, lib/estimate/document/
+// tokens.ts) — (content - gap x (perRow - 1)) / perRow — and that same function
+// is what blocks-from-model.ts charges as the photo-row height.
+// lib/pdf/resolve-pdf-photos.ts downscales to PHOTO_TILE_MAX_WIDTH_PT, the
+// largest tile of any template, so the embedded pixels always cover this size.
+//
+// Vertical spacing (all of it lives INSIDE the row's own wrap={false} View, so a
+// row, its label and its margin are one atomic unit that can never be split from
+// each other by react-pdf): `topMargin` is the row View's marginTop — the gap
+// ABOVE the "Photos" label on the first chunk (16 Classic / 20 Modern), the
+// inter-row gap on later chunks. The label sits inside that View, above the tiles.
 
 import { Fragment } from 'react'
 import { View, Text, Image } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
-import { photosPerRow, PHOTO_TILE_WIDTH_PT } from '@/lib/estimate/document/tokens'
+import { photosPerRow, photoTileWidthPt, PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 
 export interface PdfPhotoGridPhoto {
   url: string
@@ -49,11 +62,11 @@ export interface PdfPhotoGridStyles {
 export interface PdfPhotoGridProps {
   photos: PdfPhotoGridPhoto[]
   L: DocumentLabels
-  /** Applied ONLY to the first row-chunk's View — Classic uses 16, Modern uses 20 (existing per-template spacing, now applied per-row instead of to a since-removed outer wrapper). */
+  /** marginTop of this chunk's row View. First chunk: the space ABOVE the "Photos" label (Classic 16 / Modern 20). Later chunks: PHOTO_TILE_GAP_PT (the gap between consecutive photo rows). */
   topMargin: number
-  /** Page content width in pt — drives row-chunking via the shared photosPerRow(contentWidthPt). Pass ESTIMATE_PAGE_GEOMETRY.<template>.contentWidthPt — never a bare literal. */
+  /** Page content width in pt — drives row-chunking via the shared photosPerRow(contentWidthPt) and the tile size via photoTileWidthPt(contentWidthPt). Pass ESTIMATE_PAGE_GEOMETRY.<template>.contentWidthPt — never a bare literal. */
   contentWidthPt: number
-  /** Whether to render the "Photos" section label (once, ahead of the first row-chunk). */
+  /** Whether to render the "Photos" section label (once, at the top of the first row-chunk's View). */
   showLabel?: boolean
   styles: PdfPhotoGridStyles
 }
@@ -67,6 +80,7 @@ export function PdfPhotoGrid({
   styles,
 }: PdfPhotoGridProps) {
   const perRow = photosPerRow(contentWidthPt)
+  const tilePt = photoTileWidthPt(contentWidthPt)
   const rows: PdfPhotoGridPhoto[][] = []
   for (let i = 0; i < photos.length; i += perRow) {
     rows.push(photos.slice(i, i + perRow))
@@ -74,32 +88,29 @@ export function PdfPhotoGrid({
 
   return (
     <Fragment>
-      {showLabel && <Text style={styles.termsTitle}>{L.photos}</Text>}
       {rows.map((rowPhotos, rowIdx) => (
         <View
           key={`row-${rowIdx}`}
           wrap={false}
-          style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: 8,
-            marginTop: rowIdx === 0 ? topMargin : 8,
-          }}
+          style={{ marginTop: rowIdx === 0 ? topMargin : PHOTO_TILE_GAP_PT }}
         >
-          {rowPhotos.map((photo, i) => (
-            <View key={i} style={{ width: PHOTO_TILE_WIDTH_PT }}>
-              {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              <Image
-                src={photo.url}
-                style={{ width: PHOTO_TILE_WIDTH_PT, height: PHOTO_TILE_WIDTH_PT, objectFit: 'cover' }}
-              />
-              {photo.caption && (
-                <Text style={{ fontSize: 8, marginTop: 2, color: '#6b7280' }}>
-                  {photo.caption}
-                </Text>
-              )}
-            </View>
-          ))}
+          {showLabel && rowIdx === 0 && <Text style={styles.termsTitle}>{L.photos}</Text>}
+          <View style={{ flexDirection: 'row', gap: PHOTO_TILE_GAP_PT }}>
+            {rowPhotos.map((photo, i) => (
+              <View key={i} style={{ width: tilePt }}>
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                <Image
+                  src={photo.url}
+                  style={{ width: tilePt, height: tilePt, objectFit: 'cover' }}
+                />
+                {photo.caption && (
+                  <Text style={{ fontSize: 8, marginTop: 2, color: '#6b7280' }}>
+                    {photo.caption}
+                  </Text>
+                )}
+              </View>
+            ))}
+          </View>
         </View>
       ))}
     </Fragment>

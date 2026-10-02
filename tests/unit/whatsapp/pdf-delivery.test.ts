@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock the heavy deps that pdf-delivery.ts will use
 vi.mock('@react-pdf/renderer', () => ({
-  renderToBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-pdf')),
+  renderToBuffer: vi.fn().mockResolvedValue(Buffer.from('<< /Type /Page /Parent 1 0 R >>')),
 }))
 
 vi.mock('react', async (importOriginal) => {
@@ -98,7 +98,7 @@ function makeSupabase(overrides: { uploadError?: object; signedUrl?: string | nu
 describe('generateAndUploadEstimatePDF', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    mockRenderToBuffer.mockResolvedValue(Buffer.from('mock-pdf'))
+    mockRenderToBuffer.mockResolvedValue(Buffer.from('<< /Type /Page /Parent 1 0 R >>'))
   })
 
   it('returns signedUrl and filename on success (WAPDF-02)', async () => {

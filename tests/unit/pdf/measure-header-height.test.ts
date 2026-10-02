@@ -9,8 +9,18 @@
 // tests/unit/pagination/measure/fontkit-arithmetic.test.ts established.
 
 import { describe, it, expect } from 'vitest'
-import { measureHeaderHeightPt, measureCompactHeaderHeightPt } from '@/lib/pdf/measure-header-height'
+import {
+  measureHeaderHeightPt as measureHeaderHeightPtWith,
+  measureCompactHeaderHeightPt,
+  CONTINUATION_SECTION_TITLE_HEIGHT_PT,
+  CONTINUATION_TABLE_HEADER_HEIGHT_PT,
+} from '@/lib/pdf/measure-header-height'
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'
+import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
+import { createFontkitMeasurementProvider } from '@/lib/estimate/pagination/measure/estimator'
+const ONE_LINE: MeasurementProvider = { lineCount: () => 1 } // every header text on one line — keeps these hand-computed expectations independent of wrapping
+const measureHeaderHeightPt = (c: PdfHeaderCompany, t: 'classic' | 'modern', l: Parameters<typeof measureHeaderHeightPtWith>[2]) =>
+  measureHeaderHeightPtWith(c, t, l, ONE_LINE)
 
 const NO_CONTACT: Omit<PdfHeaderCompany, 'name' | 'logo_url'> = {
   phone: null,
@@ -204,6 +214,52 @@ describe('measureCompactHeaderHeightPt (pages 2+, hand-computed from the compact
   it('is much shorter than the full header for a typical company, in both templates', () => {
     for (const tpl of ['classic', 'modern'] as const) {
       expect(measureCompactHeaderHeightPt(tpl)).toBeLessThan(measureHeaderHeightPt(nameOnly(), tpl, 'en') - 1)
+    }
+  })
+})
+
+describe('continuation-page repeated header reservation (section title "(cont.)" band + column header)', () => {
+  it('classic title band: sectionHeader paddingVertical(8)x2 + sectionTitle 11 x LINE_HEIGHT[Inter-Bold] 1.21 (marginTop is 0 on the continuation band)', () => {
+    // 16 + 13.31 = 29.31
+    expect(CONTINUATION_SECTION_TITLE_HEIGHT_PT.classic).toBeCloseTo(29.31, 5)
+  })
+
+  it('modern title band: paddingVertical(6)x2 + borderBottomWidth(1) + sectionTitle 11 x LINE_HEIGHT[Lora-Bold] 1.28', () => {
+    // 12 + 1 + 14.08 = 27.08
+    expect(CONTINUATION_SECTION_TITLE_HEIGHT_PT.modern).toBeCloseTo(27.08, 5)
+  })
+
+  it('the engine reservation is the title band PLUS the column-header row (classic 13 + 9 x 1.21, modern 16.5 + 8.5 x 1.28)', () => {
+    expect(CONTINUATION_TABLE_HEADER_HEIGHT_PT.classic).toBeCloseTo(13 + 9 * 1.21 + 29.31, 5)
+    expect(CONTINUATION_TABLE_HEADER_HEIGHT_PT.modern).toBeCloseTo(16.5 + 8.5 * 1.28 + 27.08, 5)
+  })
+})
+
+describe('measureHeaderHeightPt — the company name / contact / address WRAP in the left column', () => {
+  const LONG = 'BrightPath Residential Remodeling & Custom Carpentry Services of Central Texas LLC'
+  const real = createFontkitMeasurementProvider()
+  const measure = (c: PdfHeaderCompany, t: 'classic' | 'modern', l: 'en' | 'pt' = 'en') => measureHeaderHeightPtWith(c, t, l, real)
+
+  it('an 82-char company name wraps to 2+ lines and charges the extra lines (fuzz regression: it was charged as one line)', () => {
+    for (const tpl of ['classic', 'modern'] as const) {
+      const short = measure(nameOnly('Acme'), tpl)
+      const long = measure(nameOnly(LONG), tpl)
+      const nameLine = tpl === 'classic' ? 18 * 1.21 : 15 * 1.28
+      expect(long - short).toBeGreaterThanOrEqual(nameLine - 1e-6)
+      expect((long - short) / nameLine).toBeCloseTo(Math.round((long - short) / nameLine), 6) // whole extra lines
+    }
+  })
+
+  it('a drawn logo (or the language chip) narrows the left column, so a borderline name wraps sooner', () => {
+    const withLogo = { ...nameOnly(LONG), logo_url: 'data:image/png;base64,AAAA' }
+    for (const tpl of ['classic', 'modern'] as const) {
+      expect(measure(withLogo, tpl)).toBeGreaterThanOrEqual(measure(nameOnly(LONG), tpl))
+    }
+  })
+
+  it('a short name is still ONE line (no change from the single-line arithmetic)', () => {
+    for (const tpl of ['classic', 'modern'] as const) {
+      expect(measure(nameOnly('Acme'), tpl)).toBeCloseTo(measureHeaderHeightPt(nameOnly('Acme'), tpl, 'en'), 9)
     }
   })
 })

@@ -35,7 +35,10 @@ vi.mock('@/lib/storage/asset-source', () => ({ fetchStoredAsset: vi.fn() }))
 import { fetchStoredAsset } from '@/lib/storage/asset-source'
 import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
 import { willPdfRenderLogo } from '@/lib/pdf/pdf-image-support'
-import { measureHeaderHeightPt } from '@/lib/pdf/measure-header-height'
+import { measureHeaderHeightPt as measureWith } from '@/lib/pdf/measure-header-height'
+import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
+const ONE_LINE: MeasurementProvider = { lineCount: () => 1 } // every header text on one line — keeps these hand-computed expectations independent of wrapping
+const measureHeaderHeightPt = (c: Parameters<typeof measureWith>[0], t: Parameters<typeof measureWith>[1], l: Parameters<typeof measureWith>[2]) => measureWith(c, t, l, ONE_LINE)
 import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import type { EstimateWithSections } from '@/lib/queries/estimate'

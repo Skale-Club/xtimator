@@ -6,7 +6,7 @@
 // per-page (not per-block) safety-margin reserve. Pure function of its 3
 // arguments: no wall-clock reads, no randomness, no module-level mutable
 // state.
-import type { PageBlock, PageConstraints, PageAssignment } from './types'
+import type { PageBlock, PageConstraints, PageAssignment, TextMeasurement } from './types'
 import type { MeasurementProvider } from './measure/types'
 import { isPage1Only } from './rules'
 
@@ -40,11 +40,18 @@ function buildChains(blocks: PageBlock[]): PageBlock[][] {
  *  wrapped-line contribution for measured (text-bearing) blocks. NO
  *  safety-margin term here — margin is a flat per-page reserve applied
  *  once in computePageBreaks, never added per-block. */
+function textHeightPt(m: TextMeasurement, provider: MeasurementProvider): number {
+  return provider.lineCount(m.text, m.styleKey, m.fontSizePt, m.maxWidthPt) * m.lineHeightMultiplier * m.fontSizePt
+}
+
 function blockHeightPt(block: PageBlock, provider: MeasurementProvider): number {
-  if (!block.measurement) return block.baseHeightPt
-  const { text, styleKey, fontSizePt, lineHeightMultiplier, maxWidthPt } = block.measurement
-  const lineCount = provider.lineCount(text, styleKey, fontSizePt, maxWidthPt)
-  return block.baseHeightPt + lineCount * lineHeightMultiplier * fontSizePt
+  let height = block.baseHeightPt
+  if (block.measurement) height += textHeightPt(block.measurement, provider)
+  // Side-by-side text boxes (photo-row captions): the row is as tall as the tallest.
+  if (block.parallelMeasurements && block.parallelMeasurements.length > 0) {
+    height += Math.max(...block.parallelMeasurements.map((m) => textHeightPt(m, provider)))
+  }
+  return height
 }
 
 function chainHeightPt(chain: PageBlock[], provider: MeasurementProvider): number {

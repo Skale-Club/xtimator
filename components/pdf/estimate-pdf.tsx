@@ -29,7 +29,14 @@ import {
 
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
 import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
-import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY, cardTintFill } from '@/lib/estimate/document/tokens'
+import {
+  ESTIMATE_DESIGN_TOKENS,
+  LINE_HEIGHT,
+  ESTIMATE_PAGE_GEOMETRY,
+  PHOTO_TILE_GAP_PT,
+  CLASSIC_CARD_BOX,
+  cardTintFill,
+} from '@/lib/estimate/document/tokens'
 // PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
 // FULL array before photoRange slices it (see the helper's docblock).
 import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
@@ -631,6 +638,7 @@ export default function EstimatePDF({
               titleColor: card.titleColor,
               topMarginPt: block.id === firstTermsCardBlockId ? 24 : undefined,
               cardFill: cardTintFill(brandColor),
+              box: CLASSIC_CARD_BOX,
               styles: { termsTitle: styles.termsTitle, termsText: styles.termsText },
             })}
           </Fragment>
@@ -644,6 +652,7 @@ export default function EstimatePDF({
               L,
               fmtDate,
               cardFill: cardTintFill(brandColor),
+              box: CLASSIC_CARD_BOX,
               styles: { termsTitle: styles.termsTitle },
             })}
           </Fragment>
@@ -657,7 +666,7 @@ export default function EstimatePDF({
             {PdfPhotoGrid({
               photos: drawablePdfPhotos(attachedPhotos ?? []).slice(range[0], range[1]),
               L,
-              topMargin: isFirst ? 16 : 0,
+              topMargin: isFirst ? 16 : PHOTO_TILE_GAP_PT,
               contentWidthPt: ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt,
               showLabel: isFirst,
               styles: { termsTitle: styles.termsTitle },
@@ -719,12 +728,27 @@ export default function EstimatePDF({
                   },
                 })}
 
-            {/* PGBRK-03 — repeated items-table column header, ONE MORE time
-                at the very top of a page whose FIRST block continues a
-                section's rows from an earlier page. Mutually exclusive with
-                the section-header case's own PdfTableHeaderOnly call below
-                (continuesTable is defined as blocks[0].kind === 'item-row',
-                which a page starting with a section-header can never be). */}
+            {/* PGBRK-03 — repeated section title + items-table column header, ONE
+                MORE time at the very top of a page whose FIRST block continues a
+                section's rows from an earlier page. The title ("<Section>
+                (cont.)", one line, truncated with an ellipsis) tells the reader
+                WHICH section the rows belong to; it is styled as this template's
+                own section header. Both are charged by
+                CONTINUATION_TABLE_HEADER_HEIGHT_PT (lib/pdf/measure-header-height.ts)
+                — keep the two in step. Mutually exclusive with the section-header
+                case's own PdfTableHeaderOnly call below (continuesTable is
+                defined as blocks[0].kind === 'item-row', which a page starting
+                with a section-header can never be). */}
+            {page.continuesTable &&
+              PdfSectionHeader({
+                sectionId: `continuation-${page.blocks[0]?.ref?.sectionId ?? page.pageIndex}`,
+                title: sectionsById.get(page.blocks[0]?.ref?.sectionId ?? '')?.title ?? '',
+                solidFill: ESTIMATE_DESIGN_TOKENS.classic.solidHeaderFill,
+                brandColor,
+                brandOnFill,
+                continuedLabel: L.continued,
+                styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
+              })}
             {page.continuesTable &&
               PdfTableHeaderOnly({
                 sectionId: `continuation-${page.blocks[0]?.ref?.sectionId ?? page.pageIndex}`,

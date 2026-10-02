@@ -32,7 +32,12 @@ import {
 
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
 import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
-import { ESTIMATE_DESIGN_TOKENS, LINE_HEIGHT, ESTIMATE_PAGE_GEOMETRY } from '@/lib/estimate/document/tokens'
+import {
+  ESTIMATE_DESIGN_TOKENS,
+  LINE_HEIGHT,
+  ESTIMATE_PAGE_GEOMETRY,
+  PHOTO_TILE_GAP_PT,
+} from '@/lib/estimate/document/tokens'
 // PDF-PHOTO-01 — the same gate blocksFromModel measures with, applied to the
 // FULL array before photoRange slices it (see the helper's docblock).
 import { drawablePdfPhotos } from '@/lib/pdf/pdf-image-support'
@@ -290,6 +295,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+    // Default colour only — PdfSectionHeader overrides it with `titleColor`
+    // (brandText, the readable brand colour) at the call sites; the rule under it
+    // (sectionHeader.borderBottomColor) stays neutral.
     color: '#1f2937',
     letterSpacing: 0.5,
     lineHeight: LINE_HEIGHT['Lora-Bold'],
@@ -527,9 +535,15 @@ export default function EstimatePDFModern({
         )
       case 'summary':
         return isSectionVisible(resolvedSettings, 'summary') && estimate.summary ? (
-          <View key={block.id} style={{ marginBottom: 20 }}>
+          // Spacing below the summary: the Text's own marginBottom is overridden to
+          // 6 (termsText's 14 is for stacked terms cards) and the wrapper carries no
+          // margin, so summary -> next block is 6 + the next block's own marginTop
+          // (sectionHeader 22 / totalsContainer 28) = 28 / 34pt — the same ~28pt
+          // rhythm as infoRow / totalsContainer, instead of the old 20 + 14 + 22 = 56.
+          // blocks-from-model.ts's modern summaryBottomSpacingPt cites this 6.
+          <View key={block.id}>
             <Text style={styles.infoLabel}>{L.summary}</Text>
-            <Text style={styles.termsText}>{estimate.summary}</Text>
+            <Text style={[styles.termsText, { marginBottom: 6 }]}>{estimate.summary}</Text>
           </View>
         ) : null
       case 'section-header': {
@@ -543,6 +557,7 @@ export default function EstimatePDFModern({
               solidFill: ESTIMATE_DESIGN_TOKENS.modern.solidHeaderFill,
               brandColor,
               brandOnFill,
+              titleColor: brandText,
               styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
             })}
             {PdfTableHeaderOnly({
@@ -662,7 +677,7 @@ export default function EstimatePDFModern({
             {PdfPhotoGrid({
               photos: drawablePdfPhotos(attachedPhotos ?? []).slice(range[0], range[1]),
               L,
-              topMargin: isFirst ? 20 : 0,
+              topMargin: isFirst ? 20 : PHOTO_TILE_GAP_PT,
               contentWidthPt: ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt,
               showLabel: isFirst,
               styles: { termsTitle: styles.termsTitle },
@@ -720,12 +735,28 @@ export default function EstimatePDFModern({
                   },
                 })}
 
-            {/* PGBRK-03 — repeated items-table column header, ONE MORE time
-                at the very top of a page whose FIRST block continues a
-                section's rows from an earlier page. Mutually exclusive with
-                the section-header case's own PdfTableHeaderOnly call below
-                (continuesTable is defined as blocks[0].kind === 'item-row',
-                which a page starting with a section-header can never be). */}
+            {/* PGBRK-03 — repeated section title + items-table column header, ONE
+                MORE time at the very top of a page whose FIRST block continues a
+                section's rows from an earlier page. The title ("<Section>
+                (cont.)", one line, truncated with an ellipsis) tells the reader
+                WHICH section the rows belong to; it is styled as this template's
+                own section header. Both are charged by
+                CONTINUATION_TABLE_HEADER_HEIGHT_PT (lib/pdf/measure-header-height.ts)
+                — keep the two in step. Mutually exclusive with the section-header
+                case's own PdfTableHeaderOnly call below (continuesTable is
+                defined as blocks[0].kind === 'item-row', which a page starting
+                with a section-header can never be). */}
+            {page.continuesTable &&
+              PdfSectionHeader({
+                sectionId: `continuation-${page.blocks[0]?.ref?.sectionId ?? page.pageIndex}`,
+                title: sectionsById.get(page.blocks[0]?.ref?.sectionId ?? '')?.title ?? '',
+                solidFill: ESTIMATE_DESIGN_TOKENS.modern.solidHeaderFill,
+                brandColor,
+                brandOnFill,
+                titleColor: brandText,
+                continuedLabel: L.continued,
+                styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
+              })}
             {page.continuesTable &&
               PdfTableHeaderOnly({
                 sectionId: `continuation-${page.blocks[0]?.ref?.sectionId ?? page.pageIndex}`,

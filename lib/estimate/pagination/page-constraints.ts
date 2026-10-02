@@ -24,6 +24,7 @@ import {
   PDF_RENDER_SAFETY_MARGIN_PT,
 } from '@/lib/pdf/measure-header-height'
 import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-margin'
+import type { MeasurementProvider } from './measure/types'
 import type { PageConstraints } from './types'
 
 /**
@@ -38,15 +39,19 @@ import type { PageConstraints } from './types'
  *
  * `language` is REQUIRED: it changes the header the PDF draws, so a caller that
  * forgot it would paginate against a header the renderer does not produce.
+ * `provider` is REQUIRED too: the page-1 header's company name / contact / address
+ * WRAP (a long name takes 2+ lines), and only text measurement can say how many.
+ * Pass the SAME provider the caller paginates the blocks with.
  */
 export function computeEstimatePageConstraints(
   company: PdfHeaderCompany,
   templateId: EstimateTemplateId,
-  language: EstimateLanguage
+  language: EstimateLanguage,
+  provider: MeasurementProvider
 ): PageConstraints {
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
   const pageBodyHeightPt = LETTER_HEIGHT_PT - geometry.topPaddingPt - geometry.bottomPaddingPt
-  const headerHeightPt = measureHeaderHeightPt(company, templateId, language)
+  const headerHeightPt = measureHeaderHeightPt(company, templateId, language, provider)
   const compactHeaderHeightPt = measureCompactHeaderHeightPt(templateId)
   const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
   const safetyMarginPt =

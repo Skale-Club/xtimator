@@ -68,6 +68,9 @@ export interface DocumentLabels {
   deleteSection: string
   rowActions: string
   sectionActions: string
+  /** Suffix appended to a section title on the page that CONTINUES that
+   *  section's item rows from the previous page (PDF + paginated preview). */
+  continued: string
 }
 
 export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
@@ -87,6 +90,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Signed by', estimateTerms: 'Estimate Terms',
     addDiscount: 'Add discount', removeDiscount: 'Remove discount', deleteLine: 'Delete line',
     deleteSection: 'Delete section', rowActions: 'Line actions', sectionActions: 'Section actions',
+    continued: '(cont.)',
   },
   pt: {
     estimate: 'ORÇAMENTO', project: 'Projeto', billTo: 'Faturar Para', summary: 'Resumo',
@@ -104,6 +108,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Assinado por', estimateTerms: 'Termos do Orçamento',
     addDiscount: 'Adicionar desconto', removeDiscount: 'Remover desconto', deleteLine: 'Excluir linha',
     deleteSection: 'Excluir seção', rowActions: 'Ações da linha', sectionActions: 'Ações da seção',
+    continued: '(cont.)',
   },
   es: {
     estimate: 'PRESUPUESTO', project: 'Proyecto', billTo: 'Facturar A', summary: 'Resumen',
@@ -121,6 +126,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     signedBy: 'Firmado por', estimateTerms: 'Términos del Presupuesto',
     addDiscount: 'Agregar descuento', removeDiscount: 'Quitar descuento', deleteLine: 'Eliminar línea',
     deleteSection: 'Eliminar sección', rowActions: 'Acciones de línea', sectionActions: 'Acciones de sección',
+    continued: '(cont.)',
   },
 }
 

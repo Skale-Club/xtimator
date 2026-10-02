@@ -7,13 +7,17 @@
 // itself, using the same imported constants but NOT calling the function
 // under test to derive its own expectation.
 import { describe, it, expect } from 'vitest'
-import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
+import { computeEstimatePageConstraints as computeWith } from '@/lib/estimate/pagination/page-constraints'
+import type { MeasurementProvider } from '@/lib/estimate/pagination/measure/types'
 import {
-  measureHeaderHeightPt,
+  measureHeaderHeightPt as measureWith,
   measureCompactHeaderHeightPt,
   CONTINUATION_TABLE_HEADER_HEIGHT_PT,
   PDF_RENDER_SAFETY_MARGIN_PT,
 } from '@/lib/pdf/measure-header-height'
+const ONE_LINE: MeasurementProvider = { lineCount: () => 1 } // every header text on one line — keeps these hand-computed expectations independent of wrapping
+const computeEstimatePageConstraints = (c: Parameters<typeof computeWith>[0], t: Parameters<typeof computeWith>[1], l: Parameters<typeof computeWith>[2]) => computeWith(c, t, l, ONE_LINE)
+const measureHeaderHeightPt = (c: Parameters<typeof measureWith>[0], t: Parameters<typeof measureWith>[1], l: Parameters<typeof measureWith>[2]) => measureWith(c, t, l, ONE_LINE)
 import { SAFETY_MARGIN_LINES } from '@/lib/estimate/pagination/measure/safety-margin'
 import { ESTIMATE_DESIGN_TOKENS, ESTIMATE_PAGE_GEOMETRY, LINE_HEIGHT, LETTER_HEIGHT_PT } from '@/lib/estimate/document/tokens'
 import type { PdfHeaderCompany } from '@/components/pdf/shared/pdf-header'

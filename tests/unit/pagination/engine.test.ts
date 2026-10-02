@@ -356,3 +356,20 @@ describe('computePageBreaks — persistent continuation-header reservation', () 
     expect(pages[2].blocks.map((b) => b.id)).toEqual(['row-c'])
   })
 })
+
+describe('computePageBreaks — parallelMeasurements (side-by-side photo captions)', () => {
+  const m = (text: string) => ({ text, styleKey: 'Inter', fontSizePt: 8, lineHeightMultiplier: 1, maxWidthPt: 100 })
+  // line count = text length (so heights are easy to read): 'a' -> 1 line, 'aaa' -> 3 lines
+  const byLength: MeasurementProvider = { lineCount: (text) => text.length }
+
+  it('a block\'s height is baseHeightPt + the TALLEST parallel measurement (max, not sum)', () => {
+    const row = makeBlock({ kind: 'photo-row', id: 'r', baseHeightPt: 50, parallelMeasurements: [m('a'), m('aaaaa'), m('aa')] })
+    // 50 + max(1,5,2) x 8 = 90. A page of exactly 90 holds it AND a second 10pt block; sum (8x8=64 -> 114) would not.
+    const next = makeBlock({ kind: 'prepared-by', id: 'p', baseHeightPt: 10 })
+    const pages = computePageBreaks([row, next], makeConstraints({ contentHeightPt: 100 }), byLength)
+    expect(pages).toHaveLength(1)
+    // ...but one more line in the tallest caption pushes the next block to a new page.
+    const taller = makeBlock({ kind: 'photo-row', id: 'r', baseHeightPt: 50, parallelMeasurements: [m('aaaaaa')] })
+    expect(computePageBreaks([taller, next], makeConstraints({ contentHeightPt: 100 }), byLength)).toHaveLength(2)
+  })
+})

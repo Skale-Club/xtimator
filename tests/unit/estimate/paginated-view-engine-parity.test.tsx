@@ -92,6 +92,29 @@ describe.each(['classic', 'modern'] as const)(
       })
     })
 
+    it('renders the "<Section> (cont.)" title band ABOVE the repeated column header, ONLY on continuesTable pages', () => {
+      const { data, pages } = buildFixture(templateId)
+      const { container } = renderPreview(data, pages)
+
+      const allTitles = container.querySelectorAll('[data-testid="continuation-title"]')
+      expect(allTitles.length).toBe(pages.filter((p) => p.continuesTable).length)
+
+      pages.forEach((page, i) => {
+        const sheet = container.querySelector(`[data-page-sheet="${i}"]`)!
+        const title = sheet.querySelector('[data-testid="continuation-title"]')
+        if (!page.continuesTable) {
+          expect(title, `page ${i} is not a continuation page`).toBeNull()
+          return
+        }
+        expect(title, `page ${i} must show the continuation title`).toBeTruthy()
+        const sectionTitle = (data.sections.find((s) => s.id === page.blocks[0].ref?.sectionId) ?? { title: '' }).title
+        expect(title!.textContent).toBe(`${sectionTitle}${LABELS.en.continued}`)
+        // DOM order: title band first, then the column header row.
+        const header = sheet.querySelector('[data-testid="continuation-header"]')!
+        expect(title!.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      })
+    })
+
     it('shows the "Page N of M" caption under every sheet, using the resolved language labels', () => {
       const { data, pages } = buildFixture(templateId)
       renderPreview(data, pages)

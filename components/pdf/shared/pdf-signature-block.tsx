@@ -31,18 +31,28 @@ export interface PdfSignatureBlockProps {
   /** Phase 186 Plan 02 (POLISH-01) — optional subtle brand-tint background,
    * sourced from lib/estimate/document/tokens.ts's cardTintFill(). Classic
    * only; Modern's call site never passes this, keeping Modern fill-free by
-   * omission. background-color ONLY — never touches margin/font-size (those
-   * drive lib/estimate/pagination/blocks-from-model.ts's signatureBaseHeightPt
-   * formula; this prop must stay geometry-inert). */
+   * omission. background-color ONLY — geometry comes from `box` below. */
   cardFill?: string
+  /** Classic-only inner card box (tokens.ts CLASSIC_CARD_BOX) — the same padding /
+   * radius / marginBottom the terms cards use, so the signature card matches
+   * them. Modern omits it (fill-free, box-less). Feeds blocks-from-model.ts's
+   * signatureBaseHeightPt — keep in step. */
+  box?: { paddingPt: number; radiusPt: number; marginBottomPt: number }
   styles: PdfSignatureBlockStyles
 }
 
-export function PdfSignatureBlock({ signature, L, fmtDate, cardFill, styles }: PdfSignatureBlockProps) {
+export function PdfSignatureBlock({ signature, L, fmtDate, cardFill, box, styles }: PdfSignatureBlockProps) {
   if (!signature) return null
 
   return (
-    <View style={{ marginTop: 16, ...(cardFill ? { backgroundColor: cardFill } : {}) }} wrap={false}>
+    <View
+      style={{
+        marginTop: 16,
+        ...(cardFill ? { backgroundColor: cardFill } : {}),
+        ...(box ? { padding: box.paddingPt, borderRadius: box.radiusPt, marginBottom: box.marginBottomPt } : {}),
+      }}
+      wrap={false}
+    >
       <Text style={styles.termsTitle}>{L.signedBy}</Text>
       {/* eslint-disable-next-line jsx-a11y/alt-text */}
       <Image

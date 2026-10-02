@@ -148,7 +148,7 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
         // genuinely fails. If measurement ever becomes size-dependent, these two
         // sites must be reunified — they are Phase 185's deliberate
         // shared-parity pair.
-        const constraints = computeEstimatePageConstraints(company, templateId, language)
+        const constraints = computeEstimatePageConstraints(company, templateId, language, provider)
         const computed = computePageBreaks(blocks, constraints, provider)
         if (!cancelled) setPages(computed)
       })

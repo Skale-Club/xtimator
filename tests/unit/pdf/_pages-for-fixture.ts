@@ -23,6 +23,7 @@ import { computePageBreaks } from '@/lib/estimate/pagination/engine'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import type { PageAssignment } from '@/lib/estimate/pagination/types'
 import { deriveDepositDisplay, type DepositDisplayRow } from '@/lib/estimate/deposit-display'
+import { PDF_RENDER_SAFETY_MARGIN_PT } from '@/lib/pdf/measure-header-height'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 
 export interface BuildPagesForFixtureCompany extends PdfHeaderCompany {
@@ -39,6 +40,8 @@ export interface BuildPagesForFixtureOpts {
    *  with — a test that renders with `language: 'es'` MUST build its pages with the
    *  same value here, or the pages are measured against the wrong header/labels. */
   language?: EstimateLanguage
+  /** Fuzz/calibration only: replaces PDF_RENDER_SAFETY_MARGIN_PT in the page budget (the fixed 1-line SAFETY_MARGIN_LINES term stays). */
+  extraMarginPt?: number
 }
 
 /**
@@ -58,7 +61,12 @@ export function buildPagesForFixture(
   // function also used by lib/pdf/render-estimate-pdf.ts, instead of this
   // file's own independent copy of the same formula (plan-checker warning
   // 10 — a THIRD copy is exactly the failure mode PGBRK-01/04 must prevent).
-  const constraints = computeEstimatePageConstraints(company, templateId, language)
+  const provider = createFontkitMeasurementProvider()
+  const baseConstraints = computeEstimatePageConstraints(company, templateId, language, provider)
+  const constraints =
+    opts.extraMarginPt === undefined
+      ? baseConstraints
+      : { ...baseConstraints, safetyMarginPt: baseConstraints.safetyMarginPt - PDF_RENDER_SAFETY_MARGIN_PT + opts.extraMarginPt }
 
   const depositRow: DepositDisplayRow = {
     total: (estimate.total as number | undefined) ?? 0,
@@ -88,5 +96,5 @@ export function buildPagesForFixture(
     templateId,
   })
 
-  return computePageBreaks(blocks, constraints, createFontkitMeasurementProvider())
+  return computePageBreaks(blocks, constraints, provider)
 }

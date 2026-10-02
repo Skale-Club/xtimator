@@ -25,10 +25,18 @@
  * multi-page, so the continuation budget is genuinely exercised (main()
  * asserts the 4x10 fixture spans >= 3 pages).
  *
- * Method: build 3 fixture families per template (a single-section sweep of
- * 1..60 items, a 4-section/40-item multi-page fixture, and a content-rich
+ * Method: build 5 fixture families per template (a single-section sweep of
+ * 1..60 items, a 4-section/40-item multi-page fixture, a content-rich
  * single-page-ish baseline fixture with summary/2-terms-cards/discount/tax/
- * deposit), sweep a range of candidate extra safety-margin values, and
+ * deposit, an isolated summary+deposit worst-case boundary fixture, and — added
+ * 2026-10-02 with the Classic card padding / photo-grid / (cont.) title work —
+ * a RICH sweep: summary + all 5 terms cards (estimate terms, payment, timeline,
+ * warranty, notes) + discount/tax/deposit + signature + prepared-by + photos,
+ * with the first section growing 1..30 items so the signature, terms cards and
+ * photo rows land on every page boundary and the item rows spill onto a
+ * continuation page that draws the "<Section> (cont.)" title; run once with 3
+ * photos (one row) and once with 7 (three rows, the last one partial)),
+ * sweep a range of candidate extra safety-margin values, and
  * report the SMALLEST candidate that produces ZERO mismatches between the
  * engine's page count and the real rendered PDF's page count, across every
  * fixture, for BOTH templates.
@@ -52,6 +60,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 // mirrors pagination-drift-spike.ts's own convention.
 import * as fontkit from 'fontkit'
 import LineBreaker from 'linebreak'
+import sharp from 'sharp'
 import EstimatePDF from '../components/pdf/estimate-pdf'
 import EstimatePDFModern from '../components/pdf/estimate-pdf-modern'
 import {
@@ -72,6 +81,7 @@ import type { PageConstraints, PageAssignment } from '../lib/estimate/pagination
 import type { MeasurementProvider } from '../lib/estimate/pagination/measure/types'
 import { deriveDepositDisplay, type DepositDisplayRow } from '../lib/estimate/deposit-display'
 import { resolvePresentationSettings } from '../lib/estimate/presentation-settings'
+import { countPdfPages } from '../lib/pdf/count-pdf-pages'
 import { LABELS as PDF_LABELS } from '../lib/estimate/document/labels'
 import type { EstimateTemplateId } from '../lib/estimate/templates/registry'
 
@@ -396,14 +406,96 @@ function buildSummaryPlusDepositEstimate(): Record<string, unknown> {
   })
 }
 
+// Everything the rich fixtures add on top of a plain estimate. Passed to BOTH
+// blocksFromModel (via buildPages) and the real render (via realPageCount) so the
+// engine and the renderer always see the same signature / photos / company.
+interface RenderExtras {
+  company?: typeof FIXTURE_COMPANY & { estimate_terms_enabled?: boolean; estimate_terms_text?: string | null }
+  signature?: { signerName: string; signedAt: string; signatureDataUrl: string } | null
+  photos?: { url: string; caption: string | null }[]
+  preparedBy?: string | null
+  /** Bill To client (info-grid column). The engine never sees it (blocksFromModel's info-grid height is a fixed estimate), so the rich fixtures pass a FULL one to prove that estimate bounds the real grid. */
+  client?: { name: string; email: string | null; phone: string | null; address: string | null; city: string | null; state: string | null; zip: string | null } | null
+}
+
+const RICH_COMPANY = {
+  ...FIXTURE_COMPANY,
+  estimate_terms_enabled: true,
+  estimate_terms_text:
+    'All work is performed in accordance with local building codes. Change orders must be approved in writing before work proceeds. Client is responsible for securing required HOA approvals prior to the start date.',
+}
+
+// n items in the first section (the sweep variable), 2 in the second; every
+// optional block of the document is populated.
+function buildRichEstimate(n: number): Record<string, unknown> {
+  const mk = (sec: string, count: number, offset: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `${sec}-item-${i}`,
+      section_id: sec,
+      company_id: 'cal-co-1',
+      description: `Line item ${offset + i + 1}: detailed scope of work covering labor and materials for this phase of the project, including site prep and cleanup`,
+      quantity: 1,
+      unit: 'ea',
+      unit_price: 100,
+      total: 100,
+      sort_order: i + 1,
+      price_source: null,
+    }))
+  const sections = [
+    { id: 'rich-sec-1', estimate_id: 'cal-est-1', company_id: 'cal-co-1', title: 'Demolition and Site Preparation', sort_order: 1, subtotal: n * 100, items: mk('rich-sec-1', n, 0) },
+    { id: 'rich-sec-2', estimate_id: 'cal-est-1', company_id: 'cal-co-1', title: 'Finish Carpentry', sort_order: 2, subtotal: 200, items: mk('rich-sec-2', 2, n) },
+  ]
+  const subtotal = (n + 2) * 100
+  return baseEstimateFields({
+    sections,
+    subtotal,
+    summary:
+      'Complete kitchen and dining area renovation: demolition, reframing, electrical and plumbing rough-in, drywall, cabinetry and finish carpentry. Work is scheduled over six weeks with a dedicated project lead and weekly progress walkthroughs.',
+    payment_terms:
+      '30% deposit due at signing, 40% at rough-in inspection, 30% at substantial completion. Net 15 on all invoices; a 1.5% monthly late fee applies to overdue balances.',
+    timeline:
+      'Estimated 6 weeks from permit approval. Start date to be confirmed once materials are on site and the building permit has been issued by the city.',
+    warranty_terms:
+      'Two year workmanship warranty on all labor. Manufacturer warranties apply to supplied materials and fixtures and are passed through to the client.',
+    notes: 'Pricing valid for 30 days. Allowance of $2,500 included for cabinet hardware and plumbing fixtures; overages billed at cost plus 10%.',
+    discount_type: 'percentage',
+    discount_value: 5,
+    discount_amount: subtotal * 0.05,
+    tax_rate: 0.0825,
+    tax_amount: 111.38,
+    total: subtotal * 0.95 + 111.38,
+    deposit_type: 'percent',
+    deposit_value: 30,
+    balance_due: (subtotal * 0.95 + 111.38) * 0.7,
+  })
+}
+
+async function buildRichExtras(photoCount: number): Promise<RenderExtras> {
+  const jpeg = `data:image/jpeg;base64,${(
+    await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 90, g: 140, b: 200 } } }).jpeg().toBuffer()
+  ).toString('base64')}`
+  const png = `data:image/png;base64,${(
+    await sharp({ create: { width: 150, height: 40, channels: 3, background: { r: 20, g: 20, b: 20 } } }).png().toBuffer()
+  ).toString('base64')}`
+  return {
+    company: RICH_COMPANY,
+    signature: { signerName: 'Jane Doe', signedAt: '2026-07-20', signatureDataUrl: png },
+    // Every other photo is captioned so both the captioned (+10pt) and uncaptioned row heights are exercised.
+    photos: Array.from({ length: photoCount }, (_, i) => ({ url: jpeg, caption: i % 2 === 0 ? `Photo ${i + 1} caption` : null })),
+    preparedBy: 'Jamie Lee',
+    client: { name: 'Robert Johnson', email: 'robert.johnson@example.com', phone: '+15125550123', address: '4821 Oak Hollow Drive', city: 'Austin', state: 'TX', zip: '78745' },
+  }
+}
+
 function buildPages(
   estimate: Record<string, unknown>,
   templateId: EstimateTemplateId,
-  extraMarginPt: number
+  extraMarginPt: number,
+  extras: RenderExtras = {}
 ): PageAssignment[] {
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
   // Calibration documents are English (no language chip) — see realPageCount's `language: 'en'`.
-  const headerHeightPt = measureHeaderHeightPt(FIXTURE_COMPANY, templateId, 'en')
+  const headerHeightPt = measureHeaderHeightPt(FIXTURE_COMPANY, templateId, 'en', createLocalFontkitMeasurementProvider())
   const compactHeaderHeightPt = measureCompactHeaderHeightPt(templateId)
   const fontFamily = ESTIMATE_DESIGN_TOKENS[templateId].fontFamily
   const safetyMarginPt = SAFETY_MARGIN_LINES * (geometry.tableCellFontSizePt * LINE_HEIGHT[fontFamily]) + extraMarginPt
@@ -430,14 +522,14 @@ function buildPages(
     notes: (estimate.notes as string | null) ?? null,
     // estimate_terms_enabled: false ≡ the previous undefined at runtime (no
     // estimate-terms card); the explicit field satisfies the weak-type check.
-    company: { ...FIXTURE_COMPANY, estimate_terms_enabled: false },
+    company: extras.company ?? { ...FIXTURE_COMPANY, estimate_terms_enabled: false },
     discount_amount: (estimate.discount_amount as number) ?? 0,
     tax_amount: (estimate.tax_amount as number) ?? 0,
     dep: deriveDepositDisplay(depositRow),
-    signature: null,
-    photos: [],
+    signature: extras.signature ?? null,
+    photos: extras.photos ?? [],
     resolvedSettings: resolvePresentationSettings((estimate as { presentation_settings?: unknown }).presentation_settings),
-    preparedBy: null,
+    preparedBy: extras.preparedBy ?? null,
     L: PDF_LABELS.en,
     templateId,
   })
@@ -447,20 +539,52 @@ function buildPages(
 async function realPageCount(
   component: typeof EstimatePDF,
   estimate: Record<string, unknown>,
-  pages: PageAssignment[]
+  pages: PageAssignment[],
+  extras: RenderExtras = {}
 ): Promise<number> {
   const element = createElement(component, {
     estimate: estimate as any,
-    company: FIXTURE_COMPANY as any,
-    client: null,
+    company: (extras.company ?? FIXTURE_COMPANY) as any,
+    client: (extras.client ?? null) as any,
     projectName: 'Calibration Test',
     projectType: null,
     language: 'en',
+    signature: extras.signature ?? null,
+    attachedPhotos: extras.photos ?? [],
+    preparedBy: extras.preparedBy ?? null,
     pages,
   })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buf = await renderToBuffer(element as any)
-  return (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
+  return countPdfPages(buf)
+}
+
+/** Fails fast (before the sweep) if the rich fixtures stop exercising what they
+ *  exist for: photo rows (incl. a second/third row), the signature card, every
+ *  terms card, prepared-by in its post-signature / pre-photo position, and a
+ *  continuation page (`continuesTable`, which draws the "(cont.)" title) —
+ *  for BOTH templates. Prints what was covered. */
+async function assertRichCoverage(rich3: RenderExtras, rich7: RenderExtras) {
+  for (const templateId of ['classic', 'modern'] as const) {
+    const withContinuation = buildPages(buildRichEstimate(20), templateId, 0, rich7)
+    const kinds = withContinuation.flatMap((p) => p.blocks.map((b) => b.kind))
+    const has = (k: string) => kinds.includes(k as never)
+    const termsCards = withContinuation.flatMap((p) => p.blocks).filter((b) => b.kind === 'terms-card').length
+    const photoRows = kinds.filter((k) => k === 'photo-row').length
+    const continuation = withContinuation.some((p) => p.pageIndex > 0 && p.continuesTable)
+    const iPrepared = kinds.indexOf('prepared-by')
+    const orderOk = iPrepared > kinds.lastIndexOf('signature') && iPrepared < kinds.indexOf('photo-row')
+    if (!has('signature') || termsCards !== 5 || photoRows !== 3 || !continuation || !orderOk) {
+      throw new Error(
+        `${templateId}: rich fixture no longer covers signature/5 terms cards/3 photo rows/continuation/prepared-by order ` +
+          `(signature=${has('signature')} termsCards=${termsCards} photoRows=${photoRows} continuation=${continuation} orderOk=${orderOk})`
+      )
+    }
+    const onePhotoRow = buildPages(buildRichEstimate(5), templateId, 0, rich3).flatMap((p) => p.blocks).filter((b) => b.kind === 'photo-row').length
+    console.log(
+      `coverage ${templateId}: pages=${withContinuation.length} signature=yes terms-cards=${termsCards} photo-rows=${photoRows} (3-photo variant: ${onePhotoRow}) continuation-page=yes prepared-by-order=ok`
+    )
+  }
 }
 
 async function main() {
@@ -470,6 +594,9 @@ async function main() {
     ? process.env.CAL_CANDIDATES.split(',').map((v) => Number(v.trim()))
     : [0, 10, 20, 30, 40, 50, 60, 70, 78, 80, 90, 100]
   const summary: { marginPt: number; mismatches: number }[] = []
+  const rich3 = await buildRichExtras(3)
+  const rich7 = await buildRichExtras(7)
+  await assertRichCoverage(rich3, rich7)
 
   for (const marginPt of candidates) {
     let mismatches = 0
@@ -485,6 +612,23 @@ async function main() {
         if (real !== pages.length) {
           mismatches += 1
           details.push(`${templateId} single-section n=${n}: engine=${pages.length} real=${real}`)
+        }
+      }
+
+      // RICH sweep — see the header comment. n=1..30 items in section 1 walks the
+      // signature / terms cards / photo rows across every page boundary.
+      for (const [photoLabel, extras] of [
+        ['3 photos', rich3],
+        ['7 photos', rich7],
+      ] as const) {
+        for (let n = 1; n <= 30; n++) {
+          const estimate = buildRichEstimate(n)
+          const pages = buildPages(estimate, templateId, marginPt, extras)
+          const real = await realPageCount(component, estimate, pages, extras)
+          if (real !== pages.length) {
+            mismatches += 1
+            details.push(`${templateId} rich (${photoLabel}) n=${n}: engine=${pages.length} real=${real}`)
+          }
         }
       }
 

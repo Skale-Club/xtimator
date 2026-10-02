@@ -109,16 +109,45 @@ export const ESTIMATE_PAGE_GEOMETRY: Record<EstimateTemplateId, EstimatePageGeom
 // pagination core (lib/estimate/pagination/blocks-from-model.ts, Plan
 // 184-03) never has to import from components/pdf/* — both that file AND
 // pdf-photo-grid.tsx (Plan 184-04) import this same function instead of
-// each re-deriving the 150pt-tile/8pt-gap chunking formula.
-// PDF-PHOTO-01 exported this: it is not only the chunking input, it is the
-// literal on-page size of a photo tile, which is what
-// lib/pdf/resolve-pdf-photos.ts must downscale to (and what
-// components/pdf/shared/pdf-photo-grid.tsx draws). Three call sites, one number.
+// each re-deriving the tile/gap chunking formula.
+//
+// PHOTO_TILE_WIDTH_PT is the NOMINAL (minimum) tile width: it only decides how
+// many tiles fit per row (photosPerRow). The tile actually DRAWN is stretched so
+// each row spans the whole content width — see photoTileWidthPt below. Using the
+// nominal width alone left a dead strip on the right of every row (Classic
+// 532pt content = 3 x 150 + 2 x 8 = 466pt drawn).
 export const PHOTO_TILE_WIDTH_PT = 150
-const PHOTO_TILE_GAP_PT = 8
+export const PHOTO_TILE_GAP_PT = 8
 export function photosPerRow(contentWidthPt: number): number {
   return Math.floor(contentWidthPt / (PHOTO_TILE_WIDTH_PT + PHOTO_TILE_GAP_PT))
 }
+
+/** The on-page edge (pt) of one SQUARE photo tile for a template whose content
+ *  box is `contentWidthPt` wide: a full row of `photosPerRow` tiles separated by
+ *  PHOTO_TILE_GAP_PT spans the content width exactly. Classic 532 -> 172,
+ *  Modern 508 -> 164. components/pdf/shared/pdf-photo-grid.tsx draws this size
+ *  and blocks-from-model.ts charges it as the photo-row height — one function,
+ *  so measure and render cannot disagree. */
+export function photoTileWidthPt(contentWidthPt: number): number {
+  const perRow = Math.max(1, photosPerRow(contentWidthPt))
+  return (contentWidthPt - PHOTO_TILE_GAP_PT * (perRow - 1)) / perRow
+}
+
+/** The LARGEST tile any template draws. lib/pdf/resolve-pdf-photos.ts runs
+ *  before a template is chosen for the pixels it embeds, so it downscales to
+ *  this edge (>= every template's photoTileWidthPt) and never up-samples. */
+export const PHOTO_TILE_MAX_WIDTH_PT = Math.max(
+  ...Object.values(ESTIMATE_PAGE_GEOMETRY).map((geometry) => photoTileWidthPt(geometry.contentWidthPt))
+)
+
+/** Classic-only inner box of a terms / signature card (the brand-tint card):
+ *  inner padding on every side, a small corner radius, and the gap between two
+ *  consecutive cards. Modern's cards are fill-free and keep their original
+ *  box-less layout, so Modern never reads this. Consumed by
+ *  components/pdf/estimate-pdf.tsx (passed to PdfTermsCard / PdfSignatureBlock)
+ *  AND lib/estimate/pagination/blocks-from-model.ts (the card's measured
+ *  height and text width) — change it here and both follow. */
+export const CLASSIC_CARD_BOX = { paddingPt: 10, radiusPt: 4, marginBottomPt: 8 } as const
 
 // Phase 186 Plan 02 (POLISH-01) — the ONE shared, guarded source for the
 // subtle brand-tint background behind terms/signature cards. Both the

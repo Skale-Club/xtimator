@@ -67,6 +67,11 @@ export interface PageBlock {
    *  info-grid's client name/address). Absent for fixed-height blocks
    *  (section-subtotal, totals, signature, photo-row, prepared-by). */
   measurement?: TextMeasurement
+  /** Present only on 'photo-row' blocks: SIDE-BY-SIDE text boxes (one per captioned
+   *  tile in the row). They sit next to each other, so the block's text height is
+   *  the TALLEST of them (max over entries of wrapped lines x lineHeight x fontSize),
+   *  not the sum — and it is added on top of baseHeightPt. Absent/empty = no text. */
+  parallelMeasurements?: TextMeasurement[]
   /** Set ONLY on 'section-header' blocks: the id of the item-row block that
    *  MUST land on the same page (the section's first row). */
   keepWithNextId?: string

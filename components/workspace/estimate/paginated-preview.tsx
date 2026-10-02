@@ -271,8 +271,37 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   )
 }
 
-function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx) {
+function renderSectionHeaderBar(sectionId: string, ctx: RenderCtx, continued = false) {
   const section = ctx.sectionsById.get(sectionId)
+  if (continued) {
+    // PGBRK-03 continuation title — mirrors the PDF's PdfSectionHeader with
+    // `continuedLabel`: the section title (single line, ellipsised) followed by
+    // the localized "(cont.)" suffix, on the same brand band as a normal section
+    // header. Deliberately NO data-page-block-id: it is not an engine block (its
+    // height is the continuation reservation), and `${sectionId}-header` already
+    // names the section's real header block on an earlier page.
+    return (
+      <div
+        key={`${sectionId}-continued-title`}
+        data-testid="continuation-title"
+        className="flex items-center gap-1 px-10 py-2"
+        style={{ backgroundColor: ctx.brandColor }}
+      >
+        <span
+          className="min-w-0 truncate font-semibold text-base tracking-wide select-none"
+          style={{ color: ctx.brandOnFill }}
+        >
+          {section?.title ?? ''}
+        </span>
+        <span
+          className="flex-shrink-0 font-semibold text-base tracking-wide select-none"
+          style={{ color: ctx.brandOnFill }}
+        >
+          {ctx.L.continued}
+        </span>
+      </div>
+    )
+  }
   return (
     <div
       key={`${sectionId}-header`}
@@ -537,14 +566,24 @@ function renderPageBlocks(blocks: PageBlock[], ctx: RenderCtx, continuesTable: b
       while (j < blocks.length && blocks[j].kind === 'item-row' && blocks[j].ref?.sectionId === sectionId) j += 1
       const rowBlocks = blocks.slice(i, j)
       const isContinuationSlice = continuesTable && i === 0
+      const table = renderItemTable(
+        sectionId,
+        rowBlocks,
+        ctx,
+        isContinuationSlice,
+        `${sectionId}-continued-${i}`,
+        isContinuationSlice ? 'continuation-header' : undefined
+      )
       out.push(
-        renderItemTable(
-          sectionId,
-          rowBlocks,
-          ctx,
-          isContinuationSlice,
-          `${sectionId}-continued-${i}`,
-          isContinuationSlice ? 'continuation-header' : undefined
+        isContinuationSlice ? (
+          // The continuation slice opens the page: section title + "(cont.)" band
+          // ABOVE the repeated column header, as the PDF draws them.
+          <div key={`${sectionId}-continued-${i}-group`}>
+            {renderSectionHeaderBar(sectionId, ctx, true)}
+            {table}
+          </div>
+        ) : (
+          table
         )
       )
       i = j

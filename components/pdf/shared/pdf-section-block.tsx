@@ -52,6 +52,23 @@ export interface PdfSectionHeaderProps {
   solidFill: boolean
   brandColor: string
   brandOnFill: string
+  /** Title text colour when there is NO solid fill (Modern passes brandText — the
+   * readable-on-white brand colour). Ignored when solidFill (the title then uses
+   * brandOnFill over the brand band). Omit to keep styles.sectionTitle's own colour. */
+  titleColor?: string
+  /** When set, this is the CONTINUATION header drawn at the top of a page that
+   * opens mid-section (PageAssignment.continuesTable): the title is followed by
+   * this localized suffix (L.continued, e.g. "(cont.)") and the whole title is
+   * forced to ONE line — the title Text is capped at 80% of the band with
+   * maxLines 1 + ellipsis (react-pdf takes maxLines/textOverflow as style props;
+   * maxWidth is load-bearing, a Text never shrinks below its unwrapped width) so a
+   * long section name is cut with "…" while the suffix always stays visible, and
+   * the band is exactly one line tall — which is what
+   * lib/pdf/measure-header-height.ts's CONTINUATION_SECTION_TITLE_HEIGHT_PT
+   * charges. marginTop is also dropped to 0: the compact page header above
+   * already carries its own marginBottom, so the section band's usual leading
+   * space would double up. */
+  continuedLabel?: string
   styles: Pick<PdfSectionBlockStyles, 'sectionHeader' | 'sectionTitle'>
 }
 
@@ -61,26 +78,33 @@ export function PdfSectionHeader({
   solidFill,
   brandColor,
   brandOnFill,
+  titleColor,
+  continuedLabel,
   styles,
 }: PdfSectionHeaderProps) {
+  const textColor = solidFill ? brandOnFill : titleColor
+  const titleStyle = textColor ? [styles.sectionTitle, { color: textColor }] : styles.sectionTitle
+  if (continuedLabel) {
+    const bandBase = [styles.sectionHeader, { marginTop: 0 }]
+    const titleParts: Style[] = [styles.sectionTitle, ...(textColor ? [{ color: textColor }] : [])]
+    return (
+      <View
+        key={`${sectionId}-cont-header`}
+        style={solidFill ? [...bandBase, { backgroundColor: brandColor }] : bandBase}
+      >
+        <View style={{ flexDirection: 'row' }}>
+          <Text style={[...titleParts, { maxWidth: '80%', maxLines: 1, textOverflow: 'ellipsis' }]}>{title}</Text>
+          <Text style={[...titleParts, { marginLeft: 4 }]}>{continuedLabel}</Text>
+        </View>
+      </View>
+    )
+  }
   return (
     <View
       key={`${sectionId}-header`}
-      style={
-        solidFill
-          ? [styles.sectionHeader, { backgroundColor: brandColor }]
-          : styles.sectionHeader
-      }
+      style={solidFill ? [styles.sectionHeader, { backgroundColor: brandColor }] : styles.sectionHeader}
     >
-      <Text
-        style={
-          solidFill
-            ? [styles.sectionTitle, { color: brandOnFill }]
-            : styles.sectionTitle
-        }
-      >
-        {title}
-      </Text>
+      <Text style={titleStyle}>{title}</Text>
     </View>
   )
 }

@@ -30,12 +30,15 @@
 //
 // --- Why this is affordable for up to 50 photos ---
 //
-// The grid draws each photo into a SQUARE {@link PHOTO_TILE_WIDTH_PT}pt cell
-// with `objectFit: 'cover'`, so a full-resolution image is mostly cropped away
-// and then downsampled by the viewer. Every photo is therefore pre-cropped and
+// The grid draws each photo into a SQUARE cell of at most {@link PHOTO_TILE_MAX_WIDTH_PT}pt
+// (the full-content-width tile: Classic 172pt, Modern 164pt) with
+// `objectFit: 'cover'`, so a full-resolution image is mostly cropped away and
+// then downsampled by the viewer. Every photo is therefore pre-cropped and
 // downscaled to exactly that cell at {@link PHOTO_TARGET_DPI} before it is
-// embedded. Measured on real PDF bytes with 6 photo-like (incompressible noise)
-// sources: 372 kB total vs 8.9 MB if the full-resolution images were inlined —
+// embedded. Measured on real PDF bytes (at the former 150pt tile — the 172pt
+// tile is ~30% more pixels, same order of magnitude) with 6 photo-like
+// (incompressible noise) sources: 372 kB total vs 8.9 MB if the full-resolution
+// images were inlined —
 // 24x smaller, and that is the WORST case for JPEG. Reads/transcodes run at
 // {@link RESOLVE_CONCURRENCY} at a time so 50 photos never hold 50 decoded
 // bitmaps in memory at once.
@@ -48,13 +51,13 @@
 // the photos that will be drawn.
 import 'server-only'
 import type { StorageProvider } from '@/lib/storage'
-import { PHOTO_TILE_WIDTH_PT } from '@/lib/estimate/document/tokens'
+import { PHOTO_TILE_MAX_WIDTH_PT } from '@/lib/estimate/document/tokens'
 import { transcodeToPdfSafeDataUri } from './transcode-pdf-image'
 
 /**
  * Target print resolution for a photo tile. 200 DPI is the low end of "looks
  * like a photograph, not like a screenshot" in print, and well past what any
- * on-screen PDF viewer resolves. With a 150pt tile that is a 417x417 image —
+ * on-screen PDF viewer resolves. With the 172pt tile that is a 478x478 image —
  * ~60 kB of JPEG for worst-case (noise) content, ~15-25 kB for a real photo.
  */
 const PHOTO_TARGET_DPI = 200
@@ -63,11 +66,15 @@ const PHOTO_TARGET_DPI = 200
 const POINTS_PER_INCH = 72
 
 /**
- * The exact pixel size of the square the grid draws, derived from the grid's own
- * shared tile token — never a hand-guessed constant. Changing the tile size in
- * lib/estimate/document/tokens.ts automatically re-targets the transcode.
+ * The pixel size of the largest square the grid draws (the template with the
+ * widest tile), derived from the grid's own shared tile token — never a
+ * hand-guessed constant. The photo is resolved before a template is applied, so
+ * it is cropped/downscaled to the biggest tile any template draws (172pt ->
+ * 478px at 200 DPI; the narrower Modern tile just gets slightly more pixels than
+ * it needs). Changing the tile geometry in lib/estimate/document/tokens.ts
+ * automatically re-targets the transcode.
  */
-export const PHOTO_CELL_EDGE_PX = Math.round((PHOTO_TILE_WIDTH_PT / POINTS_PER_INCH) * PHOTO_TARGET_DPI)
+export const PHOTO_CELL_EDGE_PX = Math.round((PHOTO_TILE_MAX_WIDTH_PT / POINTS_PER_INCH) * PHOTO_TARGET_DPI)
 
 /** Visually indistinguishable from q90 at this size, ~30% smaller. */
 const PHOTO_JPEG_QUALITY = 82
