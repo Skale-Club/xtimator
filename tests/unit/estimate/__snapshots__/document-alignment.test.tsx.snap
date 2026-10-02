@@ -107,7 +107,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
               $10.00
             </span>
             <span
-              class="font-medium text-foreground tabular-nums"
+              class="font-semibold text-foreground tabular-nums"
             >
               $100.00
             </span>

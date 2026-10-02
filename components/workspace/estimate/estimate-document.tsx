@@ -49,6 +49,7 @@ import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { CompanyContactLinks } from '@/components/estimate/company-contact-links'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import { ClientPicker } from '@/components/clients/client-picker'
@@ -745,7 +746,7 @@ function DocumentSectionBlock({
                   {item.quantity} {item.unit ? item.unit : ''} ×{' '}
                   {formatMoney(item.unit_price, currencyCode)}
                 </span>
-                <span className="font-medium text-foreground tabular-nums">
+                <span className="font-semibold text-foreground tabular-nums">
                   {formatMoney(item.total, currencyCode)}
                 </span>
               </div>
@@ -1640,15 +1641,11 @@ export function EstimateDocument({
             {company.owner_name && (
               <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {[
-                company.phone && formatPhoneForDisplay(company.phone),
-                company.email,
-                company.website,
-              ]
-                .filter(Boolean)
-                .join('  ·  ')}
-            </p>
+            <CompanyContactLinks
+              phone={company.phone}
+              email={company.email}
+              website={company.website}
+            />
             {companyAddr && (
               <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
                 {companyAddr}
@@ -1725,7 +1722,7 @@ export function EstimateDocument({
             </p>
           )}
           {isEditable && dispatch ? (
-            <div className="mt-2 flex items-center gap-1 text-base text-muted-foreground">
+            <div className="mt-2 flex items-center text-base text-muted-foreground">
               <span className="shrink-0 select-none">{L.estimateNum}</span>
               <input
                 value={data.estimate_number ?? defaultEstimateNumber}

@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import { formatMoney } from '@/lib/money/currency'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
+import { CompanyContactLinks } from '@/components/estimate/company-contact-links'
 import { ensureReadableOnWhite } from '@/lib/color/contrast'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
@@ -141,15 +142,11 @@ export function EstimateDocumentModern({
           {company.owner_name && (
             <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
           )}
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {[
-              company.phone && formatPhoneForDisplay(company.phone),
-              company.email,
-              company.website,
-            ]
-              .filter(Boolean)
-              .join('  ·  ')}
-          </p>
+          <CompanyContactLinks
+            phone={company.phone}
+            email={company.email}
+            website={company.website}
+          />
           {companyAddr && (
             <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
               {companyAddr}
@@ -274,7 +271,7 @@ export function EstimateDocumentModern({
                       {item.quantity} {item.unit ? item.unit : ''} ×{' '}
                       {formatMoney(item.unit_price, data.currency_code)}
                     </span>
-                    <span className="font-medium text-foreground tabular-nums">
+                    <span className="font-semibold text-foreground tabular-nums">
                       {formatMoney(item.total, data.currency_code)}
                     </span>
                   </div>
@@ -351,6 +348,18 @@ export function EstimateDocumentModern({
               </div>
             )}
 
+            {/* Grand total — large standalone "hero" number; the thick brand rule above it
+                separates the line items from the total. Order matches the PDF:
+                Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
+            <div className="pt-6 mt-3 border-t-2" style={{ borderTopColor: brandColor }}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-2">
+                {L.grandTotal}
+              </p>
+              <p className="text-4xl sm:text-5xl font-bold tabular-nums" style={{ color: brandText }}>
+                {fmt(data.total)}
+              </p>
+            </div>
+
             {dep.showDeposit && (
               <div className="flex justify-between text-base">
                 <span className="text-muted-foreground select-none">{L.deposit}</span>
@@ -368,16 +377,6 @@ export function EstimateDocumentModern({
                 <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
               </div>
             )}
-
-            {/* Grand total — large standalone "hero" number, generous margin */}
-            <div className="pt-6 mt-3 border-t-2" style={{ borderTopColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-2">
-                {L.grandTotal}
-              </p>
-              <p className="text-4xl sm:text-5xl font-bold tabular-nums" style={{ color: brandText }}>
-                {fmt(data.total)}
-              </p>
-            </div>
           </div>
         </div>
       </div>

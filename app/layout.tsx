@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Lora } from "next/font/google"
 import { ThemeProvider } from "next-themes"
 import { Toaster } from "@/components/ui/sonner"
 import { getBranding } from "@/lib/platform-config"
@@ -11,6 +11,14 @@ import "./globals.css"
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+})
+
+// Modern estimate template serif (matches the Lora used by the Modern PDF).
+const lora = Lora({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+  variable: "--font-lora",
 })
 
 export const viewport: Viewport = {
@@ -66,7 +74,7 @@ export default function RootLayout({
     <html
       lang="en"
       translate="no"
-      className={`${inter.variable} h-full antialiased`}
+      className={`${inter.variable} ${lora.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
