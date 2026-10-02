@@ -7,7 +7,8 @@ import { resolveClientIp } from '@/lib/http/client-ip'
  * Behavior is pinned to match app/api/estimates/[id]/sign/route.ts's
  * pre-extraction inline logic EXACTLY (also asserted behaviorally through the
  * route by tests/unit/api/sign-route-contract.test.ts):
- *   - last x-forwarded-for entry wins (single trusted appending edge proxy)
+ *   - the chain is read right-to-left; the last public hop wins unless it is a
+ *     Cloudflare edge, in which case cf-connecting-ip is the visitor
  *   - x-real-ip is never read
  *   - isIP() gates the result — anything that isn't a well-formed IPv4/IPv6
  *     literal resolves to null, never a raw string
@@ -60,5 +61,23 @@ describe('resolveClientIp', () => {
   it('empty string header resolves to null', () => {
     const headers = new Headers({ 'x-forwarded-for': '' })
     expect(resolveClientIp(headers)).toBeNull()
+  })
+
+  it('behind Cloudflare, returns cf-connecting-ip instead of the edge IP', () => {
+    const headers = new Headers({
+      'x-forwarded-for': '198.51.100.44, 172.70.1.1',
+      'cf-connecting-ip': '198.51.100.44',
+    })
+    expect(resolveClientIp(headers)).toBe('198.51.100.44')
+  })
+
+  it('ignores a forged cf-connecting-ip when the peer is not Cloudflare', () => {
+    const headers = new Headers({ 'x-forwarded-for': '203.0.113.9', 'cf-connecting-ip': '1.2.3.4' })
+    expect(resolveClientIp(headers)).toBe('203.0.113.9')
+  })
+
+  it('skips internal proxy hops appended after the visitor', () => {
+    const headers = new Headers({ 'x-forwarded-for': '6.6.6.6, 203.0.113.9, 10.0.1.5' })
+    expect(resolveClientIp(headers)).toBe('203.0.113.9')
   })
 })
