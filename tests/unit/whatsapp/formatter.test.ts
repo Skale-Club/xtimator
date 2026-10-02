@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { LABELS as DOCUMENT_LABELS } from '@/lib/estimate/document/labels'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
 
 const BASE_ESTIMATE: FormatterEstimate = {
@@ -89,9 +90,10 @@ describe('formatEstimateForWhatsApp', () => {
     expect(result).toMatch(/Discount \(10%\): -\$250\.00/)
   })
 
-  it('renders grand total with "Total Estimate:" label', () => {
+  it('renders grand total with the document "Total:" label (not the old "Total Estimate:")', () => {
     const result = formatEstimateForWhatsApp(BASE_ESTIMATE, null, null)
-    expect(result).toMatch(/Total Estimate: \$2,750\.00/)
+    expect(result).toMatch(/^Total: \$2,750\.00$/m)
+    expect(result).not.toMatch(/Total Estimate/)
   })
 
   it('includes friendly closing message', () => {
@@ -141,7 +143,7 @@ describe('formatEstimateForWhatsApp', () => {
     expect(result).toMatch(/Deposit: -\$825\.00/)
     expect(result).toMatch(/Balance Due: \$1,925\.00/)
     // order: Total before Deposit before Balance Due
-    const totalIdx = result.indexOf('Total Estimate:')
+    const totalIdx = result.indexOf('\nTotal:')
     const depositIdx = result.indexOf('Deposit:')
     const balanceIdx = result.indexOf('Balance Due:')
     expect(totalIdx).toBeLessThan(depositIdx)
@@ -200,5 +202,40 @@ describe('formatEstimateForWhatsApp', () => {
     const result = formatEstimateForWhatsApp(noDeposit, null, null)
     expect(result).not.toMatch(/Deposit/)
     expect(result).not.toMatch(/Balance Due/)
+  })
+
+  // ── Label parity with lib/estimate/document/labels.ts (PDF / share / workspace) ──
+  it.each(['en', 'pt', 'es'] as const)(
+    'uses the document labels for the totals block in %s (same words as PDF and web)',
+    (language) => {
+      const D = DOCUMENT_LABELS[language]
+      const full: FormatterEstimate = {
+        ...BASE_ESTIMATE,
+        language,
+        discount_type: 'percentage',
+        discount_value: 10,
+        discount_amount: 250,
+        total: 2500,
+        deposit_type: 'percent',
+        deposit_value: 30,
+        balance_due: 1750,
+      }
+      const result = formatEstimateForWhatsApp(full, null, null)
+      expect(result).toContain(`${D.subtotal}: $2,500.00`)
+      expect(result).toContain(`${D.discount} (10%): -$250.00`)
+      expect(result).toContain(`${D.tax} (10%): $250.00`)
+      expect(result).toContain(`\n${D.grandTotal}: $2,500.00`)
+      expect(result).toContain(`${D.deposit}: -$750.00`)
+      expect(result).toContain(`${D.balanceDue}: $1,750.00`)
+    },
+  )
+
+  it('renders the grand total as plain "Total" in pt and es (was "Total do Orçamento" / "Total del Presupuesto")', () => {
+    const pt = formatEstimateForWhatsApp({ ...BASE_ESTIMATE, language: 'pt' }, null, null)
+    const es = formatEstimateForWhatsApp({ ...BASE_ESTIMATE, language: 'es' }, null, null)
+    expect(pt).toMatch(/^Total: \$2,750\.00$/m)
+    expect(es).toMatch(/^Total: \$2,750\.00$/m)
+    expect(pt).not.toMatch(/Total do Orçamento/)
+    expect(es).not.toMatch(/Total del Presupuesto/)
   })
 })

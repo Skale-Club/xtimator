@@ -16,6 +16,12 @@ export interface EstimateTemplateDefinition {
   id: 'classic' | 'modern'
   label: string
   description: string
+  /**
+   * Public path of a page-1 preview image (480px-wide WebP) shown in the
+   * Settings template picker. Generated from the REAL PDF renderer by
+   * scripts/generate-template-thumbnails.ts - re-run it after changing a PDF template.
+   */
+  thumbnail: string
 }
 
 export const ESTIMATE_TEMPLATES: ReadonlyArray<EstimateTemplateDefinition> = [
@@ -24,12 +30,14 @@ export const ESTIMATE_TEMPLATES: ReadonlyArray<EstimateTemplateDefinition> = [
     label: 'Classic',
     description:
       'Bold corporate letterhead with brand-colored section headers and a boxed totals table.',
+    thumbnail: '/estimate-templates/classic.webp',
   },
   {
     id: 'modern',
     label: 'Modern',
     description:
       'Quiet editorial style with serif typography, thin rule dividers, and a large standalone total.',
+    thumbnail: '/estimate-templates/modern.webp',
   },
 ] as const
 
