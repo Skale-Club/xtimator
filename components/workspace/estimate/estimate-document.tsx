@@ -1408,14 +1408,14 @@ export function InlineProjectName({
         disabled={isPending}
         maxLength={200}
         aria-label={t('Project name')}
-        className="text-2xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
+        className="text-xl font-bold bg-transparent border-b border-primary focus:outline-none w-full disabled:opacity-60"
       />
     )
   }
 
   return (
     <p
-      className="text-2xl font-bold cursor-pointer transition-colors border-b border-transparent hover:border-foreground/40 focus-visible:border-foreground/40 outline-none"
+      className="text-xl font-bold cursor-pointer transition-colors border-b border-transparent hover:border-foreground/40 focus-visible:border-foreground/40 outline-none"
       tabIndex={0}
       onClick={enterEdit}
       onKeyDown={(e) => {
@@ -1635,7 +1635,7 @@ export function EstimateDocument({
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
-            <p className="font-bold text-lg leading-tight" style={{ color: brandText }}>
+            <p className="font-bold text-2xl leading-tight" style={{ color: brandText }}>
               {company.name}
             </p>
             {company.owner_name && (
@@ -1677,11 +1677,11 @@ export function EstimateDocument({
 
       {/* ESTIMATE title */}
       <div
-        className="py-6 px-6 sm:px-10 text-center"
+        className="py-3 sm:py-6 px-6 sm:px-10 text-center"
         style={{ backgroundColor: brandColor }}
       >
         <h1
-          className="text-3xl sm:text-4xl font-bold tracking-widest select-none"
+          className="text-2xl sm:text-4xl font-bold tracking-widest select-none"
           style={{ color: brandOnFill }}
         >
           {L.estimate}
@@ -1698,7 +1698,7 @@ export function EstimateDocument({
           {isEditable && onRenameProject ? (
             <InlineProjectName name={projectName} onRename={onRenameProject} />
           ) : (
-            <p className="text-2xl font-bold">{projectName}</p>
+            <p className="text-xl font-bold">{projectName}</p>
           )}
           {projectType && (
             <p className="text-base text-muted-foreground mt-2 capitalize">
@@ -1761,7 +1761,7 @@ export function EstimateDocument({
               )}
             </div>
             <div className="space-y-0.5">
-              <p className="text-2xl font-bold">{client.name}</p>
+              <p className="text-xl font-bold">{client.name}</p>
               {client.email && (
                 <p className="text-base text-muted-foreground mt-1">{client.email}</p>
               )}
@@ -1999,7 +1999,7 @@ export function EstimateDocument({
 
       {/* Signature — PDFPAR-02, net-new. Data-presence gated only (no
           presentation_settings key exists for it per CONTEXT.md's locked
-          rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
+          rule — Pitfall 3). Position: Terms -> Signature -> Prepared-by -> Photos. */}
       {data.signature && (
         <div data-page-block-id="signature" data-track-section="signature" className="px-6 sm:px-10 py-6 border-t border-border/50">
           <div
@@ -2022,6 +2022,20 @@ export function EstimateDocument({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Prepared-by — Phase 185 (PGMODE-02/03), net-new. Rendered ONLY when
+          the caller supplies `preparedBy` (the editor's two call sites do;
+          the public share webview passes neither prop and never renders
+          this). Position matches the PDF / blocksFromModel order:
+          Terms -> Signature -> Prepared-by -> Photos. */}
+      {preparedBy && (
+        <div data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+            {L.preparedBy}
+          </p>
+          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
 
@@ -2052,20 +2066,6 @@ export function EstimateDocument({
               />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Prepared-by — Phase 185 (PGMODE-02/03), net-new. Rendered ONLY when
-          the caller supplies `preparedBy` (the editor's two call sites do;
-          the public share webview passes neither prop and never renders
-          this). Position matches the PDF's content order: Terms -> Signature
-          -> Photos -> Prepared-by. */}
-      {preparedBy && (
-        <div data-page-block-id="prepared-by" className="px-6 sm:px-10 py-6 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {L.preparedBy}
-          </p>
-          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
     </div>

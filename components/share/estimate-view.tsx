@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -86,7 +86,16 @@ interface EstimateViewProps {
   alreadyResponded: boolean
   appName: string
   whiteLabelMode?: boolean
+  /** "Prepared by" name, resolved server-side with the PDF's rule
+   *  (company_members.display_name of the creator, else company.owner_name). */
+  preparedBy?: string | null
 }
+
+// id of the Accept/Decline card — the mobile sticky bar scrolls to it.
+const RESPONSE_CARD_ID = 'estimate-response'
+// The fixed mobile bar covers roughly this much of the viewport bottom; the
+// response card counts as "in view" only once it clears the bar's footprint.
+const STICKY_BAR_CLEARANCE_PX = 80
 
 // Pre-launch audit fix: an anonymous client's browser has no prior
 // LanguageProvider preference, so without this scoped override every
@@ -110,6 +119,7 @@ function EstimateViewInner({
   alreadyResponded,
   appName,
   whiteLabelMode = false,
+  preparedBy = null,
 }: EstimateViewProps) {
   const { t } = useTranslation()
   const [responding, setResponding] = useState<'accepted' | 'declined' | null>(null)
@@ -130,6 +140,26 @@ function EstimateViewInner({
   // is always-on here.
   const documentContainerRef = useRef<HTMLDivElement | null>(null)
   useEstimateTracking({ token, containerRef: documentContainerRef })
+
+  // Accept/Decline card visibility drives the mobile sticky bar: the bar is
+  // hidden whenever the real buttons are on screen so it never covers them.
+  // A callback ref (state, not useRef) because the card unmounts/remounts when
+  // the signature pad opens and closes, and the observer must follow it.
+  const [responseCardEl, setResponseCardEl] = useState<HTMLDivElement | null>(null)
+  const [responseCardVisible, setResponseCardVisible] = useState(false)
+  const responseCardRef = useCallback((el: HTMLDivElement | null) => setResponseCardEl(el), [])
+  useEffect(() => {
+    if (!responseCardEl || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const latest = entries[entries.length - 1]
+        if (latest) setResponseCardVisible(latest.isIntersecting)
+      },
+      { rootMargin: `0px 0px -${STICKY_BAR_CLEARANCE_PX}px 0px` }
+    )
+    observer.observe(responseCardEl)
+    return () => observer.disconnect()
+  }, [responseCardEl])
 
   const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
   const { company, project } = estimate
@@ -274,6 +304,33 @@ function EstimateViewInner({
     .reduce((sum, inv) => sum + (inv.amount_cents ?? 0), 0)
   const uninvoicedCents = Math.max(0, (estimate.total_amount_cents ?? 0) - invoicedCents)
 
+  // Company "Estimate Terms" now render INSIDE the document (first terms card),
+  // exactly as in the PDF/preview, so the public page and the PDF carry the
+  // same content. Passed identically to both templates.
+  const companyTerms = {
+    enabled: company.estimate_terms_enabled ?? false,
+    text: company.estimate_terms_text ?? null,
+  }
+
+  // Mobile sticky Accept bar — same availability conditions as the
+  // Accept/Decline card (not yet responded, signature pad not open), and only
+  // while that card is off screen.
+  const responseUiAvailable = !responded && !showSignaturePad
+  const showStickyAcceptBar = responseUiAvailable && !responseCardVisible
+  const stickyTotal = formatMinorUnits(
+    estimate.total_amount_cents ?? 0,
+    estimate.currency_code ?? 'USD'
+  )
+
+  function scrollToResponseCard() {
+    const el = document.getElementById(RESPONSE_CARD_ID)
+    if (!el) return
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+  }
+
   // ---------------------------------------------------------------------------
   // Respond handlers
   // ---------------------------------------------------------------------------
@@ -331,7 +388,14 @@ function EstimateViewInner({
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      className={
+        // Keep the last content clear of the fixed mobile bar (+ iOS home indicator).
+        responded
+          ? 'space-y-4'
+          : 'space-y-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-0'
+      }
+    >
       {/* Language chip — floated above the document */}
       {estimate.language && estimate.language !== 'en' && (
         <div className="flex justify-end">
@@ -355,6 +419,8 @@ function EstimateViewInner({
             estimateVersion={estimate.version}
             estimateSeq={estimate.estimate_seq}
             estimateCreatedAt={estimate.created_at}
+            preparedBy={preparedBy}
+            companyTerms={companyTerms}
           />
         ) : (
           <EstimateDocument
@@ -368,26 +434,11 @@ function EstimateViewInner({
             estimateVersion={estimate.version}
             estimateSeq={estimate.estimate_seq}
             estimateCreatedAt={estimate.created_at}
+            preparedBy={preparedBy}
+            companyTerms={companyTerms}
           />
         )}
       </div>
-
-      {/* Estimate Terms (company-level) */}
-      {estimate.company.estimate_terms_enabled && estimate.company.estimate_terms_text && (
-        <Card variant="glass">
-          <CardContent className="p-4 sm:p-6">
-            <h3
-              className="text-sm font-semibold uppercase tracking-wider mb-3"
-              style={{ color: brandText }}
-            >
-              {t('Estimate Terms')}
-            </h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-              {estimate.company.estimate_terms_text}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Phase 94 — issued-invoice pay links. Open invoices get a "Pay" button to
           the Stripe-hosted invoice page; paid invoices show a muted confirmation. */}
@@ -504,7 +555,7 @@ function EstimateViewInner({
       {/* Accept / Decline CTA — lives outside the document surface (P10)    */}
       {/* ------------------------------------------------------------------ */}
       {!showSignaturePad && (
-        <Card variant="glass">
+        <Card variant="glass" id={RESPONSE_CARD_ID} ref={responseCardRef}>
           <CardContent className="p-6 sm:p-8">
             {responded ? (
               <div className="text-center space-y-2">
@@ -577,6 +628,34 @@ function EstimateViewInner({
           <p>
             {t('Generated by')} <span className="font-medium">{appName}</span>
           </p>
+        </div>
+      )}
+
+      {/* Mobile-only sticky Accept bar. Tapping scrolls to the real
+          Accept/Decline card (never accepts directly); hidden while that card
+          is in view or the signature pad is open. */}
+      {showStickyAcceptBar && (
+        <div
+          data-testid="mobile-accept-bar"
+          className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur sm:hidden"
+        >
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t('Total')}</p>
+            <p
+              className="truncate text-lg font-semibold leading-tight tabular-nums"
+              style={{ color: brandText }}
+            >
+              {stickyTotal}
+            </p>
+          </div>
+          <Button
+            size="lg"
+            className="shrink-0 whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
+            onClick={scrollToResponseCard}
+          >
+            <CheckCircle className="mr-2 h-4 w-4" />
+            {t('Accept Estimate')}
+          </Button>
         </div>
       )}
     </div>

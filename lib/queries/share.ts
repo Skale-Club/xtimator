@@ -94,6 +94,45 @@ export interface ShareEstimateData {
     state: string | null
     zip: string | null
   } | null
+  /**
+   * "Prepared by" display name for the public document — resolved server-side
+   * with the SAME rule as the PDF (lib/pdf/render-estimate-pdf.ts): the
+   * creating staff member's company_members.display_name, else the company's
+   * owner_name. Only this single display string crosses to the browser.
+   */
+  preparedBy: string | null
+}
+
+/**
+ * Resolve the "Prepared by" name for the public share page. Mirrors
+ * renderEstimatePdf: `company_members.display_name` for the estimate's
+ * `created_by_user_id` WITHIN the estimate's company, falling back to the
+ * company's `owner_name`. Runs on the same service-role client the share
+ * queries already use and selects ONLY `display_name` (no email / role /
+ * user_id), so nothing beyond the name the PDF already prints is exposed.
+ * Never throws: any failure degrades to the owner_name fallback.
+ */
+async function resolvePreparedBy(
+  supabase: ReturnType<typeof requireServiceClient>,
+  createdByUserId: string | null | undefined,
+  companyId: string,
+  ownerName: string | null
+): Promise<string | null> {
+  let preparedBy: string | null = ownerName ?? null
+  if (!createdByUserId) return preparedBy
+  try {
+    const { data: member } = await supabase
+      .from('company_members')
+      .select('display_name')
+      .eq('user_id', createdByUserId)
+      .eq('company_id', companyId)
+      .maybeSingle()
+    const name = (member as { display_name?: string | null } | null)?.display_name
+    if (name) preparedBy = name
+  } catch {
+    // non-fatal: keep owner_name fallback
+  }
+  return preparedBy
 }
 
 export async function getEstimateByShareToken(
@@ -323,6 +362,12 @@ export async function getEstimateByShareToken(
       signatureImageDataUrl,
     },
     client,
+    preparedBy: await resolvePreparedBy(
+      supabase,
+      estimate.created_by_user_id,
+      estimate.company_id,
+      companyDataFrozen.owner_name
+    ),
   }
 }
 
@@ -539,6 +584,12 @@ export async function getEstimateByPublicToken(
       signatureImageDataUrl,
     },
     client,
+    preparedBy: await resolvePreparedBy(
+      supabase,
+      estimate.created_by_user_id,
+      estimate.company_id,
+      companyDataFrozen.owner_name
+    ),
     realShareToken,
   }
 }

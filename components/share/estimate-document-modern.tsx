@@ -56,6 +56,11 @@ interface EstimateDocumentModernProps {
   estimateVersion: number
   estimateSeq?: number
   estimateCreatedAt: string
+  /** Same semantics as EstimateDocument's `preparedBy`: rendered only when provided. */
+  preparedBy?: string | null
+  /** Same semantics as EstimateDocument's `companyTerms`: rendered FIRST in the
+   *  terms block only when enabled && text. */
+  companyTerms?: { enabled: boolean; text: string | null } | null
 }
 
 export function EstimateDocumentModern({
@@ -68,6 +73,8 @@ export function EstimateDocumentModern({
   estimateVersion,
   estimateSeq,
   estimateCreatedAt,
+  preparedBy,
+  companyTerms,
 }: EstimateDocumentModernProps) {
   // SENDHUB-04 (Phase 163): resolve once at the render boundary (mirrors
   // components/workspace/estimate/estimate-document.tsx:1592). data.presentation_settings
@@ -115,7 +122,9 @@ export function EstimateDocumentModern({
 
   // SENDHUB-04 (Phase 163): each term block is independently gated below; the
   // outer wrapper stays hidden when every gated term is invisible OR null.
+  const hasCompanyTerms = !!(companyTerms?.enabled && companyTerms.text)
   const hasTerms =
+    hasCompanyTerms ||
     (isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null) ||
     (isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null) ||
     (isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null) ||
@@ -138,7 +147,7 @@ export function EstimateDocumentModern({
         style={{ borderTopColor: brandColor, borderBottomColor: '#e4e4e7' }}
       >
         <div className="min-w-0">
-          <p className="font-bold text-lg leading-tight">{company.name}</p>
+          <p className="font-bold text-2xl leading-tight">{company.name}</p>
           {company.owner_name && (
             <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
           )}
@@ -194,7 +203,7 @@ export function EstimateDocumentModern({
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
             {L.project}
           </p>
-          <p className="text-2xl font-bold">{projectName}</p>
+          <p className="text-xl font-bold">{projectName}</p>
           {projectType && (
             <p className="text-base text-muted-foreground mt-2 capitalize">
               {projectType.replace(/_/g, ' ')}
@@ -215,7 +224,7 @@ export function EstimateDocumentModern({
               {L.billTo}
             </p>
             <div className="space-y-0.5">
-              <p className="text-2xl font-bold">{client.name}</p>
+              <p className="text-xl font-bold">{client.name}</p>
               {client.email && (
                 <p className="text-base text-muted-foreground mt-1">{client.email}</p>
               )}
@@ -384,6 +393,19 @@ export function EstimateDocumentModern({
       {/* Terms — each block only when filled */}
       {hasTerms && (
         <div data-track-section="terms" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
+          {hasCompanyTerms && (
+            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
+              <p
+                className="text-xs font-semibold uppercase tracking-widest select-none mb-1.5"
+                style={{ color: brandText }}
+              >
+                {L.estimateTerms}
+              </p>
+              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+                {companyTerms!.text}
+              </p>
+            </div>
+          )}
           {isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null && (
             <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
@@ -449,6 +471,17 @@ export function EstimateDocumentModern({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Prepared-by — rendered only when the caller supplies it. Position
+          matches the Modern PDF's block order: Signature -> Prepared-by -> Photos. */}
+      {preparedBy && (
+        <div data-track-section="prepared-by" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+            {L.preparedBy}
+          </p>
+          <p className="text-base text-muted-foreground">{preparedBy}</p>
         </div>
       )}
 

@@ -14,12 +14,20 @@ import {
   PHOTO_WITH_CAPTION,
 } from './fixtures/document-fixtures'
 
-// Phase 185 Plan 03 (PGMODE-02/03/05) — preparedBy/companyTerms render as
+// Phase 185 Plan 03 (PGMODE-02/03) — preparedBy/companyTerms render as
 // real editor content, matching the PDF's content order (Terms(estimate
-// FIRST) -> Signature -> Photos -> Prepared-by), and are STRICTLY additive:
-// the public share webview's exact call pattern (mode="view", neither prop
-// supplied) must stay byte-identical to before this plan — the concrete
-// proof PGMODE-05 rests on.
+// FIRST) -> Signature -> Prepared-by -> Photos; order updated to match
+// blocksFromModel / the PDF, where Prepared-by sits right after the signature).
+//
+// CONTRACT CHANGE (public page = PDF content): these props were originally
+// kept OFF the public share webview (PGMODE-05 "passes neither prop"), so the
+// recipient page lacked "Prepared by" and showed company Estimate Terms in a
+// separate card outside the document. components/share/estimate-view.tsx now
+// passes BOTH props to both templates (see tests/unit/share/
+// estimate-view-public-page.test.tsx). The props stay optional here, so
+// omitting them is still a no-op for any caller that does not opt in. What
+// PGMODE-05 still guarantees — the share webview never imports pagination
+// modules — is enforced by share-webview-pagination-boundary.test.ts, unchanged.
 
 const COMPANY_TERMS_TEXT = 'Estimate valid for 30 days from the date above.'
 const PREPARED_BY_NAME = 'Jordan Rivera'
@@ -31,7 +39,7 @@ function buildData(): EstimateDocumentData {
 }
 
 describe('EstimateDocument — preparedBy + companyTerms (PGMODE-02/03/05)', () => {
-  it('renders companyTerms + preparedBy when BOTH props are provided, ordered Terms(estimate-first) -> Signature -> Photos -> Prepared-by', () => {
+  it('renders companyTerms + preparedBy when BOTH props are provided, ordered Terms(estimate-first) -> Signature -> Prepared-by -> Photos', () => {
     const company: DocumentCompany = {
       ...(FIXTURE_COMPANY as DocumentCompany),
       estimate_terms_enabled: true,
@@ -66,7 +74,7 @@ describe('EstimateDocument — preparedBy + companyTerms (PGMODE-02/03/05)', () 
     expect(container.querySelector('[data-page-block-id="signature"]')).toBeTruthy()
     expect(container.querySelector('[data-page-block-id="photo-row-0"]')).toBeTruthy()
 
-    // Content order: estimate-terms -> payment-terms -> signature -> photo caption -> prepared-by.
+    // Content order: estimate-terms -> payment-terms -> signature -> prepared-by -> photo caption.
     const text = container.textContent ?? ''
     const iEstimateTerms = text.indexOf(COMPANY_TERMS_TEXT)
     const iPaymentTerms = text.indexOf('Net 30') // fixture's payment_terms value
@@ -82,11 +90,11 @@ describe('EstimateDocument — preparedBy + companyTerms (PGMODE-02/03/05)', () 
 
     expect(iEstimateTerms).toBeLessThan(iPaymentTerms)
     expect(iPaymentTerms).toBeLessThan(iSigner)
-    expect(iSigner).toBeLessThan(iCaption)
-    expect(iCaption).toBeLessThan(iPreparedBy)
+    expect(iSigner).toBeLessThan(iPreparedBy)
+    expect(iPreparedBy).toBeLessThan(iCaption)
   })
 
-  it('mode="view" with NEITHER new prop (the public share webview\'s exact call pattern) renders neither block and leaves the 4 existing terms fields unaffected', () => {
+  it('mode="view" with NEITHER new prop (props are optional: opting out is a strict no-op) renders neither block and leaves the 4 existing terms fields unaffected', () => {
     const company = FIXTURE_COMPANY as DocumentCompany
 
     const { container } = render(
@@ -99,8 +107,8 @@ describe('EstimateDocument — preparedBy + companyTerms (PGMODE-02/03/05)', () 
         projectType={null}
         estimateVersion={1}
         estimateCreatedAt="2026-01-01T00:00:00Z"
-        // preparedBy/companyTerms intentionally OMITTED — mirrors
-        // components/share/estimate-view.tsx's classic call site exactly.
+        // preparedBy/companyTerms intentionally OMITTED (opt-out). The public
+        // share page no longer omits them — it passes both.
       />
     )
 
