@@ -73,7 +73,18 @@ Regra fixada durante a execução: **o preview segue o PDF** (tamanho, peso, esp
 - Teste aleatório de paginação com duas sementes novas após as últimas mudanças: 0 divergências em 600 renderizações.
 - Preview × PDF com as fontes reais (Inter/Lora): todas as folhas com exatamente a altura Carta, mesmo número de páginas que o PDF, espaçamentos dentro de ~2pt.
 
-## Pendências
+## Fechamento
 
-- **Precisão restante do modelo:** nome do projeto e endereço do cliente muito longos no bloco de informações são cobertos pela folga de 12pt, não medidos exatamente; os avisos `[pdf_page_drift]` no Sentry mostram se isso acontece em produção.
-- **Imposto no WhatsApp** mostra "(10%)" e no PDF "(10.00%)".
+| Commit | Conteúdo |
+|---|---|
+| `5c091a7` | Editor no celular: campos de desconto e sinal não sobrepõem mais o valor |
+| `7c1f277` | Um formato de percentual em todas as superfícies ("10%", "8.25%"); pt "Valor de entrada" |
+| `2513806` | Bloco de informações medido linha a linha; quebras de linha manuais medidas; margem de segurança 24 -> 12pt; orçamento curto cabe em uma página |
+
+Verificação final: typecheck do CI sem erros; 6736 testes passando; teste aleatório de paginação (nomes e endereços longos incluídos) com 0 divergências em 1200 renderizações com sementes não usadas no ajuste.
+
+## Observações
+
+- Fotos que não cabem no espaço restante vão para a página seguinte, às vezes sozinhas. É o comportamento correto (a linha de fotos tem ~200pt e não é dividida).
+- Validação feita com o renderizador real do PDF e renders estáticos/harness dos componentes web; vale conferir um orçamento real no celular depois do deploy.
+- Os avisos `[pdf_page_drift]` no Sentry mostram se algum caso real escapar do modelo; a guarda refaz o PDF com mais folga nesse caso.
