@@ -15,7 +15,7 @@ import React from 'react'
 import { PaginatedPreview } from '@/components/workspace/estimate/paginated-preview'
 import type { DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
-import { ESTIMATE_PAGE_GEOMETRY, LETTER_WIDTH_PT, PX_PER_PT } from '@/lib/estimate/document/tokens'
+import { CLASSIC_CARD_BOX, ESTIMATE_PAGE_GEOMETRY, LETTER_WIDTH_PT, PX_PER_PT } from '@/lib/estimate/document/tokens'
 import { LABELS } from '@/lib/estimate/document/labels'
 import { buildPagesForFixture } from '../pdf/_pages-for-fixture'
 import {
@@ -192,7 +192,12 @@ describe('PaginatedPreview — Classic template (unchanged look)', () => {
     const band = container.querySelector<HTMLElement>(`[data-page-block-id="${data.sections[0].id}-header"]`)!
     expect(band.style.backgroundColor).toBe(BRAND_RGB)
     expect(container.innerHTML).toContain('bg-muted/40')
-    expect(container.querySelector('[data-page-block-id="terms-payment"] .rounded-lg')).toBeTruthy()
+    // Terms + signature are boxed cards (CLASSIC_CARD_BOX: padding + radius).
+    const card = container.querySelector<HTMLElement>('[data-page-block-id="terms-payment"][data-card-box]')!
+    expect(card).toBeTruthy()
+    expect(parseFloat(card.style.padding)).toBeCloseTo(CLASSIC_CARD_BOX.paddingPt * PX_PER_PT, 3)
+    expect(parseFloat(card.style.borderRadius)).toBeCloseTo(CLASSIC_CARD_BOX.radiusPt * PX_PER_PT, 3)
+    expect(container.querySelector('[data-page-block-id="signature"][data-card-box]')).toBeTruthy()
   })
 
   it('uses the Classic PDF page margins (40pt) as the sheet padding', () => {
