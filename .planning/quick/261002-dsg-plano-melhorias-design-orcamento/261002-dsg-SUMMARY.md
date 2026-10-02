@@ -1,4 +1,4 @@
-# Resumo: melhorias do design do orçamento (Etapas 1 e 2)
+# Resumo: melhorias do design do orçamento (Etapas 1 a 4)
 
 Execução do `261002-dsg-PLAN.md`. Orquestração e validação por um agente, execução
 por subagentes; cada entrega foi revisada (diff, PDFs rasterizados, testes) antes
@@ -50,15 +50,29 @@ do commit.
   rodapé "of M" igual ao total real em ambos. Num fixture menor (13 itens), o Classic
   caiu de 5 para 4 páginas.
 
+## Etapas 3 e 4
+
+| Commit | Conteúdo |
+|---|---|
+| `fe6dd8e` | Seletor de template com miniaturas reais do PDF (geradas por `scripts/generate-template-thumbnails.ts`); "Total" no WhatsApp igual ao PDF |
+| `f6f6a05` | Página pública com o mesmo conteúdo do PDF ("Prepared by" e Estimate Terms dentro do documento); barra fixa com total e Aceitar no celular; assinatura sem distorção e mais alta; hierarquia empresa > projeto/cliente na web; faixa ESTIMATE compacta no celular |
+| `1e505e1` | Preview paginado renderiza o Modern; aviso no editor para empresas Modern |
+| `3f90a19` | Preview Classic com os tamanhos do PDF: cada folha cabe numa página Carta (antes chegava a 1.463px contra 1.056px) |
+| `7481243` | "Deposit required" / "Entrada exigida" / "Depósito requerido" nas linhas de sinal somente leitura; tipo de projeto formatado no PDF (antes saía `kitchen_remodel`) |
+| `b501b1d` | Preview com os pesos, tamanhos e espaçamento entre letras do PDF; teste impede pesos 500/600 no preview |
+| `b3518b4` | Margens entre blocos do preview somam como no PDF; cabeçalho sem a linha do responsável e com separador "\|" |
+
+Regra fixada durante a execução: **o preview segue o PDF** (tamanho, peso, espaçamento); a hierarquia maior de projeto/cliente vale só para a página web e o editor.
+
+## Verificação final
+
+- `npx tsc -p tsconfig.ci.json --noEmit`: 0 erros.
+- `npx vitest run tests/unit tests/eval`: 702 arquivos, 6685 testes passando.
+- Teste aleatório de paginação com duas sementes novas após as últimas mudanças: 0 divergências em 600 renderizações.
+- Preview × PDF com as fontes reais (Inter/Lora): todas as folhas com exatamente a altura Carta, mesmo número de páginas que o PDF, espaçamentos dentro de ~2pt.
+
 ## Pendências
 
-- **Etapa 3:** preview paginado mostrando Modern; página pública com "Prepared by" e
-  Estimate Terms dentro do documento; hierarquia do cabeçalho web; rótulos do WhatsApp.
-  O recuo do título da seção no preview (30pt) difere do PDF (10pt).
-- **Etapa 4:** barra fixa com total e Aceitar no mobile; canvas de assinatura maior e
-  sem distorção; faixa ESTIMATE menor no mobile; miniaturas no seletor de template.
-- **Editor no mobile:** campos de desconto e sinal sobrepõem o valor em ~360px
-  (pré-existente; sugerido como tarefa separada).
-- **Precisão restante do modelo:** nome do projeto e endereço do cliente muito longos
-  no bloco de informações são cobertos pelos 12pt de folga, não medidos exatamente.
-  Os avisos `[pdf_page_drift]` no Sentry mostram se isso acontece em produção.
+- **Editor no celular:** sobreposição dos campos de desconto e sinal em ~360px está sendo tratada numa sessão separada.
+- **Precisão restante do modelo:** nome do projeto e endereço do cliente muito longos no bloco de informações são cobertos pela folga de 12pt, não medidos exatamente; os avisos `[pdf_page_drift]` no Sentry mostram se isso acontece em produção.
+- **Imposto no WhatsApp** mostra "(10%)" e no PDF "(10.00%)".
