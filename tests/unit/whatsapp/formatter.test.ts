@@ -140,11 +140,11 @@ describe('formatEstimateForWhatsApp', () => {
     }
     const result = formatEstimateForWhatsApp(withDeposit, null, null)
     // 2750 − 1925 = 825
-    expect(result).toMatch(/Deposit: -\$825\.00/)
+    expect(result).toMatch(/Deposit required: -\$825\.00/)
     expect(result).toMatch(/Balance Due: \$1,925\.00/)
     // order: Total before Deposit before Balance Due
     const totalIdx = result.indexOf('\nTotal:')
-    const depositIdx = result.indexOf('Deposit:')
+    const depositIdx = result.indexOf('Deposit required:')
     const balanceIdx = result.indexOf('Balance Due:')
     expect(totalIdx).toBeLessThan(depositIdx)
     expect(depositIdx).toBeLessThan(balanceIdx)
@@ -160,7 +160,7 @@ describe('formatEstimateForWhatsApp', () => {
     }
     const result = formatEstimateForWhatsApp(withDeposit, null, null)
     // 2750 − 2000 = 750 (derived from persisted balance_due, NOT deposit_value)
-    expect(result).toMatch(/Deposit: -\$750\.00/)
+    expect(result).toMatch(/Deposit required: -\$750\.00/)
     expect(result).toMatch(/Balance Due: \$2,000\.00/)
   })
 
@@ -174,7 +174,7 @@ describe('formatEstimateForWhatsApp', () => {
       balance_due: 1925,
     }
     const result = formatEstimateForWhatsApp(withDeposit, null, null)
-    expect(result).toMatch(/Entrada: -\$825\.00/)
+    expect(result).toMatch(/Entrada exigida: -\$825\.00/)
     expect(result).toMatch(/Saldo Devedor: \$1,925\.00/)
   })
 
@@ -188,7 +188,7 @@ describe('formatEstimateForWhatsApp', () => {
       balance_due: 1925,
     }
     const result = formatEstimateForWhatsApp(withDeposit, null, null)
-    expect(result).toMatch(/Depósito: -\$825\.00/)
+    expect(result).toMatch(/Depósito requerido: -\$825\.00/)
     expect(result).toMatch(/Saldo Pendiente: \$1,925\.00/)
   })
 
@@ -225,7 +225,7 @@ describe('formatEstimateForWhatsApp', () => {
       expect(result).toContain(`${D.discount} (10%): -$250.00`)
       expect(result).toContain(`${D.tax} (10%): $250.00`)
       expect(result).toContain(`\n${D.grandTotal}: $2,500.00`)
-      expect(result).toContain(`${D.deposit}: -$750.00`)
+      expect(result).toContain(`${D.depositRequired}: -$750.00`)
       expect(result).toContain(`${D.balanceDue}: $1,750.00`)
     },
   )

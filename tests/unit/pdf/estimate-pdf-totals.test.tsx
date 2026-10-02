@@ -65,7 +65,7 @@ const TOTALS_TEST_COMPANY = {
   brand_primary_color: null,
 }
 
-function renderTexts(estimate: EstimateWithSections): string[] {
+function renderTexts(estimate: EstimateWithSections, projectType: string | null = null): string[] {
   const pages = buildPagesForFixture(estimate as unknown as Record<string, unknown>, TOTALS_TEST_COMPANY, 'classic')
   // EstimatePDF is a plain function component — call it to get the element tree, then walk it.
   const tree = EstimatePDF({
@@ -73,7 +73,7 @@ function renderTexts(estimate: EstimateWithSections): string[] {
     company: TOTALS_TEST_COMPANY,
     client: null,
     projectName: 'Test Project',
-    projectType: null,
+    projectType,
     language: 'en',
     pages,
   })
@@ -133,6 +133,7 @@ describe('EstimatePDF totals block — deposit / balance due (PUI-02)', () => {
     expect(texts).toContain('Total')
     // No deposit rows at all — byte-identical to pre-v4.11
     expect(texts).not.toContain('Deposit')
+    expect(texts).not.toContain('Deposit required')
     expect(texts).not.toContain('Balance Due')
   })
 
@@ -146,12 +147,13 @@ describe('EstimatePDF totals block — deposit / balance due (PUI-02)', () => {
         balance_due: 700,
       })
     )
-    expect(texts).toContain('Deposit')
+    expect(texts).toContain('Deposit required')
+    expect(texts).not.toContain('Deposit') // PDF reads "Deposit required", never the bare editor label
     expect(texts).toContain('Balance Due')
 
     const iSubtotal = texts.indexOf('Subtotal')
     const iGrandTotal = texts.lastIndexOf('Total')
-    const iDeposit = texts.indexOf('Deposit')
+    const iDeposit = texts.indexOf('Deposit required')
     const iBalance = texts.indexOf('Balance Due')
 
     // Locked order: Subtotal → … → Total → Deposit → Balance Due
@@ -179,5 +181,17 @@ describe('EstimatePDF totals block — deposit / balance due (PUI-02)', () => {
     expect(texts).toContain('-$200.00')
     expect(texts).toContain('$800.00')
     expect(texts).not.toContain('-$300.00')
+  })
+})
+
+describe('EstimatePDF info grid — project type formatting', () => {
+  it('prints the project type as the web does ("kitchen_remodel" -> "Kitchen Remodel"), never the raw snake_case', () => {
+    const texts = renderTexts(baseEstimate({}), 'kitchen_remodel')
+    expect(texts).toContain('Kitchen Remodel')
+    expect(texts).not.toContain('kitchen_remodel')
+  })
+  it('renders no project-type line when it is null', () => {
+    const texts = renderTexts(baseEstimate({}), null)
+    expect(texts).not.toContain('Kitchen Remodel')
   })
 })

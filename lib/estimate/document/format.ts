@@ -54,3 +54,19 @@ export function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): stri
 export function formatEstimateNumber(estimate: { estimate_number: string | null; estimate_seq: number }): string {
   return estimate.estimate_number ?? String(estimate.estimate_seq).padStart(4, '0')
 }
+
+/**
+ * Human-readable project type: `kitchen_remodel` -> `Kitchen Remodel`.
+ * Matches what the web documents show today (`replace(/_/g, ' ')` + CSS
+ * `capitalize`): underscores become spaces and the first letter of each word is
+ * upper-cased. Like CSS `capitalize`, the rest of each word is left as-is (it
+ * does NOT lower-case, so already-capitalised input is unchanged). Runs of
+ * whitespace collapse to one space, as HTML rendering does on the web. Returns
+ * null for null / blank input so callers can keep their `{value && ...}` guard.
+ */
+export function formatProjectType(raw: string | null): string | null {
+  if (!raw) return null
+  const text = raw.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!text) return null
+  return text.replace(/(^|\s)(\S)/g, (_m, sp: string, ch: string) => sp + ch.toUpperCase())
+}

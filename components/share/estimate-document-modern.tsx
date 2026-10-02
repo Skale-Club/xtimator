@@ -40,7 +40,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { formatAddress, formatDate, formatProjectType } from '@/lib/estimate/document/format'
 
 // ---------------------------------------------------------------------------
 // Public props
@@ -206,7 +206,7 @@ export function EstimateDocumentModern({
           <p className="text-xl font-bold">{projectName}</p>
           {projectType && (
             <p className="text-base text-muted-foreground mt-2 capitalize">
-              {projectType.replace(/_/g, ' ')}
+              {formatProjectType(projectType)}
             </p>
           )}
           <p className="text-base text-muted-foreground mt-3">
@@ -371,7 +371,7 @@ export function EstimateDocumentModern({
 
             {dep.showDeposit && (
               <div className="flex justify-between text-base">
-                <span className="text-muted-foreground select-none">{L.deposit}</span>
+                <span className="text-muted-foreground select-none">{L.depositRequired}</span>
                 <span className="tabular-nums text-muted-foreground font-medium">
                   -{fmt(dep.depositAmount)}
                 </span>

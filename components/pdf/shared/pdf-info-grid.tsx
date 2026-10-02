@@ -12,7 +12,7 @@
 
 import { View, Text, Link } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
-import { formatAddress, formatEstimateNumber } from '@/lib/estimate/document/format'
+import { formatAddress, formatEstimateNumber, formatProjectType } from '@/lib/estimate/document/format'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
 
@@ -64,15 +64,16 @@ export function PdfInfoGrid({
   clientNameFontFamily,
 }: PdfInfoGridProps) {
   const clientAddress = client ? formatAddress(client) : null
+  const projectTypeText = formatProjectType(projectType)
 
   return (
     <View style={styles.infoRow}>
       <View style={styles.infoBlock}>
         <Text style={styles.infoLabel}>{L.project}</Text>
         <Text style={styles.infoValue}>{projectName}</Text>
-        {projectType && (
+        {projectTypeText && (
           <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-            {projectType}
+            {projectTypeText}
           </Text>
         )}
         <Text

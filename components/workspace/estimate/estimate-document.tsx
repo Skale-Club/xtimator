@@ -59,7 +59,7 @@ import {
   type PresentationSettings,
 } from '@/lib/estimate/presentation-settings'
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
-import { formatAddress, formatDate } from '@/lib/estimate/document/format'
+import { formatAddress, formatDate, formatProjectType } from '@/lib/estimate/document/format'
 import { LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
 import type {
   DocumentCompany,
@@ -95,6 +95,7 @@ interface DocLabels {
   discountPct: string
   discountFixed: string
   deposit: string
+  depositRequired: string
   depositNone: string
   depositPct: string
   depositAmount: string
@@ -1169,7 +1170,7 @@ function DocumentTotals({
         ) : dep.showDeposit ? (
           /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
           <div className="flex justify-between text-base pt-2">
-            <span className="text-muted-foreground select-none">{L.deposit}</span>
+            <span className="text-muted-foreground select-none">{L.depositRequired}</span>
             <span className="tabular-nums text-muted-foreground font-medium">-{fmt(dep.depositAmount)}</span>
           </div>
         ) : null}
@@ -1702,7 +1703,7 @@ export function EstimateDocument({
           )}
           {projectType && (
             <p className="text-base text-muted-foreground mt-2 capitalize">
-              {projectType.replace(/_/g, ' ')}
+              {formatProjectType(projectType)}
             </p>
           )}
           {isEditable && dispatch ? (

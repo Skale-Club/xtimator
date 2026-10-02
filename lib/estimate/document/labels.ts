@@ -27,6 +27,9 @@ export interface DocumentLabels {
   discountPct: string
   discountFixed: string
   deposit: string
+  /** READ-ONLY surfaces (PDF, web view, WhatsApp): "Deposit required" — reads as an amount
+   *  owed up front, not a discount. `deposit` stays the editor's <select> label. */
+  depositRequired: string
   depositNone: string
   depositPct: string
   depositAmount: string
@@ -79,7 +82,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     description: 'Description', qty: 'Qty', unit: 'Unit', unitPrice: 'Unit Price',
     lineDiscount: 'Disc.', taxable: 'Tax', total: 'Total', sectionSubtotal: 'Section Subtotal',
     subtotal: 'Subtotal', discount: 'Discount', discountNone: 'None', discountPct: '% off',
-    discountFixed: 'Fixed', deposit: 'Deposit', depositNone: 'None', depositPct: '%',
+    discountFixed: 'Fixed', deposit: 'Deposit', depositRequired: 'Deposit required', depositNone: 'None', depositPct: '%',
     depositAmount: 'Amount', balanceDue: 'Balance Due', tax: 'Tax', grandTotal: 'Total',
     paymentTerms: 'Payment Terms', timeline: 'Timeline', warranty: 'Warranty', notes: 'Notes',
     date: 'Date', estimateNum: 'Estimate #', noClient: 'No client linked', addItem: 'Add item',
@@ -97,7 +100,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     description: 'Descrição', qty: 'Qtd', unit: 'Unidade', unitPrice: 'Preço Unitário',
     lineDiscount: 'Desc.', taxable: 'Imposto', total: 'Total', sectionSubtotal: 'Subtotal da Seção',
     subtotal: 'Subtotal', discount: 'Desconto', discountNone: 'Nenhum', discountPct: '% off',
-    discountFixed: 'Fixo', deposit: 'Entrada', depositNone: 'Nenhum', depositPct: '%',
+    discountFixed: 'Fixo', deposit: 'Entrada', depositRequired: 'Entrada exigida', depositNone: 'Nenhum', depositPct: '%',
     depositAmount: 'Valor', balanceDue: 'Saldo Devedor', tax: 'Imposto', grandTotal: 'Total',
     paymentTerms: 'Condições de Pagamento', timeline: 'Prazo', warranty: 'Garantia', notes: 'Observações',
     date: 'Data', estimateNum: 'Orçamento Nº', noClient: 'Nenhum cliente vinculado', addItem: 'Adicionar item',
@@ -115,7 +118,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     description: 'Descripción', qty: 'Cant', unit: 'Unidad', unitPrice: 'Precio Unitario',
     lineDiscount: 'Desc.', taxable: 'Impuesto', total: 'Total', sectionSubtotal: 'Subtotal de Sección',
     subtotal: 'Subtotal', discount: 'Descuento', discountNone: 'Ninguno', discountPct: '% off',
-    discountFixed: 'Fijo', deposit: 'Depósito', depositNone: 'Ninguno', depositPct: '%',
+    discountFixed: 'Fijo', deposit: 'Depósito', depositRequired: 'Depósito requerido', depositNone: 'Ninguno', depositPct: '%',
     depositAmount: 'Monto', balanceDue: 'Saldo Pendiente', tax: 'Impuesto', grandTotal: 'Total',
     paymentTerms: 'Términos de Pago', timeline: 'Plazo', warranty: 'Garantía', notes: 'Notas',
     date: 'Fecha', estimateNum: 'Presupuesto Nº', noClient: 'Sin cliente vinculado', addItem: 'Agregar ítem',

@@ -86,13 +86,14 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
       for (const extra of ['page', 'of', 'preparedBy']) allKeys.add(extra)
       expect(Array.from(allKeys).sort()).toEqual(Object.keys(LABELS.en).sort())
     }
-    // Unconditional: LABELS itself always carries exactly the 54-key shape
+    // Unconditional: LABELS itself always carries exactly the 55-key shape
     // (row/section kebab-menu work added addDiscount, removeDiscount,
     // deleteLine, deleteSection, rowActions, sectionActions on top of the
     // prior 47-key shape from Phase 185 Plan 03; `continued` — the "(cont.)"
-    // suffix of a continuation page's section title — made it 54), regardless
+    // suffix of a continuation page's section title — made it 54; `depositRequired`, the read-only
+    // deposit row label, made it 55), regardless
     // of adoption state.
-    expect(Object.keys(LABELS.en).length).toBe(54)
+    expect(Object.keys(LABELS.en).length).toBe(55)
   })
 
   it('LANG_INDICATOR matches the shared module — pre- or post-adoption', () => {
@@ -124,5 +125,15 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
   // before this task's commit.
   it('LABELS content is locked permanently via snapshot', () => {
     expect(LABELS).toMatchSnapshot()
+  })
+})
+
+describe('depositRequired — read-only deposit row label', () => {
+  it('is distinct from the editor-select label `deposit` in every language and extends its noun', () => {
+    for (const lang of LANGS) {
+      expect(LABELS[lang].depositRequired).not.toBe(LABELS[lang].deposit)
+      expect(LABELS[lang].depositRequired.startsWith(LABELS[lang].deposit)).toBe(true)
+    }
+    expect(LABELS.en.depositRequired).toBe('Deposit required')
   })
 })

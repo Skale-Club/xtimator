@@ -102,7 +102,7 @@ function totalsLabels(language: 'en' | 'pt' | 'es') {
     tax: (pct: string) => `${D.tax} (${pct}%)`,
     // The document's grand-total label ("Total") — not the former "Total Estimate".
     total: D.grandTotal,
-    deposit: D.deposit,
+    deposit: D.depositRequired,
     balanceDue: D.balanceDue,
   }
 }

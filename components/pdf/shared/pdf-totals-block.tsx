@@ -119,7 +119,7 @@ export function PdfTotalsBlock({
               Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
           {dep.showDeposit && (
             <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.deposit}</Text>
+              <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
               <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
             </View>
           )}
@@ -159,7 +159,7 @@ export function PdfTotalsBlock({
             Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
         {dep.showDeposit && (
           <View style={[styles.totalsRow, { marginTop: 16 }]}>
-            <Text style={styles.totalsLabel}>{L.deposit}</Text>
+            <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
             <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
           </View>
         )}

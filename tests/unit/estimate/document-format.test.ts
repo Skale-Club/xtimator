@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDate, formatAddress } from '@/lib/estimate/document/format'
+import { formatDate, formatAddress, formatProjectType } from '@/lib/estimate/document/format'
 
 describe('formatDate — local-midnight fix (ENGINE-01)', () => {
   it('formats a date-only string as the SAME calendar day the string says', () => {
@@ -21,5 +21,27 @@ describe('formatAddress', () => {
   })
   it('returns null when every field is empty', () => {
     expect(formatAddress({ address: null, city: null, state: null, zip: null })).toBeNull()
+  })
+})
+
+describe('formatProjectType — matches the web (replace(/_/g, " ") + CSS capitalize)', () => {
+  it('returns null for null / empty / blank input', () => {
+    expect(formatProjectType(null)).toBeNull()
+    expect(formatProjectType('')).toBeNull()
+    expect(formatProjectType('  _ ')).toBeNull()
+  })
+  it('capitalises a single word', () => {
+    expect(formatProjectType('plumbing')).toBe('Plumbing')
+  })
+  it('turns underscores into spaces and capitalises each word', () => {
+    expect(formatProjectType('kitchen_remodel')).toBe('Kitchen Remodel')
+    expect(formatProjectType('full_house_exterior_painting')).toBe('Full House Exterior Painting')
+  })
+  it('leaves already-capitalised input unchanged (CSS capitalize never lower-cases)', () => {
+    expect(formatProjectType('Kitchen Remodel')).toBe('Kitchen Remodel')
+    expect(formatProjectType('HVAC_install')).toBe('HVAC Install')
+  })
+  it('collapses repeated separators the way HTML whitespace collapsing does on the web', () => {
+    expect(formatProjectType('kitchen__remodel_')).toBe('Kitchen Remodel')
   })
 })
