@@ -130,13 +130,16 @@ describe('PaginatedPreview — Modern template', () => {
     // Letter-spaced title with a short brand rule (no banner).
     const title = container.querySelector('h1')!
     expect(title.textContent).toBe(LABELS.en.estimate)
-    expect(title.className).toContain('tracking-[0.15em]')
+    // PDF estimateTitle: 13pt bold, letterSpacing 2pt.
+    expect(parseFloat(title.style.letterSpacing)).toBeCloseTo(2 * PX_PER_PT, 3)
+    expect(parseFloat(title.style.fontSize)).toBeCloseTo(13 * PX_PER_PT, 3)
     expect(title.parentElement!.style.backgroundColor).toBe('')
 
     // Hero total in the brand colour.
     const hero = Array.from(container.querySelectorAll<HTMLElement>('p')).find((p) => p.textContent === '$3,897.00')!
     expect(hero).toBeTruthy()
-    expect(hero.className).toContain('text-[40px]')
+    // PDF grandTotalValue: 30pt bold.
+    expect(parseFloat(hero.style.fontSize)).toBeCloseTo(30 * PX_PER_PT, 3)
     expect(hero.style.color).not.toBe('')
   })
 
@@ -192,6 +195,8 @@ describe('PaginatedPreview — Classic template (unchanged look)', () => {
     const band = container.querySelector<HTMLElement>(`[data-page-block-id="${data.sections[0].id}-header"]`)!
     expect(band.style.backgroundColor).toBe(BRAND_RGB)
     expect(container.innerHTML).toContain('bg-muted/40')
+    // PDF Classic estimateTitle has NO letter-spacing.
+    expect(container.querySelector<HTMLElement>('h1')!.style.letterSpacing).toBe('')
     // Terms + signature are boxed cards (CLASSIC_CARD_BOX: padding + radius).
     const card = container.querySelector<HTMLElement>('[data-page-block-id="terms-payment"][data-card-box]')!
     expect(card).toBeTruthy()
@@ -227,22 +232,28 @@ describe('PaginatedPreview — Classic template (unchanged look)', () => {
 })
 
 describe.each(['classic', 'modern'] as const)('PaginatedPreview — shared structure (%s)', (templateId) => {
-  it('header hierarchy: company name text-2xl, project and client names text-xl, all bold', () => {
+  it('mirrors the PDF header styles: company name at the template size (bold), project name regular, client name bold at the 10pt infoValue size', () => {
     const { container } = renderFor(templateId)
     const firstSheet = container.querySelector('[data-page-sheet="0"]')!
     const byText = (text: string) =>
       Array.from(firstSheet.querySelectorAll<HTMLElement>('p')).find((p) => p.textContent === text)!
+    const companySizePt = templateId === 'modern' ? 15 : 18 // estimate-pdf*.tsx styles.companyName.fontSize
 
-    for (const [text, size] of [
-      [FIXTURE_COMPANY.name, 'text-2xl'],
-      ['Kitchen Remodel', 'text-xl'],
-      ['Pat Client', 'text-xl'],
-    ] as const) {
-      const el = byText(text)
-      expect(el, text).toBeTruthy()
-      expect(el.className).toContain(size)
-      expect(el.className).toContain('font-bold')
-    }
+    const company = byText(FIXTURE_COMPANY.name)
+    expect(company.className).toContain('font-bold')
+    expect(parseFloat(company.style.fontSize)).toBeCloseTo(companySizePt * PX_PER_PT, 3)
+
+    const project = byText('Kitchen Remodel')
+    expect(project.className).toContain('font-normal')
+    expect(project.className).not.toContain('font-bold')
+    expect(parseFloat(project.style.fontSize)).toBeCloseTo(10 * PX_PER_PT, 3)
+
+    const clientName = byText('Pat Client')
+    expect(clientName.className).toContain('font-bold')
+    expect(parseFloat(clientName.style.fontSize)).toBeCloseTo(10 * PX_PER_PT, 3)
+
+    // The page-1 company name stays the largest text of the header.
+    expect(parseFloat(company.style.fontSize)).toBeGreaterThan(parseFloat(project.style.fontSize))
   })
 })
 

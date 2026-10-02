@@ -5,7 +5,7 @@
 // are the only thing that differs per template, so they are props).
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -36,10 +36,12 @@ export function ReadOnlyPhotoThumb({
   photo,
   frameClassName,
   captionClassName,
+  captionStyle,
 }: {
   photo: DocumentPhoto
   frameClassName: string
   captionClassName: string
+  captionStyle?: CSSProperties
 }) {
   // A photo that already carries a URL needs no lookup; otherwise a signed URL
   // is fetched (the skeleton shows until it resolves).
@@ -67,7 +69,11 @@ export function ReadOnlyPhotoThumb({
           <Skeleton className="w-full h-full" />
         )}
       </div>
-      {photo.caption && <p className={captionClassName}>{photo.caption}</p>}
+      {photo.caption && (
+        <p className={captionClassName} style={captionStyle}>
+          {photo.caption}
+        </p>
+      )}
     </div>
   )
 }

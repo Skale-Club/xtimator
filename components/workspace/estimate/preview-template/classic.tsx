@@ -13,9 +13,10 @@
 import Image from 'next/image'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
-import { formatDate } from '@/lib/estimate/document/format'
+import { formatDate, formatProjectType } from '@/lib/estimate/document/format'
 import { CLASSIC_CARD_BOX, PHOTO_TILE_GAP_PT, PX_PER_PT, cardTintFill } from '@/lib/estimate/document/tokens'
 import type { CSSProperties } from 'react'
+import { INTER_LH, font, pt, tracking } from './units'
 import { ReadOnlyPhotoThumb } from './shared'
 import type { PreviewTemplate, RenderCtx } from './types'
 
@@ -26,19 +27,12 @@ import type { PreviewTemplate, RenderCtx } from './types'
 const SECTION_TITLE_INSET_PT = 10
 const SECTION_TITLE_INSET_PX = SECTION_TITLE_INSET_PT * PX_PER_PT
 
-const pt = (v: number) => v * PX_PER_PT
-/** font-size (+ optional line-height) in the PDF's pt, as px. */
-const font = (sizePt: number, lineHeight?: number): CSSProperties => ({
-  fontSize: pt(sizePt),
-  ...(lineHeight ? { lineHeight } : {}),
-})
-
 // styles.infoLabel / termsTitle: 8pt bold, uppercase, 1pt tracking. ONE eyebrow
 // for the whole document, like the PDF.
-const EYEBROW = 'font-semibold uppercase text-muted-foreground select-none'
+const EYEBROW = 'font-bold uppercase text-muted-foreground select-none'
 const eyebrowStyle = (marginBottomPt: number): CSSProperties => ({
-  ...font(8, 1.21),
-  letterSpacing: pt(1),
+  ...font(8, INTER_LH),
+  ...tracking(1),
   marginBottom: pt(marginBottomPt),
 })
 // styles.infoValue: 10pt / 1.5.
@@ -46,7 +40,7 @@ const INFO_VALUE = font(10, 1.5)
 // styles.termsText: 9pt / 1.5.
 const TERMS_TEXT = font(9, 1.5)
 // styles.tableCellText: 9pt / Inter's 1.21.
-const CELL = font(9, 1.21)
+const CELL = font(9, INTER_LH)
 
 /** The tinted card box terms + signature share (tokens.ts CLASSIC_CARD_BOX). */
 const cardBoxStyle = (brandColor: string): CSSProperties => ({
@@ -65,16 +59,18 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
         <p className={EYEBROW} style={eyebrowStyle(4)}>
           {L.project}
         </p>
-        <p className="text-xl font-bold leading-snug">{projectName}</p>
-        {projectType && (
-          <p className="text-muted-foreground capitalize" style={INFO_VALUE}>
-            {projectType.replace(/_/g, ' ')}
+        <p className="font-normal" style={INFO_VALUE}>
+          {projectName}
+        </p>
+        {formatProjectType(projectType) && (
+          <p className="text-muted-foreground" style={INFO_VALUE}>
+            {formatProjectType(projectType)}
           </p>
         )}
         <p className="text-muted-foreground" style={{ ...INFO_VALUE, marginTop: pt(4) }}>
           {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
         </p>
-        <p className="text-muted-foreground tabular-nums" style={INFO_VALUE}>
+        <p className="text-muted-foreground" style={INFO_VALUE}>
           {L.estimateNum}{data.estimate_number ?? defaultEstimateNumber}
         </p>
       </div>
@@ -83,7 +79,9 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           <p className={EYEBROW} style={eyebrowStyle(4)}>
             {L.billTo}
           </p>
-          <p className="text-xl font-bold leading-snug">{client.name}</p>
+          <p className="font-bold" style={INFO_VALUE}>
+            {client.name}
+          </p>
           {client.email && (
             <p className="text-muted-foreground" style={INFO_VALUE}>
               {client.email}
@@ -109,7 +107,7 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
 // rows use the same row (locked order: Subtotal -> Discount -> Tax -> Total ->
 // Deposit -> Balance Due).
 const TOTALS_ROW = 'flex justify-between border-b border-border/50'
-const totalsRowStyle: CSSProperties = { ...font(10, 1.21), paddingTop: pt(4), paddingBottom: pt(4) }
+const totalsRowStyle: CSSProperties = { ...font(10, INTER_LH), paddingTop: pt(4), paddingBottom: pt(4) }
 
 function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
@@ -118,7 +116,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
       <div className="w-[45%]">
         <div className={TOTALS_ROW} style={totalsRowStyle}>
           <span className="text-muted-foreground select-none">{L.subtotal}</span>
-          <span className="tabular-nums">{fmt(data.subtotal)}</span>
+          <span>{fmt(data.subtotal)}</span>
         </div>
         {data.discount_amount > 0 && (
           <div className={TOTALS_ROW} style={totalsRowStyle}>
@@ -126,7 +124,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
               {L.discount}
               {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
             </span>
-            <span className="tabular-nums text-destructive">-{fmt(data.discount_amount)}</span>
+            <span className="text-destructive">-{fmt(data.discount_amount)}</span>
           </div>
         )}
         {data.tax_amount > 0 && (
@@ -134,34 +132,36 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
             <span className="text-muted-foreground select-none">
               {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
             </span>
-            <span className="tabular-nums">{fmt(data.tax_amount)}</span>
+            <span>{fmt(data.tax_amount)}</span>
           </div>
         )}
         <div
           className="flex justify-between items-baseline border-t-2 font-bold"
           style={{
-            ...font(14, 1.21),
-            borderTopColor: brandText,
+            ...font(14, INTER_LH),
+            borderTopColor: '#1f2937',
             paddingTop: pt(8),
             paddingBottom: pt(8),
             marginTop: pt(4),
           }}
         >
-          <span className="select-none">{L.grandTotal}</span>
-          <span className="tabular-nums" style={{ color: brandText }}>
+          <span className="select-none" style={{ color: brandText }}>
+            {L.grandTotal}
+          </span>
+          <span style={{ color: brandText }}>
             {fmt(data.total)}
           </span>
         </div>
         {dep.showDeposit && (
           <div className={TOTALS_ROW} style={totalsRowStyle}>
-            <span className="text-muted-foreground select-none">{L.deposit}</span>
-            <span className="tabular-nums">-{fmt(dep.depositAmount)}</span>
+            <span className="text-muted-foreground select-none">{L.depositRequired}</span>
+            <span>-{fmt(dep.depositAmount)}</span>
           </div>
         )}
         {dep.showDeposit && (
           <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className="text-muted-foreground select-none">{L.balanceDue}</span>
-            <span className="tabular-nums">{fmt(dep.balanceDue)}</span>
+            <span>{fmt(dep.balanceDue)}</span>
           </div>
         )}
       </div>
@@ -174,7 +174,7 @@ export const classicTemplate: PreviewTemplate = {
 
   // PdfHeader (classic): 18pt bold company name in the brand colour, 9pt
   // contact lines, a brand-coloured 2pt rule underneath (16pt below the text,
-  // 24pt above the next block). 18pt = 24px = text-2xl.
+  // 24pt above the next block).
   header(ctx) {
     const { company, brandColor, brandText, companyAddr } = ctx
     return (
@@ -183,18 +183,16 @@ export const classicTemplate: PreviewTemplate = {
         style={{ borderBottomColor: brandColor, paddingBottom: pt(16), marginBottom: pt(24) }}
       >
         <div className="min-w-0">
-          <p className="font-bold text-2xl leading-tight" style={{ color: brandText }}>
+          <p className="font-bold" style={{ ...font(18, INTER_LH), color: brandText, marginBottom: pt(4) }}>
             {company.name}
           </p>
-          {company.owner_name && (
-            <p className="text-muted-foreground" style={{ ...font(9, 1.5), marginTop: pt(2) }}>
-              {company.owner_name}
-            </p>
-          )}
-          <p className="text-muted-foreground" style={font(9, 1.5)}>
+          {/* pdf-header.tsx: phone | email | website joined by a plain "  |  " in
+              the contact colour; the PDF draws no owner-name line. pre-wrap keeps
+              the double spaces HTML would otherwise collapse. */}
+          <p className="font-normal text-muted-foreground whitespace-pre-wrap" style={font(9, 1.5)}>
             {[company.phone && formatPhoneForDisplay(company.phone), company.email, company.website]
               .filter(Boolean)
-              .join('  ·  ')}
+              .join('  |  ')}
           </p>
           {companyAddr && (
             <p className="text-muted-foreground whitespace-pre-line" style={font(9, 1.5)}>
@@ -228,10 +226,10 @@ export const classicTemplate: PreviewTemplate = {
           className="flex items-center justify-between gap-3 border-b border-zinc-200"
           style={{ paddingBottom: pt(6) }}
         >
-          <span className="min-w-0 truncate font-semibold leading-tight" style={{ ...font(11), color: brandText }}>
+          <span className="min-w-0 truncate font-bold" style={{ ...font(11, INTER_LH), color: brandText }}>
             {company.name}
           </span>
-          <span className="flex-shrink-0 text-muted-foreground" style={font(9)}>
+          <span className="flex-shrink-0 font-normal text-muted-foreground" style={font(9, INTER_LH)}>
             {L.estimateNum}
             {data.estimate_number ?? defaultEstimateNumber}
           </span>
@@ -250,8 +248,8 @@ export const classicTemplate: PreviewTemplate = {
         style={{ backgroundColor: ctx.brandColor, paddingTop: pt(16), paddingBottom: pt(16), marginBottom: pt(20) }}
       >
         <h1
-          className="font-bold tracking-widest select-none"
-          style={{ ...font(24, 1.21), color: ctx.brandOnFill }}
+          className="font-bold select-none"
+          style={{ ...font(24, INTER_LH), color: ctx.brandOnFill }}
         >
           {ctx.L.estimate}
         </h1>
@@ -269,7 +267,9 @@ export const classicTemplate: PreviewTemplate = {
         <p className={EYEBROW} style={eyebrowStyle(4)}>
           {ctx.L.summary}
         </p>
-        <p className="text-muted-foreground whitespace-pre-line" style={TERMS_TEXT}>
+        {/* styles.termsText keeps its own 12pt bottom margin on top of the
+            summary wrapper's 16pt. */}
+        <p className="font-normal text-muted-foreground whitespace-pre-line" style={{ ...TERMS_TEXT, marginBottom: pt(12) }}>
           {text}
         </p>
       </div>
@@ -288,7 +288,7 @@ export const classicTemplate: PreviewTemplate = {
       paddingRight: SECTION_TITLE_INSET_PX,
       paddingTop: pt(8),
       paddingBottom: pt(8),
-      ...font(11, 1.21),
+      ...font(11, INTER_LH),
     }
     if (continued) {
       // PGBRK-03 continuation title — mirrors the PDF's PdfSectionHeader with
@@ -326,15 +326,15 @@ export const classicTemplate: PreviewTemplate = {
   tableHead(ctx, testId) {
     const { L } = ctx
     const th = 'font-bold'
-    const thStyle: CSSProperties = { ...font(9, 1.21), paddingTop: pt(6), paddingBottom: pt(6) }
+    const thStyle: CSSProperties = { ...font(9, INTER_LH), paddingTop: pt(6), paddingBottom: pt(6) }
     return (
       <thead data-testid={testId}>
         <tr className="bg-muted/50 text-muted-foreground border-b border-border/50">
-          <th className={`${th} pl-0 pr-2 text-left`} style={thStyle}>{L.description}</th>
-          <th className={`${th} px-2 text-center`} style={thStyle}>{L.qty}</th>
-          <th className={`${th} px-2 text-center`} style={thStyle}>{L.unit}</th>
-          <th className={`${th} px-2 text-right`} style={thStyle}>{L.unitPrice}</th>
-          <th className={`${th} pl-0 pr-0 text-right`} style={thStyle}>{L.total}</th>
+          <th className={`${th} px-0 text-left`} style={thStyle}>{L.description}</th>
+          <th className={`${th} px-0 text-center`} style={thStyle}>{L.qty}</th>
+          <th className={`${th} px-0 text-center`} style={thStyle}>{L.unit}</th>
+          <th className={`${th} px-0 text-right`} style={thStyle}>{L.unitPrice}</th>
+          <th className={`${th} px-0 text-right`} style={thStyle}>{L.total}</th>
         </tr>
       </thead>
     )
@@ -352,11 +352,11 @@ export const classicTemplate: PreviewTemplate = {
         data-item-id={item.id}
         className={`border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
       >
-        <td className="pl-0 pr-2" style={cell}>{item.description}</td>
-        <td className="px-2 text-center tabular-nums" style={cell}>{item.quantity}</td>
-        <td className="px-2 text-center" style={cell}>{item.unit ?? ''}</td>
-        <td className="px-2 text-right tabular-nums whitespace-nowrap" style={cell}>{ctx.fmt(item.unit_price)}</td>
-        <td className="pl-0 pr-0 text-right tabular-nums whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
+        <td className="px-0" style={cell}>{item.description}</td>
+        <td className="px-0 text-center" style={cell}>{item.quantity}</td>
+        <td className="px-0 text-center" style={cell}>{item.unit ?? ''}</td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.unit_price)}</td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
       </tr>
     )
   },
@@ -369,12 +369,12 @@ export const classicTemplate: PreviewTemplate = {
         key={block.id}
         data-page-block-id={block.id}
         className="flex justify-end items-baseline border-t border-border bg-muted/10"
-        style={{ ...font(9, 1.21), paddingTop: pt(6), paddingBottom: pt(6) }}
+        style={{ ...font(9, INTER_LH), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
         <span className="font-bold text-muted-foreground select-none" style={{ marginRight: pt(12) }}>
           {ctx.L.sectionSubtotal}
         </span>
-        <span className="font-bold tabular-nums text-right w-[18%]">{ctx.fmt(subtotal)}</span>
+        <span className="font-bold text-right w-[18%]">{ctx.fmt(subtotal)}</span>
       </div>
     )
   },
@@ -393,7 +393,10 @@ export const classicTemplate: PreviewTemplate = {
         data-card-box=""
         style={{ ...cardBoxStyle(ctx.brandColor), ...(card.isFirst ? { marginTop: pt(FIRST_TERMS_CARD_TOP_PT) } : {}) }}
       >
-        <p className={EYEBROW} style={eyebrowStyle(6)}>
+        <p
+          className={EYEBROW}
+          style={{ ...eyebrowStyle(6), ...(card.key === 'estimate' ? { color: ctx.brandText } : {}) }}
+        >
           {card.label}
         </p>
         <p className="text-muted-foreground whitespace-pre-line" style={TERMS_TEXT}>
@@ -423,8 +426,8 @@ export const classicTemplate: PreviewTemplate = {
           className="object-contain"
           style={{ width: pt(150), height: pt(40) }}
         />
-        <p style={{ ...font(9, 1.21), marginTop: pt(4) }}>{signature.signerName}</p>
-        <p className="text-muted-foreground" style={font(9, 1.21)}>
+        <p style={{ ...font(9, INTER_LH), marginTop: pt(4) }}>{signature.signerName}</p>
+        <p className="text-muted-foreground" style={font(9, INTER_LH)}>
           {formatDate(signature.signedAt, ctx.lang)}
         </p>
       </div>
@@ -452,7 +455,8 @@ export const classicTemplate: PreviewTemplate = {
               key={photo.id}
               photo={photo}
               frameClassName="aspect-square overflow-hidden rounded relative ring-1 ring-border/50"
-              captionClassName="text-muted-foreground line-clamp-2 text-[11px] mt-0.5"
+              captionClassName="font-normal text-muted-foreground line-clamp-2"
+              captionStyle={{ ...font(8, INTER_LH), marginTop: pt(2) }}
             />
           ))}
         </div>

@@ -1,22 +1,25 @@
 // components/workspace/estimate/preview-template/modern.tsx
 //
-// The Modern look of PaginatedPreview. STRUCTURE and ORDER mirror
-// components/pdf/estimate-pdf-modern.tsx (+ components/pdf/shared/*), which is
-// the source of truth; the Tailwind vocabulary (font-serif = Lora via
-// --font-serif, hairline rules, no brand fills, brand colour only as text /
-// short rules) follows components/share/estimate-document-modern.tsx. Type
-// sizes and spacing are the PDF's pt values converted at the sheet's 96dpi
-// scale, so wrapping inside the (PDF-margined) sheet approximates the PDF.
+// The Modern look of PaginatedPreview. This is a PRINT preview: STRUCTURE,
+// ORDER, type sizes, weights, letter-spacing and spacings all mirror
+// components/pdf/estimate-pdf-modern.tsx (+ components/pdf/shared/*) — the pt
+// values converted with PX_PER_PT (units.ts), weights only 400 / 700 (Lora /
+// Lora-Bold), so wrapping inside the (PDF-margined) sheet approximates the
+// PDF. The Tailwind vocabulary (font-serif = Lora via --font-serif, hairline
+// rules, no brand fills, brand colour only as text / short rules) follows
+// components/share/estimate-document-modern.tsx.
 //
 // Modern is fill-free by design (ESTIMATE_DESIGN_TOKENS.modern
 // .solidHeaderFill === false): brandOnFill / cardTintFill are intentionally
 // never read here.
 import Image from 'next/image'
+import type { CSSProperties } from 'react'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
-import { formatDate } from '@/lib/estimate/document/format'
-import { PHOTO_TILE_GAP_PT, PX_PER_PT } from '@/lib/estimate/document/tokens'
+import { formatDate, formatProjectType } from '@/lib/estimate/document/format'
+import { PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 import { ReadOnlyPhotoThumb } from './shared'
+import { LORA_LH, font, pt, tracking } from './units'
 import type { PreviewTemplate, RenderCtx } from './types'
 
 // Neutral palette — the same literals the Modern PDF's StyleSheet uses.
@@ -25,46 +28,75 @@ const MUTED = 'text-[#6b7280]'
 const LABEL = 'text-[#9ca3af]'
 const RULE = 'border-[#d1d5db]'
 
-// components/pdf/estimate-pdf-modern.tsx styles.infoLabel / termsTitle: 8pt
-// bold, light grey, uppercase, 1.5pt letter-spacing. One eyebrow style for the
-// whole document, exactly like the PDF.
-const EYEBROW = `text-[11px] leading-[1.28] font-bold uppercase tracking-[0.15em] ${LABEL} select-none`
-
-const pt = (v: number) => v * PX_PER_PT
+// styles.infoLabel / termsTitle: 8pt Lora-Bold, light grey, uppercase, 1.5pt
+// letter-spacing. One eyebrow for the whole document, exactly like the PDF.
+const EYEBROW = `font-bold uppercase ${LABEL} select-none`
+const eyebrowStyle = (marginBottomPt: number): CSSProperties => ({
+  ...font(8, LORA_LH),
+  ...tracking(1.5),
+  marginBottom: pt(marginBottomPt),
+})
+// styles.infoValue: 10pt / 1.6.
+const INFO_VALUE = font(10, 1.6)
+// styles.termsText: 9pt / 1.6, #4b5563.
+const TERMS_TEXT = font(9, 1.6)
+// styles.tableCellText: 9.5pt / Lora's 1.28.
+const CELL = font(9.5, LORA_LH)
 // styles.termsTitle.marginBottom (7pt) / termsText.marginBottom (14pt) / the
 // first terms card's topMarginPt (32pt).
 const TERMS_TITLE_GAP_PT = 7
 const TERMS_TEXT_GAP_PT = 14
 const FIRST_TERMS_CARD_TOP_PT = 32
+// styles.sectionTitle: 11pt bold, 0.5pt tracking, Lora-Bold line-height.
+const SECTION_TITLE_CLASS = 'min-w-0 font-bold select-none'
+const SECTION_TITLE_STYLE: CSSProperties = { ...font(11, LORA_LH), ...tracking(0.5) }
 
 function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
   const { data, L, lang, client, clientAddr, projectName, projectType, estimateCreatedAt, defaultEstimateNumber } = ctx
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-4" style={{ marginBottom: pt(28) }}>
       <div>
-        <p className={`${EYEBROW} mb-1.5`}>{L.project}</p>
-        <p className={`text-xl font-bold leading-snug ${INK}`}>{projectName}</p>
-        {projectType && (
-          <p className={`text-[13px] leading-[1.6] ${MUTED} capitalize`}>{projectType.replace(/_/g, ' ')}</p>
+        <p className={EYEBROW} style={eyebrowStyle(5)}>
+          {L.project}
+        </p>
+        <p className={`font-normal ${INK}`} style={INFO_VALUE}>
+          {projectName}
+        </p>
+        {formatProjectType(projectType) && (
+          <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
+            {formatProjectType(projectType)}
+          </p>
         )}
-        <p className={`text-[13px] leading-[1.6] ${MUTED} mt-1`}>
+        <p className={`font-normal ${MUTED}`} style={{ ...INFO_VALUE, marginTop: pt(4) }}>
           {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
         </p>
-        <p className={`text-[13px] leading-[1.6] ${MUTED} tabular-nums`}>
+        <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
           {L.estimateNum}
           {data.estimate_number ?? defaultEstimateNumber}
         </p>
       </div>
       {client && (
         <div>
-          <p className={`${EYEBROW} mb-1.5`}>{L.billTo}</p>
-          <p className={`text-xl font-bold leading-snug ${INK}`}>{client.name}</p>
-          {client.email && <p className={`text-[13px] leading-[1.6] ${MUTED}`}>{client.email}</p>}
+          <p className={EYEBROW} style={eyebrowStyle(5)}>
+            {L.billTo}
+          </p>
+          <p className={`font-bold ${INK}`} style={INFO_VALUE}>
+            {client.name}
+          </p>
+          {client.email && (
+            <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
+              {client.email}
+            </p>
+          )}
           {client.phone && (
-            <p className={`text-[13px] leading-[1.6] ${MUTED}`}>{formatPhoneForDisplay(client.phone)}</p>
+            <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
+              {formatPhoneForDisplay(client.phone)}
+            </p>
           )}
           {clientAddr && (
-            <p className={`text-[13px] leading-[1.6] ${MUTED} whitespace-pre-line`}>{clientAddr}</p>
+            <p className={`font-normal ${MUTED} whitespace-pre-line`} style={INFO_VALUE}>
+              {clientAddr}
+            </p>
           )}
         </div>
       )}
@@ -72,53 +104,57 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
   )
 }
 
-// PdfTotalsBlock variant 'modern': hairline-divided rows, then a standalone
-// hero total in the brand colour (no table row, no border above it), then the
-// deposit / balance-due rows. Locked order: Subtotal → Discount → Tax → Total →
-// Deposit → Balance Due.
+// PdfTotalsBlock variant 'modern': hairline-divided rows (10pt, 6pt vertical
+// padding, 0.5pt rule), then a standalone hero total in the brand colour (no
+// table row, no border above it), then the deposit / balance-due rows. Locked
+// order: Subtotal → Discount → Tax → Total → Deposit → Balance Due.
+const TOTALS_ROW = 'flex justify-between font-normal border-b border-[#e5e7eb]'
+const totalsRowStyle: CSSProperties = { ...font(10, LORA_LH), paddingTop: pt(6), paddingBottom: pt(6) }
+
 function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
-  const row = `flex justify-between py-2 border-b border-[#e5e7eb] text-[13px] leading-[1.28]`
   return (
     <div data-page-block-id="totals" className="flex justify-end" style={{ marginTop: pt(28) }}>
       <div className="w-[48%]">
-        <div className={row}>
+        <div className={TOTALS_ROW} style={totalsRowStyle}>
           <span className={`${MUTED} select-none`}>{L.subtotal}</span>
-          <span className="tabular-nums">{fmt(data.subtotal)}</span>
+          <span>{fmt(data.subtotal)}</span>
         </div>
         {data.discount_amount > 0 && (
-          <div className={row}>
+          <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className={`${MUTED} select-none`}>
               {L.discount}
               {isPercentageDiscount(data.discount_type) ? ` (${data.discount_value}%)` : ''}
             </span>
-            <span className="tabular-nums text-[#dc2626]">-{fmt(data.discount_amount)}</span>
+            <span className="text-[#dc2626]">-{fmt(data.discount_amount)}</span>
           </div>
         )}
         {data.tax_amount > 0 && (
-          <div className={row}>
+          <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className={`${MUTED} select-none`}>
               {L.tax} ({(data.tax_rate * 100).toFixed(2)}%)
             </span>
-            <span className="tabular-nums">{fmt(data.tax_amount)}</span>
+            <span>{fmt(data.tax_amount)}</span>
           </div>
         )}
         <div className="flex flex-col items-end" style={{ marginTop: pt(16) }}>
-          <p className={`text-xs font-bold uppercase tracking-[0.15em] ${LABEL} mb-1.5 select-none`}>{L.grandTotal}</p>
-          <p className="text-[40px] leading-none font-bold tabular-nums" style={{ color: brandText }}>
+          <p className={`font-bold uppercase ${LABEL} select-none`} style={{ ...font(9, LORA_LH), ...tracking(1.5), marginBottom: pt(4) }}>
+            {L.grandTotal}
+          </p>
+          <p className="font-bold" style={{ ...font(30, LORA_LH), color: brandText }}>
             {fmt(data.total)}
           </p>
         </div>
         {dep.showDeposit && (
-          <div className={row} style={{ marginTop: pt(16) }}>
-            <span className={`${MUTED} select-none`}>{L.deposit}</span>
-            <span className="tabular-nums">-{fmt(dep.depositAmount)}</span>
+          <div className={TOTALS_ROW} style={{ ...totalsRowStyle, marginTop: pt(16) }}>
+            <span className={`${MUTED} select-none`}>{L.depositRequired}</span>
+            <span>-{fmt(dep.depositAmount)}</span>
           </div>
         )}
         {dep.showDeposit && (
-          <div className={row}>
+          <div className={TOTALS_ROW} style={totalsRowStyle}>
             <span className={`${MUTED} select-none`}>{L.balanceDue}</span>
-            <span className="tabular-nums">{fmt(dep.balanceDue)}</span>
+            <span>{fmt(dep.balanceDue)}</span>
           </div>
         )}
       </div>
@@ -126,14 +162,12 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   )
 }
 
-const SECTION_TITLE = 'min-w-0 font-bold text-sm tracking-[0.04em] leading-[1.28] select-none'
-
 export const modernTemplate: PreviewTemplate = {
   sheetClassName: 'font-serif',
 
-  // PdfHeader (modern): name bold, one contact line joined by "|", address,
-  // logo right; a neutral hairline underneath instead of Classic's brand strip.
-  // The PDF draws no owner-name line, so neither does this.
+  // PdfHeader (modern): 15pt bold name, 9pt contact line joined by "|",
+  // address, logo right; a neutral hairline underneath instead of Classic's
+  // brand rule. The PDF draws no owner-name line, so neither does this.
   header(ctx) {
     const { company, companyAddr } = ctx
     const contacts = [company.phone && formatPhoneForDisplay(company.phone), company.email, company.website].filter(
@@ -145,21 +179,37 @@ export const modernTemplate: PreviewTemplate = {
         style={{ paddingBottom: pt(20), marginBottom: pt(32) }}
       >
         <div className="min-w-0">
-          <p className={`font-bold text-2xl leading-tight mb-1 ${INK}`}>{company.name}</p>
-          {contacts.length > 0 && <p className={`text-xs leading-[1.6] ${MUTED}`}>{contacts.join('  |  ')}</p>}
-          {companyAddr && <p className={`text-xs leading-[1.6] ${MUTED} whitespace-pre-line`}>{companyAddr}</p>}
+          <p className={`font-bold ${INK}`} style={{ ...font(15, LORA_LH), marginBottom: pt(5) }}>
+            {company.name}
+          </p>
+          {contacts.length > 0 && (
+            <p className={`font-normal ${MUTED} whitespace-pre-wrap`} style={font(9, 1.6)}>
+              {contacts.join('  |  ')}
+            </p>
+          )}
+          {companyAddr && (
+            <p className={`font-normal ${MUTED} whitespace-pre-line`} style={font(9, 1.6)}>
+              {companyAddr}
+            </p>
+          )}
         </div>
         {company.logo_url && (
           <div className="flex-shrink-0">
-            <Image src={company.logo_url} alt={company.name} width={64} height={64} className="object-contain" />
+            <Image
+              src={company.logo_url}
+              alt={company.name}
+              width={Math.round(pt(64))}
+              height={Math.round(pt(64))}
+              className="object-contain"
+            />
           </div>
         )}
       </div>
     )
   },
 
-  // PdfCompactHeader (modern): name bold left, "Estimate #<n>" right, hairline
-  // under it, 18pt of air below.
+  // PdfCompactHeader (modern): 11pt bold name left, 8.5pt "Estimate #<n>" right,
+  // hairline under it, 18pt of air below.
   compactHeader(ctx) {
     const { company, L, data, defaultEstimateNumber } = ctx
     return (
@@ -167,8 +217,10 @@ export const modernTemplate: PreviewTemplate = {
         className={`flex items-center justify-between gap-3 border-b ${RULE} select-none`}
         style={{ paddingBottom: pt(8), marginBottom: pt(18) }}
       >
-        <span className={`min-w-0 truncate text-sm font-bold leading-tight ${INK}`}>{company.name}</span>
-        <span className={`flex-shrink-0 text-[11px] ${MUTED}`}>
+        <span className={`min-w-0 truncate font-bold ${INK}`} style={font(11, LORA_LH)}>
+          {company.name}
+        </span>
+        <span className={`flex-shrink-0 font-normal ${MUTED}`} style={font(8.5, LORA_LH)}>
           {L.estimateNum}
           {data.estimate_number ?? defaultEstimateNumber}
         </span>
@@ -176,14 +228,14 @@ export const modernTemplate: PreviewTemplate = {
     )
   },
 
-  // PdfTitleBanner (modern): small letter-spaced brand-coloured title, left
-  // aligned, over a SHORT brand rule — no fill.
+  // PdfTitleBanner (modern): 13pt bold, 2pt-tracked, brand-coloured title, left
+  // aligned, over a SHORT (60pt) brand rule — no fill.
   titleBanner(key, ctx) {
     return (
       <div key={key}>
         <h1
-          className="text-[17px] leading-[1.28] font-bold tracking-[0.15em] select-none"
-          style={{ color: ctx.brandText, marginBottom: pt(6) }}
+          className="font-bold select-none"
+          style={{ ...font(13, LORA_LH), ...tracking(2), color: ctx.brandText, marginBottom: pt(6) }}
         >
           {ctx.L.estimate}
         </h1>
@@ -203,8 +255,12 @@ export const modernTemplate: PreviewTemplate = {
   summary(key, text, ctx) {
     return (
       <div key={key}>
-        <p className={`${EYEBROW} mb-1.5`}>{ctx.L.summary}</p>
-        <p className="text-xs leading-[1.6] text-[#4b5563] whitespace-pre-line mb-2">{text}</p>
+        <p className={EYEBROW} style={eyebrowStyle(5)}>
+          {ctx.L.summary}
+        </p>
+        <p className="font-normal text-[#4b5563] whitespace-pre-line" style={{ ...TERMS_TEXT, marginBottom: pt(6) }}>
+          {text}
+        </p>
       </div>
     )
   },
@@ -223,10 +279,10 @@ export const modernTemplate: PreviewTemplate = {
           className="flex items-baseline gap-1 border-b border-[#1f2937]"
           style={{ paddingTop: pt(6), paddingBottom: pt(6) }}
         >
-          <span className={`${SECTION_TITLE} truncate max-w-[80%]`} style={{ color: ctx.brandText }}>
+          <span className={`${SECTION_TITLE_CLASS} truncate max-w-[80%]`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
             {title}
           </span>
-          <span className={`${SECTION_TITLE} flex-shrink-0`} style={{ color: ctx.brandText }}>
+          <span className={`${SECTION_TITLE_CLASS} flex-shrink-0`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
             {ctx.L.continued}
           </span>
         </div>
@@ -239,56 +295,71 @@ export const modernTemplate: PreviewTemplate = {
         className="flex items-center border-b border-[#1f2937]"
         style={{ marginTop: pt(22), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
-        <span className={`${SECTION_TITLE} flex-1`} style={{ color: ctx.brandText }}>
+        <span className={`${SECTION_TITLE_CLASS} flex-1`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
           {title}
         </span>
       </div>
     )
   },
 
-  // Light uppercase column labels over a hairline; no fill.
+  // styles.tableHeader: light 8.5pt bold uppercase labels (0.5pt tracking) over
+  // a hairline, 8pt vertical padding; no fill.
   tableHead(ctx, testId) {
     const { L } = ctx
+    const th = `font-bold ${LABEL}`
+    const thStyle: CSSProperties = {
+      ...font(8.5, LORA_LH),
+      ...tracking(0.5),
+      paddingTop: pt(8),
+      paddingBottom: pt(8),
+    }
     return (
       <thead data-testid={testId}>
-        <tr className={`border-b ${RULE} text-[11px] font-bold uppercase tracking-[0.05em] ${LABEL}`}>
-          <th className="py-2.5 pl-0 pr-2 text-left font-bold">{L.description}</th>
-          <th className="py-2.5 px-2 text-center font-bold">{L.qty}</th>
-          <th className="py-2.5 px-2 text-center font-bold">{L.unit}</th>
-          <th className="py-2.5 px-2 text-right font-bold">{L.unitPrice}</th>
-          <th className="py-2.5 pl-0 pr-0 text-right font-bold">{L.total}</th>
+        <tr className={`border-b ${RULE} uppercase`}>
+          <th className={`${th} px-0 text-left`} style={thStyle}>{L.description}</th>
+          <th className={`${th} px-0 text-center`} style={thStyle}>{L.qty}</th>
+          <th className={`${th} px-0 text-center`} style={thStyle}>{L.unit}</th>
+          <th className={`${th} px-0 text-right`} style={thStyle}>{L.unitPrice}</th>
+          <th className={`${th} px-0 text-right`} style={thStyle}>{L.total}</th>
         </tr>
       </thead>
     )
   },
 
-  // Hairline row rules, no zebra (the PDF's tableRowAlt is empty).
+  // styles.tableRow: 8pt vertical padding, 9.5pt cells, hairline rule, no zebra
+  // (the PDF's tableRowAlt is empty).
   itemRow(block, item, _itemIndex, ctx) {
+    const cell: CSSProperties = { ...CELL, paddingTop: pt(8), paddingBottom: pt(8) }
     return (
       <tr
         key={block.id}
         data-page-block-id={block.id}
         data-item-id={item.id}
-        className="border-b border-[#f0f1f3] text-[13px] leading-[1.28]"
+        className="border-b border-[#f0f1f3] font-normal"
       >
-        <td className="py-2.5 pl-0 pr-2">{item.description}</td>
-        <td className="py-2.5 px-2 text-center tabular-nums">{item.quantity}</td>
-        <td className="py-2.5 px-2 text-center">{item.unit ?? ''}</td>
-        <td className="py-2.5 px-2 text-right tabular-nums whitespace-nowrap">{ctx.fmt(item.unit_price)}</td>
-        <td className="py-2.5 pl-0 pr-0 text-right tabular-nums whitespace-nowrap">{ctx.fmt(item.total)}</td>
+        <td className="px-0" style={cell}>{item.description}</td>
+        <td className="px-0 text-center" style={cell}>{item.quantity}</td>
+        <td className="px-0 text-center" style={cell}>{item.unit ?? ''}</td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.unit_price)}</td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
       </tr>
     )
   },
 
+  // styles.sectionSubtotal: 8pt padding, 0.5pt top rule, 9pt bold label (12pt
+  // right margin) + value in the Total column's 18%.
   sectionSubtotal(block, subtotal, ctx) {
     return (
       <div
         key={block.id}
         data-page-block-id={block.id}
-        className={`flex justify-end items-baseline py-2.5 border-t ${RULE}`}
+        className={`flex justify-end items-baseline border-t ${RULE}`}
+        style={{ ...font(9, LORA_LH), paddingTop: pt(8), paddingBottom: pt(8) }}
       >
-        <span className={`text-xs font-bold ${MUTED} mr-4 select-none`}>{ctx.L.sectionSubtotal}</span>
-        <span className="text-xs font-bold tabular-nums text-right w-[18%]">{ctx.fmt(subtotal)}</span>
+        <span className={`font-bold ${MUTED} select-none`} style={{ marginRight: pt(12) }}>
+          {ctx.L.sectionSubtotal}
+        </span>
+        <span className="font-bold text-right w-[18%]">{ctx.fmt(subtotal)}</span>
       </div>
     )
   },
@@ -310,15 +381,15 @@ export const modernTemplate: PreviewTemplate = {
         <p
           className={EYEBROW}
           style={{
-            marginBottom: pt(TERMS_TITLE_GAP_PT),
+            ...eyebrowStyle(TERMS_TITLE_GAP_PT),
             ...(card.key === 'estimate' ? { color: ctx.brandText } : {}),
           }}
         >
           {card.label}
         </p>
         <p
-          className="text-xs leading-[1.6] text-[#4b5563] whitespace-pre-line"
-          style={{ marginBottom: pt(TERMS_TEXT_GAP_PT) }}
+          className="font-normal text-[#4b5563] whitespace-pre-line"
+          style={{ ...TERMS_TEXT, marginBottom: pt(TERMS_TEXT_GAP_PT) }}
         >
           {card.text}
         </p>
@@ -326,11 +397,12 @@ export const modernTemplate: PreviewTemplate = {
     )
   },
 
-  // PdfSignatureBlock (modern, box-less): eyebrow, 150x40pt image, name, date.
+  // PdfSignatureBlock (modern, box-less): eyebrow, 150x40pt image, 9pt name and
+  // date.
   signature(block, signature, ctx) {
     return (
       <div key={block.id} data-page-block-id="signature" style={{ marginTop: pt(16) }}>
-        <p className={EYEBROW} style={{ marginBottom: pt(TERMS_TITLE_GAP_PT) }}>
+        <p className={EYEBROW} style={eyebrowStyle(TERMS_TITLE_GAP_PT)}>
           {ctx.L.signedBy}
         </p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -340,8 +412,12 @@ export const modernTemplate: PreviewTemplate = {
           className="object-contain"
           style={{ width: pt(150), height: pt(40) }}
         />
-        <p className="text-xs mt-1">{signature.signerName}</p>
-        <p className={`text-xs ${MUTED}`}>{formatDate(signature.signedAt, ctx.lang)}</p>
+        <p className="font-normal" style={{ ...font(9, LORA_LH), marginTop: pt(4) }}>
+          {signature.signerName}
+        </p>
+        <p className={`font-normal ${MUTED}`} style={font(9, LORA_LH)}>
+          {formatDate(signature.signedAt, ctx.lang)}
+        </p>
       </div>
     )
   },
@@ -356,7 +432,7 @@ export const modernTemplate: PreviewTemplate = {
         style={{ marginTop: pt(showLabel ? 20 : PHOTO_TILE_GAP_PT) }}
       >
         {showLabel && (
-          <p className={EYEBROW} style={{ marginBottom: pt(TERMS_TITLE_GAP_PT) }}>
+          <p className={EYEBROW} style={eyebrowStyle(TERMS_TITLE_GAP_PT)}>
             {ctx.L.photos}
           </p>
         )}
@@ -368,7 +444,8 @@ export const modernTemplate: PreviewTemplate = {
               key={photo.id}
               photo={photo}
               frameClassName="aspect-square overflow-hidden relative bg-[#f3f4f6]"
-              captionClassName={`mt-0.5 text-[11px] ${MUTED} line-clamp-2`}
+              captionClassName={`font-normal ${MUTED} line-clamp-2`}
+              captionStyle={{ ...font(8, LORA_LH), marginTop: pt(2) }}
             />
           ))}
         </div>
@@ -379,8 +456,12 @@ export const modernTemplate: PreviewTemplate = {
   preparedBy(block, name, ctx) {
     return (
       <div key={block.id} data-page-block-id="prepared-by" style={{ marginTop: pt(20) }}>
-        <p className={`${EYEBROW} mb-1.5`}>{ctx.L.preparedBy}</p>
-        <p className="text-[13px] leading-[1.6]">{name}</p>
+        <p className={EYEBROW} style={eyebrowStyle(5)}>
+          {ctx.L.preparedBy}
+        </p>
+        <p className="font-normal" style={INFO_VALUE}>
+          {name}
+        </p>
       </div>
     )
   },
