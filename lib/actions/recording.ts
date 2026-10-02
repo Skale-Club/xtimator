@@ -35,7 +35,9 @@ async function getAuthContext() {
   const denied = await assertWritable()
   if (denied) return denied
 
-  return { supabase, company }
+  // 260928: the caller's id, carried on generation events so the "estimate
+  // ready" push reaches the person who started the capture.
+  return { supabase, company, userId: typeof claims.sub === 'string' ? claims.sub : undefined }
 }
 
 // Text-only recording — no audio file, transcript is the typed description
@@ -170,6 +172,7 @@ export async function createTextRecording(
           attemptId: eventAttemptId,
           inputType: 'manual_text' as const,
           channel: 'web' as const,
+          notifyUserId: ctx.userId,
         },
       })
       if (ids[0]) await recordJobOwnership(ids[0], company.id)
@@ -483,6 +486,7 @@ export async function transcribeRecording(
         recordingId,
         storagePath: recording.storage_path as string,
         attemptId,
+        notifyUserId: ctx.userId,
         ...(options?.dispatchNonce !== undefined && { dispatchNonce: options.dispatchNonce }),
         ...(options?.autoGenerateEstimate && {
           autoGenerateEstimate: true,

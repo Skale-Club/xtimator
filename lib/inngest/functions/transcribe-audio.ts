@@ -347,6 +347,8 @@ export const transcribeAudioJob = inngest.createFunction(
             attemptId,
             inputType: 'recording' as const,
             channel: 'web' as const,
+            // 260928: who gets the "estimate ready" push.
+            notifyUserId: data.notifyUserId,
           },
         })
       })

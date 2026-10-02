@@ -280,6 +280,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Generating a new version of this estimate': 'Gerando uma nova versão deste orçamento',
     'This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.':
       'Está demorando mais que o normal. O orçamento continua sendo gerado em segundo plano e avisamos quando ficar pronto.',
+    'Notify me on this device when it is ready': 'Avisar neste aparelho quando ficar pronto',
+    'We will notify this device, even with the app closed.':
+      'Vamos avisar neste aparelho, mesmo com o app fechado.',
+    'On iPhone, add Xtimator to your Home Screen to get notified with the app closed.':
+      'No iPhone, adicione o Xtimator à Tela de Início para receber avisos com o app fechado.',
+    'Push notifications are not available yet.': 'As notificações push ainda não estão disponíveis.',
+    "Couldn't turn on notifications on this device.": 'Não foi possível ativar os avisos neste aparelho.',
     'items in': 'itens em',
     'sections': 'seções',
     'Pass': 'Passada',
@@ -562,6 +569,13 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Generating a new version of this estimate': 'Generando una nueva versión de este presupuesto',
     'This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.':
       'Está tardando más de lo normal. El presupuesto se sigue generando en segundo plano y le avisaremos cuando esté listo.',
+    'Notify me on this device when it is ready': 'Avisarme en este dispositivo cuando esté listo',
+    'We will notify this device, even with the app closed.':
+      'Le avisaremos en este dispositivo, incluso con la app cerrada.',
+    'On iPhone, add Xtimator to your Home Screen to get notified with the app closed.':
+      'En iPhone, agregue Xtimator a la pantalla de inicio para recibir avisos con la app cerrada.',
+    'Push notifications are not available yet.': 'Las notificaciones push aún no están disponibles.',
+    "Couldn't turn on notifications on this device.": 'No se pudieron activar los avisos en este dispositivo.',
     'items in': 'partidas en',
     'sections': 'secciones',
     'Pass': 'Pasada',

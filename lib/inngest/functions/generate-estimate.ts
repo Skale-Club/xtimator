@@ -20,6 +20,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { sendEstimatePush } from '@/lib/notifications/estimate-push'
 import {
   EVENT_ESTIMATE_GENERATE,
   type EstimateGeneratePayload,
@@ -102,6 +103,18 @@ export const generateEstimateJob = inngest.createFunction(
       // quick-260705-c1y-03: additive ops alert (never-throw fire-and-forget)
       // alongside the tenant notify above — routes terminal generation failures
       // to the operator's Telegram once configured. Does not gate or alter notify().
+      // 260928: tell the person who started it, on their phone, even with the
+      // app closed. Web captures only (MCP callers have their own channel).
+      if (payload.channel !== 'mcp') {
+        await sendEstimatePush({
+          kind: 'failed',
+          userId: payload.notifyUserId ?? payload.createdByUserId,
+          projectId: payload.projectId,
+          estimateId: null,
+          attemptId: payload.attemptId ?? payload.requestId,
+        })
+      }
+
       void notifyOps({
         kind: 'estimate_generation_failed',
         title: 'Estimate generation failed after retries',
@@ -361,6 +374,24 @@ export const generateEstimateJob = inngest.createFunction(
       provider: null,
       durationMs: null,
     })
+
+    // 260928: the push the contractor waits for, delivered even when the app is
+    // closed or the phone is locked. No estimate id at the end means the run
+    // ended in the needs-details state (the same rule getAttemptOutcome uses).
+    // Its own memoized step, so an Inngest replay never sends it twice.
+    // sendEstimatePush never throws; a failed push cannot fail the generation.
+    const pushUserId = data.notifyUserId ?? createdByUserId
+    if (pushUserId && data.channel !== 'mcp') {
+      await step.run('notify-push', async () =>
+        sendEstimatePush({
+          kind: estimateId ? 'ready' : 'needs_details',
+          userId: pushUserId,
+          projectId,
+          estimateId,
+          attemptId,
+        })
+      )
+    }
 
     // Phase 77 NOTIF-04: success notification (opt-in via DEFAULT_PREFERENCES
     // for ai_job category — both channels default OFF, so only users who

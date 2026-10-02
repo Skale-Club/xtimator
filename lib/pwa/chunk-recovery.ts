@@ -1,3 +1,5 @@
+import { isPushWorkerRegistration } from './push-worker'
+
 const RECOVERY_SESSION_KEY = 'xtimator_chunk_recovery_at'
 const RECOVERY_QUERY_PARAM = 'xtimator_chunk_recovery'
 const RECOVERY_COOLDOWN_MS = 30_000
@@ -47,7 +49,13 @@ export async function recoverFromStaleChunkError(error: unknown): Promise<boolea
 async function unregisterServiceWorkers() {
   if (!('serviceWorker' in navigator)) return
   const registrations = await navigator.serviceWorker.getRegistrations()
-  await Promise.all(registrations.map((registration) => registration.unregister()))
+  // 260928: the push-only worker cannot cause a stale chunk (it has no fetch
+  // handler and controls no page), and unregistering it kills push delivery.
+  await Promise.all(
+    registrations
+      .filter((registration) => !isPushWorkerRegistration(registration))
+      .map((registration) => registration.unregister())
+  )
 }
 
 async function deletePwaCaches() {

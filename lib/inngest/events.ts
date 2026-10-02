@@ -19,6 +19,14 @@ export const EVENT_WHATSAPP_PROCESS = 'whatsapp/process.requested' as const
 export const EVENT_WHATSAPP_INTENT = 'whatsapp/intent.requested' as const
 
 export type EstimateGeneratePayload = {
+  /**
+   * 260928: the user who started this capture. The generate function sends
+   * them the "estimate ready" push notification (lib/notifications/estimate-push.ts).
+   * Deliberately separate from `createdByUserId`, which drives "Prepared by" in
+   * PDFs and is not set by the web capture paths. Optional so older callers compile.
+   */
+  notifyUserId?: string
+
   companyId: string
   projectId: string
   requestId: string
@@ -56,6 +64,14 @@ export type EstimateGeneratePayload = {
 }
 
 export type TranscribeAudioPayload = {
+  /**
+   * 260928: the user who started this capture. The generate function sends
+   * them the "estimate ready" push notification (lib/notifications/estimate-push.ts).
+   * Deliberately separate from `createdByUserId`, which drives "Prepared by" in
+   * PDFs and is not set by the web capture paths. Optional so older callers compile.
+   */
+  notifyUserId?: string
+
   companyId: string
   recordingId: string
   storagePath: string
@@ -90,6 +106,14 @@ export type TranscribeAudioPayload = {
 }
 
 export type AnalyzePhotosPayload = {
+  /**
+   * 260928: the user who started this capture. The generate function sends
+   * them the "estimate ready" push notification (lib/notifications/estimate-push.ts).
+   * Deliberately separate from `createdByUserId`, which drives "Prepared by" in
+   * PDFs and is not set by the web capture paths. Optional so older callers compile.
+   */
+  notifyUserId?: string
+
   companyId: string
   projectId: string
   requestId: string

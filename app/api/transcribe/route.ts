@@ -125,6 +125,7 @@ export async function POST(request: Request) {
       attemptId,
       // Phase 92 (EVENT-03 / D-07): the transcribe path is always recording.
       inputType: 'recording',
+      notifyUserId: typeof claims.sub === 'string' ? claims.sub : undefined,
     }
     const { ids } = await inngest.send({
       name: EVENT_TRANSCRIBE_AUDIO,
