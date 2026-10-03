@@ -5,7 +5,7 @@
 // so cmdk's internal keyboard navigation (ArrowUp/Down/Enter) operates against the same
 // query while the user keeps typing in the visible input.
 
-import { useState, useRef, useMemo } from 'react'
+import { forwardRef, useLayoutEffect, useState, useRef, useMemo } from 'react'
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover'
 import {
   Command,
@@ -28,7 +28,58 @@ interface PriceBookComboboxProps {
   noMatchesLabel?: string
   disabled?: boolean
   'aria-label'?: string
+  /** Render an auto-growing <textarea> that wraps like the text it edits
+   *  (the paginated view's in-place line editor) instead of an <input>. */
+  multiline?: boolean
 }
+
+type FieldProps = {
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  onFocus?: () => void
+  onBlur?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  placeholder?: string
+  className?: string
+  disabled?: boolean
+  'aria-label'?: string
+}
+
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = '0px'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+/** <input>, or an auto-growing single-paragraph <textarea> when multiline. */
+const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { multiline?: boolean }>(
+  function Field({ multiline, onChange, ...props }, ref) {
+    const innerRef = useRef<HTMLTextAreaElement | null>(null)
+    useLayoutEffect(() => {
+      if (multiline) autoGrow(innerRef.current)
+    }, [multiline, props.value])
+    if (!multiline) {
+      return <input ref={ref as React.Ref<HTMLInputElement>} onChange={onChange} {...props} />
+    }
+    return (
+      <textarea
+        ref={(el) => {
+          innerRef.current = el
+          if (typeof ref === 'function') ref(el)
+          else if (ref) ref.current = el
+        }}
+        rows={1}
+        style={{ resize: 'none', overflow: 'hidden', display: 'block' }}
+        // A description is one paragraph: a pasted newline becomes a space.
+        onChange={(e) => {
+          if (e.target.value.includes('\n')) e.target.value = e.target.value.replace(/\n/g, ' ')
+          onChange(e)
+        }}
+        {...props}
+      />
+    )
+  }
+)
 
 export function PriceBookCombobox({
   value,
@@ -41,9 +92,10 @@ export function PriceBookCombobox({
   noMatchesLabel,
   disabled,
   'aria-label': ariaLabel,
+  multiline,
 }: PriceBookComboboxProps) {
   const [open, setOpen] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
   const hasItems = items.length > 0
 
   const normalizedQuery = value.trim().toLowerCase()
@@ -62,7 +114,8 @@ export function PriceBookCombobox({
   // Empty price book → render plain input, no dropdown.
   if (!hasItems) {
     return (
-      <input
+      <Field
+        multiline={multiline}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -76,7 +129,8 @@ export function PriceBookCombobox({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
-        <input
+        <Field
+          multiline={multiline}
           ref={inputRef}
           value={value}
           onChange={(e) => {

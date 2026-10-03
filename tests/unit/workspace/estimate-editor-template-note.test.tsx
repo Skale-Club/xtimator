@@ -11,7 +11,7 @@ import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/es
 // a button that jumps to Page view.
 
 const NOTE_TEXT =
-  'Editing in the standard layout. Clients see the Modern template — switch to Page view to preview it.'
+  'Editing in the standard layout. Clients see the Modern template — switch to Page view to see and edit it that way.'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),

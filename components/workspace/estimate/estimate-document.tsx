@@ -135,7 +135,7 @@ const UNIT_OPTIONS_BY_LANG: Record<EstimateLanguage, string[]> = {
 }
 
 /** Returns the language unit list, prepending the current value if it's not in the list. */
-function resolveUnitOptions(lang: EstimateLanguage, currentValue: string | null): string[] {
+export function resolveUnitOptions(lang: EstimateLanguage, currentValue: string | null): string[] {
   const base = UNIT_OPTIONS_BY_LANG[lang] ?? UNIT_OPTIONS_BY_LANG.en
   if (currentValue && !base.includes(currentValue)) return [currentValue, ...base]
   return base

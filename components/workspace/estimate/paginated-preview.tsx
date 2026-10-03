@@ -1,13 +1,19 @@
 // components/workspace/estimate/paginated-preview.tsx
 //
-// Quick 260806-pgv Task T1 — a READ-ONLY, real-page-container replacement for
+// Quick 260806-pgv Task T1 — a real-page-container replacement for
 // the decorative PaginatedDocumentOverlay (Phase 185). Consumes the SAME
 // PageAssignment[] the PDF pipeline consumes (lib/estimate/pagination/**,
 // UNTOUCHED by this task) and resolves each PageBlock.ref against the
 // document model directly to DOM, mirroring components/pdf/estimate-pdf.tsx's
 // block-dispatch pattern instead of the old overlay's measure-then-anchor
-// approach. Zero inputs, zero dnd, zero dispatch — every editable affordance
-// EstimateDocument has in pageView mode is intentionally absent here.
+// approach.
+//
+// EDITING: given `dispatch` (the editor passes it for a current, unlocked
+// version) the sheets are edited in place — every value the templates draw
+// through preview-template/editable.tsx turns into a field on click, with line
+// and section actions parked in the page margins. Without it, the same
+// templates draw plain values (read-only). Layout never depends on the mode:
+// the edit affordances take no layout space, so the engine's page breaks hold.
 //
 // TEMPLATE LOOK: this file owns everything template-agnostic (page walking,
 // visibility gates, which terms card / photos / signature a block resolves
@@ -51,10 +57,14 @@ import type {
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
+import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { EstimateAction } from './use-estimate-reducer'
+import { resolveUnitOptions } from './estimate-document'
+import { AddSectionButton } from './preview-template/editable'
 import { classicTemplate } from './preview-template/classic'
 import { modernTemplate } from './preview-template/modern'
 import { ItemTableColgroup } from './preview-template/shared'
-import type { PreviewTemplate, RenderCtx, ResolvedTermsCard } from './preview-template/types'
+import type { PreviewEditApi, PreviewTemplate, RenderCtx, ResolvedTermsCard } from './preview-template/types'
 
 // 185-UI-SPEC.md §2's page-gap between sheets — kept as the same design
 // constant the old overlay used.
@@ -102,6 +112,12 @@ export interface PaginatedPreviewProps {
   estimateSeq?: number
   estimateCreatedAt: string
   companyTerms?: { enabled: boolean; text: string | null } | null
+  /** Present = the sheets are editable in place; absent = read-only. */
+  dispatch?: (action: EstimateAction) => void
+  /** Price-book suggestions for line descriptions (edit mode). */
+  priceBookItems?: PriceBookItem[]
+  /** Renames the project from the info grid (edit mode); absent = not editable. */
+  onRenameProject?: (name: string) => Promise<void> | void
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +419,9 @@ export function PaginatedPreview({
   estimateSeq,
   estimateCreatedAt,
   companyTerms,
+  dispatch,
+  priceBookItems,
+  onRenameProject,
 }: PaginatedPreviewProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -439,6 +458,34 @@ export function PaginatedPreview({
     ?.flatMap((page) => page.blocks)
     .find((block) => block.kind === 'terms-card')?.id
 
+  // The "new line" field: at most one open, in the section that asked for it.
+  const [newItemSection, setNewItemSection] = useState<string | null>(null)
+  const edit: PreviewEditApi | undefined = dispatch
+    ? {
+        dispatch,
+        priceBookItems: priceBookItems ?? [],
+        unitOptions: (current) => resolveUnitOptions(lang, current),
+        newItemSection,
+        startNewItem: setNewItemSection,
+        cancelNewItem: () => setNewItemSection(null),
+        commitNewItem: (sectionId, description, pb) => {
+          // Our own id, so a price-book pick can be applied to this very line.
+          const itemId = 'temp-' + crypto.randomUUID()
+          dispatch({ type: 'ADD_ITEM', sectionId, itemId, description })
+          if (pb) {
+            dispatch({
+              type: 'APPLY_PRICE_BOOK_ITEM',
+              sectionId,
+              itemId,
+              item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
+            })
+          }
+          setNewItemSection(null)
+        },
+        renameProject: onRenameProject,
+      }
+    : undefined
+
   const ctx: RenderCtx = {
     data,
     L,
@@ -462,10 +509,11 @@ export function PaginatedPreview({
     defaultEstimateNumber,
     companyTerms: companyTerms ?? null,
     hasCompanyTerms,
+    edit,
   }
 
   // ---------------------------------------------------------------------
-  // Zoom — fit-width by default, manual override via the pill. Applied via
+  // Zoom — fit-width by default, manual override via the side toolbar. Applied via
   // transform: scale() (NEVER CSS zoom), with both width AND height
   // compensation so the scroll extent always matches the scaled content
   // exactly (mirrors the "width-wrapper technique" — a compensated sizer
@@ -567,44 +615,91 @@ export function PaginatedPreview({
 
   return (
     <div className="flex justify-center gap-6">
-      {pages.length > 1 && (
-        <nav
-          aria-label="Pages"
-          className="hidden lg:flex flex-col gap-3 sticky top-24 self-start shrink-0 max-h-[70vh] overflow-y-auto py-1 pr-1"
+      {/* Side toolbar — sticky beside the sheets like a PDF viewer's sidebar:
+          "Add section" (edit mode), the zoom control, then (multi-page only)
+          the page thumbnails. Page view is desktop-only, so this is lg+ only.
+          It used to be a fixed bottom-right pill that floated over the chat
+          launcher, detached from the document it zooms. */}
+      <aside className="hidden lg:flex flex-col items-center gap-4 sticky top-24 self-start shrink-0 max-h-[calc(100vh-8rem)]">
+        {dispatch && (
+          <AddSectionButton
+            L={L}
+            onAdd={(title, firstItemDescription) =>
+              dispatch({ type: 'ADD_SECTION', title: title || undefined, firstItemDescription })
+            }
+          />
+        )}
+
+        <div
+          role="group"
+          aria-label="Zoom"
+          className="flex w-14 flex-col items-center gap-0.5 rounded-xl border border-border bg-background/95 p-1 text-foreground shadow-sm"
         >
-          {pages.map((page) => (
-            <button
-              key={page.pageIndex}
-              type="button"
-              onClick={() => scrollToPage(page.pageIndex)}
-              aria-label={`${L.page} ${page.pageIndex + 1}`}
-              aria-current={activePage === page.pageIndex ? 'page' : undefined}
-              className="group flex flex-col items-center gap-1"
-            >
-              <span
-                className={`block w-14 rounded-[3px] bg-white shadow-md transition-all ${
-                  activePage === page.pageIndex
-                    ? 'ring-2 ring-primary'
-                    : 'ring-1 ring-black/10 opacity-70 group-hover:opacity-100'
-                }`}
-                style={{ aspectRatio: '8.5 / 11' }}
+          <button
+            type="button"
+            aria-label="Zoom in"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
+            disabled={zoom >= 1.5}
+            onClick={() => zoomStep(0.1)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Fit width"
+            title="Fit width"
+            className="w-full rounded-md py-0.5 text-center text-[11px] tabular-nums hover:bg-muted"
+            onClick={() => setManualZoom(null)}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
+            disabled={zoom <= 0.5}
+            onClick={() => zoomStep(-0.1)}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {pages.length > 1 && (
+          <nav aria-label="Pages" className="flex min-h-0 flex-col gap-3 overflow-y-auto py-1 pr-1">
+            {pages.map((page) => (
+              <button
+                key={page.pageIndex}
+                type="button"
+                onClick={() => scrollToPage(page.pageIndex)}
+                aria-label={`${L.page} ${page.pageIndex + 1}`}
+                aria-current={activePage === page.pageIndex ? 'page' : undefined}
+                className="group flex flex-col items-center gap-1"
               >
-                {/* skeleton page lines — a lightweight thumbnail placeholder */}
-                <span className="mx-2 mt-2 block h-1 rounded-sm bg-zinc-300/80" />
-                <span className="mx-2 mt-1 block h-1 rounded-sm bg-zinc-200" />
-                <span className="mx-2 mt-1 block h-1 w-2/3 rounded-sm bg-zinc-200" />
-              </span>
-              <span
-                className={`text-[11px] tabular-nums ${
-                  activePage === page.pageIndex ? 'text-foreground' : 'text-muted-foreground'
-                }`}
-              >
-                {page.pageIndex + 1}
-              </span>
-            </button>
-          ))}
-        </nav>
-      )}
+                <span
+                  className={`block w-14 rounded-[3px] bg-white shadow-md transition-all ${
+                    activePage === page.pageIndex
+                      ? 'ring-2 ring-primary'
+                      : 'ring-1 ring-black/10 opacity-70 group-hover:opacity-100'
+                  }`}
+                  style={{ aspectRatio: '8.5 / 11' }}
+                >
+                  {/* skeleton page lines — a lightweight thumbnail placeholder */}
+                  <span className="mx-2 mt-2 block h-1 rounded-sm bg-zinc-300/80" />
+                  <span className="mx-2 mt-1 block h-1 rounded-sm bg-zinc-200" />
+                  <span className="mx-2 mt-1 block h-1 w-2/3 rounded-sm bg-zinc-200" />
+                </span>
+                <span
+                  className={`text-[11px] tabular-nums ${
+                    activePage === page.pageIndex ? 'text-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  {page.pageIndex + 1}
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
+      </aside>
 
       {/* px-4 = 16px each side, the real geometry the fit-zoom effect's
           "+ 32" compensates for — see the comment on that effect above. */}
@@ -635,40 +730,6 @@ export function PaginatedPreview({
               />
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* PDF-viewer-style zoom pill — mirrors estimate-editor.tsx's retired
-          pill (L743-777) visually, now self-contained inside this component. */}
-      <div className="fixed bottom-24 right-8 z-30 pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-zinc-900/90 px-2 py-1 text-zinc-100 shadow-lg backdrop-blur border border-white/10">
-          <button
-            type="button"
-            aria-label="Zoom out"
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-            disabled={zoom <= 0.5}
-            onClick={() => zoomStep(-0.1)}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Fit width"
-            title="Fit width"
-            className="min-w-[3.25rem] rounded-full px-1 text-center text-xs tabular-nums hover:bg-white/10"
-            onClick={() => setManualZoom(null)}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-white/10 disabled:opacity-40"
-            disabled={zoom >= 1.5}
-            onClick={() => zoomStep(0.1)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
     </div>

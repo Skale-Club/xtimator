@@ -115,9 +115,13 @@ export type EstimateAction =
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
   | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable'; value: string | number | boolean | null }
   | { type: 'APPLY_PRICE_BOOK_ITEM'; sectionId: string; itemId: string; item: { name: string; unit: string | null; unit_price: number } }
-  | { type: 'ADD_ITEM'; sectionId: string }
+  // itemId/description: the paginated view creates a line already described
+  // (an empty line is hidden there, as in the PDF), and needs its id to apply
+  // a price-book pick right after.
+  | { type: 'ADD_ITEM'; sectionId: string; itemId?: string; description?: string }
   | { type: 'REMOVE_ITEM'; sectionId: string; itemId: string }
-  | { type: 'ADD_SECTION' }
+  // title/firstItemDescription: same reason as ADD_ITEM's optional fields.
+  | { type: 'ADD_SECTION'; title?: string; firstItemDescription?: string }
   | { type: 'REMOVE_SECTION'; sectionId: string }
   | { type: 'REORDER_ITEMS'; sectionId: string; itemIds: string[] }
   | { type: 'REORDER_SECTIONS'; sectionIds: string[] }
@@ -454,8 +458,8 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             items: [
               ...s.items,
               {
-                id: 'temp-' + crypto.randomUUID(),
-                description: '',
+                id: action.itemId ?? 'temp-' + crypto.randomUUID(),
+                description: action.description ?? '',
                 quantity: 1,
                 unit: null,
                 unit_price: 0,
@@ -497,13 +501,13 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
           ...state.sections,
           {
             id: newSectionId,
-            title: 'New Section',
+            title: action.title ?? 'New Section',
             sort_order: state.sections.length,
             subtotal: 0,
             items: [
               {
                 id: 'temp-' + crypto.randomUUID(),
-                description: '',
+                description: action.firstItemDescription ?? '',
                 quantity: 1,
                 unit: null,
                 unit_price: 0,

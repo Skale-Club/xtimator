@@ -20,6 +20,20 @@ import { formatDate, formatPercent, formatProjectType } from '@/lib/estimate/doc
 import { PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 import { ReadOnlyPhotoThumb } from './shared'
 import { LORA_LH, font, pt, tracking } from './units'
+import {
+  EditableDate,
+  EditableDescription,
+  EditableEstimateNumber,
+  EditableNumber,
+  EditableProjectName,
+  EditableSectionTitle,
+  EditableSummary,
+  EditableTermsText,
+  EditableUnit,
+  ItemRowActions,
+  NewItemSlot,
+  SectionActions,
+} from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
 
 // Neutral palette — the same literals the Modern PDF's StyleSheet uses.
@@ -52,7 +66,7 @@ const SECTION_TITLE_CLASS = 'min-w-0 font-bold select-none'
 const SECTION_TITLE_STYLE: CSSProperties = { ...font(11, LORA_LH), ...tracking(0.5) }
 
 function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
-  const { data, L, lang, client, clientAddr, projectName, projectType, estimateCreatedAt, defaultEstimateNumber } = ctx
+  const { data, L, lang, client, clientAddr, projectType, estimateCreatedAt } = ctx
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-4" style={{ marginBottom: pt(28) }}>
       <div>
@@ -60,7 +74,7 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           {L.project}
         </p>
         <p className={`font-normal ${INK}`} style={INFO_VALUE}>
-          {projectName}
+          <EditableProjectName ctx={ctx} />
         </p>
         {formatProjectType(projectType) && (
           <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
@@ -68,11 +82,16 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           </p>
         )}
         <p className={`font-normal ${MUTED}`} style={{ ...INFO_VALUE, marginTop: pt(4) }}>
-          {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+          {L.date}:{' '}
+          <EditableDate
+            ctx={ctx}
+            value={data.estimate_date}
+            display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+          />
         </p>
         <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
           {L.estimateNum}
-          {data.estimate_number ?? defaultEstimateNumber}
+          <EditableEstimateNumber ctx={ctx} />
         </p>
       </div>
       {client && (
@@ -259,7 +278,7 @@ export const modernTemplate: PreviewTemplate = {
           {ctx.L.summary}
         </p>
         <p className="font-normal text-[#4b5563] whitespace-pre-line" style={{ ...TERMS_TEXT, marginBottom: pt(6) }}>
-          {text}
+          <EditableSummary ctx={ctx} text={text} />
         </p>
       </div>
     )
@@ -292,12 +311,13 @@ export const modernTemplate: PreviewTemplate = {
       <div
         key={key}
         data-page-block-id={`${sectionId}-header`}
-        className="flex items-center border-b border-[#1f2937]"
+        className="group relative flex items-center border-b border-[#1f2937]"
         style={{ marginTop: pt(22), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
         <span className={`${SECTION_TITLE_CLASS} flex-1`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
-          {title}
+          <EditableSectionTitle ctx={ctx} sectionId={sectionId} title={title} />
         </span>
+        <SectionActions ctx={ctx} sectionId={sectionId} />
       </div>
     )
   },
@@ -330,17 +350,38 @@ export const modernTemplate: PreviewTemplate = {
   // (the PDF's tableRowAlt is empty).
   itemRow(block, item, _itemIndex, ctx) {
     const cell: CSSProperties = { ...CELL, paddingTop: pt(8), paddingBottom: pt(8) }
+    const sectionId = block.ref?.sectionId ?? ''
     return (
       <tr
         key={block.id}
         data-page-block-id={block.id}
         data-item-id={item.id}
-        className="border-b border-[#f0f1f3] font-normal"
+        className="group border-b border-[#f0f1f3] font-normal"
       >
-        <td className="px-0" style={cell}>{item.description}</td>
-        <td className="px-0 text-center" style={cell}>{item.quantity}</td>
-        <td className="px-0 text-center" style={cell}>{item.unit ?? ''}</td>
-        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.unit_price)}</td>
+        <td className="relative px-0" style={cell}>
+          <ItemRowActions ctx={ctx} sectionId={sectionId} item={item} />
+          <EditableDescription ctx={ctx} sectionId={sectionId} item={item} />
+        </td>
+        <td className="px-0 text-center" style={cell}>
+          <EditableNumber
+            ctx={ctx}
+            value={item.quantity}
+            ariaLabel={ctx.L.qty}
+            onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'quantity', value: v })}
+          />
+        </td>
+        <td className="px-0 text-center" style={cell}>
+          <EditableUnit ctx={ctx} sectionId={sectionId} item={item} />
+        </td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>
+          <EditableNumber
+            ctx={ctx}
+            value={item.unit_price}
+            format={ctx.fmt}
+            ariaLabel={ctx.L.unitPrice}
+            onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'unit_price', value: v })}
+          />
+        </td>
         <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
       </tr>
     )
@@ -353,9 +394,10 @@ export const modernTemplate: PreviewTemplate = {
       <div
         key={block.id}
         data-page-block-id={block.id}
-        className={`flex justify-end items-baseline border-t ${RULE}`}
+        className={`group relative flex justify-end items-baseline border-t ${RULE}`}
         style={{ ...font(9, LORA_LH), paddingTop: pt(8), paddingBottom: pt(8) }}
       >
+        <NewItemSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
         <span className={`font-bold ${MUTED} select-none`} style={{ marginRight: pt(12) }}>
           {ctx.L.sectionSubtotal}
         </span>
@@ -391,7 +433,7 @@ export const modernTemplate: PreviewTemplate = {
           className="font-normal text-[#4b5563] whitespace-pre-line"
           style={{ ...TERMS_TEXT, marginBottom: pt(TERMS_TEXT_GAP_PT) }}
         >
-          {card.text}
+          <EditableTermsText ctx={ctx} card={card} />
         </p>
       </div>
     )

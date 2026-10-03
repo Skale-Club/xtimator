@@ -329,3 +329,50 @@ describe('structuralEditEpoch — TEXT-ONLY actions never bump it', () => {
     expect(result.current[0].structuralEditEpoch).toBe(1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// ADD_ITEM / ADD_SECTION optional payload — the paginated view creates lines
+// and sections already described (an empty line is not drawn there).
+// ---------------------------------------------------------------------------
+
+describe('ADD_ITEM / ADD_SECTION — optional payload', () => {
+  it('ADD_ITEM uses the given itemId and description', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    act(() => {
+      result.current[1]({ type: 'ADD_ITEM', sectionId: 'temp-sec-1', itemId: 'temp-new', description: 'Drywall patch' })
+    })
+    const items = result.current[0].sections[0].items
+    expect(items[items.length - 1]).toMatchObject({ id: 'temp-new', description: 'Drywall patch', quantity: 1 })
+    expect(result.current[0].structuralEditEpoch).toBe(1)
+  })
+
+  it('ADD_ITEM without a payload still appends an empty temp line', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    act(() => {
+      result.current[1]({ type: 'ADD_ITEM', sectionId: 'temp-sec-1' })
+    })
+    const last = result.current[0].sections[0].items.at(-1)!
+    expect(last.description).toBe('')
+    expect(last.id.startsWith('temp-')).toBe(true)
+  })
+
+  it('ADD_SECTION uses the given title and first line description', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    act(() => {
+      result.current[1]({ type: 'ADD_SECTION', title: 'Painting', firstItemDescription: 'Prime walls' })
+    })
+    const section = result.current[0].sections.at(-1)!
+    expect(section.title).toBe('Painting')
+    expect(section.items[0].description).toBe('Prime walls')
+  })
+
+  it('ADD_SECTION without a payload keeps the "New Section" default', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    act(() => {
+      result.current[1]({ type: 'ADD_SECTION' })
+    })
+    const section = result.current[0].sections.at(-1)!
+    expect(section.title).toBe('New Section')
+    expect(section.items[0].description).toBe('')
+  })
+})

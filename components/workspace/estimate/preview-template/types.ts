@@ -22,6 +22,25 @@ import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { DepositDisplay } from '@/lib/estimate/deposit-display'
 import type { ResolvedPresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { PageBlock } from '@/lib/estimate/pagination/types'
+import type { PriceBookItem } from '@/lib/queries/price-book'
+import type { EstimateAction } from '../use-estimate-reducer'
+
+/** Present only when the sheets are editable (the estimate editor, on a
+ *  current, unlocked version). Absent = the templates draw plain values. */
+export interface PreviewEditApi {
+  dispatch: (action: EstimateAction) => void
+  priceBookItems: PriceBookItem[]
+  /** The unit list for the estimate language (plus `current` when custom). */
+  unitOptions: (current: string | null) => string[]
+  /** The section whose "new line" field is open (one at a time), or null. */
+  newItemSection: string | null
+  startNewItem: (sectionId: string) => void
+  cancelNewItem: () => void
+  /** Creates the line with its description (and the price-book values when picked). */
+  commitNewItem: (sectionId: string, description: string, priceBookItem?: PriceBookItem) => void
+  /** Renames the project (server action); absent = the name is not editable. */
+  renameProject?: (name: string) => Promise<void> | void
+}
 
 /** Everything a block renderer needs, built once per PaginatedPreview render. */
 export interface RenderCtx {
@@ -47,6 +66,7 @@ export interface RenderCtx {
   defaultEstimateNumber: string
   companyTerms: { enabled: boolean; text: string | null } | null
   hasCompanyTerms: boolean
+  edit?: PreviewEditApi
 }
 
 /** One resolved terms card. `key` drives the data-page-block-id

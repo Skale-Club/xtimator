@@ -18,6 +18,20 @@ import { CLASSIC_CARD_BOX, PHOTO_TILE_GAP_PT, PX_PER_PT, cardTintFill } from '@/
 import type { CSSProperties } from 'react'
 import { INTER_LH, font, pt, tracking } from './units'
 import { ReadOnlyPhotoThumb } from './shared'
+import {
+  EditableDate,
+  EditableDescription,
+  EditableEstimateNumber,
+  EditableNumber,
+  EditableProjectName,
+  EditableSectionTitle,
+  EditableSummary,
+  EditableTermsText,
+  EditableUnit,
+  ItemRowActions,
+  NewItemSlot,
+  SectionActions,
+} from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
 
 // components/pdf/estimate-pdf.tsx styles.sectionHeader.paddingHorizontal: the
@@ -52,7 +66,7 @@ const cardBoxStyle = (brandColor: string): CSSProperties => ({
 const FIRST_TERMS_CARD_TOP_PT = 24
 
 function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
-  const { data, L, lang, client, clientAddr, projectName, projectType, estimateCreatedAt, defaultEstimateNumber } = ctx
+  const { data, L, lang, client, clientAddr, projectType, estimateCreatedAt } = ctx
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-4" style={{ marginBottom: pt(20) }}>
       <div>
@@ -60,7 +74,7 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           {L.project}
         </p>
         <p className="font-normal" style={INFO_VALUE}>
-          {projectName}
+          <EditableProjectName ctx={ctx} />
         </p>
         {formatProjectType(projectType) && (
           <p className="text-muted-foreground" style={INFO_VALUE}>
@@ -68,10 +82,16 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           </p>
         )}
         <p className="text-muted-foreground" style={{ ...INFO_VALUE, marginTop: pt(4) }}>
-          {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+          {L.date}:{' '}
+          <EditableDate
+            ctx={ctx}
+            value={data.estimate_date}
+            display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+          />
         </p>
         <p className="text-muted-foreground" style={INFO_VALUE}>
-          {L.estimateNum}{data.estimate_number ?? defaultEstimateNumber}
+          {L.estimateNum}
+          <EditableEstimateNumber ctx={ctx} />
         </p>
       </div>
       {client && (
@@ -270,7 +290,7 @@ export const classicTemplate: PreviewTemplate = {
         {/* styles.termsText keeps its own 12pt bottom margin on top of the
             summary wrapper's 16pt. */}
         <p className="font-normal text-muted-foreground whitespace-pre-line" style={{ ...TERMS_TEXT, marginBottom: pt(12) }}>
-          {text}
+          <EditableSummary ctx={ctx} text={text} />
         </p>
       </div>
     )
@@ -312,12 +332,13 @@ export const classicTemplate: PreviewTemplate = {
       <div
         key={key}
         data-page-block-id={`${sectionId}-header`}
-        className="flex items-center gap-2"
+        className="group relative flex items-center gap-2"
         style={{ ...bandStyle, marginTop: pt(16) }}
       >
         <span className="flex-1 font-bold select-none" style={{ color: ctx.brandOnFill }}>
-          {section?.title ?? ''}
+          <EditableSectionTitle ctx={ctx} sectionId={sectionId} title={section?.title ?? ''} />
         </span>
+        <SectionActions ctx={ctx} sectionId={sectionId} />
       </div>
     )
   },
@@ -344,18 +365,39 @@ export const classicTemplate: PreviewTemplate = {
   // GLOBAL item index.
   itemRow(block, item, itemIndex, ctx) {
     const zebra = itemIndex % 2 === 1
+    const sectionId = block.ref?.sectionId ?? ''
     const cell: CSSProperties = { ...CELL, paddingTop: pt(6), paddingBottom: pt(6) }
     return (
       <tr
         key={block.id}
         data-page-block-id={block.id}
         data-item-id={item.id}
-        className={`border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
+        className={`group border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
       >
-        <td className="px-0" style={cell}>{item.description}</td>
-        <td className="px-0 text-center" style={cell}>{item.quantity}</td>
-        <td className="px-0 text-center" style={cell}>{item.unit ?? ''}</td>
-        <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.unit_price)}</td>
+        <td className="relative px-0" style={cell}>
+          <ItemRowActions ctx={ctx} sectionId={sectionId} item={item} />
+          <EditableDescription ctx={ctx} sectionId={sectionId} item={item} />
+        </td>
+        <td className="px-0 text-center" style={cell}>
+          <EditableNumber
+            ctx={ctx}
+            value={item.quantity}
+            ariaLabel={ctx.L.qty}
+            onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'quantity', value: v })}
+          />
+        </td>
+        <td className="px-0 text-center" style={cell}>
+          <EditableUnit ctx={ctx} sectionId={sectionId} item={item} />
+        </td>
+        <td className="px-0 text-right whitespace-nowrap" style={cell}>
+          <EditableNumber
+            ctx={ctx}
+            value={item.unit_price}
+            format={ctx.fmt}
+            ariaLabel={ctx.L.unitPrice}
+            onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'unit_price', value: v })}
+          />
+        </td>
         <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
       </tr>
     )
@@ -368,9 +410,10 @@ export const classicTemplate: PreviewTemplate = {
       <div
         key={block.id}
         data-page-block-id={block.id}
-        className="flex justify-end items-baseline border-t border-border bg-muted/10"
+        className="group relative flex justify-end items-baseline border-t border-border bg-muted/10"
         style={{ ...font(9, INTER_LH), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
+        <NewItemSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
         <span className="font-bold text-muted-foreground select-none" style={{ marginRight: pt(12) }}>
           {ctx.L.sectionSubtotal}
         </span>
@@ -400,7 +443,7 @@ export const classicTemplate: PreviewTemplate = {
           {card.label}
         </p>
         <p className="text-muted-foreground whitespace-pre-line" style={TERMS_TEXT}>
-          {card.text}
+          <EditableTermsText ctx={ctx} card={card} />
         </p>
       </div>
     )

@@ -724,10 +724,11 @@ export function EstimateEditor({
         </Alert>
       )}
 
-      {/* Quick 260806-pgv T2 — 'page' view renders PaginatedPreview, a
-          read-only real-page-container preview (own internal zoom/thumbnail
-          rail); 'width' leaves the document filling the column, editable, as
-          before. `isolate` pins document-internal z-indexes below the app
+      {/* Quick 260806-pgv T2 — 'page' view renders PaginatedPreview, the
+          real-page-container view (own internal zoom/thumbnail rail), edited
+          in place on the sheets when the content is not read-only; 'width'
+          leaves the document filling the column, editable, as before.
+          `isolate` pins document-internal z-indexes below the app
           chrome (sticky header, floating action pill). IssuedInvoicesPanel/
           GenerateInvoiceDialog render as SIBLINGS below, in BOTH view modes,
           so unrelated invoice surfaces never sit inside the paginated tray. */}
@@ -743,7 +744,7 @@ export function EstimateEditor({
         >
           <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
-            {t('Editing in the standard layout. Clients see the Modern template — switch to Page view to preview it.')}
+            {t('Editing in the standard layout. Clients see the Modern template — switch to Page view to see and edit it that way.')}
           </span>
           <Button
             type="button"
@@ -774,6 +775,9 @@ export function EstimateEditor({
             estimateSeq={state.estimate_seq}
             estimateCreatedAt={estimate.created_at}
             companyTerms={{ enabled: company.estimate_terms_enabled ?? false, text: company.estimate_terms_text ?? null }}
+            dispatch={isContentReadOnly ? undefined : dispatch}
+            priceBookItems={priceBookItems}
+            onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
           />
         ) : (
           <EstimateDocument
