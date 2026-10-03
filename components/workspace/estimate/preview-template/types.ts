@@ -24,6 +24,7 @@ import type { ResolvedPresentationSettings } from '@/lib/estimate/presentation-s
 import type { PageBlock } from '@/lib/estimate/pagination/types'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateAction } from '../use-estimate-reducer'
+import type { EditLabels } from './editable'
 
 /** Present only when the sheets are editable (the estimate editor, on a
  *  current, unlocked version). Absent = the templates draw plain values. */
@@ -40,6 +41,22 @@ export interface PreviewEditApi {
   commitNewItem: (sectionId: string, description: string, priceBookItem?: PriceBookItem) => void
   /** Renames the project (server action); absent = the name is not editable. */
   renameProject?: (name: string) => Promise<void> | void
+  /** Swaps a line with its previous (-1) / next (+1) DRAWN line in the section. */
+  moveItem: (sectionId: string, itemId: string, direction: -1 | 1) => void
+  /** Swaps a section with its previous / next DRAWN section. */
+  moveSection: (sectionId: string, direction: -1 | 1) => void
+  /** The totals popover (discount / tax / deposit) — held here, not in the
+   *  totals block, so it survives the block moving to another sheet. */
+  totalsOpen: boolean
+  setTotalsOpen: (open: boolean) => void
+  /** Company default tax rate (fraction), for "reset to default"; absent = none. */
+  defaultTaxRate?: number
+  /** Removes a photo from the estimate; absent = photos are not removable here. */
+  detachPhoto?: (photoId: string) => void
+  /** Opens the panel where the client is linked; absent = not offered. */
+  openClientPanel?: () => void
+  /** Edit-chrome strings, in the app language. */
+  labels: EditLabels
 }
 
 /** Everything a block renderer needs, built once per PaginatedPreview render. */

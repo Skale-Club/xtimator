@@ -17,12 +17,12 @@
 // margin, so they never change a block's measured height either.
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import { MoreVertical, Plus } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { MoreVertical, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { PriceBookCombobox } from '../price-book-combobox'
 import type { DocumentItem } from '@/lib/estimate/document/model'
-import type { DocumentLabels } from '@/lib/estimate/document/labels'
+import { getCurrencySymbol } from '@/lib/money/currency'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { RenderCtx, ResolvedTermsCard } from './types'
 
@@ -42,8 +42,9 @@ import type { RenderCtx, ResolvedTermsCard } from './types'
 // reads on white sheets and on brand-filled bands alike.
 // Width/style live ONLY under the variants: in Tailwind v4 a bare `outline-1`
 // already draws a solid outline.
-const HINT =
-  'cursor-text rounded-[2px] outline-offset-2 hover:outline-dashed hover:outline-1 focus-visible:outline-dashed focus-visible:outline-2'
+const OUTLINE_HINT =
+  'rounded-[2px] outline-offset-2 hover:outline-dashed hover:outline-1 focus-visible:outline-dashed focus-visible:outline-2'
+const HINT = `${OUTLINE_HINT} cursor-text`
 
 // Table-cell values (description, qty, unit, price) fill their cell, so a click
 // anywhere on the cell's line box edits it — not just on the glyphs.
@@ -389,7 +390,7 @@ export function EditableUnit({ ctx, sectionId, item }: { ctx: RenderCtx; section
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <span role="button" tabIndex={0} aria-label={ctx.L.unit} className={`${HINT} ${CELL_TARGET} cursor-pointer`}>
+        <span role="button" tabIndex={0} aria-label={ctx.L.unit} className={`${OUTLINE_HINT} ${CELL_TARGET} cursor-pointer`}>
           {item.unit || <span className="opacity-40">—</span>}
         </span>
       </DropdownMenuTrigger>
@@ -429,7 +430,7 @@ export function EditableDate({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <span role="button" tabIndex={0} aria-label={ctx.L.date} className={`${HINT} cursor-pointer`}>
+        <span role="button" tabIndex={0} aria-label={ctx.L.date} className={`${OUTLINE_HINT} cursor-pointer`}>
           {display}
         </span>
       </PopoverTrigger>
@@ -453,6 +454,132 @@ export function EditableDate({
 }
 
 // ---------------------------------------------------------------------------
+// Edit chrome labels — the UI around the document (menus, popovers) speaks the
+// APP language, not the estimate's: the editor passes these through its t().
+// English defaults for any caller that does not.
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_EDIT_LABELS = {
+  addItem: 'Add item',
+  addSection: 'Add section',
+  sectionTitle: 'Section title',
+  firstLine: 'First line description',
+  lineActions: 'Line actions',
+  sectionActions: 'Section actions',
+  deleteLine: 'Delete line',
+  deleteSection: 'Delete section',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
+  taxable: 'Taxable',
+  lineDiscount: 'Line discount',
+  addLineDiscount: 'Add line discount',
+  removeLineDiscount: 'Remove line discount',
+  editTotals: 'Edit discount, tax and deposit',
+  discount: 'Discount',
+  tax: 'Tax',
+  deposit: 'Deposit',
+  none: 'None',
+  percent: '%',
+  amount: 'Amount',
+  resetToDefault: 'Reset to default',
+  removePhoto: 'Remove photo',
+  linkClient: 'Link client',
+  editClient: 'Change client',
+}
+export type EditLabels = typeof DEFAULT_EDIT_LABELS
+
+// ---------------------------------------------------------------------------
+// DraftNumberField — a number input that commits once (blur / Enter), like
+// every other field here. `suffix` is drawn inside the right edge.
+// ---------------------------------------------------------------------------
+
+function DraftNumberField({
+  value,
+  onCommit,
+  suffix,
+  ariaLabel,
+  autoFocus,
+}: {
+  value: number
+  onCommit: (next: number) => void
+  suffix?: string
+  ariaLabel: string
+  autoFocus?: boolean
+}) {
+  const [draft, setDraft] = useState(String(value))
+  // Re-seed when the committed value changes underneath (another control) —
+  // adjusted during render, React's pattern for state derived from a prop.
+  const [seenValue, setSeenValue] = useState(value)
+  if (seenValue !== value) {
+    setSeenValue(value)
+    setDraft(String(value))
+  }
+  const commit = () => {
+    const parsed = parseLooseNumber(draft)
+    const next = Number.isFinite(parsed) ? Math.max(0, parsed) : value
+    if (next !== value) onCommit(next)
+    else setDraft(String(value))
+  }
+  return (
+    <div className="relative">
+      <Input
+        autoFocus={autoFocus}
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          }
+        }}
+        className="h-8 w-28 pr-7 text-right tabular-nums"
+      />
+      {suffix && (
+        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+          {suffix}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** None / % / amount picker — a segmented control, so a type change is one click. */
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: T
+  options: { value: T; label: string }[]
+  onChange: (next: T) => void
+  ariaLabel: string
+}) {
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-md border border-border p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => value !== o.value && onChange(o.value)}
+          className={`rounded px-2 py-0.5 text-xs transition-colors ${
+            value === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Margin affordances
 // ---------------------------------------------------------------------------
 
@@ -463,41 +590,94 @@ const MARGIN_BTN =
  *  host <tr> must carry `group`; the host cell must be `relative`. */
 export function ItemRowActions({ ctx, sectionId, item }: { ctx: RenderCtx; sectionId: string; item: DocumentItem }) {
   const edit = ctx.edit
+  const [discountOpen, setDiscountOpen] = useState(false)
   if (!edit) return null
+  const t = edit.labels
+  const visible = ctx.itemsBySection.get(sectionId) ?? []
+  const index = visible.findIndex((i) => i.id === item.id)
+  const discount = item.discount ?? 0
+  const setDiscount = (value: number) =>
+    edit.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'discount', value })
+
   return (
-    <span className="absolute right-full top-1/2 mr-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={ctx.L.rowActions} className={MARGIN_BTN}>
-            <MoreVertical className="h-3.5 w-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="left">
-          <DropdownMenuItem onSelect={() => edit.startNewItem(sectionId)}>{ctx.L.addItem}</DropdownMenuItem>
-          <DropdownMenuCheckboxItem
-            checked={item.taxable ?? true}
-            onSelect={(e) => {
-              e.preventDefault()
-              edit.dispatch({
-                type: 'UPDATE_ITEM',
-                sectionId,
-                itemId: item.id,
-                field: 'taxable',
-                value: !(item.taxable ?? true),
-              })
-            }}
+    <span
+      className={`absolute right-full top-1/2 mr-3 -translate-y-1/2 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 ${
+        discountOpen ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <Popover open={discountOpen} onOpenChange={setDiscountOpen}>
+        <DropdownMenu>
+          <PopoverAnchor asChild>
+            <DropdownMenuTrigger asChild>
+              <button type="button" aria-label={t.lineActions} className={MARGIN_BTN}>
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+          </PopoverAnchor>
+          <DropdownMenuContent
+            align="start"
+            side="left"
+            // Opening the discount popover from the menu: don't hand focus back
+            // to the kebab, or the popover's input loses it.
+            onCloseAutoFocus={(e) => discountOpen && e.preventDefault()}
           >
-            {ctx.L.taxable}
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => edit.dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })}
-          >
-            {ctx.L.deleteLine}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuItem onSelect={() => edit.startNewItem(sectionId)}>{t.addItem}</DropdownMenuItem>
+            <DropdownMenuItem disabled={index <= 0} onSelect={() => edit.moveItem(sectionId, item.id, -1)}>
+              {t.moveUp}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={index === -1 || index >= visible.length - 1}
+              onSelect={() => edit.moveItem(sectionId, item.id, 1)}
+            >
+              {t.moveDown}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setDiscountOpen(true)}>
+              {discount > 0 ? `${t.lineDiscount}: -${ctx.fmt(discount)}` : t.addLineDiscount}
+            </DropdownMenuItem>
+            {discount > 0 && (
+              <DropdownMenuItem onSelect={() => setDiscount(0)}>{t.removeLineDiscount}</DropdownMenuItem>
+            )}
+            <DropdownMenuCheckboxItem
+              checked={item.taxable ?? true}
+              onSelect={(e) => {
+                e.preventDefault()
+                edit.dispatch({
+                  type: 'UPDATE_ITEM',
+                  sectionId,
+                  itemId: item.id,
+                  field: 'taxable',
+                  value: !(item.taxable ?? true),
+                })
+              }}
+            >
+              {t.taxable}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => edit.dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })}
+            >
+              {t.deleteLine}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <PopoverContent side="left" align="start" className="w-auto p-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{t.lineDiscount}</span>
+            <DraftNumberField
+              autoFocus
+              value={discount}
+              ariaLabel={t.lineDiscount}
+              suffix={getCurrencySymbol(ctx.data.currency_code)}
+              onCommit={(v) => {
+                setDiscount(v)
+                setDiscountOpen(false)
+              }}
+            />
+          </div>
+        </PopoverContent>
+      </Popover>
     </span>
   )
 }
@@ -507,22 +687,35 @@ export function ItemRowActions({ ctx, sectionId, item }: { ctx: RenderCtx; secti
 export function SectionActions({ ctx, sectionId }: { ctx: RenderCtx; sectionId: string }) {
   const edit = ctx.edit
   if (!edit) return null
+  const t = edit.labels
+  // Only sections that draw (have a described line) take part in the order.
+  const drawn = ctx.data.sections.filter((s) => (ctx.itemsBySection.get(s.id) ?? []).length > 0)
+  const index = drawn.findIndex((s) => s.id === sectionId)
   return (
     <span className="absolute left-full top-1/2 ml-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={ctx.L.sectionActions} className={MARGIN_BTN}>
+          <button type="button" aria-label={t.sectionActions} className={MARGIN_BTN}>
             <MoreVertical className="h-3.5 w-3.5" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="right">
-          <DropdownMenuItem onSelect={() => edit.startNewItem(sectionId)}>{ctx.L.addItem}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => edit.startNewItem(sectionId)}>{t.addItem}</DropdownMenuItem>
+          <DropdownMenuItem disabled={index <= 0} onSelect={() => edit.moveSection(sectionId, -1)}>
+            {t.moveUp}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={index === -1 || index >= drawn.length - 1}
+            onSelect={() => edit.moveSection(sectionId, 1)}
+          >
+            {t.moveDown}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
             onSelect={() => edit.dispatch({ type: 'REMOVE_SECTION', sectionId })}
           >
-            {ctx.L.deleteSection}
+            {t.deleteSection}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -561,7 +754,7 @@ export function NewItemSlot({ ctx, sectionId }: { ctx: RenderCtx; sectionId: str
       className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-normal text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-900 group-hover:opacity-100 focus-visible:opacity-100 [font-family:ui-sans-serif,system-ui,sans-serif]"
     >
       <Plus className="h-3 w-3" />
-      {ctx.L.addItem}
+      {edit.labels.addItem}
     </button>
   )
 }
@@ -570,10 +763,10 @@ export function NewItemSlot({ ctx, sectionId }: { ctx: RenderCtx; sectionId: str
  *  front, for the same reason NewItemSlot does — a section with no described
  *  line is not drawn. */
 export function AddSectionButton({
-  L,
+  labels,
   onAdd,
 }: {
-  L: DocumentLabels
+  labels: EditLabels
   onAdd: (title: string, firstItemDescription: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -593,11 +786,11 @@ export function AddSectionButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          title={L.addSection}
+          title={labels.addSection}
           className="flex w-14 flex-col items-center gap-1 rounded-xl border border-border bg-background/95 py-2 text-[11px] font-normal leading-tight text-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
         >
           <Plus className="h-4 w-4" />
-          {L.addSection}
+          {labels.addSection}
         </button>
       </PopoverTrigger>
       <PopoverContent side="right" align="start" className="w-72">
@@ -612,15 +805,228 @@ export function AddSectionButton({
             setFirstItem('')
           }}
         >
-          <p className="text-sm font-normal">{L.addSection}</p>
-          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New Section" />
-          <Input value={firstItem} onChange={(e) => setFirstItem(e.target.value)} placeholder={L.description} />
+          <p className="text-sm font-normal">{labels.addSection}</p>
+          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={labels.sectionTitle} />
+          <Input value={firstItem} onChange={(e) => setFirstItem(e.target.value)} placeholder={labels.firstLine} />
           <Button type="submit" size="sm" className="w-full" disabled={!firstItem.trim()}>
-            {L.addSection}
+            {labels.addSection}
           </Button>
         </form>
       </PopoverContent>
     </Popover>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Totals — the whole totals block opens one popover with discount, tax and
+// deposit. Its open state lives in PaginatedPreview (edit.totalsOpen): a
+// change can move the totals block to another sheet, which remounts it, and
+// the popover must come back open on the new sheet.
+// ---------------------------------------------------------------------------
+
+type DiscountKind = 'none' | 'percentage' | 'fixed'
+type DepositKind = 'none' | 'percent' | 'amount'
+
+function TotalsEditor({ ctx }: { ctx: RenderCtx }) {
+  const edit = ctx.edit!
+  const t = edit.labels
+  const { data } = ctx
+  const symbol = getCurrencySymbol(data.currency_code)
+  const discountKind = (data.discount_type ?? 'none') as DiscountKind
+  const depositKind = (data.deposit_type ?? 'none') as DepositKind
+  const taxPct = Math.round(data.tax_rate * 10000) / 100
+  const defaultTax = edit.defaultTaxRate
+  const taxOverridden =
+    defaultTax !== undefined && Math.round(data.tax_rate * 10000) !== Math.round(defaultTax * 10000)
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{t.discount}</p>
+        <div className="flex items-center justify-between gap-3">
+          <Segmented<DiscountKind>
+            ariaLabel={t.discount}
+            value={discountKind}
+            options={[
+              { value: 'none', label: t.none },
+              { value: 'percentage', label: t.percent },
+              { value: 'fixed', label: symbol },
+            ]}
+            onChange={(kind) =>
+              edit.dispatch({
+                type: 'UPDATE_DISCOUNT',
+                discount_type: kind === 'none' ? null : kind,
+                discount_value: kind === 'none' ? 0 : data.discount_value,
+              })
+            }
+          />
+          {discountKind !== 'none' && (
+            <DraftNumberField
+              value={data.discount_value}
+              ariaLabel={t.discount}
+              suffix={discountKind === 'percentage' ? '%' : symbol}
+              onCommit={(v) =>
+                edit.dispatch({ type: 'UPDATE_DISCOUNT', discount_type: data.discount_type, discount_value: v })
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{t.tax}</p>
+        <div className="flex items-center justify-between gap-3">
+          {taxOverridden ? (
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() => edit.dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTax ?? 0 })}
+            >
+              {t.resetToDefault} ({Math.round((defaultTax ?? 0) * 10000) / 100}%)
+            </button>
+          ) : (
+            <span />
+          )}
+          <DraftNumberField
+            value={taxPct}
+            ariaLabel={t.tax}
+            suffix="%"
+            onCommit={(v) => edit.dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: v / 100 })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{t.deposit}</p>
+        <div className="flex items-center justify-between gap-3">
+          <Segmented<DepositKind>
+            ariaLabel={t.deposit}
+            value={depositKind}
+            options={[
+              { value: 'none', label: t.none },
+              { value: 'percent', label: t.percent },
+              { value: 'amount', label: symbol },
+            ]}
+            onChange={(kind) =>
+              edit.dispatch({
+                type: 'UPDATE_DEPOSIT',
+                deposit_type: kind,
+                deposit_value: kind === 'none' ? null : (data.deposit_value ?? 0),
+              })
+            }
+          />
+          {depositKind !== 'none' && (
+            <DraftNumberField
+              value={data.deposit_value ?? 0}
+              ariaLabel={t.deposit}
+              suffix={depositKind === 'percent' ? '%' : symbol}
+              onCommit={(v) => edit.dispatch({ type: 'UPDATE_DEPOSIT', deposit_type: depositKind, deposit_value: v })}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** The totals column. Read-only: a plain div. Editable: the same div, made a
+ *  button that opens TotalsEditor (an outline on hover, no layout change). */
+export function EditableTotals({
+  ctx,
+  className,
+  children,
+}: {
+  ctx: RenderCtx
+  className: string
+  children: ReactNode
+}) {
+  const edit = ctx.edit
+  if (!edit) return <div className={className}>{children}</div>
+  return (
+    <Popover open={edit.totalsOpen} onOpenChange={edit.setTotalsOpen}>
+      <PopoverTrigger asChild>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={edit.labels.editTotals}
+          title={edit.labels.editTotals}
+          className={`${className} ${OUTLINE_HINT} cursor-pointer`}
+        >
+          {children}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent side="left" align="center" className="w-80">
+        <TotalsEditor ctx={ctx} />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Client — the Bill To cell opens the panel where the client is linked.
+// ---------------------------------------------------------------------------
+
+/** The Bill To grid cell. Editable: clicking it opens the client panel. */
+export function ClientCell({ ctx, children }: { ctx: RenderCtx; children: ReactNode }) {
+  const open = ctx.edit?.openClientPanel
+  if (!open) return <div>{children}</div>
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={ctx.edit!.labels.editClient}
+      title={ctx.edit!.labels.editClient}
+      className={`${OUTLINE_HINT} cursor-pointer`}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          open()
+        }
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+/** No client yet: an empty Bill To cell — editable, a "+ Link client" button
+ *  (one line, in a cell the left column already out-measures). */
+export function LinkClientSlot({ ctx }: { ctx: RenderCtx }) {
+  const open = ctx.edit?.openClientPanel
+  if (!open) return null
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={open}
+        className="flex items-center gap-1 rounded-md border border-dashed border-zinc-300 px-2 py-1 text-xs font-normal text-zinc-500 hover:border-zinc-400 hover:text-zinc-900 [font-family:ui-sans-serif,system-ui,sans-serif]"
+      >
+        <Plus className="h-3 w-3" />
+        {ctx.edit!.labels.linkClient}
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Photos
+// ---------------------------------------------------------------------------
+
+/** Remove-from-estimate "×" for a photo tile (the photo stays in the project). */
+export function PhotoRemoveButton({ ctx, photoId }: { ctx: RenderCtx; photoId: string }) {
+  const detach = ctx.edit?.detachPhoto
+  if (!detach) return null
+  return (
+    <button
+      type="button"
+      aria-label={ctx.edit!.labels.removePhoto}
+      title={ctx.edit!.labels.removePhoto}
+      onClick={() => detach(photoId)}
+      className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover/photo:opacity-100 focus-visible:opacity-100"
+    >
+      <X className="h-3.5 w-3.5" />
+    </button>
   )
 }
 
@@ -671,7 +1077,7 @@ export function EditableSectionTitle({ ctx, sectionId, title }: { ctx: RenderCtx
     <EditableText
       ctx={ctx}
       value={title}
-      ariaLabel={ctx.L.sectionActions}
+      ariaLabel={ctx.edit?.labels.sectionTitle}
       onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_SECTION_TITLE', sectionId, title: v })}
     />
   )

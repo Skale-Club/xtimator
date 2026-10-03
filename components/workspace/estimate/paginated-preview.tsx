@@ -60,7 +60,7 @@ import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateAction } from './use-estimate-reducer'
 import { resolveUnitOptions } from './estimate-document'
-import { AddSectionButton } from './preview-template/editable'
+import { AddSectionButton, DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editable'
 import { classicTemplate } from './preview-template/classic'
 import { modernTemplate } from './preview-template/modern'
 import { ItemTableColgroup } from './preview-template/shared'
@@ -118,6 +118,14 @@ export interface PaginatedPreviewProps {
   priceBookItems?: PriceBookItem[]
   /** Renames the project from the info grid (edit mode); absent = not editable. */
   onRenameProject?: (name: string) => Promise<void> | void
+  /** Company default tax rate (fraction) — the totals editor's "reset to default". */
+  defaultTaxRate?: number
+  /** Removes a photo from the estimate (edit mode). */
+  onDetachPhoto?: (photoId: string) => void
+  /** Opens the panel where the client is linked (edit mode). */
+  onOpenClientPanel?: () => void
+  /** Edit-chrome strings in the app language (English defaults). */
+  editLabels?: EditLabels
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +430,10 @@ export function PaginatedPreview({
   dispatch,
   priceBookItems,
   onRenameProject,
+  defaultTaxRate,
+  onDetachPhoto,
+  onOpenClientPanel,
+  editLabels = DEFAULT_EDIT_LABELS,
 }: PaginatedPreviewProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -460,6 +472,33 @@ export function PaginatedPreview({
 
   // The "new line" field: at most one open, in the section that asked for it.
   const [newItemSection, setNewItemSection] = useState<string | null>(null)
+  const [totalsOpen, setTotalsOpen] = useState(false)
+  // Moves swap with the neighbouring DRAWN line/section (an empty line or a
+  // section with no described line is not on the sheet, so stepping over it
+  // would look like a no-op); the reducer still gets the FULL id order.
+  const moveItem = (sectionId: string, itemId: string, direction: -1 | 1) => {
+    const section = data.sections.find((s) => s.id === sectionId)
+    if (!section || !dispatch) return
+    const drawn = itemsBySection.get(sectionId) ?? []
+    const target = drawn[drawn.findIndex((i) => i.id === itemId) + direction]
+    if (!target) return
+    const ids = section.items.map((i) => i.id)
+    const a = ids.indexOf(itemId)
+    const b = ids.indexOf(target.id)
+    ;[ids[a], ids[b]] = [ids[b], ids[a]]
+    dispatch({ type: 'REORDER_ITEMS', sectionId, itemIds: ids })
+  }
+  const moveSection = (sectionId: string, direction: -1 | 1) => {
+    if (!dispatch) return
+    const drawn = data.sections.filter((s) => (itemsBySection.get(s.id) ?? []).length > 0)
+    const target = drawn[drawn.findIndex((s) => s.id === sectionId) + direction]
+    if (!target) return
+    const ids = data.sections.map((s) => s.id)
+    const a = ids.indexOf(sectionId)
+    const b = ids.indexOf(target.id)
+    ;[ids[a], ids[b]] = [ids[b], ids[a]]
+    dispatch({ type: 'REORDER_SECTIONS', sectionIds: ids })
+  }
   const edit: PreviewEditApi | undefined = dispatch
     ? {
         dispatch,
@@ -483,6 +522,14 @@ export function PaginatedPreview({
           setNewItemSection(null)
         },
         renameProject: onRenameProject,
+        moveItem,
+        moveSection,
+        totalsOpen,
+        setTotalsOpen,
+        defaultTaxRate,
+        detachPhoto: onDetachPhoto,
+        openClientPanel: onOpenClientPanel,
+        labels: editLabels,
       }
     : undefined
 
@@ -623,7 +670,7 @@ export function PaginatedPreview({
       <aside className="hidden lg:flex flex-col items-center gap-4 sticky top-24 self-start shrink-0 max-h-[calc(100vh-8rem)]">
         {dispatch && (
           <AddSectionButton
-            L={L}
+            labels={editLabels}
             onAdd={(title, firstItemDescription) =>
               dispatch({ type: 'ADD_SECTION', title: title || undefined, firstItemDescription })
             }

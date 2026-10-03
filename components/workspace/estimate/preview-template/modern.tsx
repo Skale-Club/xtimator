@@ -21,6 +21,7 @@ import { PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 import { ReadOnlyPhotoThumb } from './shared'
 import { LORA_LH, font, pt, tracking } from './units'
 import {
+  ClientCell,
   EditableDate,
   EditableDescription,
   EditableEstimateNumber,
@@ -29,9 +30,12 @@ import {
   EditableSectionTitle,
   EditableSummary,
   EditableTermsText,
+  EditableTotals,
   EditableUnit,
   ItemRowActions,
+  LinkClientSlot,
   NewItemSlot,
+  PhotoRemoveButton,
   SectionActions,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
@@ -94,8 +98,8 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           <EditableEstimateNumber ctx={ctx} />
         </p>
       </div>
-      {client && (
-        <div>
+      {client ? (
+        <ClientCell ctx={ctx}>
           <p className={EYEBROW} style={eyebrowStyle(5)}>
             {L.billTo}
           </p>
@@ -117,7 +121,9 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
               {clientAddr}
             </p>
           )}
-        </div>
+        </ClientCell>
+      ) : (
+        <LinkClientSlot ctx={ctx} />
       )}
     </div>
   )
@@ -134,7 +140,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
   return (
     <div data-page-block-id="totals" className="flex justify-end" style={{ marginTop: pt(28) }}>
-      <div className="w-[48%]">
+      <EditableTotals ctx={ctx} className="w-[48%]">
         <div className={TOTALS_ROW} style={totalsRowStyle}>
           <span className={`${MUTED} select-none`}>{L.subtotal}</span>
           <span>{fmt(data.subtotal)}</span>
@@ -176,7 +182,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
             <span>{fmt(dep.balanceDue)}</span>
           </div>
         )}
-      </div>
+      </EditableTotals>
     </div>
   )
 }
@@ -485,6 +491,7 @@ export const modernTemplate: PreviewTemplate = {
             <ReadOnlyPhotoThumb
               key={photo.id}
               photo={photo}
+              overlay={<PhotoRemoveButton ctx={ctx} photoId={photo.id} />}
               frameClassName="aspect-square overflow-hidden relative bg-[#f3f4f6]"
               captionClassName={`font-normal ${MUTED} line-clamp-2`}
               captionStyle={{ ...font(8, LORA_LH), marginTop: pt(2) }}

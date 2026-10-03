@@ -33,6 +33,7 @@ import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { usePaginatedPreview } from './use-paginated-preview'
 import { PaginatedPreview } from './paginated-preview'
+import { DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editable'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
 import {
   hasEstimateBeenSentOrViewed,
@@ -345,6 +346,10 @@ export function EstimateEditor({
   // stay editable on a locked-but-current estimate.
   const isContentReadOnly = !isCurrent || locked || notCurrentByServer
   const gearDisabled = !isCurrent
+  // Page view's edit chrome (menus, popovers) speaks the app language.
+  const editLabels = Object.fromEntries(
+    Object.entries(DEFAULT_EDIT_LABELS).map(([key, label]) => [key, t(label)])
+  ) as EditLabels
 
   // -------------------------------------------------------------------------
   // Save handlers
@@ -778,6 +783,10 @@ export function EstimateEditor({
             dispatch={isContentReadOnly ? undefined : dispatch}
             priceBookItems={priceBookItems}
             onRenameProject={isContentReadOnly ? undefined : handleRenameProject}
+            defaultTaxRate={companyDefaults?.tax_rate}
+            onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
+            onOpenClientPanel={gearDisabled ? undefined : () => setSettingsOpen(true)}
+            editLabels={editLabels}
           />
         ) : (
           <EstimateDocument

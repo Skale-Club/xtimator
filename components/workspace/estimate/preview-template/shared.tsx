@@ -5,7 +5,7 @@
 // are the only thing that differs per template, so they are props).
 'use client'
 
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -37,11 +37,14 @@ export function ReadOnlyPhotoThumb({
   frameClassName,
   captionClassName,
   captionStyle,
+  overlay,
 }: {
   photo: DocumentPhoto
   frameClassName: string
   captionClassName: string
   captionStyle?: CSSProperties
+  /** Drawn over the tile (edit mode's remove button); shown on hover via `group/photo`. */
+  overlay?: ReactNode
 }) {
   // A photo that already carries a URL needs no lookup; otherwise a signed URL
   // is fetched (the skeleton shows until it resolves).
@@ -60,7 +63,8 @@ export function ReadOnlyPhotoThumb({
   }, [photo.url, photo.storage_path])
 
   return (
-    <div>
+    <div className="group/photo relative">
+      {overlay}
       <div className={frameClassName}>
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

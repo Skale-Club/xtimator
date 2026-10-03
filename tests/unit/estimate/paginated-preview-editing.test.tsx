@@ -12,7 +12,12 @@ import { PaginatedPreview, type PaginatedPreviewProps } from '@/components/works
 import { parseLooseNumber } from '@/components/workspace/estimate/preview-template/editable'
 import type { DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
 import type { PageAssignment } from '@/lib/estimate/pagination/types'
-import { buildFixtureEstimate, toFixtureDocumentData, FIXTURE_COMPANY } from './fixtures/document-fixtures'
+import {
+  buildFixtureEstimate,
+  toFixtureDocumentData,
+  FIXTURE_COMPANY,
+  PHOTO_WITH_CAPTION,
+} from './fixtures/document-fixtures'
 
 const company = FIXTURE_COMPANY as unknown as DocumentCompany
 const SECTION_ID = 'sec-1'
@@ -42,7 +47,10 @@ function buildFixture() {
       },
     ],
   })
-  const data = toFixtureDocumentData(estimate) as unknown as EstimateDocumentData
+  const data = {
+    ...(toFixtureDocumentData(estimate) as unknown as EstimateDocumentData),
+    attachedPhotos: [PHOTO_WITH_CAPTION],
+  } as EstimateDocumentData
   const pages: PageAssignment[] = [
     {
       pageIndex: 0,
@@ -54,7 +62,9 @@ function buildFixture() {
         { kind: 'item-row', id: `${SECTION_ID}-rows-item-0`, baseHeightPt: 12, atomic: true, ref: { sectionId: SECTION_ID, itemId: 'item-0', itemIndex: 0 } },
         { kind: 'item-row', id: `${SECTION_ID}-rows-item-1`, baseHeightPt: 12, atomic: true, ref: { sectionId: SECTION_ID, itemId: 'item-1', itemIndex: 1 } },
         { kind: 'section-subtotal', id: `${SECTION_ID}-subtotal`, baseHeightPt: 18, atomic: true, ref: { sectionId: SECTION_ID } },
+        { kind: 'totals', id: 'totals', baseHeightPt: 80, atomic: true },
         { kind: 'terms-card', id: 'terms-payment', baseHeightPt: 30, atomic: true, ref: { termsKey: 'payment' } },
+        { kind: 'photo-row', id: 'photos-0', baseHeightPt: 120, atomic: true, ref: { photoRange: [0, 1] } },
       ],
     },
   ]
@@ -81,6 +91,12 @@ function renderPreview(overrides: Partial<PaginatedPreviewProps> = {}) {
       {...overrides}
     />
   )
+}
+
+function openDropdown(triggerEl: Element) {
+  fireEvent.pointerDown(triggerEl, { button: 0, ctrlKey: false })
+  fireEvent.pointerUp(triggerEl, { button: 0 })
+  fireEvent.click(triggerEl)
 }
 
 function sheet(container: HTMLElement) {
@@ -216,10 +232,82 @@ describe.each(['classic', 'modern'] as const)('PaginatedPreview editing — %s',
     const submit = screen.getAllByRole('button', { name: /add section/i }).at(-1)!
     expect((submit as HTMLButtonElement).disabled).toBe(true)
 
-    fireEvent.change(screen.getByPlaceholderText('New Section'), { target: { value: 'Painting' } })
-    fireEvent.change(screen.getAllByPlaceholderText('Description').at(-1)!, { target: { value: 'Prime walls' } })
+    fireEvent.change(screen.getByPlaceholderText('Section title'), { target: { value: 'Painting' } })
+    fireEvent.change(screen.getByPlaceholderText('First line description'), { target: { value: 'Prime walls' } })
     fireEvent.click(submit)
     expect(dispatch).toHaveBeenCalledWith({ type: 'ADD_SECTION', title: 'Painting', firstItemDescription: 'Prime walls' })
+  })
+
+  it('line menu: move down swaps with the next line; the first line cannot move up', () => {
+    const dispatch = vi.fn()
+    const { container } = renderPreview({ templateId, dispatch })
+    openDropdown(within(row(container, 'item-0')).getByRole('button', { name: 'Line actions' }))
+    const up = screen.getByRole('menuitem', { name: 'Move up' })
+    expect(up.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    expect(dispatch).toHaveBeenCalledWith({ type: 'REORDER_ITEMS', sectionId: SECTION_ID, itemIds: ['item-1', 'item-0'] })
+  })
+
+  it('line menu: a line discount is set from a popover and commits on Enter', () => {
+    const dispatch = vi.fn()
+    const { container } = renderPreview({ templateId, dispatch })
+    openDropdown(within(row(container, 'item-1')).getByRole('button', { name: 'Line actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add line discount' }))
+    const field = screen.getByRole('textbox', { name: 'Line discount' })
+    fireEvent.change(field, { target: { value: '25' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'UPDATE_ITEM', sectionId: SECTION_ID, itemId: 'item-1', field: 'discount', value: 25,
+    })
+  })
+
+  it('totals: discount, tax (with reset to default) and deposit edit from one popover', () => {
+    const dispatch = vi.fn()
+    renderPreview({ templateId, dispatch, defaultTaxRate: 0.05 })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit discount, tax and deposit' }))
+
+    const discountField = screen.getByRole('textbox', { name: 'Discount' }) as HTMLInputElement
+    expect(discountField.value).toBe('10')
+    fireEvent.change(discountField, { target: { value: '15' } })
+    fireEvent.keyDown(discountField, { key: 'Enter' })
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'UPDATE_DISCOUNT', discount_type: 'percentage', discount_value: 15 })
+
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Discount' })).getByRole('radio', { name: 'None' }))
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'UPDATE_DISCOUNT', discount_type: null, discount_value: 0 })
+
+    const tax = screen.getByRole('textbox', { name: 'Tax' })
+    fireEvent.change(tax, { target: { value: '7' } })
+    fireEvent.blur(tax)
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'UPDATE_TAX_RATE', tax_rate: 0.07 })
+    fireEvent.click(screen.getByRole('button', { name: /reset to default \(5%\)/i }))
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'UPDATE_TAX_RATE', tax_rate: 0.05 })
+
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Deposit' })).getByRole('radio', { name: '$' }))
+    expect(dispatch).toHaveBeenLastCalledWith({ type: 'UPDATE_DEPOSIT', deposit_type: 'amount', deposit_value: 30 })
+  })
+
+  it('photos: the remove button detaches the photo', () => {
+    const onDetachPhoto = vi.fn()
+    renderPreview({ templateId, dispatch: vi.fn(), onDetachPhoto })
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photo' }))
+    expect(onDetachPhoto).toHaveBeenCalledWith(PHOTO_WITH_CAPTION.id)
+  })
+
+  it('client: "Link client" when none, the Bill To cell otherwise — both open the client panel', () => {
+    const onOpenClientPanel = vi.fn()
+    const { unmount } = renderPreview({ templateId, dispatch: vi.fn(), onOpenClientPanel })
+    fireEvent.click(screen.getByRole('button', { name: 'Link client' }))
+    expect(onOpenClientPanel).toHaveBeenCalledTimes(1)
+    unmount()
+
+    renderPreview({
+      templateId,
+      dispatch: vi.fn(),
+      onOpenClientPanel,
+      client: { name: 'Pat Client', email: 'pat@example.test', phone: null } as PaginatedPreviewProps['client'],
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Change client' }))
+    expect(onOpenClientPanel).toHaveBeenCalledTimes(2)
   })
 })
 

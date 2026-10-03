@@ -19,6 +19,7 @@ import type { CSSProperties } from 'react'
 import { INTER_LH, font, pt, tracking } from './units'
 import { ReadOnlyPhotoThumb } from './shared'
 import {
+  ClientCell,
   EditableDate,
   EditableDescription,
   EditableEstimateNumber,
@@ -27,9 +28,12 @@ import {
   EditableSectionTitle,
   EditableSummary,
   EditableTermsText,
+  EditableTotals,
   EditableUnit,
   ItemRowActions,
+  LinkClientSlot,
   NewItemSlot,
+  PhotoRemoveButton,
   SectionActions,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
@@ -94,8 +98,8 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
           <EditableEstimateNumber ctx={ctx} />
         </p>
       </div>
-      {client && (
-        <div>
+      {client ? (
+        <ClientCell ctx={ctx}>
           <p className={EYEBROW} style={eyebrowStyle(4)}>
             {L.billTo}
           </p>
@@ -117,7 +121,9 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
               {clientAddr}
             </p>
           )}
-        </div>
+        </ClientCell>
+      ) : (
+        <LinkClientSlot ctx={ctx} />
       )}
     </div>
   )
@@ -133,7 +139,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
   return (
     <div data-page-block-id="totals" className="flex justify-end" style={{ marginTop: pt(20) }}>
-      <div className="w-[45%]">
+      <EditableTotals ctx={ctx} className="w-[45%]">
         <div className={TOTALS_ROW} style={totalsRowStyle}>
           <span className="text-muted-foreground select-none">{L.subtotal}</span>
           <span>{fmt(data.subtotal)}</span>
@@ -184,7 +190,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
             <span>{fmt(dep.balanceDue)}</span>
           </div>
         )}
-      </div>
+      </EditableTotals>
     </div>
   )
 }
@@ -497,6 +503,7 @@ export const classicTemplate: PreviewTemplate = {
             <ReadOnlyPhotoThumb
               key={photo.id}
               photo={photo}
+              overlay={<PhotoRemoveButton ctx={ctx} photoId={photo.id} />}
               frameClassName="aspect-square overflow-hidden rounded relative ring-1 ring-border/50"
               captionClassName="font-normal text-muted-foreground line-clamp-2"
               captionStyle={{ ...font(8, INTER_LH), marginTop: pt(2) }}
