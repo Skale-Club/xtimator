@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { Settings, Trash2, LogOut, HelpCircle } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -12,6 +13,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { useTourContext } from '@/components/tour/tour-provider'
 import { useTour } from '@/components/tour/use-tour'
 import { CompanySelector } from '@/components/app-shell/company-selector'
+import { InstallAppMenuItem, InstallAppDialog } from '@/components/pwa/install-app-menu-item'
 
 interface MobileAccountMenuProps {
   navUser: { email: string; avatarUrl: string | null }
@@ -34,7 +36,8 @@ interface MobileAccountMenuProps {
  *
  * Renders <CompanySelector> (Companies switcher + Add new company) with a custom
  * avatar trigger and an accountMenuSlot mirroring the desktop slot built in
- * Sidebar (user name/email header + Settings + Trash + App Tour + Sign Out).
+ * Sidebar (user name/email header + Install app + Settings + Trash + App Tour +
+ * Sign Out).
  * The company switch itself is handled entirely inside CompanySelector via the
  * existing `switchActiveCompany` server action — not reimplemented here.
  */
@@ -49,6 +52,7 @@ export function MobileAccountMenu({
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
   const { resetAllTourState, startTour } = useTour()
+  const [installHelpOpen, setInstallHelpOpen] = useState(false)
 
   const initial = navUser.email.charAt(0).toUpperCase()
 
@@ -80,6 +84,7 @@ export function MobileAccountMenu({
         <p className="text-xs text-muted-foreground truncate">{navUser.email}</p>
       </div>
       <DropdownMenuSeparator />
+      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem asChild className="cursor-pointer">
         <Link href="/settings" className="flex items-center gap-2">
           <Settings className="h-4 w-4" />{t('Settings')}
@@ -106,13 +111,16 @@ export function MobileAccountMenu({
   )
 
   return (
-    <CompanySelector
-      trigger={trigger}
-      align="end"
-      companies={memberships}
-      activeCompanyId={activeCompanyId}
-      isAdmin={isAdmin}
-      accountMenuSlot={accountMenuSlot}
-    />
+    <>
+      <CompanySelector
+        trigger={trigger}
+        align="end"
+        companies={memberships}
+        activeCompanyId={activeCompanyId}
+        isAdmin={isAdmin}
+        accountMenuSlot={accountMenuSlot}
+      />
+      <InstallAppDialog open={installHelpOpen} onOpenChange={setInstallHelpOpen} />
+    </>
   )
 }

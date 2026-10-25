@@ -25,6 +25,7 @@ import { signOut } from '@/lib/actions/auth'
 import { useTourContext } from '@/components/tour/tour-provider'
 import { useTour } from '@/components/tour/use-tour'
 import { CompanySelector } from '@/components/app-shell/company-selector'
+import { InstallAppMenuItem, InstallAppDialog } from '@/components/pwa/install-app-menu-item'
 
 interface SidebarProps {
   branding: {
@@ -84,6 +85,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
   const { resetAllTourState, startTour } = useTour()
+  const [installHelpOpen, setInstallHelpOpen] = useState(false)
 
   function handleOpenTour() {
     resetAllTourState()
@@ -109,6 +111,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
           <DropdownMenuSeparator />
         </>
       )}
+      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem asChild className="cursor-pointer">
         <Link href="/settings" className="flex items-center gap-2">
           <Settings className="h-4 w-4" />{t('Settings')}
@@ -414,6 +417,8 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
           </div>
         )}
       </div>
+      {/* Portaled — lives outside the dropdown so it survives the menu closing. */}
+      <InstallAppDialog open={installHelpOpen} onOpenChange={setInstallHelpOpen} />
     </aside>
   )
 }

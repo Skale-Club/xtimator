@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { X, Download, Share } from 'lucide-react'
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
+import { useInstallApp } from './use-install-app'
 
 const DISMISS_KEY = 'pwa_install_dismissed'
 
@@ -15,54 +11,28 @@ interface Props {
 }
 
 export function InstallPrompt({ hasProjects = false }: Props) {
-  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [visible, setVisible] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
+  // The beforeinstallprompt event is shared with the avatar-menu "Install app"
+  // item — both read it from the same store (it can only be prompted once).
+  const { platform, installed, canPrompt, promptInstall } = useInstallApp()
+  const [dismissed, setDismissed] = useState(true)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    // Gate: only show after user has at least one project
-    if (!hasProjects) return
-    // Already installed (standalone mode) — never show
-    if (window.matchMedia('(display-mode: standalone)').matches) return
-    // Previously dismissed — don't show again
-    if (localStorage.getItem(DISMISS_KEY)) return
+    setDismissed(Boolean(localStorage.getItem(DISMISS_KEY)))
+  }, [])
 
-    // Detect iOS Safari (beforeinstallprompt never fires on iOS)
-    const ua = navigator.userAgent
-    const ios = /iPhone|iPad/i.test(ua)
-    setIsIOS(ios)
-
-    if (ios) {
-      // On iOS, show static instructions immediately
-      setVisible(true)
-      return
-    }
-
-    // Android Chrome / desktop: wait for beforeinstallprompt
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setPrompt(e as BeforeInstallPromptEvent)
-      setVisible(true)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [hasProjects])
-
-  if (!visible) return null
-  // Android: also need the prompt captured before rendering
-  if (!isIOS && !prompt) return null
+  // Gate: only show after user has at least one project
+  if (!hasProjects || !platform || installed || dismissed) return null
+  const isIOS = platform === 'ios'
+  // beforeinstallprompt never fires on iOS — it gets static instructions instead
+  if (!isIOS && !canPrompt) return null
 
   async function handleInstall() {
-    if (!prompt) return
-    await prompt.prompt()
-    const { outcome } = await prompt.userChoice
-    if (outcome === 'accepted') setVisible(false)
+    await promptInstall()
   }
 
   function handleDismiss() {
     localStorage.setItem(DISMISS_KEY, '1')
-    setVisible(false)
+    setDismissed(true)
   }
 
   return (
