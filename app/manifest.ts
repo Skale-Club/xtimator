@@ -40,15 +40,15 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     display: 'standalone',
     background_color: '#0a0a0f',
     theme_color: SYSTEM_COLORS.primary,
-    // Every icon is the real brand mark on a dark background, pre-composited
-    // from public/icons/logo.png by scripts/generate-pwa-icons.mjs:
-    // - "any" (desktop installs): dark rounded tile, transparent corners.
-    // - "maskable" (Android): full-bleed dark, mark inside the safe zone so no
-    //   launcher mask clips it.
-    // The tab favicon (/icon) and apple-touch-icon (/apple-icon) stay dynamic.
+    // Every icon is the real brand mark on a dark background:
+    // - the "any" tile is the dynamic /icon route (app/icon.tsx), which
+    //   composites the DB favicon/logo over #0a0a0f and re-renders when the
+    //   admin changes branding — no stale static copy.
+    // - the maskable tiles are pre-composited dark PNGs generated from the real
+    //   logo by scripts/generate-pwa-icons.mjs, with the mark inside the safe
+    //   zone so no launcher mask clips it.
     icons: [
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' as const },
+      { src: '/icon', sizes: '192x192 512x512', type: 'image/png' },
       { src: '/icons/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
       { src: '/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' as const },
     ],
