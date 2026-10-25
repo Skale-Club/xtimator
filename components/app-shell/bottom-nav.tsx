@@ -73,9 +73,14 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
           isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
           item.primary && 'relative'
         )
+        // The primary CTA keeps a regular 20px icon slot so its label sits on the
+        // same line as the others; the brand circle hangs off that slot's bottom
+        // edge and rises past the bar's top border, floating over the content.
         const iconEl = item.primary ? (
-          <span className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-full)] bg-[image:var(--gradient-brand)] text-primary-foreground shadow-md">
-            <Icon className="h-5 w-5" />
+          <span className="relative h-5 w-5">
+            <span className="absolute bottom-0 left-1/2 flex h-12 w-12 -translate-x-1/2 items-center justify-center rounded-[var(--radius-full)] bg-[image:var(--gradient-brand)] text-primary-foreground shadow-md ring-4 ring-background">
+              <Icon className="h-5 w-5" />
+            </span>
           </span>
         ) : (
           <Icon className="h-5 w-5" />
@@ -86,16 +91,16 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
           </span>
         )
         // Active-page indicator: a rounded blue (system primary) bar below the
-        // label. Rendered (transparent) on every non-primary item so the slot
-        // height stays identical between active/inactive and items stay aligned.
-        const indicatorEl = !item.primary ? (
+        // label. Rendered (transparent) on every item, the primary CTA included,
+        // so the slot height stays identical and every label shares one baseline.
+        const indicatorEl = (
           <span
             className={cn(
               'mt-1 h-[3px] w-6 rounded-full',
-              isActive ? 'bg-[hsl(var(--primary))]' : 'bg-transparent'
+              isActive && !item.primary ? 'bg-[hsl(var(--primary))]' : 'bg-transparent'
             )}
           />
-        ) : null
+        )
         if (item.modal) {
           return (
             <button
