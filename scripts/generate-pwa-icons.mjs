@@ -1,10 +1,17 @@
 /**
- * Gera os ícones PWA (PNG) a partir do SVG corrigido.
+ * Gera os ícones PWA (PNG) a partir do logo real (public/icons/logo.png).
  * Execute: node scripts/generate-pwa-icons.mjs
+ *
+ * Padrão, igual em todos os apps:
+ * - icon-192/512 (purpose "any", desktop): tile escuro arredondado, cantos
+ *   transparentes, logo em 72%.
+ * - icon-maskable-192/512 (Android): fundo escuro até a borda, logo em 56% —
+ *   dentro da safe zone (círculo central de 80%), então nenhuma máscara corta.
+ * O apple-touch-icon é dinâmico (app/apple-icon.tsx) e segue a mesma regra.
  */
 
 import sharp from 'sharp'
-import { writeFileSync, mkdirSync } from 'fs'
+import { mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -13,37 +20,44 @@ const root = join(__dirname, '..')
 const out = join(root, 'public', 'icons')
 mkdirSync(out, { recursive: true })
 
-const GLYPH_PATH = `M181 146h74l47 72 49-72h75l-86 121 93 99h-77l-57-62-56 62h-77l93-99-88-121Zm82 118-44-64h-13l51 74-60 68h15l51-58 53 58h14l-61-68 50-74h-13l-44 64h-12Z`
-const TRANSFORM = `translate(256 256) scale(0.85) translate(-299.5 -256)`
+const LOGO = join(out, 'logo.png')
+const BG = '#0a0a0f'
 
-/** Ícone padrão: fundo claro com cantos arredondados */
-function regularSvg(size) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${size}" height="${size}">
-  <rect fill="#eef3ff" x="32" y="32" width="448" height="448" rx="128" ry="128"/>
-  <path fill="#406EF1" transform="${TRANSFORM}" d="${GLYPH_PATH}"/>
-</svg>`
+async function mark(box) {
+  const trimmed = await sharp(LOGO).trim().toBuffer()
+  return sharp(trimmed)
+    .resize(box, box, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer()
 }
 
-/** Ícone maskable: fundo escuro full-bleed (Android adapta a forma) */
-function maskableSvg(size) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${size}" height="${size}">
-  <rect fill="#0a0a0f" x="0" y="0" width="512" height="512"/>
-  <path fill="#406EF1" transform="${TRANSFORM}" d="${GLYPH_PATH}"/>
-</svg>`
+async function anyIcon(size) {
+  const r = Math.round(size * 0.225)
+  const tile = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="${size}" height="${size}" rx="${r}" ry="${r}" fill="${BG}"/></svg>`
+  )
+  return sharp(tile)
+    .composite([{ input: await mark(Math.round(size * 0.72)), gravity: 'centre' }])
+    .png({ compressionLevel: 9 })
+    .toBuffer()
+}
+
+async function maskableIcon(size) {
+  return sharp({ create: { width: size, height: size, channels: 4, background: BG } })
+    .composite([{ input: await mark(Math.round(size * 0.56)), gravity: 'centre' }])
+    .png({ compressionLevel: 9 })
+    .toBuffer()
 }
 
 const icons = [
-  { name: 'icon-192.png',          size: 192, svg: regularSvg  },
-  { name: 'icon-512.png',          size: 512, svg: regularSvg  },
-  { name: 'icon-maskable-192.png', size: 192, svg: maskableSvg },
-  { name: 'icon-maskable-512.png', size: 512, svg: maskableSvg },
+  { name: 'icon-192.png',          size: 192, render: anyIcon      },
+  { name: 'icon-512.png',          size: 512, render: anyIcon      },
+  { name: 'icon-maskable-192.png', size: 192, render: maskableIcon },
+  { name: 'icon-maskable-512.png', size: 512, render: maskableIcon },
 ]
 
-for (const { name, size, svg } of icons) {
-  const dest = join(out, name)
-  await sharp(Buffer.from(svg(size)))
-    .png({ compressionLevel: 9 })
-    .toFile(dest)
+for (const { name, size, render } of icons) {
+  await sharp(await render(size)).toFile(join(out, name))
   console.log(`✓ ${name}  (${size}×${size})`)
 }
 
