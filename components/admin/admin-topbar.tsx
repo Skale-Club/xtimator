@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useTransition } from 'react'
 import { ArrowLeft, LogOut, Loader2 } from 'lucide-react'
-import { signOut } from '@/lib/actions/auth'
+import { signOut } from '@/lib/auth/sign-out'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface AdminTopbarProps {

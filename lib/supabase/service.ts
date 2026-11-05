@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { ownedAdminAuth, withOwnedAuth } from '@/lib/auth/owned-client'
 
 /**
  * Creates a Supabase service-role client.
@@ -14,7 +16,8 @@ export function createServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return null
-  return createClient(url, key)
+  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  return ownedAuthEnabled() ? withOwnedAuth(client, ownedAdminAuth(client)) : client
 }
 
 /**
@@ -30,5 +33,6 @@ export function requireServiceClient() {
       '[requireServiceClient] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY must be set.'
     )
   }
-  return createClient(url, key)
+  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  return ownedAuthEnabled() ? withOwnedAuth(client, ownedAdminAuth(client)) : client
 }

@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { OwnedAccountSecurity } from '@/components/auth/owned-account-security'
 
 // Password schema
 const passwordSchema = z
@@ -38,6 +40,10 @@ const emailSchema = z.object({
 type EmailValues = z.infer<typeof emailSchema>
 
 export function AccountSection() {
+  return ownedAuthEnabled() ? <OwnedAccountSecurity /> : <LegacyAccountSection />
+}
+
+function LegacyAccountSection() {
   const { t } = useTranslation()
   const [isPendingPassword, startPasswordTransition] = useTransition()
   const [isPendingEmail, startEmailTransition] = useTransition()

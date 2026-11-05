@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/form'
 import { signIn, resetPassword } from '@/lib/actions/auth'
 import { createClient } from '@/lib/supabase/client'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { PhoneSignIn } from '@/components/auth/phone-sign-in'
 
 // ---------------------------------------------------------------------------
 // Styles (Xphere dark design system)
@@ -451,6 +453,13 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ appName, logoUrl }: LoginFormProps) {
+  return ownedAuthEnabled() ? <div className="w-full max-w-[400px] rounded-2xl border bg-card p-8 text-card-foreground shadow-xl">
+    <div className="mb-6 flex items-center justify-center gap-2"><AppIcon logoUrl={logoUrl} appName={appName} className="size-7" /><span className="font-semibold">{appName}</span></div>
+    <PhoneSignIn />
+  </div> : <LegacyLoginForm appName={appName} logoUrl={logoUrl} />
+}
+
+function LegacyLoginForm({ appName, logoUrl }: LoginFormProps) {
   const [view, setView] = useState<View>('login-email')
   const [email, setEmail] = useState('')
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)

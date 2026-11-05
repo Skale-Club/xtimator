@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
-import { signOut } from '@/lib/actions/auth'
+import { signOut } from '@/lib/auth/sign-out'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useTourContext } from '@/components/tour/tour-provider'
 import { useTour } from '@/components/tour/use-tour'

@@ -73,6 +73,7 @@ describe('HETZNER-04: GET /api/health', () => {
 
   afterEach(() => {
     delete process.env.GIT_SHA
+    vi.unstubAllEnvs()
   })
 
   it('returns 200 with { ok: true, db: ok, storage: ok, commit } on happy path', async () => {
@@ -98,6 +99,16 @@ describe('HETZNER-04: GET /api/health', () => {
 
     await GET()
     expect(storage.list).toHaveBeenCalledWith('logos', '')
+  })
+
+  it('does not mark an unconfigured owned login ready for deployment', async () => {
+    vi.stubEnv('NEXT_PUBLIC_AUTH_MODE', 'owned')
+    vi.stubEnv('GOOGLE_AUTH_PROJECT_ID', undefined)
+    vi.mocked(createServiceClient).mockReturnValue(makeSupabaseOk() as never)
+    vi.mocked(getServerStorage).mockReturnValue(makeStorageOk() as never)
+    const response = await GET()
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ ok: false, auth: 'fail', error: 'auth: unavailable' })
   })
 
   it('returns 503 with { ok: false, db: fail } when DB SELECT errors', async () => {

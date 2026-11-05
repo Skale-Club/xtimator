@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logAuthEvent } from '@/lib/auth-logger'
 import { writeThemeCookie, isValidTheme } from '@/lib/theme/cookie'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 /**
  * Quick-260909-eul — relative Location on purpose. exchangeCodeForSession() has
@@ -15,6 +16,7 @@ function relativeRedirect(path: `/${string}`): NextResponse {
 }
 
 export async function GET(request: NextRequest) {
+  if (ownedAuthEnabled()) return relativeRedirect('/?auth=login')
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const type = searchParams.get('type')

@@ -10,6 +10,7 @@ import {
 } from '@/lib/demo/config'
 import { ACTIVE_COMPANY_COOKIE, ACTIVE_COMPANY_COOKIE_OPTIONS } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 type DemoEntryClassification =
   | { kind: 'apex'; destination: string }
@@ -87,6 +88,10 @@ function isExpectedDemoEmail(email: unknown, expectedEmail: string): boolean {
 export async function establishDemoSession(request: NextRequest): Promise<NextResponse> {
   const demoOrigin = getDemoAppOrigin()
   const email = getDemoUserEmail()
+  if (ownedAuthEnabled()) {
+    if (!demoOrigin || getRequestOrigin(request) !== demoOrigin.origin || !email) return terminalFailure()
+    return (await import('./owned-session')).establishOwnedDemoSession(request, demoOrigin, email)
+  }
   const password = getDemoUserPassword()
 
   if (!demoOrigin || getRequestOrigin(request) !== demoOrigin.origin || !email || !password) {

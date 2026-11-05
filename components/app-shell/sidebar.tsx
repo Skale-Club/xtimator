@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { signOut } from '@/lib/actions/auth'
+import { signOut } from '@/lib/auth/sign-out'
 import { useTourContext } from '@/components/tour/tour-provider'
 import { useTour } from '@/components/tour/use-tour'
 import { CompanySelector } from '@/components/app-shell/company-selector'

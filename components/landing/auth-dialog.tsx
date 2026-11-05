@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/form'
 import { signIn, signUp, resetPassword } from '@/lib/actions/auth'
 import { createClient } from '@/lib/supabase/client'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { OwnedAuthDialog } from '@/components/auth/owned-auth-dialog'
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -665,7 +667,11 @@ function ResetSentPanel({ email, onBackToSignIn }: { email: string; onBackToSign
 // Main dialog
 // ---------------------------------------------------------------------------
 
-export function AuthDialog({ branding, initialMode = 'login', open, onClose, next = null }: AuthDialogProps) {
+export function AuthDialog(props: AuthDialogProps) {
+  return ownedAuthEnabled() ? <OwnedAuthDialog {...props} /> : <LegacyAuthDialog {...props} />
+}
+
+function LegacyAuthDialog({ branding, initialMode = 'login', open, onClose, next = null }: AuthDialogProps) {
   const [mode, setMode] = useState<Mode>(initialMode)
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')

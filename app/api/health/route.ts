@@ -22,6 +22,7 @@
 import { NextResponse } from 'next/server'
 import { getServerStorage } from '@/lib/storage/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 // Health must never be cached — always reflect live state.
 export const dynamic = 'force-dynamic'
@@ -76,9 +77,23 @@ export async function GET() {
     error = error ? `${error}; storage: ${msg}` : `storage: ${msg}`
   }
 
-  const ok = db === 'ok' && storage === 'ok'
+  let authReady = true
+  if (ownedAuthEnabled()) {
+    try {
+      const [{ publicIdentityConfig }, { requireOwnedActivation }] = await Promise.all([
+        import('@/lib/auth/google-identity'), import('@/lib/auth/owned-store'),
+      ])
+      publicIdentityConfig()
+      if (!process.env.XTIMATOR_DATA_JWT_SECRET || Buffer.byteLength(process.env.XTIMATOR_DATA_JWT_SECRET) < 32) throw new Error('Incomplete signing configuration')
+      await requireOwnedActivation()
+    } catch {
+      authReady = false
+      error = error ? `${error}; auth: unavailable` : 'auth: unavailable'
+    }
+  }
+  const ok = db === 'ok' && storage === 'ok' && authReady
   return NextResponse.json(
-    { ok, db, storage, commit, ...(error && { error }) },
+    { ok, db, storage, commit, ...(ownedAuthEnabled() && { auth: authReady ? 'ok' : 'fail' }), ...(error && { error }) },
     { status: ok ? 200 : 503 },
   )
 }

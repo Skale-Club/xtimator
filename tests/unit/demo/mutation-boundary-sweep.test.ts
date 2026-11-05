@@ -525,6 +525,11 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ),
   ...guarded('app/api/analyze-photos/route.ts', 'demoGuardResponse', ['POST']),
   ...excepted('app/api/auth/keepalive/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
+  ...excepted('app/api/auth/config/route.ts', 'read-only', READ_AUTHORITY, 'Only returns the explicitly enabled public identity SDK configuration; no user or tenant state is written.', ['GET']),
+  ...excepted('app/api/auth/session/route.ts', 'read-only', 'Validated opaque owned session cookie', 'GET reads the current browser session and emits only a short user-scoped data token; it performs no tenant mutation.', ['GET']),
+  ...excepted('app/api/auth/session/route.ts', 'demo-exit', 'Same-origin and host-scoped owned session cookie', 'DELETE revokes only the current browser session and clears its cookie; shared demo accounts and other visitors remain intact.', ['DELETE']),
+  ...excepted('app/api/auth/identity/route.ts', 'auth-entry', 'Same-origin, fresh cryptographically verified Google/phone proof', 'Account provisioning/linking is atomic, rejects demo accounts before identity changes, and never derives role or company from the browser.', ['POST']),
+  ...excepted('app/api/auth/recovery/route.ts', 'auth-entry', 'Same-origin, rate-limited single-use verification challenge', 'Recovery requires verified existing email and phone proof; email updates require the current session, and demo identities are rejected before writes.', ['POST']),
   // O feed RSS do blog: lê posts publicados e devolve XML. Não toca em estado
   // nenhum, e é lido por leitores de feeds e rastreadores, nunca por um sessão.
   ...excepted('app/blog/rss.xml/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),

@@ -1,4 +1,5 @@
 import 'server-only'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 /**
  * Central configuration for the public demo workspace.
@@ -42,7 +43,7 @@ export function getDemoUserPassword(): string | null {
 
 /** True when the demo is fully configured (credentials present). */
 export function isDemoConfigured(): boolean {
-  return Boolean(getDemoUserEmail() && getDemoUserPassword())
+  return Boolean(getDemoUserEmail() && (ownedAuthEnabled() || getDemoUserPassword()))
 }
 
 /**

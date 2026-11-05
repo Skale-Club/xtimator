@@ -3,8 +3,10 @@ import { getBranding } from '@/lib/platform-config'
 import { createClient } from '@/lib/supabase/server'
 import { AuthCard } from '@/components/auth/auth-card'
 import { UpdatePasswordForm } from './update-password-form'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 export default async function UpdatePasswordPage() {
+  if (ownedAuthEnabled()) redirect('/settings/account')
   // After Supabase exchanges the recovery code in /callback, the user has a session.
   // Guard here as a defensive fallback — if claims are missing, send to landing.
   const supabase = await createClient()

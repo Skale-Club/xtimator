@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
 
 // Clears the current session (handy for shaking off a leftover demo session)
 // and sends you to the login dialog.
@@ -7,6 +8,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
+  if (ownedAuthEnabled() && request.headers.get('sec-fetch-site') === 'cross-site') return new NextResponse('Forbidden', { status: 403 })
   const supabase = await createClient()
   // Demo visitors share an account. Only remove this browser's session so one
   // visitor cannot revoke every other visitor's refresh token.

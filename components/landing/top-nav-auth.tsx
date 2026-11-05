@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { LogOut, Loader2, LayoutDashboard } from 'lucide-react'
 import Link from 'next/link'
-import { signOut } from '@/lib/actions/auth'
+import { signOut } from '@/lib/auth/sign-out'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,

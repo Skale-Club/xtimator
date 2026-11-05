@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { ownedRequestClaims } from '@/lib/auth/owned-proxy'
 
 export function isPublicRoute(pathname: string) {
   const isAuthRoute = pathname === '/callback'
@@ -15,7 +17,7 @@ export function isPublicRoute(pathname: string) {
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
+  const supabase = ownedAuthEnabled() ? null : createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
@@ -39,8 +41,11 @@ export async function updateSession(request: NextRequest) {
   // getSession() does not re-validate the JWT signature against Supabase servers
   let claims = null
   try {
-    const { data } = await supabase.auth.getClaims()
-    claims = data?.claims ?? null
+    if (ownedAuthEnabled()) claims = await ownedRequestClaims(request, supabaseResponse)
+    else {
+      const { data } = await supabase!.auth.getClaims()
+      claims = data?.claims ?? null
+    }
   } catch {
     claims = null
   }

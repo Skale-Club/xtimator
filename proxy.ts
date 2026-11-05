@@ -4,6 +4,8 @@ import { banRemainingMs, checkTrap, clientIpFromHeaders } from '@/lib/security/b
 import { getDemoAppOrigin } from '@/lib/demo/config'
 import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { ownedRequestClaims } from '@/lib/auth/owned-proxy'
 import {
   REFERRAL_COOKIE,
   REFERRAL_COOKIE_OPTIONS,
@@ -37,6 +39,7 @@ const PUBLIC_EXACT_ROUTES = ['/', '/callback'] as const
 const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
 export function isPublicRoute(pathname: string): boolean {
+  if (isOwnedAuthEntry(pathname)) return true
   if (PUBLIC_EXACT_ROUTES.includes(pathname as (typeof PUBLIC_EXACT_ROUTES)[number])) {
     return true
   }
@@ -140,12 +143,19 @@ export function getCanonicalHostRedirect(
  */
 function isClaimFreeApiRoute(pathname: string): boolean {
   return (
+    isOwnedAuthEntry(pathname) ||
     pathname === '/api/webhooks' || pathname.startsWith('/api/webhooks/') ||
     pathname === '/api/inngest' || pathname.startsWith('/api/inngest/') ||
     pathname === '/api/cron' || pathname.startsWith('/api/cron/') ||
     pathname === '/api/health' || pathname.startsWith('/api/health/') ||
     pathname === '/api/csp-report'
   )
+}
+
+function isOwnedAuthEntry(pathname: string): boolean {
+  return pathname === '/api/auth/config' || (ownedAuthEnabled() && [
+    '/api/auth/identity', '/api/auth/session', '/api/auth/recovery',
+  ].includes(pathname))
 }
 
 /**
@@ -242,7 +252,7 @@ export async function proxy(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request })
 
-  const supabase = createServerClient(
+  const supabase = ownedAuthEnabled() ? null : createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {
@@ -265,8 +275,11 @@ export async function proxy(request: NextRequest) {
   // getSession() does not re-validate the JWT signature against Supabase servers
   let claims = null
   try {
-    const { data } = await supabase.auth.getClaims()
-    claims = data?.claims ?? null
+    if (ownedAuthEnabled()) claims = await ownedRequestClaims(request, supabaseResponse)
+    else {
+      const { data } = await supabase!.auth.getClaims()
+      claims = data?.claims ?? null
+    }
   } catch {
     claims = null
   }

@@ -5,8 +5,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { PhoneSignIn } from '@/components/auth/phone-sign-in'
 
 export function GoogleOAuthButton() {
+  return ownedAuthEnabled() ? <PhoneSignIn /> : <LegacyGoogleOAuthButton />
+}
+
+function LegacyGoogleOAuthButton() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

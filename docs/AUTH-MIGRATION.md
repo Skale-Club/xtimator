@@ -2,9 +2,10 @@
 
 Data: 2026-11-05 (America/New_York).
 
-Status: diagnóstico e proposta de implementação. O novo login ainda não foi
-implementado nem ativado. Este documento registra a análise solicitada e deixa
-a migração preparada para execução; não comprova configuração de produção.
+Status inicial: diagnóstico e proposta. A implementação posterior está entregue
+atrás de ativação explícita; ver [AUTH-CUTOVER.md](./AUTH-CUTOVER.md) para o que foi
+implementado, configuração, verificação e corte. Este diagnóstico continua como
+registro da análise original e não comprova ativação em produção.
 
 ## Decisões do proprietário
 
@@ -149,8 +150,9 @@ a proteção que as políticas atuais fornecem.
 Se for necessário um incremento temporário mantendo PostgREST, projetar uma
 ponte de identidade com JWT aceito pelo banco e escopo de usuário, com testes de
 RLS reais. Firebase ID token e cookie próprio não são substitutos automáticos
-do access token Supabase. Essa ponte não foi implementada nem escolhida como
-arquitetura final nesta análise.
+do access token Supabase. A implementação posterior escolheu essa ponte para
+preservar as consultas e RLS existentes enquanto retira Supabase Auth; detalhes
+e pré-requisitos estão em [AUTH-CUTOVER.md](./AUTH-CUTOVER.md).
 
 ## Sequência de implementação e critérios de conclusão
 
