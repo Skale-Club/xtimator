@@ -5,7 +5,7 @@ milestone_name: Same-Origin Storage on R2
 status: completed
 stopped_at: "Milestone v4.24 COMPLETE 2026-08-07 — all 6 phases (187-192), 24/24 plans, 20/20 requirements. Live in production: same-origin /storage/ proxy serving from Cloudflare R2 (x-asset-source: r2), landing page at 0 supabase.co references with cf-cache-status HIT, tenant-private buckets BYPASS. 55 objects migrated and verified. Open gaps recorded in 192-03/04/05 SUMMARYs: no production rollback drill, no human visual UAT. Pending: FUT-R2-01 (disable the Supabase fallback once stable)."
 last_updated: "2026-11-05"
-last_activity: "2026-11-05 — quick 261105-9pb completed: phone-first owned identity/session implementation, 148 focused tests and owned-mode production build passed; environment cutover not activated"
+last_activity: "2026-11-05 — quick 261105-bdv in progress: owned auth active in production at 3934f5ed, CI 6877 tests passed twice, backup/restore and live hook verified; owner account phone verification and missing Resend configuration pending"
 progress:
   total_phases: 136
   completed_phases: 122

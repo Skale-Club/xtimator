@@ -4,6 +4,30 @@ Implementação: 2026-11-05. Este documento separa o código entregue da ativaç
 de um ambiente. A implementação não publica uma versão, não envia SMS e não
 altera configuração Google ou banco por conta própria.
 
+## Estado de produção em 2026-11-05
+
+O corte foi ativado em 2026-11-05 às 14:30:43 UTC. A versão de aplicação
+`3934f5ed4dc0f026d80c96449e0c3e92e4362e61` está publicada, com modo `owned`,
+readiness HTTP 200 e `auth=ok`; o pipeline concluiu o sync do Inngest.
+Contas/identidades locais foram importadas e tokens antigos de dados são
+rejeitados. O banco/transporte de dados continua no projeto Supabase existente.
+
+Snapshot público/auth/storage restaurado e migration ensaiada antes do corte;
+backup preservado em bucket R2 privado exclusivo. CI passou nas duas execuções
+da suíte completa: 6.877 testes por execução. Relatório e evidências operacionais:
+`.planning/quick/261105-bdv-configure-google-identity-platform-and-c/261105-bdv-SUMMARY.md`.
+
+**Validação humana ainda pendente:** confirmação Google e SMS da conta indicada
+pelo proprietário. O telefone ainda não foi vinculado. A recuperação por e-mail
+também está pendente de configuração: o ambiente não tem chave Resend e o Auth
+antigo não tem SMTP personalizado para reutilizar. Não considerar o teste real
+de recuperação ou SMS concluído enquanto essas etapas não forem verificadas.
+
+O healthcheck do Coolify usa `/api/health` em `127.0.0.1`, timeout 15s, intervalo
+10s, 12 tentativas e início em 30s. O host IPv4 explícito evita a falha de conexão
+do `wget` com `localhost` na imagem Alpine. O healthcheck Docker de liveness
+continua independente em `/api/health/live`.
+
 ## Comportamento entregue
 
 - Formulário compartilhado no modal e no login: telefone com DDI, SMS/reCAPTCHA,
