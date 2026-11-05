@@ -14,7 +14,7 @@ const MIGRATION_PATH = join(
   process.cwd(),
   'supabase/migrations/20260729000001_signature_evidence_retention.sql'
 )
-const SQL = readFileSync(MIGRATION_PATH, 'utf8')
+const SQL = readFileSync(MIGRATION_PATH, 'utf8').replace(/\r\n/g, '\n')
 
 describe('signature evidence retention migration (S3) — shape', () => {
   it('defines the trigger function block_signed_estimate_delete', () => {

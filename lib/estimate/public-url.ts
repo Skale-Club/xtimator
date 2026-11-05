@@ -1,5 +1,3 @@
-import { randomBytes } from 'node:crypto'
-
 /**
  * Phase 160 (PUBURL-01..05): friendly estimate URL contract.
  *
@@ -19,7 +17,8 @@ export const PUBLIC_SLUG_TOKEN_LENGTH = 12
  *  (new estimates, Plan 160-05) and scripts/backfill-public-urls.ts (existing
  *  estimates, Plan 160-05) -- ONE code path, never re-implemented. */
 export function generatePublicSlugToken(): string {
-  return randomBytes(PUBLIC_SLUG_TOKEN_BYTES).toString('base64url')
+  const bytes = crypto.getRandomValues(new Uint8Array(PUBLIC_SLUG_TOKEN_BYTES))
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 /** Minimal slugify -- mirrors app/admin/blog/actions.ts's local one-liner

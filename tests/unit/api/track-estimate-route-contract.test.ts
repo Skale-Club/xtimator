@@ -31,7 +31,8 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => mockRequireServiceClient(),
 }))
 
-import { POST, parseTrackBody } from '@/app/api/track/estimate/route'
+import { POST } from '@/app/api/track/estimate/route'
+import { parseTrackBody } from '@/lib/estimates/tracking-payload'
 
 function jsonRequest(body: unknown, headersInit?: HeadersInit): Request {
   return new Request('http://localhost/api/track/estimate', {

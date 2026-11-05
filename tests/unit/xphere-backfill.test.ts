@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chunkEventBatches } from '@/app/api/admin/xphere-backfill/route'
+import { chunkEventBatches } from '@/lib/integrations/xphere-backfill-batches'
 
 describe('XPHERE-B6 chunkEventBatches', () => {
   it('Test 1: chunks ["a","b","c"] size 2 → [[a,b],[c]]', () => {

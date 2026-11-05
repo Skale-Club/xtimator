@@ -15,6 +15,7 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
+import { buildGenerateEventId } from '@/lib/inngest/generate-event-id'
 
 /**
  * Phase 91 (REC-03/REC-04): pure, exported helper deriving the Inngest event id
@@ -22,10 +23,6 @@ import { recordJobOwnership } from '@/lib/inngest/job-ownership'
  * a Retry that reuses the original requestId yields the SAME event id → Inngest
  * dedups the re-dispatch and an already-completed generate step is NOT re-charged.
  */
-export function buildGenerateEventId(projectId: string, requestId: string) {
-  return `estimate-${projectId}-${requestId}`
-}
-
 /**
  * Phase 67: route refactor. Returns { jobId } in <1s.
  *

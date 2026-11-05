@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { inngest } from '@/lib/inngest/client'
-import { EVENT_XPHERE_SYNC } from '@/lib/inngest/events'
+import { chunkEventBatches } from '@/lib/integrations/xphere-backfill-batches'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,18 +23,6 @@ const CHUNK = 100
  * `xphere/sync.requested` events (note-less 'company.updated' for idempotent
  * re-runs). Returns [] for an empty input.
  */
-export function chunkEventBatches(companyIds: string[], size: number) {
-  const events = companyIds.map((companyId) => ({
-    name: EVENT_XPHERE_SYNC,
-    data: { companyId, event: 'company.updated' as const },
-  }))
-  const chunks: (typeof events)[] = []
-  for (let i = 0; i < events.length; i += size) {
-    chunks.push(events.slice(i, i + size))
-  }
-  return chunks
-}
-
 export async function POST() {
   try {
     await requireAdmin()

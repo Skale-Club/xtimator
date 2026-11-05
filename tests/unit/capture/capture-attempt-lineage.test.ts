@@ -99,7 +99,7 @@ describe('REC-03/REC-04: attempt lineage + stable generate event id on Retry', (
   })
 
   it('buildGenerateEventId yields a stable event id for the same projectId + requestId', async () => {
-    const { buildGenerateEventId } = await import('@/app/api/generate-estimate/route')
+    const { buildGenerateEventId } = await import('@/lib/inngest/generate-event-id')
     const projectId = 'proj-1'
     const requestId = 'req-abc'
     const first = buildGenerateEventId(projectId, requestId)

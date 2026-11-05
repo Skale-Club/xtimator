@@ -14,7 +14,7 @@ const MIGRATION_PATH = join(
   process.cwd(),
   'supabase/migrations/20260729000002_sign_estimate_atomic.sql'
 )
-const SQL = readFileSync(MIGRATION_PATH, 'utf8')
+const SQL = readFileSync(MIGRATION_PATH, 'utf8').replace(/\r\n/g, '\n')
 
 describe('sign_estimate_atomic migration (S2) — shape', () => {
   it('defines sign_estimate_atomic with the expected parameter list', () => {

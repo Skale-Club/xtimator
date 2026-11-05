@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// This is a dispatch unit test: do not issue a real service-role write to the
+// environment loaded by tests/setup/load-env.ts while timing the handler.
+vi.mock('@/lib/inngest/job-ownership', () => ({
+  recordJobOwnership: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Billing v2: the credit gate now runs on every request — stub it permissive so
 // these tests stay focused on their own contract (the gate has its own tests).
 vi.mock('@/lib/billing/credit-ledger', () => ({

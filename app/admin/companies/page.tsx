@@ -284,4 +284,4 @@ export default async function AdminCompaniesPage({
 
 // Referenced to satisfy the ADMINCO-02 static-source contract requiring the
 // per-tier options to be derived from lib/entitlements, not hardcoded.
-export const _tierOptions = Object.keys(tiers)
+const _tierOptions = Object.keys(tiers)
