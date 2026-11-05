@@ -106,7 +106,7 @@ NEXT_PUBLIC_AUTH_MODE=owned
 ```
 
 O default durante a entrega é `supabase`. O modo próprio nunca faz fallback
-silencioso. Para Docker, o argumento é `PUBLIC_AUTH_MODE`; GitHub Actions usa a
+silencioso. Para Docker, o argumento é `PUBLIC_IDENTITY_MODE`; GitHub Actions usa a
 variável `NEXT_PUBLIC_AUTH_MODE`, com default `supabase`. Alterar apenas o valor
 no Coolify sem reconstruir a imagem não altera o bundle existente.
 

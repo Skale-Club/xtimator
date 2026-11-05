@@ -9,10 +9,7 @@ build
 dist
 
 # Local env — secrets must come from --env-file at run time, NEVER baked into image
-.env
-.env.local
-.env.production
-.env*.local
+.env*
 
 # Git
 .git
