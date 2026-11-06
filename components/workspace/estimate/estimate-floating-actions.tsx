@@ -20,6 +20,8 @@ interface EstimateFloatingActionsProps {
    *  also hosts the Link-Client affordance). When omitted the gear button is
    *  not rendered (backward-compat). */
   onOpenSettings?: () => void
+  /** "Client response" control (record the client's answer in-app), drawn before Share. */
+  responseControl?: ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,7 @@ export function EstimateFloatingActions({
   onSend,
   onOpenPhotos,
   onOpenSettings,
+  responseControl,
 }: EstimateFloatingActionsProps) {
   // Quick-260718-w4k — the pill collapses to a single small round button so it
   // stops covering the bottom of the document. Session-local state (resets on
@@ -114,6 +117,7 @@ export function EstimateFloatingActions({
           Photos
         </Button>
       )}
+      {responseControl}
       <Button size="sm" onClick={onSend} disabled={isSaving} className="shrink-0 rounded-full gap-1.5">
         <Share2 className="h-3.5 w-3.5" />
         Share

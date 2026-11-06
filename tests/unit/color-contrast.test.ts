@@ -81,6 +81,42 @@ describe('lib/color/contrast — readableTextColor', () => {
 
   it('returns black (safe default) for invalid input', () => {
     expect(readableTextColor('not-a-hex')).toBe('#000000')
+    expect(readableTextColor('not-a-hex', { largeText: true })).toBe('#000000')
+  })
+
+  it('default (normal text) keeps raw-contrast behaviour: black wins on the default brand blue', () => {
+    // black 4.72 vs white 4.45
+    expect(readableTextColor('#406EF1')).toBe('#000000')
+  })
+
+  describe('largeText (bold banners / section bands): white whenever it reaches 3:1', () => {
+    it('returns white on the default brand blue (tie-break: white 4.45 vs black 4.72)', () => {
+      expect(readableTextColor('#406EF1', { largeText: true })).toBe('#ffffff')
+      expect(readableTextColor('#2563eb', { largeText: true })).toBe('#ffffff')
+    })
+
+    it('returns white on other saturated mid-tones (red, teal, orange)', () => {
+      expect(readableTextColor('#dc2626', { largeText: true })).toBe('#ffffff')
+      expect(readableTextColor('#0f766e', { largeText: true })).toBe('#ffffff')
+      expect(readableTextColor('#ea580c', { largeText: true })).toBe('#ffffff')
+    })
+
+    it('still returns black on genuinely light fills (yellow, light cyan, pastel, white)', () => {
+      expect(readableTextColor('#FFEB3B', { largeText: true })).toBe('#000000')
+      expect(readableTextColor('#67e8f9', { largeText: true })).toBe('#000000')
+      expect(readableTextColor('#FFFACD', { largeText: true })).toBe('#000000')
+      expect(readableTextColor('#ffffff', { largeText: true })).toBe('#000000')
+    })
+
+    it('white is only chosen when it really has >= 3:1 against the fill', () => {
+      for (const bg of ['#406EF1', '#dc2626', '#0f766e']) {
+        expect(contrastRatio('#ffffff', bg)).toBeGreaterThanOrEqual(3)
+      }
+    })
+
+    it('dark fills stay white', () => {
+      expect(readableTextColor('#1A1A1A', { largeText: true })).toBe('#ffffff')
+    })
   })
 })
 

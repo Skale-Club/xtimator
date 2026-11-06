@@ -165,6 +165,9 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
         },
         error: null,
       },
+      // Online approval gate: respondToEstimate reads the company's
+      // digital_signature_enabled flag before any write.
+      { data: { digital_signature_enabled: true }, error: null },
       {
         data: {
           notify_on_accept: false,
@@ -205,7 +208,24 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
     }
   }
 
-  for (const response of ['accepted', 'declined'] as const) {
+  // Acceptance now only happens through the sign route (online approval
+  // requires a signature), so the public action fires the declined event only;
+  // estimate.accepted comes from notifyEstimateResponse on a successful sign.
+  it('respondToEstimate(accepted) is refused and fires no estimate.accepted notification', async () => {
+    vi.resetModules()
+    const svc = buildSupabaseMock('accepted')
+    vi.doMock('@/lib/supabase/service', () => ({ requireServiceClient: () => svc }))
+    vi.doMock('@/lib/notifications/dispatch', () => ({ notify: vi.fn().mockResolvedValue({ ok: true }) }))
+    const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+    const result = await respondToEstimate('tok_x', 'accepted')
+    expect(result.success).toBe(false)
+    const { notify } = await import('@/lib/notifications/dispatch')
+    const calls = (notify as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls.find((c) => (c[0] as { eventType: string }).eventType === 'estimate.accepted')).toBeUndefined()
+    vi.doUnmock('@/lib/supabase/service')
+  })
+
+  for (const response of ['declined'] as const) {
     it(`respondToEstimate(${response}) fires notify({eventType:"estimate.${response}"})`, async () => {
       vi.resetModules()
       const svc = buildSupabaseMock(response)

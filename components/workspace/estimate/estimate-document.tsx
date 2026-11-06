@@ -589,6 +589,7 @@ function DocumentSectionBlock({
   lang,
   dragHandleProps,
   priceBookItems = [],
+  showSectionSubtotal = true,
 }: {
   section: DocumentSection
   dispatch?: React.Dispatch<EstimateAction>
@@ -600,6 +601,9 @@ function DocumentSectionBlock({
   lang: EstimateLanguage
   dragHandleProps?: Record<string, unknown>
   priceBookItems?: PriceBookItem[]
+  /** False in read-only view when this is the only visible section (its subtotal
+   *  would just repeat the Subtotal row right below). Edit mode always shows it. */
+  showSectionSubtotal?: boolean
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -852,6 +856,7 @@ function DocumentSectionBlock({
       )}
 
       {/* Section subtotal */}
+      {showSectionSubtotal && (
       <div
         data-page-block-id={`${section.id}-subtotal`}
         className={`flex justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}
@@ -861,6 +866,7 @@ function DocumentSectionBlock({
           {formatMoney(section.subtotal, currencyCode)}
         </span>
       </div>
+      )}
     </div>
   )
 }
@@ -1539,7 +1545,7 @@ export function EstimateDocument({
   const brandColor = brandColorProp ?? company?.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation (stored brand color never mutated):
   const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
-  const brandOnFill = readableTextColor(brandColor) // fixed foreground over a brand fill
+  const brandOnFill = readableTextColor(brandColor, { largeText: true }) // bold banner/section bands: AA-large rule; fixed foreground over a brand fill
   const isEditable = mode === 'edit' && !isReadOnly
 
   // Phase 162-04 (DOCUX-01) — section visibility is now driven by the
@@ -1642,7 +1648,7 @@ export function EstimateDocument({
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
           <div className="min-w-0">
-            <p className="font-bold text-2xl leading-tight" style={{ color: brandText }}>
+            <p className="font-bold text-2xl leading-tight">
               {company.name}
             </p>
             {company.owner_name && (
@@ -1858,6 +1864,7 @@ export function EstimateDocument({
               currencyCode={data.currency_code}
               L={L}
               lang={lang}
+              showSectionSubtotal={visibleSections.length > 1}
             />
           ))
         )}

@@ -32,7 +32,7 @@ export interface PdfCompactHeaderProps {
   estimateIdentifier: string
   /** Classic passes brandColor (dynamic border-bottom colour). Modern passes undefined — its rule is static. */
   headerBorderColor?: string
-  /** Classic passes brandText (company-name colour). Modern passes undefined — its name colour is static. */
+  /** Classic passes a neutral foreground (company-name colour). Modern passes undefined — its name colour is static. */
   companyNameColor?: string
   styles: PdfCompactHeaderStyles
 }

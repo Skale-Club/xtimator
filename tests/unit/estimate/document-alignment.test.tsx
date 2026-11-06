@@ -152,7 +152,13 @@ describe('EstimateDocument alignment (DOCUX-05)', () => {
   })
 
   it('section padding — section subtotal footer uses px-6 sm:px-10 (not px-3)', () => {
-    const { container } = render(<EstimateDocument mode="view" {...baseProps} />)
+    // The footer is only drawn with 2+ visible sections in view mode (a single
+    // section's subtotal would duplicate the Subtotal row), so use two sections.
+    const twoSections = {
+      ...dataWithSections,
+      sections: [section, { ...section, id: 'sec-2', title: 'Labor' }],
+    }
+    const { container } = render(<EstimateDocument mode="view" {...baseProps} data={twoSections} />)
     // Subtotal footer contains "Section Subtotal".
     const nodes = Array.from(container.querySelectorAll('div')).filter((el) =>
       (el.textContent ?? '').includes('Section Subtotal')

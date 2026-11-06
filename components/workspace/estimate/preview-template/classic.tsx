@@ -42,6 +42,11 @@ import type { PreviewTemplate, RenderCtx } from './types'
 // title text sits 10pt inside a brand band that spans the content width. The
 // pagination engine wraps the title at the same inset
 // (TEMPLATE_LITERALS.classic.sectionTitleHorizontalPaddingPt) — keep in step.
+// Company name is neutral foreground (matches the PDF page text colour #1f2937),
+// not the brand colour — brand is reserved for the top rule, ESTIMATE band,
+// section bands and grand total.
+const COMPANY_NAME_COLOR = '#1f2937'
+
 const SECTION_TITLE_INSET_PT = 10
 const SECTION_TITLE_INSET_PX = SECTION_TITLE_INSET_PT * PX_PER_PT
 
@@ -202,14 +207,14 @@ export const classicTemplate: PreviewTemplate = {
   // contact lines, a brand-coloured 2pt rule underneath (16pt below the text,
   // 24pt above the next block).
   header(ctx) {
-    const { company, brandColor, brandText, companyAddr } = ctx
+    const { company, brandColor, companyAddr } = ctx
     return (
       <div
         className="flex items-start justify-between gap-4 border-b-2"
         style={{ borderBottomColor: brandColor, paddingBottom: pt(16), marginBottom: pt(24) }}
       >
         <div className="min-w-0">
-          <p className="font-bold" style={{ ...font(18, INTER_LH), color: brandText, marginBottom: pt(4) }}>
+          <p className="font-bold" style={{ ...font(18, INTER_LH), color: COMPANY_NAME_COLOR, marginBottom: pt(4) }}>
             {company.name}
           </p>
           {/* pdf-header.tsx: phone | email | website joined by a plain "  |  " in
@@ -252,7 +257,7 @@ export const classicTemplate: PreviewTemplate = {
           className="flex items-center justify-between gap-3 border-b border-zinc-200"
           style={{ paddingBottom: pt(6) }}
         >
-          <span className="min-w-0 truncate font-bold" style={{ ...font(11, INTER_LH), color: brandText }}>
+          <span className="min-w-0 truncate font-bold" style={{ ...font(11, INTER_LH), color: COMPANY_NAME_COLOR }}>
             {company.name}
           </span>
           <span className="flex-shrink-0 font-normal text-muted-foreground" style={font(9, INTER_LH)}>

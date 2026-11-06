@@ -54,7 +54,7 @@ export interface PdfHeaderProps {
   company: PdfHeaderCompany
   /** Classic passes brandColor here (dynamic border-bottom on the fixed header). Modern passes undefined — its header border is fully static. */
   headerBorderColor?: string
-  /** Classic passes brandText here (company name + name-link color override). Modern passes undefined — its company name color is fully static. */
+  /** Classic passes a neutral foreground here (company name + name-link color override). Modern passes undefined — its company name color is fully static. */
   companyNameColor?: string
   /** Document language. Drives the language chip, which is drawn ONLY for non-English
    *  documents (lib/pdf/language-badge.ts — the same predicate measureHeaderHeightPt charges with). */

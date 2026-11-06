@@ -529,6 +529,14 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
 
   // --- sections (gated on 'sections' visibility BEFORE per-section filtering) ---
   if (isSectionVisible(resolvedSettings, 'sections')) {
+    // Classic only: with exactly ONE visible section (after dropping empty ones) the
+    // "Section Subtotal" row just repeats the Subtotal right below it, so it is not
+    // emitted at all (measured layout and drawing therefore agree). Applied
+    // unconditionally here because this engine mirrors the PRINTED PDF - the in-place
+    // editor page view included; the web editor view (estimate-document.tsx) keeps the
+    // row while editing. Modern keeps its subtotal row (standby template, unchanged).
+    const visibleSectionCount = sections.filter((s) => visibleSectionItems(s).length > 0).length
+    const omitSectionSubtotal = templateId === 'classic' && visibleSectionCount === 1
     for (const section of sections) {
       const items = visibleSectionItems(section)
       if (items.length === 0) continue
@@ -572,14 +580,16 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
         })
       })
 
-      blocks.push({
-        kind: 'section-subtotal',
-        id: subtotalId,
-        baseHeightPt: lit.sectionSubtotalBaseHeightPt,
-        keepWithPreviousId: rowIds[rowIds.length - 1],
-        atomic: true,
-        ref: { sectionId: section.id },
-      })
+      if (!omitSectionSubtotal) {
+        blocks.push({
+          kind: 'section-subtotal',
+          id: subtotalId,
+          baseHeightPt: lit.sectionSubtotalBaseHeightPt,
+          keepWithPreviousId: rowIds[rowIds.length - 1],
+          atomic: true,
+          ref: { sectionId: section.id },
+        })
+      }
     }
   }
 

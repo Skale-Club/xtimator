@@ -42,12 +42,15 @@ const ESTIMATE_ROW = {
 }
 
 let conditionalUpdateResult: { data: unknown; error: unknown }
+let signatureEnabled = true
+let estimateUpdateCalled = false
 let projectUpdateCalled = false
 let activityInsertCalled = false
 
 function configureSupabase() {
   projectUpdateCalled = false
   activityInsertCalled = false
+  estimateUpdateCalled = false
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'estimates') {
@@ -57,10 +60,25 @@ function configureSupabase() {
             single: vi.fn().mockResolvedValue({ data: ESTIMATE_ROW, error: null }),
           }),
         }),
-        update: vi.fn().mockReturnValue({
+        update: vi.fn().mockImplementation(() => {
+          estimateUpdateCalled = true
+          return {
+            eq: vi.fn().mockReturnValue({
+              is: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue(conditionalUpdateResult),
+              }),
+            }),
+          }
+        }),
+      }
+    }
+    if (table === 'companies') {
+      return {
+        select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            is: vi.fn().mockReturnValue({
-              select: vi.fn().mockResolvedValue(conditionalUpdateResult),
+            single: vi.fn().mockResolvedValue({
+              data: { digital_signature_enabled: signatureEnabled },
+              error: null,
             }),
           }),
         }),
@@ -89,6 +107,7 @@ function configureSupabase() {
 beforeEach(() => {
   vi.clearAllMocks()
   conditionalUpdateResult = { data: [{ id: 'est_1' }], error: null }
+  signatureEnabled = true
   configureSupabase()
 })
 
@@ -124,7 +143,7 @@ describe('respondToEstimate — conditional-atomic update closes the sign-vs-dec
     conditionalUpdateResult = { data: null, error: null }
     const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
 
-    const result = await respondToEstimate('tok_1', 'accepted')
+    const result = await respondToEstimate('tok_1', 'declined')
 
     expect(result.success).toBe(false)
     expect(projectUpdateCalled).toBe(false)
@@ -135,10 +154,43 @@ describe('respondToEstimate — conditional-atomic update closes the sign-vs-dec
     conditionalUpdateResult = { data: null, error: { message: 'db error' } }
     const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
 
-    const result = await respondToEstimate('tok_1', 'accepted')
+    const result = await respondToEstimate('tok_1', 'declined')
 
     expect(result.success).toBe(false)
     expect(projectUpdateCalled).toBe(false)
     expect(mockNotify).not.toHaveBeenCalled()
+  })
+})
+
+describe('respondToEstimate — gated by companies.digital_signature_enabled', () => {
+  it.each(['accepted', 'declined'] as const)(
+    'flag OFF refuses %s before any write',
+    async (response) => {
+      signatureEnabled = false
+      const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+
+      const result = await respondToEstimate('tok_1', response)
+
+      expect(result.success).toBe(false)
+      expect(estimateUpdateCalled).toBe(false)
+      expect(projectUpdateCalled).toBe(false)
+      expect(activityInsertCalled).toBe(false)
+      expect(mockNotify).not.toHaveBeenCalled()
+    }
+  )
+
+  it('flag ON refuses accepted (must go through the sign route) before any write', async () => {
+    const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+
+    const result = await respondToEstimate('tok_1', 'accepted')
+
+    expect(result.success).toBe(false)
+    expect(estimateUpdateCalled).toBe(false)
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('flag ON still allows declined', async () => {
+    const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+    expect(await respondToEstimate('tok_1', 'declined')).toEqual({ success: true })
   })
 })

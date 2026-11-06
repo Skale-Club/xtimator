@@ -59,12 +59,27 @@ export function contrastRatio(hex1: string, hex2: string): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-// For a fixed foreground over a brand-colored fill: pick black or white,
-// whichever has the greater contrast against the background. Invalid → '#000000'.
-export function readableTextColor(bgHex: string): '#000000' | '#ffffff' {
+// Minimum contrast a WHITE foreground must reach to be preferred on a saturated
+// mid-tone fill when the text is large/bold (WCAG AA for large text = 3:1).
+const WHITE_LARGE_TEXT_MIN = 3
+
+// For a fixed foreground over a brand-colored fill: pick black or white.
+//   - default (normal-size text): whichever has the greater contrast.
+//   - `largeText: true` (banners / section header bands, bold and >= 14pt-ish):
+//     white whenever it reaches 3:1 (WCAG AA large text), otherwise whichever is
+//     higher. This stops saturated mid-tone brand fills (e.g. the default blue
+//     #406EF1: black 4.72 vs white 4.45) from getting black text that looks like
+//     a bug; black is only chosen when the fill is genuinely light (yellow,
+//     light cyan, pastel).
+// Invalid → '#000000'.
+export function readableTextColor(
+  bgHex: string,
+  opts: { largeText?: boolean } = {},
+): '#000000' | '#ffffff' {
   if (!hexToRgb(bgHex)) return '#000000'
   const contrastBlack = contrastRatio('#000000', bgHex)
   const contrastWhite = contrastRatio('#ffffff', bgHex)
+  if (opts.largeText && contrastWhite >= WHITE_LARGE_TEXT_MIN) return '#ffffff'
   return contrastWhite > contrastBlack ? '#ffffff' : '#000000'
 }
 

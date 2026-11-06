@@ -439,7 +439,8 @@ export function PaginatedPreview({
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
   const brandColor = brandColorProp ?? company.brand_primary_color ?? SYSTEM_COLORS.primary
   const brandText = ensureReadableOnWhite(brandColor)
-  const brandOnFill = readableTextColor(brandColor)
+  // Banner + section bands are bold large text (AA-large 3:1 rule), same as the PDF.
+  const brandOnFill = readableTextColor(brandColor, { largeText: true })
   const resolvedSettings = resolvePresentationSettings(data.presentation_settings)
   const dep = deriveDepositDisplay({
     total: data.total,

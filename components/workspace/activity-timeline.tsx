@@ -24,6 +24,8 @@ const EVENT_CONFIG: Record<string, { icon: LucideIcon; label: string }> = {
   estimate_sent: { icon: Send, label: 'Estimate sent' },
   estimate_accepted: { icon: CheckCircle, label: 'Estimate accepted' },
   estimate_declined: { icon: XCircle, label: 'Estimate declined' },
+  // Written by recordClientResponse when the owner clears a manually recorded answer.
+  estimate_response_cleared: { icon: Clock, label: 'Client response cleared' },
 }
 
 interface ActivityTimelineProps {

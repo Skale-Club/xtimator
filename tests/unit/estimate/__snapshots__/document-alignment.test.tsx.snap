@@ -11,7 +11,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
   >
     <h1
       class="text-2xl sm:text-4xl font-bold tracking-widest select-none"
-      style="color: rgb(0, 0, 0);"
+      style="color: rgb(255, 255, 255);"
     >
       ESTIMATE
     </h1>
@@ -79,7 +79,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
       >
         <span
           class="flex-1 font-semibold text-base tracking-wide select-none"
-          style="color: rgb(0, 0, 0);"
+          style="color: rgb(255, 255, 255);"
         >
           Materials
         </span>
@@ -183,21 +183,6 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
             </tr>
           </tbody>
         </table>
-      </div>
-      <div
-        class="flex justify-end items-center gap-3 px-6 sm:px-10 py-2 border-t border-border/50 bg-muted/10"
-        data-page-block-id="sec-1-subtotal"
-      >
-        <span
-          class="text-sm text-muted-foreground select-none"
-        >
-          Section Subtotal
-        </span>
-        <span
-          class="text-sm font-semibold tabular-nums"
-        >
-          $100.00
-        </span>
       </div>
     </div>
   </div>

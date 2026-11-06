@@ -98,6 +98,7 @@ export interface EstimateEditorState {
    *  see lib/estimate/lock.ts's doc comment). Never mutated client-side. */
   sent_at: string | null
   client_response: string | null
+  responded_at: string | null
   hasSignature: boolean
   /** Phase 183 Plan 05 (PDFPAR-02) — signature-display data threaded from the
    *  server row (lib/queries/estimate-signature.ts), alongside hasSignature's
@@ -129,6 +130,15 @@ export type EstimateAction =
   | { type: 'UPDATE_DEPOSIT'; deposit_type: string; deposit_value: number | null }
   | { type: 'UPDATE_TAX_RATE'; tax_rate: number }
   | { type: 'UPDATE_PRESENTATION_SETTINGS'; presentation_settings: PresentationSettings }
+  | {
+      /** Owner recorded / cleared the client's answer in-app (recordClientResponse).
+       *  Re-baselines updated_at (the DB trigger restamped it) so the next save
+       *  does not hit a spurious optimistic-concurrency conflict. Never dirty. */
+      type: 'SET_CLIENT_RESPONSE'
+      client_response: string | null
+      responded_at: string | null
+      updated_at: string | null
+    }
   | {
       type: 'MARK_SAVED'
       updated_at: string
@@ -326,6 +336,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       updated_at: new Date(0).toISOString(),
       sent_at: null,
       client_response: null,
+      responded_at: null,
       hasSignature: false,
       signature: null,
     }
@@ -392,6 +403,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     updated_at: estimate.updated_at,
     sent_at: estimate.sent_at,
     client_response: estimate.client_response,
+    responded_at: estimate.responded_at ?? null,
     hasSignature: (estimate as { hasSignature?: boolean }).hasSignature ?? false,
     signature: (estimate as { signature?: DocumentSignature | null }).signature ?? null,
   }
@@ -644,6 +656,14 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         updated_at: action.updated_at,
       }
     }
+
+    case 'SET_CLIENT_RESPONSE':
+      return {
+        ...state,
+        client_response: action.client_response,
+        responded_at: action.responded_at,
+        updated_at: action.updated_at ?? state.updated_at,
+      }
 
     case 'ATTACH_PHOTO': {
       if (state.attachedPhotos.some((p) => p.id === action.photo.id)) {

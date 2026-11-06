@@ -6,6 +6,10 @@ import { ESTIMATE_TEMPLATES } from '@/lib/estimate/templates/registry'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
+// The Modern layout is on standby: only Classic is offered. The registry,
+// renderers and any company already saved as 'modern' are untouched.
+const OFFERED_TEMPLATES = ESTIMATE_TEMPLATES.filter((tpl) => tpl.id === 'classic')
+
 // Intrinsic size of the generated thumbnails (scripts/generate-template-thumbnails.ts:
 // US Letter page 1 rasterized at 480px wide). Used for width/height so the browser
 // reserves the right aspect ratio before the image loads (no layout shift).
@@ -28,7 +32,7 @@ export function EstimateTemplatePicker({ value, onValueChange }: EstimateTemplat
   const { t } = useTranslation()
   return (
     <RadioGroup value={value} onValueChange={onValueChange} className="mt-2 grid max-w-xl grid-cols-2 gap-3">
-      {ESTIMATE_TEMPLATES.map((tpl) => (
+      {OFFERED_TEMPLATES.map((tpl) => (
         <label
           key={tpl.id}
           htmlFor={`estimate-template-${tpl.id}`}

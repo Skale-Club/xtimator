@@ -12,6 +12,8 @@ import {
 } from '@/lib/actions/estimate'
 import { removePhotoFromEstimate } from '@/lib/actions/estimate-photo'
 import { renameProjectAction } from '@/lib/actions/project'
+import { recordClientResponse } from '@/lib/actions/estimate-response'
+import { ClientResponseControl, type ClientResponseValue } from './client-response-control'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
@@ -528,6 +530,28 @@ export function EstimateEditor({
     onSend?.()
   }, [isContentReadOnly, state.isDirty, runSave, onSend])
 
+  // Owner records the client's answer in-app. The server action returns the
+  // DB-restamped updated_at; SET_CLIENT_RESPONSE adopts it so the next save
+  // does not trip optimistic concurrency. Locked state follows client_response.
+  const handleRecordClientResponse = useCallback(
+    async (response: ClientResponseValue) => {
+      const result = await recordClientResponse(stateRef.current.id, response)
+      if (!result.success || !result.data) {
+        toast.error(result.error ?? 'Failed to record the response')
+        return
+      }
+      dispatch({
+        type: 'SET_CLIENT_RESPONSE',
+        client_response: result.data.client_response,
+        responded_at: result.data.responded_at,
+        updated_at: result.data.updated_at,
+      })
+      if (response === null) setLockedByServer(false)
+      router.refresh()
+    },
+    [dispatch, router]
+  )
+
   const handleRenameProject = useCallback(async (name: string) => {
     const result = await renameProjectAction(projectId, name)
     if (result.error) {
@@ -763,7 +787,15 @@ export function EstimateEditor({
         </div>
       )}
 
-      <div className={viewMode === 'page' ? 'isolate w-full' : 'isolate'}>
+      {/* Same --doc-stage backdrop as the public share page, so the white paper
+          reads as lifted in light mode too. In dark mode the app background
+          already contrasts with the paper, so the stage collapses: --doc-stage
+          equals the dark background and --doc-stage-pad is 0. Tokens, not the
+          `dark:` variant, because that variant follows the OS color scheme here,
+          not the app's .dark class. */}
+      <div
+        className={`${viewMode === 'page' ? 'isolate w-full' : 'isolate'} rounded-xl bg-[hsl(var(--doc-stage))] p-[var(--doc-stage-pad)]`}
+      >
         {viewMode === 'page' ? (
           <PaginatedPreview
             data={documentData}
@@ -844,6 +876,15 @@ export function EstimateEditor({
         onSend={handleSend}
         onOpenPhotos={onOpenPhotos}
         onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen(true)}
+        responseControl={
+          <ClientResponseControl
+            clientResponse={state.client_response}
+            respondedAt={state.responded_at}
+            signedOnline={state.hasSignature}
+            disabled={state.isDirty || saveStatus === 'saving'}
+            onRecord={handleRecordClientResponse}
+          />
+        }
       />
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.

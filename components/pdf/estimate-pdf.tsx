@@ -164,6 +164,11 @@ export interface EstimatePDFProps {
   pages: PageAssignment[]
 }
 
+// Company name is neutral foreground (same as the page text colour), NOT the brand
+// colour: brand colour is reserved for the top rule, ESTIMATE band, section
+// bands and grand total. Mirrors estimate-document.tsx / preview-template/classic.tsx.
+const COMPANY_NAME_COLOR = '#1f2937'
+
 const styles = StyleSheet.create({
   page: {
     fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamily,
@@ -473,7 +478,9 @@ export default function EstimatePDF({
   //   brandText   → brand color darkened to reach 4.5:1 as text on white
   //   brandOnFill → black/white foreground with max contrast over a brand fill
   const brandText = ensureReadableOnWhite(brandColor)
-  const brandOnFill = readableTextColor(brandColor)
+  // Banner + section bands are bold large text -> AA-large (3:1) rule prefers white
+  // on saturated mid-tone brand fills (see lib/color/contrast.ts).
+  const brandOnFill = readableTextColor(brandColor, { largeText: true })
   const L = resolveLabels(language)
   const fmt = (v: number) => formatMoney(v, estimate.currency_code)
   // PUI-02 (v4.11): READ the persisted deposit/balance-due from the server row (GUARD-03 —
@@ -702,7 +709,7 @@ export default function EstimatePDF({
               ? PdfHeader({
                   company,
                   headerBorderColor: brandColor,
-                  companyNameColor: brandText,
+                  companyNameColor: COMPANY_NAME_COLOR,
                   language,
                   styles: {
                     header: styles.header,
@@ -720,7 +727,7 @@ export default function EstimatePDF({
                   companyName: company.name,
                   estimateIdentifier: `${L.estimateNum}${estimateNumber}`,
                   headerBorderColor: brandColor,
-                  companyNameColor: brandText,
+                  companyNameColor: COMPANY_NAME_COLOR,
                   styles: {
                     compactHeader: styles.compactHeader,
                     compactCompanyName: styles.compactCompanyName,

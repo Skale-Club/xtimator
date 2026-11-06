@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import React, { Suspense } from 'react'
 
 // next/dynamic -> React.lazy so the real document components render in jsdom.
@@ -116,7 +116,6 @@ describe('EstimateView — public page carries the same content as the PDF', () 
       while (common && !common.contains(summaryEl)) common = common.parentElement
       expect(common).toBeTruthy()
       expect(common!.closest('[data-slot="card"][id="estimate-response"]')).toBeNull()
-      expect(container.querySelector('#estimate-response')?.contains(termsEl)).toBe(false)
       // The direct page-level glass cards are only: response card (no terms card).
       const pageCards = Array.from(container.firstElementChild!.children).filter(
         (el) => el.getAttribute('data-slot') === 'card'
@@ -135,120 +134,129 @@ describe('EstimateView — public page carries the same content as the PDF', () 
 })
 
 // ---------------------------------------------------------------------------
-// Mobile sticky Accept bar
+// Online approval is gated by company.digital_signature_enabled
 // ---------------------------------------------------------------------------
 
-type IOCallback = (entries: Partial<IntersectionObserverEntry>[]) => void
-let observers: { cb: IOCallback; targets: Element[]; options?: IntersectionObserverInit }[] = []
+const RESPONSE_UI = /accept|decline|sign/i
 
-class MockIntersectionObserver {
-  cb: IOCallback
-  targets: Element[] = []
-  options?: IntersectionObserverInit
-  constructor(cb: IOCallback, options?: IntersectionObserverInit) {
-    this.cb = cb
-    this.options = options
-    observers.push(this)
-  }
-  observe(el: Element) {
-    this.targets.push(el)
-  }
-  disconnect() {
-    this.targets = []
-  }
-  unobserve() {}
-  takeRecords() {
-    return []
-  }
-}
-
-function setResponseCardVisible(isIntersecting: boolean) {
-  const live = observers.filter((o) => o.targets.length > 0)
-  expect(live.length).toBeGreaterThan(0)
-  act(() => {
-    for (const o of live) o.cb([{ isIntersecting, target: o.targets[0] }])
-  })
-}
-
-describe('EstimateView — mobile sticky Accept bar', () => {
-  const scrollIntoView = vi.fn()
-
-  beforeEach(() => {
-    observers = []
-    scrollIntoView.mockReset()
-    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
-    Element.prototype.scrollIntoView = scrollIntoView
-    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia
-  })
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('shows total + Accept for an unresponded estimate, mobile-only (sm:hidden), safe-area padded', async () => {
-    renderView()
+describe('EstimateView — approval OFF (digital_signature_enabled = false)', () => {
+  it('renders no accept/decline/respond UI anywhere: no bar button, no sticky bar, no card', async () => {
+    const { container } = renderView({}, { digital_signature_enabled: false })
     await screen.findByText('Job summary', {}, SLOW)
+    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
+    expect(container.querySelector('#estimate-response')).toBeNull()
+    expect(screen.queryByRole('button', { name: RESPONSE_UI })).toBeNull()
+    expect(screen.queryByText('Decline Estimate')).toBeNull()
+    expect(screen.queryByText('Accept Estimate')).toBeNull()
+    // the proposal bar itself is still there
+    expect(screen.getByTestId('proposal-bar')).toBeTruthy()
+  })
+
+  it('shows only a small neutral status line when the contractor already recorded a response', async () => {
+    renderView(
+      { client_response: 'accepted', responded_at: '2026-02-01T00:00:00Z' },
+      { digital_signature_enabled: false },
+      { alreadyResponded: true }
+    )
+    await screen.findByText('Job summary', {}, SLOW)
+    const status = screen.getByTestId('response-status')
+    expect(status.textContent).toContain('Accepted on')
+    expect(within(status).queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: RESPONSE_UI })).toBeNull()
+  })
+})
+
+describe('EstimateView — approval ON (digital_signature_enabled = true)', () => {
+  it('shows Accept in the proposal bar and a mobile-only bottom Accept bar with the total', async () => {
+    renderView({}, { digital_signature_enabled: true })
+    await screen.findByText('Job summary', {}, SLOW)
+    const header = screen.getByTestId('proposal-bar')
+    expect(within(header).getByRole('button', { name: /^accept$/i })).toBeTruthy()
+    expect(within(header).getByTestId('proposal-bar-total').textContent).toBe('$1,234.50')
+
     const bar = screen.getByTestId('mobile-accept-bar')
     expect(bar.className).toContain('fixed')
     expect(bar.className).toContain('bottom-0')
     expect(bar.className).toContain('sm:hidden')
     expect(bar.className).toContain('env(safe-area-inset-bottom)')
-    expect(within(bar).getByText('Total')).toBeTruthy()
-    const total = within(bar).getByText('$1,234.50')
-    expect(total.className).toContain('tabular-nums')
-    expect(within(bar).getByRole('button', { name: /accept/i })).toBeTruthy()
+    expect(within(bar).getByText('$1,234.50').className).toContain('tabular-nums')
   })
 
-  it('observes the response card and hides while it is in view, shows again when it leaves', async () => {
-    const { container } = renderView()
+  it('old bottom Accept/Decline card is gone', async () => {
+    const { container } = renderView({}, { digital_signature_enabled: true })
     await screen.findByText('Job summary', {}, SLOW)
-    const card = container.querySelector('#estimate-response')
-    expect(card).toBeTruthy()
-    expect(observers.some((o) => o.targets.includes(card!))).toBe(true)
-
-    expect(screen.queryByTestId('mobile-accept-bar')).toBeTruthy()
-    setResponseCardVisible(true)
-    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
-    setResponseCardVisible(false)
-    expect(screen.queryByTestId('mobile-accept-bar')).toBeTruthy()
+    expect(container.querySelector('#estimate-response')).toBeNull()
+    expect(screen.queryByText('Decline Estimate')).toBeNull()
   })
 
-  it('tapping the bar scrolls to the response card smoothly and does NOT accept', async () => {
+  it('Accept opens the signature panel (does not accept) and hides the mobile bar', async () => {
     const actions = await import('@/app/estimate/[token]/actions')
-    renderView()
+    renderView({}, { digital_signature_enabled: true })
     await screen.findByText('Job summary', {}, SLOW)
-    fireEvent.click(within(screen.getByTestId('mobile-accept-bar')).getByRole('button'))
-    expect(scrollIntoView).toHaveBeenCalledTimes(1)
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
-    expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('estimate-response'))
+    fireEvent.click(within(screen.getByTestId('proposal-bar')).getByRole('button', { name: /^accept$/i }))
+    expect(await screen.findByText('Sign to accept this estimate')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /sign & accept estimate/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^decline estimate$/i })).toBeTruthy()
+    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
     expect(actions.respondToEstimate).not.toHaveBeenCalled()
   })
 
-  it('respects prefers-reduced-motion (instant scroll)', async () => {
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
-    renderView()
+  it('the mobile bar Accept also opens the signature panel', async () => {
+    renderView({}, { digital_signature_enabled: true })
     await screen.findByText('Job summary', {}, SLOW)
     fireEvent.click(within(screen.getByTestId('mobile-accept-bar')).getByRole('button'))
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'center' })
+    expect(await screen.findByText('Sign to accept this estimate')).toBeTruthy()
   })
 
-  it('is not rendered when the estimate was already responded to', async () => {
-    renderView({ client_response: 'accepted', responded_at: '2026-02-01T00:00:00Z' }, {}, { alreadyResponded: true })
+  it('Decline asks for confirmation before calling respondToEstimate(token, "declined")', async () => {
+    const actions = await import('@/app/estimate/[token]/actions')
+    vi.mocked(actions.respondToEstimate).mockResolvedValue({ success: true })
+    renderView({}, { digital_signature_enabled: true })
+    await screen.findByText('Job summary', {}, SLOW)
+    fireEvent.click(within(screen.getByTestId('proposal-bar')).getByRole('button', { name: /^accept$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^decline estimate$/i }))
+    expect(actions.respondToEstimate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('decline-confirm')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /yes, decline/i }))
+    await waitFor(() => expect(actions.respondToEstimate).toHaveBeenCalledWith('tok', 'declined'))
+    expect(await screen.findByText('Estimate Declined')).toBeTruthy()
+  })
+
+  it('already responded: compact confirmation, no Accept anywhere', async () => {
+    renderView(
+      { client_response: 'accepted', responded_at: '2026-02-01T00:00:00Z' },
+      { digital_signature_enabled: true },
+      { alreadyResponded: true }
+    )
     await screen.findByText('Job summary', {}, SLOW)
     expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
+    expect(screen.queryByRole('button', { name: /accept/i })).toBeNull()
     expect(screen.getByText('Estimate Accepted')).toBeTruthy()
   })
+})
 
-  it('is hidden while the signature pad is open', async () => {
-    const { container } = renderView({}, { digital_signature_enabled: true })
-    await screen.findByText('Job summary', {}, SLOW)
-    expect(screen.queryByTestId('mobile-accept-bar')).toBeTruthy()
-    // Real Accept button in the response card opens the pad.
-    fireEvent.click(
-      within(container.querySelector('#estimate-response') as HTMLElement).getByRole('button', {
-        name: /accept estimate/i,
-      })
+describe('EstimateView — proposal bar', () => {
+  it('shows company, number, date and contact actions only for fields the company has', async () => {
+    renderView(
+      { estimate_number: 'EST-77', estimate_date: '2026-03-05' },
+      { phone: '(555) 123-4567', email: 'a@b.co' }
     )
-    expect(screen.getByText('Sign to accept this estimate')).toBeTruthy()
-    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
+    await screen.findByText('Job summary', {}, SLOW)
+    const header = screen.getByTestId('proposal-bar')
+    expect(within(header).getByText('Acme')).toBeTruthy()
+    expect(header.textContent).toContain('EST-77')
+    expect(header.textContent).toContain('March 5, 2026')
+    expect(within(header).getByLabelText('Call').getAttribute('href')).toBe('tel:(555) 123-4567')
+    expect(within(header).getByLabelText('WhatsApp').getAttribute('href')).toBe('https://wa.me/15551234567')
+    expect(within(header).getByLabelText('Email').getAttribute('href')).toBe('mailto:a@b.co')
+  })
+
+  it('omits contact icons the company does not have', async () => {
+    renderView()
+    await screen.findByText('Job summary', {}, SLOW)
+    const header = screen.getByTestId('proposal-bar')
+    expect(within(header).queryByLabelText('Call')).toBeNull()
+    expect(within(header).queryByLabelText('WhatsApp')).toBeNull()
+    expect(within(header).queryByLabelText('Email')).toBeNull()
   })
 })

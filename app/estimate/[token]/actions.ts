@@ -167,6 +167,27 @@ export async function respondToEstimate(
     return { success: false, error: 'This estimate has already been responded to' }
   }
 
+  // Online approval exists ONLY when the company requires a digital signature
+  // (companies.digital_signature_enabled). When it is off the contractor
+  // records the response inside the app, so this public action refuses both
+  // outcomes. When it is on, acceptance must go through the sign route
+  // (/api/estimates/[id]/sign -> sign_estimate_atomic) so a signature is always
+  // captured; only 'declined' is allowed here. Runs before any write.
+  const { data: companyRow } = await supabase
+    .from('companies')
+    .select('digital_signature_enabled')
+    .eq('id', est.company_id)
+    .single()
+  const signatureEnabled =
+    (companyRow as { digital_signature_enabled?: boolean | null } | null)
+      ?.digital_signature_enabled === true
+  if (!signatureEnabled) {
+    return { success: false, error: 'Online responses are not enabled for this estimate' }
+  }
+  if (response === 'accepted') {
+    return { success: false, error: 'This estimate must be signed to be accepted' }
+  }
+
   // Security-hardening S2 (audit finding b1 — sign-vs-decline race): the
   // pre-check above can go stale between its SELECT and this UPDATE (a
   // concurrent sign request — app/api/estimates/[id]/sign/route.ts, whose

@@ -34,25 +34,25 @@ export async function generateMetadata({
 }: FriendlySharePageProps): Promise<Metadata> {
   const { estimateSlug } = await params
   const parsed = parsePublicSlugParam(estimateSlug)
-  if (!parsed) return { title: 'Estimate Not Found' }
+  if (!parsed) return { title: { absolute: 'Estimate Not Found' } }
 
   // Phase 193-02: same lock-before-content discipline as the canonical
   // route's generateMetadata — see that file's identical comment.
   const lock = await getShareLockCheckByPublicToken(parsed.shortToken)
-  if (lock.status !== 'ok') return { title: 'Estimate Not Found' }
+  if (lock.status !== 'ok') return { title: { absolute: 'Estimate Not Found' } }
   if (lock.passwordHash) {
     const cookieStore = await cookies()
     const cookieValue = cookieStore.get(ESTIMATE_UNLOCK_COOKIE)?.value
     if (!hasValidUnlock(cookieValue, lock.shareToken)) {
-      return { title: 'Protected estimate' }
+      return { title: { absolute: 'Protected estimate' } }
     }
   }
 
   const data = await getEstimateByPublicToken(parsed.shortToken)
-  if (!data) return { title: 'Estimate Not Found' }
+  if (!data) return { title: { absolute: 'Estimate Not Found' } }
 
   return {
-    title: `Estimate from ${data.estimate.company.name}`,
+    title: { absolute: `Estimate from ${data.estimate.company.name}` },
     description: `View estimate for ${data.estimate.project.name}`,
   }
 }
@@ -144,8 +144,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
 
   return (
     <div style={brandStyle} className="relative isolate min-h-screen">
-      <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[420px] gradient-hero" />
-      <main className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <main className="max-w-4xl mx-auto px-4 pb-4 pt-0">
         <EstimateView
           estimate={data.estimate}
           client={data.client}

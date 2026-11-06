@@ -1,4 +1,3 @@
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **Xtimator**
@@ -26,24 +25,29 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 - Pre-commit hook (`gitleaks`) blocks commits containing patterns matching: `whsec_*`, `sk_(test|live)_*`, `rk_(test|live)_*`, `sb_secret_*`, `sk-ant-*`, `sk-proj-*`, `re_*`
 - After cloning, install hooks once: `bash scripts/install-git-hooks.sh`
 - If a secret leaks: **rotate at the provider FIRST**, then rewrite history (`git commit --amend` + `git push --force-with-lease`)
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:STACK.md -->
-## Technology Stack  
+## Technology Stack
 
-Technology stack not yet documented. Will populate after codebase mapping or first phase.
-<!-- GSD:stack-end -->
+- Next.js 16 (App Router) + React 19, TypeScript strict
+- Tailwind CSS v4 + shadcn/ui; react-hook-form + zod for forms
+- Supabase (PostgreSQL + Auth, RLS on every table); migrations live in `supabase/migrations/` and are applied by hand (`npm run db:migrate`), never by the deploy
+- Inngest for background jobs (`app/api/inngest`), Resend (email), Twilio (SMS/WhatsApp), Stripe (billing)
+- @react-pdf/renderer for PDFs (`components/pdf/`, `lib/pdf/`)
+- Tests: vitest (`tests/unit`, `tests/eval`), Playwright (`tests/e2e`); see `package.json` scripts for dev/test commands
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
-<!-- GSD:conventions-end -->
+- Chat with the maintainer may be in Portuguese; code, comments, commits and docs are English
+- Work directly on `main`. No planning framework or ceremony is required before editing files; small fixes go straight in, larger changes get a short plan in the commit or PR description
+- Any change to the estimate document must be verified on every surface it renders on: editor (width and page view), public share page and PDF
+- Provider API keys are configured in the admin panel (`platform_integrations`), never in env vars; the env fallback is dev-only
 
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+- `app/(app)/` authenticated workspace; `app/estimate/[token]/` public share page; `app/api/` route handlers (all AI, PDF and server-side work)
+- `components/workspace/estimate/` estimate editor and document renderers; `components/share/` public page; `components/pdf/` PDF templates; `components/settings/` company settings
+- `lib/estimate/` document model, labels, design tokens, pagination engine and template registry; `lib/queries/` data access; `lib/actions/` server actions
+- The Classic estimate template is the primary design and is implemented three times that must stay in sync: web document (`estimate-document.tsx`), paginated preview (`preview-template/classic.tsx`) and PDF (`estimate-pdf.tsx`). The Modern template exists in code but is not the primary design; new design work targets Classic only
 
 ### Deployment (production)
 
@@ -67,28 +71,3 @@ after `test.yml`'s `Test` workflow completes on `main`:
 
 To check deploy status: `gh run list`/`gh run watch` for the `Test` and
 `Build and Deploy` workflow runs on `main`, not any Vercel API/dashboard.
-<!-- GSD:architecture-end -->
-
-## GSD Workflow (optional)
-
-Using a GSD command is **not required** before editing files in this repo. Direct
-edits are fine, including in environments where the GSD commands are not
-installed (e.g. Claude Code on the web).
-
-When the GSD commands are available and the task benefits from planning
-artifacts, these entry points are still recommended:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
-
-For larger changes made without GSD, a short plan and summary under
-`.planning/quick/` keeps the planning history consistent.
-
-
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->

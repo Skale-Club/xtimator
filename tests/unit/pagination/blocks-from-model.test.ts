@@ -302,6 +302,7 @@ describe('blocksFromModel — signature and prepared-by presence gates', () => {
 describe('blocksFromModel — ref population, ID naming, and section keep-with links', () => {
   it('every section-header/item-row/section-subtotal block has ref.sectionId; item-row additionally has ref.itemId and ref.itemIndex WITHIN the filtered list', () => {
     const input = baseInput({
+      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
       sections: [
         section({
           id: 'sec-a',
@@ -327,6 +328,7 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
 
   it('ID naming convention: `${section.id}-header`, `${section.id}-rows-${item.id}`, `${section.id}-subtotal`', () => {
     const input = baseInput({
+      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
       sections: [
         section({
           id: 'sec-xyz',
@@ -342,6 +344,7 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
 
   it("section-header's keepWithNextId points at the FIRST item-row id; section-subtotal's keepWithPreviousId points at the LAST item-row id — both array-adjacent", () => {
     const input = baseInput({
+      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
       sections: [
         section({
           id: 'sec-b',
@@ -388,6 +391,10 @@ describe('blocksFromModel — full document order', () => {
           id: 'sec-1',
           items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }],
         }),
+        section({
+          id: 'sec-2',
+          items: [{ id: 'i2', description: 'More work', quantity: 1, unit: null, unit_price: 1, total: 1 }],
+        }),
       ],
       company: { estimate_terms_enabled: true, estimate_terms_text: 'Estimate terms' },
       payment_terms: 'Payment terms',
@@ -400,6 +407,9 @@ describe('blocksFromModel — full document order', () => {
       'title-banner',
       'info-grid',
       'summary',
+      'section-header',
+      'item-row',
+      'section-subtotal',
       'section-header',
       'item-row',
       'section-subtotal',
@@ -567,5 +577,43 @@ describe('blocksFromModel — photo captions are measured at the tile width', ()
   it('a chunk without captions carries no parallel measurements and no caption margin', () => {
     const row = blocksFromModel(baseInput({ photos: [{ url: 'https://x/1.jpg', caption: null }], templateId: 'classic' })).find((b) => b.kind === 'photo-row')!
     expect(row.parallelMeasurements).toEqual([])
+  })
+})
+
+describe('blocksFromModel — single visible section omits the section subtotal (Classic)', () => {
+  const item = (id: string, description = 'Work') => ({ id, description, quantity: 1, unit: null, unit_price: 1, total: 1 })
+
+  it('Classic with exactly one visible section emits NO section-subtotal block', () => {
+    const blocks = blocksFromModel(baseInput({ sections: [section({ id: 'only', items: [item('a')] })] }))
+    expect(blocks.some((b) => b.kind === 'section-header')).toBe(true)
+    expect(blocks.filter((b) => b.kind === 'section-subtotal')).toHaveLength(0)
+  })
+
+  it('an empty/blank section does not count as visible: one real section + one blank one still omits the subtotal', () => {
+    const blocks = blocksFromModel(
+      baseInput({
+        sections: [
+          section({ id: 'real', items: [item('a')] }),
+          section({ id: 'blank', items: [item('b', '  ')] }),
+        ],
+      }),
+    )
+    expect(blocks.filter((b) => b.kind === 'section-subtotal')).toHaveLength(0)
+  })
+
+  it('Classic with two visible sections keeps one section-subtotal per section', () => {
+    const blocks = blocksFromModel(
+      baseInput({
+        sections: [section({ id: 's1', items: [item('a')] }), section({ id: 's2', items: [item('b')] })],
+      }),
+    )
+    expect(blocks.filter((b) => b.kind === 'section-subtotal').map((b) => b.id)).toEqual(['s1-subtotal', 's2-subtotal'])
+  })
+
+  it('Modern keeps the subtotal even for a lone section (only Classic changed)', () => {
+    const blocks = blocksFromModel(
+      baseInput({ templateId: 'modern', sections: [section({ id: 'only', items: [item('a')] })] }),
+    )
+    expect(blocks.filter((b) => b.kind === 'section-subtotal')).toHaveLength(1)
   })
 })

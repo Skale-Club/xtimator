@@ -192,6 +192,9 @@
        line up exactly. Fits the company-selector row (avatar h-6 + py-1.5). */
     --app-rail-footer-h: 53px;
     --background: 0 0% 100%;
+    /* Stage behind the estimate document "paper" (share page). */
+    --doc-stage: 240 5% 93%;
+    --doc-stage-pad: 1rem;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
@@ -229,6 +232,9 @@
 
   .dark {
     --background: 240 10% 3.9%;
+    /* Stage behind the estimate document "paper" (share page). */
+    --doc-stage: 240 10% 3.9%;
+    --doc-stage-pad: 0px;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -307,6 +313,9 @@
      (RESEARCH G6 + G7). Falls back to --system-primary when tenant has none. */
   [data-theme="light"] {
     --background: 0 0% 100%;
+    /* Stage behind the estimate document "paper" (share page). */
+    --doc-stage: 240 5% 93%;
+    --doc-stage-pad: 1rem;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;

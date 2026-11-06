@@ -1,4 +1,3 @@
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **Xtimator**
@@ -11,29 +10,34 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 
 - **Tech Stack**: Next.js 14+ (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, Zustand or React Context, react-hook-form + zod
 - **Database**: Supabase PostgreSQL with RLS on all tables; schema defined in spec (8 tables)
-- **AI**: Anthropic Codex Codex-sonnet-4-20250514 for estimate generation and photo analysis
+- **AI**: Anthropic Claude (OpenRouter slug `anthropic/claude-sonnet-5`, set in `OR_DEFAULTS.chat`) for estimate generation and photo analysis
 - **Audio transcription**: OpenAI Whisper API (server-side)
 - **PDF**: @react-pdf/renderer or puppeteer (server-side generation)
 - **Mobile**: Audio recording and camera capture must work on iOS Safari and Android Chrome
 - **Security**: Service role key never exposed to browser; all AI calls server-side via API routes
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:STACK.md -->
 ## Technology Stack
 
-Technology stack not yet documented. Will populate after codebase mapping or first phase.
-<!-- GSD:stack-end -->
+- Next.js 16 (App Router) + React 19, TypeScript strict
+- Tailwind CSS v4 + shadcn/ui; react-hook-form + zod for forms
+- Supabase (PostgreSQL + Auth, RLS on every table); migrations live in `supabase/migrations/` and are applied by hand (`npm run db:migrate`), never by the deploy
+- Inngest for background jobs (`app/api/inngest`), Resend (email), Twilio (SMS/WhatsApp), Stripe (billing)
+- @react-pdf/renderer for PDFs (`components/pdf/`, `lib/pdf/`)
+- Tests: vitest (`tests/unit`, `tests/eval`), Playwright (`tests/e2e`); see `package.json` scripts for dev/test commands
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
-<!-- GSD:conventions-end -->
+- Chat with the maintainer may be in Portuguese; code, comments, commits and docs are English
+- Work directly on `main`. No planning framework or ceremony is required before editing files; small fixes go straight in, larger changes get a short plan in the commit or PR description
+- Any change to the estimate document must be verified on every surface it renders on: editor (width and page view), public share page and PDF
+- Provider API keys are configured in the admin panel (`platform_integrations`), never in env vars; the env fallback is dev-only
 
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+- `app/(app)/` authenticated workspace; `app/estimate/[token]/` public share page; `app/api/` route handlers (all AI, PDF and server-side work)
+- `components/workspace/estimate/` estimate editor and document renderers; `components/share/` public page; `components/pdf/` PDF templates; `components/settings/` company settings
+- `lib/estimate/` document model, labels, design tokens, pagination engine and template registry; `lib/queries/` data access; `lib/actions/` server actions
+- The Classic estimate template is the primary design and is implemented three times that must stay in sync: web document (`estimate-document.tsx`), paginated preview (`preview-template/classic.tsx`) and PDF (`estimate-pdf.tsx`). The Modern template exists in code but is not the primary design; new design work targets Classic only
 
 ### Deployment (production)
 
@@ -57,26 +61,3 @@ after `test.yml`'s `Test` workflow completes on `main`:
 
 To check deploy status: `gh run list`/`gh run watch` for the `Test` and
 `Build and Deploy` workflow runs on `main`, not any Vercel API/dashboard.
-<!-- GSD:architecture-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
-
-
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-Codex-profile` -- do not edit manually.
-<!-- GSD:profile-end -->

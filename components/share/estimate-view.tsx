@@ -1,9 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
@@ -17,6 +24,8 @@ import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { SignaturePad } from '@/components/share/signature-pad'
+import { ProposalBar } from '@/components/share/proposal-bar'
+import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
 import { useEstimateTracking } from '@/hooks/use-estimate-tracking'
 import type {
   EstimateDocumentData,
@@ -91,12 +100,6 @@ interface EstimateViewProps {
   preparedBy?: string | null
 }
 
-// id of the Accept/Decline card — the mobile sticky bar scrolls to it.
-const RESPONSE_CARD_ID = 'estimate-response'
-// The fixed mobile bar covers roughly this much of the viewport bottom; the
-// response card counts as "in view" only once it clears the bar's footprint.
-const STICKY_BAR_CLEARANCE_PX = 80
-
 // Pre-launch audit fix: an anonymous client's browser has no prior
 // LanguageProvider preference, so without this scoped override every
 // t() call below rendered in English regardless of estimate.language —
@@ -122,47 +125,29 @@ function EstimateViewInner({
   preparedBy = null,
 }: EstimateViewProps) {
   const { t } = useTranslation()
-  const [responding, setResponding] = useState<'accepted' | 'declined' | null>(null)
+  const [responding, setResponding] = useState(false)
   const [responded, setResponded] = useState(alreadyResponded)
   const [responseValue, setResponseValue] = useState<string | null>(estimate.client_response)
   const [error, setError] = useState<string | null>(null)
   const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [confirmingDecline, setConfirmingDecline] = useState(false)
   const [signerName, setSignerName] = useState('')
   const [signerEmail, setSignerEmail] = useState('')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
 
   // Phase 193-01 — scoped to the rendered document surface only (not the
-  // whole page: the Accept/Decline CTA, invoice cards, etc. live outside
-  // it), so click coordinates and doc_h stay meaningful for a future
-  // heatmap overlay. `enabled` will gate off while a password-locked
-  // estimate's DOM is unproven (Phase 193-02); no lock exists yet, so it
-  // is always-on here.
+  // whole page: the proposal bar, invoice cards, etc. live outside it), so
+  // click coordinates and doc_h stay meaningful for a future heatmap overlay.
   const documentContainerRef = useRef<HTMLDivElement | null>(null)
   useEstimateTracking({ token, containerRef: documentContainerRef })
 
-  // Accept/Decline card visibility drives the mobile sticky bar: the bar is
-  // hidden whenever the real buttons are on screen so it never covers them.
-  // A callback ref (state, not useRef) because the card unmounts/remounts when
-  // the signature pad opens and closes, and the observer must follow it.
-  const [responseCardEl, setResponseCardEl] = useState<HTMLDivElement | null>(null)
-  const [responseCardVisible, setResponseCardVisible] = useState(false)
-  const responseCardRef = useCallback((el: HTMLDivElement | null) => setResponseCardEl(el), [])
-  useEffect(() => {
-    if (!responseCardEl || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const latest = entries[entries.length - 1]
-        if (latest) setResponseCardVisible(latest.isIntersecting)
-      },
-      { rootMargin: `0px 0px -${STICKY_BAR_CLEARANCE_PX}px 0px` }
-    )
-    observer.observe(responseCardEl)
-    return () => observer.disconnect()
-  }, [responseCardEl])
-
-  const requiresSignature = estimate.company.digital_signature_enabled && !alreadyResponded
   const { company, project } = estimate
+  // Online approval exists ONLY when the company requires a digital signature.
+  // When off, the contractor records the response inside the app and this page
+  // renders no accept/decline UI at all. When on, Accept means sign.
+  const approvalEnabled = company.digital_signature_enabled === true
+  const canRespond = approvalEnabled && !responded
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation (stored brand color never mutated):
   const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
@@ -312,44 +297,48 @@ function EstimateViewInner({
     text: company.estimate_terms_text ?? null,
   }
 
-  // Mobile sticky Accept bar — same availability conditions as the
-  // Accept/Decline card (not yet responded, signature pad not open), and only
-  // while that card is off screen.
-  const responseUiAvailable = !responded && !showSignaturePad
-  const showStickyAcceptBar = responseUiAvailable && !responseCardVisible
-  const stickyTotal = formatMinorUnits(
-    estimate.total_amount_cents ?? 0,
-    estimate.currency_code ?? 'USD'
-  )
+  const lang = (estimate.language ?? 'en') as EstimateLanguage
+  const total = formatMinorUnits(estimate.total_amount_cents ?? 0, estimate.currency_code ?? 'USD')
+  // Same values/formatting the document header shows.
+  const estimateNumber = formatEstimateNumber({
+    estimate_number: documentData.estimate_number ?? null,
+    estimate_seq: estimate.estimate_seq,
+  })
+  const estimateDate = formatDate(documentData.estimate_date ?? estimate.created_at, lang)
+  const respondedOn = estimate.responded_at ? formatDate(estimate.responded_at, lang) : null
 
-  function scrollToResponseCard() {
-    const el = document.getElementById(RESPONSE_CARD_ID)
-    if (!el) return
-    const reduceMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+  function openSignature() {
+    setError(null)
+    setConfirmingDecline(false)
+    setShowSignaturePad(true)
+  }
+
+  function closeSignature() {
+    if (isSubmittingSignature || responding) return
+    setShowSignaturePad(false)
+    setConfirmingDecline(false)
+    setError(null)
   }
 
   // ---------------------------------------------------------------------------
   // Respond handlers
   // ---------------------------------------------------------------------------
 
-  async function handleRespond(response: 'accepted' | 'declined') {
-    if (requiresSignature && response === 'accepted') {
-      setShowSignaturePad(true)
-      return
-    }
-    setResponding(response)
+  // Decline is the only response that goes through respondToEstimate; acceptance
+  // always goes through the sign route (handleSignAndAccept).
+  async function handleDecline() {
+    setResponding(true)
     setError(null)
-    const result = await respondToEstimate(token, response)
+    const result = await respondToEstimate(token, 'declined')
     if (result.success) {
       setResponded(true)
-      setResponseValue(response)
+      setResponseValue('declined')
+      setShowSignaturePad(false)
+      setConfirmingDecline(false)
     } else {
       setError(result.error ?? t('Something went wrong'))
     }
-    setResponding(null)
+    setResponding(false)
   }
 
   async function handleSignAndAccept() {
@@ -387,131 +376,201 @@ function EstimateViewInner({
     }
   }
 
+  const showMobileAcceptBar = canRespond && !showSignaturePad
+  const isAccepted = responseValue === 'accepted'
+
   return (
     <div
       className={
         // Keep the last content clear of the fixed mobile bar (+ iOS home indicator).
-        responded
-          ? 'space-y-4'
-          : 'space-y-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-0'
+        showMobileAcceptBar
+          ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:pb-0'
+          : undefined
       }
     >
-      {/* Language chip — floated above the document */}
-      {estimate.language && estimate.language !== 'en' && (
-        <div className="flex justify-end">
-          <LanguageFlagChip lang={estimate.language} />
-        </div>
-      )}
+      <ProposalBar
+        companyName={company.name}
+        logoUrl={company.logo_url}
+        phone={company.phone}
+        email={company.email}
+        estimateNumber={estimateNumber}
+        estimateDate={estimateDate}
+        total={total}
+        brandText={brandText}
+        showAccept={canRespond}
+        onAccept={openSignature}
+        trailing={
+          estimate.language && estimate.language !== 'en' ? (
+            <span className="hidden sm:block">
+              <LanguageFlagChip lang={estimate.language} />
+            </span>
+          ) : null
+        }
+      />
 
-      {/* Document body — registry-resolved templateId selects Classic vs Modern.
-          Wrapped in a ref'd div (not the outer page) so use-estimate-tracking's
-          click/section/heatmap coordinates are measured against the rendered
-          document surface only. */}
-      <div ref={documentContainerRef}>
-        {templateId === 'modern' ? (
-          <EstimateDocumentModern
-            data={documentData}
-            company={documentCompany}
-            client={documentClient}
-            projectName={project.name}
-            projectType={project.project_type}
-            language={(estimate.language ?? 'en') as EstimateLanguage}
-            estimateVersion={estimate.version}
-            estimateSeq={estimate.estimate_seq}
-            estimateCreatedAt={estimate.created_at}
-            preparedBy={preparedBy}
-            companyTerms={companyTerms}
-          />
-        ) : (
-          <EstimateDocument
-            mode="view"
-            data={documentData}
-            company={documentCompany}
-            client={documentClient}
-            projectName={project.name}
-            projectType={project.project_type}
-            language={(estimate.language ?? 'en') as EstimateLanguage}
-            estimateVersion={estimate.version}
-            estimateSeq={estimate.estimate_seq}
-            estimateCreatedAt={estimate.created_at}
-            preparedBy={preparedBy}
-            companyTerms={companyTerms}
-          />
+      <div className="space-y-4 pt-4">
+        {/* Document body — registry-resolved templateId selects Classic vs Modern.
+            Wrapped in a ref'd div (not the outer page) so use-estimate-tracking's
+            click/section/heatmap coordinates are measured against the rendered
+            document surface only. The soft shadow lifts the white paper off the
+            grey stage. */}
+        <div
+          ref={documentContainerRef}
+          className="rounded-lg shadow-[0_1px_3px_rgba(15,23,42,0.10),0_10px_30px_-10px_rgba(15,23,42,0.25)]"
+        >
+          {templateId === 'modern' ? (
+            <EstimateDocumentModern
+              data={documentData}
+              company={documentCompany}
+              client={documentClient}
+              projectName={project.name}
+              projectType={project.project_type}
+              language={lang}
+              estimateVersion={estimate.version}
+              estimateSeq={estimate.estimate_seq}
+              estimateCreatedAt={estimate.created_at}
+              preparedBy={preparedBy}
+              companyTerms={companyTerms}
+            />
+          ) : (
+            <EstimateDocument
+              mode="view"
+              data={documentData}
+              company={documentCompany}
+              client={documentClient}
+              projectName={project.name}
+              projectType={project.project_type}
+              language={lang}
+              estimateVersion={estimate.version}
+              estimateSeq={estimate.estimate_seq}
+              estimateCreatedAt={estimate.created_at}
+              preparedBy={preparedBy}
+              companyTerms={companyTerms}
+            />
+          )}
+        </div>
+
+        {/* Response status. Online approval ON: compact confirmation. OFF: only a
+            small neutral line when the contractor already recorded a response
+            inside the app. Never a card with buttons. */}
+        {responded && (
+          <div
+            data-testid="response-status"
+            className={
+              approvalEnabled
+                ? 'flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-3 text-sm'
+                : 'text-center text-sm text-muted-foreground'
+            }
+          >
+            {approvalEnabled &&
+              (isAccepted ? (
+                <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
+              ) : (
+                <XCircle className="h-5 w-5 shrink-0 text-red-500" />
+              ))}
+            <span className={approvalEnabled ? 'font-medium' : undefined}>
+              {approvalEnabled
+                ? isAccepted
+                  ? t('Estimate Accepted')
+                  : t('Estimate Declined')
+                : isAccepted
+                  ? t('Accepted on')
+                  : t('Declined on')}
+              {!approvalEnabled && respondedOn ? ` ${respondedOn}` : ''}
+            </span>
+            {approvalEnabled && respondedOn && (
+              <span className="text-muted-foreground">· {respondedOn}</span>
+            )}
+          </div>
+        )}
+
+        {/* Phase 94 — issued-invoice pay links. Open invoices get a "Pay" button to
+            the Stripe-hosted invoice page; paid invoices show a muted confirmation. */}
+        {renderableInvoices.length > 0 && (
+          <Card variant="glass">
+            <CardContent className="p-6 sm:p-8 space-y-4">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" style={{ color: brandText }} />
+                <h3 className="text-base font-semibold">{t('Invoices')}</h3>
+              </div>
+              <div className="space-y-3">
+                {renderableInvoices.map((inv) => {
+                  const amount = formatMinorUnits(inv.amount_cents, inv.currency_code)
+                  const kindLabel =
+                    inv.kind === 'deposit'
+                      ? t('deposit')
+                      : inv.kind === 'balance'
+                        ? t('balance')
+                        : t('invoice')
+
+                  if (inv.status === 'paid') {
+                    return (
+                      <div
+                        key={inv.id}
+                        className="flex items-center gap-2 text-sm text-muted-foreground"
+                      >
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span>
+                          {t('Paid')}: {kindLabel} — {amount}
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  if (inv.status === 'open' && inv.hosted_invoice_url) {
+                    return (
+                      <Button
+                        key={inv.id}
+                        asChild
+                        size="lg"
+                        className="w-full sm:w-auto"
+                        style={{ backgroundColor: brandColor, color: brandOnFill }}
+                      >
+                        <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          {t('Pay')} {kindLabel} — {amount}
+                        </a>
+                      </Button>
+                    )
+                  }
+
+                  return null
+                })}
+
+                {uninvoicedCents > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {t('Remaining, not yet invoiced')}:{' '}
+                    {formatMinorUnits(uninvoicedCents, estimate.currency_code ?? 'USD')}
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Footer */}
+        {!whiteLabelMode && (
+          <div className="pb-2 text-center text-xs text-muted-foreground">
+            <p>
+              {t('Generated by')} <span className="font-medium">{appName}</span>
+            </p>
+          </div>
         )}
       </div>
 
-      {/* Phase 94 — issued-invoice pay links. Open invoices get a "Pay" button to
-          the Stripe-hosted invoice page; paid invoices show a muted confirmation. */}
-      {renderableInvoices.length > 0 && (
-        <Card variant="glass">
-          <CardContent className="p-6 sm:p-8 space-y-4">
-            <div className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" style={{ color: brandText }} />
-              <h3 className="text-base font-semibold">{t('Invoices')}</h3>
-            </div>
-            <div className="space-y-3">
-              {renderableInvoices.map((inv) => {
-                const amount = formatMinorUnits(inv.amount_cents, inv.currency_code)
-                const kindLabel =
-                  inv.kind === 'deposit'
-                    ? t('deposit')
-                    : inv.kind === 'balance'
-                      ? t('balance')
-                      : t('invoice')
-
-                if (inv.status === 'paid') {
-                  return (
-                    <div
-                      key={inv.id}
-                      className="flex items-center gap-2 text-sm text-muted-foreground"
-                    >
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span>
-                        {t('Paid')}: {kindLabel} — {amount}
-                      </span>
-                    </div>
-                  )
-                }
-
-                if (inv.status === 'open' && inv.hosted_invoice_url) {
-                  return (
-                    <Button
-                      key={inv.id}
-                      asChild
-                      size="lg"
-                      className="w-full sm:w-auto"
-                      style={{ backgroundColor: brandColor, color: brandOnFill }}
-                    >
-                      <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        {t('Pay')} {kindLabel} — {amount}
-                      </a>
-                    </Button>
-                  )
-                }
-
-                return null
-              })}
-
-              {uninvoicedCents > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {t('Remaining, not yet invoiced')}:{' '}
-                  {formatMinorUnits(uninvoicedCents, estimate.currency_code ?? 'USD')}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Signature pad */}
-      {showSignaturePad && !responded && (
-        <Card>
-          <CardContent className="p-6 sm:p-8 space-y-6">
-            <div className="flex items-center gap-2">
-              <PenLine className="h-5 w-5" style={{ color: brandText }} />
-              <h3 className="text-base font-semibold">{t('Sign to accept this estimate')}</h3>
-            </div>
+      {/* Signature step — overlay panel opened by Accept. Accept means sign. */}
+      {approvalEnabled && (
+        <Dialog open={showSignaturePad && !responded} onOpenChange={(open) => !open && closeSignature()}>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <PenLine className="h-5 w-5" style={{ color: brandText }} />
+                {t('Sign to accept this estimate')}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                {t('By signing, you agree to the pricing and terms in this estimate.')}
+              </DialogDescription>
+            </DialogHeader>
             <SignaturePad
               signerName={signerName}
               onSignerNameChange={setSignerName}
@@ -524,12 +583,12 @@ function EstimateViewInner({
             <p className="text-xs text-muted-foreground">
               {t('By signing, you agree to the pricing and terms in this estimate.')}
             </p>
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-green-600 text-white hover:bg-green-700"
                 onClick={handleSignAndAccept}
-                disabled={isSubmittingSignature || !signerName.trim() || !signatureData}
+                disabled={isSubmittingSignature || responding || !signerName.trim() || !signatureData}
               >
                 {isSubmittingSignature ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -541,100 +600,57 @@ function EstimateViewInner({
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() => { setShowSignaturePad(false); setError(null) }}
-                disabled={isSubmittingSignature}
+                onClick={closeSignature}
+                disabled={isSubmittingSignature || responding}
               >
                 {t('Cancel')}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Accept / Decline CTA — lives outside the document surface (P10)    */}
-      {/* ------------------------------------------------------------------ */}
-      {!showSignaturePad && (
-        <Card variant="glass" id={RESPONSE_CARD_ID} ref={responseCardRef}>
-          <CardContent className="p-6 sm:p-8">
-            {responded ? (
-              <div className="text-center space-y-2">
-                {responseValue === 'accepted' ? (
-                  <>
-                    <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-                    <p className="text-lg font-semibold text-green-700">{t('Estimate Accepted')}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {estimate.responded_at
-                        ? t(`You accepted this estimate on ${new Date(estimate.responded_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`)
-                        : t('Thank you for accepting this estimate')}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="mx-auto h-12 w-12 text-red-500" />
-                    <p className="text-lg font-semibold text-red-700">{t('Estimate Declined')}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {estimate.responded_at
-                        ? t(`You declined this estimate on ${new Date(estimate.responded_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`)
-                        : t('This estimate has been declined')}
-                    </p>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="text-center space-y-4">
-                <p className="text-muted-foreground">
-                  {t('Please review the estimate above and accept or decline.')}
-                </p>
-                {error && <p className="text-sm text-red-600">{error}</p>}
-                <div className="flex flex-col sm:flex-row justify-center gap-3">
-                  <Button
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => handleRespond('accepted')}
-                    disabled={responding !== null}
-                  >
-                    {responding === 'accepted' ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                    )}
-                    {t('Accept Estimate')}
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-red-300 text-red-600 hover:bg-red-50"
-                    onClick={() => handleRespond('declined')}
-                    disabled={responding !== null}
-                  >
-                    {responding === 'declined' ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <XCircle className="mr-2 h-4 w-4" />
-                    )}
-                    {t('Decline Estimate')}
-                  </Button>
+            {/* Discreet decline — asks for confirmation before anything is sent. */}
+            <div className="border-t border-border pt-3 text-center">
+              {confirmingDecline ? (
+                <div className="space-y-2" data-testid="decline-confirm">
+                  <p className="text-sm font-medium">{t('Decline this estimate?')}</p>
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-300 text-red-600 hover:bg-red-50"
+                      onClick={handleDecline}
+                      disabled={responding}
+                    >
+                      {responding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {t('Yes, decline')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setConfirmingDecline(false)}
+                      disabled={responding}
+                    >
+                      {t('Keep reviewing')}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setConfirmingDecline(true)}
+                  disabled={isSubmittingSignature}
+                >
+                  {t('Decline estimate')}
+                </button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
-      {/* Footer */}
-      {!whiteLabelMode && (
-        <div className="text-center text-xs text-muted-foreground pb-8">
-          <p>
-            {t('Generated by')} <span className="font-medium">{appName}</span>
-          </p>
-        </div>
-      )}
-
-      {/* Mobile-only sticky Accept bar. Tapping scrolls to the real
-          Accept/Decline card (never accepts directly); hidden while that card
-          is in view or the signature pad is open. */}
-      {showStickyAcceptBar && (
+      {/* Mobile-only sticky Accept bar (bottom is thumb-reachable). Opens the
+          signature panel; hidden while it is open. */}
+      {showMobileAcceptBar && (
         <div
           data-testid="mobile-accept-bar"
           className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur sm:hidden"
@@ -645,13 +661,13 @@ function EstimateViewInner({
               className="truncate text-lg font-semibold leading-tight tabular-nums"
               style={{ color: brandText }}
             >
-              {stickyTotal}
+              {total}
             </p>
           </div>
           <Button
             size="lg"
-            className="shrink-0 whitespace-nowrap bg-green-600 hover:bg-green-700 text-white"
-            onClick={scrollToResponseCard}
+            className="shrink-0 whitespace-nowrap bg-green-600 text-white hover:bg-green-700"
+            onClick={openSignature}
           >
             <CheckCircle className="mr-2 h-4 w-4" />
             {t('Accept Estimate')}

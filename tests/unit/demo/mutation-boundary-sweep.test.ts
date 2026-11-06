@@ -822,6 +822,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...excepted('lib/actions/estimate-photo.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getAttachedPhotoIdsAction',
   ]),
+  ...guarded('lib/actions/estimate-response.ts', 'assertWritable', ['recordClientResponse']),
   ...guarded('lib/actions/estimate-template.ts', 'assertWritable', ['saveEstimateTemplate']),
   ...guarded('lib/actions/estimate.ts', 'assertWritable', [
     'createBlankEstimate',
