@@ -16,7 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
  * Strategy: run the REAL `grantCredits` (NOT mocked) against an in-memory
  * credit_ledger fake wired into requireServiceClient, so grantCredits' real
  * dedup genuinely runs. Pre-launch audit fix (B3): grantCredits now calls the
- * atomic `apply_credit_ledger_entry` RPC instead of a direct select/insert/
+ * atomic `grant_credit_lot` RPC instead of a direct select/insert/
  * update, so the fake's `rpc()` method reproduces that function's contract —
  * UNIQUE(company_id, idempotency_key) dedup, returning {applied:false} on a
  * hit instead of inserting again. The cron and the webhook both call
@@ -116,21 +116,21 @@ function makeServiceFake() {
         },
       }
     },
-    // Simulates apply_credit_ledger_entry — grantCredits' only write path now.
+    // Simulates grant_credit_lot — grantCredits' only write path now.
     async rpc(fnName: string, params: Record<string, unknown>) {
-      if (fnName !== 'apply_credit_ledger_entry') {
+      if (fnName !== 'grant_credit_lot') {
         throw new Error(`unexpected rpc call: ${fnName}`)
       }
       const companyId = params.p_company_id as string
       const idemKey = (params.p_idempotency_key as string | null) ?? null
-      const delta = params.p_delta_credits as number
+      const delta = params.p_credits as number
 
       if (idemKey != null) {
         const hit = ledger.find(
           (r) => r.company_id === companyId && r.idempotency_key === idemKey,
         )
         if (hit) {
-          return { data: [{ balance_after: companyBalance.value, applied: false }], error: null }
+          return { data: [{ balance_after: companyBalance.value, applied: false, lot_id: 'lot_x' }], error: null }
         }
       }
 
@@ -141,7 +141,7 @@ function makeServiceFake() {
         idempotency_key: idemKey,
         delta_credits: delta,
       })
-      return { data: [{ balance_after: companyBalance.value, applied: true }], error: null }
+      return { data: [{ balance_after: companyBalance.value, applied: true, lot_id: 'lot_x' }], error: null }
     },
   }
 }
@@ -162,6 +162,7 @@ async function webhookGrant(now: Date) {
     companyId: COMPANY,
     credits: GRANT,
     reason: 'grant',
+    source: 'monthly',
     refId: 'in_test',
     idempotencyKey: monthGrantKey(COMPANY, now),
   })
@@ -173,6 +174,7 @@ async function cronGrant(now: Date) {
     companyId: COMPANY,
     credits: GRANT,
     reason: 'grant',
+    source: 'monthly',
     refId: null,
     idempotencyKey: monthGrantKey(COMPANY, now),
   })

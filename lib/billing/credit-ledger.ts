@@ -56,6 +56,9 @@ export type DebitOperationType =
   | 'photo_batch'
   | 'audio_minutes'
   | 'price_research'
+  // SEED-055 Phase D wires the chat assistant to a per-turn debit; the ledger
+  // CHECK already accepts it (20261106000001). No caller yet.
+  | 'chat'
 
 /** Idempotency key for a debit: `${attemptId}:debit:${op}` (retry-stable per attempt+op). */
 export function debitIdemKey(attemptId: string, op: string): string {
@@ -112,16 +115,16 @@ export async function recordCreditDebit(input: {
 
     const key = debitIdemKey(input.attemptId, input.operationType)
 
-    // Atomic RPC (pre-launch audit fix B3): locks the company row, applies the
-    // delta to credit_balance, and inserts the ledger row in ONE transaction —
-    // replaces the prior SELECT-then-INSERT-then-UPDATE race. `previous` is
-    // read only for the low-balance-crossing notification below; it is not
-    // used to compute the new balance.
+    // Atomic RPC (SEED-055 Phase B): locks the company row, drains the credit
+    // lots (monthly -> signup -> the rest by soonest expiry; any shortfall goes
+    // to credit_debt), writes ONE ledger row with the per-lot split and
+    // refreshes credit_balance in a single transaction. `previous` is read only
+    // for the low-balance-crossing notification below; it is not used to
+    // compute the new balance.
     const previous = await readCachedBalance(svc, input.companyId)
-    const { data: rpcData, error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+    const { data: rpcData, error: rpcError } = await svc.rpc('consume_credits', {
       p_company_id: input.companyId,
-      p_delta_credits: -credits,
-      p_reason: 'debit',
+      p_credits: credits,
       p_operation_type: input.operationType,
       p_ref_id: input.attemptId,
       p_real_cost_usd: input.realCostUsd,
@@ -271,10 +274,18 @@ export async function notifyLowCreditBalance(params: {
  * land" (e.g. auto-topup verifying a charge landed credits) must check this
  * flag rather than assuming a resolved promise means success.
  */
+export type CreditLotSource = 'signup' | 'monthly' | 'topup' | 'adjust'
+
 export async function grantCredits(input: {
   companyId: string
   credits: number
-  reason: 'grant' | 'topup'
+  reason: 'grant' | 'topup' | 'adjust'
+  /** Which kind of lot the credits land in (drives consumption order). */
+  source: CreditLotSource
+  /** ISO timestamp the lot expires at; null/absent = never expires. */
+  expiresAt?: string | null
+  /** Billing-period identifier for subscription lots (Phase C). */
+  periodKey?: string | null
   refId?: string | null
   idempotencyKey?: string | null
 }): Promise<{ applied: boolean }> {
@@ -282,18 +293,19 @@ export async function grantCredits(input: {
     if (!(input.credits > 0)) return { applied: false }
     const svc = requireServiceClient()
 
-    // Atomic RPC (pre-launch audit fix B3) — see recordCreditDebit for the race
-    // this closes. `applied: false` means a concurrent/retried call already
+    // Atomic RPC (SEED-055 Phase B): creates the lot, pays down any credit_debt
+    // first, writes the ledger row and refreshes credit_balance in ONE locked
+    // transaction. `applied: false` means a concurrent/retried call already
     // recorded this exact idempotencyKey; nothing further to do.
-    const { data: rpcData, error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+    const { data: rpcData, error: rpcError } = await svc.rpc('grant_credit_lot', {
       p_company_id: input.companyId,
-      p_delta_credits: input.credits,
-      p_reason: input.reason,
-      p_operation_type: null,
+      p_source: input.source,
+      p_credits: input.credits,
+      p_expires_at: input.expiresAt ?? null,
+      p_period_key: input.periodKey ?? null,
       p_ref_id: input.refId ?? null,
-      p_real_cost_usd: null,
-      p_markup: null,
       p_idempotency_key: input.idempotencyKey ?? null,
+      p_reason: input.reason,
     })
     if (rpcError) {
       throw new Error(`grantCredits RPC failed: ${rpcError.message}`)
@@ -380,6 +392,8 @@ export async function grantSignupCredits(companyId: string): Promise<void> {
     companyId,
     credits: cfg.signupCreditGrant,
     reason: 'grant',
+    source: 'signup',
+    expiresAt: null,
     refId: 'signup',
     idempotencyKey: `signup:${companyId}`,
   })
@@ -406,32 +420,67 @@ export async function grantMonthlyCredits(
     companyId,
     credits: grant, // grantCredits no-ops on <= 0 (free tier = 0)
     reason: 'grant',
+    source: 'monthly',
+    expiresAt: null,
     refId,
     idempotencyKey: monthGrantKey(companyId),
   })
 }
 
 /**
- * Repair the cached balance from the source-of-truth ledger (CREDIT-03):
- * SUM(delta_credits) → companies.credit_balance. Best-effort, never throws;
- * returns the computed sum (0 on failure or empty ledger). Summed TS-side for
- * symmetry/testability with the rest of the module.
+ * Repair the cached balance from the credit lots (SEED-055 Phase B invariant):
+ *   credit_balance = SUM(remaining of non-expired lots) - credit_debt
+ * Best-effort, never throws; returns the computed balance (0 on failure).
+ * Summed TS-side for symmetry/testability with the rest of the module.
  */
 export async function reconcileBalance(companyId: string): Promise<number> {
   try {
     const svc = requireServiceClient()
-    const { data } = await svc
-      .from('credit_ledger')
-      .select('delta_credits')
-      .eq('company_id', companyId)
-    const rows = (data as Array<{ delta_credits?: number }> | null) ?? []
-    const sum = rows.reduce((acc, r) => acc + (r.delta_credits ?? 0), 0)
+    const [lotsRes, companyRes] = await Promise.all([
+      svc
+        .from('credit_lots')
+        .select('remaining, expires_at')
+        .eq('company_id', companyId),
+      svc.from('companies').select('credit_debt').eq('id', companyId).maybeSingle(),
+    ])
+    const lots =
+      (lotsRes.data as Array<{ remaining?: number; expires_at?: string | null }> | null) ?? []
+    const debt = (companyRes.data as { credit_debt?: number } | null)?.credit_debt ?? 0
+    const now = Date.now()
+    const live = lots.reduce((acc, l) => {
+      const expired = l.expires_at != null && new Date(l.expires_at).getTime() <= now
+      return expired ? acc : acc + (l.remaining ?? 0)
+    }, 0)
+    const balance = live - debt
 
-    await svc.from('companies').update({ credit_balance: sum }).eq('id', companyId)
-    return sum
+    await svc.from('companies').update({ credit_balance: balance }).eq('id', companyId)
+    return balance
   } catch (err) {
     console.warn('[reconcileBalance] swallowed write failure:', err)
     notifyCreditLedgerWriteFailed(companyId, 'reconcileBalance', err)
+    return 0
+  }
+}
+
+/**
+ * Sweep credit lots past their expiry (SEED-055 Phase B): calls the
+ * expire_credit_lots RPC, which writes an `expire` ledger row per lapsed lot,
+ * zeroes it and refreshes each affected company's cached balance. Returns the
+ * number of lots expired. Never throws — a failure raises an ops alert and
+ * resolves to 0 (the hourly cron simply tries again).
+ */
+export async function expireCreditLots(): Promise<number> {
+  try {
+    const svc = requireServiceClient()
+    const { data, error } = await svc.rpc('expire_credit_lots')
+    if (error) {
+      throw new Error(`expireCreditLots RPC failed: ${error.message}`)
+    }
+    const n = Array.isArray(data) ? data[0] : data
+    return typeof n === 'number' ? n : Number(n ?? 0) || 0
+  } catch (err) {
+    console.warn('[expireCreditLots] swallowed failure:', err)
+    notifyCreditLedgerWriteFailed('*', 'expireCreditLots', err)
     return 0
   }
 }

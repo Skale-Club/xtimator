@@ -123,3 +123,18 @@ describe('CREDIT-01/CREDIT-03: credit_ledger migration static contract', () => {
     )
   })
 })
+
+// SEED-055 Phase B widened the two enums above in a follow-up migration (the
+// Phase 112 file is history and stays as written). The lots migration owns the
+// full static contract in credit-lots-migration.test.ts; this just pins the
+// link so the widening cannot be dropped silently.
+describe('SEED-055 Phase B: enum widening lives in the credit-lots migration', () => {
+  it("adds 'expire' to reason and 'chat' to operation_type", () => {
+    const next = readFileSync(
+      resolve(process.cwd(), 'supabase/migrations/20261106000001_credit_lots.sql'),
+      'utf8'
+    )
+    expect(next).toContain("'grant','debit','topup','adjust','expire'")
+    expect(next).toContain("'price_research','chat'")
+  })
+})

@@ -180,6 +180,7 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
         companyId: 'co_1',
         credits: 9000,
         reason: 'grant',
+        source: 'monthly',
         idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
       })
     )
@@ -267,6 +268,7 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
         companyId: 'co_1',
         credits: 9000,
         reason: 'grant',
+        source: 'monthly',
         refId: 'in_fallback',
         idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
       })
@@ -310,6 +312,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
         companyId: 'co_1',
         credits: 5000,
         reason: 'topup',
+        source: 'topup',
         idempotencyKey: 'evt_2',
       })
     )
@@ -338,7 +341,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
 
     expect(grantCredits).toHaveBeenCalledTimes(1)
     expect(grantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ credits: 1000, reason: 'topup' })
+      expect.objectContaining({ credits: 1000, reason: 'topup', source: 'topup' })
     )
   })
 
@@ -365,6 +368,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
         companyId: 'co_1',
         credits: 9000,
         reason: 'grant',
+        source: 'monthly',
         refId: 'cs_sub',
         // Company-month key — the SAME key invoice.paid and the monthly cron
         // use, so a redelivery or a race with invoice.paid never double-grants.
@@ -427,6 +431,7 @@ describe('checkout.session.async_payment_succeeded — delayed-payment top-up gr
         companyId: 'co_1',
         credits: 3000,
         reason: 'topup',
+        source: 'topup',
         idempotencyKey: 'evt_async_paid',
       })
     )

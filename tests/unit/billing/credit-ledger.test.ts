@@ -22,7 +22,7 @@ vi.mock('@/lib/observability/ops-alert', () => ({
  *                race is a no-op, not a thrown error;
  *                debitIdemKey('a1','estimate') === 'a1:debit:estimate'.
  *   - CREDIT-03: each write atomically updates companies.credit_balance via
- *                apply_credit_ledger_entry; reconcileBalance recomputes
+ *                consume_credits / grant_credit_lot; reconcileBalance recomputes
  *                SUM(delta_credits) directly (unchanged, no RPC).
  *   - CREDIT-04: grantCredits writes a POSITIVE grant row + bumps balance.
  *   - CREDIT-05: checkCredits returns {allowed,balance,shortfall}; allowed:true
@@ -71,14 +71,18 @@ vi.mock('@/lib/billing/billing-config', () => ({
 type Captured = {
   inserts: Array<{ table: string; payload: Record<string, unknown> }>
   updates: Array<{ table: string; payload: Record<string, unknown> }>
+  rpcCalls: Array<{ fn: string; params: Record<string, unknown> }>
 }
 
-let captured: Captured = { inserts: [], updates: [] }
+let captured: Captured = { inserts: [], updates: [], rpcCalls: [] }
+let expireResult: unknown = 0
 let reads: {
   ledgerExisting: { id: string } | null
   companyBalance: number | null
   ledgerRows: Array<{ delta_credits: number }>
-} = { ledgerExisting: null, companyBalance: 0, ledgerRows: [] }
+  lots: Array<{ remaining: number; expires_at: string | null }>
+  companyDebt: number
+} = { ledgerExisting: null, companyBalance: 0, ledgerRows: [], lots: [], companyDebt: 0 }
 let insertError: { code?: string; message?: string } | null = null
 let insertThrows = false
 
@@ -99,6 +103,10 @@ function makeServiceClient() {
               return chain
             },
             async maybeSingle() {
+              // reconcile reads the company's credit_debt
+              if (table === 'companies') {
+                return { data: { credit_debt: reads.companyDebt }, error: null }
+              }
               // dedup existence check on credit_ledger
               return { data: reads.ledgerExisting, error: null }
             },
@@ -112,9 +120,13 @@ function makeServiceClient() {
                 error: null,
               }
             },
-            // reconcile: select('delta_credits').eq() then awaited as a promise
+            // reconcile: select('remaining, expires_at').eq() on credit_lots,
+            // awaited as a promise
             then(resolve: (v: unknown) => void) {
-              resolve({ data: reads.ledgerRows, error: null })
+              resolve({
+                data: table === 'credit_lots' ? reads.lots : reads.ledgerRows,
+                error: null,
+              })
             },
           }
           return chain
@@ -134,13 +146,22 @@ function makeServiceClient() {
         },
       }
     },
-    // Simulates apply_credit_ledger_entry (see the atomic-RPC migration).
-    // recordCreditDebit/grantCredits are the only callers.
+    // Simulates consume_credits / grant_credit_lot / expire_credit_lots (see
+    // 20261106000001_credit_lots.sql). recordCreditDebit, grantCredits and
+    // expireCreditLots are the only callers.
     async rpc(fnName: string, params: Record<string, unknown>) {
-      if (fnName !== 'apply_credit_ledger_entry') {
+      if (fnName === 'expire_credit_lots') {
+        if (insertThrows) throw new Error('rpc exploded')
+        captured.rpcCalls.push({ fn: fnName, params })
+        return { data: expireResult, error: null }
+      }
+      if (fnName !== 'consume_credits' && fnName !== 'grant_credit_lot') {
         throw new Error(`unexpected rpc call: ${fnName}`)
       }
       if (insertThrows) throw new Error('insert exploded')
+      captured.rpcCalls.push({ fn: fnName, params })
+      const isGrant = fnName === 'grant_credit_lot'
+      const delta = isGrant ? (params.p_credits as number) : -(params.p_credits as number)
 
       // Pre-existing idempotency key (either the test's dedup fixture, or a
       // 23505 the real function would catch internally) → no-op, no error.
@@ -155,13 +176,13 @@ function makeServiceClient() {
       }
 
       const current = reads.companyBalance ?? 0
-      const balanceAfter = current + (params.p_delta_credits as number)
+      const balanceAfter = current + delta
       captured.inserts.push({
         table: 'credit_ledger',
         payload: {
           company_id: params.p_company_id,
-          delta_credits: params.p_delta_credits,
-          reason: params.p_reason,
+          delta_credits: delta,
+          reason: isGrant ? params.p_reason : (params.p_reason ?? 'debit'),
           operation_type: params.p_operation_type,
           ref_id: params.p_ref_id,
           real_cost_usd: params.p_real_cost_usd,
@@ -182,14 +203,16 @@ import {
   grantCredits,
   checkCredits,
   reconcileBalance,
+  expireCreditLots,
   debitIdemKey,
 } from '@/lib/billing/credit-ledger'
 
 const COMPANY = '11111111-1111-1111-1111-111111111111'
 
 beforeEach(() => {
-  captured = { inserts: [], updates: [] }
-  reads = { ledgerExisting: null, companyBalance: 0, ledgerRows: [] }
+  captured = { inserts: [], updates: [], rpcCalls: [] }
+  expireResult = 0
+  reads = { ledgerExisting: null, companyBalance: 0, ledgerRows: [], lots: [], companyDebt: 0 }
   insertError = null
   insertThrows = false
   billingConfig = { markup: 4.5, creditUnitUsd: 0.01, enforcementEnabled: false }
@@ -334,22 +357,36 @@ describe('CREDIT-06: idempotent debits', () => {
 // =============================================================================
 // CREDIT-03 — reconcileBalance
 // =============================================================================
-describe('CREDIT-03: reconcileBalance', () => {
-  it('sums delta_credits from credit_ledger and writes the sum into companies.credit_balance', async () => {
-    reads.ledgerRows = [
-      { delta_credits: 9000 },
-      { delta_credits: -9 },
-      { delta_credits: -50 },
+describe('CREDIT-03: reconcileBalance (lots invariant)', () => {
+  it('balance = SUM(remaining of live lots) - credit_debt, written to companies.credit_balance', async () => {
+    reads.lots = [
+      { remaining: 9000, expires_at: null },
+      { remaining: 50, expires_at: '2999-01-01T00:00:00Z' },
     ]
+    reads.companyDebt = 9
     const sum = await reconcileBalance(COMPANY)
-    expect(sum).toBe(8941)
+    expect(sum).toBe(9041)
     expect(captured.updates).toHaveLength(1)
     expect(captured.updates[0].table).toBe('companies')
-    expect(captured.updates[0].payload.credit_balance).toBe(8941)
+    expect(captured.updates[0].payload.credit_balance).toBe(9041)
   })
 
-  it('empty ledger → 0', async () => {
-    reads.ledgerRows = []
+  it('an expired lot with credits left is NOT counted', async () => {
+    reads.lots = [
+      { remaining: 100, expires_at: null },
+      { remaining: 700, expires_at: '2000-01-01T00:00:00Z' },
+    ]
+    const sum = await reconcileBalance(COMPANY)
+    expect(sum).toBe(100)
+  })
+
+  it('debt larger than the lots yields a negative balance (same as the old overdraft)', async () => {
+    reads.lots = [{ remaining: 10, expires_at: null }]
+    reads.companyDebt = 25
+    expect(await reconcileBalance(COMPANY)).toBe(-15)
+  })
+
+  it('no lots, no debt → 0', async () => {
     const sum = await reconcileBalance(COMPANY)
     expect(sum).toBe(0)
     expect(captured.updates[0].payload.credit_balance).toBe(0)
@@ -384,6 +421,7 @@ describe('CREDIT-04: grantCredits', () => {
       companyId: COMPANY,
       credits: 9000,
       reason: 'grant',
+      source: 'monthly',
       refId: 'evt_1',
       idempotencyKey: 'evt_1:grant:pro',
     })
@@ -404,6 +442,7 @@ describe('CREDIT-04: grantCredits', () => {
       companyId: COMPANY,
       credits: 9000,
       reason: 'grant',
+      source: 'monthly',
       refId: 'evt_1',
       idempotencyKey: 'evt_1:grant:pro',
     })
@@ -413,7 +452,7 @@ describe('CREDIT-04: grantCredits', () => {
   })
 
   it('credits <= 0 is a no-op, returning { applied: false } without touching the service client', async () => {
-    const result = await grantCredits({ companyId: COMPANY, credits: 0, reason: 'grant' })
+    const result = await grantCredits({ companyId: COMPANY, credits: 0, reason: 'grant', source: 'monthly' })
     expect(result).toEqual({ applied: false })
     expect(captured.inserts).toHaveLength(0)
   })
@@ -422,7 +461,7 @@ describe('CREDIT-04: grantCredits', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     insertThrows = true
     await expect(
-      grantCredits({ companyId: COMPANY, credits: 9000, reason: 'grant' })
+      grantCredits({ companyId: COMPANY, credits: 9000, reason: 'grant', source: 'monthly' })
     ).resolves.toEqual({ applied: false })
     expect(warn).toHaveBeenCalled()
     expect(mockNotifyOps).toHaveBeenCalledTimes(1)
@@ -430,6 +469,95 @@ describe('CREDIT-04: grantCredits', () => {
       expect.objectContaining({
         kind: 'credit_ledger_write_failed',
         severity: 'error',
+      })
+    )
+    warn.mockRestore()
+  })
+})
+
+// =============================================================================
+// SEED-055 Phase B — RPC contract (lots)
+// =============================================================================
+describe('SEED-055 Phase B: lot RPC arguments', () => {
+  it('recordCreditDebit calls consume_credits with POSITIVE credits, op, ref and idempotency key', async () => {
+    await recordCreditDebit({
+      companyId: COMPANY,
+      operationType: 'photo_batch',
+      realCostUsd: 0.02,
+      attemptId: 'a9',
+    })
+    expect(captured.rpcCalls).toHaveLength(1)
+    expect(captured.rpcCalls[0].fn).toBe('consume_credits')
+    expect(captured.rpcCalls[0].params).toEqual({
+      p_company_id: COMPANY,
+      p_credits: 9,
+      p_operation_type: 'photo_batch',
+      p_ref_id: 'a9',
+      p_real_cost_usd: 0.02,
+      p_markup: 4.5,
+      p_idempotency_key: 'a9:debit:photo_batch',
+    })
+  })
+
+  it('never calls the legacy apply_credit_ledger_entry', async () => {
+    await recordCreditDebit({ companyId: COMPANY, operationType: 'estimate', realCostUsd: 0.02, attemptId: 'a1' })
+    await grantCredits({ companyId: COMPANY, credits: 5, reason: 'grant', source: 'signup' })
+    expect(captured.rpcCalls.map((c) => c.fn)).toEqual(['consume_credits', 'grant_credit_lot'])
+  })
+
+  it('grantCredits calls grant_credit_lot with source, expiry, period key and defaults', async () => {
+    await grantCredits({
+      companyId: COMPANY,
+      credits: 9000,
+      reason: 'topup',
+      source: 'topup',
+      expiresAt: '2027-02-06T00:00:00.000Z',
+      periodKey: '2026-11',
+      refId: 'cs_1',
+      idempotencyKey: 'evt_9',
+    })
+    expect(captured.rpcCalls[0]).toEqual({
+      fn: 'grant_credit_lot',
+      params: {
+        p_company_id: COMPANY,
+        p_source: 'topup',
+        p_credits: 9000,
+        p_expires_at: '2027-02-06T00:00:00.000Z',
+        p_period_key: '2026-11',
+        p_ref_id: 'cs_1',
+        p_idempotency_key: 'evt_9',
+        p_reason: 'topup',
+      },
+    })
+  })
+
+  it('grantCredits defaults expiresAt/periodKey/refId/idempotencyKey to null', async () => {
+    await grantCredits({ companyId: COMPANY, credits: 10, reason: 'grant', source: 'signup' })
+    expect(captured.rpcCalls[0].params).toMatchObject({
+      p_source: 'signup',
+      p_expires_at: null,
+      p_period_key: null,
+      p_ref_id: null,
+      p_idempotency_key: null,
+    })
+  })
+})
+
+describe('SEED-055 Phase B: expireCreditLots', () => {
+  it('calls expire_credit_lots and returns the number of lots expired', async () => {
+    expireResult = 3
+    await expect(expireCreditLots()).resolves.toBe(3)
+    expect(captured.rpcCalls[0].fn).toBe('expire_credit_lots')
+  })
+
+  it('never throws: returns 0 and fires notifyOps when the RPC fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    insertThrows = true
+    await expect(expireCreditLots()).resolves.toBe(0)
+    expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'credit_ledger_write_failed',
+        message: expect.stringContaining('expireCreditLots'),
       })
     )
     warn.mockRestore()

@@ -109,6 +109,8 @@ export async function runMonthlyCreditGrant(
         companyId: company.id,
         credits,
         reason: 'grant',
+        source: 'monthly',
+        expiresAt: null,
         refId: null,
         idempotencyKey: monthGrantKey(company.id, now),
       })

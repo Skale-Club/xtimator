@@ -131,6 +131,8 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
         companyId: 'co_1',
         credits: 9000,
         reason: 'grant',
+        source: 'monthly',
+        expiresAt: null,
         refId: null,
         idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
       }),
@@ -140,6 +142,7 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
         companyId: 'co_2',
         credits: 30000,
         reason: 'grant',
+        source: 'monthly',
         idempotencyKey: expect.stringMatching(/^grant:co_2:\d{4}-\d{2}$/),
       }),
     )

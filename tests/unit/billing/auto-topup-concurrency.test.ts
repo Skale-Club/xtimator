@@ -35,10 +35,10 @@ vi.mock('@/lib/supabase/service', () => ({
         if (rpcShouldReject) throw new Error('release network blip')
         return { data: null, error: null }
       }
-      if (fn === 'apply_credit_ledger_entry') {
+      if (fn === 'grant_credit_lot') {
         // grantCredits' RPC — this file's tests only care about the
         // acquire/release lock race, so the grant always lands cleanly.
-        return { data: [{ balance_after: 1300, applied: true }], error: null }
+        return { data: [{ balance_after: 1300, applied: true, lot_id: 'lot-1' }], error: null }
       }
       return { data: null, error: null }
     },

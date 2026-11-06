@@ -118,15 +118,15 @@ export async function grantBonusCredits(
 
   const svc = requireServiceClient()
 
-  const { error: grantError } = await svc.rpc('apply_credit_ledger_entry', {
+  const { error: grantError } = await svc.rpc('grant_credit_lot', {
     p_company_id: companyId,
-    p_delta_credits: Math.round(units),
-    p_reason: 'grant',
-    p_operation_type: null,
+    p_source: 'adjust',
+    p_credits: Math.round(units),
+    p_expires_at: null,
+    p_period_key: null,
     p_ref_id: 'admin-bonus',
-    p_real_cost_usd: null,
-    p_markup: null,
     p_idempotency_key: `bonus:${ctx.userId}:${randomUUID()}`,
+    p_reason: 'grant',
   })
   if (grantError) return { ok: false, message: grantError.message }
 
@@ -209,16 +209,31 @@ export async function adjustCredits(
   const minuteBucket = new Date().toISOString().slice(0, 16)
   const idempotencyKey = `adjust:${companyId}:${deltaCredits}:${ctx.userId}:${minuteBucket}`
 
-  const { data: rpcData, error } = await svc.rpc('apply_credit_ledger_entry', {
-    p_company_id: companyId,
-    p_delta_credits: deltaCredits,
-    p_reason: 'adjust',
-    p_operation_type: null,
-    p_ref_id: trimmedNote,
-    p_real_cost_usd: null,
-    p_markup: null,
-    p_idempotency_key: idempotencyKey,
-  })
+  // SEED-055 Phase B: a positive adjustment is a non-expiring 'adjust' lot; a
+  // negative one drains the lots (shortfall becomes credit_debt) — both keep
+  // credit_balance = SUM(live lots) - credit_debt.
+  const { data: rpcData, error } =
+    deltaCredits > 0
+      ? await svc.rpc('grant_credit_lot', {
+          p_company_id: companyId,
+          p_source: 'adjust',
+          p_credits: deltaCredits,
+          p_expires_at: null,
+          p_period_key: null,
+          p_ref_id: trimmedNote,
+          p_idempotency_key: idempotencyKey,
+          p_reason: 'adjust',
+        })
+      : await svc.rpc('consume_credits', {
+          p_company_id: companyId,
+          p_credits: -deltaCredits,
+          p_operation_type: null,
+          p_ref_id: trimmedNote,
+          p_real_cost_usd: null,
+          p_markup: null,
+          p_idempotency_key: idempotencyKey,
+          p_reason: 'adjust',
+        })
   if (error) return { ok: false, message: error.message }
 
   const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as

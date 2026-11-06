@@ -43,7 +43,7 @@ const fromMock = vi.fn((table: string) => {
   }
   throw new Error(`Unexpected table: ${table}`)
 })
-// rpcMock backs the atomic apply_credit_ledger_entry call — the ONLY write
+// rpcMock backs the atomic grant_credit_lot call — the ONLY write
 // grantBonusCredits performs; its error surfaces as { ok: false }.
 type RpcResult = { data: unknown; error: { message: string } | null }
 const rpcMock = vi.fn(
@@ -92,16 +92,18 @@ beforeEach(() => {
 })
 
 describe('grantBonusCredits — ledger-backed grant (ADMIN-BILLING-02 fix)', () => {
-  it('applies the grant through apply_credit_ledger_entry with reason "grant"', async () => {
+  it('applies the grant through grant_credit_lot as an adjust lot with reason "grant"', async () => {
     const res = await grantBonusCredits('company-1', 25)
 
     expect(res.ok).toBe(true)
     expect(rpcMock).toHaveBeenCalledTimes(1)
     expect(rpcMock).toHaveBeenCalledWith(
-      'apply_credit_ledger_entry',
+      'grant_credit_lot',
       expect.objectContaining({
         p_company_id: 'company-1',
-        p_delta_credits: 25,
+        p_source: 'adjust',
+        p_credits: 25,
+        p_expires_at: null,
         p_reason: 'grant',
         p_ref_id: 'admin-bonus',
       })

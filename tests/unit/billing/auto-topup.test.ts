@@ -24,7 +24,7 @@ let companyRow: {
 
 const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
 
-// Configurable per-test: what apply_credit_ledger_entry (grantCredits' RPC)
+// Configurable per-test: what grant_credit_lot (grantCredits' RPC)
 // resolves to. Defaults to a landed grant — tests that need to prove the
 // "charged but not granted" alert override this to { applied: false }.
 let ledgerRpcApplied = true
@@ -32,8 +32,8 @@ let ledgerRpcApplied = true
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
     rpc: async (fn: string) => {
-      if (fn === 'apply_credit_ledger_entry') {
-        return { data: [{ balance_after: 1300, applied: ledgerRpcApplied }], error: null }
+      if (fn === 'grant_credit_lot') {
+        return { data: [{ balance_after: 1300, applied: ledgerRpcApplied, lot_id: 'lot-1' }], error: null }
       }
       return { data: true, error: null } // lock acquire/release always granted in this file's tests
     },
@@ -366,12 +366,12 @@ describe('CREDITUI-07: credit-ledger.ts wiring', () => {
             return { eq: async () => Promise.resolve({ error: null }) }
           },
         }),
-        // Simulates apply_credit_ledger_entry — recordCreditDebit's write path.
+        // Simulates consume_credits — recordCreditDebit's write path.
         async rpc(fnName: string, params: Record<string, unknown>) {
-          if (fnName !== 'apply_credit_ledger_entry') {
+          if (fnName !== 'consume_credits') {
             throw new Error(`unexpected rpc call: ${fnName}`)
           }
-          const balanceAfter = 100 + (params.p_delta_credits as number) // current balance = 100
+          const balanceAfter = 100 - (params.p_credits as number) // current balance = 100
           ledgerCaptured.push({ table: 'credit_ledger', payload: params })
           return { data: [{ balance_after: balanceAfter, applied: true }], error: null }
         },

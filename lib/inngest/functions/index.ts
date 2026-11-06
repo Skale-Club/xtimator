@@ -19,6 +19,8 @@ export { storageOrphanCleanupJob } from './storage-orphan-cleanup'
 export { xphereSyncJob } from './xphere-sync'
 // Phase 142 (ANN-02) — monthly AI-credit grant cron (decoupled from invoice cadence).
 export { monthlyCreditGrantJob } from './monthly-credit-grant'
+// SEED-055 Phase B — hourly credit-lot expiry sweep.
+export { expireCreditLotsJob } from './expire-credit-lots'
 // 260707-hhp (P2) — pipeline stuck-attempt watchdog cron (10min cadence).
 export { pipelineWatchdogJob } from './pipeline-watchdog'
 // 2026-07-09 perf sweep — daily retention prune of append-only event tables.

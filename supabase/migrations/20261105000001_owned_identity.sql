@@ -10,7 +10,7 @@ DECLARE allowed text[] := ARRAY[
   'agentic_send_confirmations','ai_cost_events','ai_generation_logs','blog_generation_jobs','blog_post_feedback',
   'blog_posts','blog_rss_items','blog_rss_sources','blog_settings','chat_conversations','chat_message_votes',
   'chat_messages','client_message_events','clients','companies','company_invites','company_members','company_price_book',
-  'company_whatsapp','credit_ledger','cron_heartbeats','customer_messages','demo_config','estimate_activity',
+  'company_whatsapp','credit_ledger','credit_lots','cron_heartbeats','customer_messages','demo_config','estimate_activity',
   'estimate_deliveries','estimate_engagement_events','estimate_items','estimate_photos','estimate_sections',
   'estimate_signatures','estimates','invoices','job_dispatch_ownership','knowledge_entries','legal_pages',
   'notification_preferences','notification_templates','notifications','oauth_access_tokens','oauth_authorization_codes',

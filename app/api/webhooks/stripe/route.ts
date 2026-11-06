@@ -468,6 +468,8 @@ async function grantTopupCredits(
       companyId: topupCompanyId,
       credits,
       reason: 'topup',
+      source: 'topup',
+      expiresAt: null,
       refId: session.id,
       idempotencyKey,
     })
@@ -664,6 +666,8 @@ async function handlePlatformEvent(
           companyId,
           credits: cfg.tiers[tier]?.monthlyCreditGrant ?? 0,
           reason: 'grant',
+          source: 'monthly',
+          expiresAt: null,
           refId: session.id,
           idempotencyKey: monthGrantKey(companyId, new Date()),
         })
@@ -828,6 +832,8 @@ async function handlePlatformEvent(
             companyId: grantCompany.id,
             credits: grant,        // grantCredits no-ops on <=0 (free tier = 0)
             reason: 'grant',
+            source: 'monthly',
+            expiresAt: null,
             refId: invoice.id,
             idempotencyKey: monthGrantKey(grantCompany.id, new Date()), // company-month dedup (shared with cron)
           })
@@ -881,6 +887,8 @@ async function handlePlatformEvent(
             companyId: topupCompanyId,
             credits,
             reason: 'topup',
+            source: 'topup',
+            expiresAt: null,
             refId: pi.id,
             idempotencyKey: `autotopup:${pi.id}`,
           })
@@ -1064,15 +1072,17 @@ async function handlePlatformEvent(
             ? Math.min(credits, Math.round((credits * refundedCents) / chargedCents))
             : credits
         if (Number.isFinite(credits) && credits > 0 && clawback > 0) {
-          const { error: rpcError } = await svc.rpc('apply_credit_ledger_entry', {
+          // consume_credits (SEED-055 Phase B) drains the lots and books any
+          // shortfall as credit_debt, keeping credit_balance = lots - debt.
+          const { error: rpcError } = await svc.rpc('consume_credits', {
             p_company_id: resolvedCompanyId,
-            p_delta_credits: -clawback,
-            p_reason: 'adjust',
+            p_credits: clawback,
             p_operation_type: null,
             p_ref_id: refund?.id ?? charge.id,
             p_real_cost_usd: null,
             p_markup: null,
             p_idempotency_key: `refund:${refund?.id ?? charge.id}`,
+            p_reason: 'adjust',
           })
           // This write IS the purpose of the event — throw so the route's
           // catch clears the dedup row and returns 500, letting Stripe retry

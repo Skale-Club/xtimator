@@ -260,6 +260,8 @@ async function chargeAutoTopup(input: {
       companyId: input.companyId,
       credits: pack.credits,
       reason: 'topup',
+      source: 'topup',
+      expiresAt: null,
       refId: paymentIntent.id,
       idempotencyKey: `autotopup:${paymentIntent.id}`,
     })

@@ -42,7 +42,7 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 
 // ------------------------------------------------------------------
 // Supabase service client mock — per-table from() switch, PLUS a top-level
-// .rpc() (the credit clawback calls apply_credit_ledger_entry directly, not
+// .rpc() (the credit clawback calls consume_credits directly, not
 // through .from()).
 // ------------------------------------------------------------------
 const mockInsert = vi.fn()
@@ -134,7 +134,7 @@ beforeEach(() => {
 // FIX 1 — charge.refunded: credit clawback for a top-up/auto-topup charge
 // ==================================================================
 describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () => {
-  it('claws back the granted credits via a NEGATIVE apply_credit_ledger_entry delta, keyed on refund:{chargeId}', async () => {
+  it('claws back the granted credits via a consume_credits adjust debit, keyed on refund:{chargeId}', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_refund_topup',
       type: 'charge.refunded',
@@ -155,10 +155,10 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
 
     expect(res.status).toBe(200)
     expect(mockRpc).toHaveBeenCalledWith(
-      'apply_credit_ledger_entry',
+      'consume_credits',
       expect.objectContaining({
         p_company_id: 'company-1',
-        p_delta_credits: -500,
+        p_credits: 500,
         p_reason: 'adjust',
         p_ref_id: 'ch_topup1',
         p_idempotency_key: 'refund:ch_topup1',
@@ -186,8 +186,8 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
     await POST(makeRequest())
 
     expect(mockRpc).toHaveBeenCalledWith(
-      'apply_credit_ledger_entry',
-      expect.objectContaining({ p_delta_credits: -200, p_idempotency_key: 'refund:ch_auto1' })
+      'consume_credits',
+      expect.objectContaining({ p_credits: 200, p_idempotency_key: 'refund:ch_auto1' })
     )
   })
 
@@ -207,8 +207,8 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
 
     expect(mockPaymentIntentsRetrieve).toHaveBeenCalledWith('pi_bareid')
     expect(mockRpc).toHaveBeenCalledWith(
-      'apply_credit_ledger_entry',
-      expect.objectContaining({ p_delta_credits: -900 })
+      'consume_credits',
+      expect.objectContaining({ p_credits: 900 })
     )
   })
 
@@ -243,7 +243,7 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
         },
       },
     })
-    // Simulate apply_credit_ledger_entry's OWN idempotency catching the
+    // Simulate consume_credits' OWN idempotency catching the
     // redelivery — same contract as grantCredits' applied:false.
     mockRpc.mockResolvedValue({ data: [{ balance_after: 100, applied: false }], error: null })
 
@@ -251,7 +251,7 @@ describe('POST /api/webhooks/stripe — charge.refunded (topup clawback)', () =>
 
     expect(res2.status).toBe(200)
     expect(mockRpc).toHaveBeenLastCalledWith(
-      'apply_credit_ledger_entry',
+      'consume_credits',
       expect.objectContaining({ p_idempotency_key: 'refund:ch_dup' })
     )
   })
