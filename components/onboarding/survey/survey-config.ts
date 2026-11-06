@@ -1,7 +1,7 @@
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { OTHER_INDUSTRY_ID } from '@/lib/industries'
 
-export type SurveyStepKey = 'language' | 'companyName' | 'industry' | 'location' | 'brandColor'
+export type SurveyStepKey = 'language' | 'companyName' | 'industry' | 'location' | 'brandColor' | 'logo'
 export const SURVEY_VERSION = 3
 export interface SurveyStepDef {
   key: SurveyStepKey
@@ -27,6 +27,8 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
   { key: 'location', label: 'Where do you work?',
     helper: 'A city, metro area or state is enough. No street address needed.', required: false,
     validate: () => null, isFilled: values => Boolean(values.city?.trim()) },
-  { key: 'brandColor', label: 'Make it yours', helper: 'Choose the color that represents your business. Add a logo if you have one.',
+  { key: 'brandColor', label: 'Pick a brand color', helper: 'Choose the color that represents your business.',
+    required: false, validate: () => null, isFilled: () => true },
+  { key: 'logo', label: 'Upload your logo', helper: 'PNG or JPG, up to 2MB. You can add it later.',
     required: false, validate: () => null, isFilled: () => true },
 ]

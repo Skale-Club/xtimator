@@ -13,7 +13,8 @@ import type { UseSurveyStateReturn } from './use-survey-state'
 import { CompanyNameStep } from './steps/company-name-step'
 import { IndustryStep } from './steps/industry-step'
 import { LanguageStep } from './steps/language-step'
-import { BrandIdentityStep } from './steps/brand-identity-step'
+import { BrandColorStep } from './steps/brand-color-step'
+import { LogoStep } from './steps/logo-step'
 import { LocationStep } from './steps/location-step'
 
 interface SurveyShellProps {
@@ -106,7 +107,9 @@ export function SurveyShell({
           />
         )
       case 'brandColor':
-        return <BrandIdentityStep {...stepProps} />
+        return <BrandColorStep {...stepProps} />
+      case 'logo':
+        return <LogoStep {...stepProps} />
       case 'location':
         return <LocationStep {...stepProps} />
       default:

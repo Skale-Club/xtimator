@@ -19,13 +19,13 @@ beforeEach(() => localStorage.clear())
 afterEach(() => { cleanup(); localStorage.clear() })
 
 describe('short onboarding', () => {
-  it('has five ordered questions, beginning with the tool language and no review', () => {
-    expect(SURVEY_STEPS.map(s => s.key)).toEqual(['language', 'companyName', 'industry', 'location', 'brandColor'])
+  it('has six ordered questions, beginning with the tool language and no review', () => {
+    expect(SURVEY_STEPS.map(s => s.key)).toEqual(['language', 'companyName', 'industry', 'location', 'brandColor', 'logo'])
     expect(SURVEY_STEPS.filter(s => s.required).map(s => s.key)).toEqual(['companyName'])
   })
   it('validates company name before continuing and keeps answers on Back', () => {
     const { result } = renderHook(() => useSurveyState(INITIAL))
-    expect(result.current.totalSteps).toBe(5)
+    expect(result.current.totalSteps).toBe(6)
     act(() => result.current.goNext())
     act(() => result.current.goNext())
     expect(result.current.currentStep.key).toBe('companyName')
@@ -88,10 +88,10 @@ describe('short onboarding', () => {
 })
 
 describe('SurveyProgress', () => {
-  it('announces the actual position in the five-question flow', () => {
-    const { container } = render(<SurveyProgress current={2} total={5} />)
-    expect(container.textContent).toContain('Step 3 of 5')
-    expect(container.textContent).toContain('60%')
-    expect(container.firstElementChild?.getAttribute('aria-label')).toBe('Step 3 of 5')
+  it('announces the actual position in the six-question flow', () => {
+    const { container } = render(<SurveyProgress current={2} total={6} />)
+    expect(container.textContent).toContain('Step 3 of 6')
+    expect(container.textContent).toContain('50%')
+    expect(container.firstElementChild?.getAttribute('aria-label')).toBe('Step 3 of 6')
   })
 })

@@ -60,7 +60,7 @@ export function useDraftAutosave(draft: OnboardingDraft | undefined, values: Onb
     if (timer.current) clearTimeout(timer.current)
     await queue.current.catch(() => undefined)
     clientId.current ??= crypto.randomUUID()
-    const input = { id: draft.id, mode: draft.mode, step: 'brandColor' as const, values: draftValues(finalValues), clientId: clientId.current, sequence: ++sequence.current }
+    const input = { id: draft.id, mode: draft.mode, step: 'logo' as const, values: draftValues(finalValues), clientId: clientId.current, sequence: ++sequence.current }
     latest.current = input
     return input
   }, [draft])

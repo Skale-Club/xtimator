@@ -1,12 +1,13 @@
 # Onboarding
 
-The active first-run flow has five questions:
+The active first-run flow has six questions:
 
 1. **Tool language** — English, Portuguese (BR) or Spanish. The interface changes immediately and subsequent questions follow the choice.
 2. **Company name** — the only required text answer. Verified phone/email and the available account name are reused from the server session.
 3. **Services** — grouped rows like iPhone Settings, with one group open at a time and selections retained across groups. Custom services and starter catalogue prices are optional.
 4. **Service region** — a free-form city, metro area or state (for example Greater Boston, Connecticut or Framingham). No street address is requested. This is stored in the existing `companies.city` locality field.
-5. **Brand identity** — compact color rectangles and an optional logo, followed directly by completion. No review, license, insurance, tax, payment, warranty or validity questions.
+5. **Brand color** — compact color rectangles on their own screen. Next (or Enter in the custom color field) advances to the logo.
+6. **Company logo** — an optional upload on its own screen, followed directly by completion. No review, license, insurance, tax, payment, warranty or validity questions.
 
 Phone sign-in already verifies the phone. In owned authentication, a new Google account must complete the existing SMS verification before the application issues its session and admits it to onboarding. The server also blocks older sessions without a verified phone from opening/completing onboarding.
 
@@ -42,6 +43,8 @@ where d.mode = 'first'
 ```
 
 The shared production/development database received migration `20261106153000_onboarding_drafts.sql` on 2026-11-06. It creates only the draft table, indexes, touch trigger and owner policies; it does not create companies or seed account answers.
+
+Migration `20261106164500_onboarding_logo_step.sql` adds the stable `logo` step without resetting existing drafts. The browser format stays compatible: previous color-screen drafts resume there and proceed to the new logo screen, keeping any uploaded logo.
 
 ## Interaction and verification
 
