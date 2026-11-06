@@ -42,7 +42,9 @@ import {
   initialSectionVisibility,
   resolveDocumentBlocks,
 } from '@/lib/estimate/document-blocks'
-import { buildAiMeta, isMissingColumnError } from '@/lib/estimate/ai-meta'
+import { buildAiMeta, isMissingColumnError, type QualityBand } from '@/lib/estimate/ai-meta'
+import { playbookFor } from '@/lib/ai/prompt-builder'
+import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
@@ -64,6 +66,15 @@ export type GenerateEstimateResult = {
   version: number
   clientSuggestion: ClientSuggestion | null
   language: EstimateLanguage
+  /**
+   * SEED-057 D: how well structured the draft is. Carried back through the
+   * graph so assess can route a poor draft (< 50) to ONE targeted refine pass
+   * built from `hints`, instead of the blind "be more detailed" retry. Read from
+   * the result, never re-queried, so assess touches no new column.
+   */
+  structure?: { score: number; band: QualityBand; hints: string[] }
+  /** SEED-057 D: the model's open questions, most impactful first (feeds needs-details). */
+  openQuestions?: string[]
 }
 
 export interface GenerateEstimateOptions {
@@ -102,6 +113,8 @@ export interface GenerateEstimateOptions {
 
 /** estimate_items columns added by SEED-057 (see the estimator-intelligence migration). */
 const ITEM_AI_COLUMNS = ['confidence', 'basis', 'optional'] as const
+
+const IMPACT_RANK = { low: 0, medium: 1, high: 2 } as const
 
 function normalizeClientNameForMatch(name: string): string {
   return name
@@ -670,7 +683,24 @@ export async function generateEstimateForProject(
   // when there is something to write; if the column does not exist yet (the
   // migration has not been applied) the insert is retried without it, so a deploy
   // that lands before the migration keeps generating.
-  const aiMeta = buildAiMeta(aiEstimate)
+  // SEED-057 D: how well structured is the draft? Scored on the server-side
+  // sections (after anchoring, research and dedupe), against the playbook the
+  // prompt used. Persisted only when there is something to tell the owner.
+  const sourceText = [...transcripts, ...photoDescriptions, ...prompts].join('\n')
+  const structure = scoreStructure({
+    summary: aiEstimate.summary,
+    sections: dedupedSections,
+    playbook: playbookFor(estimateInput),
+    openQuestions: aiEstimate.open_questions?.length ?? 0,
+    hasMeasurements: mentionsMeasurements(sourceText),
+    language,
+  })
+  const aiMeta = buildAiMeta(
+    aiEstimate,
+    structure.band === 'ok'
+      ? null
+      : { score: structure.score, band: structure.band, findings: structure.findings.map((f) => f.message) },
+  )
 
   // Persist estimate
   const estimateRow = {
@@ -975,5 +1005,18 @@ export async function generateEstimateForProject(
   revalidatePath(`/projects/${projectId}`)
   revalidatePath('/', 'layout')
 
-  return { estimateId, version: nextVersion, clientSuggestion, language }
+  return {
+    estimateId,
+    version: nextVersion,
+    clientSuggestion,
+    language,
+    structure: {
+      score: structure.score,
+      band: structure.band,
+      hints: [...structure.findings].sort((a, b) => b.penalty - a.penalty).map((f) => f.hint),
+    },
+    openQuestions: [...(aiEstimate.open_questions ?? [])]
+      .sort((a, b) => IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact])
+      .map((q) => q.question),
+  }
 }

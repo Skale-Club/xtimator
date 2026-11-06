@@ -23,6 +23,7 @@
  */
 import { requireServiceClient } from '@/lib/supabase/service'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
+import { buildTargetedRefineHint } from '@/lib/estimate/quality/structure-score'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import type { EstimateStateType } from '../state'
 
@@ -45,6 +46,24 @@ export const autoRefineNode = async (
     projectId: state.projectId,
     detail: { round: (state.refineAttempts ?? 0) + 1 },
   })
+
+  // SEED-057 D: a usable-but-poorly-structured draft (not vague) takes a
+  // TARGETED pass: the hint lists the specific findings, and the draft is KEPT.
+  // Unlike the $0 case there is something worth delivering, so if the second
+  // pass fails the first estimate is still the current one. A successful second
+  // pass simply becomes the next version.
+  if (!state.isVague) {
+    const hints = state.structureHints ?? []
+    const targeted = hints.length > 0 ? buildTargetedRefineHint(hints) : REFINE_HINT
+    return {
+      refineAttempts: (state.refineAttempts ?? 0) + 1,
+      estimateId: undefined,
+      isVague: undefined,
+      structureBand: undefined,
+      structureHints: undefined,
+      prompts: [...(state.prompts ?? []), targeted],
+    }
+  }
 
   const supabase = requireServiceClient()
   // Best-effort revert — swallow errors (consistent with WhatsApp adapter pattern).
@@ -77,6 +96,8 @@ export const autoRefineNode = async (
     refineAttempts: (state.refineAttempts ?? 0) + 1,
     estimateId: undefined,
     isVague: undefined,
+    structureBand: undefined,
+    structureHints: undefined,
     prompts: [...(state.prompts ?? []), REFINE_HINT],
   }
 }

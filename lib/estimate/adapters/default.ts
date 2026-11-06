@@ -94,7 +94,15 @@ export function makeDefaultAdapter({ companyId, supabase }: {
           const language = (state.estimateLanguage as EstimateLanguage | undefined) ?? 'en'
           const industryHint = companyRow?.data?.industry ?? undefined
 
-          const needsDetails = await buildNeedsDetails(inputSummary, language, industryHint)
+          // SEED-057 D: the questions the estimator itself raised come first. They
+          // are specific to THIS job, were produced with the whole source in view,
+          // and cost no extra model call. The classification call only runs when
+          // the estimator raised none (it also detects mic tests).
+          const raised = (state.openQuestions ?? []).filter((q) => q.trim().length > 0).slice(0, 4)
+          const needsDetails =
+            raised.length > 0
+              ? { reason: 'missing_specifics' as const, questions: raised }
+              : await buildNeedsDetails(inputSummary, language, industryHint)
 
           await supabase
             .from('projects')

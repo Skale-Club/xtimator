@@ -50,7 +50,14 @@ const AUTO_REFINE_MAX_ATTEMPTS = (() => {
  * channel-appropriate needs_details outcome when the cap is reached.
  */
 export function checkVagueAfterAssessEdge(state: EstimateStateType): string {
-  if (!state.isVague) return 'finalize'
-  if ((state.refineAttempts ?? 0) < AUTO_REFINE_MAX_ATTEMPTS) return 'autoRefine'
+  const canRefine = (state.refineAttempts ?? 0) < AUTO_REFINE_MAX_ATTEMPTS
+  if (!state.isVague) {
+    // SEED-057 D: a usable but poorly structured draft (score < 50) gets the same
+    // single refine pass, driven by its specific findings. 50-69 is delivered
+    // with a banner; the $0 rule above stays the hard floor.
+    if (state.structureBand === 'refine' && canRefine) return 'autoRefine'
+    return 'finalize'
+  }
+  if (canRefine) return 'autoRefine'
   return 'finalize'
 }

@@ -154,3 +154,78 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
     expect(mock.estimateInserts).toHaveLength(1)
   })
 })
+
+describe('generateEstimateForProject - structure verdict (SEED-057 D)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  it('returns the structure verdict and open questions, most impactful first', async () => {
+    setup({
+      ...RICH,
+      open_questions: [
+        { question: 'Low impact?', impact: 'low' },
+        { question: 'High impact?', impact: 'high' },
+        { question: 'Medium impact?', impact: 'medium' },
+      ],
+    })
+    const mock = makeServiceMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    expect(result.openQuestions).toEqual(['High impact?', 'Medium impact?', 'Low impact?'])
+    expect(result.structure).toBeDefined()
+    expect(['ok', 'review', 'refine']).toContain(result.structure!.band)
+  })
+
+  it('a poor draft persists its findings in ai_meta.quality and hands hints to the graph', async () => {
+    setup({
+      suggested_project_name: 'Big job',
+      suggested_client_name: null,
+      summary: '',
+      sections: [
+        {
+          title: 'Other',
+          items: [
+            { description: 'Miscellaneous work', quantity: 1, unit_price: 2400, price_source: 'ai_estimate' },
+            { description: 'Materials', quantity: 1, unit_price: 100, price_source: 'ai_estimate' },
+          ],
+        },
+        { title: 'Walls', items: [] },
+        { title: 'Ceilings', items: [] },
+      ],
+    })
+    const mock = makeServiceMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    expect(result.structure!.band).toBe('refine')
+    expect(result.structure!.hints.length).toBeGreaterThan(2)
+    const meta = mock.estimateInserts[0].ai_meta as { quality: { band: string; score: number; findings: string[] } }
+    expect(meta.quality.band).toBe('refine')
+    expect(meta.quality.score).toBeLessThan(50)
+    expect(meta.quality.findings.length).toBeGreaterThan(2)
+  })
+
+  it('a good draft writes no quality block', async () => {
+    setup({
+      suggested_project_name: 'Bedroom',
+      suggested_client_name: null,
+      summary: 'Repaint the bedroom walls, ceiling and trim.',
+      sections: [
+        { title: 'Prep and protection', items: [{ description: 'Mask and protect floors', quantity: 1, unit: 'job', unit_price: 100, price_source: 'ai_estimate' }] },
+        { title: 'Walls', items: [{ description: 'Paint walls', quantity: 300, unit: 'sq ft', unit_price: 2, price_source: 'ai_estimate' }, { description: 'Paint ceiling', quantity: 150, unit: 'sq ft', unit_price: 1.5, price_source: 'ai_estimate' }] },
+        { title: 'Cleanup', items: [{ description: 'Cleanup and disposal', quantity: 1, unit: 'job', unit_price: 40, price_source: 'ai_estimate' }] },
+      ],
+    })
+    const mock = makeServiceMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+
+    const result = await generateEstimateForProject('company-1', 'project-1')
+
+    expect(result.structure!.band).toBe('ok')
+    expect(mock.estimateInserts[0]).not.toHaveProperty('ai_meta')
+  })
+})

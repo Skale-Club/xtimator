@@ -45,6 +45,9 @@ export const makeGenerateNode =
       return {
         estimateId: result.estimateId,
         estimateLanguage: result.language,
+        structureBand: result.structure?.band,
+        structureHints: result.structure?.hints,
+        openQuestions: result.openQuestions,
       }
     } catch (err) {
       console.error('[estimate-graph] generate failed; routing to onError:', err)

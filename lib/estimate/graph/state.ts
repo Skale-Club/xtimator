@@ -55,6 +55,16 @@ export const EstimateState = Annotation.Root({
    * Generalizes the old per-channel generationFailed boolean.
    */
   failure: Annotation<{ reason: FailureReason; detail?: string } | undefined>(),
+  /**
+   * SEED-057 D: verdict of the structure score on the estimate the generate
+   * node just saved ('refine' < 50, 'review' 50-69, 'ok' >= 70). Carried in
+   * state so assess needs no database read of the new ai_meta column.
+   */
+  structureBand: Annotation<'refine' | 'review' | 'ok' | undefined>(),
+  /** SEED-057 D: the specific problems behind the score, as instructions for the targeted refine. */
+  structureHints: Annotation<string[] | undefined>(),
+  /** SEED-057 D: the model's open questions, most impactful first (feeds needs-details). */
+  openQuestions: Annotation<string[] | undefined>(),
   /** Scaffolded for Phase 96 auto-refine; unused this phase. */
   refineAttempts: Annotation<number | undefined>(),
   /**
