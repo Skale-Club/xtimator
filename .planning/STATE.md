@@ -4,8 +4,8 @@ milestone: v4.24
 milestone_name: Same-Origin Storage on R2
 status: completed
 stopped_at: "Milestone v4.24 COMPLETE 2026-08-07 — all 6 phases (187-192), 24/24 plans, 20/20 requirements. Live in production: same-origin /storage/ proxy serving from Cloudflare R2 (x-asset-source: r2), landing page at 0 supabase.co references with cf-cache-status HIT, tenant-private buckets BYPASS. 55 objects migrated and verified. Open gaps recorded in 192-03/04/05 SUMMARYs: no production rollback drill, no human visual UAT. Pending: FUT-R2-01 (disable the Supabase fallback once stable)."
-last_updated: "2026-11-05"
-last_activity: "2026-11-06 — quick 261106-a5f complete: existing Skale Club reorganized with 12 fictional clients, 19 field-service estimates and 56 catalogue entries in shared development/production database; prior tests archived; historical dashboard pending-count limitation documented"
+last_updated: "2026-11-06"
+last_activity: "2026-11-06 — quick 261106-alg complete: dashboard pending estimates exclude archived/trashed projects; Skale Club verified at seven rather than 29; both CI suite runs passed and production health confirmed deployed fix 313633c0"
 progress:
   total_phases: 136
   completed_phases: 122
@@ -1514,6 +1514,7 @@ v3.1: Phases 61-65 (started 2026-05-15). Production Go-Live — 27 requirements 
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| 261106-alg | Exclude archived/trashed projects from pending estimates; verified in production | 2026-11-06 | 313633c0 | [261106-alg](.planning/quick/261106-alg-exclude-archived-and-trashed-project-est/) |
 | 261106-a5f | Prepare realistic mixed field-service tutorial data in existing Skale Club account | 2026-11-06 | 4adf5774 | [261106-a5f](.planning/quick/261106-a5f-prepare-realistic-fictional-video-record/) |
 | 261105-9pb | Implement phone-first owned authentication and sessions (environment cutover inactive) | 2026-11-05 | fda23e2b | [261105-9pb](.planning/quick/261105-9pb-implement-xpot-phone-first-identity-and-/) |
 | 261105-98h | Map Xpot phone-first login and Xtimator Supabase Auth migration (analysis/design only) | 2026-11-05 | e25d369e | [261105-98h](.planning/quick/261105-98h-map-xpot-phone-first-login-and-xtimator-/) |
