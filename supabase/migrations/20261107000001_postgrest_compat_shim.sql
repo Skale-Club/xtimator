@@ -20,9 +20,13 @@
 --   alters ownership, grants or definitions. Applying it twice is also a no-op.
 --
 -- WHERE / WHEN TO APPLY (self-hosted target only)
---   Run as a superuser (roles with BYPASSRLS can only be created by one), right
---   AFTER the pg_restore of `public` + `supabase_migrations` and BEFORE
---   PostgREST starts. scripts/db-copy.sh does this for you; the manual form is
+--   Run as a superuser (roles with BYPASSRLS can only be created by one), TWICE:
+--     1. BEFORE the pg_restore - the dump's policies call auth.uid() and its
+--        columns use extensions.vector, so both must already exist;
+--     2. AGAIN right AFTER the pg_restore - --no-privileges leaves the restored
+--        tables ungranted, and step 4 below grants them.
+--   In both cases it must finish BEFORE PostgREST starts. scripts/db-copy.sh does
+--   both for you; the manual form is
 --     psql "$TARGET_ADMIN_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/20261107000001_postgrest_compat_shim.sql
 --   The operator then sets the authenticator password OUT OF BAND (never in this
 --   file):  ALTER ROLE authenticator PASSWORD '<authenticator-password>';
