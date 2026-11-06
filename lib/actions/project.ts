@@ -8,6 +8,7 @@ import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
@@ -64,6 +65,8 @@ export async function createProjectAction(formData: ProjectFormValues) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingCreateDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
@@ -123,6 +126,8 @@ export async function resumeOrCreateDraftProjectAction(
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingCreateDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   if (savedProjectId) {
@@ -202,6 +207,8 @@ export async function deleteProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   if (await projectHasSignedEstimate(supabase, projectId)) {
@@ -238,6 +245,8 @@ export async function duplicateProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingCreateDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   // Fetch original project
@@ -276,6 +285,8 @@ export async function createProjectWithClientAction(clientId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingCreateDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const placeholderName = `${PLACEHOLDER_PREFIX}${new Date().toLocaleDateString()}`
@@ -315,6 +326,8 @@ export async function linkProjectToClient(projectId: string, clientId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -333,6 +346,8 @@ export async function unlinkProjectFromClient(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -359,6 +374,8 @@ export async function renameProjectAction(projectId: string, name: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -390,6 +407,8 @@ export async function archiveProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   // Setting archived_at moves the row from Active → Archived.
@@ -413,6 +432,8 @@ export async function unarchiveProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -433,6 +454,8 @@ export async function softDeleteProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   // Soft delete: sets deleted_at. Row hides from Active AND Archived; appears in Trash.
@@ -454,6 +477,8 @@ export async function restoreProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   // Restore = clear deleted_at. archived_at is preserved (intentional — see softDelete above).
@@ -475,6 +500,8 @@ export async function hardDeleteProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   if (await projectHasSignedEstimate(supabase, projectId)) {

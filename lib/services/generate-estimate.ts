@@ -36,6 +36,7 @@ import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
+import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
 /** 260927: minimum gap between two live drafting reports in the journal. */
 const DRAFT_REPORT_MIN_INTERVAL_MS = 2_000
@@ -182,6 +183,13 @@ export async function generateEstimateForProject(
   // photos/client PII and writing destructive updates (version bump,
   // is_current flips) to that tenant's data.
   if (project.company_id !== companyId) throw new Error('Project not found')
+
+  // SEED-055 Phase D: generating (a new estimate version) needs credits. The AI
+  // routes pre-check too; this is the server-side backstop for every other
+  // entry (WhatsApp confirm, MCP, agent tools, Inngest). Inert while
+  // enforcement is OFF.
+  const billingBlocked = await billingCreateDenied(companyId, 'estimate')
+  if (billingBlocked) throw new BillingBlockedError(billingBlocked.code)
 
   const currencyCode = normalizeCurrencyCode(company.currency_code)
   const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(

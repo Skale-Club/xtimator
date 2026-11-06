@@ -27,6 +27,7 @@ import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { createRecording, createTextRecording, transcribeRecording } from '@/lib/actions/recording'
 import { pollJob } from '@/hooks/use-job-status'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 
@@ -183,6 +184,11 @@ export function useAIInputSubmit({
         setStage('uploading')
         const result = await createTextRecording(projectId, trimmed)
         if ('error' in result) {
+          // SEED-055 Phase D: credits / paywall wall -> Subscribe / Buy credits toast.
+          if (showBillingBlockToast((result as { code?: unknown }).code, router, t)) {
+            setStage('idle')
+            return false
+          }
           throw new Error(result.error)
         }
 
@@ -198,7 +204,7 @@ export function useAIInputSubmit({
         return false
       }
     },
-    [projectId, runGenerate, landOnEstimateTab, t],
+    [projectId, runGenerate, landOnEstimateTab, router, t],
   )
 
   return {

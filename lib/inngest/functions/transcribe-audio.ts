@@ -44,6 +44,7 @@ import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { computeWhisperCostUsd, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import {
@@ -314,7 +315,7 @@ export const transcribeAudioJob = inngest.createFunction(
         // client (this is a background job, no request-scoped client exists) —
         // checkCredits' plain `companies` select works unchanged against it.
         const svc = requireServiceClient()
-        const credit = await checkCredits(svc, data.companyId, 1)
+        const credit = await checkCredits(svc, data.companyId, await getEstimatedCredits('estimate'))
         if (!credit.allowed) {
           void recordPipelineEvent({
             attemptId,

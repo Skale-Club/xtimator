@@ -46,7 +46,7 @@ export type EstimateOutcome =
   // wasn't used, the enrichment read missed, or the fallback DB-truth check
   // below fired instead (it can never know the classification).
   | { state: 'awaiting_details'; reason?: string; questions?: string[] }
-  | { state: 'failed'; step: string; reason: string }
+  | { state: 'failed'; step: string; reason: string; creditBlocked?: true }
   | { state: 'timeout' }
 
 /**
@@ -212,7 +212,12 @@ export async function pollEstimateOutcome(opts: {
           }
         }
         if (attemptOutcome.state === 'failed') {
-          return { state: 'failed', step: attemptOutcome.step, reason: attemptOutcome.reason }
+          return {
+            state: 'failed',
+            step: attemptOutcome.step,
+            reason: attemptOutcome.reason,
+            ...(attemptOutcome.creditBlocked ? { creditBlocked: true as const } : {}),
+          }
         }
         if (attemptOutcome.state === 'pending') {
           if (attemptOutcome.lastEventAt && attemptOutcome.lastEventAt !== lastEventAt) {

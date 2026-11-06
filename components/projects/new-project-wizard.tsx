@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { createBlankEstimate } from '@/lib/actions/estimate'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -77,6 +79,7 @@ export function NewProjectWizard({
   setEstimateLanguage,
 }: NewProjectWizardProps = {}) {
   const router = useRouter()
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -107,7 +110,11 @@ export function NewProjectWizard({
       const clientId = searchParams.get('clientId') ?? undefined
       const result = await resumeOrCreateDraftProjectAction(readDraftProjectId(), clientId)
       if ('error' in result) {
-        toast.error(result.error)
+        // SEED-055 Phase D: a paywalled / out-of-credits company cannot create a
+        // draft project - show the Subscribe / Buy credits toast instead.
+        if (!showBillingBlockToast((result as { code?: unknown }).code, router, t)) {
+          toast.error(result.error)
+        }
         setIsCreating(false)
         return
       }
@@ -136,6 +143,7 @@ export function NewProjectWizard({
     const result = await createBlankEstimate(project.id)
     clearDraftProjectId()
     if ('error' in result || !result.data) {
+      if (showBillingBlockToast((result as { code?: unknown }).code, router, t)) return
       toast.error((result as { error?: string }).error ?? 'Failed to create estimate')
       return
     }

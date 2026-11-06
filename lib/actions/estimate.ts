@@ -16,6 +16,7 @@ import {
   type SaveEstimateInput,
 } from '@/lib/schemas/estimate'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable, assertCompanyWritable } from '@/lib/demo/guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 import {
@@ -103,6 +104,8 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   const companyId = company.id as string
 
@@ -371,6 +374,8 @@ export async function savePresentationSettings(
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   let updateQuery = supabase
@@ -428,6 +433,11 @@ export async function createBlankEstimate(projectId: string) {
   if (current?.id) {
     return { data: { estimateId: current.id as string } }
   }
+
+  // Creating a NEW estimate (or version) is gated; returning the existing current
+  // one above is a read and stays allowed.
+  const billingDenied = await billingCreateDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
 
   // Version carry-forward (Quick-260704-pt2) — capture the currently-current
   // estimate's id before flipping it, so its attached photos can be copied
@@ -614,6 +624,8 @@ export async function deleteEstimateSection(sectionId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   // Get section's estimate_id before deletion
@@ -651,6 +663,8 @@ export async function deleteEstimateItem(itemId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   // Get item's section_id before deletion

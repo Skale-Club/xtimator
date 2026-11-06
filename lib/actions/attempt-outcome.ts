@@ -47,7 +47,9 @@ export type AttemptOutcome =
   // doesn't match (stale row from a prior attempt) or the column read fails —
   // the bare `needs_details` shape stays a valid, backward-compatible outcome.
   | { state: 'needs_details'; reason?: string; questions?: string[] }
-  | { state: 'failed'; step: string; reason: string }
+  // creditBlocked: the journal row's error_code was 'insufficient_credits' (SEED-055
+  // Phase D) - the UI hides the manual fallback and points at billing instead.
+  | { state: 'failed'; step: string; reason: string; creditBlocked?: true }
   // 260707-o7a: pending carries the journal-derived progress payload so the
   // client can drive the REAL progress bar (lib/estimate/progress-model.ts):
   //   completedSteps — steps with a `succeeded` event, in journal order;
@@ -222,6 +224,7 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
         state: 'failed',
         step: failed.step,
         reason: failed.error_message ?? 'Unknown error',
+        ...(failed.error_code === 'insufficient_credits' ? { creditBlocked: true as const } : {}),
       }
     }
 

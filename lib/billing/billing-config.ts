@@ -1,5 +1,6 @@
 import 'server-only'
 import { createServiceClient } from '@/lib/supabase/service'
+import type { EstimatedCreditOp } from '@/lib/billing/estimated-credit-ops'
 
 /**
  * Phase 111 — billing_config store CORE (BILLCFG-01 / BILLCFG-03).
@@ -57,6 +58,7 @@ export type TierBilling = {
   // Marketing feature bullets rendered on the tier card (was hardcoded copy).
   featureBullets: string[]
 }
+export type { EstimatedCreditOp } from '@/lib/billing/estimated-credit-ops'
 export type BillingTier = 'free' | 'pro' | 'business' // mirrors the TierName union (Billing v2: 'trial' retired — free IS the trial via signupCreditGrant)
 
 /**
@@ -106,6 +108,15 @@ export type BillingConfig = {
    * merge in getBillingConfig.
    */
   topupExpiryMonths: number
+  /**
+   * SEED-055 Phase D: credits an operation is expected to cost, used ONLY by the
+   * pre-gate (checkCredits / assertCanCreate) to decide whether a company with a
+   * small positive balance may start the op. Never shown to the user and never
+   * debited - the debit is the measured real cost. Default 1 per op until
+   * calibrated from production data. A stored row without the field falls
+   * through to the defaults (merged per key in getBillingConfig).
+   */
+  estimatedCreditsByOp: Record<EstimatedCreditOp, number>
   lowBalanceThresholds: number[] // credit balances at which to warn; default [200, 50]
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
@@ -264,6 +275,8 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   ],
   // SEED-055 Phase C: top-up lots expire 3 months after purchase.
   topupExpiryMonths: 3,
+  // SEED-055 Phase D: pre-gate cost per op (calibrate from prod data later).
+  estimatedCreditsByOp: { estimate: 1, photo_batch: 1, audio_minutes: 1, price_research: 1, chat: 1 },
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
@@ -362,11 +375,16 @@ export async function getBillingConfig(): Promise<BillingConfig> {
     ...DEFAULT_BILLING_CONFIG.affiliate,
     ...((stored.affiliate ?? {}) as Partial<AffiliateConfig>),
   }
+  const estimatedCreditsByOp: Record<EstimatedCreditOp, number> = {
+    ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp,
+    ...((stored.estimatedCreditsByOp ?? {}) as Partial<Record<EstimatedCreditOp, number>>),
+  }
   const value: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
     tiers,
     affiliate,
+    estimatedCreditsByOp,
   }
   billingConfigCache = { value, fetchedAt: now }
   return value

@@ -13,6 +13,8 @@ import { CaptureNeedsDetails } from '@/components/capture/capture-needs-details'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { startRecordingPipeline, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
+import { isBillingBlockCode, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { uploadProjectPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -282,6 +284,9 @@ export function CaptureRecorder({
   const [stage, setStage] = useState<Stage>('idle')
   const [failedAt, setFailedAt] = useState<StageKey | undefined>(undefined)
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
+  // SEED-055 Phase D: set when the failure is a credits / paywall wall, so the
+  // failure panel drops Retry / Edit manually and points at billing instead.
+  const [billingBlock, setBillingBlock] = useState<BillingBlockCode | 'credits' | null>(null)
   const [retriesUsed, setRetriesUsed] = useState(0)
   // QUICK-psh-02: classification + specific questions from the vague terminal
   // (projects.needs_details via getAttemptOutcome), rendered as a compact panel
@@ -718,9 +723,16 @@ export function CaptureRecorder({
   // 'failed' EstimateOutcome) already has a durable pipeline_events row (the
   // server recorded it); calling reportClientPipelineFailure for it too would
   // double-report the same failure under a synthetic 'client_reported' code.
-  const failAt = useCallback((s: StageKey, msg: string, opts?: { skipReport?: boolean }) => {
+  const failAt = useCallback((
+    s: StageKey,
+    msg: string,
+    opts?: { skipReport?: boolean; billingBlock?: BillingBlockCode | 'credits' }
+  ) => {
     setFailedAt(s)
     setErrorMessage(msg)
+    setBillingBlock(opts?.billingBlock ?? null)
+    // A credits wall was already journaled server-side (insufficient_credits).
+    if (opts?.billingBlock) return
     if (opts?.skipReport) return
     const stepMap = {
       saving: 'save_recording',
@@ -843,7 +855,10 @@ export function CaptureRecorder({
       // error_message, surfaced within ~1 tick instead of the 6-minute
       // timeout. skipReport: true — the journal already has this failure
       // (the server wrote it), so failAt must not double-report it.
-      failAt(stepToStageKey(outcome.step), outcome.reason, { skipReport: true })
+      failAt(stepToStageKey(outcome.step), outcome.reason, {
+        skipReport: true,
+        ...(outcome.creditBlocked ? { billingBlock: 'credits' as const } : {}),
+      })
       return
     }
     // timeout. 260927: the journal went quiet for the whole idle window (or
@@ -966,6 +981,7 @@ export function CaptureRecorder({
     setStage('saving')
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    setBillingBlock(null)
     // QUICK-psh-02: a fresh dispatch must not show a stale needs-details panel
     // from a prior discarded attempt.
     setNeedsDetailsInfo(null)
@@ -1029,7 +1045,9 @@ export function CaptureRecorder({
       dispatchNonce: dispatchNonceRef.current,
     })
     if ('error' in started) {
-      failAt('saving', started.error ?? t('Failed to save recording'))
+      failAt('saving', started.error ?? t('Failed to save recording'), {
+        billingBlock: isBillingBlockCode(started.code) ? started.code : undefined,
+      })
       return
     }
     recordingIdRef.current = started.data.recordingId
@@ -1089,6 +1107,7 @@ export function CaptureRecorder({
     abortControllerRef.current = new AbortController()
     setFailedAt(undefined)
     setErrorMessage(undefined)
+    setBillingBlock(null)
     // QUICK-psh-02: a fresh dispatch must not show a stale needs-details panel
     // from a prior discarded attempt.
     setNeedsDetailsInfo(null)
@@ -1111,7 +1130,12 @@ export function CaptureRecorder({
         requestId: requestIdRef.current ?? undefined,
         estimateLanguage,
       })
-      if ('error' in recording) { failAt('saving', recording.error ?? t('Failed to save description')); return }
+      if ('error' in recording) {
+        failAt('saving', recording.error ?? t('Failed to save description'), {
+          billingBlock: isBillingBlockCode(recording.code) ? recording.code : undefined,
+        })
+        return
+      }
       setStage('generating')
       try {
         const outcome = await watchOutcome()
@@ -1271,7 +1295,8 @@ export function CaptureRecorder({
   // lands on the EstimateEditor instead of the empty-state card (which has a
   // disabled Generate button when no transcript exists).
   async function handleEditManually() {
-    await createBlankEstimate(projectId)
+    const blank = await createBlankEstimate(projectId)
+    if (showBillingBlockToast((blank as { code?: unknown }).code, router, t)) return
     router.push(`/projects/${projectId}`)
   }
 
@@ -1432,6 +1457,7 @@ export function CaptureRecorder({
                   retriesUsed={retriesUsed}
                   onRetry={hasAnyInput ? handleRetry : undefined}
                   onEditManually={handleEditManually}
+                  billingBlock={billingBlock ?? undefined}
                 />
               </div>
             </div>
@@ -1481,6 +1507,7 @@ export function CaptureRecorder({
                 retriesUsed={retriesUsed}
                 onRetry={hasAnyInput ? handleRetry : undefined}
                 onEditManually={handleEditManually}
+                  billingBlock={billingBlock ?? undefined}
               />
             )}
             {/* QUICK-psh-02: needs-details panel (legacy fullscreen route). */}

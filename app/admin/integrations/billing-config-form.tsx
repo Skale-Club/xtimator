@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { BillingConfig, BillingTier } from '@/lib/billing/billing-config'
+import { ESTIMATED_CREDIT_OPS } from '@/lib/billing/estimated-credit-ops'
 import { saveBillingConfig } from './actions'
 
 type Props = {
@@ -115,6 +116,16 @@ export function BillingConfigForm({ current }: Props) {
     String(current.topupExpiryMonths ?? 3)
   )
 
+  // SEED-055 Phase D: pre-gate credit estimate per operation.
+  const [estimatedCredits, setEstimatedCredits] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      ESTIMATED_CREDIT_OPS.map((op) => [
+        op,
+        String(current.estimatedCreditsByOp?.[op] ?? 1),
+      ])
+    )
+  )
+
   // Low-balance thresholds as a comma-joined text input
   const [lowBalanceThresholds, setLowBalanceThresholds] = useState(
     current.lowBalanceThresholds.join(', ')
@@ -212,6 +223,9 @@ export function BillingConfigForm({ current }: Props) {
         priceCents: Number(p.priceCents),
       })),
       topupExpiryMonths: Number(topupExpiryMonths),
+      estimatedCreditsByOp: Object.fromEntries(
+        ESTIMATED_CREDIT_OPS.map((op) => [op, Number(estimatedCredits[op])])
+      ) as BillingConfig['estimatedCreditsByOp'],
       lowBalanceThresholds: lowBalanceThresholds
         .split(',')
         .map((s) => s.trim())
@@ -669,6 +683,33 @@ export function BillingConfigForm({ current }: Props) {
               className={inputClass}
             />
           </label>
+        </div>
+      </fieldset>
+
+      {/* Pre-gate credit estimate per operation (SEED-055 Phase D) */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Estimated credits per operation')}</legend>
+        <p className="text-xs text-muted-foreground">
+          {t('Used only to decide whether an operation may start. The debit is always the measured cost.')}
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {ESTIMATED_CREDIT_OPS.map((op) => (
+            <label key={op} className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">{op}</span>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={estimatedCredits[op]}
+                onChange={(e) =>
+                  setEstimatedCredits((prev) => ({ ...prev, [op]: e.target.value }))
+                }
+                disabled={isPending}
+                aria-label={`${t('Estimated credits')}: ${op}`}
+                className={inputClass}
+              />
+            </label>
+          ))}
         </div>
       </fieldset>
 

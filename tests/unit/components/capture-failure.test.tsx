@@ -90,3 +90,47 @@ describe('REC-02: CaptureFailure', () => {
     ).toContain('__t(Edit manually)__')
   })
 })
+
+describe('SEED-055 Phase D: credits / paywall failures', () => {
+  it.each(['paywalled', 'out_of_credits', 'credits'] as const)(
+    'billingBlock=%s hides Retry and Edit manually and shows a billing CTA',
+    (billingBlock) => {
+      render(
+        <CaptureFailure
+          errorMessage="You are out of credits."
+          retriesUsed={0}
+          onRetry={() => {}}
+          onEditManually={() => {}}
+          billingBlock={billingBlock}
+        />
+      )
+      expect(screen.queryByTestId('capture-edit-manually')).toBeNull()
+      expect(screen.queryByTestId('capture-retry')).toBeNull()
+      const cta = screen.getByTestId('capture-billing-cta')
+      expect(cta.getAttribute('href')).toBe('/settings/billing')
+    }
+  )
+
+  it('picks the CTA label from the wall that was hit', () => {
+    const { rerender } = render(
+      <CaptureFailure errorMessage="x" retriesUsed={0} billingBlock="paywalled" />
+    )
+    expect(screen.getByTestId('capture-billing-cta').textContent).toContain('__t(Subscribe)__')
+    rerender(<CaptureFailure errorMessage="x" retriesUsed={0} billingBlock="out_of_credits" />)
+    expect(screen.getByTestId('capture-billing-cta').textContent).toContain('__t(Buy credits)__')
+  })
+
+  it('a genuine AI failure (no billingBlock) keeps both fallbacks', () => {
+    render(
+      <CaptureFailure
+        errorMessage="The model timed out."
+        retriesUsed={0}
+        onRetry={() => {}}
+        onEditManually={() => {}}
+      />
+    )
+    expect(screen.getByTestId('capture-retry')).toBeTruthy()
+    expect(screen.getByTestId('capture-edit-manually')).toBeTruthy()
+    expect(screen.queryByTestId('capture-billing-cta')).toBeNull()
+  })
+})

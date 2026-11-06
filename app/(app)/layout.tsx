@@ -14,6 +14,8 @@ import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 import { TrialBanner } from '@/components/billing/trial-banner'
+import { PaywallBanner } from '@/components/billing/paywall-banner'
+import { getPaywallContext } from '@/lib/billing/access-guard'
 import { DemoBanner } from '@/components/demo/demo-banner'
 import { isDemoCompany } from '@/lib/demo/config'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
@@ -175,7 +177,7 @@ export default async function AppShellLayout({
   const isDemo = isDemoCompany(activeCompanyId)
 
   const supabase = await createClient()
-  const [branding, adminRow, billingRow, memberships, { data: userData }, grantedThisCycle] =
+  const [branding, adminRow, billingRow, memberships, { data: userData }, grantedThisCycle, paywall] =
     await Promise.all([
       brandingPromise, // already in flight
       requireServiceClient()
@@ -201,6 +203,9 @@ export default async function AppShellLayout({
       // disagreed (a company that never received its full grant this cycle,
       // or one that topped up mid-cycle).
       getCycleGrantedCredits(activeCompanyId),
+      // SEED-055 Phase D: credits-are-the-only-wall state. Inert (active) while
+      // enforcement is OFF; fails open on a read error.
+      getPaywallContext(activeCompanyId),
     ])
   const isAdmin = !!adminRow.data
 
@@ -265,6 +270,9 @@ export default async function AppShellLayout({
               userName={company.owner_name ?? null}
             />
             {isDemo && <DemoBanner />}
+            {paywall.state !== 'active' && (
+              <PaywallBanner state={paywall.state} priceLabel={paywall.priceLabel} />
+            )}
             {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
               <TrialBanner daysRemaining={trialDaysRemaining} />
             )}

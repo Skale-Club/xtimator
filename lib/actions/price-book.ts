@@ -16,6 +16,7 @@ import {
 } from '@/lib/csv/dedupe'
 import type { ImportRow } from '@/lib/csv/price-book-import'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable } from '@/lib/demo/guard'
 
 async function getAuthContext() {
@@ -45,6 +46,8 @@ export async function createFolder(name: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   const { data, error } = await supabase
     .from('price_book_folders')
@@ -61,6 +64,8 @@ export async function updateFolder(folderId: string, name: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
   const { error } = await supabase
     .from('price_book_folders')
@@ -76,6 +81,8 @@ export async function deleteFolder(folderId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   // Guard: deny delete if any items reference this folder
   const { count, error: countErr } = await supabase
@@ -104,6 +111,8 @@ export async function deleteFolderWithItems(folderId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { error: trashErr } = await supabase
@@ -133,6 +142,8 @@ export async function resolveOrCreateFolders(
   if ('error' in ctx) return { error: ctx.error as string }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   if (names.length === 0) return { data: new Map() }
   // Fetch existing
@@ -204,6 +215,8 @@ export async function createPriceBookItem(
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { data, error } = await supabase
@@ -284,6 +297,8 @@ export async function updatePriceBookItem(
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { data, error } = await supabase
@@ -384,6 +399,8 @@ export async function deletePriceBookItem(itemId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -404,6 +421,8 @@ export async function trashPriceBookItems(itemIds: string[]) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -426,6 +445,8 @@ export async function restorePriceBookItems(itemIds: string[]) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -450,6 +471,8 @@ export async function destroyPriceBookItems(itemIds: string[]) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
   if (itemIds.length === 0) return { error: 'No items selected.' }
 
@@ -472,6 +495,8 @@ export async function emptyPriceBookTrash() {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { error, count } = await supabase
@@ -497,6 +522,8 @@ export async function importPriceBookItems(
   if ('error' in ctx) return { error: ctx.error as string }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   // Server-side re-validate every row (defense in depth)
@@ -574,6 +601,8 @@ export async function bulkAdjustPriceBookFolder(
   if ('error' in ctx) return { error: ctx.error as string }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   // Fetch all items in the folder for this company (full row for upsert).
@@ -681,6 +710,8 @@ export async function commitImportChunk(
   if ('error' in ctx) return { error: ctx.error as string }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { data: claimsData } = await supabase.auth.getClaims()
@@ -966,6 +997,8 @@ export async function undoLastImport(
   if ('error' in ctx) return { error: ctx.error as string }
   const denied = await assertWritable()
   if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
   const { data: imp, error: impErr } = await supabase

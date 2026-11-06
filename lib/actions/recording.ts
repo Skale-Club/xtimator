@@ -11,13 +11,15 @@ import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { assertWritable } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { creditBlockState, BILLING_BLOCK_MESSAGES } from '@/lib/billing/access-guard'
+import type { BillingBlockCode } from '@/lib/billing/block-codes'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
 // 260707-lyq (P4): Billing v2 credit gate shared by every server-owned dispatch
 // path in this module (startRecordingPipeline, createTextRecording's optional
-// chain). Same copy everywhere so the UI can string-match it if ever needed.
-const INSUFFICIENT_CREDITS_MESSAGE =
-  'You are out of credits — top up in Settings → Billing to keep generating estimates.'
+// chain). SEED-055 Phase D: the denial carries `code` ('paywalled' |
+// 'out_of_credits') plus the matching BILLING_BLOCK_MESSAGES copy.
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -137,7 +139,7 @@ export async function createTextRecording(
     // lib/billing/credit-ledger.ts already follows internally (isByokCompany).
     let creditsAllowed = true
     try {
-      const credit = await checkCredits(supabase, company.id, 1)
+      const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('estimate'))
       creditsAllowed = credit.allowed
     } catch (err) {
       console.warn('[createTextRecording] checkCredits failed — failing open:', err)
@@ -154,7 +156,9 @@ export async function createTextRecording(
         errorMessage: 'Insufficient credits',
         provider: null,
       })
-      return { error: INSUFFICIENT_CREDITS_MESSAGE }
+      // SEED-055 Phase D: machine code so the UI can pick Subscribe vs Buy credits.
+      const code = await creditBlockState(company.id, 'estimate')
+      return { error: BILLING_BLOCK_MESSAGES[code], code }
     }
 
     const { inngest } = await import('@/lib/inngest/client')
@@ -535,12 +539,14 @@ export async function startRecordingPipeline(input: {
   requestId: string
   estimateLanguage?: 'en' | 'pt' | 'es'
   dispatchNonce?: number     // Retry: bump so the re-dispatch gets a new event id
-}): Promise<{ data: { recordingId: string; transcribeJobId: string } } | { error: string }> {
+}): Promise<
+  { data: { recordingId: string; transcribeJobId: string } } | { error: string; code?: BillingBlockCode }
+> {
   // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK this
   // entire server-owned dispatch path, before a recording is created OR a
   // transcription is (re-)dispatched. Mirrors app/api/analyze-photos/route.ts's
-  // checkCredits(supabase, companyId, 1) call exactly (same client type, args,
-  // and insufficient-result shape).
+  // checkCredits call (same client type and insufficient-result shape; the
+  // op's estimate now comes from billing_config.estimatedCreditsByOp).
   const ctx = await getAuthContext()
   // Reconstructed (not forwarded as-is): same TS quirk noted below at
   // createRecording's error-widening call site — getAuthContext's inferred
@@ -553,7 +559,7 @@ export async function startRecordingPipeline(input: {
 
   let creditsAllowed = true
   try {
-    const credit = await checkCredits(supabase, company.id, 1)
+    const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('audio_minutes'))
     creditsAllowed = credit.allowed
   } catch (err) {
     // Fail OPEN — a metering-read failure must never wrongly block generation.
@@ -571,7 +577,8 @@ export async function startRecordingPipeline(input: {
       errorMessage: 'Insufficient credits',
       provider: null,
     })
-    return { error: INSUFFICIENT_CREDITS_MESSAGE }
+    const code = await creditBlockState(company.id, 'audio_minutes')
+    return { error: BILLING_BLOCK_MESSAGES[code], code }
   }
 
   let recordingId = input.recordingId

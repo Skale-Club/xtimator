@@ -671,6 +671,15 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       ADMIN_INTEGRATIONS_CONTENT_PATH,
       AFFILIATE_ACCRUAL_PATH,
       AFFILIATE_ATTRIBUTION_PATH,
+      // SEED-055 Phase D: the access-state gates and the pre-gate cost reader are
+      // legitimate consumers (enforcement flag + estimatedCreditsByOp), and the
+      // signup-grant retry in company.ts checks signupCreditGrant before alerting.
+      ...[
+        'lib/billing/access-state.ts',
+        'lib/billing/access-guard.ts',
+        'lib/billing/estimated-credits.ts',
+        'lib/actions/company.ts',
+      ].map((p) => resolve(process.cwd(), p)),
     ])
 
     const collected: string[] = []
@@ -716,5 +725,48 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       offenders,
       `getBillingConfig may only be referenced by the reader + credit-ledger.ts — these other files reference the symbol: ${offenders.join(', ')}`
     ).toEqual([])
+  })
+})
+
+// =============================================================================
+// SEED-055 Phase D - estimatedCreditsByOp (pre-gate cost per operation)
+// =============================================================================
+describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
+  it('defaults to 1 for every operation', () => {
+    expect(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp).toEqual({
+      estimate: 1,
+      photo_batch: 1,
+      audio_minutes: 1,
+      price_research: 1,
+      chat: 1,
+    })
+  })
+
+  it('a stored prod row written before the field existed resolves to the defaults', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 6 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.estimatedCreditsByOp).toEqual(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp)
+  })
+
+  it('a partial stored map overrides per key and keeps the other defaults', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({ metadata: { estimatedCreditsByOp: { estimate: 40 } } })
+    const cfg = await getBillingConfig()
+    expect(cfg.estimatedCreditsByOp.estimate).toBe(40)
+    expect(cfg.estimatedCreditsByOp.photo_batch).toBe(1)
+  })
+
+  it('the admin schema accepts the default map and rejects a negative or fractional value', () => {
+    expect(billingConfigSchema.safeParse(DEFAULT_BILLING_CONFIG).success).toBe(true)
+    const bad = billingConfigSchema.safeParse({
+      ...DEFAULT_BILLING_CONFIG,
+      estimatedCreditsByOp: { ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp, estimate: -1 },
+    })
+    expect(bad.success).toBe(false)
+    const frac = billingConfigSchema.safeParse({
+      ...DEFAULT_BILLING_CONFIG,
+      estimatedCreditsByOp: { ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp, chat: 1.5 },
+    })
+    expect(frac.success).toBe(false)
   })
 })

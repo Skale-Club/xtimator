@@ -28,6 +28,8 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { checkCredits, recordCreditDebit } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { creditBlockState } from '@/lib/billing/access-guard'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -144,13 +146,14 @@ export async function POST(
     // (164-02 coordination: the TRUST-02 lock guard above now runs BEFORE
     // this gate, per the plan's locked ordering — auth → ownership/current →
     // LOCK → credit gate → paid work.)
-    const credit = await checkCredits(supabase, companyId, 1)
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'))
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
+          state: await creditBlockState(companyId, 'estimate'),
           upgradeUrl: '/settings/billing',
           ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
         },

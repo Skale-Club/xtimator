@@ -1,6 +1,8 @@
 'use client'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
 
 export interface CaptureFailureProps {
   /**
@@ -12,10 +14,42 @@ export interface CaptureFailureProps {
   retriesUsed: number    // capped at 2 per D-14
   onRetry?: () => void
   onEditManually?: () => void
+  /**
+   * SEED-055 Phase D: set when the failure is a credits / paywall block
+   * ('credits' = the journal said "insufficient credits" without saying which
+   * wall). Retrying or building by hand cannot get past that wall, so both
+   * fallbacks are hidden and a billing CTA is shown instead. Genuine AI
+   * failures leave this undefined and keep Retry / Edit manually.
+   */
+  billingBlock?: BillingBlockCode | 'credits'
 }
 
-export function CaptureFailure({ errorMessage, retriesUsed, onRetry, onEditManually }: CaptureFailureProps) {
+export function CaptureFailure({
+  errorMessage,
+  retriesUsed,
+  onRetry,
+  onEditManually,
+  billingBlock,
+}: CaptureFailureProps) {
   const { t } = useTranslation()
+  if (billingBlock) {
+    const cta =
+      billingBlock === 'paywalled'
+        ? t('Subscribe')
+        : billingBlock === 'out_of_credits'
+          ? t('Buy credits')
+          : t('Open billing')
+    return (
+      <div className="space-y-3" data-testid="capture-failure">
+        <p className="text-sm text-destructive">{errorMessage}</p>
+        <Button asChild size="sm">
+          <Link href={BILLING_SETTINGS_PATH} data-testid="capture-billing-cta">
+            {cta}
+          </Link>
+        </Button>
+      </div>
+    )
+  }
   const canRetry = !!onRetry && retriesUsed < 2
   return (
     <div className="space-y-3" data-testid="capture-failure">

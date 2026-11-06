@@ -123,6 +123,8 @@ describe('BILL-01: refine route credit gate', () => {
     expect(body).toEqual({
       error: 'plan_limit_reached',
       reason: 'credits',
+      // SEED-055 Phase D: which wall was hit (UpgradeModal picks its CTA from it).
+      state: 'paywalled',
       upgradeUrl: '/settings/billing',
       // `?topup=1` is BillingStatusToast's payment-received param — linking a
       // 402 there told a user who paid nothing "Payment received". The
@@ -153,6 +155,8 @@ describe('BILL-01: refine route credit gate', () => {
     expect(body).toEqual({
       error: 'plan_limit_reached',
       reason: 'credits',
+      // SEED-055 Phase D: which wall was hit (UpgradeModal picks its CTA from it).
+      state: 'paywalled',
       upgradeUrl: '/settings/billing',
     })
     expect(body.topUpUrl).toBeUndefined()

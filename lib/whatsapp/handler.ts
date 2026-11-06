@@ -31,6 +31,8 @@ import {
 } from '@/lib/whatsapp/client'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { creditBlockState } from '@/lib/billing/access-guard'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -386,10 +388,13 @@ export async function processInboundMessages(
   // Billing v2 credit gate — mirrors the web generate route: a spent balance
   // blocks the (expensive) WhatsApp estimate-creation pipeline BEFORE any draft
   // or media ingest. BYOK bypass + the enforcement flag live inside checkCredits.
-  const credit = await checkCredits(supabase, companyId, 1)
+  const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'))
   if (!credit.allowed) {
+    const blockedState = await creditBlockState(companyId, 'estimate')
     const body =
-      "You're out of AI credits — upgrade or top up at /settings/billing to keep creating estimates."
+      blockedState === 'paywalled'
+        ? 'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
+        : "You're out of credits — buy credits at /settings/billing to keep creating estimates."
     await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
     logOutboundMessage(supabase, {
       companyId,

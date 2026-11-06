@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { createBlankEstimate } from '@/lib/actions/estimate'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import type { EstimateWithSections, Estimate } from '@/lib/queries/estimate'
 import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
@@ -125,6 +127,7 @@ export function EstimateTab({
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
   const router = useRouter()
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const blankFiredRef = useRef(false)
@@ -231,13 +234,16 @@ export function EstimateTab({
     blankFiredRef.current = true
     createBlankEstimate(projectId).then((result) => {
       if (result.error) {
+        // SEED-055 Phase D: a paywall / out-of-credits wall will not clear on a
+        // retry, so keep blankFiredRef set (no re-fire loop) and show the CTA.
+        if (showBillingBlockToast((result as { code?: unknown }).code, router, t)) return
         toast.error(result.error)
         blankFiredRef.current = false // allow a retry on the next render
         return
       }
       router.refresh()
     })
-  }, [currentEstimate, waitingForGeneration, projectId, router])
+  }, [currentEstimate, waitingForGeneration, projectId, router, t])
 
   useEffect(() => {
     const suggestion = popStoredClientSuggestion(projectId)

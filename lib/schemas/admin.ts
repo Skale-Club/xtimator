@@ -283,6 +283,14 @@ export const billingConfigSchema = z.object({
     .max(10),
   // SEED-055 Phase C: months until a top-up lot expires.
   topupExpiryMonths: z.number().int().min(1).max(36),
+  // SEED-055 Phase D: pre-gate credit estimate per operation.
+  estimatedCreditsByOp: z.object({
+    estimate: z.number().int().min(0).max(100000),
+    photo_batch: z.number().int().min(0).max(100000),
+    audio_minutes: z.number().int().min(0).max(100000),
+    price_research: z.number().int().min(0).max(100000),
+    chat: z.number().int().min(0).max(100000),
+  }),
   lowBalanceThresholds: z.array(z.number().int().min(0)).max(5),
   meteredOperations: z.record(z.string(), z.boolean()),
   absorbedChatRateLimitPerMin: z.number().int().min(0).max(1000),

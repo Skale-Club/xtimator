@@ -375,9 +375,9 @@ export async function checkCredits(
  * Never throws (grantCredits is itself never-throw) — a grant failure must not
  * break onboarding; the backstop is support re-running the grant.
  */
-export async function grantSignupCredits(companyId: string): Promise<void> {
+export async function grantSignupCredits(companyId: string): Promise<{ applied: boolean }> {
   const cfg = await getBillingConfig()
-  await grantCredits({
+  return grantCredits({
     companyId,
     credits: cfg.signupCreditGrant,
     reason: 'grant',

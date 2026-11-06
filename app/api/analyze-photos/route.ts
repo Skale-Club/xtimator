@@ -8,6 +8,8 @@ import {
 import { rateLimit } from '@/lib/ratelimit'
 import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { creditBlockState } from '@/lib/billing/access-guard'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -95,10 +97,15 @@ export async function POST(request: Request) {
 
     // Billing v2 credit gate — "everything on our AI spends credits": a spent
     // balance blocks photo analysis too. BYOK bypass lives inside checkCredits.
-    const credit = await checkCredits(supabase, companyId, 1)
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('photo_batch'))
     if (!credit.allowed) {
       return NextResponse.json(
-        { error: 'plan_limit_reached', reason: 'credits', upgradeUrl: '/settings/billing' },
+        {
+          error: 'plan_limit_reached',
+          reason: 'credits',
+          state: await creditBlockState(companyId, 'photo_batch'),
+          upgradeUrl: '/settings/billing',
+        },
         { status: 402 }
       )
     }

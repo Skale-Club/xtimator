@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { createTextRecording } from '@/lib/actions/recording'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
 import {
   storeClientSuggestion,
   type GenerateEstimateResponse,
@@ -46,7 +47,9 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
     try {
       const saved = await createTextRecording(projectId, text.trim())
       if (saved.error || !saved.data) {
-        toast.error(saved.error ?? t('Failed to save description'))
+        if (!showBillingBlockToast((saved as { code?: unknown }).code, router, t)) {
+          toast.error(saved.error ?? t('Failed to save description'))
+        }
         setIsGenerating(false)
         return
       }

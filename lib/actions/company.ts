@@ -22,6 +22,7 @@ import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
 import { captureBackgroundError } from '@/lib/observability/capture'
 import { grantSignupCredits } from '@/lib/billing/credit-ledger'
+import { getBillingConfig } from '@/lib/billing/billing-config'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { assertWritable } from '@/lib/demo/guard'
 import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
@@ -119,6 +120,41 @@ export async function uploadOnboardingLogoAction(formData: FormData) {
   } catch (err) {
     console.error('[uploadOnboardingLogoAction] upload error:', err)
     return { error: 'Logo upload failed.' }
+  }
+}
+
+/**
+ * SEED-055 Phase D: the signup grant is awaited (a lost grant used to strand a
+ * new account on a zero balance and straight into the paywall). One retry on
+ * `applied:false` (the RPC is idempotent on `signup:{companyId}`, so a replay is
+ * harmless), then an ops alert on final failure. NEVER throws and never blocks
+ * onboarding; getAccessState also self-heals a grant that is still missing.
+ * Not exported: a 'use server' module would expose it as a public action.
+ */
+async function grantSignupCreditsWithRetry(companyId: string): Promise<void> {
+  const alert = (message: string) =>
+    void notifyOps({
+      kind: 'signup_credit_grant_failed',
+      severity: 'error',
+      title: 'Signup credit grant failed',
+      message,
+      dedupeKey: `signup_credit_grant_failed:${companyId}`,
+    })
+  try {
+    let result = await grantSignupCredits(companyId)
+    if (!result?.applied) result = await grantSignupCredits(companyId)
+    if (result?.applied) return
+    // A grant size of 0 is "nothing to grant", not a failure.
+    const cfg = await getBillingConfig()
+    if (!(cfg.signupCreditGrant > 0)) return
+    alert(
+      `Company ${companyId} did not receive its signup credits after a retry. The access-state self-heal retries on first load; check credit_ledger_write_failed alerts.`,
+    )
+  } catch (err) {
+    captureBackgroundError('company.signupCreditGrant')(err)
+    alert(
+      `Company ${companyId} signup grant threw: ${err instanceof Error ? err.message : String(err)}`,
+    )
   }
 }
 
@@ -414,8 +450,8 @@ export async function createOrUpdateCompany(
     })
 
     // Billing v2: one-time signup credit grant — the free tier's allowance.
-    // Idempotent (ledger key `signup:{companyId}`); fire-and-forget so a grant
-    // hiccup never breaks onboarding, but observable via Sentry.
+    // Idempotent (ledger key `signup:{companyId}`); awaited with one retry
+    // (SEED-055 Phase D); a failure alerts ops but never breaks onboarding.
     //
     // D-13/D-14 guard: only for a GENUINE first company. `priorMembershipCount`
     // was counted above, BEFORE this insert, so it never includes the row just
@@ -426,9 +462,7 @@ export async function createOrUpdateCompany(
         `[createOrUpdateCompany] mode:first skipped signup credit grant for company ${newCompany.id} — user ${claims.sub} already has ${priorMembershipCount} prior company_members row(s)`,
       )
     } else {
-      grantSignupCredits(newCompany.id).catch(
-        captureBackgroundError('company.signupCreditGrant'),
-      )
+      await grantSignupCreditsWithRetry(newCompany.id)
     }
 
     // SEED-054: credit the affiliate whose link brought this signup, if any.

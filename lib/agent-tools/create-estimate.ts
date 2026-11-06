@@ -36,10 +36,16 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { billingCreateDenied } from '@/lib/billing/access-guard'
 
 /** Thrown by createEstimate when the company's credit balance is spent. */
 export const INSUFFICIENT_CREDITS_MESSAGE =
-  'Out of AI credits — upgrade or top up at /settings/billing to keep generating estimates.'
+  'Out of credits — buy credits at /settings/billing to keep creating estimates.'
+
+/** Thrown instead when the company has no live subscription (paywalled). */
+export const PAYWALLED_MESSAGE =
+  'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
 
 export async function createEstimate(args: {
   companyId: string
@@ -54,9 +60,18 @@ export async function createEstimate(args: {
   // Billing v2 credit gate — the SAME wall the web route enforces, applied here
   // so every channel that dispatches through this neutral fn (chat, MCP) is
   // covered. BYOK bypass + the enforcement flag live inside checkCredits.
-  const { allowed } = await checkCredits(requireServiceClient(), args.companyId, 1)
+  // SEED-055 Phase D: the op's configured estimate replaces the old hard-coded 1,
+  // and the message names the right next step (subscribe vs buy credits).
+  const { allowed } = await checkCredits(
+    requireServiceClient(),
+    args.companyId,
+    await getEstimatedCredits('estimate'),
+  )
   if (!allowed) {
-    throw new Error(INSUFFICIENT_CREDITS_MESSAGE)
+    const blocked = await billingCreateDenied(args.companyId, 'estimate')
+    throw new Error(
+      blocked?.code === 'paywalled' ? PAYWALLED_MESSAGE : INSUFFICIENT_CREDITS_MESSAGE,
+    )
   }
 
   const requestId = randomUUID()

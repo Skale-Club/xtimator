@@ -18,6 +18,7 @@ import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 import type { Json } from '@/types/database.types'
 import { recordUsage } from '@/lib/quota'
 import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
@@ -322,7 +323,7 @@ export const analyzePhotosJob = inngest.createFunction(
         // client (background job, no request-scoped client exists) — checkCredits'
         // plain `companies` select works unchanged against it.
         const svc = requireServiceClient()
-        const credit = await checkCredits(svc, companyId, 1)
+        const credit = await checkCredits(svc, companyId, await getEstimatedCredits('estimate'))
         if (!credit.allowed) {
           void recordPipelineEvent({
             attemptId,

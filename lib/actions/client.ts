@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import type { ClientFormValues } from '@/lib/schemas/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
 import { serverStorage } from '@/lib/storage/server'
 import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
@@ -12,28 +13,37 @@ import { convertImageToWebp } from '@/lib/image/webp'
 const MAX_LOGO_SIZE = 2 * 1024 * 1024
 const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
 
-async function getAuthContext() {
+// SEED-055 Phase D: `kind` picks the billing gate. Creating a client needs credits
+// (paywalled / out_of_credits refuse); every other write is refused only while
+// paywalled (read-only app). Denials carry a machine `code` for the UI.
+async function getAuthContext(kind: 'create' | 'edit' = 'edit') {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
-  if (!claims) return { error: 'Not authenticated' as const }
+  if (!claims) return { error: 'Not authenticated' as const, code: undefined }
 
   const activeCompanyId = await getActiveCompanyId()
-  if (!activeCompanyId) return { error: 'No company found' as const }
+  if (!activeCompanyId) return { error: 'No company found' as const, code: undefined }
 
   // getActiveCompanyId() already validated membership (company_members FK →
   // companies), so the company row provably exists — skip a redundant SELECT.
   const company = { id: activeCompanyId }
 
   const denied = await assertWritable()
-  if (denied) return denied
+  if (denied) return { ...denied, code: undefined }
+
+  const billingDenied =
+    kind === 'create'
+      ? await billingCreateDenied(company.id)
+      : await billingEditDenied(company.id)
+  if (billingDenied) return billingDenied
 
   return { supabase, company }
 }
 
 export async function createClientAction(formData: ClientFormValues) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  const ctx = await getAuthContext('create')
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase, company } = ctx
 
   const { data: client, error } = await supabase
@@ -61,7 +71,7 @@ export async function createClientAction(formData: ClientFormValues) {
 
 export async function updateClientAction(clientId: string, formData: ClientFormValues) {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase } = ctx
 
   const { data: client, error } = await supabase
@@ -90,7 +100,7 @@ export async function updateClientAction(clientId: string, formData: ClientFormV
 
 export async function removeClientLogo(clientId: string) {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -113,7 +123,7 @@ export async function removeClientLogo(clientId: string) {
  */
 export async function uploadClientLogoAction(clientId: string, formData: FormData) {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase, company } = ctx
 
   const file = formData.get('file')
@@ -152,7 +162,7 @@ export async function patchClientContactAction(
   data: { name: string; email: string | null; phone: string | null }
 ) {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase } = ctx
 
   const { error } = await supabase
@@ -168,7 +178,7 @@ export async function patchClientContactAction(
 
 export async function deleteClientAction(clientId: string) {
   const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
+  if ('error' in ctx) return { error: ctx.error, code: ctx.code }
   const { supabase } = ctx
 
   // Count orphaned projects before deletion

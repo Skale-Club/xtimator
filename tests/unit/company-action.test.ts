@@ -15,11 +15,19 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
-  grantSignupCredits: vi.fn().mockResolvedValue(undefined),
+  // SEED-055 Phase D: the signup grant is awaited and its result drives the retry.
+  grantSignupCredits: vi.fn().mockResolvedValue({ applied: true }),
   // SEED-055 Phase C: an added company gets NO automatic lot. The lot writers
   // are mocked so any accidental call is observable.
   grantMonthlyLot: vi.fn().mockResolvedValue({ applied: false }),
   grantCredits: vi.fn().mockResolvedValue({ applied: false }),
+}))
+
+vi.mock('@/lib/billing/billing-config', () => ({
+  getBillingConfig: vi.fn().mockResolvedValue({
+    signupCreditGrant: 2000,
+    affiliate: { enabled: false },
+  }),
 }))
 
 vi.mock('@/lib/observability/ops-alert', () => ({
@@ -555,6 +563,55 @@ describe('createOrUpdateCompany — D-13/D-14 guard (multi-company signup-credit
     expect(capturedGuardInsertRow).not.toBeNull()
     expect(grantSignupCredits).toHaveBeenCalledTimes(1)
     expect(grantSignupCredits).toHaveBeenCalledWith('company-new')
+  })
+
+  it('(c2) the signup grant is awaited and retried once when the first attempt lands nothing', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: null })
+    makeGuardServiceClientMock({ memberCount: 0 })
+    vi.mocked(grantSignupCredits)
+      .mockResolvedValueOnce({ applied: false })
+      .mockResolvedValueOnce({ applied: true })
+
+    await createOrUpdateCompany({ companyName: 'Retry Co' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(grantSignupCredits).toHaveBeenCalledTimes(2)
+    expect(notifyOps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'signup_credit_grant_failed' }),
+    )
+  })
+
+  it('(c3) a grant that fails twice alerts ops and never blocks onboarding', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: null })
+    makeGuardServiceClientMock({ memberCount: 0 })
+    vi.mocked(grantSignupCredits).mockResolvedValue({ applied: false })
+
+    const result = await createOrUpdateCompany({ companyName: 'Unlucky Co' }).catch(() => undefined)
+
+    expect(grantSignupCredits).toHaveBeenCalledTimes(2)
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'signup_credit_grant_failed', severity: 'error' }),
+    )
+    // Onboarding still completed: the company was inserted and no error returned.
+    expect(capturedGuardInsertRow).not.toBeNull()
+    expect(result === undefined || !('error' in (result as object))).toBe(true)
+
+    vi.mocked(grantSignupCredits).mockResolvedValue({ applied: true })
+  })
+
+  it('(c4) a grant that throws is swallowed into an ops alert', async () => {
+    makeFirstModeGuardSupabaseMock({ existingCompany: null })
+    makeGuardServiceClientMock({ memberCount: 0 })
+    vi.mocked(grantSignupCredits).mockRejectedValueOnce(new Error('rpc down'))
+
+    await createOrUpdateCompany({ companyName: 'Throwing Co' }).catch(() => {
+      /* redirect throws */
+    })
+
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'signup_credit_grant_failed' }),
+    )
   })
 
   it('(bonus) no company row under user_id but user already has a prior membership — INSERT proceeds, grant is skipped', async () => {

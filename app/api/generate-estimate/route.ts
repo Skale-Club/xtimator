@@ -9,6 +9,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { XtimatorError, asResponse } from '@/lib/errors'
 import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
+import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { creditBlockState } from '@/lib/billing/access-guard'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
@@ -111,13 +113,14 @@ export async function POST(request: Request) {
     // estimation is a calibration refinement, not needed for the wall). BYOK
     // companies bypass inside checkCredits; enforcementEnabled=false (admin
     // panel) reverts this to record-only.
-    const credit = await checkCredits(svc, companyId, 1)
+    const credit = await checkCredits(svc, companyId, await getEstimatedCredits('estimate'))
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
+          state: await creditBlockState(companyId, 'estimate'),
           upgradeUrl: '/settings/billing',
           ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
         },

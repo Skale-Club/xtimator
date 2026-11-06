@@ -9,6 +9,7 @@ import { CaptureProcessingOverlay } from '@/components/capture/capture-processin
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { createRecording, transcribeRecording } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
+import { showBillingBlockToast } from '@/lib/billing/block-toast'
 import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -294,9 +295,11 @@ export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAud
   }, [isRecording, startRecording, stopRecording])
 
   const handleEditManually = useCallback(async () => {
-    await createBlankEstimate(projectId)
+    const blank = await createBlankEstimate(projectId)
+    // SEED-055 Phase D: a credits / paywall wall is not fixable by building by hand.
+    if (showBillingBlockToast((blank as { code?: unknown }).code, router, t)) return
     router.push(`/projects/${projectId}`)
-  }, [projectId, router])
+  }, [projectId, router, t])
 
   if (isSaving) {
     return (
