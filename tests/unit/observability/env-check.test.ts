@@ -27,10 +27,12 @@ const ALL_VARS = [
   'UPSTASH_REDIS_REST_TOKEN',
   'STRIPE_WEBHOOK_SECRET',
   'APP_ENCRYPTION_KEY',
+  'XTIMATOR_DATA_JWT_SECRET',
+  'DATA_API_MODE',
 ]
 
 function fullyConfiguredEnv(): Record<string, string> {
-  return Object.fromEntries(ALL_VARS.map((k) => [k, 'set']))
+  return Object.fromEntries(ALL_VARS.filter((k) => k !== 'DATA_API_MODE').map((k) => [k, 'set']))
 }
 
 describe('validateProductionEnv', () => {
@@ -155,5 +157,39 @@ describe('validateProductionEnv', () => {
     expect(errorSpy).toHaveBeenCalledOnce()
     expect(errorSpy.mock.calls[0][0]).toMatch(/UPSTASH_REDIS_REST_URL/)
     errorSpy.mockRestore()
+  })
+
+  it('SEED-056: DATA_API_MODE=postgrest boots without any Supabase service key', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    process.env.DATA_API_MODE = 'postgrest'
+    delete process.env.SUPABASE_SECRET_KEY
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).not.toThrow()
+    errorSpy.mockRestore()
+  })
+
+  it('SEED-056: DATA_API_MODE=postgrest refuses to boot without XTIMATOR_DATA_JWT_SECRET', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    process.env.DATA_API_MODE = 'postgrest'
+    delete process.env.XTIMATOR_DATA_JWT_SECRET
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).toThrow(/XTIMATOR_DATA_JWT_SECRET/)
+  })
+
+  it('SEED-056: default (supabase) mode still requires a Supabase service key', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    Object.assign(process.env, fullyConfiguredEnv())
+    delete process.env.DATA_API_MODE
+    delete process.env.SUPABASE_SECRET_KEY
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    const { validateProductionEnv } = await import('@/lib/observability/env-check')
+    expect(() => validateProductionEnv()).toThrow(/SUPABASE_SECRET_KEY/)
   })
 })

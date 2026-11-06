@@ -5,6 +5,20 @@ const deploymentId = process.env.DEPLOYMENT_VERSION
   ?.trim()
   .replace(/[^a-zA-Z0-9_-]/g, '-');
 
+// SEED-056: the browser calls the Data API at ${NEXT_PUBLIC_SUPABASE_URL}/rest/v1.
+// While that is a *.supabase.co host the static entry below already covers it;
+// after the cutover to a self-hosted PostgREST (e.g. https://data.xtimator.com)
+// its origin must be allowed explicitly. Empty string while on Supabase.
+const dataApiConnectSrc = (() => {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '');
+    if (url.protocol !== 'https:') return '';
+    return /(^|\.)supabase\.(co|in)$/.test(url.hostname) ? '' : ` ${url.origin}`;
+  } catch {
+    return '';
+  }
+})();
+
 // Content-Security-Policy (Security Review S10). Shipped in REPORT-ONLY mode:
 // it surfaces violations in the browser console / report stream WITHOUT blocking
 // anything, so the policy can be validated against the real app (Supabase,
@@ -51,7 +65,7 @@ const cspReportOnly = [
   //    and is out of scope for this phase in either direction.
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.googleusercontent.com",
   "font-src 'self'",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.stripe.com https://api.inngest.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com/recaptcha/",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co${dataApiConnectSrc} https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.stripe.com https://api.inngest.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com/recaptcha/`,
   "frame-src https://js.stripe.com https://challenges.cloudflare.com https://www.google.com/recaptcha/ https://*.firebaseapp.com",
   "media-src 'self' blob: https://*.supabase.co",
   "worker-src 'self' blob:",
