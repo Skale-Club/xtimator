@@ -191,7 +191,7 @@ describe('zod gate stays tolerant', () => {
       open_questions: [{ question: 'Is the garage included?', impact: 'high' }, 'Any HOA rules?'],
       scope_confidence: 'medium',
     }
-    raw.sections[0].purpose = 'Interior walls' as never
+    ;(raw.sections[0] as Record<string, unknown>).purpose = 'Interior walls'
     ;(raw.sections[0].items[0] as Record<string, unknown>).confidence = 'low'
     ;(raw.sections[0].items[0] as Record<string, unknown>).basis = 'from the 12x14 room stated in the audio'
     ;(raw.sections[0].items[0] as Record<string, unknown>).optional = true

@@ -42,7 +42,7 @@ describe('default adapter finalize: needs-details source', () => {
     const out = await makeDefaultAdapter({ companyId: 'c', supabase: client }).finalize({
       ...base,
       openQuestions: ['How many rooms?', 'What is the ceiling height?', 'Is there a garage?', 'Interior or exterior?', 'A fifth one'],
-    } as EstimateStateType)
+    } as unknown as EstimateStateType)
 
     expect(out).toEqual({ needsDetails: true })
     expect(buildNeedsDetailsMock).not.toHaveBeenCalled()
@@ -56,7 +56,7 @@ describe('default adapter finalize: needs-details source', () => {
   it('falls back to the classification call when the estimator raised none', async () => {
     buildNeedsDetailsMock.mockResolvedValue({ reason: 'mic_test', questions: [] })
     const { client, updates } = makeSupabase()
-    await makeDefaultAdapter({ companyId: 'c', supabase: client }).finalize({ ...base, openQuestions: [] } as EstimateStateType)
+    await makeDefaultAdapter({ companyId: 'c', supabase: client }).finalize({ ...base, openQuestions: [] } as unknown as EstimateStateType)
 
     expect(buildNeedsDetailsMock).toHaveBeenCalledOnce()
     expect(updates.find((u) => 'needs_details' in u)!.needs_details).toMatchObject({ reason: 'mic_test' })
@@ -68,7 +68,7 @@ describe('default adapter finalize: needs-details source', () => {
       ...base,
       isVague: false,
       openQuestions: ['x'],
-    } as EstimateStateType)
+    } as unknown as EstimateStateType)
     expect(out).toEqual({})
     expect(buildNeedsDetailsMock).not.toHaveBeenCalled()
   })

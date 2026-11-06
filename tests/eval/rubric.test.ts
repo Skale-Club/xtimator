@@ -89,6 +89,7 @@ describe('the rubric has teeth', () => {
   it('a thin "misc" estimate scores far below the reference', () => {
     const thin: EstimateOutput = {
       suggested_project_name: 'x',
+      suggested_client_name: null,
       summary: 'Painting.',
       sections: [{ title: 'Other', items: [{ description: 'Miscellaneous painting work', quantity: 1, unit_price: 2400, price_source: 'ai_estimate' }] }],
     }
@@ -143,7 +144,7 @@ describe('the rubric has teeth', () => {
   })
 
   it('never throws on degenerate output', () => {
-    const empty = { suggested_project_name: '', summary: '', sections: [] } as EstimateOutput
+    const empty = { suggested_project_name: '', summary: '', sections: [] } as unknown as EstimateOutput
     expect(() => scoreAgainstRubric(painting, empty)).not.toThrow()
     expect(scoreAgainstRubric(painting, empty).score).toBeLessThan(40)
   })
