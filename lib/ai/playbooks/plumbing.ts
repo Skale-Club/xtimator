@@ -41,7 +41,7 @@ export const plumbing: Playbook = {
     ['toilet', 'commode', 'wc', 'vaso'],
     ['faucet', 'tap', 'mixer'],
     ['install', 'installation', 'replace', 'replacement', 'swap'],
-    ['water heater', 'hot water tank', 'boiler'],
+    ['water heater', 'hot water tank'],
   ],
   example: {
     scenario: 'Replace a 40 gallon gas water heater and one leaking kitchen faucet.',

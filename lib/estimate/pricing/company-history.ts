@@ -31,6 +31,17 @@ import { conceptMapKey, priceConcept } from './concept-key'
 /** E3: the median of the LAST 10 observations. */
 export const HISTORY_WINDOW = 10
 
+/** One accepted job is an anecdote; two is a pattern. */
+export const HISTORY_MIN_SAMPLES = 2
+
+/**
+ * A history price only replaces the model's when it is in the same ballpark (0.33x to 3x): a
+ * concept key can still collide across genuinely different jobs, and a 10x gap is more likely
+ * a collision than a bargain. No model price (0) leaves nothing to compare, so history wins.
+ */
+export const HISTORY_MIN_RATIO = 0.33
+export const HISTORY_MAX_RATIO = 3
+
 export interface HistoryPrice {
   unit_price: number
   samples: number
@@ -112,7 +123,12 @@ export function applyCompanyHistory(
       const concept = priceConcept(item.description, item.unit)
       if (!concept.key) return item
       const hit = index.get(conceptMapKey(concept))
-      if (!hit) return item
+      if (!hit || hit.samples < HISTORY_MIN_SAMPLES) return item
+      const current = Number(item.unit_price)
+      if (current > 0) {
+        const ratio = hit.unit_price / current
+        if (ratio < HISTORY_MIN_RATIO || ratio > HISTORY_MAX_RATIO) return item
+      }
       applied++
       return { ...item, unit_price: hit.unit_price, price_source: 'company_history' as const }
     }),

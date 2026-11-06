@@ -62,7 +62,7 @@ describe('buildHistoryIndex', () => {
 })
 
 describe('applyCompanyHistory (precedence: price book > history > researched > model)', () => {
-  const index = buildHistoryIndex([obs('Paint walls', 'sq ft', 2.25, 1), obs('Paint walls', 'sq ft', 2.25, 2), obs('Install toilet', 'each', 310, 3)])
+  const index = buildHistoryIndex([obs('Paint walls', 'sq ft', 2.25, 1), obs('Paint walls', 'sq ft', 2.25, 2), obs('Install toilet', 'each', 310, 3), obs('Install toilet', 'each', 310, 4)])
 
   it('re-prices a model-estimated line and tags it company_history', () => {
     const out = applyCompanyHistory(sections(line({})), index)
@@ -86,6 +86,26 @@ describe('applyCompanyHistory (precedence: price book > history > researched > m
     expect(out.sections[0].items.map((i) => i.unit_price)).toEqual([9, 8, 7])
     // Nothing applied: the very same array comes back.
     expect(out.sections).toEqual(sections(...items))
+  })
+
+  it('needs two observations: one accepted job is not history', () => {
+    const single = buildHistoryIndex([obs('Paint walls', 'sq ft', 2.25, 1)])
+    expect(applyCompanyHistory(sections(line({})), single).applied).toBe(0)
+  })
+
+  it('only replaces a price within 0.33x-3x of the model price (a 10x gap is a collision, not a bargain)', () => {
+    const idx = buildHistoryIndex([obs('Paint walls', 'sq ft', 30, 1), obs('Paint walls', 'sq ft', 30, 2)])
+    expect(applyCompanyHistory(sections(line({ unit_price: 1.5 })), idx).applied).toBe(0) // 20x
+    expect(applyCompanyHistory(sections(line({ unit_price: 100 })), idx).applied).toBe(0) // 0.3x
+  })
+
+  it('applies at the edges of the band and when the model gave no price', () => {
+    const idx = buildHistoryIndex([obs('Paint walls', 'sq ft', 3, 1), obs('Paint walls', 'sq ft', 3, 2)])
+    expect(applyCompanyHistory(sections(line({ unit_price: 1 })), idx).applied).toBe(1) // 3x
+    expect(applyCompanyHistory(sections(line({ unit_price: 9 })), idx).applied).toBe(1) // 0.333x
+    expect(applyCompanyHistory(sections(line({ unit_price: 0 })), idx).applied).toBe(1)
+    expect(applyCompanyHistory(sections(line({ unit_price: 0.5 })), idx).applied).toBe(0) // 6x
+    expect(applyCompanyHistory(sections(line({ unit_price: 10 })), idx).applied).toBe(0) // 0.3x
   })
 
   it('does not apply across units', () => {

@@ -25,8 +25,10 @@ import { unitKey } from '@/lib/ai/units'
 
 const STOPWORDS = new Set([
   'a', 'an', 'the', 'of', 'for', 'and', 'with', 'to', 'in', 'on', 'at', 'by', 'per', 'from',
-  'incl', 'including', 'include', 'includes', 'supply', 'supplied', 'provide', 'provided',
-  'labor', 'labour', 'material', 'materials', 'new', 'standard', 'basic',
+  'incl', 'including', 'include', 'includes', 'new', 'standard', 'basic',
+  // NOT here on purpose: labor / material(s) / supply(ied) / provide(d). "Paint walls - labor" and
+  // "Paint walls - materials" are different prices, and "Supply and install toilet" is not
+  // "Install toilet".
   'de', 'da', 'do', 'das', 'dos', 'e', 'com', 'para', 'em', 'um', 'uma',
 ])
 
@@ -80,9 +82,11 @@ function stem(word: string): string {
 /** The concept of a line description. Empty string for a description with no usable word. */
 export function conceptKey(description: string): string {
   let text = ` ${fold(description)} `
+  // Every matched phrase becomes its canonical form, glued with underscores so a LATER, shorter
+  // rule cannot re-read it (an identity match used to be skipped, and then "heater" -> "furnace"
+  // rewrote the "water heater" it sat inside).
   for (const { phrase, canonical } of synonymRules()) {
-    if (phrase === canonical) continue
-    text = text.replaceAll(` ${phrase} `, ` ${canonical} `)
+    text = text.replaceAll(` ${phrase} `, ` ${canonical.replace(/ /g, '_')} `)
   }
   const words = text
     .split(' ')
@@ -91,8 +95,9 @@ export function conceptKey(description: string): string {
     .map(stem)
   // Stemming can map two groups' words together after the synonym pass ("sofas" -> "sofa").
   const canonicalWords = words.map((w) => {
+    if (w.includes('_')) return w
     const hit = synonymRules().find((r) => r.phrase === w)
-    return hit ? hit.canonical : w
+    return hit ? hit.canonical.replace(/ /g, '_') : w
   })
   return [...new Set(canonicalWords)].sort().join(' ')
 }

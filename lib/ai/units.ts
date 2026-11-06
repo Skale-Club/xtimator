@@ -27,6 +27,9 @@ function fold(raw: string): string {
     .replace(/[._]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+    // "per sq ft", "/hr", "/ sq ft" are the same unit as "sq ft" / "hr".
+    .replace(/^(per\s+|\/\s*)/, '')
+    .trim()
 }
 
 const SYNONYMS: Record<string, CanonicalUnit> = {

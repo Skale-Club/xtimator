@@ -76,6 +76,7 @@ describe('generateEstimateForProject - company history (SEED-057 E3)', () => {
         row('Paint walls', 'sq ft', 2.4, 1),
         row('Paint walls', 'sq ft', 2.6, 2),
         row('Toilet installation', 'each', 320, 3),
+        row('Toilet installation', 'each', 320, 4),
       ],
     })
     await generateEstimateForProject('company-1', 'project-1')
@@ -89,7 +90,7 @@ describe('generateEstimateForProject - company history (SEED-057 E3)', () => {
   })
 
   it('research only sees what history did not price', async () => {
-    arrange({ priceObservations: [row('Paint walls', 'sq ft', 2.5, 1)] })
+    arrange({ priceObservations: [row('Paint walls', 'sq ft', 2.5, 1), row('Paint walls', 'sq ft', 2.5, 2)] })
     await generateEstimateForProject('company-1', 'project-1')
 
     const sentToResearch = (researchMock.mock.calls[0][0] as EstimateOutput['sections'])[0].items

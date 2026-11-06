@@ -28,6 +28,20 @@ describe('conceptKey', () => {
     expect(conceptKey(a)).not.toBe(conceptKey(b))
   })
 
+  it('labor, materials and supply are NOT filler: they change the price', () => {
+    expect(conceptKey('Paint walls - labor')).not.toBe(conceptKey('Paint walls - materials'))
+    expect(conceptKey('Paint walls - labor')).not.toBe(conceptKey('Paint walls'))
+    expect(conceptKey('Supply and install toilet')).not.toBe(conceptKey('Install toilet'))
+    expect(conceptKey('Provided paint')).not.toBe(conceptKey('Paint'))
+  })
+
+  it('a boiler is not a water heater, and a water heater is not a furnace', () => {
+    expect(conceptKey('Replace boiler')).not.toBe(conceptKey('Replace water heater'))
+    expect(conceptKey('Replace water heater')).not.toBe(conceptKey('Replace furnace'))
+    expect(conceptKey('Replace water heater')).toBe(conceptKey('Replace hot water tank'))
+    expect(conceptKey('Replace heater')).toBe(conceptKey('Replace furnace'))
+  })
+
   it('is deterministic and independent of word order', () => {
     expect(conceptKey('haul away debris')).toBe(conceptKey('debris haul away'))
     expect(conceptKey('Install toilet')).toBe(conceptKey('Install toilet'))

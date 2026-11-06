@@ -148,6 +148,11 @@ describe('unit normaliser', () => {
     ['cy', 'cu yd'],
     ['days', 'day'],
     ['lump sum', 'job'],
+    ['per sq ft', 'sq ft'],
+    ['Per Hour', 'hour'],
+    ['/hr', 'hour'],
+    ['/ sq. ft.', 'sq ft'],
+    ['per each', 'each'],
   ])('%s -> %s', (raw, expected) => {
     expect(normalizeUnit(raw)).toBe(expected)
   })
@@ -163,6 +168,9 @@ describe('unit normaliser', () => {
     expect(unitKey('SqFt')).toBe('sq ft')
     expect(unitKey('Gal')).toBe('gal')
     expect(unitKey(null)).toBe('')
+    expect(unitKey('per sq ft')).toBe('sq ft')
+    expect(unitKey('/hr')).toBe('hour')
+    expect(unitKey('per')).toBe('per')
   })
 })
 
