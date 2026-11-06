@@ -261,8 +261,8 @@ export class OpenRouterAdapter implements AIProvider {
       model: this.model,
       // AIREL-02: 4096 was tight — a rich 40-50-item estimate needs roughly
       // 2,900-4,400 output tokens, leaving little headroom before a silent
-      // truncation. Raised to 8192, symmetric with Gemini's maxOutputTokens.
-      max_tokens: 8192,
+      // truncation. Raised to 8192, then 16384 (SEED-057: basis + assumptions grow the output), symmetric with Gemini's maxOutputTokens.
+      max_tokens: 16384,
       // AIREL-05: pinned for BOTH generate and refine (this one body covers
       // both operations) to minimize run-to-run price/output variance — no
       // temperature was set anywhere on the estimate paths before this.

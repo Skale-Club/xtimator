@@ -31,7 +31,7 @@ export const ESTIMATE_V2_TEXT = {
   confidence:
     "How sure you are of this line (quantity and price together): 'low', 'medium' or 'high'.",
   basis:
-    'One line saying where the quantity comes from, e.g. "12 x 14 ft room stated in the audio" or "estimated from the photo".',
+    'At most 80 characters saying where the quantity comes from, e.g. "12 x 14 ft room, stated in audio" or "estimated from photo".',
   optional: 'true only for an add-on the client may decline; it is still priced.',
 } as const
 

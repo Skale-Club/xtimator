@@ -141,7 +141,7 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
       opts,
       {
         model: opts.model ?? DEFAULT_ESTIMATE_MODEL,
-        max_tokens: 8192,
+        max_tokens: 16384,
         temperature: 0.3,
         messages: [
           { role: 'system', content: buildSystemPrompt(input) },

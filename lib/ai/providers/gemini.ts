@@ -397,8 +397,8 @@ export class GeminiAdapter implements AIProvider {
             allowedFunctionNames: ['create_estimate'],
           },
         },
-        // AIREL-02: symmetric output budget with OpenRouter's max_tokens 8192.
-        maxOutputTokens: 8192,
+        // AIREL-02: symmetric output budget with OpenRouter max_tokens 16384.
+        maxOutputTokens: 16384,
         // AIREL-05: pinned to minimize run-to-run price/output variance — no
         // temperature was set anywhere on the estimate paths before this.
         temperature: 0.3,
@@ -555,8 +555,8 @@ export class GeminiAdapter implements AIProvider {
             allowedFunctionNames: ['create_estimate'],
           },
         },
-        // AIREL-02: symmetric output budget with OpenRouter's max_tokens 8192.
-        maxOutputTokens: 8192,
+        // AIREL-02: symmetric output budget with OpenRouter max_tokens 16384.
+        maxOutputTokens: 16384,
         // AIREL-05: pinned to minimize run-to-run price/output variance.
         temperature: 0.3,
       },

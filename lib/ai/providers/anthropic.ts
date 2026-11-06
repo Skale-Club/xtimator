@@ -28,7 +28,7 @@ export class AnthropicAdapter implements AIProvider {
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: buildSystemPrompt(input),
       messages: [{ role: 'user', content: appendRetryHint(buildUserContent(input), input.retryHint) }],
       tools: [
@@ -154,7 +154,7 @@ export class AnthropicAdapter implements AIProvider {
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
       tools: [

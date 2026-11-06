@@ -135,6 +135,30 @@ describe('output contract v2: the three adapters carry the same keys', () => {
   })
 })
 
+describe('output budget', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('openrouter, anthropic and gemini all allow 16384 output tokens for an estimate', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { tool_calls: [{ function: { name: 'create_estimate', arguments: JSON.stringify(okArgs) } }] } }] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { OpenRouterAdapter } = await import('@/lib/ai/providers/openrouter')
+    await new OpenRouterAdapter('m').generateEstimate(baseInput)
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body)).max_tokens).toBe(16384)
+    vi.unstubAllGlobals()
+
+    mockAnthropicCreate.mockResolvedValueOnce({ content: [{ type: 'tool_use', input: okArgs }] })
+    await new AnthropicAdapter().generateEstimate(baseInput)
+    expect(mockAnthropicCreate.mock.calls[0][0].max_tokens).toBe(16384)
+
+    mockGeminiGenerate.mockResolvedValueOnce({ functionCalls: [{ name: 'create_estimate', args: okArgs }] })
+    await new GeminiAdapter().generateEstimate(baseInput)
+    expect(mockGeminiGenerate.mock.calls[0][0].config.maxOutputTokens).toBe(16384)
+  })
+})
+
 describe('unit normaliser', () => {
   it.each([
     ['sqft', 'sq ft'],
@@ -243,6 +267,19 @@ describe('zod gate stays tolerant', () => {
       expect(item.basis).toBeUndefined()
       expect(item.optional).toBeUndefined()
     }
+  })
+
+  it('truncates (never rejects) a basis longer than 80 characters', () => {
+    const raw = base()
+    ;(raw.sections[0].items[0] as Record<string, unknown>).basis = 'x'.repeat(300)
+    const r = estimateOutputSchema.safeParse(raw)
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.sections[0].items[0].basis).toHaveLength(80)
+  })
+
+  it('the tool description tells the model the 80 character limit', () => {
+    const schema = estimateToolSchema as unknown as Schema
+    expect(schema.properties.sections.items.properties.items.items.properties.basis.description).toContain('80')
   })
 
   it('caps the lists', () => {
