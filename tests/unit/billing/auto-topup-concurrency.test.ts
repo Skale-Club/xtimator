@@ -51,6 +51,8 @@ vi.mock('@/lib/supabase/service', () => ({
               auto_topup_threshold_credits: 100,
               auto_topup_pack_index: 0,
               stripe_customer_id: 'cus_test',
+              tier: 'pro',
+              stripe_subscription_status: 'active',
             },
             error: null,
           }),

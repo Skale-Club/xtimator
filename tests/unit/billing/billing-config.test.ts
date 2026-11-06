@@ -109,6 +109,28 @@ describe('BILLCFG-01: getBillingConfig merge', () => {
 })
 
 // =============================================================================
+// SEED-055 Phase C — topupExpiryMonths (top-up lot lifetime)
+// =============================================================================
+describe('SEED-055 Phase C: topupExpiryMonths', () => {
+  it('defaults to 3 months', () => {
+    expect(DEFAULT_BILLING_CONFIG.topupExpiryMonths).toBe(3)
+  })
+
+  it('a stored prod row written before the field existed resolves to 3', async () => {
+    // Stored metadata with NO topupExpiryMonths key (the shape every prod row has today).
+    serviceClientImpl = () => makeServiceClient({ metadata: { markup: 6 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.topupExpiryMonths).toBe(3)
+  })
+
+  it('a stored value overrides the default', async () => {
+    serviceClientImpl = () => makeServiceClient({ metadata: { topupExpiryMonths: 6 } })
+    const cfg = await getBillingConfig()
+    expect(cfg.topupExpiryMonths).toBe(6)
+  })
+})
+
+// =============================================================================
 // CREDIT-05 — enforcementEnabled master charging switch
 // HIGH-1 fix: default FALSE (record-only). Production has NO billing_config
 // row until an admin explicitly saves one through the gated

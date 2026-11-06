@@ -21,7 +21,7 @@ import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { getDefaultTaxRate } from '@/lib/tax-rates'
 import { resolveIndustries } from '@/lib/industries'
 import { captureBackgroundError } from '@/lib/observability/capture'
-import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
+import { grantSignupCredits } from '@/lib/billing/credit-ledger'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { assertWritable } from '@/lib/demo/guard'
 import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
@@ -244,15 +244,8 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Billing v2: an added company on an inherited PAID tier gets this month's
-    // credit grant immediately (keyed on the SAME company-month key the monthly
-    // cron uses, so the cron later no-ops — never a double grant). Inherited
-    // free tier gets NOTHING (anti credit-farming). Fire-and-forget.
-    if (inheritedTier === 'pro' || inheritedTier === 'business') {
-      grantMonthlyCredits(newCompanyId, inheritedTier, 'company-added').catch(
-        captureBackgroundError('company.addedCompanyGrant'),
-      )
-    }
+    // SEED-055 Phase C: an added company gets NO automatic credit lot (owner
+    // decision). Phase D blocks adding companies entirely.
 
     // Seed industry-specific price book defaults — ONLY when the user opted in
     // (fire-and-forget). Unchecked → the price book starts empty.

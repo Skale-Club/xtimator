@@ -281,6 +281,8 @@ export const billingConfigSchema = z.object({
   topUpPacks: z
     .array(z.object({ credits: z.number().int().positive(), priceCents: z.number().int().positive() }))
     .max(10),
+  // SEED-055 Phase C: months until a top-up lot expires.
+  topupExpiryMonths: z.number().int().min(1).max(36),
   lowBalanceThresholds: z.array(z.number().int().min(0)).max(5),
   meteredOperations: z.record(z.string(), z.boolean()),
   absorbedChatRateLimitPerMin: z.number().int().min(0).max(1000),

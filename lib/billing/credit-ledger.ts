@@ -6,6 +6,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { currentMonthlyCreditWindow } from '@/lib/billing/credit-window'
 
 /**
  * Best-effort ops alert for a swallowed credit-ledger write failure. Shared by
@@ -171,18 +172,6 @@ export async function recordCreditDebit(input: {
  * helper — kept local to avoid coupling credit-ledger to the quota module). */
 function monthKey(now = new Date()): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-/**
- * Phase 142 (ANN-02) — the SINGLE company-month idempotency key shared by
- * the invoice.paid webhook grant AND the monthly-credit-grant cron, so a
- * company is granted its monthlyCreditGrant AT MOST ONCE per calendar month
- * for any billing interval. UTC so it never drifts across timezones.
- * Format: `grant:{companyId}:{YYYY-MM}`.
- */
-export function monthGrantKey(companyId: string, date: Date = new Date()): string {
-  const ym = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
-  return `grant:${companyId}:${ym}`
 }
 
 /**
@@ -400,31 +389,88 @@ export async function grantSignupCredits(companyId: string): Promise<void> {
 }
 
 /**
- * Billing v2: grant a company its tier's CURRENT-MONTH credit allowance, keyed
- * on the SHARED company-month key (monthGrantKey) — the same dedup authority the
- * monthly cron and the invoice.paid webhook use, so whoever grants first wins
- * and the month is never double-granted. Reads the authoritative grant size from
- * billing_config at grant time (BILLCFG-03: no hard-coded numbers at call sites).
- * Used when an added company inherits a paid tier and must not sit at zero
- * balance until the next cron run. Never throws.
+ * SEED-055 Phase C: grant the company's MONTHLY lot for the window containing
+ * `now`, derived from `periodEnd` (the end of the Stripe period the subscription
+ * is paid through). Monthly sub: the window is the billing period. Annual sub:
+ * the current monthly anniversary window (see lib/billing/credit-window.ts).
+ *
+ * Idempotent on `grant:{companyId}:{periodKey}` - the SINGLE dedup authority
+ * shared by the invoice.paid arm, the checkout.session.completed arm and the
+ * daily cron, so whichever lands first grants and the others no-op. The RPC
+ * expires the company's previous monthly lot(s) in the same transaction, but
+ * only when this key is new, so a redelivered event never expires the lot it
+ * already granted.
+ *
+ * `credits` is the caller-resolved tier grant (always
+ * getBillingConfig().tiers[tier].monthlyCreditGrant). Never throws; returns
+ * `applied: true` only when a NEW lot landed. A null window (period lapsed /
+ * unpaid), a non-positive grant and an already-granted key resolve to
+ * `applied: false`; a swallowed write failure resolves to `applied: false`
+ * with `failed: true` so a batch caller (the daily cron) can tell "nothing to
+ * do" from "the RPC is broken".
  */
-export async function grantMonthlyCredits(
+export async function grantMonthlyLot(input: {
+  companyId: string
+  credits: number
+  periodEnd: Date
+  now?: Date
+  refId?: string | null
+}): Promise<{ applied: boolean; failed?: boolean }> {
+  try {
+    if (!(input.credits > 0)) return { applied: false }
+    const window = currentMonthlyCreditWindow(input.periodEnd, input.now ?? new Date())
+    if (!window) return { applied: false }
+
+    const svc = requireServiceClient()
+    const { data: rpcData, error: rpcError } = await svc.rpc('grant_monthly_lot', {
+      p_company_id: input.companyId,
+      p_credits: input.credits,
+      p_period_key: window.periodKey,
+      p_expires_at: window.end.toISOString(),
+      p_ref_id: input.refId ?? null,
+      p_idempotency_key: `grant:${input.companyId}:${window.periodKey}`,
+    })
+    if (rpcError) {
+      throw new Error(`grantMonthlyLot RPC failed: ${rpcError.message}`)
+    }
+    const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+      | { applied?: boolean }
+      | undefined
+    return { applied: Boolean(result?.applied) }
+  } catch (err) {
+    console.warn('[grantMonthlyLot] swallowed write failure:', err)
+    notifyCreditLedgerWriteFailed(input.companyId, 'grantMonthlyLot', err)
+    return { applied: false, failed: true }
+  }
+}
+
+/**
+ * SEED-055 Phase C: expire the company's live monthly lot(s) immediately -
+ * cancellation / unpaid subscription. Idempotent (a second call finds nothing
+ * live). Never throws; returns the number of lots expired (0 on failure).
+ */
+export async function closeMonthlyLots(
   companyId: string,
-  tier: string,
-  refId = 'month-grant'
-): Promise<void> {
-  const cfg = await getBillingConfig()
-  const grant =
-    cfg.tiers[tier as keyof typeof cfg.tiers]?.monthlyCreditGrant ?? 0
-  await grantCredits({
-    companyId,
-    credits: grant, // grantCredits no-ops on <= 0 (free tier = 0)
-    reason: 'grant',
-    source: 'monthly',
-    expiresAt: null,
-    refId,
-    idempotencyKey: monthGrantKey(companyId),
-  })
+  refId: string | null = null,
+): Promise<{ expired: number }> {
+  try {
+    const svc = requireServiceClient()
+    const { data: rpcData, error: rpcError } = await svc.rpc('close_monthly_lots', {
+      p_company_id: companyId,
+      p_ref_id: refId,
+    })
+    if (rpcError) {
+      throw new Error(`closeMonthlyLots RPC failed: ${rpcError.message}`)
+    }
+    const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+      | { expired?: number }
+      | undefined
+    return { expired: Number(result?.expired ?? 0) || 0 }
+  } catch (err) {
+    console.warn('[closeMonthlyLots] swallowed write failure:', err)
+    notifyCreditLedgerWriteFailed(companyId, 'closeMonthlyLots', err)
+    return { expired: 0 }
+  }
 }
 
 /**

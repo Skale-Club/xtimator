@@ -1,226 +1,142 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 /**
- * Phase 142 (ANN-02) — THE LOAD-BEARING no-double-grant regression.
+ * SEED-055 Phase C - THE load-bearing no-double-grant regression (rewrite of the
+ * Phase 142 calendar-month version).
  *
- * Proves the company-month key (`grant:{companyId}:{YYYY-MM}`) is the SINGLE
- * dedup authority across BOTH grant paths: the invoice.paid webhook grant AND
- * the monthly-credit-grant cron. When both run in the SAME calendar month for
- * the SAME company against a shared ledger that enforces
- * UNIQUE(company_id, idempotency_key), EXACTLY ONE grant row exists — the
- * second source is a no-op. Order-independent (webhook→cron and cron→webhook).
+ * The dedup authority is now the WINDOW key `grant:{companyId}:{periodKey}`
+ * (periodKey = the monthly window start, lib/billing/credit-window.ts), shared by
+ * the invoice.paid arm, the checkout.session.completed arm and the daily cron.
+ * Whichever lands first grants; the others are no-ops - in either order - and a
+ * new window grants again and expires the previous lot.
  *
- * This is the retrocompat proof: a MONTHLY subscriber is granted exactly once
- * per month with NO double-grant when both the webhook and the cron fire.
+ * Strategy: the REAL grantMonthlyLot (not mocked) runs against an in-memory fake
+ * of the `grant_monthly_lot` RPC that reproduces its contract: no-op when the key
+ * exists (BEFORE expiring anything), otherwise expire the company's live monthly
+ * lots of another period and grant the new lot.
  *
- * Strategy: run the REAL `grantCredits` (NOT mocked) against an in-memory
- * credit_ledger fake wired into requireServiceClient, so grantCredits' real
- * dedup genuinely runs. Pre-launch audit fix (B3): grantCredits now calls the
- * atomic `grant_credit_lot` RPC instead of a direct select/insert/
- * update, so the fake's `rpc()` method reproduces that function's contract —
- * UNIQUE(company_id, idempotency_key) dedup, returning {applied:false} on a
- * hit instead of inserting again. The cron and the webhook both call
- * grantCredits with monthGrantKey(company, now) — the IDENTICAL key — so the
- * second call is a no-op.
- *
- * No real secrets / no DB / no network — placeholder ids only (co_1).
+ * No real secrets / no DB / no network - placeholder ids only (co_1).
  */
+type Lot = { id: string; period_key: string; remaining: number; expires_at: string; live: boolean }
+type LedgerRow = { company_id: string; idempotency_key: string; delta_credits: number }
 
-// ------------------------------------------------------------------
-// In-memory credit_ledger + companies, behind a chainable supabase fake that
-// reproduces the subset of the query surface grantCredits uses:
-//   from('credit_ledger').select('id').eq('company_id',x).eq('idempotency_key',k).limit(1).maybeSingle()
-//   from('credit_ledger').insert(row)            // rejects UNIQUE(company_id, idempotency_key) with 23505
-//   from('companies').select('credit_balance').eq('id',x).single()
-//   from('companies').update({credit_balance}).eq('id',x)
-// ------------------------------------------------------------------
-type LedgerRow = {
-  id: string
-  company_id: string
-  idempotency_key: string | null
-  delta_credits: number
-}
-
-const { ledger, companyBalance } = vi.hoisted(() => ({
+const { ledger, lots, rpcCalls } = vi.hoisted(() => ({
   ledger: [] as LedgerRow[],
-  companyBalance: { value: 0 },
+  lots: [] as Lot[],
+  rpcCalls: [] as Array<{ fn: string; params: Record<string, unknown> }>,
 }))
-
-function makeServiceFake() {
-  return {
-    from(table: string) {
-      if (table === 'credit_ledger') {
-        return {
-          // SELECT id WHERE company_id = .. AND idempotency_key = ..
-          select() {
-            const filters: Record<string, unknown> = {}
-            const api = {
-              eq(col: string, val: unknown) {
-                filters[col] = val
-                return api
-              },
-              limit() {
-                return api
-              },
-              async maybeSingle() {
-                const hit = ledger.find(
-                  (r) =>
-                    r.company_id === filters.company_id &&
-                    r.idempotency_key === filters.idempotency_key,
-                )
-                return { data: hit ? { id: hit.id } : null, error: null }
-              },
-            }
-            return api
-          },
-          // INSERT — enforce UNIQUE(company_id, idempotency_key) → 23505.
-          async insert(row: Omit<LedgerRow, 'id'>) {
-            const dup =
-              row.idempotency_key != null &&
-              ledger.some(
-                (r) =>
-                  r.company_id === row.company_id &&
-                  r.idempotency_key === row.idempotency_key,
-              )
-            if (dup) {
-              return { error: { code: '23505', message: 'duplicate key' } }
-            }
-            ledger.push({ id: `led_${ledger.length + 1}`, ...row })
-            return { error: null }
-          },
-        }
-      }
-      // companies
-      return {
-        select() {
-          return {
-            eq() {
-              return {
-                async single() {
-                  return {
-                    data: { credit_balance: companyBalance.value },
-                    error: null,
-                  }
-                },
-              }
-            },
-          }
-        },
-        update(patch: { credit_balance: number }) {
-          return {
-            async eq() {
-              companyBalance.value = patch.credit_balance
-              return { error: null }
-            },
-          }
-        },
-      }
-    },
-    // Simulates grant_credit_lot — grantCredits' only write path now.
-    async rpc(fnName: string, params: Record<string, unknown>) {
-      if (fnName !== 'grant_credit_lot') {
-        throw new Error(`unexpected rpc call: ${fnName}`)
-      }
-      const companyId = params.p_company_id as string
-      const idemKey = (params.p_idempotency_key as string | null) ?? null
-      const delta = params.p_credits as number
-
-      if (idemKey != null) {
-        const hit = ledger.find(
-          (r) => r.company_id === companyId && r.idempotency_key === idemKey,
-        )
-        if (hit) {
-          return { data: [{ balance_after: companyBalance.value, applied: false, lot_id: 'lot_x' }], error: null }
-        }
-      }
-
-      companyBalance.value += delta
-      ledger.push({
-        id: `led_${ledger.length + 1}`,
-        company_id: companyId,
-        idempotency_key: idemKey,
-        delta_credits: delta,
-      })
-      return { data: [{ balance_after: companyBalance.value, applied: true, lot_id: 'lot_x' }], error: null }
-    },
-  }
-}
 
 vi.mock('@/lib/supabase/service', () => ({
-  requireServiceClient: vi.fn(() => makeServiceFake()),
+  requireServiceClient: vi.fn(() => ({
+    async rpc(fn: string, params: Record<string, unknown>) {
+      rpcCalls.push({ fn, params })
+      if (fn !== 'grant_monthly_lot') throw new Error(`unexpected rpc ${fn}`)
+      const key = params.p_idempotency_key as string
+      const company = params.p_company_id as string
+      if (ledger.some((r) => r.company_id === company && r.idempotency_key === key)) {
+        return { data: [{ balance_after: 0, applied: false, lot_id: 'lot_x' }], error: null }
+      }
+      for (const l of lots) {
+        if (l.live && l.period_key !== params.p_period_key) l.live = false
+      }
+      lots.push({
+        id: `lot_${lots.length + 1}`,
+        period_key: params.p_period_key as string,
+        remaining: params.p_credits as number,
+        expires_at: params.p_expires_at as string,
+        live: true,
+      })
+      ledger.push({ company_id: company, idempotency_key: key, delta_credits: params.p_credits as number })
+      return { data: [{ balance_after: 0, applied: true, lot_id: 'lot_n' }], error: null }
+    },
+  })),
 }))
+vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
+vi.mock('@/lib/notifications/dispatch', () => ({ notify: vi.fn() }))
+vi.mock('@/lib/notifications/copy', () => ({ buildNotificationCopy: vi.fn() }))
+vi.mock('@/lib/billing/auto-topup', () => ({ triggerAutoTopupIfNeeded: vi.fn() }))
+vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
 
-// REAL grantCredits + REAL monthGrantKey — this is the whole point.
-const { grantCredits, monthGrantKey } = await import('@/lib/billing/credit-ledger')
+const { grantMonthlyLot } = await import('@/lib/billing/credit-ledger')
 
 const COMPANY = 'co_1'
-const GRANT = 9000 // pro tier monthlyCreditGrant
+const GRANT = 9000
 
-/** Simulate the invoice.paid webhook grant (route.ts invoice.paid arm). */
-async function webhookGrant(now: Date) {
-  await grantCredits({
-    companyId: COMPANY,
-    credits: GRANT,
-    reason: 'grant',
-    source: 'monthly',
-    refId: 'in_test',
-    idempotencyKey: monthGrantKey(COMPANY, now),
-  })
-}
+// Monthly sub: paid Jun 15 -> Jul 15.
+const MONTHLY_END = new Date('2026-07-15T00:00:00Z')
+const NOW = new Date('2026-06-15T05:00:00Z')
 
-/** Simulate one cron grant for the same company (runMonthlyCreditGrant inner). */
-async function cronGrant(now: Date) {
-  await grantCredits({
-    companyId: COMPANY,
-    credits: GRANT,
-    reason: 'grant',
-    source: 'monthly',
-    refId: null,
-    idempotencyKey: monthGrantKey(COMPANY, now),
-  })
-}
+const webhookGrant = (periodEnd: Date, now: Date) =>
+  grantMonthlyLot({ companyId: COMPANY, credits: GRANT, periodEnd, now, refId: 'in_test' })
+const cronGrant = (periodEnd: Date, now: Date) =>
+  grantMonthlyLot({ companyId: COMPANY, credits: GRANT, periodEnd, now, refId: 'cron' })
 
-describe('LOAD-BEARING — no double-grant per company-month (Phase 142 ANN-02)', () => {
+describe('LOAD-BEARING - no double-grant per company-window (SEED-055 Phase C)', () => {
   beforeEach(() => {
     ledger.length = 0
-    companyBalance.value = 0
+    lots.length = 0
+    rpcCalls.length = 0
     vi.clearAllMocks()
   })
 
-  it('webhook THEN cron in the same month → EXACTLY ONE ledger grant row', async () => {
-    const now = new Date('2026-06-15T05:00:00Z')
-    await webhookGrant(now)
-    await cronGrant(now)
+  it('webhook THEN cron in the same window -> EXACTLY ONE grant, key grant:{company}:{windowStart}', async () => {
+    expect(await webhookGrant(MONTHLY_END, NOW)).toEqual({ applied: true })
+    expect(await cronGrant(MONTHLY_END, new Date('2026-06-16T05:00:00Z'))).toEqual({ applied: false })
 
     expect(ledger).toHaveLength(1)
-    expect(ledger[0].company_id).toBe(COMPANY)
-    expect(ledger[0].idempotency_key).toBe('grant:co_1:2026-06')
-    expect(ledger[0].delta_credits).toBe(GRANT)
-    // Balance bumped once, not twice.
-    expect(companyBalance.value).toBe(GRANT)
+    expect(ledger[0].idempotency_key).toBe('grant:co_1:2026-06-15')
+    expect(lots).toHaveLength(1)
+    expect(lots[0].live).toBe(true)
   })
 
-  it('cron THEN webhook in the same month → EXACTLY ONE ledger grant row (order-independent)', async () => {
-    const now = new Date('2026-06-15T05:00:00Z')
-    await cronGrant(now)
-    await webhookGrant(now)
+  it('cron THEN webhook in the same window -> EXACTLY ONE grant (order-independent)', async () => {
+    await cronGrant(MONTHLY_END, NOW)
+    expect((await webhookGrant(MONTHLY_END, NOW)).applied).toBe(false)
 
     expect(ledger).toHaveLength(1)
-    expect(ledger[0].idempotency_key).toBe('grant:co_1:2026-06')
-    expect(companyBalance.value).toBe(GRANT)
+    expect(ledger[0].idempotency_key).toBe('grant:co_1:2026-06-15')
   })
 
-  it('a DIFFERENT month grants again (annual sub: cron grants months 2-12)', async () => {
-    await webhookGrant(new Date('2026-06-01T05:00:00Z')) // month 1 (invoice.paid)
-    await cronGrant(new Date('2026-07-01T05:00:00Z')) // month 2 (cron)
-    await cronGrant(new Date('2026-08-01T05:00:00Z')) // month 3 (cron)
+  it('a redelivered webhook never expires the lot it already granted', async () => {
+    await webhookGrant(MONTHLY_END, NOW)
+    await webhookGrant(MONTHLY_END, NOW)
+    await webhookGrant(MONTHLY_END, NOW)
+    expect(lots).toHaveLength(1)
+    expect(lots[0].live).toBe(true)
+  })
 
-    expect(ledger).toHaveLength(3)
+  it('the lot expires at the window end (expires_at = window.end, p_period_key = window start)', async () => {
+    await webhookGrant(MONTHLY_END, NOW)
+    const params = rpcCalls[0].params
+    expect(params.p_expires_at).toBe('2026-07-15T00:00:00.000Z')
+    expect(params.p_period_key).toBe('2026-06-15')
+    expect(params.p_credits).toBe(GRANT)
+  })
+
+  it('annual sub: each monthly anniversary grants a NEW lot and expires the previous one', async () => {
+    const annualEnd = new Date('2027-06-15T00:00:00Z')
+    await webhookGrant(annualEnd, new Date('2026-06-15T05:00:00Z')) // invoice.paid: month 1
+    await cronGrant(annualEnd, new Date('2026-06-16T05:00:00Z')) // daily cron, same window -> no-op
+    await cronGrant(annualEnd, new Date('2026-07-15T05:00:00Z')) // month 2
+    await cronGrant(annualEnd, new Date('2026-08-15T05:00:00Z')) // month 3
+
     expect(ledger.map((r) => r.idempotency_key)).toEqual([
-      'grant:co_1:2026-06',
-      'grant:co_1:2026-07',
-      'grant:co_1:2026-08',
+      'grant:co_1:2026-06-15',
+      'grant:co_1:2026-07-15',
+      'grant:co_1:2026-08-15',
     ])
-    expect(companyBalance.value).toBe(GRANT * 3)
+    expect(lots.filter((l) => l.live).map((l) => l.period_key)).toEqual(['2026-08-15'])
+  })
+
+  it('a lapsed period (now >= periodEnd) grants nothing and never calls the RPC', async () => {
+    expect(await cronGrant(MONTHLY_END, new Date('2026-07-15T00:00:00Z'))).toEqual({ applied: false })
+    expect(rpcCalls).toHaveLength(0)
+    expect(ledger).toHaveLength(0)
+  })
+
+  it('a non-positive grant (free tier = 0) never calls the RPC', async () => {
+    const r = await grantMonthlyLot({ companyId: COMPANY, credits: 0, periodEnd: MONTHLY_END, now: NOW })
+    expect(r).toEqual({ applied: false })
+    expect(rpcCalls).toHaveLength(0)
   })
 })

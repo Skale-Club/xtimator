@@ -3,6 +3,8 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { grantCredits } from '@/lib/billing/credit-ledger'
+import { topupExpiresAt } from '@/lib/billing/credit-window'
+import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { notifyOps } from '@/lib/observability/ops-alert'
 
 /**
@@ -83,7 +85,7 @@ export async function triggerAutoTopupIfNeeded(input: {
     const { data: co } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at, tier, stripe_subscription_status'
       )
       .eq('id', input.companyId)
       .maybeSingle()
@@ -97,9 +99,15 @@ export async function triggerAutoTopupIfNeeded(input: {
       stripe_customer_id?: string | null
       auto_topup_last_failed_at?: string | null
       auto_topup_last_charge_attempt_at?: string | null
+      tier?: string | null
+      stripe_subscription_status?: string | null
     } | null
 
     if (!company?.auto_topup_enabled) return
+    // SEED-055 Phase C: top-ups are sold to Pro companies with a live
+    // subscription only. Silent skip - a free / lapsed company with a stale
+    // auto top-up opt-in must never be charged.
+    if (!isTopupEligible(company.tier, company.stripe_subscription_status)) return
     if (company.auto_topup_threshold_credits == null) return
     if (input.newBalance >= company.auto_topup_threshold_credits) return
     if (!company.stripe_customer_id || company.auto_topup_pack_index == null) return
@@ -208,10 +216,12 @@ async function chargeAutoTopup(input: {
     // of billing_config.topUpPacks cannot change the amount. Legacy rows with a
     // null snapshot fall back to the index lookup (original behavior).
     let pack: { priceCents: number; credits: number }
+    // SEED-055 Phase C: the top-up lot expires topupExpiryMonths after purchase.
+    const expiryCfg = await getBillingConfig()
     if (input.packPriceCents != null && input.packCredits != null) {
       pack = { priceCents: input.packPriceCents, credits: input.packCredits }
     } else {
-      const cfg = await getBillingConfig()
+      const cfg = expiryCfg
       const configPack = cfg.topUpPacks[input.packIndex]
       if (!configPack) {
         throw new Error(`invalid auto_topup_pack_index ${input.packIndex}`)
@@ -261,7 +271,7 @@ async function chargeAutoTopup(input: {
       credits: pack.credits,
       reason: 'topup',
       source: 'topup',
-      expiresAt: null,
+      expiresAt: topupExpiresAt(expiryCfg.topupExpiryMonths),
       refId: paymentIntent.id,
       idempotencyKey: `autotopup:${paymentIntent.id}`,
     })

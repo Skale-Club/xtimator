@@ -87,7 +87,6 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantSignupCredits: vi.fn(async () => undefined),
-  grantMonthlyCredits: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: vi.fn() }))

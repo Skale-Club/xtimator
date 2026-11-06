@@ -7,6 +7,7 @@ import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
+import { isTopupEligible, TOPUP_REQUIRES_SUBSCRIPTION_BODY } from '@/lib/billing/topup-eligibility'
 
 const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
   NextResponse.json(
@@ -57,13 +58,19 @@ export async function POST(request: NextRequest) {
   const { data: company } = companyId
     ? await supabase
         .from('companies')
-        .select('id, stripe_customer_id')
+        .select('id, stripe_customer_id, tier, stripe_subscription_status')
         .eq('id', companyId)
         .maybeSingle()
     : { data: null }
 
   if (!company?.id) {
     return NextResponse.json({ error: 'Company not found' }, { status: 400 })
+  }
+
+  // SEED-055 Phase C: top-ups are sold to Pro companies with a live
+  // subscription only (a free company must subscribe, not buy packs).
+  if (!isTopupEligible(company.tier as string | null, company.stripe_subscription_status as string | null)) {
+    return NextResponse.json(TOPUP_REQUIRES_SUBSCRIPTION_BODY, { status: 403 })
   }
 
   const stripe = await getStripeClient()

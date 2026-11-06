@@ -3,54 +3,39 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * Phase 142 (ANN-02) — monthlyCreditGrantJob monthly cron tests.
- *
- * Mirrors cleanup-audio-job.test.ts (Quick task 260522-kf2).
+ * SEED-055 Phase C - monthlyCreditGrantJob (daily subscription-cycle cron).
  *
  * Contract under test (runMonthlyCreditGrant in lib/inngest/functions/monthly-credit-grant.ts):
  *   - getBillingConfig() read ONCE per run
  *   - SELECT companies WHERE tier IN ('pro','business') AND stripe_subscription_id IS NOT NULL
- *   - For each row, grantCredits({ companyId, credits: cfg.tiers[tier].monthlyCreditGrant,
- *       reason:'grant', refId:null, idempotencyKey: monthGrantKey(id, now) })
- *   - free/trial/no-subscription companies are excluded BY THE QUERY (never reach grantCredits)
- *   - per-company resilience: one grantCredits throw does not abort the loop
- *   - SELECT error → returns { granted: 0 }, never throws
- *   - monthlyCreditGrantJob: id 'monthly-credit-grant', cron '0 5 1 * *',
- *     body wrapped in step.run('grant-monthly-credits', ...)
- *   - app/api/inngest/route.ts registers monthlyCreditGrantJob in the serve() functions array
+ *     AND status NULL/active/trialing AND tier_renews_at > now()
+ *   - For each row: grantMonthlyLot({ companyId, credits: tiers[tier].monthlyCreditGrant,
+ *     periodEnd: tier_renews_at })  - monthly sub and annual sub use the SAME call; the
+ *     window math (billing period vs monthly anniversary) lives in credit-window.ts
+ *   - free / unpaid (tier_renews_at <= now) companies are excluded BY THE QUERY
+ *   - per-company resilience: one throw does not abort the loop
+ *   - SELECT error -> THROWS (Inngest retries)
+ *   - ops alert only when EVERY attempt FAILED; an already-granted no-op is not a failure
+ *   - monthlyCreditGrantJob: id 'monthly-credit-grant', cron '0 5 * * *' (daily)
  *
- * The load-bearing no-double-grant regression lives in
- * tests/unit/billing/credit-grant-no-double.test.ts.
+ * The window arithmetic is covered by credit-window.test.ts; the no-double-grant
+ * regression by credit-grant-no-double.test.ts. The end-to-end monthly vs annual
+ * behaviour with the REAL window math is the last describe below.
  *
- * No real secrets — placeholder ids only (co_1, sub_test).
+ * No real secrets - placeholder ids only (co_1, sub_test).
  */
-
-// grantCredits is mocked (the contract); monthGrantKey is kept REAL so the
-// cron produces a genuine `grant:{companyId}:{YYYY-MM}` key.
-// vi.hoisted so the fns exist before the hoisted vi.mock factories run.
-const { mockGrantCredits, mockGetBillingConfig, mockNotifyOps } = vi.hoisted(() => ({
-  mockGrantCredits: vi.fn(),
+const { mockGrantMonthlyLot, mockGetBillingConfig, mockNotifyOps } = vi.hoisted(() => ({
+  mockGrantMonthlyLot: vi.fn(),
   mockGetBillingConfig: vi.fn(),
   mockNotifyOps: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
-  grantCredits: mockGrantCredits,
-  monthGrantKey: (companyId: string, date: Date = new Date()) =>
-    `grant:${companyId}:${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`,
+  grantMonthlyLot: mockGrantMonthlyLot,
 }))
-
-vi.mock('@/lib/billing/billing-config', () => ({
-  getBillingConfig: mockGetBillingConfig,
-}))
-
-vi.mock('@/lib/supabase/service', () => ({
-  requireServiceClient: vi.fn(),
-}))
-
-vi.mock('@/lib/observability/ops-alert', () => ({
-  notifyOps: mockNotifyOps,
-}))
+vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: mockGetBillingConfig }))
+vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: vi.fn() }))
+vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: mockNotifyOps }))
 
 import {
   runMonthlyCreditGrant,
@@ -60,135 +45,101 @@ import {
 const TEST_CONFIG = {
   tiers: {
     free: { monthlyCreditGrant: 0 },
-    trial: { monthlyCreditGrant: 2000 },
     pro: { monthlyCreditGrant: 9000 },
     business: { monthlyCreditGrant: 30000 },
   },
 }
 
+type Row = { id: string; tier: string; tier_renews_at: string | null }
+
 /**
  * Chainable companies select fake:
- *   svc.from('companies').select('id, tier').in('tier', [...])
- *     .not('stripe_subscription_id','is',null)
- *     .or('stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)')
- * resolves to { data: rows, error }.
+ *   svc.from('companies').select('id, tier, tier_renews_at').in(...).not(...).or(...).gt(...)
+ * `gt` is the terminal call.
  */
-function makeSvc(opts: {
-  rows: Array<{ id: string; tier: string }> | null
-  selectError?: { message: string } | null
-}) {
+function makeSvc(opts: { rows: Row[] | null; selectError?: { message: string } | null }) {
   const chain: Record<string, unknown> = {}
   chain.in = vi.fn().mockReturnValue(chain)
   chain.not = vi.fn().mockReturnValue(chain)
-  chain.or = vi.fn().mockResolvedValue({
-    data: opts.rows,
-    error: opts.selectError ?? null,
-  })
-  return {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue(chain),
-    }),
-    __chain: chain,
-  }
+  chain.or = vi.fn().mockReturnValue(chain)
+  chain.gt = vi.fn().mockResolvedValue({ data: opts.rows, error: opts.selectError ?? null })
+  const select = vi.fn().mockReturnValue(chain)
+  return { from: vi.fn().mockReturnValue({ select }), __chain: chain, __select: select }
 }
 
-describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
+const FUTURE = new Date(Date.now() + 20 * 86_400_000).toISOString()
+
+describe('runMonthlyCreditGrant (SEED-055 Phase C)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGrantCredits.mockResolvedValue({ applied: true })
+    mockGrantMonthlyLot.mockResolvedValue({ applied: true })
     mockGetBillingConfig.mockResolvedValue(TEST_CONFIG)
     mockNotifyOps.mockResolvedValue(undefined)
   })
 
-  it('grants each active paying company its tier grant via grantCredits keyed on the company-month key', async () => {
-    const rows = [
-      { id: 'co_1', tier: 'pro' },
-      { id: 'co_2', tier: 'business' },
-    ]
-    const svc = makeSvc({ rows })
+  it('grants each active paying company its tier grant via grantMonthlyLot(periodEnd = tier_renews_at)', async () => {
+    const svc = makeSvc({
+      rows: [
+        { id: 'co_1', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_2', tier: 'business', tier_renews_at: FUTURE },
+      ],
+    })
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ attempted: 2, granted: 2 })
+    expect(result).toEqual({ attempted: 2, granted: 2, failed: 0 })
     expect(svc.from).toHaveBeenCalledWith('companies')
-    // Query selects active paying companies only.
+    expect(svc.__select).toHaveBeenCalledWith('id, tier, tier_renews_at')
     expect(svc.__chain.in).toHaveBeenCalledWith('tier', ['pro', 'business'])
-    expect(svc.__chain.not).toHaveBeenCalledWith(
-      'stripe_subscription_id',
-      'is',
-      null,
-    )
-    // Backward-compatible status filter — NULL (pre-column rows) OR active/trialing.
+    expect(svc.__chain.not).toHaveBeenCalledWith('stripe_subscription_id', 'is', null)
+    // Backward-compatible status filter - NULL (pre-column rows) OR active/trialing.
     expect(svc.__chain.or).toHaveBeenCalledWith(
       'stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)',
     )
-    // getBillingConfig read ONCE (not per company).
     expect(mockGetBillingConfig).toHaveBeenCalledTimes(1)
 
-    expect(mockGrantCredits).toHaveBeenCalledTimes(2)
-    expect(mockGrantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({
-        companyId: 'co_1',
-        credits: 9000,
-        reason: 'grant',
-        source: 'monthly',
-        expiresAt: null,
-        refId: null,
-        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
-      }),
+    expect(mockGrantMonthlyLot).toHaveBeenCalledTimes(2)
+    expect(mockGrantMonthlyLot).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: 'co_1', credits: 9000, periodEnd: new Date(FUTURE) }),
     )
-    expect(mockGrantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({
-        companyId: 'co_2',
-        credits: 30000,
-        reason: 'grant',
-        source: 'monthly',
-        idempotencyKey: expect.stringMatching(/^grant:co_2:\d{4}-\d{2}$/),
-      }),
+    expect(mockGrantMonthlyLot).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: 'co_2', credits: 30000, periodEnd: new Date(FUTURE) }),
     )
   })
 
-  it('produces the IDENTICAL company-month key the webhook would for the same company+month (shared dedup authority)', async () => {
-    const svc = makeSvc({ rows: [{ id: 'co_1', tier: 'pro' }] })
+  it('only selects subscriptions PAID THROUGH a future date: tier_renews_at > now (an unpaid renewal never gets a free month)', async () => {
+    const svc = makeSvc({ rows: [] })
+    const before = Date.now()
+
     await runMonthlyCreditGrant(svc as never)
 
-    const cronKey = mockGrantCredits.mock.calls[0][0].idempotencyKey
-    const now = new Date()
-    const expected = `grant:co_1:${now.getUTCFullYear()}-${String(
-      now.getUTCMonth() + 1,
-    ).padStart(2, '0')}`
-    expect(cronKey).toBe(expected)
+    expect(svc.__chain.gt).toHaveBeenCalledTimes(1)
+    const [col, bound] = (svc.__chain.gt as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(col).toBe('tier_renews_at')
+    const boundMs = new Date(bound as string).getTime()
+    expect(boundMs).toBeGreaterThanOrEqual(before)
+    expect(boundMs).toBeLessThanOrEqual(Date.now())
   })
 
-  it('excludes free/trial/no-subscription companies BY THE QUERY (they never reach grantCredits)', async () => {
-    // The query already filters; an empty result set means nothing is granted.
+  it('empty result set grants nothing and does not alert', async () => {
     const svc = makeSvc({ rows: [] })
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ attempted: 0, granted: 0 })
-    expect(mockGrantCredits).not.toHaveBeenCalled()
-    expect(svc.__chain.in).toHaveBeenCalledWith('tier', ['pro', 'business'])
-    expect(svc.__chain.not).toHaveBeenCalledWith(
-      'stripe_subscription_id',
-      'is',
-      null,
-    )
-    expect(svc.__chain.or).toHaveBeenCalledWith(
-      'stripe_subscription_status.is.null,stripe_subscription_status.in.(active,trialing)',
-    )
-    // attempted:0 → the zero-success alert must NOT fire (nothing was attempted).
+    expect(result).toEqual({ attempted: 0, granted: 0, failed: 0 })
+    expect(mockGrantMonthlyLot).not.toHaveBeenCalled()
     expect(mockNotifyOps).not.toHaveBeenCalled()
   })
 
-  it('per-company resilience: one grantCredits throw does not abort the loop', async () => {
-    const rows = [
-      { id: 'co_1', tier: 'pro' },
-      { id: 'co_2', tier: 'pro' },
-      { id: 'co_3', tier: 'pro' },
-    ]
-    const svc = makeSvc({ rows })
-    mockGrantCredits
+  it('per-company resilience: one grantMonthlyLot throw does not abort the loop', async () => {
+    const svc = makeSvc({
+      rows: [
+        { id: 'co_1', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_2', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_3', tier: 'pro', tier_renews_at: FUTURE },
+      ],
+    })
+    mockGrantMonthlyLot
       .mockResolvedValueOnce({ applied: true })
       .mockRejectedValueOnce(new Error('grant boom'))
       .mockResolvedValueOnce({ applied: true })
@@ -196,56 +147,148 @@ describe('runMonthlyCreditGrant (Phase 142 ANN-02)', () => {
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    // The failing company is not counted; the others still grant. All three
-    // were attempted regardless of outcome.
-    expect(result).toEqual({ attempted: 3, granted: 2 })
-    expect(mockGrantCredits).toHaveBeenCalledTimes(3)
+    expect(result).toEqual({ attempted: 3, granted: 2, failed: 1 })
+    expect(mockGrantMonthlyLot).toHaveBeenCalledTimes(3)
     warn.mockRestore()
   })
 
-  it('counts REAL grants only: a resolved grantCredits with applied:false (idempotent no-op) does NOT increment granted', async () => {
-    const rows = [
-      { id: 'co_1', tier: 'pro' },
-      { id: 'co_2', tier: 'pro' },
-    ]
-    const svc = makeSvc({ rows })
-    mockGrantCredits
-      .mockResolvedValueOnce({ applied: true })
-      .mockResolvedValueOnce({ applied: false }) // e.g. already granted by the webhook this month
+  it('an already-granted no-op (applied:false, not failed) is NOT a failure and does NOT alert', async () => {
+    const svc = makeSvc({
+      rows: [
+        { id: 'co_1', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_2', tier: 'pro', tier_renews_at: FUTURE },
+      ],
+    })
+    mockGrantMonthlyLot.mockResolvedValue({ applied: false }) // every lot was already granted today's window
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ attempted: 2, granted: 1 })
+    expect(result).toEqual({ attempted: 2, granted: 0, failed: 0 })
+    expect(mockNotifyOps).not.toHaveBeenCalled()
   })
 
-  it('THROWS (never returns) when the SELECT errors — lets Inngest retry instead of silently skipping the month', async () => {
+  it('a partial failure (some applied, some failed) does not alert', async () => {
+    const svc = makeSvc({
+      rows: [
+        { id: 'co_1', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_2', tier: 'pro', tier_renews_at: FUTURE },
+      ],
+    })
+    mockGrantMonthlyLot
+      .mockResolvedValueOnce({ applied: true })
+      .mockResolvedValueOnce({ applied: false, failed: true })
+
+    const result = await runMonthlyCreditGrant(svc as never)
+
+    expect(result).toEqual({ attempted: 2, granted: 1, failed: 1 })
+    expect(mockNotifyOps).not.toHaveBeenCalled()
+  })
+
+  it('THROWS when the SELECT errors - lets Inngest retry instead of silently skipping the day', async () => {
     const svc = makeSvc({ rows: null, selectError: { message: 'rls denied' } })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await expect(runMonthlyCreditGrant(svc as never)).rejects.toThrow(/rls denied/)
 
-    expect(mockGrantCredits).not.toHaveBeenCalled()
-    expect(warn).toHaveBeenCalled()
+    expect(mockGrantMonthlyLot).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 
-  it('fires notifyOps("monthly_credit_grant_zero_success") when every attempted company fails to grant', async () => {
-    const rows = [
-      { id: 'co_1', tier: 'pro' },
-      { id: 'co_2', tier: 'business' },
-    ]
-    const svc = makeSvc({ rows })
-    mockGrantCredits.mockResolvedValue({ applied: false })
+  it('fires notifyOps("monthly_credit_grant_zero_success") only when EVERY attempt failed', async () => {
+    const svc = makeSvc({
+      rows: [
+        { id: 'co_1', tier: 'pro', tier_renews_at: FUTURE },
+        { id: 'co_2', tier: 'business', tier_renews_at: FUTURE },
+      ],
+    })
+    mockGrantMonthlyLot.mockResolvedValue({ applied: false, failed: true })
 
     const result = await runMonthlyCreditGrant(svc as never)
 
-    expect(result).toEqual({ attempted: 2, granted: 0 })
+    expect(result).toEqual({ attempted: 2, granted: 0, failed: 2 })
     expect(mockNotifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'monthly_credit_grant_zero_success', severity: 'error' }),
+    )
+  })
+})
+
+describe('monthly vs annual vs lapsed - the cron through the REAL window math', () => {
+  // A second module graph with the REAL grantMonthlyLot and an RPC recorder, so
+  // the arguments the RPC receives prove which window each sub type gets.
+  async function runWithRealGrant(rows: Row[], now: Date) {
+    vi.resetModules()
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ balance_after: 0, applied: true, lot_id: 'lot_1' }],
+      error: null,
+    })
+    vi.doMock('@/lib/supabase/service', () => ({ requireServiceClient: () => ({ rpc }) }))
+    vi.doMock('@/lib/billing/billing-config', () => ({ getBillingConfig: mockGetBillingConfig }))
+    vi.doMock('@/lib/observability/ops-alert', () => ({ notifyOps: mockNotifyOps }))
+    vi.doMock('@/lib/notifications/dispatch', () => ({ notify: vi.fn() }))
+    vi.doMock('@/lib/notifications/copy', () => ({ buildNotificationCopy: vi.fn() }))
+    vi.doMock('@/lib/billing/auto-topup', () => ({ triggerAutoTopupIfNeeded: vi.fn() }))
+    vi.doUnmock('@/lib/billing/credit-ledger')
+    const mod = await import('@/lib/inngest/functions/monthly-credit-grant')
+    const svc = makeSvc({ rows })
+    const result = await mod.runMonthlyCreditGrant(svc as never)
+    vi.useRealTimers()
+    return { result, rpc }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetBillingConfig.mockResolvedValue(TEST_CONFIG)
+  })
+
+  it('monthly sub (paid through Jul 15): the lot is the billing period Jun 15 - Jul 15', async () => {
+    const { rpc } = await runWithRealGrant(
+      [{ id: 'co_m', tier: 'pro', tier_renews_at: '2026-07-15T00:00:00.000Z' }],
+      new Date('2026-06-20T05:00:00Z'),
+    )
+    expect(rpc).toHaveBeenCalledWith(
+      'grant_monthly_lot',
       expect.objectContaining({
-        kind: 'monthly_credit_grant_zero_success',
-        severity: 'error',
+        p_company_id: 'co_m',
+        p_credits: 9000,
+        p_period_key: '2026-06-15',
+        p_expires_at: '2026-07-15T00:00:00.000Z',
+        p_idempotency_key: 'grant:co_m:2026-06-15',
       }),
     )
+  })
+
+  it('annual sub (paid through next March): the lot is the CURRENT monthly anniversary, not the year', async () => {
+    const { rpc } = await runWithRealGrant(
+      [{ id: 'co_a', tier: 'pro', tier_renews_at: '2027-03-15T00:00:00.000Z' }],
+      new Date('2026-08-20T05:00:00Z'),
+    )
+    expect(rpc).toHaveBeenCalledWith(
+      'grant_monthly_lot',
+      expect.objectContaining({
+        p_company_id: 'co_a',
+        p_period_key: '2026-08-15',
+        p_expires_at: '2026-09-15T00:00:00.000Z',
+        p_idempotency_key: 'grant:co_a:2026-08-15',
+      }),
+    )
+  })
+
+  it('annual sub: the next day inside the same window produces the SAME key (idempotent)', async () => {
+    const row: Row = { id: 'co_a', tier: 'pro', tier_renews_at: '2027-03-15T00:00:00.000Z' }
+    const day1 = await runWithRealGrant([row], new Date('2026-08-20T05:00:00Z'))
+    const day2 = await runWithRealGrant([row], new Date('2026-08-21T05:00:00Z'))
+    expect(day1.rpc.mock.calls[0][1].p_idempotency_key).toBe(day2.rpc.mock.calls[0][1].p_idempotency_key)
+  })
+
+  it('tier_renews_at <= now (lapsed / unpaid period) never reaches the RPC even if the query returned it', async () => {
+    const { rpc, result } = await runWithRealGrant(
+      [{ id: 'co_u', tier: 'pro', tier_renews_at: '2026-06-01T00:00:00.000Z' }],
+      new Date('2026-06-20T05:00:00Z'),
+    )
+    expect(rpc).not.toHaveBeenCalled()
+    expect(result).toEqual({ attempted: 1, granted: 0, failed: 0 })
   })
 })
 
@@ -253,19 +296,20 @@ describe('monthlyCreditGrantJob (Inngest function config)', () => {
   type FnInternals = {
     opts: {
       id: string
+      retries?: number
       triggers?: Array<{ cron?: string; event?: string }>
     }
   }
 
-  it('is created with id "monthly-credit-grant" and cron "0 5 1 * *"', () => {
+  it('is created with id "monthly-credit-grant" and a DAILY cron "0 5 * * *"', () => {
     const fn = monthlyCreditGrantJob as unknown as FnInternals
     expect(fn.opts.id).toBe('monthly-credit-grant')
-    expect(fn.opts.triggers).toBeDefined()
-    expect(fn.opts.triggers).toContainEqual({ cron: '0 5 1 * *' })
+    expect(fn.opts.triggers).toContainEqual({ cron: '0 5 * * *' })
+    expect(fn.opts.triggers).not.toContainEqual({ cron: '0 5 1 * *' })
   })
 
-  it('is configured with retries: 3 (so a thrown SELECT error is retried, not silently dropped)', () => {
-    const fn = monthlyCreditGrantJob as unknown as { opts: { retries?: number } }
+  it('is configured with retries: 3', () => {
+    const fn = monthlyCreditGrantJob as unknown as FnInternals
     expect(fn.opts.retries).toBe(3)
   })
 
@@ -276,14 +320,19 @@ describe('monthlyCreditGrantJob (Inngest function config)', () => {
     )
     expect(src).toMatch(/step\.run\(['"]grant-monthly-credits['"]/)
   })
+
+  it('no longer references the calendar-month key', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/inngest/functions/monthly-credit-grant.ts'),
+      'utf8',
+    )
+    expect(src).not.toMatch(/monthGrantKey/)
+  })
 })
 
 describe('monthlyCreditGrantJob is registered in serve()', () => {
   it('app/api/inngest/route.ts imports monthlyCreditGrantJob and includes it in the functions array', () => {
-    const src = readFileSync(
-      resolve(process.cwd(), 'app/api/inngest/route.ts'),
-      'utf8',
-    )
+    const src = readFileSync(resolve(process.cwd(), 'app/api/inngest/route.ts'), 'utf8')
     expect(src).toMatch(/monthlyCreditGrantJob/)
   })
 })

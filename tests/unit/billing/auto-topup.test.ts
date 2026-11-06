@@ -20,6 +20,8 @@ let companyRow: {
   auto_topup_pack_price_cents?: number | null
   auto_topup_pack_credits?: number | null
   stripe_customer_id?: string | null
+  tier?: string | null
+  stripe_subscription_status?: string | null
 } | null = null
 
 const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
@@ -28,11 +30,13 @@ const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
 // resolves to. Defaults to a landed grant — tests that need to prove the
 // "charged but not granted" alert override this to { applied: false }.
 let ledgerRpcApplied = true
+const grantRpcParams: Array<Record<string, unknown>> = []
 
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
-    rpc: async (fn: string) => {
+    rpc: async (fn: string, params?: Record<string, unknown>) => {
       if (fn === 'grant_credit_lot') {
+        grantRpcParams.push(params ?? {})
         return { data: [{ balance_after: 1300, applied: ledgerRpcApplied, lot_id: 'lot-1' }], error: null }
       }
       return { data: true, error: null } // lock acquire/release always granted in this file's tests
@@ -68,7 +72,11 @@ vi.mock('@/lib/billing/stripe-client', () => ({
 }))
 
 // ---- billing-config mock -----------------------------------------------------
-let billingConfig: { autoTopupEnabled: boolean; topUpPacks: Array<{ credits: number; priceCents: number }> } = {
+let billingConfig: {
+  autoTopupEnabled: boolean
+  topUpPacks: Array<{ credits: number; priceCents: number }>
+  topupExpiryMonths?: number
+} = {
   autoTopupEnabled: true,
   topUpPacks: [{ credits: 1300, priceCents: 2000 }],
 }
@@ -94,7 +102,10 @@ beforeEach(() => {
     auto_topup_threshold_credits: 100,
     auto_topup_pack_index: 0,
     stripe_customer_id: 'cus_test',
+    tier: 'pro',
+    stripe_subscription_status: 'active',
   }
+  grantRpcParams.length = 0
   billingConfig = {
     autoTopupEnabled: true,
     topUpPacks: [{ credits: 1300, priceCents: 2000 }],
@@ -133,6 +144,55 @@ describe('CREDITUI-07: platform kill switch', () => {
       triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
     ).resolves.toBeUndefined()
     expect(paymentIntentsCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('SEED-055 Phase C: top-ups are sold to Pro companies with a live subscription only', () => {
+  it.each([
+    ['free tier', 'free', null],
+    ['pro but subscription canceled', 'pro', 'canceled'],
+    ['pro but subscription unpaid', 'pro', 'unpaid'],
+    ['pro with an unknown subscription status', 'pro', null],
+  ])('silently skips (no charge, no throw): %s', async (_label, tier, status) => {
+    companyRow!.tier = tier
+    companyRow!.stripe_subscription_status = status
+    await expect(
+      triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    ).resolves.toBeUndefined()
+    expect(paymentIntentsCreate).not.toHaveBeenCalled()
+    expect(updates).toHaveLength(0) // no attempt stamp either
+  })
+
+  it.each([
+    ['pro', 'active'],
+    ['pro', 'trialing'],
+    ['pro', 'past_due'],
+    ['business', 'active'],
+  ])('charges for tier=%s status=%s', async (tier, status) => {
+    companyRow!.tier = tier
+    companyRow!.stripe_subscription_status = status
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('the granted topup lot expires topupExpiryMonths (default 3) after the charge', async () => {
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(grantRpcParams).toHaveLength(1)
+    const p = grantRpcParams[0]
+    expect(p.p_source).toBe('topup')
+    expect(p.p_reason).toBe('topup')
+    const months = (new Date(p.p_expires_at as string).getTime() - Date.now()) / (86_400_000 * 30.4)
+    expect(months).toBeGreaterThan(2.8)
+    expect(months).toBeLessThan(3.2)
+  })
+
+  it('honours a configured topupExpiryMonths', async () => {
+    billingConfig.topupExpiryMonths = 6
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    const months =
+      (new Date(grantRpcParams[0].p_expires_at as string).getTime() - Date.now()) / (86_400_000 * 30.4)
+    expect(months).toBeGreaterThan(5.8)
+    expect(months).toBeLessThan(6.2)
   })
 })
 
@@ -285,6 +345,8 @@ describe('CREDITUI-07: pack snapshot (charge what was authorized)', () => {
       auto_topup_pack_price_cents: 5000,
       auto_topup_pack_credits: 3500,
       stripe_customer_id: 'cus_test',
+      tier: 'pro',
+      stripe_subscription_status: 'active',
     }
     billingConfig = {
       autoTopupEnabled: true,
@@ -307,6 +369,8 @@ describe('CREDITUI-07: pack snapshot (charge what was authorized)', () => {
       auto_topup_pack_price_cents: null,
       auto_topup_pack_credits: null,
       stripe_customer_id: 'cus_test',
+      tier: 'pro',
+      stripe_subscription_status: 'active',
     }
     billingConfig = {
       autoTopupEnabled: true,

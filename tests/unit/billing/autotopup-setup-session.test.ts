@@ -44,8 +44,18 @@ function makeRequest() {
 
 function makeSupabaseMock(
   claimsResult: { sub: string; email: string } | null,
-  companyData: { id: string; stripe_customer_id: string | null } | null
+  companyData: {
+    id: string
+    stripe_customer_id: string | null
+    tier?: string | null
+    stripe_subscription_status?: string | null
+  } | null
 ) {
+  // SEED-055 Phase C: top-ups need a Pro company with a live subscription;
+  // the default fixture is eligible, the gate tests override tier / status.
+  const row = companyData
+    ? { tier: 'pro', stripe_subscription_status: 'active', ...companyData }
+    : companyData
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({ data: { claims: claimsResult } }),
@@ -53,7 +63,7 @@ function makeSupabaseMock(
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: companyData, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
     }),
   }
 }
@@ -75,6 +85,27 @@ beforeEach(() => {
   } as never)
   vi.mocked(ensureStripeCustomer).mockResolvedValue('cus_ensured')
   vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 1, max: 20 })
+})
+
+describe('SEED-055 Phase C: auto top-up setup is Pro-with-live-subscription only', () => {
+  it.each([
+    ['free tier', { tier: 'free', stripe_subscription_status: null }],
+    ['canceled subscription', { tier: 'pro', stripe_subscription_status: 'canceled' }],
+  ])('403 topup_requires_subscription and no Stripe session: %s', async (_l, extra) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: 'cus_1', ...extra }
+      ) as never
+    )
+
+    const res = await POST(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(body.code).toBe('topup_requires_subscription')
+    expect(mockSessionCreate).not.toHaveBeenCalled()
+  })
 })
 
 describe('POST /api/billing/create-autotopup-setup-session (CREDITUI-07)', () => {

@@ -33,6 +33,7 @@ vi.mock('@/lib/billing/stripe-client', () => ({
     webhooks: { constructEvent: mockConstructEvent },
     subscriptions: { retrieve: mockSubscriptionsRetrieve },
   }),
+  SEAT_ITEM_METADATA_KIND: 'seat',
   // Fix 1: route.ts now imports readPeriodEnd from this module — mirror the
   // real implementation (find the PLAN item, read its current_period_end)
   // rather than leaving it undefined, which would throw on every call site.
@@ -81,12 +82,14 @@ vi.mock('@/lib/supabase/service', () => ({
 // ------------------------------------------------------------------
 // NEW mocks the existing webhook test does not have — the Phase-113 contract.
 // ------------------------------------------------------------------
-// grantCredits is mocked (the contract); monthGrantKey is kept REAL so the
-// invoice.paid grant produces a genuine `grant:{companyId}:{YYYY-MM}` key.
+// The credit-ledger writers are mocked (the contract): grantCredits (top-ups),
+// grantMonthlyLot (SEED-055 Phase C subscription-cycle lot) and closeMonthlyLots
+// (cancellation). The window / key math has its own tests
+// (credit-window.test.ts, credit-grant-no-double.test.ts).
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantCredits: vi.fn(),
-  monthGrantKey: (companyId: string, date: Date = new Date()) =>
-    `grant:${companyId}:${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`,
+  grantMonthlyLot: vi.fn(),
+  closeMonthlyLots: vi.fn(),
 }))
 vi.mock('@/lib/billing/billing-config', () => ({ getBillingConfig: vi.fn() }))
 
@@ -102,7 +105,7 @@ vi.mock('@/lib/affiliates/accrual', () => ({ accrueCommissionForInvoice: vi.fn()
 
 vi.stubEnv('STRIPE_WEBHOOK_SECRET', 'whsec_test')
 
-const { grantCredits } = await import('@/lib/billing/credit-ledger')
+const { grantCredits, grantMonthlyLot, closeMonthlyLots } = await import('@/lib/billing/credit-ledger')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
 const { accrueCommissionForInvoice } = await import('@/lib/affiliates/accrual')
 const { POST } = await import('@/app/api/webhooks/stripe/route')
@@ -161,44 +164,92 @@ beforeEach(() => {
 // ==================================================================
 // TOPUP-01 — invoice.paid grants the per-tier monthly credit grant
 // ==================================================================
-describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
-  it('grants tiers[tier].monthlyCreditGrant via grantCredits keyed on the company-month key (Phase 142 ANN-02)', async () => {
-    mockConstructEvent.mockReturnValue({
-      id: 'evt_1',
+describe('TOPUP-01 — invoice.paid monthly credit grant (SEED-055 Phase C)', () => {
+  // current_period_end of the beforeEach subscription fixture (the PLAN item).
+  const PERIOD_END_MS = 1900000000 * 1000
+
+  function invoiceEvent(id: string, billingReason: string | undefined, extra: Record<string, unknown> = {}) {
+    return {
+      id,
       type: 'invoice.paid',
-      data: { object: { id: 'in_test', subscription: 'sub_test' } },
-    })
+      data: {
+        object: {
+          id: `in_${id}`,
+          subscription: 'sub_test',
+          ...(billingReason ? { billing_reason: billingReason } : {}),
+          ...extra,
+        },
+      },
+    }
+  }
+
+  it.each(['subscription_create', 'subscription_cycle'])(
+    'billing_reason=%s grants the tier monthly lot via grantMonthlyLot(periodEnd = subscription period end)',
+    async (reason) => {
+      mockConstructEvent.mockReturnValue(invoiceEvent('evt_1', reason))
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(grantMonthlyLot).toHaveBeenCalledTimes(1)
+      expect(grantMonthlyLot).toHaveBeenCalledWith({
+        companyId: 'co_1',
+        credits: 9000,
+        periodEnd: new Date(PERIOD_END_MS),
+        refId: 'in_evt_1',
+      })
+      // The legacy calendar-month grantCredits path is gone.
+      expect(grantCredits).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['subscription_update', 'manual', 'subscription_threshold', 'upcoming'])(
+    'billing_reason=%s does NOT grant (not a new paid month)',
+    async (reason) => {
+      mockConstructEvent.mockReturnValue(invoiceEvent('evt_x', reason))
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(grantMonthlyLot).not.toHaveBeenCalled()
+      // ...but the rest of the arm still runs: tier_renews_at is written.
+      expect(mockUpdate).toHaveBeenCalledWith({ tier_renews_at: expect.any(String) })
+    }
+  )
+
+  it('a missing billing_reason does NOT grant', async () => {
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_nr', undefined))
+    await POST(makeRequest())
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+
+  it('does not grant when the subscription retrieve produced no period end', async () => {
+    mockSubscriptionsRetrieve.mockResolvedValue({ items: { data: [] } })
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_np', 'subscription_cycle'))
+    await POST(makeRequest())
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+
+  it('passes 0 credits for a free-tier company (grantMonthlyLot no-ops on <=0; assert the call shape)', async () => {
+    mockCompanyMaybeSingle.mockResolvedValue({ data: { id: 'co_1', tier: 'free' } })
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_free', 'subscription_create'))
+
+    await POST(makeRequest())
+
+    expect(grantMonthlyLot).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: 'co_1', credits: 0 })
+    )
+  })
+
+  it('a grant failure never turns the already-applied tier_renews_at write into a 500', async () => {
+    vi.mocked(grantMonthlyLot).mockRejectedValueOnce(new Error('rpc down'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockConstructEvent.mockReturnValue(invoiceEvent('evt_fail', 'subscription_cycle'))
 
     const res = await POST(makeRequest())
 
     expect(res.status).toBe(200)
-    expect(grantCredits).toHaveBeenCalledTimes(1)
-    // The grant now dedups per company-month (`grant:{companyId}:{YYYY-MM}`),
-    // NOT per-event ('evt_1'). The cron shares this exact key.
-    expect(grantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({
-        companyId: 'co_1',
-        credits: 9000,
-        reason: 'grant',
-        source: 'monthly',
-        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
-      })
-    )
-  })
-
-  it('grants 0 for a free-tier company (grantCredits no-ops on <=0; assert the call shape)', async () => {
-    mockCompanyMaybeSingle.mockResolvedValue({ data: { id: 'co_1', tier: 'free' } })
-    mockConstructEvent.mockReturnValue({
-      id: 'evt_free',
-      type: 'invoice.paid',
-      data: { object: { id: 'in_free', subscription: 'sub_test' } },
-    })
-
-    await POST(makeRequest())
-
-    expect(grantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ companyId: 'co_1', credits: 0, reason: 'grant' })
-    )
+    warn.mockRestore()
   })
 
   it('redelivered invoice.paid is a no-op (processed_stripe_events 23505 short-circuits before grant)', async () => {
@@ -214,6 +265,7 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
 
     expect(res.status).toBe(200)
     expect(grantCredits).not.toHaveBeenCalled()
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
   })
 
   // SHOULD-FIX 3 — event-ordering race: the stripe_subscription_id mapping is
@@ -224,7 +276,7 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
   // fallback must update the company BY ID, grant with the shared company-month
   // key, and accrue the affiliate commission — none of those three may be
   // silently dropped just because the fast-path mapping isn't written yet.
-  it('falls back to resolvedCompanyId when bySub misses: updates the company by id, grants with the month key, and accrues commission', async () => {
+  it('falls back to resolvedCompanyId when bySub misses: updates the company by id, grants the monthly lot, and accrues commission', async () => {
     mockCompanyMaybeSingle
       .mockResolvedValueOnce({ data: null }) // bySub (stripe_subscription_id lookup) misses
       .mockResolvedValueOnce({ data: { id: 'co_1', tier: 'pro' } }) // byId (resolvedCompanyId fallback) hits
@@ -235,6 +287,7 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
       data: {
         object: {
           id: 'in_fallback',
+          billing_reason: 'subscription_create',
           subscription: 'sub_fallback',
           customer: 'cus_fallback',
           amount_paid: 5000,
@@ -261,16 +314,14 @@ describe('TOPUP-01 — invoice.paid monthly credit grant', () => {
     expect(mockUpdate).toHaveBeenCalledWith({ stripe_customer_id: 'cus_fallback' })
     expect(mockIs).toHaveBeenCalledWith('stripe_subscription_id', null)
     expect(mockIs).toHaveBeenCalledWith('stripe_customer_id', null)
-    // Grant — company-month key, the same dedup authority invoice.paid,
-    // checkout.session.completed, and the monthly cron all share.
-    expect(grantCredits).toHaveBeenCalledWith(
+    // Grant — the window key is shared with checkout.session.completed and the
+    // daily cron (see credit-grant-no-double.test.ts).
+    expect(grantMonthlyLot).toHaveBeenCalledWith(
       expect.objectContaining({
         companyId: 'co_1',
         credits: 9000,
-        reason: 'grant',
-        source: 'monthly',
+        periodEnd: new Date(1900000000 * 1000),
         refId: 'in_fallback',
-        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
       })
     )
     // Commission accrual.
@@ -319,6 +370,12 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
     // credits must be the NUMBER 5000, not the string '5000'.
     expect(arg.credits).toBe(5000)
     expect(typeof arg.credits).toBe('number')
+    // SEED-055 Phase C: top-up lots expire 3 months after purchase (the mocked
+    // config carries no topupExpiryMonths -> default 3).
+    expect(arg.expiresAt).toEqual(expect.any(String))
+    const months = (new Date(arg.expiresAt as string).getTime() - Date.now()) / (86_400_000 * 30.4)
+    expect(months).toBeGreaterThan(2.8)
+    expect(months).toBeLessThan(3.2)
   })
 
   it("top-up arm runs BEFORE the subscription guard (mode:'payment' still grants)", async () => {
@@ -345,7 +402,7 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
     )
   })
 
-  it('a normal subscription checkout.session.completed NOW grants the monthly allowance keyed on the company-month key (event-ordering race fix — Pitfall 2 no longer applies: the shared key makes a double grant with invoice.paid impossible)', async () => {
+  it('a normal subscription checkout.session.completed grants the monthly lot for the retrieved period (same window key as invoice.paid)', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_sub',
       type: 'checkout.session.completed',
@@ -362,19 +419,62 @@ describe('TOPUP-02 — checkout.session.completed credit_topup arm', () => {
 
     await POST(makeRequest())
 
-    expect(grantCredits).toHaveBeenCalledTimes(1)
-    expect(grantCredits).toHaveBeenCalledWith(
-      expect.objectContaining({
-        companyId: 'co_1',
-        credits: 9000,
-        reason: 'grant',
-        source: 'monthly',
-        refId: 'cs_sub',
-        // Company-month key — the SAME key invoice.paid and the monthly cron
-        // use, so a redelivery or a race with invoice.paid never double-grants.
-        idempotencyKey: expect.stringMatching(/^grant:co_1:\d{4}-\d{2}$/),
-      })
-    )
+    expect(grantMonthlyLot).toHaveBeenCalledTimes(1)
+    expect(grantMonthlyLot).toHaveBeenCalledWith({
+      companyId: 'co_1',
+      credits: 9000,
+      periodEnd: new Date(1900000000 * 1000),
+      refId: 'cs_sub',
+    })
+    expect(grantCredits).not.toHaveBeenCalled()
+  })
+
+  it('checkout.session.completed does not grant when the subscription is not active/trialing yet', async () => {
+    mockSubscriptionsRetrieve.mockResolvedValue({
+      status: 'incomplete',
+      items: { data: [{ current_period_end: 1900000000, price: {}, metadata: {} }] },
+    })
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_inc',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_inc',
+          mode: 'subscription',
+          customer: 'cus_1',
+          subscription: 'sub_test',
+          metadata: { companyId: 'co_1', plan: 'pro' },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+
+  it('checkout.session.completed does not grant when the subscription retrieve failed (no period end)', async () => {
+    mockSubscriptionsRetrieve.mockRejectedValue(new Error('stripe down'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_nr2',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_nr2',
+          mode: 'subscription',
+          customer: 'cus_1',
+          subscription: 'sub_test',
+          metadata: { companyId: 'co_1', plan: 'pro' },
+        },
+      },
+    })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 
@@ -433,6 +533,7 @@ describe('checkout.session.async_payment_succeeded — delayed-payment top-up gr
         reason: 'topup',
         source: 'topup',
         idempotencyKey: 'evt_async_paid',
+        expiresAt: expect.any(String),
       })
     )
   })
@@ -461,5 +562,131 @@ describe('MIG-01 parallel-run safety', () => {
     expect(src).not.toContain('maxEstimatesPerMonth')
     // The credit path is the only billing-gate addition (green after 113-02).
     expect(src).toContain('grantCredits')
+  })
+})
+
+// ==================================================================
+// SEED-055 Phase C - cancellation closes the live monthly lot
+// ==================================================================
+describe('SEED-055 Phase C - subscription lifecycle closes the monthly lot', () => {
+  beforeEach(() => {
+    // Company resolved by stripe_subscription_id for the updated/deleted arms.
+    mockCompanyMaybeSingle.mockResolvedValue({ data: { id: 'co_1' } })
+  })
+
+  function subEvent(type: string, status: string) {
+    return {
+      id: `evt_${type}_${status}`,
+      type,
+      data: {
+        object: {
+          id: 'sub_test',
+          status,
+          cancel_at_period_end: false,
+          items: { data: [{ current_period_end: 1900000000, price: {}, metadata: {} }] },
+        },
+      },
+    }
+  }
+
+  it('customer.subscription.deleted closes the monthly lot after the tier downgrade', async () => {
+    mockConstructEvent.mockReturnValue(subEvent('customer.subscription.deleted', 'canceled'))
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ tier: 'free' }))
+    expect(closeMonthlyLots).toHaveBeenCalledTimes(1)
+    expect(closeMonthlyLots).toHaveBeenCalledWith('co_1', 'sub_test')
+  })
+
+  it.each(['canceled', 'unpaid'])(
+    'customer.subscription.updated with status=%s closes the monthly lot',
+    async (status) => {
+      mockConstructEvent.mockReturnValue(subEvent('customer.subscription.updated', status))
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(closeMonthlyLots).toHaveBeenCalledTimes(1)
+      expect(closeMonthlyLots).toHaveBeenCalledWith('co_1', 'sub_test')
+    }
+  )
+
+  it.each(['past_due', 'active', 'trialing', 'incomplete'])(
+    'customer.subscription.updated with status=%s keeps the lot (past_due = Stripe dunning)',
+    async (status) => {
+      mockConstructEvent.mockReturnValue(subEvent('customer.subscription.updated', status))
+
+      const res = await POST(makeRequest())
+
+      expect(res.status).toBe(200)
+      expect(closeMonthlyLots).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not close anything when no company maps to the subscription', async () => {
+    mockCompanyMaybeSingle.mockResolvedValue({ data: null })
+    mockConstructEvent.mockReturnValue(subEvent('customer.subscription.deleted', 'canceled'))
+
+    await POST(makeRequest())
+
+    expect(closeMonthlyLots).not.toHaveBeenCalled()
+  })
+
+  it('redelivery (processed_stripe_events 23505) never closes or grants twice', async () => {
+    mockInsert.mockResolvedValue({ error: { code: '23505', message: 'duplicate key' } })
+    mockConstructEvent.mockReturnValue(subEvent('customer.subscription.deleted', 'canceled'))
+
+    await POST(makeRequest())
+
+    expect(closeMonthlyLots).not.toHaveBeenCalled()
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+  })
+})
+
+// ==================================================================
+// SEED-055 Phase C - auto top-up webhook backstop carries the expiry
+// ==================================================================
+describe('SEED-055 Phase C - payment_intent.succeeded (auto_topup) grants an expiring topup lot', () => {
+  it('passes a 3-month expiresAt', async () => {
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_pi',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: 'pi_1', metadata: { type: 'auto_topup', companyId: 'co_1', credits: '1300' } },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(grantCredits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: 'co_1',
+        credits: 1300,
+        reason: 'topup',
+        source: 'topup',
+        idempotencyKey: 'autotopup:pi_1',
+        expiresAt: expect.any(String),
+      })
+    )
+  })
+
+  it('honours topupExpiryMonths from the billing config', async () => {
+    vi.mocked(getBillingConfig).mockResolvedValue({ ...TEST_CONFIG, topupExpiryMonths: 6 } as never)
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_pi6',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: 'pi_6', metadata: { type: 'auto_topup', companyId: 'co_1', credits: '1300' } },
+      },
+    })
+
+    await POST(makeRequest())
+
+    const arg = vi.mocked(grantCredits).mock.calls[0][0]
+    const months = (new Date(arg.expiresAt as string).getTime() - Date.now()) / (86_400_000 * 30.4)
+    expect(months).toBeGreaterThan(5.8)
+    expect(months).toBeLessThan(6.2)
   })
 })

@@ -231,6 +231,9 @@ beforeEach(() => {
       id: 'company-id',
       stripe_customer_id: 'cus_test',
       stripe_subscription_id: null,
+      // SEED-055 Phase C: top-up routes need a Pro company with a live subscription.
+      tier: 'pro',
+      stripe_subscription_status: 'active',
     },
   })
   getBillingConfig.mockResolvedValue({

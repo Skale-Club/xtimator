@@ -8,7 +8,8 @@ import {
 } from '@/lib/billing/connect-webhook'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
-import { grantCredits, monthGrantKey } from '@/lib/billing/credit-ledger'
+import { grantCredits, grantMonthlyLot, closeMonthlyLots } from '@/lib/billing/credit-ledger'
+import { topupExpiresAt } from '@/lib/billing/credit-window'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
 import { notifyOps } from '@/lib/observability/ops-alert'
@@ -464,12 +465,15 @@ async function grantTopupCredits(
   }
 
   if (topupCompanyId && credits > 0) {
+    // SEED-055 Phase C: top-up lots expire topupExpiryMonths (default 3) after
+    // purchase. Best-effort config read: a failure falls back to the default.
+    const cfg = await getBillingConfig().catch(() => null)
     await grantCredits({
       companyId: topupCompanyId,
       credits,
       reason: 'topup',
       source: 'topup',
-      expiresAt: null,
+      expiresAt: topupExpiresAt(cfg?.topupExpiryMonths),
       refId: session.id,
       idempotencyKey,
     })
@@ -638,44 +642,44 @@ async function handlePlatformEvent(
         dedupeKey: `subscription_payment_received:${event.id}`,
       })
 
-      // Event-ordering race fix: grant the tier's monthly credit allowance
-      // HERE too, not only in invoice.paid. Both this arm AND the invoice.paid
-      // arm below grant with the EXACT SAME company-month key (monthGrantKey) —
-      // that shared key, not event ordering, is what makes a double grant
-      // impossible: whichever of the two events lands first performs the
-      // grant (grantCredits records the idempotency key), and the other is a
-      // harmless already-recorded no-op, regardless of which order Stripe
-      // actually delivers them in. The previous "Grant ONLY in invoice.paid,
-      // NOT here" comment predated this fix and no longer holds.
+      // Event-ordering race fix: grant the tier's monthly credit lot HERE too,
+      // not only in invoice.paid. Both arms call grantMonthlyLot with the same
+      // period (derived from the subscription's period end), hence the EXACT
+      // SAME key `grant:{companyId}:{periodKey}` - that shared key, not event
+      // ordering, is what makes a double grant impossible: whichever event lands
+      // first grants, the other is a harmless no-op, and the RPC never expires
+      // the lot a same-key replay already granted.
       //
-      // Known limitation (documented, not fixed here): if a company changes
-      // TIER mid-month (upgrade/downgrade via the portal or a new Checkout)
-      // AFTER this month's key was already burnt by an earlier grant, this
-      // call is a no-op — grantCredits sees the key already recorded and
-      // skips, so the company keeps the EARLIER tier's grant amount for the
-      // rest of the current month; the new tier's allowance starts next
-      // month. No delta/top-up grant is issued for the difference.
+      // Skipped when the subscription retrieve failed (no period end) or the
+      // subscription is not actually paid yet (e.g. 'incomplete'): invoice.paid
+      // and the daily cron grant it once it is.
       //
-      // Best-effort: grantCredits itself never throws, but getBillingConfig
-      // can (e.g. a DB hiccup reading platform_integrations); a failure here
-      // must not turn the ALREADY-SUCCESSFUL tier/subscription update above
-      // into a 500 that makes Stripe retry an update that already landed.
-      try {
-        const cfg = await getBillingConfig()
-        await grantCredits({
-          companyId,
-          credits: cfg.tiers[tier]?.monthlyCreditGrant ?? 0,
-          reason: 'grant',
-          source: 'monthly',
-          expiresAt: null,
-          refId: session.id,
-          idempotencyKey: monthGrantKey(companyId, new Date()),
-        })
-      } catch (err) {
-        console.warn(
-          '[Stripe] checkout.session.completed: monthly credit grant failed:',
-          err instanceof Error ? err.message : err,
-        )
+      // Known limitation (documented, not fixed here): a mid-period TIER change
+      // keeps the lot already granted for this window; the new tier's amount
+      // starts with the next window.
+      //
+      // Best-effort: grantMonthlyLot never throws, but getBillingConfig can
+      // (e.g. a DB hiccup reading platform_integrations); a failure here must
+      // not turn the ALREADY-SUCCESSFUL tier/subscription update above into a
+      // 500 that makes Stripe retry an update that already landed.
+      if (
+        tierRenewsAt &&
+        (subscriptionStatus === 'active' || subscriptionStatus === 'trialing')
+      ) {
+        try {
+          const cfg = await getBillingConfig()
+          await grantMonthlyLot({
+            companyId,
+            credits: cfg.tiers[tier]?.monthlyCreditGrant ?? 0,
+            periodEnd: new Date(tierRenewsAt),
+            refId: session.id,
+          })
+        } catch (err) {
+          console.warn(
+            '[Stripe] checkout.session.completed: monthly credit grant failed:',
+            err instanceof Error ? err.message : err,
+          )
+        }
       }
       break
     }
@@ -801,41 +805,36 @@ async function handlePlatformEvent(
         dedupeKey: `subscription_payment_received:${event.id}`,
       })
 
-      // TOPUP-01 / Phase 142 (ANN-02): grant the tier's monthly credit allowance.
-      // Keyed on the COMPANY-MONTH key (`grant:{companyId}:{YYYY-MM}`) — the SINGLE
-      // dedup authority shared with the monthly-credit-grant cron AND the
-      // checkout.session.completed subscription arm. Both that arm AND this one
-      // grant with the EXACT SAME key -- that shared key, not event ordering, is
-      // what makes a double grant impossible: whichever event lands first
-      // performs the grant, the other is a harmless already-recorded no-op,
-      // regardless of delivery order. Consequences:
-      //   - A redelivered webhook in the same month → still ONE grant (same key).
-      //   - The cron no-ops a month the webhook already granted (monthly subs).
-      //   - Annual subs: this fires month 1 (immediate UX), the cron covers 2-12.
-      //
-      // Known limitation (documented, not fixed here): if a company changes
-      // TIER mid-month after this month's key was already burnt by an earlier
-      // grant (either arm), this call is a no-op -- the company keeps the
-      // EARLIER tier's grant amount for the rest of the current month; the new
-      // tier's allowance starts next month. No delta/top-up grant is issued.
-      // Best-effort, same rationale as the checkout arm's grant call:
-      // grantCredits itself never throws, but getBillingConfig can — a
-      // failure here must not turn the ALREADY-SUCCESSFUL tier_renews_at
-      // write (and mapping backfill) above into a 500 that makes Stripe
-      // retry the whole event over a transient config-read hiccup.
-      if (grantCompany?.id) {
+      // SEED-055 Phase C: grant the tier's MONTHLY lot for the current window.
+      // Only the two billing reasons that start a paid period grant:
+      //   - 'subscription_create' (first invoice) and 'subscription_cycle'
+      //     (every renewal).
+      // 'subscription_update' (proration after a plan change), manual and
+      // threshold invoices do NOT grant - they are not a new paid month.
+      // The window comes from the subscription's period end: monthly sub -> the
+      // billing period; annual sub -> the first monthly anniversary (months 2-12
+      // come from the daily monthly-credit-grant cron). Keyed
+      // `grant:{companyId}:{periodKey}`, shared with the checkout arm and the
+      // cron, so a redelivered webhook never double-grants nor expires the lot
+      // it already granted.
+      // Best-effort, same rationale as the checkout arm's grant call: a
+      // failure here must not turn the ALREADY-SUCCESSFUL tier_renews_at write
+      // (and mapping backfill) above into a 500 that makes Stripe retry.
+      if (
+        grantCompany?.id &&
+        renewsAt &&
+        (invoice.billing_reason === 'subscription_create' ||
+          invoice.billing_reason === 'subscription_cycle')
+      ) {
         try {
           const cfg = await getBillingConfig()
           const tierKey = (grantCompany.tier ?? 'free') as keyof typeof cfg.tiers
           const grant = cfg.tiers[tierKey]?.monthlyCreditGrant ?? 0
-          await grantCredits({
+          await grantMonthlyLot({
             companyId: grantCompany.id,
-            credits: grant,        // grantCredits no-ops on <=0 (free tier = 0)
-            reason: 'grant',
-            source: 'monthly',
-            expiresAt: null,
-            refId: invoice.id,
-            idempotencyKey: monthGrantKey(grantCompany.id, new Date()), // company-month dedup (shared with cron)
+            credits: grant, // grantMonthlyLot no-ops on <=0 (free tier = 0)
+            periodEnd: new Date(renewsAt),
+            refId: invoice.id ?? null,
           })
         } catch (err) {
           console.warn(
@@ -883,12 +882,13 @@ async function handlePlatformEvent(
         const topupCompanyId = pi.metadata.companyId
         const credits = Number(pi.metadata.credits)
         if (topupCompanyId && credits > 0) {
+          const cfg = await getBillingConfig().catch(() => null)
           await grantCredits({
             companyId: topupCompanyId,
             credits,
             reason: 'topup',
             source: 'topup',
-            expiresAt: null,
+            expiresAt: topupExpiresAt(cfg?.topupExpiryMonths),
             refId: pi.id,
             idempotencyKey: `autotopup:${pi.id}`,
           })
@@ -984,6 +984,15 @@ async function handlePlatformEvent(
         throw new Error(`[Stripe] customer.subscription.updated update failed: ${error.message}`)
       }
 
+      // SEED-055 Phase C: a subscription that is canceled or unpaid no longer
+      // entitles the company to its monthly credits - expire the live monthly
+      // lot now. 'past_due' keeps the lot (Stripe dunning is still retrying).
+      // Best-effort and idempotent: closeMonthlyLots never throws, and a replay
+      // finds nothing live.
+      if (c?.id && (subscription.status === 'canceled' || subscription.status === 'unpaid')) {
+        await closeMonthlyLots(c.id, subscription.id)
+      }
+
       // Mirror the change into Xphere CRM (fire-and-forget). No-op if no row matched.
       if (c?.id) dispatchXphereSync(c.id, 'subscription.updated')
       break
@@ -1021,6 +1030,11 @@ async function handlePlatformEvent(
       if (error) {
         throw new Error(`[Stripe] customer.subscription.deleted update failed: ${error.message}`)
       }
+
+      // SEED-055 Phase C: the subscription is gone - expire the live monthly lot
+      // in the same handler that set tier='free'. Best-effort (never throws) and
+      // idempotent; the already-applied tier update above is never undone.
+      if (c?.id) await closeMonthlyLots(c.id, subscription.id)
 
       // Mirror the churn into Xphere CRM (mapping forces tier='free' → 'Churned').
       if (c?.id) dispatchXphereSync(c.id, 'subscription.updated')

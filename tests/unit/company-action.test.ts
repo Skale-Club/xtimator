@@ -16,7 +16,10 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantSignupCredits: vi.fn().mockResolvedValue(undefined),
-  grantMonthlyCredits: vi.fn().mockResolvedValue(undefined),
+  // SEED-055 Phase C: an added company gets NO automatic lot. The lot writers
+  // are mocked so any accidental call is observable.
+  grantMonthlyLot: vi.fn().mockResolvedValue({ applied: false }),
+  grantCredits: vi.fn().mockResolvedValue({ applied: false }),
 }))
 
 vi.mock('@/lib/observability/ops-alert', () => ({
@@ -51,7 +54,7 @@ import { redirect } from 'next/navigation'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { cookies as nextCookies } from 'next/headers'
-import { grantSignupCredits, grantMonthlyCredits } from '@/lib/billing/credit-ledger'
+import { grantSignupCredits, grantMonthlyLot, grantCredits } from '@/lib/billing/credit-ledger'
 import { notifyOps } from '@/lib/observability/ops-alert'
 // Static import (not a per-test `await import`): the action drags in a heavy
 // module graph (server-only, inngest client, email, price-book seed). Loading it
@@ -330,7 +333,7 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     )
   })
 
-  it('T6 (D-14): source tier=pro → new company inherits tier=pro, no trial clock, month grant fired', async () => {
+  it('T6 (D-14): source tier=pro → new company inherits tier=pro, no trial clock, NO automatic credit lot (SEED-055 Phase C)', async () => {
     makeAddModeSupabaseMock({
       sourceTier: 'pro',
       sourceTrialEndsAt: null,
@@ -339,12 +342,13 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('pro')
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
-    // Inherited PAID tier gets this month's grant immediately (shared month key —
-    // the monthly cron later no-ops).
-    expect(grantMonthlyCredits).toHaveBeenCalledWith('new-company-id', 'pro', 'company-added')
+    // SEED-055 Phase C (owner decision): an added company gets no automatic lot,
+    // even on an inherited paid tier.
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+    expect(grantCredits).not.toHaveBeenCalled()
   })
 
-  it('T7: source tier=free → inherits free; NO signup grant, NO month grant (anti credit-farming)', async () => {
+  it('T7: source tier=free → inherits free; NO signup grant, NO monthly lot (anti credit-farming)', async () => {
     makeAddModeSupabaseMock({
       sourceTier: 'free',
       sourceTrialEndsAt: null,
@@ -354,10 +358,10 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     expect(capturedAddInsertRow!.tier).toBe('free')
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
     expect(grantSignupCredits).not.toHaveBeenCalled()
-    expect(grantMonthlyCredits).not.toHaveBeenCalled()
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
   })
 
-  it('T8: source tier=business → inherits business + month grant fired', async () => {
+  it('T8: source tier=business → inherits business, NO automatic credit lot', async () => {
     makeAddModeSupabaseMock({
       sourceTier: 'business',
       sourceTrialEndsAt: null,
@@ -365,7 +369,8 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     })
     await createOrUpdateCompany({ companyName: 'Co' }, { mode: 'add' }).catch(() => {})
     expect(capturedAddInsertRow!.tier).toBe('business')
-    expect(grantMonthlyCredits).toHaveBeenCalledWith('new-company-id', 'business', 'company-added')
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
+    expect(grantCredits).not.toHaveBeenCalled()
   })
 
   it('T9 (T-79-03-01): user_id in INSERT comes from claims.sub, never from a parameter', async () => {
@@ -386,7 +391,7 @@ describe('createOrUpdateCompany — mode: add (Phase 79 D-12/D-13/D-14/D-15)', (
     expect(capturedAddInsertRow!.tier).toBeUndefined()
     expect('tier_trial_ends_at' in capturedAddInsertRow!).toBe(false)
     expect(grantSignupCredits).not.toHaveBeenCalled()
-    expect(grantMonthlyCredits).not.toHaveBeenCalled()
+    expect(grantMonthlyLot).not.toHaveBeenCalled()
   })
 })
 

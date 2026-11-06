@@ -43,7 +43,8 @@ const mocks = vi.hoisted(() => ({
   resolveConnectEventCompanyId: vi.fn(),
   handleConnectEvent: vi.fn(),
   grantCredits: vi.fn(),
-  monthGrantKey: vi.fn(),
+  grantMonthlyLot: vi.fn(),
+  closeMonthlyLots: vi.fn(),
   getBillingConfig: vi.fn(),
   resolveTierFromPriceId: vi.fn(),
   notifyOps: vi.fn(),
@@ -158,7 +159,8 @@ vi.mock('@/lib/billing/connect-webhook', () => ({
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantCredits: (...args: unknown[]) => mocks.grantCredits(...args),
-  monthGrantKey: (...args: unknown[]) => mocks.monthGrantKey(...args),
+  grantMonthlyLot: (...args: unknown[]) => mocks.grantMonthlyLot(...args),
+  closeMonthlyLots: (...args: unknown[]) => mocks.closeMonthlyLots(...args),
 }))
 
 vi.mock('@/lib/billing/billing-config', () => ({
@@ -290,7 +292,8 @@ beforeEach(() => {
   mocks.resolveConnectEventCompanyId.mockResolvedValue(null)
   mocks.handleConnectEvent.mockResolvedValue(undefined)
   mocks.grantCredits.mockResolvedValue(undefined)
-  mocks.monthGrantKey.mockReturnValue('grant:key')
+  mocks.grantMonthlyLot.mockResolvedValue({ applied: false })
+  mocks.closeMonthlyLots.mockResolvedValue({ expired: 0 })
   mocks.getBillingConfig.mockResolvedValue({ tiers: {} })
   mocks.resolveTierFromPriceId.mockResolvedValue(null)
   mocks.notifyOps.mockResolvedValue(undefined)

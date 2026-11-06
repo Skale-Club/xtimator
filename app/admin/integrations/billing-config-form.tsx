@@ -110,6 +110,11 @@ export function BillingConfigForm({ current }: Props) {
     }))
   )
 
+  // SEED-055 Phase C: months until a top-up lot expires.
+  const [topupExpiryMonths, setTopupExpiryMonths] = useState(
+    String(current.topupExpiryMonths ?? 3)
+  )
+
   // Low-balance thresholds as a comma-joined text input
   const [lowBalanceThresholds, setLowBalanceThresholds] = useState(
     current.lowBalanceThresholds.join(', ')
@@ -206,6 +211,7 @@ export function BillingConfigForm({ current }: Props) {
         credits: Number(p.credits),
         priceCents: Number(p.priceCents),
       })),
+      topupExpiryMonths: Number(topupExpiryMonths),
       lowBalanceThresholds: lowBalanceThresholds
         .split(',')
         .map((s) => s.trim())
@@ -649,6 +655,20 @@ export function BillingConfigForm({ current }: Props) {
             <Plus className="mr-2 h-4 w-4" />
             {t('Add pack')}
           </Button>
+          <label className="flex flex-col gap-1 max-w-xs">
+            <span className="text-xs text-muted-foreground">
+              {t('Top-up expiry (months)')}
+            </span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={topupExpiryMonths}
+              onChange={(e) => setTopupExpiryMonths(e.target.value)}
+              disabled={isPending}
+              className={inputClass}
+            />
+          </label>
         </div>
       </fieldset>
 

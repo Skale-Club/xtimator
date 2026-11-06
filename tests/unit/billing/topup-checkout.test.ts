@@ -63,8 +63,18 @@ function makeRequest(body: object) {
 
 function makeSupabaseMock(
   claimsResult: { sub: string; email: string } | null,
-  companyData: { id: string; stripe_customer_id: string | null } | null
+  companyData: {
+    id: string
+    stripe_customer_id: string | null
+    tier?: string | null
+    stripe_subscription_status?: string | null
+  } | null
 ) {
+  // SEED-055 Phase C: top-ups need a Pro company with a live subscription;
+  // the default fixture is eligible, the gate tests override tier / status.
+  const row = companyData
+    ? { tier: 'pro', stripe_subscription_status: 'active', ...companyData }
+    : companyData
   return {
     auth: {
       getClaims: vi.fn().mockResolvedValue({ data: { claims: claimsResult } }),
@@ -72,7 +82,7 @@ function makeSupabaseMock(
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: companyData, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
     }),
   }
 }
@@ -94,6 +104,42 @@ beforeEach(() => {
     checkout: { sessions: { create: mockSessionCreate } },
   } as never)
   vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 1, max: 20 })
+})
+
+describe('SEED-055 Phase C: top-up checkout is Pro-with-live-subscription only', () => {
+  it.each([
+    ['free tier', { tier: 'free', stripe_subscription_status: null }],
+    ['canceled subscription', { tier: 'pro', stripe_subscription_status: 'canceled' }],
+    ['unpaid subscription', { tier: 'pro', stripe_subscription_status: 'unpaid' }],
+  ])('403 topup_requires_subscription and no Stripe session: %s', async (_l, extra) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: null, ...extra }
+      ) as never
+    )
+
+    const res = await POST(makeRequest({ packIndex: 0 }))
+    const body = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(body.code).toBe('topup_requires_subscription')
+    expect(mockSessionCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['active', 'trialing', 'past_due'])('allows a pro company with status=%s', async (status) => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: null, tier: 'pro', stripe_subscription_status: status }
+      ) as never
+    )
+
+    const res = await POST(makeRequest({ packIndex: 0 }))
+
+    expect(res.status).toBe(200)
+    expect(mockSessionCreate).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('POST /api/billing/create-topup-session (TOPUP-02 route)', () => {

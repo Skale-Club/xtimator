@@ -81,7 +81,8 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({ dispatchXphereSync: vi.fn
 
 vi.mock('@/lib/billing/credit-ledger', () => ({
   grantCredits: vi.fn().mockResolvedValue({ applied: true }),
-  monthGrantKey: (companyId: string) => `grant:${companyId}:2026-08`,
+  grantMonthlyLot: vi.fn().mockResolvedValue({ applied: false }),
+  closeMonthlyLots: vi.fn().mockResolvedValue({ expired: 0 }),
 }))
 
 vi.mock('@/lib/billing/billing-config', () => ({

@@ -99,6 +99,13 @@ export type BillingConfig = {
   seatPriceAnnualCents: number // global ANNUAL per-seat price in integer cents (SEED-038); CALIBRATE BEFORE CHARGING placeholder
   tiers: Record<BillingTier, TierBilling>
   topUpPacks: TopUpPack[]
+  /**
+   * SEED-055 Phase C: months a top-up lot (one-off pack or auto top-up) lives
+   * before it expires. Runtime-tunable; a stored row written before this field
+   * existed falls through to the default (3) via the {...DEFAULT, ...stored}
+   * merge in getBillingConfig.
+   */
+  topupExpiryMonths: number
   lowBalanceThresholds: number[] // credit balances at which to warn; default [200, 50]
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
@@ -255,6 +262,8 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
     { credits: 3500, priceCents: 5000 },
     { credits: 7500, priceCents: 10000 },
   ],
+  // SEED-055 Phase C: top-up lots expire 3 months after purchase.
+  topupExpiryMonths: 3,
   lowBalanceThresholds: [200, 50],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
