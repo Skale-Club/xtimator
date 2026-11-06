@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getCompanySettings } from '@/lib/queries/company'
 import { isDemoCompany } from '@/lib/demo/config'
-import { DefaultsForm } from '@/components/settings/defaults-form'
-import { EstimateTermsForm } from '@/components/settings/estimate-terms-form'
+import { EstimateSettingsForm } from '@/components/settings/estimate-settings-form'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
-export const metadata = { title: 'Estimates | Settings' }
+export const metadata = { title: 'Estimate defaults | Settings' }
 
 export default async function EstimatesTabPage() {
   const claims = await getAuthClaims()
@@ -20,16 +20,11 @@ export default async function EstimatesTabPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Estimates</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Set estimate defaults and delivery options.</T>
-        </p>
-      </header>
-      <DefaultsForm company={company} />
-      <EstimateTermsForm company={company} />
+      <SettingsHeader
+        title={<T>Estimate defaults</T>}
+        description={<T>What every new estimate starts with, and how it reaches your client.</T>}
+      />
+      <EstimateSettingsForm company={company} />
     </div>
   )
 }
