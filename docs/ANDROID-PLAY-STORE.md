@@ -128,13 +128,13 @@ Depois: **Test and release → Testing → Internal testing → Create new relea
 
 ## Checklist rápido
 
-- [ ] Bubblewrap + JDK 17 + Android SDK (`bubblewrap doctor` ok)
-- [ ] `bubblewrap init` com as respostas acima
-- [ ] Keystore criada fora do repo + backup das senhas
-- [ ] `bubblewrap build` → `.aab`
-- [ ] App criado no Play Console + `.aab` no teste interno
-- [ ] Fingerprints (app signing + upload) em `lib/pwa/android-twa.ts` → PR → deploy
-- [ ] `assetlinks.json` validado; app abre sem barra de URL
+- [x] Bubblewrap + JDK 17 + Android SDK (`bubblewrap doctor` ok)
+- [x] `bubblewrap init` com as respostas acima
+- [x] Keystore criada fora do repo + backup das senhas (backup: confirmar com o dono)
+- [x] `bubblewrap build` → `.aab`
+- [x] App criado no Play Console + `.aab` no teste interno
+- [x] Fingerprints (app signing + upload) em `lib/pwa/android-twa.ts` → PR → deploy
+- [x] `assetlinks.json` validado; app abre sem barra de URL
 - [ ] Ficha da loja + App content + conta de demo
 - [ ] Decisão sobre Stripe vs política de pagamentos do Play
 - [ ] Enviar para produção
