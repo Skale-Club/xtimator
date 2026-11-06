@@ -196,6 +196,7 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
             source_url: cited ? claimedUrl : null,
             snippet: cited ? citationByUrl.get(claimedUrl!) || r.snippet : null,
             confidence: r.confidence ?? null,
+            unit: r.unit ?? null,
           })
         }
 

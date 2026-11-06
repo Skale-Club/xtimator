@@ -46,6 +46,8 @@ import { get as cacheGet, put as cachePut } from './cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { normalizeServiceNameKey, normalizeRegion } from './normalize'
+import { conceptMapKey, priceConcept } from '@/lib/estimate/pricing/concept-key'
+import { unitKey } from '@/lib/ai/units'
 
 /**
  * Context supplied by the caller (generate-estimate.ts, in 108-04). Region/currency/
@@ -144,8 +146,36 @@ function buildIdemKey(ctx: ResearchContext, name: string): string {
  * the SAME process, so a second pass over the same item is a memo HIT — it pays NO
  * provider call and NO allowance. It is a plain Map; lookups never throw.
  */
-function buildMemoKey(region: ResearchContext['region'], name: string): string {
-  return `${normalizeServiceNameKey(name)}@@${normalizeRegion(region)}`
+function buildMemoKey(region: ResearchContext['region'], name: string, unit?: string | null): string {
+  // SEED-057 E: keyed by CONCEPT + UNIT, not the free wording, so "Install toilet" and
+  // "Toilet installation" (or two lines for the same work) share ONE lookup, while the
+  // same words priced per sq ft and per job do not. A description with no usable
+  // word falls back to the plain normalized name.
+  const concept = priceConcept(name, unit)
+  const head = concept.key ? conceptMapKey(concept) : `${normalizeServiceNameKey(name)}@@${unitKey(unit)}`
+  return `${head}@@${normalizeRegion(region)}`
+}
+
+/**
+ * SEED-057 E: the name the persisted researched-price cache files an item under.
+ * An item that has a unit gets it appended, so a price per sq ft is never
+ * served for the same words per job; an item without a unit keeps exactly the
+ * name it always had (existing cache rows stay valid).
+ */
+function cacheNameFor(item: { description: string; unit?: string }): string {
+  const unit = unitKey(item.unit)
+  return unit ? `${item.description} [${unit}]` : item.description
+}
+
+/**
+ * SEED-057 E: a result quoted in a different unit than the one asked for is not
+ * usable (a per-job price must not become a per-sq-ft rate). A missing unit on
+ * either side is accepted, which keeps every adapter that does not return one working.
+ */
+function unitCompatible(requested: string | undefined, returned: string | null | undefined): boolean {
+  const a = unitKey(requested)
+  const b = unitKey(returned)
+  return !a || !b || a === b
 }
 
 /**
@@ -224,7 +254,7 @@ export async function researchUnmatchedPrices(
     const cacheReads = await Promise.all(
       researchTargets.map(async (item) => {
         try {
-          const cached = await cacheGet(ctx.companyId, item.description, ctx.region, ctx.currency)
+          const cached = await cacheGet(ctx.companyId, cacheNameFor(item), ctx.region, ctx.currency)
           return { item, cached }
         } catch {
           return { item, cached: null } // a cache read failure degrades to a MISS, never throws
@@ -250,7 +280,7 @@ export async function researchUnmatchedPrices(
       // null is a known miss. The remainder still needs a real search.
       const stillMissing: LineItemOutput[] = []
       for (const m of misses) {
-        const mk = buildMemoKey(ctx.region, m.description)
+        const mk = buildMemoKey(ctx.region, m.description, m.unit)
         if (memo.has(mk)) {
           const memoized = memo.get(mk) ?? null
           if (memoized && isUsableCandidate(memoized) && typeof memoized.unit_price === 'number') {
@@ -286,7 +316,7 @@ export async function researchUnmatchedPrices(
             // every item sharing that key re-tags from the one result + one recordUsage.
             const repByKey = new Map<string, LineItemOutput>()
             for (const m of remaining) {
-              const mk = buildMemoKey(ctx.region, m.description)
+              const mk = buildMemoKey(ctx.region, m.description, m.unit)
               if (!repByKey.has(mk)) repByKey.set(mk, m)
             }
             const lookupItems = Array.from(repByKey.values())
@@ -294,7 +324,7 @@ export async function researchUnmatchedPrices(
             let results: import('./provider').PriceResearchResult[] = []
             try {
               results = await provider.lookup(
-                lookupItems.map((m) => ({ name: m.description })),
+                lookupItems.map((m) => ({ name: m.description, ...(m.unit ? { unit: m.unit } : {}) })),
                 ctx.region,
                 ctx.currency,
                 // Fix (price-research cost attribution): THIS research pass's
@@ -316,8 +346,9 @@ export async function researchUnmatchedPrices(
             for (const m of lookupItems) byName.set(m.description, m)
 
             for (const result of results) {
-              if (!byName.has(result.name)) continue
-              const mk = buildMemoKey(ctx.region, result.name)
+              const requested = byName.get(result.name)
+              if (!requested) continue
+              const mk = buildMemoKey(ctx.region, requested.description, requested.unit)
 
               // Meter once per actual search per key (idempotent — RMETER-01). A cache
               // HIT or a memo HIT never reaches here, so neither consumes allowance. A
@@ -372,7 +403,10 @@ export async function researchUnmatchedPrices(
                 // Metering is best-effort; a ledger error must not drop the price.
               }
 
-              const usable = isUsableCandidate(result) && typeof result.unit_price === 'number'
+              const usable =
+                isUsableCandidate(result) &&
+                typeof result.unit_price === 'number' &&
+                unitCompatible(requested.unit, result.unit)
               // Memoize the outcome (a usable result, or null for a known miss) so a
               // duplicate (normName, region) later in THIS call is a free memo HIT.
               memo.set(mk, usable ? result : null)
@@ -381,7 +415,7 @@ export async function researchUnmatchedPrices(
               // cited, positive price — across ALL items sharing this memo key.
               if (usable) {
                 for (const m of remaining) {
-                  if (buildMemoKey(ctx.region, m.description) === mk) {
+                  if (buildMemoKey(ctx.region, m.description, m.unit) === mk) {
                     // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).
                     if (!retag.has(m)) providerUsable++
                     retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })
@@ -390,7 +424,7 @@ export async function researchUnmatchedPrices(
                 try {
                   await cachePut({
                     companyId: ctx.companyId,
-                    name: result.name,
+                    name: cacheNameFor(requested),
                     region: ctx.region,
                     currency: ctx.currency,
                     datum: { unit_price: result.unit_price as number, source: result.source_url, confidence: result.confidence },

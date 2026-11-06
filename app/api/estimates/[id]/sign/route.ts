@@ -380,6 +380,15 @@ export async function POST(
       console.warn('[sign] notifyEstimateResponse failed:', notifyError)
     }
 
+    // SEED-057 E3: a signature is an acceptance, so the signed prices become the
+    // company's price history. Best-effort, after everything that matters committed.
+    try {
+      const { recordAcceptedEstimatePrices } = await import('@/lib/estimate/pricing/company-history')
+      await recordAcceptedEstimatePrices(id)
+    } catch (historyError) {
+      console.warn('[sign] recording price history failed:', historyError)
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Sign endpoint error:', error)

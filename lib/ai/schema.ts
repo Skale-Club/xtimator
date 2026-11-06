@@ -72,9 +72,12 @@ const lineItemSchema = z.object({
   unit_price: z.number().finite().nonnegative(), // >= 0
   // D-15 defensive coercion expressed as a preprocess so a missing/garbage value
   // never rejects the whole parse — anything other than exact 'price_book' → 'ai_estimate'.
+  // 'company_history' (SEED-057 E) is only ever assigned by the SERVER; it is accepted here so a
+  // refine round-trip of an existing estimate keeps its label, and generate-estimate.ts demotes
+  // any such claim from a GENERATE call back to 'ai_estimate'.
   price_source: z.preprocess(
-    (v) => (v === 'price_book' || v === 'researched' ? v : 'ai_estimate'),
-    z.enum(['price_book', 'ai_estimate', 'researched'])
+    (v) => (v === 'price_book' || v === 'researched' || v === 'company_history' ? v : 'ai_estimate'),
+    z.enum(['price_book', 'ai_estimate', 'researched', 'company_history'])
   ),
   // TAX-02 — per-item AI CLASSIFICATION INPUT (labor vs materials). Both OPTIONAL
   // and additive: omitting them keeps existing AI output validating byte-identically.

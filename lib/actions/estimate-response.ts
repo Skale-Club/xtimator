@@ -127,6 +127,17 @@ export async function recordClientResponse(
     metadata: { source: 'manual' },
   })
 
+  // SEED-057 E3: an ACCEPTED estimate's prices become the company's own price
+  // history; taking the acceptance back (declined / cleared) withdraws them.
+  // Best-effort and lazy-loaded: it can never fail or slow the response itself.
+  try {
+    const history = await import('@/lib/estimate/pricing/company-history')
+    if (response === 'accepted') await history.recordAcceptedEstimatePrices(est.id)
+    else await history.forgetEstimatePrices(est.id)
+  } catch {
+    // history is an enhancement
+  }
+
   revalidatePath(`/projects/${est.project_id}`)
   revalidatePath('/dashboard')
 

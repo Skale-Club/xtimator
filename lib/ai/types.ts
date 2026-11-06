@@ -16,7 +16,7 @@ export type LineItemOutput = {
   quantity: number
   unit?: string
   unit_price: number
-  price_source: 'price_book' | 'ai_estimate' | 'researched'  // D-03: required on every item; 'researched' added in Phase 105 (v4.6, dormant until Phase 108)
+  price_source: 'price_book' | 'ai_estimate' | 'researched' | 'company_history'  // D-03: required on every item; 'researched' added in Phase 105 (v4.6, dormant until Phase 108)
   // TAX-02 — optional per-item classification input mirroring lineItemSchema. The AI
   // labels labor vs materials; omission is valid (server defaults taxable=true in Plan 130-02).
   taxable?: boolean

@@ -39,6 +39,12 @@ export interface PriceResearchResult {
   source_url: string | null
   snippet: string | null
   confidence?: number | null
+  /**
+   * SEED-057 E: the unit the quoted price is FOR ("sq ft", "each"...). Optional so
+   * every existing adapter and fixture keeps working; when present and different
+   * from the requested unit the orchestrator treats the result as a miss.
+   */
+  unit?: string | null
 }
 
 /**
@@ -64,7 +70,7 @@ export interface PriceResearchProvider {
    * recording (or not recording) cost exactly as before.
    */
   lookup(
-    items: { name: string }[],
+    items: { name: string; unit?: string | null }[],
     region: Region,
     currency: string,
     costContext?: ResearchCostContext

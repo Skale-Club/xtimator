@@ -20,7 +20,7 @@ export interface EditorItem {
   unit_price: number
   total: number
   sort_order: number
-  price_source: 'price_book' | 'ai_estimate' | 'researched' | null
+  price_source: 'price_book' | 'ai_estimate' | 'researched' | 'company_history' | null
   isManuallyEdited?: boolean
   // v4.11 advanced pricing — all OPTIONAL with no-op defaults (retrocompat).
   taxable?: boolean // default true
@@ -192,7 +192,7 @@ export interface RefinementPayload {
       quantity: number
       unit?: string
       unit_price: number
-      price_source: 'price_book' | 'ai_estimate' | 'researched'
+      price_source: 'price_book' | 'ai_estimate' | 'researched' | 'company_history'
       // v4.11 advanced pricing — optional; present when the AI preserved/set them
       // (the refine route now feeds these into the "Current Estimate" context it
       // sees, mirroring generate's price_book/tax_category handling).

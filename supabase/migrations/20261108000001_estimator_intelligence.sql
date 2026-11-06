@@ -70,10 +70,11 @@ CREATE TABLE IF NOT EXISTS public.price_observations (
 );
 
 -- One observation per (estimate, concept, unit): recording the same accepted
--- estimate twice (a retry, a re-sign) is a no-op.
+-- estimate twice (a retry, a re-sign) is a no-op. Deliberately NOT a partial
+-- index: PostgREST's upsert (ON CONFLICT (cols) DO NOTHING) cannot infer a
+-- partial index. Rows with a NULL estimate_id never collide (NULLs are distinct).
 CREATE UNIQUE INDEX IF NOT EXISTS price_observations_estimate_concept_uniq
-  ON public.price_observations (estimate_id, concept_key, unit)
-  WHERE estimate_id IS NOT NULL;
+  ON public.price_observations (estimate_id, concept_key, unit);
 
 -- "Median of the company's last 10 observations of this concept + unit".
 CREATE INDEX IF NOT EXISTS price_observations_lookup_idx

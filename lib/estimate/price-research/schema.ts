@@ -18,6 +18,8 @@ export const priceResearchResultSchema = z.object({
   source_url: z.string().nullable(),
   snippet: z.string().nullable(),
   confidence: z.number().finite().nullable().optional(),
+  // SEED-057 E: the unit the price is for. Optional: older replies and adapters omit it.
+  unit: z.string().nullable().optional(),
 })
 
 export const priceResearchPayloadSchema = z.object({

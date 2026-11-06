@@ -287,7 +287,7 @@ export async function POST(
           quantity: item.quantity,
           unit: item.unit ?? undefined,
           unit_price: item.unit_price,
-          price_source: (item.price_source ?? 'ai_estimate') as 'price_book' | 'ai_estimate' | 'researched',
+          price_source: (item.price_source ?? 'ai_estimate') as 'price_book' | 'ai_estimate' | 'researched' | 'company_history',
           // v4.11 advanced pricing — feed the current per-item tax/discount/cost/markup
           // state into the "Current Estimate" context the refine prompt sees (it is
           // told to "keep everything else unchanged"), same no-op-default cast pattern

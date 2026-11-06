@@ -50,7 +50,7 @@ type ResearchEngine = 'exa' | 'native'
 const RESEARCH_SYSTEM =
   'You are a market-price researcher. For each requested service, search the web ' +
   "for the average US market unit price in the client's city/state and return a " +
-  'JSON object {results:[{name, unit_price, currency, source_url, snippet}]}. Only ' +
+  'JSON object {results:[{name, unit_price, currency, unit, source_url, snippet}]}. Only ' +
   'include a price when you have a real supporting source_url + snippet; omit ' +
   'ungrounded guesses.'
 
@@ -287,6 +287,7 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
             source_url: cited ? claimedUrl : null,
             snippet: cited ? citationByUrl.get(claimedUrl!) || r.snippet : null,
             confidence: r.confidence ?? null,
+            unit: r.unit ?? null,
           })
         }
 

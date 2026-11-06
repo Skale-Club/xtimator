@@ -47,6 +47,11 @@ import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { planScope } from '@/lib/ai/plan-scope'
+import {
+  applyCompanyHistory,
+  historyCandidateKeys,
+  loadCompanyHistory,
+} from '@/lib/estimate/pricing/company-history'
 import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
@@ -480,11 +485,38 @@ export async function generateEstimateForProject(
   // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
   // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
   // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
-  const { sections: guardedSections, anchoredCount, clampedCount } =
+  // SEED-057 E: only the server may label a price 'company_history'. A model
+  // that claims it in a GENERATE call is demoted before anything else runs.
+  const modelSections = aiEstimate.sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) =>
+      item.price_source === 'company_history' ? { ...item, price_source: 'ai_estimate' as const } : item
+    ),
+  }))
+  const { sections: anchoredSections, anchoredCount, clampedCount } =
     anchorAndClampSections(
-      aiEstimate.sections,
+      modelSections,
       priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
     )
+
+  // SEED-057 E3: the company's own median on ACCEPTED estimates (last 10, per
+  // concept + unit) beats web research and the model's estimate, and loses only to
+  // the price book. Runs after anchoring and before research; research then sees
+  // only the items still tagged 'ai_estimate'. Best-effort: no history (or a
+  // database that has no price_observations yet) changes nothing.
+  const history = await loadCompanyHistory(
+    supabase,
+    companyId, // param, never LLM-derived
+    currencyCode,
+    historyCandidateKeys(anchoredSections)
+  )
+  const { sections: guardedSections, applied: historyAppliedCount } = applyCompanyHistory(
+    anchoredSections,
+    history
+  )
+  if (historyAppliedCount > 0) {
+    console.info('[company_history]', { companyId, applied: historyAppliedCount })
+  }
 
   // RPRICE-01/03 + RFALL-01 (THE PAYOFF): research the items anchoring left as
   // 'ai_estimate' (price_book + owner-edited items are NEVER touched). The

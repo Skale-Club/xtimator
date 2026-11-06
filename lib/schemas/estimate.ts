@@ -35,7 +35,7 @@ const MAX_ITEMS_PER_SECTION = 200
 const discountTypeSchema = z.enum(['percentage', 'fixed', 'amount', 'percent']).nullable()
 const depositTypeSchema = z.enum(['none', 'percent', 'amount']).nullable()
 const taxCategorySchema = z.enum(['labor', 'materials', 'other']).nullable()
-const priceSourceSchema = z.enum(['price_book', 'ai_estimate', 'researched']).nullable()
+const priceSourceSchema = z.enum(['price_book', 'ai_estimate', 'researched', 'company_history']).nullable()
 
 // SAVE-06 (audit B7): quantity/unit_price/discount/cost/markup_pct previously
 // accepted negatives (finite-only) — a negative quantity or unit_price can

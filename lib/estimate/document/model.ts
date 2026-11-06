@@ -58,7 +58,7 @@ export interface DocumentItem {
   unit_price: number
   total: number
   sort_order?: number
-  price_source?: 'price_book' | 'ai_estimate' | 'researched' | null
+  price_source?: 'price_book' | 'ai_estimate' | 'researched' | 'company_history' | null
   isManuallyEdited?: boolean
   taxable?: boolean
   tax_category?: 'labor' | 'materials' | 'other' | null
