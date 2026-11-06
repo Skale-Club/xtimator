@@ -159,5 +159,5 @@ export function qualityNotesPrompt(
   if (clean.length === 0) return null
   return `## Quality notes
 An earlier attempt at this same job was checked and had the problems below. This is a fresh attempt: avoid them.
-${clean.map((n) => `- ${escape(n)}`).join('\n')}`
+${clean.map((n) => `- <line>${escape(n)}</line>`).join('\n')}`
 }

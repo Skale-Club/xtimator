@@ -3,13 +3,14 @@
 -- Idempotent: every statement is safe to re-run. NOT applied by the deploy.
 --
 -- DEPLOY ORDER. The application code is written so that it keeps working
--- before this migration lands: new columns are only ever written through a
--- best-effort second write that is ignored when the column is absent, no hot
--- path SELECT names a new column, and the company-history price source stays
--- silent until price_observations exists and has rows. So the order is not
--- load-bearing for correctness, but apply this BEFORE enabling anything that
--- depends on the new data (the AI assumptions panel, company history, the
--- ESTIMATOR_TWO_STEP flag does not need it).
+-- before this migration lands: the new columns are written in the same insert
+-- and that insert is retried WITHOUT them when the database says the column does
+-- not exist (isMissingColumnError), so until this is applied each generation pays
+-- one extra failed write; no hot-path SELECT names a new column; and the
+-- company-history price source stays silent until price_observations exists and
+-- has rows. So the order is not load-bearing for correctness, but apply this
+-- BEFORE enabling anything that depends on the new data (the AI assumptions
+-- panel, company history). ESTIMATOR_TWO_STEP does not need it.
 --
 -- estimates.ai_meta
 --   Owner-facing, AI-produced context for one estimate: assumptions,

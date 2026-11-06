@@ -15,8 +15,8 @@
 // All tools are annotated `readOnlyHint: true` so Claude.ai's UI auto-groups
 // them under "Read-only tools (N)" with a single "Always allow" toggle.
 
-import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
 import 'server-only'
+import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
 import { z } from 'zod'
 import type { McpAuthContext } from '@/lib/mcp/auth'
 import { requireScope } from '@/lib/mcp/scope'

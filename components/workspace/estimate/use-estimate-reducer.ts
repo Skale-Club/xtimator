@@ -460,6 +460,17 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
               if (action.field === 'unit_price') {
                 updated.isManuallyEdited = true
               }
+              // SEED-057 G: the AI's confidence described the AI's line; once the owner changes
+              // what the line is or how much of it there is, there is no AI confidence to show.
+              if (
+                action.field === 'description' ||
+                action.field === 'quantity' ||
+                action.field === 'unit' ||
+                action.field === 'unit_price'
+              ) {
+                updated.confidence = null
+                updated.basis = null
+              }
               return updated
             }),
           }

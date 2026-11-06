@@ -197,6 +197,9 @@ describe('quality notes (second attempt)', () => {
     expect(buildUserContent(input)).not.toContain('cleanup line')
     const prompt = buildSystemPrompt(input)
     expect(prompt).toContain('&lt;b&gt;')
+    // Each quoted line sits inside its own tag, which the Security block lists as untrusted.
+    expect(prompt).toMatch(/- <line>Add the missing line/)
+    expect(prompt).toContain('(inside <line> tags)')
     expect(prompt).not.toContain('<b>')
   })
 
