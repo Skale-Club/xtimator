@@ -3,41 +3,12 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 
 /**
  * Phase 77 plan 04 — NotificationBell + useNotifications coverage.
+ * SEED-056: live updates are bounded polling (no Supabase Realtime).
  *
  * Mocks:
  *  - global fetch (for /api/notifications/list, /:id/read, /mark-all-read)
- *  - @/lib/supabase/client → createClient returning a fake channel
  *  - next/navigation router for NotificationItem.handleClick
  */
-
-// --- Supabase channel mock --------------------------------------------------
-
-let lastChannelHandler: ((payload: { new: Record<string, unknown> }) => void) | null = null
-const removeChannelSpy = vi.fn()
-const subscribeSpy = vi.fn().mockReturnValue(undefined)
-
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    channel: () => {
-      const chain = {
-        on: (
-          _event: string,
-          _opts: unknown,
-          handler: (payload: { new: Record<string, unknown> }) => void,
-        ) => {
-          lastChannelHandler = handler
-          return chain
-        },
-        subscribe: () => {
-          subscribeSpy()
-          return chain
-        },
-      }
-      return chain
-    },
-    removeChannel: () => removeChannelSpy(),
-  }),
-}))
 
 // --- next/navigation mock ---------------------------------------------------
 
@@ -49,6 +20,7 @@ vi.mock('next/navigation', () => ({
 // --- Component under test ---------------------------------------------------
 
 import { NotificationBell } from '@/components/notifications/notification-bell'
+import { NOTIFICATIONS_POLL_MS } from '@/components/notifications/use-notifications'
 
 // --- Helpers ----------------------------------------------------------------
 
@@ -103,9 +75,6 @@ function mockListResponse(items: FakeRow[]) {
 
 beforeEach(() => {
   global.fetch = vi.fn() as unknown as typeof fetch
-  lastChannelHandler = null
-  removeChannelSpy.mockClear()
-  subscribeSpy.mockClear()
   routerPushSpy.mockClear()
 })
 
@@ -175,94 +144,104 @@ describe('NotificationBell — initial render & badge', () => {
   })
 })
 
-describe('NotificationBell — Supabase Realtime subscription', () => {
-  it('subscribes on mount and removes channel on unmount', async () => {
-    mockListResponse([])
-    let utils: ReturnType<typeof render> | null = null
-    await act(async () => {
-      utils = render(<NotificationBell companyId="co_1" userId="u_1" />)
-    })
-    expect(subscribeSpy).toHaveBeenCalledTimes(1)
-    expect(typeof lastChannelHandler).toBe('function')
-    utils!.unmount()
-    expect(removeChannelSpy).toHaveBeenCalledTimes(1)
+function listCalls() {
+  const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>
+  return fetchMock.mock.calls.filter(
+    (c) => typeof c[0] === 'string' && c[0].includes('/api/notifications/list'),
+  ).length
+}
+
+function setVisibility(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+
+async function mountAndSettle() {
+  let utils!: ReturnType<typeof render>
+  await act(async () => {
+    utils = render(<NotificationBell companyId="co_1" userId="u_1" />)
+  })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  return utils
+}
+
+describe('NotificationBell - bounded polling (no Realtime)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    setVisibility('visible')
   })
 
-  it('increments unread badge live when realtime INSERT arrives (debounced 300ms)', async () => {
+  it('polls the list endpoint every 30s while visible and surfaces new rows', async () => {
     vi.useFakeTimers()
     mockListResponse([])
-    await act(async () => {
-      render(<NotificationBell companyId="co_1" userId="u_1" />)
-    })
-    // After mount, fetch resolves. Run any microtasks.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0)
-    })
-
-    // Simulate realtime push
-    act(() => {
-      lastChannelHandler!({
-        new: { ...rowFixture({ id: 'new1', read_at: null }), user_id: null },
-      })
-    })
-    // Before debounce — still 0
+    await mountAndSettle()
+    expect(listCalls()).toBe(1)
     expect(screen.getByTestId('notification-bell').getAttribute('data-unread-count')).toBe('0')
 
-    // Advance past debounce
+    mockListResponse([rowFixture({ id: 'new1', read_at: null })])
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(350)
+      await vi.advanceTimersByTimeAsync(NOTIFICATIONS_POLL_MS)
     })
+    expect(listCalls()).toBe(2)
     expect(screen.getByTestId('notification-bell').getAttribute('data-unread-count')).toBe('1')
-    vi.useRealTimers()
   })
 
-  it('ignores realtime INSERTs targeted at a different user', async () => {
+  it('pauses while the tab is hidden and refetches immediately when visible again', async () => {
     vi.useFakeTimers()
     mockListResponse([])
+    await mountAndSettle()
+    act(() => setVisibility('hidden'))
     await act(async () => {
-      render(<NotificationBell companyId="co_1" userId="u_1" />)
+      await vi.advanceTimersByTimeAsync(NOTIFICATIONS_POLL_MS * 3)
     })
+    expect(listCalls()).toBe(1)
+
     await act(async () => {
+      setVisibility('visible')
       await vi.advanceTimersByTimeAsync(0)
     })
-    act(() => {
-      lastChannelHandler!({
-        new: { ...rowFixture({ id: 'other', read_at: null }), user_id: 'u_other' },
-      })
-    })
+    expect(listCalls()).toBe(2)
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(350)
+      await vi.advanceTimersByTimeAsync(NOTIFICATIONS_POLL_MS)
     })
-    expect(screen.getByTestId('notification-bell').getAttribute('data-unread-count')).toBe('0')
-    vi.useRealTimers()
+    expect(listCalls()).toBe(3)
   })
 
-  it('ignores realtime INSERTs for dropped WhatsApp events', async () => {
+  it('refetches on window focus', async () => {
     vi.useFakeTimers()
     mockListResponse([])
+    await mountAndSettle()
     await act(async () => {
-      render(<NotificationBell companyId="co_1" userId="u_1" />)
-    })
-    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
       await vi.advanceTimersByTimeAsync(0)
     })
-    act(() => {
-      lastChannelHandler!({
-        new: {
-          ...rowFixture({
-            id: 'whatsapp-live',
-            event_type: 'whatsapp.inbound',
-            title: 'New WhatsApp message',
-          }),
-          user_id: null,
-        },
-      })
-    })
+    expect(listCalls()).toBe(2)
+  })
+
+  it('stops polling on unmount', async () => {
+    vi.useFakeTimers()
+    mockListResponse([])
+    const utils = await mountAndSettle()
+    utils.unmount()
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(350)
+      await vi.advanceTimersByTimeAsync(NOTIFICATIONS_POLL_MS * 3)
+    })
+    expect(listCalls()).toBe(1)
+  })
+
+  it('keeps dropped WhatsApp rows out of polled results', async () => {
+    vi.useFakeTimers()
+    mockListResponse([])
+    await mountAndSettle()
+    mockListResponse([
+      rowFixture({ id: 'wa', event_type: 'whatsapp.inbound', title: 'New WhatsApp message' }),
+    ])
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NOTIFICATIONS_POLL_MS)
     })
     expect(screen.getByTestId('notification-bell').getAttribute('data-unread-count')).toBe('0')
-    vi.useRealTimers()
   })
 })
 
