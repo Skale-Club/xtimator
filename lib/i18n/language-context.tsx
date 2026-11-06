@@ -11,13 +11,24 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
+import { onTranslationsLoaded } from './translation-events'
 
 export type Language = 'en' | 'pt' | 'es'
 
 interface LanguageContextValue {
   language: Language
   setLanguage: (lang: Language) => void
+  /**
+   * Bumped each time a batch of async translations lands. Not read by anyone:
+   * it exists so the context value changes and every useTranslation() consumer
+   * re-renders with the newly cached strings (see translation-events.ts).
+   */
+  translationsVersion?: number
 }
+
+// Count of landed translation batches, provided by the root so a
+// ScopedLanguageProvider can fold it into its own value too.
+const TranslationsVersionContext = createContext<number>(0)
 
 const LanguageContext = createContext<LanguageContextValue>({
   language: 'en',
@@ -53,6 +64,9 @@ const TranslationSetPendingContext = createContext<Dispatch<SetStateAction<numbe
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en')
   const [pendingCount, setPendingCount] = useState(0)
+  const [translationsVersion, setTranslationsVersion] = useState(0)
+
+  useEffect(() => onTranslationsLoaded(() => setTranslationsVersion((v) => v + 1)), [])
 
   useEffect(() => {
     // Runs on client only — reads localStorage after hydration (SSR-safe)
@@ -69,22 +83,25 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Memoized so the context value identity only changes when `language` does —
-  // not on unrelated parent re-renders (e.g. a pendingCount bump).
+  // Memoized so the context value identity only changes when `language` changes
+  // or a translation batch lands — not on unrelated parent re-renders (e.g. a
+  // pendingCount bump, which happens twice per batch).
   const languageValue = useMemo<LanguageContextValue>(
-    () => ({ language, setLanguage }),
-    [language, setLanguage]
+    () => ({ language, setLanguage, translationsVersion }),
+    [language, setLanguage, translationsVersion]
   )
 
   return (
     <AppLanguageContext.Provider value={language}>
-      <LanguageContext.Provider value={languageValue}>
-        <TranslationSetPendingContext.Provider value={setPendingCount}>
-          <TranslationPendingCountContext.Provider value={pendingCount}>
-            {children}
-          </TranslationPendingCountContext.Provider>
-        </TranslationSetPendingContext.Provider>
-      </LanguageContext.Provider>
+      <TranslationsVersionContext.Provider value={translationsVersion}>
+        <LanguageContext.Provider value={languageValue}>
+          <TranslationSetPendingContext.Provider value={setPendingCount}>
+            <TranslationPendingCountContext.Provider value={pendingCount}>
+              {children}
+            </TranslationPendingCountContext.Provider>
+          </TranslationSetPendingContext.Provider>
+        </LanguageContext.Provider>
+      </TranslationsVersionContext.Provider>
     </AppLanguageContext.Provider>
   )
 }
@@ -106,9 +123,10 @@ export function ScopedLanguageProvider({
   setLanguage: (lang: Language) => void
   children: React.ReactNode
 }) {
+  const translationsVersion = useContext(TranslationsVersionContext)
   const value = useMemo<LanguageContextValue>(
-    () => ({ language, setLanguage }),
-    [language, setLanguage]
+    () => ({ language, setLanguage, translationsVersion }),
+    [language, setLanguage, translationsVersion]
   )
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
@@ -124,6 +142,15 @@ export function useLanguage() {
  */
 export function useAppLanguage() {
   return useContext(AppLanguageContext)
+}
+
+/**
+ * Count of async translation batches that have landed. Read (and ignored) by
+ * useAppTranslation() so operator-only surfaces, which do not consume
+ * LanguageContext, still re-render when their translations arrive.
+ */
+export function useTranslationsVersion() {
+  return useContext(TranslationsVersionContext)
 }
 
 /** Current number of in-flight translation batches. Read by the loading overlay. */

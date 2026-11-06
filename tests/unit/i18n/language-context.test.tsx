@@ -22,7 +22,9 @@ import {
   useLanguage,
   useTranslationPendingCount,
   useSetTranslationPending,
+  ScopedLanguageProvider,
 } from '@/lib/i18n/language-context'
+import { notifyTranslationsLoaded } from '@/lib/i18n/translation-events'
 
 // Helper consumer component
 function LanguageDisplay() {
@@ -157,5 +159,42 @@ describe('pendingCount', () => {
     expect(screen.getByTestId('pending').textContent).toBe('1')
     await act(async () => { screen.getByText('Dec').click() })
     expect(screen.getByTestId('pending').textContent).toBe('0')
+  })
+})
+
+describe('landed translation batches', () => {
+  // useTranslation() renders the English source while a batch is in flight.
+  // When the batch lands, every LanguageContext consumer (root and scoped) must
+  // re-render once, or the screen stays in English.
+  it('re-renders root and scoped consumers once per landed batch', async () => {
+    let rootRenders = 0
+    let scopedRenders = 0
+    function RootConsumer() {
+      useLanguage()
+      rootRenders++
+      return null
+    }
+    function ScopedConsumer() {
+      useLanguage()
+      scopedRenders++
+      return null
+    }
+    const setScoped = () => {}
+    render(
+      <LanguageProvider>
+        <RootConsumer />
+        <ScopedLanguageProvider language="pt" setLanguage={setScoped}>
+          <ScopedConsumer />
+        </ScopedLanguageProvider>
+      </LanguageProvider>
+    )
+    await act(async () => {})
+    const rootBefore = rootRenders
+    const scopedBefore = scopedRenders
+
+    await act(async () => { notifyTranslationsLoaded() })
+
+    expect(rootRenders).toBe(rootBefore + 1)
+    expect(scopedRenders).toBe(scopedBefore + 1)
   })
 })

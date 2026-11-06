@@ -1,12 +1,65 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
-import { useAppLanguage, useLanguage, useSetTranslationPending } from './language-context'
+import {
+  useAppLanguage,
+  useLanguage,
+  useSetTranslationPending,
+  useTranslationsVersion,
+} from './language-context'
+import { notifyTranslationsLoaded } from './translation-events'
 import { staticDict } from './translations'
 
 // Module-level in-memory cache — persists for browser session
 // Keyed as `${lang}:${source}` — e.g. `pt:Save`
 const memCache = new Map<string, string>()
+
+// Translations the API returned are also kept in localStorage, so a reload (or
+// the Android app reopening) paints them on the first render instead of
+// flashing English while the batch round-trips. Bump the version to drop every
+// stored translation, e.g. after fixing bad ones in the `translations` table.
+const STORAGE_PREFIX = 'xt:i18n:v1:'
+const STORAGE_MAX_ENTRIES = 5000
+
+function storageKey(lang: 'pt' | 'es') {
+  return `${STORAGE_PREFIX}${lang}`
+}
+
+function readStored(lang: 'pt' | 'es'): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(storageKey(lang))
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function hydrateFromStorage() {
+  if (typeof window === 'undefined') return
+  for (const lang of ['pt', 'es'] as const) {
+    for (const [src, translated] of Object.entries(readStored(lang))) {
+      if (typeof translated === 'string' && translated) memCache.set(`${lang}:${src}`, translated)
+    }
+  }
+}
+
+function persist(lang: 'pt' | 'es', entries: Record<string, string>) {
+  if (Object.keys(entries).length === 0) return
+  try {
+    const merged = { ...readStored(lang), ...entries }
+    const keys = Object.keys(merged)
+    // Keep the newest entries if the cache ever outgrows its budget.
+    const kept = keys.length > STORAGE_MAX_ENTRIES
+      ? Object.fromEntries(keys.slice(-STORAGE_MAX_ENTRIES).map(k => [k, merged[k]]))
+      : merged
+    localStorage.setItem(storageKey(lang), JSON.stringify(kept))
+  } catch {
+    // Storage full, blocked or unavailable: the in-memory cache still works.
+  }
+}
+
+hydrateFromStorage()
 
 // Per-language batch accumulators (Pitfall 3 mitigation: key by language)
 // Map<lang, Map<source, Array<resolver>>>
@@ -69,13 +122,19 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
       .replace(/\n?```$/, '')
     const { translations } = JSON.parse(cleaned) as { translations: Record<string, string> }
 
+    const landed: Record<string, string> = {}
     resolvers.forEach((cbs, src) => {
       const translated = translations[src] ?? src
       const cacheKey = `${lang}:${src}`
       memCache.set(cacheKey, translated)
       pendingKeys.delete(cacheKey)
+      if (typeof translations[src] === 'string' && translations[src]) landed[src] = translations[src]
       cbs.forEach(cb => cb(translated))
     })
+    persist(lang, landed)
+    // Repaint the consumers that rendered the English source while this batch
+    // was in flight (see translation-events.ts).
+    if (Object.keys(landed).length > 0) notifyTranslationsLoaded()
   } catch {
     // Silent fallback on parse or network error — cache the source text so the
     // string isn't re-queued every render (avoids the infinite render loop).
@@ -139,6 +198,10 @@ export function useTranslation() {
  */
 export function useAppTranslation() {
   const language = useAppLanguage()
+  // Subscribe to landed batches: AppLanguageContext only carries the language,
+  // so without this an operator-only surface would never repaint its
+  // translations (see translation-events.ts).
+  useTranslationsVersion()
   const setPendingCount = useSetTranslationPending()
   return makeTranslator(language, setPendingCount)
 }

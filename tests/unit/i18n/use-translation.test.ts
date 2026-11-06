@@ -34,6 +34,7 @@ vi.mock('@/lib/i18n/language-context', () => ({
 
 // Import after mocks
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { onTranslationsLoaded } from '@/lib/i18n/translation-events'
 
 beforeEach(() => {
   currentLanguage = 'en'
@@ -195,6 +196,44 @@ describe('useTranslation — async fallback for unknown strings', () => {
       text: async () => JSON.stringify({ translations: { [source]: 'Desconhecido' } }),
     })
     await new Promise(r => setTimeout(r, 20))
+  })
+})
+
+describe('useTranslation — landed batches repaint and persist', () => {
+  it('notifies listeners and stores the translation once a batch lands', async () => {
+    currentLanguage = 'pt'
+    const source = 'UnknownString__landed_batch_notifies'
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ translations: { [source]: 'Traduzido' } }),
+    })
+    const listener = vi.fn()
+    const stop = onTranslationsLoaded(listener)
+
+    const { t } = useTranslation()
+    expect(t(source)).toBe(source)
+    await new Promise(r => setTimeout(r, 100))
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(t(source)).toBe('Traduzido')
+    expect(JSON.parse(localStorageMock.getItem('xt:i18n:v1:pt') ?? '{}')[source]).toBe('Traduzido')
+    stop()
+  })
+
+  it('does not notify or store anything when the batch fails', async () => {
+    currentLanguage = 'pt'
+    const source = 'UnknownString__failed_batch_is_silent'
+    fetchMock.mockResolvedValue({ ok: false, text: async () => '' })
+    const listener = vi.fn()
+    const stop = onTranslationsLoaded(listener)
+
+    const { t } = useTranslation()
+    t(source)
+    await new Promise(r => setTimeout(r, 100))
+
+    expect(listener).not.toHaveBeenCalled()
+    expect(localStorageMock.getItem('xt:i18n:v1:pt')).toBeNull()
+    stop()
   })
 })
 
