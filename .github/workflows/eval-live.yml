@@ -63,6 +63,10 @@ jobs:
           EVAL_LIVE_OUT: ${{ runner.temp }}/eval-live.json
         run: npx vitest run tests/eval/live/golden-live.test.ts
 
+      # The per-case table goes to the run summary (and the test log). There is
+      # deliberately no artifact upload: every third-party action in this repo is
+      # pinned to a commit SHA (tests/unit/ci), and there is no verified SHA for
+      # upload-artifact to copy here.
       - name: Summary
         if: always()
         run: |
@@ -83,12 +87,3 @@ jobs:
               console.log(lines.join("\n"));
             ' "${{ runner.temp }}/eval-live.json" >> "$GITHUB_STEP_SUMMARY"
           fi
-
-      - name: Upload the report
-        if: always()
-        # Tag-pinned (this repo has no other upload-artifact use to copy a verified SHA from).
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-live-report
-          path: ${{ runner.temp }}/eval-live.json
-          if-no-files-found: ignore
