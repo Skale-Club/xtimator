@@ -249,3 +249,16 @@ Files: `tests/eval/*`, new `tests/eval/rubric.ts`, `tests/eval/live/*`
 - A stricter assess could block more estimates: the 50–70 band delivers with
   a banner instead of blocking; only < 50 refines, cap 1 as today.
 - Live evals cost money: manual trigger, capped case count.
+
+**Deploy order (migration `20261108000001_estimator_intelligence.sql`).**
+Unlike SEED-056, the code is written to survive running BEFORE the migration:
+no SELECT on a hot path names a new column (the editor reads `estimates` with
+`select('*')` and items through `estimate_items(*)`), the new columns are
+written in the same insert and the insert is retried without them when the
+database says the column does not exist (`isMissingColumnError`), the
+company-history source is silent until `price_observations` exists and has
+rows, and observation recording is best-effort. Recommended order anyway:
+apply the migration first, verify `estimates.ai_meta`,
+`estimate_items.confidence/basis/optional`, the widened `price_source` CHECK and
+`price_observations` exist, then push. Until it is applied the AI assumptions /
+open questions simply are not persisted. `ESTIMATOR_TWO_STEP` needs no schema.

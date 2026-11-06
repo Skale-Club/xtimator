@@ -42,6 +42,7 @@ import {
   initialSectionVisibility,
   resolveDocumentBlocks,
 } from '@/lib/estimate/document-blocks'
+import { buildAiMeta, isMissingColumnError } from '@/lib/estimate/ai-meta'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -97,6 +98,9 @@ export interface GenerateEstimateOptions {
     projectId?: string | null
   }
 }
+
+/** estimate_items columns added by SEED-057 (see the estimator-intelligence migration). */
+const ITEM_AI_COLUMNS = ['confidence', 'basis', 'optional'] as const
 
 function normalizeClientNameForMatch(name: string): string {
   return name
@@ -641,10 +645,15 @@ export async function generateEstimateForProject(
 
   const nextVersion = (existingEstimates?.[0]?.version ?? 0) + 1
 
+  // SEED-057: the AI's assumptions / exclusions / open questions travel with the
+  // estimate in estimates.ai_meta (owner-facing only). Written in the SAME insert
+  // when there is something to write; if the column does not exist yet (the
+  // migration has not been applied) the insert is retried without it, so a deploy
+  // that lands before the migration keeps generating.
+  const aiMeta = buildAiMeta(aiEstimate)
+
   // Persist estimate
-  const { data: estimate, error: estimateError } = await supabase
-    .from('estimates')
-    .insert({
+  const estimateRow = {
       project_id: projectId,
       company_id: companyId,
       currency_code: currencyCode,
@@ -686,9 +695,21 @@ export async function generateEstimateForProject(
       // PRE-EXISTING rows. Same generator as the backfill script — one code path.
       public_slug_token: generatePublicSlugToken(),
       created_by_user_id: options.createdByUserId ?? null,
-    })
+  }
+
+  let { data: estimate, error: estimateError } = await supabase
+    .from('estimates')
+    .insert(aiMeta ? { ...estimateRow, ai_meta: aiMeta } : estimateRow)
     .select('id')
     .single()
+
+  if (estimateError && aiMeta && isMissingColumnError(estimateError, ['ai_meta'])) {
+    ;({ data: estimate, error: estimateError } = await supabase
+      .from('estimates')
+      .insert(estimateRow)
+      .select('id')
+      .single())
+  }
 
   if (estimateError || !estimate) {
     throw new Error('Failed to save estimate')
@@ -784,13 +805,28 @@ export async function generateEstimateForProject(
       // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
       cost: (item.cost as number | undefined) ?? null,
       markup_pct: (item.markup_pct as number | undefined) ?? null,
+      // SEED-057: per-line AI metadata. Only present on the row when the model
+      // supplied it, so rows (and tests) for legacy outputs are unchanged.
+      ...(item.confidence ? { confidence: item.confidence } : {}),
+      ...(item.basis ? { basis: item.basis } : {}),
+      ...(item.optional ? { optional: true } : {}),
     }))
   })
 
   if (itemInsertRows.length > 0) {
-    const { error: itemsError } = await supabase
+    let { error: itemsError } = await supabase
       .from('estimate_items')
       .insert(itemInsertRows)
+
+    // Pre-migration deploy window: drop the SEED-057 columns and retry.
+    if (itemsError && isMissingColumnError(itemsError, ITEM_AI_COLUMNS)) {
+      const stripped = itemInsertRows.map((row) => {
+        const copy: Record<string, unknown> = { ...row }
+        for (const column of ITEM_AI_COLUMNS) delete copy[column]
+        return copy
+      })
+      ;({ error: itemsError } = await supabase.from('estimate_items').insert(stripped))
+    }
 
     if (itemsError) {
       throw new Error('Failed to save estimate items')

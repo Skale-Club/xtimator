@@ -1442,12 +1442,15 @@ export type Database = {
       }
       estimate_items: {
         Row: {
+          basis: string | null
           company_id: string
+          confidence: string | null
           cost: number | null
           description: string
           discount: number
           id: string
           markup_pct: number | null
+          optional: boolean
           price_source: string | null
           quantity: number
           section_id: string
@@ -1459,12 +1462,15 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          basis?: string | null
           company_id: string
+          confidence?: string | null
           cost?: number | null
           description: string
           discount?: number
           id?: string
           markup_pct?: number | null
+          optional?: boolean
           price_source?: string | null
           quantity?: number
           section_id: string
@@ -1476,12 +1482,15 @@ export type Database = {
           unit_price?: number
         }
         Update: {
+          basis?: string | null
           company_id?: string
+          confidence?: string | null
           cost?: number | null
           description?: string
           discount?: number
           id?: string
           markup_pct?: number | null
+          optional?: boolean
           price_source?: string | null
           quantity?: number
           section_id?: string
@@ -1659,6 +1668,7 @@ export type Database = {
       }
       estimates: {
         Row: {
+          ai_meta: Json | null
           balance_due: number | null
           client_response: string | null
           company_id: string
@@ -1711,6 +1721,7 @@ export type Database = {
           workflow_status: string
         }
         Insert: {
+          ai_meta?: Json | null
           balance_due?: number | null
           client_response?: string | null
           company_id: string
@@ -1763,6 +1774,7 @@ export type Database = {
           workflow_status?: string
         }
         Update: {
+          ai_meta?: Json | null
           balance_due?: number | null
           client_response?: string | null
           company_id?: string
@@ -2682,6 +2694,57 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "company_price_book"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_observations: {
+        Row: {
+          company_id: string
+          concept_key: string
+          currency_code: string
+          estimate_id: string | null
+          id: string
+          observed_at: string
+          source: string
+          unit: string
+          unit_price: number
+        }
+        Insert: {
+          company_id: string
+          concept_key: string
+          currency_code?: string
+          estimate_id?: string | null
+          id?: string
+          observed_at?: string
+          source?: string
+          unit?: string
+          unit_price: number
+        }
+        Update: {
+          company_id?: string
+          concept_key?: string
+          currency_code?: string
+          estimate_id?: string | null
+          id?: string
+          observed_at?: string
+          source?: string
+          unit?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_observations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "price_observations_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
             referencedColumns: ["id"]
           },
         ]

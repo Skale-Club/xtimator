@@ -14,6 +14,12 @@ import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { shapeEstimateToolSchema, type EstimateToolFlags } from '../tool-schema'
+import {
+  ESTIMATE_V2_ITEM_PROPERTIES,
+  ESTIMATE_V2_SECTION_PROPERTIES,
+  ESTIMATE_V2_TOP_PROPERTIES,
+  ESTIMATE_V2_UNIT_PROPERTY,
+} from '../tool-schema-v2'
 import { InvalidEstimateOutputError, TruncatedOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
@@ -55,6 +61,8 @@ export const estimateToolSchema = {
     timeline: { type: 'string', description: 'Estimated timeline for completion' },
     payment_terms: { type: 'string', description: 'Payment terms' },
     warranty_terms: { type: 'string', description: 'Warranty information' },
+    // SEED-057: assumptions / exclusions / open_questions / scope_confidence.
+    ...ESTIMATE_V2_TOP_PROPERTIES,
     sections: {
       type: 'array',
       items: {
@@ -62,6 +70,7 @@ export const estimateToolSchema = {
         required: ['title', 'items'],
         properties: {
           title: { type: 'string' },
+          ...ESTIMATE_V2_SECTION_PROPERTIES,
           items: {
             type: 'array',
             items: {
@@ -70,7 +79,7 @@ export const estimateToolSchema = {
               properties: {
                 description: { type: 'string' },
                 quantity: { type: 'number' },
-                unit: { type: 'string' },
+                unit: ESTIMATE_V2_UNIT_PROPERTY,
                 unit_price: { type: 'number' },
                 price_source: {
                   type: 'string',
@@ -106,6 +115,8 @@ export const estimateToolSchema = {
                   description:
                     'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).',
                 },
+                // SEED-057: per-line confidence / basis / optional.
+                ...ESTIMATE_V2_ITEM_PROPERTIES,
               },
             },
           },

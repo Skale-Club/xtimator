@@ -5,6 +5,7 @@ import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
+import { ESTIMATE_V2_TEXT } from '../tool-schema-v2'
 import { shapeEstimateToolSchema } from '../tool-schema'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
@@ -307,6 +308,24 @@ export class GeminiAdapter implements AIProvider {
           timeline: { type: Type.STRING },
           payment_terms: { type: Type.STRING },
           warranty_terms: { type: Type.STRING },
+          // SEED-057: assumptions / exclusions / open_questions / scope_confidence
+          // (same keys as the JSON-schema adapters; see lib/ai/tool-schema-v2.ts).
+          assumptions: { type: Type.ARRAY, items: { type: Type.STRING }, description: ESTIMATE_V2_TEXT.assumptions },
+          exclusions: { type: Type.ARRAY, items: { type: Type.STRING }, description: ESTIMATE_V2_TEXT.exclusions },
+          open_questions: {
+            type: Type.ARRAY,
+            description: ESTIMATE_V2_TEXT.open_questions,
+            items: {
+              type: Type.OBJECT,
+              required: ['question', 'impact'],
+              properties: {
+                question: { type: Type.STRING, description: ESTIMATE_V2_TEXT.open_question },
+                // Gemini has no Type.ENUM; the values ride in the description.
+                impact: { type: Type.STRING, description: ESTIMATE_V2_TEXT.open_question_impact },
+              },
+            },
+          },
+          scope_confidence: { type: Type.STRING, description: ESTIMATE_V2_TEXT.scope_confidence },
           sections: {
             type: Type.ARRAY,
             items: {
@@ -314,6 +333,7 @@ export class GeminiAdapter implements AIProvider {
               required: ['title', 'items'],
               properties: {
                 title: { type: Type.STRING },
+                purpose: { type: Type.STRING, description: ESTIMATE_V2_TEXT.purpose },
                 items: {
                   type: Type.ARRAY,
                   items: {
@@ -322,7 +342,7 @@ export class GeminiAdapter implements AIProvider {
                     properties: {
                       description: { type: Type.STRING },
                       quantity: { type: Type.NUMBER },
-                      unit: { type: Type.STRING },
+                      unit: { type: Type.STRING, description: ESTIMATE_V2_TEXT.unit },
                       unit_price: { type: Type.NUMBER },
                       price_source: {
                         type: Type.STRING,
@@ -340,6 +360,10 @@ export class GeminiAdapter implements AIProvider {
                       },
                       cost: { type: Type.NUMBER, description: 'Optional per-unit COST (your cost basis). Provide cost + markup_pct INSTEAD of unit_price and the server computes the price. Do NOT compute the marked-up price yourself.' },
                       markup_pct: { type: Type.NUMBER, description: 'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).' },
+                      // SEED-057: per-line confidence / basis / optional.
+                      confidence: { type: Type.STRING, description: ESTIMATE_V2_TEXT.confidence },
+                      basis: { type: Type.STRING, description: ESTIMATE_V2_TEXT.basis },
+                      optional: { type: Type.BOOLEAN, description: ESTIMATE_V2_TEXT.optional },
                     },
                   },
                 },
@@ -443,6 +467,24 @@ export class GeminiAdapter implements AIProvider {
           timeline: { type: Type.STRING },
           payment_terms: { type: Type.STRING },
           warranty_terms: { type: Type.STRING },
+          // SEED-057: assumptions / exclusions / open_questions / scope_confidence
+          // (same keys as the JSON-schema adapters; see lib/ai/tool-schema-v2.ts).
+          assumptions: { type: Type.ARRAY, items: { type: Type.STRING }, description: ESTIMATE_V2_TEXT.assumptions },
+          exclusions: { type: Type.ARRAY, items: { type: Type.STRING }, description: ESTIMATE_V2_TEXT.exclusions },
+          open_questions: {
+            type: Type.ARRAY,
+            description: ESTIMATE_V2_TEXT.open_questions,
+            items: {
+              type: Type.OBJECT,
+              required: ['question', 'impact'],
+              properties: {
+                question: { type: Type.STRING, description: ESTIMATE_V2_TEXT.open_question },
+                // Gemini has no Type.ENUM; the values ride in the description.
+                impact: { type: Type.STRING, description: ESTIMATE_V2_TEXT.open_question_impact },
+              },
+            },
+          },
+          scope_confidence: { type: Type.STRING, description: ESTIMATE_V2_TEXT.scope_confidence },
           sections: {
             type: Type.ARRAY,
             items: {
@@ -450,6 +492,7 @@ export class GeminiAdapter implements AIProvider {
               required: ['title', 'items'],
               properties: {
                 title: { type: Type.STRING },
+                purpose: { type: Type.STRING, description: ESTIMATE_V2_TEXT.purpose },
                 items: {
                   type: Type.ARRAY,
                   items: {
@@ -458,7 +501,7 @@ export class GeminiAdapter implements AIProvider {
                     properties: {
                       description: { type: Type.STRING },
                       quantity: { type: Type.NUMBER },
-                      unit: { type: Type.STRING },
+                      unit: { type: Type.STRING, description: ESTIMATE_V2_TEXT.unit },
                       unit_price: { type: Type.NUMBER },
                       price_source: {
                         type: Type.STRING,
@@ -475,6 +518,10 @@ export class GeminiAdapter implements AIProvider {
                       },
                       cost: { type: Type.NUMBER, description: 'Optional per-unit COST (your cost basis). Provide cost + markup_pct INSTEAD of unit_price and the server computes the price. Do NOT compute the marked-up price yourself.' },
                       markup_pct: { type: Type.NUMBER, description: 'Optional markup percent applied to cost (e.g. 20 = 20%). The server computes unit_price = cost × (1 + markup_pct/100).' },
+                      // SEED-057: per-line confidence / basis / optional.
+                      confidence: { type: Type.STRING, description: ESTIMATE_V2_TEXT.confidence },
+                      basis: { type: Type.STRING, description: ESTIMATE_V2_TEXT.basis },
+                      optional: { type: Type.BOOLEAN, description: ESTIMATE_V2_TEXT.optional },
                     },
                   },
                 },

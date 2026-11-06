@@ -26,10 +26,16 @@ export type LineItemOutput = {
   // supplies cost + markup; the SERVER derives unit_price = round2(cost × (1 + markup_pct/100)).
   cost?: number
   markup_pct?: number
+  // SEED-057 — per-line AI metadata, mirroring lineItemSchema. Owner-facing only.
+  confidence?: 'low' | 'medium' | 'high'
+  basis?: string
+  optional?: boolean
 }
 
 export type EstimateSectionOutput = {
   title: string
+  /** SEED-057: one line on what the section covers (AI-authored, optional). */
+  purpose?: string
   items: LineItemOutput[]
 }
 
