@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 — data-API mode switch for the SERVICE clients.
+ * SEED-059 step 1 — data-API mode switch for the SERVICE clients.
  *
  * `DATA_API_MODE`:
  *   - `supabase` (default): the service client authenticates with the

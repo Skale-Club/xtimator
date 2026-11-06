@@ -1018,6 +1018,29 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     MACHINE_REASON,
     ['expireCreditLotsJob'],
   ),
+  // SEED-059 step 1: Inngest replacements for the pg_cron jobs. Platform-level
+  // crons, no session and no tenant input.
+  ...excepted(
+    'lib/inngest/functions/cleanup-orphan-draft-projects.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['cleanupOrphanDraftProjectsJob'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/purge-expired-whatsapp-sessions.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['purgeExpiredWhatsAppSessionsJob'],
+  ),
+  ...excepted(
+    'lib/inngest/functions/purge-whatsapp-processed-messages.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['purgeWhatsAppProcessedMessagesJob'],
+  ),
   // Read-only reconciliation cron: reports drift via notifyOps, never writes a
   // tenant row, so there is no demo-write surface to guard.
   ...excepted(

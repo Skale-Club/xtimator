@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * SEED-056 step 2 - static contract for the Supabase compatibility shim.
+ * SEED-059 step 2 - static contract for the Supabase compatibility shim.
  * The migration must be a no-op on Supabase and idempotent everywhere, so these
  * assertions lock the guards rather than executing SQL.
  */

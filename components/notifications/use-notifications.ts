@@ -12,7 +12,7 @@ import {
  * Phase 77 (NOTIF-05 + NOTIF-11) — Bell-panel state hook.
  *
  *  - Initial load: GET /api/notifications/list?limit=20
- *  - Live updates: SEED-056 replaced the Supabase Realtime `postgres_changes`
+ *  - Live updates: SEED-059 replaced the Supabase Realtime `postgres_changes`
  *      subscription (which never delivered: the publication had 0 tables) with
  *      bounded polling of the same list endpoint - every NOTIFICATIONS_POLL_MS
  *      while the tab is visible, paused while hidden, and refetched on focus /

@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 - replaces the pg_cron job `purge-expired-whatsapp-sessions`:
+ * SEED-059 step 1 - replaces the pg_cron job `purge-expired-whatsapp-sessions`:
  *   DELETE FROM whatsapp_sessions
  *   WHERE state = 'awaiting_confirm' AND expires_at < NOW() - INTERVAL '5 minutes'
  * every 10 minutes. Idempotent; safe to overlap with pg_cron until the cutover.

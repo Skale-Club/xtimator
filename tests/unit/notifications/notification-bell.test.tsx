@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 
 /**
  * Phase 77 plan 04 — NotificationBell + useNotifications coverage.
- * SEED-056: live updates are bounded polling (no Supabase Realtime).
+ * SEED-059: live updates are bounded polling (no Supabase Realtime).
  *
  * Mocks:
  *  - global fetch (for /api/notifications/list, /:id/read, /mark-all-read)

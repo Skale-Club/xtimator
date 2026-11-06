@@ -23,7 +23,7 @@ const CRITICAL_VARS = ['NEXT_PUBLIC_SUPABASE_URL'] as const
 /** At least one of these must be set (checked as a group, not individually). */
 const CRITICAL_VAR_GROUPS = [
   ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
-  // SEED-056: in DATA_API_MODE=postgrest the service client signs its own JWT
+  // SEED-059: in DATA_API_MODE=postgrest the service client signs its own JWT
   // (XTIMATOR_DATA_JWT_SECRET) and the Supabase gateway key is not used, so this
   // group is swapped in validateProductionEnv() below.
   ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'],

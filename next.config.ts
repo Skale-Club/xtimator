@@ -5,7 +5,7 @@ const deploymentId = process.env.DEPLOYMENT_VERSION
   ?.trim()
   .replace(/[^a-zA-Z0-9_-]/g, '-');
 
-// SEED-056: the browser calls the Data API at ${NEXT_PUBLIC_SUPABASE_URL}/rest/v1.
+// SEED-059: the browser calls the Data API at ${NEXT_PUBLIC_SUPABASE_URL}/rest/v1.
 // While that is a *.supabase.co host the static entry below already covers it;
 // after the cutover to a self-hosted PostgREST (e.g. https://data.xtimator.com)
 // its origin must be allowed explicitly. Empty string while on Supabase.

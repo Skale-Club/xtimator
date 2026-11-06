@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 - replaces the pg_cron job `purge-whatsapp-processed-messages`:
+ * SEED-059 step 1 - replaces the pg_cron job `purge-whatsapp-processed-messages`:
  *   DELETE FROM whatsapp_processed_messages WHERE processed_at < NOW() - INTERVAL '48 hours'
  * every 6 hours. Idempotent; safe to overlap with pg_cron until the cutover.
  *

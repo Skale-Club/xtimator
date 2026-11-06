@@ -1,6 +1,6 @@
 # Production database: Supabase -> Coolify PostgreSQL + PostgREST
 
-Operator runbook for SEED-056 (`.planning/seeds/SEED-056-production-db-to-coolify.md`).
+Operator runbook for SEED-059 (`.planning/seeds/SEED-059-production-db-to-coolify.md`).
 Every credential below is a placeholder (`<authenticator-password>`); real values live
 in Coolify / GitHub Actions only and are never written to this repo.
 
@@ -69,7 +69,7 @@ on Docker Hub when you deploy). Environment:
 
 Notes:
 
-- **Max rows.** supabase-js does NOT paginate by itself (it was assumed to in SEED-056; it does
+- **Max rows.** supabase-js does NOT paginate by itself (it was assumed to in SEED-059; it does
   not). Supabase applies a 1000-row cap by default, so the app has always been running under
   it. Self-hosted PostgREST has no cap when `PGRST_DB_MAX_ROWS` is unset, which would silently
   change behaviour (bigger payloads, different truncation). Set `1000` for parity; revisit

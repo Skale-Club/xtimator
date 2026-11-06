@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 - shared failure alert for the Inngest crons that replace the
+ * SEED-059 step 1 - shared failure alert for the Inngest crons that replace the
  * former in-database pg_cron jobs. Best-effort, dedupe-bucketed so a persistently
  * broken job pages once per bucket, never once per run.
  */
