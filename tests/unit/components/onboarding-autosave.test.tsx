@@ -39,7 +39,7 @@ describe('draft autosave',()=>{
  it('waits for in-flight writes before producing a newer final payload',async()=>{
   let resolve!: (value:object)=>void
   mocks.save.mockReturnValueOnce(new Promise(r=>{resolve=r}))
-  const {result}=renderHook(()=>useDraftAutosave(draft,initial,'brandColor',true))
+  const {result}=renderHook(()=>useDraftAutosave(draft,initial,'logo',true))
   await act(async()=>{await vi.advanceTimersByTimeAsync(600)})
   const completing=result.current.prepareCompletion({...initial,city:'Connecticut'})
   let done=false;void completing.then(()=>{done=true})
@@ -48,5 +48,6 @@ describe('draft autosave',()=>{
   const payload=await completing
   expect(payload.sequence).toBeGreaterThan(mocks.save.mock.calls[0][0].sequence)
   expect(payload.values.city).toBe('Connecticut')
+  expect(payload.step).toBe('logo')
  })
 })

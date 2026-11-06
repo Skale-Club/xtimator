@@ -1,12 +1,12 @@
 # Como funciona o novo onboarding do Xtimator
 
-O fluxo tem cinco telas. A pessoa pode voltar para corrigir respostas sem perder o preenchimento; os itens opcionais podem ser pulados. Ao terminar, entra diretamente no painel, sem uma tela extra de revisão.
+O fluxo tem seis telas. A pessoa pode voltar para corrigir respostas sem perder o preenchimento; os itens opcionais podem ser pulados. Ao terminar, entra diretamente no painel, sem uma tela extra de revisão.
 
 ## 1. Idioma da ferramenta
 
 A primeira pergunta é **“Em qual idioma você quer usar o Xtimator?”**. As opções são English, Português (BR) e Español. Ao escolher, a própria tela e as próximas perguntas passam a seguir esse idioma. Os nomes dos idiomas permanecem nos idiomas originais, para serem reconhecíveis.
 
-![Escolha do idioma](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-short/01-idioma.jpg)
+![Escolha do idioma](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/01-idioma.jpg)
 
 ## 2. Nome da empresa
 
@@ -14,7 +14,7 @@ A primeira pergunta é **“Em qual idioma você quer usar o Xtimator?”**. As 
 
 Telefone e e-mail não são perguntados novamente. O cadastro por telefone já usa o telefone validado na autenticação. No login com Google, o e-mail verificado é aproveitado e a autenticação exige a validação do telefone por código SMS antes de liberar a entrada no onboarding. Um código incorreto não permite concluir essa verificação.
 
-![Nome da empresa](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-short/02-empresa.jpg)
+![Nome da empresa](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/02-empresa.jpg)
 
 ## 3. Serviços
 
@@ -22,21 +22,27 @@ Os serviços ficam organizados em linhas expansíveis, no estilo dos Ajustes do 
 
 A pessoa também pode optar por um catálogo inicial com preços de referência dos EUA, que poderão ser ajustados. Essa escolha é opcional, assim como a seleção de serviços.
 
-![Grupos de serviços](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-short/03-servicos.jpg)
+![Grupos de serviços](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/03-servicos.jpg)
 
 ## 4. Região de atendimento
 
 A pergunta é **“Em qual região você atende?”**. Basta uma resposta geral como Grande Boston, Connecticut ou Framingham. Não há rua, número, CEP ou obrigação de fornecer um endereço definitivo. O campo recebe foco ao entrar na tela e Enter avança para a marca.
 
-![Região de atendimento](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-short/04-regiao.jpg)
+![Região de atendimento](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/04-regiao.jpg)
 
-## 5. Marca e conclusão
+## 5. Cor da marca
 
-A última tela reúne cor e logo opcional. As cores ocupam a largura disponível em retângulos compactos, com cantos discretamente arredondados. A opção Custom tem o texto dentro e uma faixa colorida apenas embaixo. O logo pode ser PNG ou JPG de até 2 MB e pode ser adicionado depois.
+A quinta tela mostra apenas a escolha da cor. As cores ocupam a largura disponível em retângulos compactos, com cantos discretamente arredondados. A opção Custom tem o texto dentro e uma faixa colorida apenas embaixo. Próximo avança para o logo; Enter no campo de cor personalizada também avança.
+
+![Cor da marca](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/05-cor.jpg)
+
+## 6. Logo e conclusão
+
+A sexta tela é exclusiva para o logo opcional. Ele pode ser PNG ou JPG de até 2 MB e pode ser adicionado depois.
 
 **Começar a usar** salva a empresa, marca o onboarding como concluído e leva ao painel. Não há perguntas de licença, seguro, impostos, condições de pagamento, garantia ou validade, nem uma revisão final.
 
-![Identidade visual](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-short/05-marca.jpg)
+![Logo da empresa](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/06-logo.jpg)
 
 ## Rascunho e retomada
 

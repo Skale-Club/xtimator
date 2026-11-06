@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
-export const draftStepSchema = z.enum(['language', 'companyName', 'industry', 'location', 'brandColor'])
+export const draftStepSchema = z.enum(['language', 'companyName', 'industry', 'location', 'brandColor', 'logo'])
 export const draftModeSchema = z.enum(['first', 'add'])
 export const draftValuesSchema = z.object({
   language: z.enum(['en', 'pt', 'es']).default('en'),
