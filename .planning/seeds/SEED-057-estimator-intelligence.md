@@ -328,3 +328,23 @@ Known and accepted:
   replaced even if the owner hand-edits the flagged lines (not worth the extra state).
 - **Not fixed on purpose:** the migration's legacy constraint name, and back-to-back repeated synonym phrases in
   `conceptKey` (a repeated phrase can survive one pass).
+
+### Second validation round (2026-11-06)
+
+- **Vague targeted pass.** A targeted pass that came back $0 used to leave no current estimate (draft two
+  demoted draft one, finalize deleted draft two). assess now routes it to `recoverDraft`, which deletes the
+  vague draft and restores draft one with the project status it had before (an `awaiting_details` draft one
+  keeps its flag). `recoverDraft` clears the failure on success; its outgoing edge is conditional, so a draft
+  that cannot be restored goes to `onError`.
+- **Concept keys** stem every word before the synonym phrase pass (water heaters, air conditioners).
+- **Company history** never re-prices a line the model priced at $0 (an "included" cleanup stays free); the
+  unpriced ladder owns real gaps.
+- **Units.** More pt/es spellings map into the closed list. Metric units (m2, m, kg) are deliberately NOT
+  converted; the structure score flags them in en/pt/es ("estimates use US units").
+- **Dot.** The editor reducer drops a line's AI confidence when the owner edits its description, quantity,
+  unit or price. The dot comes back after a reload for a line whose quantity or description was edited
+  (the database column is not cleared: writing items on every edit would fight the save RPC); a price edit
+  nulls `price_source` on save, which hides the dot for good.
+- **Quality notes** quote draft lines inside `<line>` tags that the Security block lists as untrusted.
+- Dead `buildTargetedRefineHint` was already removed in the first round; the MCP read tool imports
+  `server-only` first; the migration header describes the retry accurately.
