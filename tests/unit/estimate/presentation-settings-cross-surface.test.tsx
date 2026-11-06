@@ -115,6 +115,7 @@ function toDocumentData(estimate: Record<string, unknown>): Record<string, unkno
     currency_code: estimate.currency_code,
     sections: estimate.sections,
     estimate_date: estimate.estimate_date ?? null,
+    valid_until: estimate.valid_until ?? null,
     estimate_number: estimate.estimate_number ?? null,
     attachedPhotos: estimate.attachedPhotos ?? [],
     presentation_settings:
@@ -136,7 +137,10 @@ const COMPANY = {
   brand_primary_color: null,
 } as const
 
-function renderAllSurfaces(estimate: Record<string, unknown>): {
+function renderAllSurfaces(
+  estimate: Record<string, unknown>,
+  company: Record<string, unknown> = COMPANY,
+): {
   classicPdf: string
   modernPdf: string
   classicShare: string
@@ -154,12 +158,12 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    company: COMPANY as any,
+    company: company as any,
     client: null,
     projectName: 'Test',
     projectType: null,
     language: 'en',
-    pages: buildPagesForFixture(estimate, COMPANY, 'classic'),
+    pages: buildPagesForFixture(estimate, company, 'classic'),
   })
   collectTextNodes(classicPdfTree, classicPdfBuf)
 
@@ -169,24 +173,28 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     estimate: estimate as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    company: COMPANY as any,
+    company: company as any,
     client: null,
     projectName: 'Test',
     projectType: null,
     language: 'en',
-    pages: buildPagesForFixture(estimate, COMPANY, 'modern'),
+    pages: buildPagesForFixture(estimate, company, 'modern'),
   })
   collectTextNodes(modernPdfTree, modernPdfBuf)
 
   // 3. Classic share (JSX) — build EstimateDocumentData from the estimate
   const documentData = toDocumentData(estimate)
+  const companyTerms = {
+    enabled: !!company.estimate_terms_enabled,
+    text: (company.estimate_terms_text as string | null | undefined) ?? null,
+  }
   const classic = render(
     <EstimateDocument
       mode="view"
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data={documentData as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      company={COMPANY as any}
+      company={company as any}
       client={null}
       projectName="Test"
       projectType={null}
@@ -194,6 +202,7 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
       estimateVersion={1}
       estimateSeq={1}
       estimateCreatedAt="2026-01-01T00:00:00Z"
+      companyTerms={companyTerms}
     />,
   )
 
@@ -203,7 +212,7 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data={documentData as any}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      company={COMPANY as any}
+      company={company as any}
       client={null}
       projectName="Test"
       projectType={null}
@@ -211,6 +220,7 @@ function renderAllSurfaces(estimate: Record<string, unknown>): {
       estimateVersion={1}
       estimateSeq={1}
       estimateCreatedAt="2026-01-01T00:00:00Z"
+      companyTerms={companyTerms}
     />,
   )
 
@@ -291,6 +301,63 @@ describe('SENDHUB-04/-05: presentation-settings cross-surface parity', () => {
     expect(out.modernShare).toContain(SECRET_ITEM_DESCRIPTION)
     expect(out.plainText).toContain(SECRET_ITEM_DESCRIPTION)
     expect(out.whatsapp).toContain(SECRET_ITEM_DESCRIPTION)
+  })
+
+  // SEED-056: the company fine-print card is a normal block now.
+  const SECRET_TERMS = 'CROSS_SURFACE_FINE_PRINT_XYZ_55501'
+  const COMPANY_WITH_TERMS = {
+    ...COMPANY,
+    estimate_terms_enabled: true,
+    estimate_terms_text: SECRET_TERMS,
+  }
+
+  it('SEED-056: fine print is shown by default, and sections.estimate_terms = false hides it on all 4 renderings', () => {
+    const shown = renderAllSurfaces(baseEstimate({ presentation_settings: null }), COMPANY_WITH_TERMS)
+    expect(shown.classicPdf).toContain(SECRET_TERMS)
+    expect(shown.modernPdf).toContain(SECRET_TERMS)
+    expect(shown.classicShare).toContain(SECRET_TERMS)
+    expect(shown.modernShare).toContain(SECRET_TERMS)
+
+    const hidden = renderAllSurfaces(
+      baseEstimate({ presentation_settings: { sections: { estimate_terms: false } } }),
+      COMPANY_WITH_TERMS,
+    )
+    expect(hidden.classicPdf).not.toContain(SECRET_TERMS)
+    expect(hidden.modernPdf).not.toContain(SECRET_TERMS)
+    expect(hidden.classicShare).not.toContain(SECRET_TERMS)
+    expect(hidden.modernShare).not.toContain(SECRET_TERMS)
+  })
+
+  it('SEED-056: valid_until is hidden unless its block is on, then appears on all 4 renderings', () => {
+    const base = { valid_until: '2026-02-14', estimate_date: '2026-01-15' }
+    const legacy = renderAllSurfaces(baseEstimate({ ...base, presentation_settings: null }))
+    const off = renderAllSurfaces(
+      baseEstimate({ ...base, presentation_settings: { sections: { valid_until: false } } }),
+    )
+    for (const out of [legacy, off]) {
+      expect(out.classicPdf).not.toContain('Valid until')
+      expect(out.modernPdf).not.toContain('Valid until')
+      expect(out.classicShare).not.toContain('Valid until')
+      expect(out.modernShare).not.toContain('Valid until')
+    }
+
+    const on = renderAllSurfaces(
+      baseEstimate({ ...base, presentation_settings: { sections: { valid_until: true } } }),
+    )
+    expect(on.classicPdf).toContain('Valid until')
+    expect(on.modernPdf).toContain('Valid until')
+    expect(on.classicShare).toContain('Valid until')
+    expect(on.modernShare).toContain('Valid until')
+    // The same date the Date line would format: 14 February 2026, never shifted a day.
+    expect(on.classicShare).toMatch(/Valid until:\s*[^D]*14/)
+  })
+
+  it('SEED-056: valid_until on but no date stored draws nothing', () => {
+    const out = renderAllSurfaces(
+      baseEstimate({ valid_until: null, presentation_settings: { sections: { valid_until: true } } }),
+    )
+    expect(out.classicShare).not.toContain('Valid until')
+    expect(out.classicPdf).not.toContain('Valid until')
   })
 
   it('structural: all 6 render/format sources import resolvePresentationSettings', () => {

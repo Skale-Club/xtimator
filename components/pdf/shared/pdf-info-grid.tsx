@@ -28,6 +28,7 @@ export interface PdfInfoGridClient {
 
 export interface PdfInfoGridEstimate {
   estimate_date: string | null
+  valid_until?: string | null
   created_at: string
   estimate_number: string | null
   estimate_seq: number
@@ -51,6 +52,8 @@ export interface PdfInfoGridProps {
   styles: PdfInfoGridStyles
   /** ESTIMATE_DESIGN_TOKENS.<template>.fontFamilyBold — overrides the client-name Text's font family. */
   clientNameFontFamily: string
+  /** SEED-056 (D4): draw the Valid-until line (valid_until block on AND a date present). */
+  showValidUntil?: boolean
 }
 
 export function PdfInfoGrid({
@@ -62,6 +65,7 @@ export function PdfInfoGrid({
   fmtDate,
   styles,
   clientNameFontFamily,
+  showValidUntil = false,
 }: PdfInfoGridProps) {
   const clientAddress = client ? formatAddress(client) : null
   const projectTypeText = formatProjectType(projectType)
@@ -84,6 +88,11 @@ export function PdfInfoGrid({
         >
           {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
         </Text>
+        {showValidUntil && estimate.valid_until && (
+          <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+            {L.validUntil}: {fmtDate(estimate.valid_until)}
+          </Text>
+        )}
         <Text style={[styles.infoValue, { color: '#6b7280' }]}>
           {L.estimateNum}
           {formatEstimateNumber(estimate)}

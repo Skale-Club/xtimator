@@ -21,6 +21,7 @@ import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
+import { AddBlockRow, type AddableBlock } from './add-block-row'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
 import {
@@ -520,6 +521,49 @@ export function EstimateEditor({
     [dispatch, locked]
   )
 
+  // SEED-056 Phase D: "+ Add block". Turns ONE block on for this estimate through
+  // the same single presentation-settings path as the gear panel (so it also
+  // works on locked estimates), pre-fills the text from the company default when
+  // the column is still empty (content edits are skipped while read-only), and
+  // moves the cursor into the new card.
+  const handleAddBlock = useCallback(
+    (key: AddableBlock) => {
+      const current = stateRef.current
+      const raw = current.presentation_settings ?? {}
+      handlePresentationSettingsChange({
+        ...raw,
+        sections: { ...(raw.sections ?? {}), [key]: true },
+      })
+      const textField =
+        key === 'summary' || key === 'payment_terms' || key === 'warranty_terms' || key === 'timeline' || key === 'notes'
+          ? key
+          : null
+      if (textField && !isContentReadOnly && current[textField] == null) {
+        const fromCompany =
+          textField === 'payment_terms'
+            ? companyDefaults?.payment_terms
+            : textField === 'warranty_terms'
+              ? companyDefaults?.warranty_terms
+              : null
+        dispatch({ type: 'UPDATE_FIELD', field: textField, value: fromCompany ?? '' })
+      }
+      if (textField) {
+        const cardId = {
+          summary: 'summary',
+          payment_terms: 'terms-payment',
+          warranty_terms: 'terms-warranty',
+          timeline: 'terms-timeline',
+          notes: 'terms-notes',
+        }[textField]
+        window.setTimeout(() => {
+          const box = document.querySelector<HTMLElement>(`[data-page-block-id="${cardId}"] textarea`)
+          box?.focus()
+        }, 50)
+      }
+    },
+    [handlePresentationSettingsChange, isContentReadOnly, companyDefaults, dispatch]
+  )
+
   const handleSaveDraft = useCallback(async () => {
     const ok = await runSave()
     if (ok) toast.success('Draft saved')
@@ -846,6 +890,16 @@ export function EstimateEditor({
         )}
       </div>
 
+      {/* SEED-056 Phase D: hidden blocks, one click away. Same write path as the gear. */}
+      {isCurrent && (
+        <AddBlockRow
+          settings={state.presentation_settings}
+          hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
+          hasValidUntil={!!state.valid_until}
+          onAdd={handleAddBlock}
+        />
+      )}
+
       {/* Phase 94 — issued-invoice display (D-19) + generate-invoice action (D-18).
           PAYGATE-02: IssuedInvoicesPanel is a historical RECORD (it returns null
           when there are no invoices), so it stays ungated — a never-connected
@@ -905,6 +959,8 @@ export function EstimateEditor({
             viewed_at: estimate.viewed_at,
           })}
           clientSlot={linkClientSlot}
+          hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
+          hasValidUntil={!!state.valid_until}
         />
       )}
     </div>

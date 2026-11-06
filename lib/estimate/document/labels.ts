@@ -42,6 +42,8 @@ export interface DocumentLabels {
   notes: string
   date: string
   estimateNum: string
+  /** SEED-056 (D4): header line printed when the valid_until block is on. */
+  validUntil: string
   noClient: string
   addItem: string
   addSection: string
@@ -85,7 +87,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     discountFixed: 'Fixed', deposit: 'Deposit', depositRequired: 'Deposit required', depositNone: 'None', depositPct: '%',
     depositAmount: 'Amount', balanceDue: 'Balance Due', tax: 'Tax', grandTotal: 'Total',
     paymentTerms: 'Payment Terms', timeline: 'Timeline', warranty: 'Warranty', notes: 'Notes',
-    date: 'Date', estimateNum: 'Estimate #', noClient: 'No client linked', addItem: 'Add item',
+    date: 'Date', estimateNum: 'Estimate #', validUntil: 'Valid until', noClient: 'No client linked', addItem: 'Add item',
     addSection: 'Add section', addDetails: 'Add details', summaryPlaceholder: 'Estimate summary…',
     termsPlaceholder: 'Enter details…', searchPriceBook: 'Search price book…', noMatches: 'No matches',
     customized: 'Customized', usingDefault: 'Default', resetToDefault: 'Reset to default',
@@ -103,7 +105,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     discountFixed: 'Fixo', deposit: 'Entrada', depositRequired: 'Valor de entrada', depositNone: 'Nenhum', depositPct: '%',
     depositAmount: 'Valor', balanceDue: 'Saldo Devedor', tax: 'Imposto', grandTotal: 'Total',
     paymentTerms: 'Condições de Pagamento', timeline: 'Prazo', warranty: 'Garantia', notes: 'Observações',
-    date: 'Data', estimateNum: 'Orçamento Nº', noClient: 'Nenhum cliente vinculado', addItem: 'Adicionar item',
+    date: 'Data', estimateNum: 'Orçamento Nº', validUntil: 'Válido até', noClient: 'Nenhum cliente vinculado', addItem: 'Adicionar item',
     addSection: 'Adicionar seção', addDetails: 'Adicionar detalhes', summaryPlaceholder: 'Resumo do orçamento…',
     termsPlaceholder: 'Insira os detalhes…', searchPriceBook: 'Buscar no catálogo…', noMatches: 'Sem resultados',
     customized: 'Personalizado', usingDefault: 'Padrão', resetToDefault: 'Restaurar padrão',
@@ -121,7 +123,7 @@ export const LABELS: Record<EstimateLanguage, DocumentLabels> = {
     discountFixed: 'Fijo', deposit: 'Depósito', depositRequired: 'Depósito requerido', depositNone: 'Ninguno', depositPct: '%',
     depositAmount: 'Monto', balanceDue: 'Saldo Pendiente', tax: 'Impuesto', grandTotal: 'Total',
     paymentTerms: 'Términos de Pago', timeline: 'Plazo', warranty: 'Garantía', notes: 'Notas',
-    date: 'Fecha', estimateNum: 'Presupuesto Nº', noClient: 'Sin cliente vinculado', addItem: 'Agregar ítem',
+    date: 'Fecha', estimateNum: 'Presupuesto Nº', validUntil: 'Válido hasta', noClient: 'Sin cliente vinculado', addItem: 'Agregar ítem',
     addSection: 'Agregar sección', addDetails: 'Agregar detalles', summaryPlaceholder: 'Resumen del presupuesto…',
     termsPlaceholder: 'Ingrese los detalles…', searchPriceBook: 'Buscar en catálogo…', noMatches: 'Sin resultados',
     customized: 'Personalizado', usingDefault: 'Predeterminado', resetToDefault: 'Restablecer',

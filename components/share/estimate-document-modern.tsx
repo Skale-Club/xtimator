@@ -122,7 +122,9 @@ export function EstimateDocumentModern({
 
   // SENDHUB-04 (Phase 163): each term block is independently gated below; the
   // outer wrapper stays hidden when every gated term is invisible OR null.
-  const hasCompanyTerms = !!(companyTerms?.enabled && companyTerms.text)
+  const hasCompanyTerms =
+    !!(companyTerms?.enabled && companyTerms.text) &&
+    isSectionVisible(resolvedSettings, 'estimate_terms')
   const hasTerms =
     hasCompanyTerms ||
     (isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null) ||
@@ -212,6 +214,11 @@ export function EstimateDocumentModern({
           <p className="text-base text-muted-foreground mt-3">
             {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
           </p>
+          {isSectionVisible(resolvedSettings, 'valid_until') && data.valid_until && (
+            <p className="text-base text-muted-foreground mt-2" data-testid="valid-until">
+              {L.validUntil}: {formatDate(data.valid_until, lang)}
+            </p>
+          )}
           <p className="text-base text-muted-foreground mt-2 tabular-nums">
             {L.estimateNum}
             {data.estimate_number ?? defaultEstimateNumber}

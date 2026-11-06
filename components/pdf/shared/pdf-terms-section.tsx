@@ -115,8 +115,12 @@ export function PdfTermsSection({
   topMarginPt,
   styles,
 }: PdfTermsSectionProps) {
+  // SEED-056: the fine-print card honours its own section key (absent => visible).
+  const showEstimateTerms =
+    !!(company.estimate_terms_enabled && company.estimate_terms_text) &&
+    isSectionVisible(resolvedSettings, 'estimate_terms')
   const visible =
-    (company.estimate_terms_enabled && company.estimate_terms_text) ||
+    showEstimateTerms ||
     (isSectionVisible(resolvedSettings, 'payment_terms') && estimate.payment_terms) ||
     (isSectionVisible(resolvedSettings, 'warranty_terms') && estimate.warranty_terms) ||
     (isSectionVisible(resolvedSettings, 'timeline') && estimate.timeline) ||
@@ -138,11 +142,10 @@ export function PdfTermsSection({
 
   return (
     <View style={styles.termsSection}>
-      {company.estimate_terms_enabled &&
-        company.estimate_terms_text &&
+      {showEstimateTerms &&
         PdfTermsCard({
           title: 'Estimate Terms',
-          text: company.estimate_terms_text,
+          text: company.estimate_terms_text ?? '',
           titleColor: brandText,
           topMarginPt: nextTopMargin(),
           styles: cardStyles,

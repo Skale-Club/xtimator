@@ -23,6 +23,7 @@ import {
   type SectionKey,
 } from '@/lib/estimate/presentation-settings'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import Link from 'next/link'
 
 // ---------------------------------------------------------------------------
 // Phase 162-04 (DOCUX-01) — The gear-triggered Presentation Settings Panel.
@@ -67,6 +68,10 @@ export interface PresentationSettingsPanelProps {
   clientSlot?: ReactNode
   /** Optional trigger children — otherwise the panel opens/closes only via onOpenChange. */
   children?: ReactNode
+  /** Offer the Estimate Terms (fine print) switch; only when the company has fine-print text. */
+  hasCompanyTerms?: boolean
+  /** Offer the Valid-until switch; only when the estimate carries a valid_until date. */
+  hasValidUntil?: boolean
 }
 
 const SECTION_ORDER: SectionKey[] = [
@@ -77,6 +82,8 @@ const SECTION_ORDER: SectionKey[] = [
   'warranty_terms',
   'notes',
   'photos',
+  'estimate_terms',
+  'valid_until',
 ]
 
 export function PresentationSettingsPanel(
@@ -121,6 +128,8 @@ function PanelBody({
   defaultTaxRate,
   estimateSentOrViewed,
   clientSlot,
+  hasCompanyTerms,
+  hasValidUntil,
 }: PresentationSettingsPanelProps): JSX.Element {
   const { t } = useTranslation()
   const resolved = resolvePresentationSettings(settings)
@@ -130,6 +139,12 @@ function PanelBody({
     onChange({ ...raw, ...next })
   }
 
+  // Fine print and Valid-until only exist for companies / estimates that have them.
+  const blockKeys = SECTION_ORDER.filter(
+    (key) =>
+      (key !== 'estimate_terms' || hasCompanyTerms) && (key !== 'valid_until' || hasValidUntil),
+  )
+
   const sectionLabels: Record<SectionKey, string> = {
     summary: t('Summary'),
     sections: t('Line Sections'),
@@ -138,6 +153,8 @@ function PanelBody({
     warranty_terms: t('Warranty'),
     notes: t('Notes'),
     photos: t('Photos'),
+    estimate_terms: t('Estimate Terms'),
+    valid_until: t('Valid Until'),
   }
 
   return (
@@ -315,32 +332,48 @@ function PanelBody({
         </div>
       </fieldset>
 
-      {/* --- Document Sections --- */}
+      {/* --- Document blocks (SEED-056) --- */}
       <fieldset className="space-y-2">
         <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {t('Document Sections')}
+          {t('Document blocks')}
         </legend>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {SECTION_ORDER.map((key) => (
-            <div
-              key={key}
-              className="flex items-center justify-between gap-2"
-            >
-              <Label htmlFor={`section-${key}`} className="text-sm">
-                {sectionLabels[key]}
-              </Label>
-              <Switch
-                id={`section-${key}`}
-                checked={isSectionVisible(resolved, key)}
-                onCheckedChange={(checked) =>
-                  patch({
-                    sections: { ...resolved.sections, [key]: checked },
-                  })
-                }
-              />
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+          {blockKeys.map((key) => {
+            const visible = isSectionVisible(resolved, key)
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <Label htmlFor={`section-${key}`} className="text-sm">
+                    {sectionLabels[key]}
+                  </Label>
+                  {key !== 'sections' && (
+                    <p className="text-xs text-muted-foreground" data-testid={`section-hint-${key}`}>
+                      {visible ? t('Shown on this estimate') : t('Hidden on this estimate')}
+                    </p>
+                  )}
+                </div>
+                <Switch
+                  id={`section-${key}`}
+                  checked={visible}
+                  onCheckedChange={(checked) =>
+                    patch({
+                      sections: { ...resolved.sections, [key]: checked },
+                    })
+                  }
+                />
+              </div>
+            )
+          })}
         </div>
+        <Link
+          href="/settings/estimates"
+          className="inline-block pt-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          {t('Change defaults for new estimates in Settings')}
+        </Link>
       </fieldset>
     </div>
   )

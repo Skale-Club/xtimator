@@ -37,6 +37,7 @@ import {
   SectionActions,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
+import { isSectionVisible } from '@/lib/estimate/presentation-settings'
 
 // components/pdf/estimate-pdf.tsx styles.sectionHeader.paddingHorizontal: the
 // title text sits 10pt inside a brand band that spans the content width. The
@@ -98,6 +99,11 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
             display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
           />
         </p>
+        {isSectionVisible(ctx.resolvedSettings, 'valid_until') && data.valid_until && (
+          <p className="text-muted-foreground" style={INFO_VALUE}>
+            {L.validUntil}: {formatDate(data.valid_until, lang)}
+          </p>
+        )}
         <p className="text-muted-foreground" style={INFO_VALUE}>
           {L.estimateNum}
           <EditableEstimateNumber ctx={ctx} />

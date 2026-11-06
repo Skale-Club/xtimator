@@ -39,6 +39,7 @@ import {
   SectionActions,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
+import { isSectionVisible } from '@/lib/estimate/presentation-settings'
 
 // Neutral palette — the same literals the Modern PDF's StyleSheet uses.
 const INK = 'text-[#1f2937]'
@@ -93,6 +94,11 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
             display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
           />
         </p>
+        {isSectionVisible(ctx.resolvedSettings, 'valid_until') && data.valid_until && (
+          <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
+            {L.validUntil}: {formatDate(data.valid_until, lang)}
+          </p>
+        )}
         <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
           {L.estimateNum}
           <EditableEstimateNumber ctx={ctx} />

@@ -65,6 +65,8 @@ export interface EstimateEditorState {
   balance_due: number
   sections: EditorSection[]
   estimate_date: string | null
+  /** SEED-056 (D4): read-only pass-through of estimates.valid_until (set at creation). */
+  valid_until: string | null
   estimate_number: string | null
   attachedPhotos: Photo[]
   /** Phase 165 Plan 02 (SAVE-04, audit B4 false-clean fix) — a monotonic
@@ -327,6 +329,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
       balance_due: 0,
       sections: [],
       estimate_date: null,
+      valid_until: null,
       estimate_number: null,
       attachedPhotos: [],
       presentation_settings: null,
@@ -368,6 +371,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
     deposit: 0,
     balance_due: (estimate as { balance_due?: number | null }).balance_due ?? estimate.total,
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
+    valid_until: (estimate as { valid_until?: string | null }).valid_until ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
     attachedPhotos: (estimate as { attachedPhotos?: Photo[] }).attachedPhotos ?? [],
     presentation_settings: (estimate as { presentation_settings?: PresentationSettings | null }).presentation_settings ?? null,

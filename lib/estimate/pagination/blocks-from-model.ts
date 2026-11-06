@@ -85,6 +85,8 @@ export interface BlocksFromModelInfoGrid {
    *  strings the templates pass to PdfInfoGrid. */
   estimate: {
     estimate_date: string | null
+    /** SEED-056 (D4): drawn as `${L.validUntil}: ${date}` under the date line when the valid_until block is on. */
+    valid_until?: string | null
     created_at: string
     estimate_number: string | null
     estimate_seq: number
@@ -407,7 +409,12 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
  *  Each line is its own `Text` of the column's width (48% of the content width), so each wraps
  *  independently; a column's height is the SUM of its lines and the row takes the taller column.
  *  Every value Text uses styles.infoValue (10pt, lineHeight = the template's prose multiplier). */
-function infoGridColumns(info: BlocksFromModelInfoGrid, L: DocumentLabels, templateId: EstimateTemplateId): StackedColumn[] {
+function infoGridColumns(
+  info: BlocksFromModelInfoGrid,
+  L: DocumentLabels,
+  templateId: EstimateTemplateId,
+  showValidUntil: boolean,
+): StackedColumn[] {
   const geometry = ESTIMATE_PAGE_GEOMETRY[templateId]
   const design = ESTIMATE_DESIGN_TOKENS[templateId]
   const lit = TEMPLATE_LITERALS[templateId]
@@ -425,9 +432,12 @@ function infoGridColumns(info: BlocksFromModelInfoGrid, L: DocumentLabels, templ
   const projectTypeText = formatProjectType(info.projectType)
   if (projectTypeText) projectLines.push(regular(projectTypeText))
   projectLines.push(
-    regular(`${L.date}: ${formatDate(info.estimate.estimate_date ?? info.estimate.created_at, info.language)}`),
-    regular(`${L.estimateNum}${formatEstimateNumber(info.estimate)}`)
+    regular(`${L.date}: ${formatDate(info.estimate.estimate_date ?? info.estimate.created_at, info.language)}`)
   )
+  if (showValidUntil && info.estimate.valid_until) {
+    projectLines.push(regular(`${L.validUntil}: ${formatDate(info.estimate.valid_until, info.language)}`))
+  }
+  projectLines.push(regular(`${L.estimateNum}${formatEstimateNumber(info.estimate)}`))
   const columns: StackedColumn[] = [
     {
       fixedHeightPt: lit.infoColumnLabelHeightPt + lit.infoDateMarginTopPt,
@@ -504,7 +514,12 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
     kind: 'info-grid',
     id: 'info-grid',
     baseHeightPt: lit.infoGridBaseHeightPt,
-    columns: infoGridColumns(input.infoGrid, input.L, templateId),
+    columns: infoGridColumns(
+      input.infoGrid,
+      input.L,
+      templateId,
+      isSectionVisible(resolvedSettings, 'valid_until') && !!input.infoGrid.estimate.valid_until,
+    ),
     atomic: true,
     page1Only: true,
   })
@@ -613,7 +628,9 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
   // --- terms-cards (pinned order, fixed iteration regardless of which subset is present) ---
   const termsFields: Record<(typeof TERMS_ORDER)[number], { include: boolean; text: string }> = {
     estimate: {
-      include: !!(company.estimate_terms_enabled && company.estimate_terms_text),
+      include:
+        !!(company.estimate_terms_enabled && company.estimate_terms_text) &&
+        isSectionVisible(resolvedSettings, 'estimate_terms'),
       text: company.estimate_terms_text ?? '',
     },
     payment: {

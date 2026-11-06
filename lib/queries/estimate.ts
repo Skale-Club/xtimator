@@ -19,6 +19,8 @@ export interface Estimate {
   estimate_number: string | null
   /** Optional user-set override for the displayed estimate date. */
   estimate_date: string | null
+  /** SEED-056 (D4): YYYY-MM-DD, set at creation = date + company validity days. */
+  valid_until?: string | null
   is_current: boolean
   share_token: string
   /** Phase 160 (PUBURL-01/03): second, independent friendly-URL token. NULL until backfilled. */

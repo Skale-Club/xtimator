@@ -59,6 +59,8 @@ interface RenderOpts {
   estimateSentOrViewed?: boolean
   open?: boolean
   clientSlot?: ReactNode
+  hasCompanyTerms?: boolean
+  hasValidUntil?: boolean
 }
 
 async function renderPanel(opts: RenderOpts = {}) {
@@ -74,6 +76,8 @@ async function renderPanel(opts: RenderOpts = {}) {
       defaultTaxRate={opts.defaultTaxRate}
       estimateSentOrViewed={opts.estimateSentOrViewed ?? false}
       clientSlot={opts.clientSlot}
+      hasCompanyTerms={opts.hasCompanyTerms}
+      hasValidUntil={opts.hasValidUntil}
     />,
   )
   return { ...result, onChange, onOpenChange }
@@ -269,5 +273,57 @@ describe('PresentationSettingsPanel (DOCUX-01)', () => {
     expect(payload.sections?.timeline).toBe(false)
     expect(payload.sections?.summary).toBe(false)
     expect(payload.sections?.notes).toBe(false)
+  })
+})
+
+// SEED-056 Phase D: the flat "Document Sections" grid became "Document blocks",
+// with a state hint per switch and a link to the company defaults.
+describe('PresentationSettingsPanel — document blocks (SEED-056)', () => {
+  it('uses the "Document blocks" legend and links to the company defaults', async () => {
+    await renderPanel()
+    expect(screen.getByText('Document blocks')).toBeTruthy()
+    expect(screen.queryByText('Document Sections')).toBeNull()
+    const link = screen.getByText('Change defaults for new estimates in Settings')
+    expect(link.getAttribute('href')).toBe('/settings/estimates')
+  })
+
+  it('shows 7 switches by default; Estimate Terms and Valid Until appear only when offered', async () => {
+    await renderPanel()
+    expect(document.getElementById('section-estimate_terms')).toBeNull()
+    expect(document.getElementById('section-valid_until')).toBeNull()
+    expect(document.querySelectorAll('[id^="section-"]').length).toBe(7)
+  })
+
+  it('offers the 8th and 9th switches when the company has fine print / the estimate has a date', async () => {
+    await renderPanel({ hasCompanyTerms: true, hasValidUntil: true })
+    expect(document.getElementById('section-estimate_terms')).not.toBeNull()
+    expect(document.getElementById('section-valid_until')).not.toBeNull()
+  })
+
+  it('hints say whether a block is shown or hidden on this estimate', async () => {
+    await renderPanel({ settings: { sections: { payment_terms: false } } })
+    expect(screen.getByTestId('section-hint-payment_terms').textContent).toBe('Hidden on this estimate')
+    expect(screen.getByTestId('section-hint-summary').textContent).toBe('Shown on this estimate')
+  })
+
+  it('turning on the fine print writes sections.estimate_terms', async () => {
+    const onChange = vi.fn()
+    await renderPanel({
+      hasCompanyTerms: true,
+      settings: { sections: { estimate_terms: false } },
+      onChange,
+    })
+    fireEvent.click(document.getElementById('section-estimate_terms')!)
+    const payload = onChange.mock.calls[0][0] as PresentationSettings
+    expect(payload.sections?.estimate_terms).toBe(true)
+  })
+
+  it('valid_until starts off for a legacy (NULL) estimate and can be turned on', async () => {
+    const onChange = vi.fn()
+    await renderPanel({ hasValidUntil: true, onChange })
+    expect(screen.getByTestId('section-hint-valid_until').textContent).toBe('Hidden on this estimate')
+    fireEvent.click(document.getElementById('section-valid_until')!)
+    const payload = onChange.mock.calls[0][0] as PresentationSettings
+    expect(payload.sections?.valid_until).toBe(true)
   })
 })

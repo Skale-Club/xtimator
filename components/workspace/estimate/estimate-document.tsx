@@ -1608,7 +1608,11 @@ export function EstimateDocument({
   // Phase 185 (PGMODE-02/03) — a company with ONLY estimate-terms enabled
   // (all 4 other terms fields empty) must still render the wrapping
   // container, so this is a 5th OR-branch alongside the 4 existing checks.
-  const hasCompanyTerms = !!(companyTerms?.enabled && companyTerms.text)
+  // SEED-056: the fine-print card is a normal block now (absent key => visible, so
+  // legacy estimates are unchanged).
+  const hasCompanyTerms =
+    !!(companyTerms?.enabled && companyTerms.text) &&
+    isSectionVisible(resolvedSettings, 'estimate_terms')
   const hasTerms =
     hasCompanyTerms ||
     isTermVisible('payment_terms') ||
@@ -1732,6 +1736,12 @@ export function EstimateDocument({
           ) : (
             <p className="text-base text-muted-foreground mt-3">
               {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+            </p>
+          )}
+          {/* SEED-056 (D4): header line, only when the valid_until block is on. */}
+          {isSectionVisible(resolvedSettings, 'valid_until') && data.valid_until && (
+            <p className="mt-2 text-base text-muted-foreground" data-testid="valid-until">
+              {L.validUntil}: {formatDate(data.valid_until, lang)}
             </p>
           )}
           {isEditable && dispatch ? (

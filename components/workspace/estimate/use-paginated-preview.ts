@@ -164,6 +164,7 @@ export function usePaginatedPreview(input: UsePaginatedPreviewInput): UsePaginat
             client,
             estimate: {
               estimate_date: data.estimate_date,
+              valid_until: data.valid_until,
               created_at: estimateCreatedAt,
               estimate_number: data.estimate_number,
               estimate_seq: estimateSeq,

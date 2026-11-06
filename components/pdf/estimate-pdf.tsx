@@ -521,6 +521,7 @@ export default function EstimatePDF({
               estimate,
               client,
               fmtDate,
+              showValidUntil: isSectionVisible(resolvedSettings, 'valid_until') && !!estimate.valid_until,
               clientNameFontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
               styles: {
                 infoRow: styles.infoRow,

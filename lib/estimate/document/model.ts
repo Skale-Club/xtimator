@@ -115,6 +115,8 @@ export interface EstimateDocumentData {
   currency_code: string
   sections: DocumentSection[]
   estimate_date: string | null
+  /** SEED-056 (D4): YYYY-MM-DD, shown as a header line when the valid_until block is on. */
+  valid_until?: string | null
   estimate_number: string | null
   attachedPhotos?: DocumentPhoto[]
   signature?: DocumentSignature | null

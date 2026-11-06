@@ -57,6 +57,7 @@ exports[`lib/estimate/document/labels — state-tolerant golden parity (ENGINE-0
     "unit": "Unit",
     "unitPrice": "Unit Price",
     "usingDefault": "Default",
+    "validUntil": "Valid until",
     "warranty": "Warranty",
   },
   "es": {
@@ -114,6 +115,7 @@ exports[`lib/estimate/document/labels — state-tolerant golden parity (ENGINE-0
     "unit": "Unidad",
     "unitPrice": "Precio Unitario",
     "usingDefault": "Predeterminado",
+    "validUntil": "Válido hasta",
     "warranty": "Garantía",
   },
   "pt": {
@@ -171,6 +173,7 @@ exports[`lib/estimate/document/labels — state-tolerant golden parity (ENGINE-0
     "unit": "Unidade",
     "unitPrice": "Preço Unitário",
     "usingDefault": "Padrão",
+    "validUntil": "Válido até",
     "warranty": "Garantia",
   },
 }

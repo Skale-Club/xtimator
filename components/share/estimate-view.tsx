@@ -207,6 +207,7 @@ function EstimateViewInner({
     balance_due: (estimate as { balance_due?: number | null }).balance_due ?? estimate.total,
     currency_code: estimate.currency_code ?? 'USD',
     estimate_date: (estimate as { estimate_date?: string | null }).estimate_date ?? null,
+    valid_until: (estimate as { valid_until?: string | null }).valid_until ?? null,
     estimate_number: (estimate as { estimate_number?: string | null }).estimate_number ?? null,
     // Phase 162-04 (DOCUX-01) — thread persisted overrides to the classic
     // share renderer so hidden sections stay hidden. Phase 163 will wire the

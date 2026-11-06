@@ -86,14 +86,15 @@ describe('lib/estimate/document/labels — state-tolerant golden parity (ENGINE-
       for (const extra of ['page', 'of', 'preparedBy']) allKeys.add(extra)
       expect(Array.from(allKeys).sort()).toEqual(Object.keys(LABELS.en).sort())
     }
-    // Unconditional: LABELS itself always carries exactly the 55-key shape
+    // Unconditional: LABELS itself always carries exactly the 56-key shape
     // (row/section kebab-menu work added addDiscount, removeDiscount,
     // deleteLine, deleteSection, rowActions, sectionActions on top of the
     // prior 47-key shape from Phase 185 Plan 03; `continued` — the "(cont.)"
     // suffix of a continuation page's section title — made it 54; `depositRequired`, the read-only
     // deposit row label, made it 55), regardless
     // of adoption state.
-    expect(Object.keys(LABELS.en).length).toBe(55)
+    // (SEED-056 added `validUntil`, the header line of the valid_until block: 56.)
+    expect(Object.keys(LABELS.en).length).toBe(56)
   })
 
   it('LANG_INDICATOR matches the shared module — pre- or post-adoption', () => {
