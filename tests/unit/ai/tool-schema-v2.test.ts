@@ -26,7 +26,7 @@ import { estimateToolSchema } from '@/lib/ai/providers/openrouter'
 import { AnthropicAdapter } from '@/lib/ai/providers/anthropic'
 import { GeminiAdapter } from '@/lib/ai/providers/gemini'
 import { estimateOutputSchema } from '@/lib/ai/schema'
-import { CANONICAL_UNITS, normalizeUnit, unitKey } from '@/lib/ai/units'
+import { CANONICAL_UNITS, isMetricUnit, normalizeUnit, unitKey } from '@/lib/ai/units'
 import type { EstimateInput } from '@/lib/ai/types'
 
 const TOP_KEYS = ['assumptions', 'exclusions', 'open_questions', 'scope_confidence']
@@ -177,8 +177,33 @@ describe('unit normaliser', () => {
     ['/hr', 'hour'],
     ['/ sq. ft.', 'sq ft'],
     ['per each', 'each'],
+    ['unidade', 'each'],
+    ['Unidades', 'each'],
+    ['h', 'hour'],
+    ['horas', 'hour'],
+    ['diária', 'day'],
+    ['días', 'day'],
+    ['verba', 'job'],
+    ['global', 'job'],
+    ['empreitada', 'job'],
+    ['serviço', 'job'],
+    ['servicio', 'job'],
+    ['pés quadrados', 'sq ft'],
+    ['pé quadrado', 'sq ft'],
+    ['pies cuadrados', 'sq ft'],
   ])('%s -> %s', (raw, expected) => {
     expect(normalizeUnit(raw)).toBe(expected)
+  })
+
+  it('metric units are NEVER converted silently', () => {
+    for (const u of ['m2', 'm²', 'm', 'kg']) {
+      expect(normalizeUnit(u)).toBe(u)
+      expect(isMetricUnit(u)).toBe(true)
+    }
+    expect(isMetricUnit('metros quadrados')).toBe(true)
+    expect(isMetricUnit('sq ft')).toBe(false)
+    expect(isMetricUnit('gal')).toBe(false)
+    expect(isMetricUnit(null)).toBe(false)
   })
 
   it('keeps unknown units as written (trimmed): the closed list guides, it never rejects', () => {

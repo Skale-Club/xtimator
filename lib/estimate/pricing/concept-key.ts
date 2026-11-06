@@ -56,9 +56,11 @@ function synonymRules(): SynonymRule[] {
   const ids = Object.keys(PLAYBOOKS).sort() as PlaybookId[]
   for (const id of ids) {
     for (const group of PLAYBOOKS[id].synonyms) {
-      const canonical = fold(group[0])
+      // Rules are written in STEMMED form, because the description is stemmed before the
+      // phrase pass ("water heaters" must meet the "water heater" rule).
+      const canonical = stemText(group[0])
       for (const word of group) {
-        const phrase = fold(word)
+        const phrase = stemText(word)
         if (phrase && !seen.has(phrase)) seen.set(phrase, canonical)
       }
     }
@@ -79,27 +81,27 @@ function stem(word: string): string {
   return word
 }
 
+/** Fold and stem every word of a text: "Water Heaters!" -> "water heater". */
+function stemText(text: string): string {
+  return fold(text)
+    .split(' ')
+    .filter(Boolean)
+    .map(stem)
+    .join(' ')
+}
+
 /** The concept of a line description. Empty string for a description with no usable word. */
 export function conceptKey(description: string): string {
-  let text = ` ${fold(description)} `
+  // Stem FIRST, so plurals meet the phrase rules ("air conditioners" -> air_conditioner).
+  let text = ` ${stemText(description)} `
   // Every matched phrase becomes its canonical form, glued with underscores so a LATER, shorter
   // rule cannot re-read it (an identity match used to be skipped, and then "heater" -> "furnace"
   // rewrote the "water heater" it sat inside).
   for (const { phrase, canonical } of synonymRules()) {
     text = text.replaceAll(` ${phrase} `, ` ${canonical.replace(/ /g, '_')} `)
   }
-  const words = text
-    .split(' ')
-    .filter(Boolean)
-    .filter((w) => !STOPWORDS.has(w))
-    .map(stem)
-  // Stemming can map two groups' words together after the synonym pass ("sofas" -> "sofa").
-  const canonicalWords = words.map((w) => {
-    if (w.includes('_')) return w
-    const hit = synonymRules().find((r) => r.phrase === w)
-    return hit ? hit.canonical.replace(/ /g, '_') : w
-  })
-  return [...new Set(canonicalWords)].sort().join(' ')
+  const words = text.split(' ').filter(Boolean).filter((w) => !STOPWORDS.has(w))
+  return [...new Set(words)].sort().join(' ')
 }
 
 export interface PriceConcept {

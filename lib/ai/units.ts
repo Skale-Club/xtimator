@@ -81,13 +81,31 @@ const SYNONYMS: Record<string, CanonicalUnit> = {
   und: 'each',
   unid: 'each',
   unidad: 'each',
+  unidade: 'each',
+  unidades: 'each',
+  h: 'hour',
   hora: 'hour',
   horas: 'hour',
   dia: 'day',
   dias: 'day',
+  'día': 'day',
+  'días': 'day',
+  'diária': 'day',
+  'diárias': 'day',
+  diaria: 'day',
+  diarias: 'day',
   servico: 'job',
   'serviço': 'job',
   servicio: 'job',
+  global: 'job',
+  verba: 'job',
+  empreitada: 'job',
+  'pés quadrados': 'sq ft',
+  'pé quadrado': 'sq ft',
+  'pes quadrados': 'sq ft',
+  'pe quadrado': 'sq ft',
+  'pies cuadrados': 'sq ft',
+  'pie cuadrado': 'sq ft',
   // job
   job: 'job',
   jobs: 'job',
@@ -99,7 +117,11 @@ const SYNONYMS: Record<string, CanonicalUnit> = {
   flat: 'job',
 }
 
-/** Known synonym -> canonical unit; anything else -> the input, trimmed. */
+/**
+ * Known synonym -> canonical unit; anything else -> the input, trimmed. Metric units (m2, m, kg)
+ * are deliberately NOT mapped: converting silently would put a wrong quantity under a US unit.
+ * The structure score flags them for the owner instead (see isMetricUnit).
+ */
 export function normalizeUnit(raw: string): string {
   const trimmed = raw.trim()
   if (trimmed === '') return trimmed
@@ -112,4 +134,10 @@ export function unitKey(raw: string | null | undefined): string {
   const trimmed = raw.trim()
   if (trimmed === '') return ''
   return SYNONYMS[fold(trimmed)] ?? fold(trimmed)
+}
+
+/** m, m2, m², m3, cm, km, kg, l, metro(s)...: a unit this US-only product must not accept silently. */
+export function isMetricUnit(raw: string | null | undefined): boolean {
+  if (!raw) return false
+  return /^(m|m2|m²|m3|m³|mt|mts|cm|mm|km|kg|g|l|lt|litro|litros|liter|liters|metro|metros|metre|metres|meter|meters|metro quadrado|metros quadrados|metro cuadrado|metros cuadrados)$/.test(fold(raw))
 }

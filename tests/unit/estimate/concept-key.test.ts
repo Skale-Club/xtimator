@@ -42,6 +42,15 @@ describe('conceptKey', () => {
     expect(conceptKey('Replace heater')).toBe(conceptKey('Replace furnace'))
   })
 
+  it('plurals meet the phrase rules: water heaters, air conditioners, toilets', () => {
+    expect(conceptKey('Replace water heaters')).toBe(conceptKey('Replace water heater'))
+    expect(conceptKey('Install air conditioners')).toBe(conceptKey('Install air conditioner'))
+    expect(conceptKey('Install air conditioners')).toBe(conceptKey('Install AC'))
+    expect(conceptKey('Replace hot water tanks')).toBe(conceptKey('Replace water heater'))
+    expect(conceptKey('Couches cleaning')).toBe(conceptKey('Sofa cleaning'))
+    expect(conceptKey('Replace water heaters')).not.toBe(conceptKey('Replace furnaces'))
+  })
+
   it('is deterministic and independent of word order', () => {
     expect(conceptKey('haul away debris')).toBe(conceptKey('debris haul away'))
     expect(conceptKey('Install toilet')).toBe(conceptKey('Install toilet'))

@@ -20,7 +20,7 @@
  * banner) and `hint`, an instruction for the model on the targeted refine.
  */
 import type { Playbook } from '@/lib/ai/playbooks'
-import { CANONICAL_UNITS, normalizeUnit } from '@/lib/ai/units'
+import { CANONICAL_UNITS, isMetricUnit, normalizeUnit } from '@/lib/ai/units'
 import type { QualityBand } from '@/lib/estimate/ai-meta'
 
 export const REFINE_BELOW = 50
@@ -96,6 +96,7 @@ const MESSAGES: Record<Lang, {
   thin: (n: number) => string
   emptySection: (titles: string[]) => string
   badUnit: (n: number, names: string) => string
+  metricUnit: (n: number, names: string) => string
   zeroQuantity: (n: number, names: string) => string
   missingBasis: (n: number, total: number) => string
   duplicates: (n: number, names: string[]) => string
@@ -107,6 +108,7 @@ const MESSAGES: Record<Lang, {
     thin: (n) => `Only ${n} line${n === 1 ? '' : 's'} for a job of this size.`,
     emptySection: (t) => `Empty section${t.length > 1 ? 's' : ''}: ${t.join(', ')}.`,
     badUnit: (n, names) => `${n} line${n > 1 ? 's' : ''} without a standard unit: ${names}.`,
+    metricUnit: (n, names) => `${n} line${n > 1 ? 's use' : ' uses'} a metric unit (estimates use US units): ${names}.`,
     zeroQuantity: (n, names) => `${n} priced line${n > 1 ? 's' : ''} with no quantity: ${names}.`,
     missingBasis: (n, total) => `The walkthrough states measurements, but ${n} of ${total} lines do not say where their quantity comes from.`,
     duplicates: (n, names) => `Repeated line${n > 1 ? 's' : ''}: ${names.join(', ')}.`,
@@ -118,6 +120,7 @@ const MESSAGES: Record<Lang, {
     thin: (n) => `Só ${n} ${n === 1 ? 'linha' : 'linhas'} para um serviço deste tamanho.`,
     emptySection: (t) => `${t.length > 1 ? 'Seções vazias' : 'Seção vazia'}: ${t.join(', ')}.`,
     badUnit: (n, names) => `${n} ${n > 1 ? 'linhas sem unidade padrão' : 'linha sem unidade padrão'}: ${names}.`,
+    metricUnit: (n, names) => `${n} ${n > 1 ? 'linhas usam' : 'linha usa'} unidade métrica (os orçamentos usam unidades dos EUA): ${names}.`,
     zeroQuantity: (n, names) => `${n} ${n > 1 ? 'linhas com preço e sem quantidade' : 'linha com preço e sem quantidade'}: ${names}.`,
     missingBasis: (n, total) => `O áudio traz medidas, mas ${n} de ${total} linhas não dizem de onde vem a quantidade.`,
     duplicates: (n, names) => `${n > 1 ? 'Linhas repetidas' : 'Linha repetida'}: ${names.join(', ')}.`,
@@ -129,6 +132,7 @@ const MESSAGES: Record<Lang, {
     thin: (n) => `Solo ${n} ${n === 1 ? 'línea' : 'líneas'} para un trabajo de este tamaño.`,
     emptySection: (t) => `${t.length > 1 ? 'Secciones vacías' : 'Sección vacía'}: ${t.join(', ')}.`,
     badUnit: (n, names) => `${n} ${n > 1 ? 'líneas sin unidad estándar' : 'línea sin unidad estándar'}: ${names}.`,
+    metricUnit: (n, names) => `${n} ${n > 1 ? 'líneas usan' : 'línea usa'} unidad métrica (los presupuestos usan unidades de EE. UU.): ${names}.`,
     zeroQuantity: (n, names) => `${n} ${n > 1 ? 'líneas con precio y sin cantidad' : 'línea con precio y sin cantidad'}: ${names}.`,
     missingBasis: (n, total) => `La grabación trae medidas, pero ${n} de ${total} líneas no dicen de dónde sale la cantidad.`,
     duplicates: (n, names) => `${n > 1 ? 'Líneas repetidas' : 'Línea repetida'}: ${names.join(', ')}.`,
@@ -223,11 +227,15 @@ export function scoreStructure(input: StructureInput): StructureResult {
   })
   if (items.length > 0 && badUnit.length > 0) {
     const share = badUnit.length / items.length
+    const metric = badUnit.filter((i) => isMetricUnit(i.unit))
     add({
       code: 'bad_unit',
       penalty: Math.min(20, Math.round(20 * Math.min(1, share * 1.5))),
-      message: M.badUnit(badUnit.length, quote(badUnit)),
-      hint: `Give ${quote(badUnit)} a unit from: ${CANONICAL_UNITS.join(', ')}.`,
+      message: metric.length > 0 ? M.metricUnit(badUnit.length, quote(badUnit)) : M.badUnit(badUnit.length, quote(badUnit)),
+      hint:
+        metric.length > 0
+          ? `Use US units (${CANONICAL_UNITS.join(', ')}), not metric ones, for ${quote(badUnit)}; convert the quantity.`
+          : `Give ${quote(badUnit)} a unit from: ${CANONICAL_UNITS.join(', ')}.`,
     })
   }
 

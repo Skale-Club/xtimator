@@ -137,6 +137,17 @@ describe('scoreStructure', () => {
     }
   })
 
+  it('a metric unit gets a clear "estimates use US units" message (en / pt / es), not the generic one', () => {
+    const run = (language: 'en' | 'pt' | 'es', unit: string) =>
+      scoreStructure({ ...GOOD, language, sections: [{ title: 'Walls', items: [item({ unit }), item({ unit: 'sq ft' })] }] }).findings.find((f) => f.code === 'bad_unit')!
+    expect(run('en', 'm2').message).toMatch(/metric unit \(estimates use US units\)/)
+    expect(run('pt', 'm²').message).toMatch(/unidade métrica \(os orçamentos usam unidades dos EUA\)/)
+    expect(run('es', 'm').message).toMatch(/unidad métrica \(los presupuestos usan unidades de EE\. UU\.\)/)
+    expect(run('en', 'm2').hint).toMatch(/US units/)
+    // a non-metric odd unit keeps the generic message
+    expect(run('en', 'gallons').message).toMatch(/without a standard unit/)
+  })
+
   it('flags a priced line with no quantity', () => {
     const r = scoreStructure({ ...GOOD, sections: [{ title: 'Walls', items: [item({ quantity: 0 })] }] })
     expect(codes(r)).toContain('zero_quantity')

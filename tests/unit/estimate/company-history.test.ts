@@ -88,6 +88,14 @@ describe('applyCompanyHistory (precedence: price book > history > researched > m
     expect(out.sections).toEqual(sections(...items))
   })
 
+  it('a line priced at $0 (included / free) is never re-priced', () => {
+    const idx = buildHistoryIndex([obs('Cleanup', 'job', 45, 1), obs('Cleanup', 'job', 45, 2)])
+    const out = applyCompanyHistory(sections(line({ description: 'Cleanup (included)', unit: 'job', unit_price: 0 })), idx)
+    expect(out.applied).toBe(0)
+    expect(out.sections[0].items[0]).toMatchObject({ unit_price: 0, price_source: 'ai_estimate' })
+    expect(applyCompanyHistory(sections(line({ description: 'Cleanup', unit: 'job', unit_price: 0 })), idx).applied).toBe(0)
+  })
+
   it('needs two observations: one accepted job is not history', () => {
     const single = buildHistoryIndex([obs('Paint walls', 'sq ft', 2.25, 1)])
     expect(applyCompanyHistory(sections(line({})), single).applied).toBe(0)
@@ -99,11 +107,10 @@ describe('applyCompanyHistory (precedence: price book > history > researched > m
     expect(applyCompanyHistory(sections(line({ unit_price: 100 })), idx).applied).toBe(0) // 0.3x
   })
 
-  it('applies at the edges of the band and when the model gave no price', () => {
+  it('applies at the edges of the band', () => {
     const idx = buildHistoryIndex([obs('Paint walls', 'sq ft', 3, 1), obs('Paint walls', 'sq ft', 3, 2)])
     expect(applyCompanyHistory(sections(line({ unit_price: 1 })), idx).applied).toBe(1) // 3x
     expect(applyCompanyHistory(sections(line({ unit_price: 9 })), idx).applied).toBe(1) // 0.333x
-    expect(applyCompanyHistory(sections(line({ unit_price: 0 })), idx).applied).toBe(1)
     expect(applyCompanyHistory(sections(line({ unit_price: 0.5 })), idx).applied).toBe(0) // 6x
     expect(applyCompanyHistory(sections(line({ unit_price: 10 })), idx).applied).toBe(0) // 0.3x
   })

@@ -124,11 +124,12 @@ export function applyCompanyHistory(
       if (!concept.key) return item
       const hit = index.get(conceptMapKey(concept))
       if (!hit || hit.samples < HISTORY_MIN_SAMPLES) return item
+      // A $0 line is "included" or genuinely unpriced; either way it is not history's to
+      // price (a free cleanup line must stay free). The unpriced ladder owns real $0 gaps.
       const current = Number(item.unit_price)
-      if (current > 0) {
-        const ratio = hit.unit_price / current
-        if (ratio < HISTORY_MIN_RATIO || ratio > HISTORY_MAX_RATIO) return item
-      }
+      if (!(current > 0)) return item
+      const ratio = hit.unit_price / current
+      if (ratio < HISTORY_MIN_RATIO || ratio > HISTORY_MAX_RATIO) return item
       applied++
       return { ...item, unit_price: hit.unit_price, price_source: 'company_history' as const }
     }),
