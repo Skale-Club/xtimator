@@ -404,6 +404,13 @@ const MACHINE_REASON =
 const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...excepted('app/(auth)/callback/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
   ...excepted(
+    'app/.well-known/assetlinks.json/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+  ...excepted(
     'app/.well-known/oauth-authorization-server/route.ts',
     'read-only',
     READ_AUTHORITY,
