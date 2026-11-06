@@ -217,8 +217,9 @@ export async function createOrUpdateCompany(
     license_number: data.licenseNumber || null,
     insurance_info: data.insuranceInfo || null,
     default_tax_rate: data.defaultTaxRate ?? autoTaxRate ?? 0,
-    default_payment_terms: data.defaultPaymentTerms || 'Net 30',
-    default_warranty_terms: data.defaultWarrantyTerms || '1 year',
+    // SEED-056: blank stays NULL; nothing is seeded on the owner's behalf.
+    default_payment_terms: data.defaultPaymentTerms?.trim() || null,
+    default_warranty_terms: data.defaultWarrantyTerms?.trim() || null,
     default_validity_days: data.defaultValidityDays ?? 30,
     default_estimate_language: data.language && data.language !== 'en' ? data.language : null,
     currency_code: normalizeCurrencyCode(data.currencyCode ?? DEFAULT_CURRENCY_CODE),

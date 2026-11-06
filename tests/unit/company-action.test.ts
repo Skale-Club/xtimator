@@ -192,6 +192,24 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     )
   })
 
+  it('SEED-056: blank payment / warranty terms stay NULL (nothing is seeded)', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: true }) as never)
+
+    await createOrUpdateCompany({ companyName: 'New Co', defaultPaymentTerms: '', defaultWarrantyTerms: '  ' }).catch(() => {/* redirect throws */})
+
+    expect(capturedInsertRow!.default_payment_terms).toBeNull()
+    expect(capturedInsertRow!.default_warranty_terms).toBeNull()
+  })
+
+  it('SEED-056: typed payment / warranty terms are kept (trimmed)', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: true }) as never)
+
+    await createOrUpdateCompany({ companyName: 'New Co', defaultPaymentTerms: ' 50% upfront ', defaultWarrantyTerms: '2 years' }).catch(() => {/* redirect throws */})
+
+    expect(capturedInsertRow!.default_payment_terms).toBe('50% upfront')
+    expect(capturedInsertRow!.default_warranty_terms).toBe('2 years')
+  })
+
   it('UPDATE branch: existing company does NOT get tier_trial_ends_at reset', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
 

@@ -50,8 +50,8 @@ export function ReviewStep({ values, logoPreview }: Props) {
     ['License #', dash(values.licenseNumber)],
     ['Insurance', dash(values.insuranceInfo)],
     ['Tax rate', `${values.defaultTaxRate ?? 0}%`],
-    ['Payment terms', values.defaultPaymentTerms === 'Net 30' ? t('Net 30') : dash(values.defaultPaymentTerms)],
-    ['Warranty terms', values.defaultWarrantyTerms === '1 year' ? t('1 year') : dash(values.defaultWarrantyTerms)],
+    ['Payment terms', dash(values.defaultPaymentTerms)],
+    ['Warranty terms', dash(values.defaultWarrantyTerms)],
     ['Validity', `${values.defaultValidityDays ?? 30} ${t('days')}`],
   ]
 

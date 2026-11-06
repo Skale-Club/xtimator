@@ -16,7 +16,7 @@ const INITIAL: OnboardingValues = {
   language: 'en', industries: [], customIndustries: [], prefillPriceBook: false,
   brandPrimaryColor: SYSTEM_COLORS.primary, logoUrl: '',
   address: '', city: '', state: '', zip: '', licenseNumber: '', insuranceInfo: '',
-  defaultTaxRate: 0, defaultPaymentTerms: 'Net 30', defaultWarrantyTerms: '1 year', defaultValidityDays: 30,
+  defaultTaxRate: 0, defaultPaymentTerms: '', defaultWarrantyTerms: '', defaultValidityDays: 30,
 }
 
 export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValues, draft }: {

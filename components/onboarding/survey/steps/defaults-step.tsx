@@ -3,6 +3,7 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   values: OnboardingValues
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function DefaultsStep({ values, setValue, onNext }: Props) {
+  const { t } = useTranslation()
   function maybeAdvance(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -54,7 +56,7 @@ export function DefaultsStep({ values, setValue, onNext }: Props) {
         <Label htmlFor="survey-payment">Payment terms</Label>
         <Input
           id="survey-payment"
-          placeholder="Net 30"
+          placeholder={t('Optional')}
           className="min-h-[44px]"
           value={values.defaultPaymentTerms}
           onChange={(e) => setValue('defaultPaymentTerms', e.target.value)}
@@ -65,13 +67,16 @@ export function DefaultsStep({ values, setValue, onNext }: Props) {
         <Label htmlFor="survey-warranty">Warranty terms</Label>
         <Input
           id="survey-warranty"
-          placeholder="1 year"
+          placeholder={t('Optional')}
           className="min-h-[44px]"
           value={values.defaultWarrantyTerms}
           onChange={(e) => setValue('defaultWarrantyTerms', e.target.value)}
           onKeyDown={maybeAdvance}
         />
       </div>
+      <p className="col-span-2 text-xs text-muted-foreground">
+        {t('Optional. You can add these later in Settings.')}
+      </p>
     </div>
   )
 }

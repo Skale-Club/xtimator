@@ -144,16 +144,16 @@ describe('onboardingSchema', () => {
       expect(negative.success).toBe(false)
     })
 
-    it('defaultPaymentTerms defaults to "Net 30"', () => {
+    it('defaultPaymentTerms is optional and defaults to blank (SEED-056: never seeded)', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
-      expect(result.data?.defaultPaymentTerms).toBe('Net 30')
+      expect(result.data?.defaultPaymentTerms).toBe('')
     })
 
-    it('defaultWarrantyTerms defaults to "1 year"', () => {
+    it('defaultWarrantyTerms is optional and defaults to blank (SEED-056: never seeded)', () => {
       const result = onboardingSchema.safeParse({ companyName: 'Test Co' })
       expect(result.success).toBe(true)
-      expect(result.data?.defaultWarrantyTerms).toBe('1 year')
+      expect(result.data?.defaultWarrantyTerms).toBe('')
     })
 
     it('defaultValidityDays defaults to 30', () => {
@@ -189,8 +189,8 @@ describe('onboardingSchema', () => {
       expect(data.prefillPriceBook).toBe(false)
       expect(data.brandPrimaryColor).toBe('#406EF1')
       expect(data.defaultTaxRate).toBe(0)
-      expect(data.defaultPaymentTerms).toBe('Net 30')
-      expect(data.defaultWarrantyTerms).toBe('1 year')
+      expect(data.defaultPaymentTerms).toBe('')
+      expect(data.defaultWarrantyTerms).toBe('')
       expect(data.defaultValidityDays).toBe(30)
     })
   })

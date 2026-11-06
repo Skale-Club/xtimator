@@ -814,6 +814,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'saveOnboardingDraft', 'uploadOnboardingDraftLogo', 'completeOnboarding',
   ]),
   ...guarded('lib/actions/custom-domain.ts', 'assertWritable', ['saveCustomDomain']),
+  ...guarded('lib/actions/document-blocks.ts', 'assertWritable', ['updateDocumentBlocks']),
   ...guarded('lib/actions/estimate-photo.ts', 'assertWritable', [
     'addPhotoToEstimate',
     'removePhotoFromEstimate',

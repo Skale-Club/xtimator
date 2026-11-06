@@ -23,6 +23,8 @@ export interface CompanySettings {
   default_payment_terms: string | null
   default_warranty_terms: string | null
   default_validity_days: number
+  /** SEED-056: per-company defaults for the optional document blocks (nullable JSONB). */
+  document_blocks: unknown
   notify_on_view: boolean
   notify_on_accept: boolean
   notify_on_decline: boolean

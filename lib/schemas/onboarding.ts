@@ -49,8 +49,10 @@ export const onboardingSchema = z.object({
     .min(0, 'Tax rate must be between 0 and 100')
     .max(100, 'Tax rate must be between 0 and 100')
     .default(0),
-  defaultPaymentTerms: z.string().default('Net 30'),
-  defaultWarrantyTerms: z.string().default('1 year'),
+  // SEED-056: optional. Blank means "not configured" (the estimate then starts
+  // without that block) -- never silently seeded with a boilerplate value.
+  defaultPaymentTerms: z.string().default(''),
+  defaultWarrantyTerms: z.string().default(''),
   defaultValidityDays: z.coerce.number().min(1).default(30),
 })
 

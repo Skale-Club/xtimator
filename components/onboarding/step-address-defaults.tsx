@@ -170,7 +170,7 @@ export function StepAddressDefaults({ form }: StepAddressDefaultsProps) {
               <FormLabel>Payment Terms</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Net 30"
+                  placeholder="Optional"
                   className="min-h-[44px]"
                   {...field}
                 />
@@ -188,7 +188,7 @@ export function StepAddressDefaults({ form }: StepAddressDefaultsProps) {
               <FormLabel>Warranty Terms</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="1 year"
+                  placeholder="Optional"
                   className="min-h-[44px]"
                   {...field}
                 />
