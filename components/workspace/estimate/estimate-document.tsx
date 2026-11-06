@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { ConfidenceDot, isConfidenceLevel } from './confidence-dot'
 import {
   DndContext,
   closestCenter,
@@ -314,6 +315,9 @@ function SortableDocumentItemRow({
 
   const showAddDiscount = (item.discount ?? 0) === 0 && !isDiscountDraft
   const showRemoveDiscount = (item.discount ?? 0) !== 0 || isDiscountDraft
+  // SEED-057 G: the AI's confidence dot is for the owner's EDIT row only, and only
+  // while the line is still the AI's (a hand-edited line has no AI confidence).
+  const showConfidenceDot = !item.isManuallyEdited && isConfidenceLevel(item.confidence)
 
   return (
     <tr
@@ -378,7 +382,7 @@ function SortableDocumentItemRow({
         </div>
       </td>
       {/* description */}
-      <td className="py-1 px-1 align-middle">
+      <td className={showConfidenceDot ? 'py-1 px-1 align-middle relative' : 'py-1 px-1 align-middle'}>
         <PriceBookCombobox
           value={item.description}
           onChange={(next) =>
@@ -404,6 +408,7 @@ function SortableDocumentItemRow({
           className={INLINE_INPUT_CLS}
           noMatchesLabel={L.noMatches}
         />
+        {showConfidenceDot && <ConfidenceDot confidence={item.confidence} basis={item.basis} />}
       </td>
       {/* qty */}
       <td className="py-1 px-1 w-16 align-middle">

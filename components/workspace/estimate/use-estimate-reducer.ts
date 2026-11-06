@@ -28,6 +28,9 @@ export interface EditorItem {
   discount?: number // line discount amount, default 0
   cost?: number | null
   markup_pct?: number | null
+  // SEED-057: AI metadata for the owner's editor (never saved back, never client-facing).
+  confidence?: 'low' | 'medium' | 'high' | null
+  basis?: string | null
 }
 
 export interface EditorSection {
@@ -398,6 +401,8 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
           discount: (i as { discount?: number }).discount ?? 0,
           cost: (i as { cost?: number | null }).cost ?? null,
           markup_pct: (i as { markup_pct?: number | null }).markup_pct ?? null,
+          confidence: (i as { confidence?: 'low' | 'medium' | 'high' | null }).confidence ?? null,
+          basis: (i as { basis?: string | null }).basis ?? null,
         })),
       }))
       .sort((a, b) => a.sort_order - b.sort_order),

@@ -65,6 +65,13 @@ export interface DocumentItem {
   discount?: number
   cost?: number | null
   markup_pct?: number | null
+  /**
+   * SEED-057: AI confidence for the line and where its quantity came from. Set ONLY
+   * by the owner's editor; no client-facing mapper (share page, PDF, messages) fills
+   * them, and the editable row is the only renderer.
+   */
+  confidence?: 'low' | 'medium' | 'high' | null
+  basis?: string | null
 }
 
 export interface DocumentSection {

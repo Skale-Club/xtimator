@@ -113,3 +113,34 @@ export function isMissingColumnError(
   if (!looksMissing) return false
   return columns.some((c) => message.includes(c.toLowerCase()))
 }
+
+// ---------------------------------------------------------------------------
+// Owner-only data must never reach a client surface.
+//
+// estimates.ai_meta and the per-line confidence / basis / optional columns are
+// for the OWNER's editor only. The public share loaders read whole rows
+// (select '*') and hand them to a client component, so they strip these fields
+// at the source, before the row is spread into anything that is serialised to
+// the browser. Everything else (PDF, WhatsApp, the plain-text message) reads
+// explicit columns and never sees them; tests/unit/estimate/
+// ai-meta-client-surfaces.test.ts guards both.
+// ---------------------------------------------------------------------------
+
+export const OWNER_ONLY_ESTIMATE_COLUMNS = ['ai_meta'] as const
+export const OWNER_ONLY_ITEM_COLUMNS = ['confidence', 'basis', 'optional'] as const
+
+function without<T extends object>(row: T, columns: readonly string[]): T {
+  const copy: Record<string, unknown> = { ...(row as Record<string, unknown>) }
+  for (const column of columns) delete copy[column]
+  return copy as T
+}
+
+/** An estimate row without its owner-only AI context. */
+export function stripOwnerOnlyEstimate<T extends object>(row: T): T {
+  return without(row, OWNER_ONLY_ESTIMATE_COLUMNS)
+}
+
+/** An estimate_items row without its owner-only AI metadata. */
+export function stripOwnerOnlyItem<T extends object>(row: T): T {
+  return without(row, OWNER_ONLY_ITEM_COLUMNS)
+}

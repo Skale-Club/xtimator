@@ -1,3 +1,4 @@
+import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type {
   Estimate,
@@ -157,7 +158,8 @@ export async function getEstimateByShareToken(
     return null
   }
 
-  const estimate = estimateData as Estimate
+  // SEED-057: ai_meta is owner-only; this row is spread into a client component's props.
+  const estimate = stripOwnerOnlyEstimate(estimateData) as Estimate
 
   // Fetch sections with items (same pattern as fetchEstimateWithSections)
   const { data: sectionsData } = await supabase
@@ -178,7 +180,8 @@ export async function getEstimateByShareToken(
 
       return {
         ...section,
-        items: (itemsData ?? []) as EstimateItem[],
+        // SEED-057: per-line AI confidence / basis are owner-only.
+        items: ((itemsData ?? []) as EstimateItem[]).map(stripOwnerOnlyItem),
       }
     })
   )
@@ -431,7 +434,8 @@ export async function getEstimateByPublicToken(
     return null
   }
 
-  const estimate = estimateData as Estimate
+  // SEED-057: ai_meta is owner-only; this row is spread into a client component's props.
+  const estimate = stripOwnerOnlyEstimate(estimateData) as Estimate
   const realShareToken = estimate.share_token
 
   const { data: sectionsData } = await supabase
@@ -452,7 +456,8 @@ export async function getEstimateByPublicToken(
 
       return {
         ...section,
-        items: (itemsData ?? []) as EstimateItem[],
+        // SEED-057: per-line AI confidence / basis are owner-only.
+        items: ((itemsData ?? []) as EstimateItem[]).map(stripOwnerOnlyItem),
       }
     })
   )

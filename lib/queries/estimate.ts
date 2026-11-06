@@ -21,6 +21,12 @@ export interface Estimate {
   estimate_date: string | null
   /** SEED-056 (D4): YYYY-MM-DD, set at creation = date + company validity days. */
   valid_until?: string | null
+  /**
+   * SEED-057: the AI's assumptions / exclusions / open questions and structure
+   * verdict (estimates.ai_meta, JSONB). OWNER-ONLY: read it through parseAiMeta,
+   * and never render it on a client surface (the share loaders strip it).
+   */
+  ai_meta?: unknown
   is_current: boolean
   share_token: string
   /** Phase 160 (PUBURL-01/03): second, independent friendly-URL token. NULL until backfilled. */
@@ -91,6 +97,10 @@ export interface EstimateItem {
   total: number
   sort_order: number
   price_source: 'price_book' | 'ai_estimate' | 'researched' | 'company_history' | null
+  /** SEED-057: per-line AI metadata. OWNER-ONLY, like Estimate.ai_meta. */
+  confidence?: 'low' | 'medium' | 'high' | null
+  basis?: string | null
+  optional?: boolean
 }
 
 export interface EstimateWithSections extends Estimate {

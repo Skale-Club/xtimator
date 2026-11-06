@@ -21,6 +21,8 @@ import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
+import { AiInsightsPanel } from './ai-insights-panel'
+import { parseAiMeta } from '@/lib/estimate/ai-meta'
 import { AddBlockRow, blockPrefill, isTextBlock, type AddableBlock } from './add-block-row'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
@@ -104,6 +106,9 @@ function stateToDocumentData(state: EstimateEditorState): EstimateDocumentData {
         tax_category: i.tax_category ?? null,
         cost: i.cost ?? null,
         markup_pct: i.markup_pct ?? null,
+        // SEED-057: owner-facing AI confidence dot (edit row only).
+        confidence: i.confidence ?? null,
+        basis: i.basis ?? null,
       })),
     })),
   }
@@ -239,6 +244,8 @@ export function EstimateEditor({
 }: EstimateEditorProps) {
   const router = useRouter()
   const { t } = useTranslation()
+  // SEED-057 Phase G: the AI's assumptions / open questions / review verdict (owner-only).
+  const aiMeta = useMemo(() => parseAiMeta(estimate.ai_meta), [estimate.ai_meta])
   const [state, dispatch] = useEstimateReducer(estimate)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -822,6 +829,11 @@ export function EstimateEditor({
           </Button>
         </div>
       )}
+
+      {/* SEED-057 Phase G: what the AI assumed and could not decide, plus the "AI needs
+          review" banner. Owner-only and OUTSIDE the document stage, so it is never part of
+          the page view, the share page, a PDF or a message. */}
+      {isCurrent && aiMeta && <AiInsightsPanel meta={aiMeta} projectId={projectId} />}
 
       {/* Same --doc-stage backdrop as the public share page, so the white paper
           reads as lifted in light mode too. In dark mode the app background
