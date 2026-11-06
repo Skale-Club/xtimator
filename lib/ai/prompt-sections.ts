@@ -134,3 +134,27 @@ export function scopePlanUserBlock(
   if (plan.scope_confidence) lines.push(`Scope confidence: ${plan.scope_confidence}`)
   return `## Scope Plan\n<scope_plan>${escape(lines.join('\n'))}</scope_plan>`
 }
+
+const QUALITY_NOTE_MAX_CHARS = 300
+const QUALITY_NOTES_MAX = 6
+
+/**
+ * SEED-057 D: TRUSTED guidance from the quality gate for a second attempt at the same job,
+ * rendered as its own system-prompt section. It used to travel in `prompts`, which is shown
+ * to the model as an untrusted <description>. The notes quote line descriptions that came
+ * out of an earlier model run, so each is escaped and capped. They say a first attempt had
+ * problems; they do NOT claim the model can see it (it cannot).
+ */
+export function qualityNotesPrompt(
+  notes: string[] | undefined,
+  escape: (value: string) => string,
+): string | null {
+  const clean = (notes ?? [])
+    .map((n) => n.trim().slice(0, QUALITY_NOTE_MAX_CHARS))
+    .filter(Boolean)
+    .slice(0, QUALITY_NOTES_MAX)
+  if (clean.length === 0) return null
+  return `## Quality notes
+An earlier attempt at this same job was checked and had the problems below. This is a fresh attempt: avoid them.
+${clean.map((n) => `- ${escape(n)}`).join('\n')}`
+}

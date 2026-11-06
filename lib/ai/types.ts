@@ -75,6 +75,12 @@ export type EstimateInput = {
    */
   playbookTrade?: string
   /**
+   * SEED-057 D: guidance from the quality gate for a SECOND attempt at this job (what an
+   * earlier attempt got wrong). Trusted text rendered as its own system-prompt section,
+   * not as an untrusted <description>.
+   */
+  qualityHints?: string[]
+  /**
    * SEED-057 Phase C: the scope plan from step one of two-step generation
    * (ESTIMATOR_TWO_STEP). Absent = single-step, today's behavior.
    */

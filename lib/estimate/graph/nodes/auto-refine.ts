@@ -23,14 +23,13 @@
  */
 import { requireServiceClient } from '@/lib/supabase/service'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
-import { buildTargetedRefineHint } from '@/lib/estimate/quality/structure-score'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import type { EstimateStateType } from '../state'
 
-const REFINE_HINT =
-  'Note: the previous estimate was flagged as too vague or incomplete. ' +
-  'Please generate a more detailed estimate with specific line items, ' +
-  'quantities, material specs, and realistic unit pricing.'
+/** Wording for the $0 retry. It does not claim the model can see the discarded draft. */
+const VAGUE_NOTE =
+  'The first attempt at this job came back too vague or incomplete to price. ' +
+  'Produce specific line items with quantities, material specs and realistic unit pricing.'
 
 export const autoRefineNode = async (
   state: EstimateStateType
@@ -54,7 +53,7 @@ export const autoRefineNode = async (
   // pass simply becomes the next version.
   if (!state.isVague) {
     const hints = state.structureHints ?? []
-    const targeted = hints.length > 0 ? buildTargetedRefineHint(hints) : REFINE_HINT
+    const notes = hints.length > 0 ? hints : [VAGUE_NOTE]
     return {
       refineAttempts: (state.refineAttempts ?? 0) + 1,
       // Kept so a failing second pass can fall back to this draft (recover-draft.ts).
@@ -63,7 +62,8 @@ export const autoRefineNode = async (
       isVague: undefined,
       structureBand: undefined,
       structureHints: undefined,
-      prompts: [...(state.prompts ?? []), targeted],
+      // Trusted guidance, NOT appended to `prompts` (those are shown as an untrusted <description>).
+      qualityHints: notes,
     }
   }
 
@@ -100,6 +100,6 @@ export const autoRefineNode = async (
     isVague: undefined,
     structureBand: undefined,
     structureHints: undefined,
-    prompts: [...(state.prompts ?? []), REFINE_HINT],
+    qualityHints: [VAGUE_NOTE],
   }
 }

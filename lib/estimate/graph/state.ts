@@ -63,6 +63,8 @@ export const EstimateState = Annotation.Root({
   structureBand: Annotation<'refine' | 'review' | 'ok' | undefined>(),
   /** SEED-057 D: the specific problems behind the score, as instructions for the targeted refine. */
   structureHints: Annotation<string[] | undefined>(),
+  /** SEED-057 D: guidance for the second attempt (trusted; rendered as a system-prompt section). */
+  qualityHints: Annotation<string[] | undefined>(),
   /**
    * SEED-057 D: the draft a TARGETED refine pass started from. If that pass fails, the
    * graph restores this estimate and delivers it instead of failing the job.

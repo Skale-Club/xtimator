@@ -48,8 +48,9 @@ describe('autoRefineNode', () => {
     expect(out.estimateId).toBeUndefined()
     expect(out.structureBand).toBeUndefined()
     expect(out.structureHints).toBeUndefined()
-    expect(out.prompts).toHaveLength(2)
-    const hint = out.prompts![1]
+    // Trusted guidance, NOT appended to the untrusted prompts.
+    expect(out.prompts).toBeUndefined()
+    const hint = (out.qualityHints ?? []).join(' ')
     expect(hint).toContain('cleanup line')
     expect(hint).toContain('Give "Paint walls" a unit')
     expect(hint).not.toMatch(/more detailed/i)
@@ -57,14 +58,14 @@ describe('autoRefineNode', () => {
 
   it('without findings it falls back to the generic hint', async () => {
     const out = await autoRefineNode(state({ isVague: false, structureBand: 'refine', structureHints: [] }))
-    expect(out.prompts![0]).toMatch(/too vague or incomplete/)
+    expect(out.qualityHints![0]).toMatch(/too vague or incomplete/)
   })
 
   it('the $0 path still reverts the estimate and uses the generic hint', async () => {
     revertMock.mockResolvedValue(undefined)
     const out = await autoRefineNode(state({ isVague: true, estimateId: 'e1' }))
     expect(revertMock).toHaveBeenCalledOnce()
-    expect(out.prompts![0]).toMatch(/too vague or incomplete/)
+    expect(out.qualityHints![0]).toMatch(/too vague or incomplete/)
     expect(out.structureBand).toBeUndefined()
   })
 })

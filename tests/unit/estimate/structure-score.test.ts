@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  buildTargetedRefineHint,
   mentionsMeasurements,
   scoreStructure,
   type StructureInput,
@@ -217,19 +216,5 @@ describe('mentionsMeasurements', () => {
     ['two bedrooms and a bath', false],
   ])('%s -> %s', (text, expected) => {
     expect(mentionsMeasurements(text)).toBe(expected)
-  })
-})
-
-describe('buildTargetedRefineHint', () => {
-  it('names the specific problems instead of asking for "more detail"', () => {
-    const hint = buildTargetedRefineHint(['Add a cleanup line.', 'Give "Paint walls" a unit.'])
-    expect(hint).toContain('Add a cleanup line.')
-    expect(hint).toContain('Give "Paint walls" a unit.')
-    expect(hint).not.toMatch(/more detailed/i)
-  })
-
-  it('caps the list so the hint stays short', () => {
-    const hint = buildTargetedRefineHint(Array.from({ length: 20 }, (_, i) => `Problem ${i}.`))
-    expect(hint.split('\n').filter((l) => l.startsWith('- '))).toHaveLength(6)
   })
 })

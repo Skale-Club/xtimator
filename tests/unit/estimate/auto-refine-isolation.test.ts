@@ -145,9 +145,10 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
     // estimateId and isVague cleared so next generate cycle starts clean
     expect(result.estimateId).toBeUndefined()
     expect(result.isVague).toBeUndefined()
-    // REFINE_HINT appended to prompts
-    expect(result.prompts).toHaveLength(2)
-    expect(result.prompts![1]).toMatch(/too vague or incomplete/i)
+    // The retry note is trusted guidance (qualityHints), not an extra untrusted prompt
+    expect(result.prompts).toBeUndefined()
+    expect(result.qualityHints![0]).toMatch(/too vague or incomplete/i)
+    expect(result.qualityHints![0]).not.toMatch(/previous/i)
     // revertVagueEstimate called (best-effort)
     expect(revertVagueEstimateMock).toHaveBeenCalled()
   })

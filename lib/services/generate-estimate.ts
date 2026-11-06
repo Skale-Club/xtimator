@@ -103,6 +103,8 @@ export interface GenerateEstimateOptions {
    * Omit for web/MCP so those channels are unaffected.
    */
   channel?: 'whatsapp'
+  /** SEED-057 D: guidance from the quality gate for a second attempt (see EstimateInput.qualityHints). */
+  qualityHints?: string[]
   /** auth.users.id of the staff member or owner who triggered generation. Stored on the estimate for "Prepared by" attribution. */
   createdByUserId?: string
   /**
@@ -309,6 +311,7 @@ export async function generateEstimateForProject(
     priceBookItems,
     currencyCode,
     aiBlocks: aiAuthoredFields(documentBlocks),
+    ...(options.qualityHints?.length ? { qualityHints: options.qualityHints } : {}),
     language,
     // Phase 110 (COST-01): non-LLM correlation context for cost capture. Comes
     // from the TRUSTED params (companyId is a function param, never LLM-derived).

@@ -286,16 +286,3 @@ export function scoreStructure(input: StructureInput): StructureResult {
   const band: QualityBand = score < REFINE_BELOW ? 'refine' : score < REVIEW_BELOW ? 'review' : 'ok'
   return { score, band, findings }
 }
-
-/**
- * The targeted instruction for the one refine pass: the specific problems found,
- * not a blanket "be more detailed". Takes the findings' `hint` texts (what the
- * graph carries in state), most important first.
- */
-export function buildTargetedRefineHint(hints: string[]): string {
-  const lines = hints.slice(0, 6).map((h) => `- ${h}`)
-  return (
-    'Note: the previous draft had these specific problems. Fix each one and keep everything else:\n' +
-    lines.join('\n')
-  )
-}

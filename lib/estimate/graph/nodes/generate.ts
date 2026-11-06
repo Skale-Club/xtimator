@@ -32,9 +32,10 @@ export const makeGenerateNode =
       }
       const opts =
         state.channel === 'whatsapp'
-          ? { channel: 'whatsapp' as const, prompts: state.prompts, costContext }
+          ? { channel: 'whatsapp' as const, prompts: state.prompts, qualityHints: state.qualityHints, costContext }
           : {
               prompts: state.prompts,
+              qualityHints: state.qualityHints,
               // origin/dev: stamp "Prepared by" on web/MCP-triggered estimates.
               createdByUserId: state.createdByUserId,
               costContext,

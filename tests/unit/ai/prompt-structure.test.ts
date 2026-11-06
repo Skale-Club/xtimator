@@ -171,6 +171,41 @@ describe('company knowledge', () => {
   })
 })
 
+describe('quality notes (second attempt)', () => {
+  const hints = ['Add the missing line: cleanup line.', 'Give "Paint walls <b>" a unit.']
+
+  it('are a trusted system-prompt section, before Security, and absent otherwise', () => {
+    const prompt = buildSystemPrompt({ ...base, qualityHints: hints })
+    expect(prompt).toContain('## Quality notes')
+    expect(prompt.indexOf('## Quality notes')).toBeLessThan(prompt.indexOf('## Security'))
+    expect(prompt.slice(prompt.lastIndexOf('## ')).startsWith('## Security')).toBe(true)
+    expect(buildSystemPrompt(base)).not.toContain('## Quality notes')
+    expect(buildSystemPrompt({ ...base, qualityHints: [] })).not.toContain('## Quality notes')
+  })
+
+  it('never reach the user message, and quoted draft text is escaped', () => {
+    const input = { ...base, qualityHints: hints }
+    expect(buildUserContent(input)).not.toContain('cleanup line')
+    const prompt = buildSystemPrompt(input)
+    expect(prompt).toContain('&lt;b&gt;')
+    expect(prompt).not.toContain('<b>')
+  })
+
+  it('do not claim the model can see the earlier attempt', () => {
+    const prompt = buildSystemPrompt({ ...base, qualityHints: hints })
+    expect(prompt).toMatch(/fresh attempt/)
+    expect(prompt).not.toMatch(/previous (draft|estimate)/i)
+  })
+
+  it('are capped in number and length', () => {
+    const many = Array.from({ length: 20 }, () => 'x'.repeat(1000))
+    const prompt = buildSystemPrompt({ ...base, qualityHints: many })
+    const section = prompt.slice(prompt.indexOf('## Quality notes'), prompt.indexOf('## Security'))
+    expect(section.match(/^- /gm)).toHaveLength(6)
+    expect(section.length).toBeLessThan(2500)
+  })
+})
+
 describe('the Security block stays last', () => {
   it('in every mode and with every optional section on', () => {
     const full: EstimateInput = {

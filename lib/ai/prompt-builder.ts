@@ -8,6 +8,7 @@ import {
   STRUCTURE_CONTRACT_PROMPT,
   knowledgeUserBlock,
   playbookPrompt,
+  qualityNotesPrompt,
   scopePlanUserBlock,
 } from './prompt-sections'
 
@@ -165,6 +166,9 @@ Also generate a short, professional project name in 2-5 words derived from the w
     if (input.plan) {
       prompt += `\n\n${SCOPE_PLAN_INSTRUCTION_PROMPT}`
     }
+    // Trusted quality-gate guidance for a second attempt; always before Security.
+    const quality = qualityNotesPrompt(input.qualityHints, sanitizeField)
+    if (quality) prompt += `\n\n${quality}`
   }
 
   // TAX-02 — per-item labor/materials classification instruction. CLASSIFICATION
