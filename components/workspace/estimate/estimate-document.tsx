@@ -317,7 +317,8 @@ function SortableDocumentItemRow({
   const showRemoveDiscount = (item.discount ?? 0) !== 0 || isDiscountDraft
   // SEED-057 G: the AI's confidence dot is for the owner's EDIT row only, and only
   // while the line is still the AI's (a hand-edited line has no AI confidence).
-  const showConfidenceDot = !item.isManuallyEdited && isConfidenceLevel(item.confidence)
+  const showConfidenceDot =
+    !item.isManuallyEdited && item.price_source != null && isConfidenceLevel(item.confidence)
 
   return (
     <tr

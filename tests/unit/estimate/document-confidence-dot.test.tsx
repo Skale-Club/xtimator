@@ -42,7 +42,7 @@ function renderDoc(data: EstimateDocumentData, mode: 'edit' | 'view') {
 }
 
 const withConfidence = (data: EstimateDocumentData) => {
-  data.sections[0].items[0] = { ...data.sections[0].items[0], confidence: 'low', basis: 'guessed from the photo' }
+  data.sections[0].items[0] = { ...data.sections[0].items[0], price_source: 'ai_estimate', confidence: 'low', basis: 'guessed from the photo' }
 }
 
 describe('confidence dot on the document', () => {
@@ -72,6 +72,15 @@ describe('confidence dot on the document', () => {
     const data = buildData((d) => {
       withConfidence(d)
       d.sections[0].items[0] = { ...d.sections[0].items[0], isManuallyEdited: true }
+    })
+    const { container } = renderDoc(data, 'edit')
+    expect(container.querySelector('[data-testid="confidence-dot"]')).toBeNull()
+  })
+
+  it('needs a price source: a line with none (added by hand) never gets a dot', () => {
+    const data = buildData((d) => {
+      withConfidence(d)
+      d.sections[0].items[0] = { ...d.sections[0].items[0], price_source: null }
     })
     const { container } = renderDoc(data, 'edit')
     expect(container.querySelector('[data-testid="confidence-dot"]')).toBeNull()
