@@ -17,11 +17,18 @@ backup preservado em bucket R2 privado exclusivo. CI passou nas duas execuções
 da suíte completa: 6.877 testes por execução. Relatório e evidências operacionais:
 `.planning/quick/261105-bdv-configure-google-identity-platform-and-c/261105-bdv-SUMMARY.md`.
 
-**Validação humana ainda pendente:** confirmação Google e SMS da conta indicada
-pelo proprietário. O telefone ainda não foi vinculado. A recuperação por e-mail
-também está pendente de configuração: o ambiente não tem chave Resend e o Auth
-antigo não tem SMTP personalizado para reutilizar. Não considerar o teste real
-de recuperação ou SMS concluído enquanto essas etapas não forem verificadas.
+**Validação real em 2026-11-05:** Google confirmou a identidade da conta existente;
+o proprietário confirmou o SMS e o telefone foi vinculado pelo fluxo normal.
+O UUID legado e a empresa foram preservados. Depois do logout (zero sessões
+ativas), uma nova entrada somente por telefone/SMS abriu o mesmo dashboard com
+os seis projetos existentes; não houve criação de conta duplicada.
+Após outro logout, a entrada secundária pelo Google também abriu a mesma conta
+sem pedir outro SMS.
+
+**Pendente:** recuperação por e-mail. O ambiente continua sem chave Resend e o
+Auth antigo não tem SMTP personalizado para reutilizar. A entrega de e-mail de
+recuperação ainda não foi validada. O commit acima identifica o corte original;
+a validação real ocorreu posteriormente na versão de produção `2a422f37`.
 
 O healthcheck do Coolify usa `/api/health` em `127.0.0.1`, timeout 15s, intervalo
 10s, 12 tentativas e início em 30s. O host IPv4 explícito evita a falha de conexão

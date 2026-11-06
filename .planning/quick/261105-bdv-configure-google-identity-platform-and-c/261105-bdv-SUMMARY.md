@@ -2,7 +2,7 @@
 task: 261105-bdv
 date: 2026-11-05
 status: in-progress
-deployment_status: active-pending-live-account-verification
+deployment_status: active-phone-verified-pending-email-recovery
 ---
 
 # Production owned-auth cutover
@@ -72,7 +72,7 @@ Chrome browser. All browser actions use DOM locators, without native mouse input
 
 - The owner specified the existing account and phone to link. Confirmed that the
   account exists, its email is verified, and its Google subject was imported. It
-  has no verified local phone yet. Do not record private contact details here.
+  now has the requested verified local phone. Do not record private contact details here.
 - Production UI shows phone first and Google second. Google popup reaches the
   existing signed-in account chooser, but account selection remained loading
   through browser DOM attempts; owner assistance was requested for that step.
@@ -80,13 +80,33 @@ Chrome browser. All browser actions use DOM locators, without native mouse input
   Supabase Auth configuration has no custom SMTP credentials to reuse. Thus email
   recovery currently returns unavailable. Requested the owner's Resend sign-in or
   key in the env (never in chat). No verification email was delivered.
-- No SMS has been requested and no phone/account binding has been changed yet;
-  those require finishing the verified Google or recovery flow, then the SMS OTP.
+- After the owner's PC restart, Chrome was unavailable to browser automation.
+  Resumed in the integrated browser using DOM controls. Google authenticated the
+  intended imported account; the server challenge matched both its existing UUID
+  and verified email. The owner supplied the real SMS OTP and the normal identity
+  exchange linked the requested phone; no manual verification flag was written.
+- The authenticated dashboard opened with the existing six projects. A fresh
+  database check confirmed one matching account, preserved legacy UUID, verified
+  requested phone, one company and one active owned session.
+- Signed out through the UI and confirmed zero active owned sessions. Started a
+  new phone-only login, requested a second real SMS, and verified the owner's new
+  OTP. The same dashboard and account opened again. This proves independent
+  phone entry after the Google-to-phone link, rather than only the initial link.
+- Live readiness remains HTTP 200 with DB/storage/auth OK. Production had advanced
+  to `2a422f37f8f3a5b27322e96cd701aee5c3e044e9` during this later validation.
+- Resend remains absent in both the integration table and local authoritative env.
+  Recovery email delivery is still pending; do not mark this whole quick complete.
+- After another logout, the owner selected the Google account in the provider
+  window. Standalone Google re-entry opened the same account and six-project
+  dashboard without requesting another SMS. Both primary phone entry and secondary
+  Google entry have now been exercised independently against production.
+- Reloading the final dashboard preserved the authenticated session and existing
+  projects. Final database verification again found one matching legacy account,
+  the requested verified phone and one active session. No OTPs were retained.
 
 ## Remaining execution
 
-1. Finish Google confirmation, or configure and verify Resend recovery delivery.
-2. Verify the owner-provided phone through SMS and link to the existing account
-   through the application's normal flow; confirm account/company continuity.
-3. Verify logout, phone-first re-entry and anonymous guards in the live browser.
-4. Clean temporary operator files and record final state without overstating UAT.
+1. Configure Resend with a verified sending domain and verify real recovery email
+   delivery through the application. This is the remaining configuration blocker.
+2. Preserve the verified Google/SMS/account-continuity evidence. Do not record
+   private contacts, OTPs, tokens or signing credentials in the repository.
