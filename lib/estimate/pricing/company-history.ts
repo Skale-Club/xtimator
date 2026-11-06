@@ -226,6 +226,18 @@ export async function recordAcceptedEstimatePrices(
       console.warn('[company-history] could not record price observations:', error.message)
       return { recorded: 0 }
     }
+
+    // The owner can undo the acceptance while this runs (the read above and the upsert are
+    // not atomic): re-read, and withdraw what was just filed if it is no longer accepted.
+    const { data: after } = await supabase
+      .from('estimates')
+      .select('client_response')
+      .eq('id', estimateId)
+      .single()
+    if ((after as { client_response: string | null } | null)?.client_response !== 'accepted') {
+      await supabase.from('price_observations').delete().eq('estimate_id', estimateId)
+      return { recorded: 0 }
+    }
     return { recorded: rows.length }
   } catch (err) {
     console.warn('[company-history] recording failed (non-fatal):', err)

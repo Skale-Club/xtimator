@@ -184,17 +184,28 @@ describe('recordAcceptedEstimatePrices', () => {
     ...over,
   })
 
-  function fakeClient(row: unknown, upsertError: unknown = null) {
+  function fakeClient(row: unknown, upsertError: unknown = null, afterResponse: string | null = 'accepted') {
     const upsert = vi.fn().mockResolvedValue({ error: upsertError })
+    const del = vi.fn().mockResolvedValue({ error: null })
+    let reads = 0
     const client = {
       from: vi.fn((table: string) => {
         if (table === 'estimates') {
-          return { select: () => ({ eq: () => ({ single: async () => ({ data: row, error: null }) }) }) }
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: reads++ === 0 ? row : { client_response: afterResponse },
+                  error: null,
+                }),
+              }),
+            }),
+          }
         }
-        return { upsert }
+        return { upsert, delete: () => ({ eq: del }) }
       }),
     }
-    return { client: client as never, upsert }
+    return { client: client as never, upsert, del }
   }
 
   it('files one observation per concept + unit, averaging repeats, skipping unpriced lines', async () => {
@@ -210,6 +221,19 @@ describe('recordAcceptedEstimatePrices', () => {
         expect.objectContaining({ concept_key: conceptKey('Install toilet'), unit: 'each', unit_price: 300 }),
       ]),
     )
+  })
+
+  it('withdraws what it filed when the acceptance was undone while it ran', async () => {
+    const { client, upsert, del } = fakeClient(estimateRow(), null, null)
+    expect((await recordAcceptedEstimatePrices('est-1', client)).recorded).toBe(0)
+    expect(upsert).toHaveBeenCalled()
+    expect(del).toHaveBeenCalledWith('estimate_id', 'est-1')
+  })
+
+  it('keeps the rows when it is still accepted afterwards', async () => {
+    const { client, del } = fakeClient(estimateRow())
+    expect((await recordAcceptedEstimatePrices('est-1', client)).recorded).toBe(2)
+    expect(del).not.toHaveBeenCalled()
   })
 
   it('records ACCEPTED estimates only', async () => {
