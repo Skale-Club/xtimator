@@ -86,6 +86,8 @@ export const presentationSettingsSchema = z
         warranty_terms: z.boolean().optional(),
         notes: z.boolean().optional(),
         photos: z.boolean().optional(),
+        estimate_terms: z.boolean().optional(),
+        valid_until: z.boolean().optional(),
       })
       .optional(),
     tax: z

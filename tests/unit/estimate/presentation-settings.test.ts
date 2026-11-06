@@ -23,6 +23,8 @@ describe('presentation-settings resolver: PRESENT-01..05, retrocompat, GUARD-03'
       warranty_terms: true,
       notes: true,
       photos: true,
+      estimate_terms: true,
+      valid_until: false,
     })
     expect(resolved.tax).toEqual({ mode: 'default' })
     expect(resolved.discount).toEqual({ enabled: false })

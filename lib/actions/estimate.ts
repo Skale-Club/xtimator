@@ -16,6 +16,11 @@ import {
   type SaveEstimateInput,
 } from '@/lib/schemas/estimate'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
+import {
+  computeValidUntil,
+  documentBlocksContext,
+  initialPresentationSettings,
+} from '@/lib/estimate/document-blocks'
 import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable, assertCompanyWritable } from '@/lib/demo/guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
@@ -75,7 +80,7 @@ async function getAuthContext() {
 
   const { data: company } = await supabase
     .from('companies')
-    .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, tax_config')
+    .select('id, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, tax_config')
     .eq('id', activeCompanyId)
     .single()
 
@@ -469,6 +474,14 @@ export async function createBlankEstimate(projectId: string) {
   const taxRate = Number(company.default_tax_rate) || 0
   const paymentTerms = (company.default_payment_terms as string) ?? null
   const warrantyTerms = (company.default_warranty_terms as string) ?? null
+  // SEED-056: materialise the company's document-block defaults into this
+  // estimate (copy, not reference). A blank manual estimate starts without the
+  // AI summary and without any block the company has not configured.
+  const presentationSettings = initialPresentationSettings(
+    company.document_blocks,
+    documentBlocksContext(company, false),
+  )
+  const validUntil = computeValidUntil(null, company.default_validity_days)
 
   // Insert estimate
   const { data: estimate, error: estimateError } = await supabase
@@ -484,6 +497,8 @@ export async function createBlankEstimate(projectId: string) {
       tax_rate: taxRate,
       payment_terms: paymentTerms,
       warranty_terms: warrantyTerms,
+      presentation_settings: presentationSettings,
+      valid_until: validUntil,
       subtotal: 0,
       discount_value: 0,
       discount_amount: 0,

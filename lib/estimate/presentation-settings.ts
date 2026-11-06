@@ -12,6 +12,8 @@ export type SectionKey =
   | 'warranty_terms'
   | 'notes'
   | 'photos'
+  | 'estimate_terms'  // company fine-print card. Absent => visible (legacy)
+  | 'valid_until'     // "Valid until" header line. Absent => HIDDEN (new block)
 
 export interface SectionVisibility {
   summary?: boolean
@@ -21,6 +23,8 @@ export interface SectionVisibility {
   warranty_terms?: boolean
   notes?: boolean
   photos?: boolean
+  estimate_terms?: boolean
+  valid_until?: boolean
 }
 
 /** Tax override state. 'default' = use company tax_config/default_tax_rate
@@ -73,6 +77,11 @@ const DEFAULT_SECTION_VISIBILITY: Required<SectionVisibility> = {
   warranty_terms: true,
   notes: true,
   photos: true,
+  // SEED-056: estimate_terms predates the key, so absent keeps it visible
+  // (legacy rows render byte-identically). valid_until is brand new: no legacy
+  // row has a value for it, so absent means hidden.
+  estimate_terms: true,
+  valid_until: false,
 }
 
 const DEFAULT_TAX_OVERRIDE: TaxOverride = { mode: 'default' }
@@ -104,7 +113,7 @@ export function isSectionVisible(
   settings: ResolvedPresentationSettings,
   section: SectionKey
 ): boolean {
-  return settings.sections[section] !== false // absent/true -> visible; only explicit false hides
+  return settings.sections[section] !== false // absent/true -> visible; only explicit false hides (valid_until defaults to false in the resolver)
 }
 
 /**

@@ -28,8 +28,9 @@ Keep the two in sync.
 | Concept | `companies` column | `estimates` column | Inherited | Notes |
 |---|---|---|---|---|
 | Tax rate | `default_tax_rate` | `tax_rate` | ✅ | NUMERIC(5,4). Copied at creation in both paths. Override indicator + reset wired. |
-| Payment terms | `default_payment_terms` | `payment_terms` | ✅ | Copied at creation; AI may emit its own then fall back to default. Override indicator + reset wired. |
+| Payment terms | `default_payment_terms` | `payment_terms` | ✅ | Copied at creation. The AI never authors it in generate mode (SEED-056), so a fresh AI estimate equals the company default. Whether the block is shown is decided by `document_blocks`. Override indicator + reset wired. |
 | Warranty terms | `default_warranty_terms` | `warranty_terms` | ✅ | Same behavior as payment terms. Override indicator + reset wired. |
+| Valid until | `default_validity_days` | `valid_until` | ✅ | SEED-056 (D4). DATE = (estimate_date or today) + validity days, set at creation; shown only when the `valid_until` block is on. |
 | Currency | `currency_code` | `currency_code` | ✅ | Copied (normalized) at creation. Stored per estimate so history stays stable; not exposed as a per-estimate override in the document UI. |
 | Language | `default_estimate_language` | `language` | ✅ | `estimates.language` is `NOT NULL DEFAULT 'en'`. Resolved via a cascade rather than a direct copy (see below). Edited in the company settings form, not the Estimate Defaults tab. |
 
@@ -37,7 +38,7 @@ Keep the two in sync.
 
 | Concept | `companies` column | Notes |
 |---|---|---|
-| Validity days | `default_validity_days` | **Orphaned.** Column exists (`INTEGER DEFAULT 30`) and is editable in the Estimate Defaults form, but no `estimates.valid_until`/validity column exists and no code reads it. Currently has no downstream effect. |
+| Document blocks | `document_blocks` (JSONB, nullable) | SEED-056. Per-company switches for the optional blocks (summary, payment_terms, warranty_terms, timeline, notes, photos, estimate_terms, valid_until). Resolved by `lib/estimate/document-blocks.ts` at creation and materialised into `estimates.presentation_settings.sections`. NULL = system defaults. |
 | Cover-letter templates | `estimate_template_greeting` / `_opener` / `_closer` / `_signature` | Applied at render time; not stored on the estimate row. |
 | Estimate terms | `estimate_terms_text` (gated by `estimate_terms_enabled`) | Rendered from the profile at view/PDF time. |
 | Delivery / signature toggles | `digital_signature_enabled`, `email_delivery_enabled`, `sms_delivery_enabled` | Control send/sign flows, not estimate columns. |
@@ -76,11 +77,18 @@ estimate override → client.preferred_language → company.default_estimate_lan
 So the company default participates in the cascade but does not directly populate
 `estimates.language`.
 
+## Document blocks (SEED-056)
+
+A new estimate starts with header, client, line items and totals, plus only the
+blocks the company configured. At creation the company's `document_blocks` are
+resolved against what it actually has (payment text, warranty text, fine print)
+and copied into `estimates.presentation_settings.sections`. Legacy rows keep
+`presentation_settings = NULL` and the resolver's all-visible fallback, so they
+render unchanged. `estimate_terms` (absent => visible) and `valid_until`
+(absent => hidden) are the two section keys added by this work.
+
 ## Known gaps (carried forward, not fixed here)
 
-- `default_validity_days` is orphaned — either wire a `valid_until` derivation at
-  creation or remove the unused control.
-- `default_payment_terms` / `default_warranty_terms` are passed to the AI provider
-  interface (`EstimateInput`) but are not embedded into the prompt text by
-  `lib/ai/prompt-builder.ts`; they only take effect via the post-generation
-  fallback. Embedding them would let the model tailor terms to the company voice.
+- `default_payment_terms` / `default_warranty_terms` are deliberately not given
+  to the AI in generate mode (SEED-056): the company's own text is attached
+  automatically and the model may not author it.

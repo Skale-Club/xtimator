@@ -728,6 +728,7 @@ export type Database = {
           default_tax_rate: number | null
           default_validity_days: number | null
           default_warranty_terms: string | null
+          document_blocks: Json | null
           demo_estimate_quota: number | null
           digital_signature_enabled: boolean
           email: string | null
@@ -808,6 +809,7 @@ export type Database = {
           default_tax_rate?: number | null
           default_validity_days?: number | null
           default_warranty_terms?: string | null
+          document_blocks?: Json | null
           demo_estimate_quota?: number | null
           digital_signature_enabled?: boolean
           email?: string | null
@@ -888,6 +890,7 @@ export type Database = {
           default_tax_rate?: number | null
           default_validity_days?: number | null
           default_warranty_terms?: string | null
+          document_blocks?: Json | null
           demo_estimate_quota?: number | null
           digital_signature_enabled?: boolean
           email?: string | null
@@ -1700,6 +1703,7 @@ export type Database = {
           timeline: string | null
           total: number | null
           updated_at: string
+          valid_until: string | null
           version: number
           view_count: number
           viewed_at: string | null
@@ -1751,6 +1755,7 @@ export type Database = {
           timeline?: string | null
           total?: number | null
           updated_at?: string
+          valid_until?: string | null
           version?: number
           view_count?: number
           viewed_at?: string | null
@@ -1802,6 +1807,7 @@ export type Database = {
           timeline?: string | null
           total?: number | null
           updated_at?: string
+          valid_until?: string | null
           version?: number
           view_count?: number
           viewed_at?: string | null

@@ -55,7 +55,7 @@ export const ESTIMATE_PROFILE_FIELD_MAP: readonly ProfileFieldMapping[] = [
     companyColumn: 'default_payment_terms',
     estimateColumn: 'payment_terms',
     inherited: true,
-    notes: 'Copied at creation. In the AI path the model may emit its own value; falls back to the company default when absent. Override indicator + reset wired in EstimateDocument.',
+    notes: 'Copied at creation. Whether the block is SHOWN on a new estimate is a separate decision (companies.document_blocks, SEED-056); the AI never authors it in generate mode, so a fresh AI estimate always equals the company default. Override indicator + reset wired in EstimateDocument.',
   },
   {
     key: 'warranty_terms',
@@ -63,7 +63,7 @@ export const ESTIMATE_PROFILE_FIELD_MAP: readonly ProfileFieldMapping[] = [
     companyColumn: 'default_warranty_terms',
     estimateColumn: 'warranty_terms',
     inherited: true,
-    notes: 'Copied at creation. Same AI-override-then-fallback behavior as payment_terms. Override indicator + reset wired in EstimateDocument.',
+    notes: 'Copied at creation. Same rules as payment_terms (block visibility from document_blocks, never AI-authored in generate mode). Override indicator + reset wired in EstimateDocument.',
   },
   {
     key: 'currency_code',
@@ -84,12 +84,12 @@ export const ESTIMATE_PROFILE_FIELD_MAP: readonly ProfileFieldMapping[] = [
 
   // ── profile-only ─────────────────────────────────────────────────────────
   {
-    key: 'validity_days',
+    key: 'document_blocks',
     category: 'profile-only',
-    companyColumn: 'default_validity_days',
+    companyColumn: 'document_blocks',
     estimateColumn: null,
     inherited: false,
-    notes: 'ORPHANED: the column exists (INTEGER DEFAULT 30) but no estimates.valid_until / validity column exists and no code path reads it. Editable in the Estimate Defaults form but currently has no downstream effect.',
+    notes: 'SEED-056. Nullable JSONB of per-company switches for the optional document blocks. Resolved by lib/estimate/document-blocks.ts at creation and MATERIALISED into estimates.presentation_settings.sections (a copy, so later company changes never alter existing estimates). NULL = system defaults.',
   },
   {
     key: 'estimate_template_greeting',
@@ -154,6 +154,15 @@ export const ESTIMATE_PROFILE_FIELD_MAP: readonly ProfileFieldMapping[] = [
     estimateColumn: null,
     inherited: false,
     notes: 'Delivery feature toggle. Affects send options, not an estimate column.',
+  },
+
+  {
+    key: 'valid_until',
+    category: 'default-with-override',
+    companyColumn: 'default_validity_days',
+    estimateColumn: 'valid_until',
+    inherited: true,
+    notes: 'SEED-056 (D4). DATE. Set at creation in both paths = (estimate_date or today) + default_validity_days; null when the company has no validity. Shown as a header line only when the valid_until block is on (absent => hidden).',
   },
 
   // ── per-estimate-only ────────────────────────────────────────────────────

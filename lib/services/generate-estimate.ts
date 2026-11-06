@@ -35,6 +35,12 @@ import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
 import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
+import {
+  computeValidUntil,
+  documentBlocksContext,
+  initialSectionVisibility,
+  resolveDocumentBlocks,
+} from '@/lib/estimate/document-blocks'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -165,7 +171,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, name, default_estimate_language, tax_config'
+        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, name, default_estimate_language, tax_config'
       )
       .eq('id', companyId)
       .single(),
@@ -192,6 +198,12 @@ export async function generateEstimateForProject(
   if (billingBlocked) throw new BillingBlockedError(billingBlocked.code)
 
   const currencyCode = normalizeCurrencyCode(company.currency_code)
+  // SEED-056: which optional blocks this company's new estimates carry. An AI
+  // estimate keeps the summary (unless the company switched "AI summary" off).
+  const documentBlocks = resolveDocumentBlocks(
+    company.document_blocks,
+    documentBlocksContext(company, true),
+  )
   const priceBookItems = (await getPriceBookItems(supabase, companyId)).filter(
     (item) => normalizeCurrencyCode(item.currency_code) === currencyCode
   )
@@ -647,6 +659,10 @@ export async function generateEstimateForProject(
         aiEstimate.payment_terms ?? company.default_payment_terms ?? null,
       warranty_terms:
         aiEstimate.warranty_terms ?? company.default_warranty_terms ?? null,
+      // SEED-056: materialised at creation (copy, not reference); legacy rows
+      // keep NULL and the resolver's all-visible fallback.
+      presentation_settings: { sections: initialSectionVisibility(documentBlocks) },
+      valid_until: computeValidUntil(null, company.default_validity_days),
       subtotal: safeSubtotal,
       // DISC-02: persist the server-computed GLOBAL discount into the EXISTING estimates.discount_*
       // columns (no new column). At generation there is no global discount → null/0/0, byte-identical.
