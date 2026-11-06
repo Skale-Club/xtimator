@@ -160,6 +160,8 @@ const CLIENT_FACING = [
   'lib/whatsapp/send-estimate.ts',
   'lib/utils/estimate-template.ts',
   'app/estimate',
+  // The MCP read tools return whole rows to an external agent.
+  'lib/mcp/tools/read.ts',
 ].flatMap((p) => {
   const full = join(ROOT, p)
   try {
@@ -190,6 +192,13 @@ describe('client-facing sources never reference owner-only AI data', () => {
     expect(rel.some((f) => f.startsWith('components/pdf/'))).toBe(true)
     expect(rel).toContain('lib/whatsapp/formatter.ts')
     expect(rel).toContain('lib/utils/estimate-template.ts')
+    expect(rel).toContain('lib/mcp/tools/read.ts')
+  })
+
+  it('the MCP get_estimate tool strips the owner-only fields before returning a row', () => {
+    const source = readFileSync(join(ROOT, 'lib/mcp/tools/read.ts'), 'utf8')
+    expect(source).toContain('stripOwnerOnlyEstimate(')
+    expect(source).toContain('stripOwnerOnlyItem')
   })
 
   it.each(CLIENT_FACING.map((f) => [relative(ROOT, f).replace(/\\/g, '/'), f] as const))('%s', (_name, file) => {

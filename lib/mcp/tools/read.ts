@@ -15,6 +15,7 @@
 // All tools are annotated `readOnlyHint: true` so Claude.ai's UI auto-groups
 // them under "Read-only tools (N)" with a single "Always allow" toggle.
 
+import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
 import 'server-only'
 import { z } from 'zod'
 import type { McpAuthContext } from '@/lib/mcp/auth'
@@ -285,11 +286,12 @@ async function handleGetEstimate(auth: McpAuthContext, args: unknown) {
         .select('*')
         .eq('section_id', (section as { id: string }).id)
         .order('sort_order', { ascending: true })
-      return { ...(section as Record<string, unknown>), items: itemsData ?? [] }
+      // The MCP client is an external agent: no owner-only AI fields (SEED-057).
+      return { ...(section as Record<string, unknown>), items: (itemsData ?? []).map(stripOwnerOnlyItem) }
     }),
   )
 
-  return jsonContent({ ...(estimate as Record<string, unknown>), sections: sectionsWithItems })
+  return jsonContent({ ...stripOwnerOnlyEstimate(estimate as Record<string, unknown>), sections: sectionsWithItems })
 }
 
 async function handleListClients(auth: McpAuthContext, args: unknown) {
