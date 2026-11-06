@@ -1,7 +1,8 @@
 'use client'
 
-import { IndustrySelector } from '@/components/onboarding/industry-selector'
+import { IndustryOptions } from '@/components/onboarding/industry-options'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 
 interface Props {
@@ -11,9 +12,10 @@ interface Props {
 }
 
 export function IndustryStep({ values, setValue }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-4">
-      <IndustrySelector
+      <IndustryOptions
         value={values.industries}
         customValues={values.customIndustries}
         onChange={(ids) => setValue('industries', ids)}
@@ -32,12 +34,10 @@ export function IndustryStep({ values, setValue }: Props) {
         />
         <span className="text-sm">
           <span className="font-medium text-foreground">
-            Pre-fill my price book with starter prices.
+            {t('Pre-fill my price book with starter prices.')}
           </span>{' '}
           <span className="text-muted-foreground">
-            We&apos;ll add common services and US average-market prices for the
-            services you selected — starting points you can edit or delete anytime.
-            Leave unchecked to start with an empty price book.
+            {t('Editable US reference prices for your selected services.')}
           </span>
         </span>
       </label>

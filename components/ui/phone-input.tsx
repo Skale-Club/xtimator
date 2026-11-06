@@ -124,6 +124,7 @@ export interface PhoneInputProps {
   value: string
   onChange: (value: string) => void
   onEnter?: () => void
+  enterKeyHint?: React.InputHTMLAttributes<HTMLInputElement>['enterKeyHint']
   id?: string
   name?: string
   placeholder?: string
@@ -136,6 +137,7 @@ export function PhoneInput({
   value,
   onChange,
   onEnter,
+  enterKeyHint,
   id,
   name,
   placeholder,
@@ -272,6 +274,7 @@ export function PhoneInput({
         id={id}
         name={name}
         type="tel"
+        enterKeyHint={enterKeyHint}
         inputMode="tel"
         autoComplete="tel-national"
         autoFocus={autoFocus}
@@ -281,7 +284,7 @@ export function PhoneInput({
         value={localNumber}
         onChange={handleNumberChange}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault()
             onEnter?.()
           }

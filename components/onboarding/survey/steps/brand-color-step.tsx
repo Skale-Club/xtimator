@@ -9,11 +9,12 @@ interface Props {
   onNext: () => void
 }
 
-export function BrandColorStep({ values, setValue }: Props) {
+export function BrandColorStep({ values, setValue, onNext }: Props) {
   return (
     <ColorPicker
       value={values.brandPrimaryColor}
       onChange={(c) => setValue('brandPrimaryColor', c)}
+      onEnter={onNext}
     />
   )
 }

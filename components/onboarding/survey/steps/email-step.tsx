@@ -3,6 +3,7 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   values: OnboardingValues
@@ -11,22 +12,24 @@ interface Props {
 }
 
 export function EmailStep({ values, setValue, onNext }: Props) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor="survey-email" className="sr-only">
-        Email
+        {t('Email')}
       </Label>
       <Input
         id="survey-email"
         type="email"
+        enterKeyHint="next"
         autoFocus
         autoComplete="email"
         placeholder="john@smithpainting.com"
-        className="min-h-[44px]"
+        className="min-h-[44px] text-base"
         value={values.email}
         onChange={(e) => setValue('email', e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault()
             onNext()
           }

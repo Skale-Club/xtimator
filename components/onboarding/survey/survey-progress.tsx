@@ -1,23 +1,26 @@
+import { useTranslation } from '@/lib/i18n/use-translation'
+
 interface SurveyProgressProps {
   current: number
   total: number
 }
 
 export function SurveyProgress({ current, total }: SurveyProgressProps) {
+  const { t } = useTranslation()
   const safeTotal = Math.max(total, 1)
   const oneBased = current + 1
   const pct = Math.round((oneBased / safeTotal) * 100)
   return (
     <div
       className="flex flex-col gap-2"
-      aria-label={`Step ${oneBased} of ${safeTotal}`}
+      aria-label={`${t('Step')} ${oneBased} ${t('of')} ${safeTotal}`}
     >
       <div
         className="flex justify-between text-xs text-muted-foreground"
         aria-live="polite"
       >
         <span>
-          Step {oneBased} of {safeTotal}
+          {t('Step')} {oneBased} {t('of')} {safeTotal}
         </span>
         <span>{pct}%</span>
       </div>
