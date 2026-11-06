@@ -23,8 +23,6 @@ export function toRefineEstimateInput(input: RefineEstimateInput): EstimateInput
     prompts: [],
     priceBookItems: input.priceBookItems,
     currencyCode: input.currencyCode,
-    defaultPaymentTerms: null,
-    defaultWarrantyTerms: null,
     language: input.language,
   }
 }

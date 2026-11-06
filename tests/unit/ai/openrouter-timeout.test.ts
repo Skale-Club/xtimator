@@ -88,8 +88,6 @@ function makeInput(): EstimateInput {
     transcripts: ['kitchen remodel'],
     photoDescriptions: [],
     priceBookItems: [],
-    defaultPaymentTerms: null,
-    defaultWarrantyTerms: null,
   }
 }
 

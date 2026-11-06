@@ -43,6 +43,25 @@ const LANGUAGE_INSTRUCTIONS: Record<'en' | 'pt' | 'es', string> = {
 }
 
 /**
+ * SEED-056: tells the model which document blocks it may write. The company's
+ * own payment / warranty text is attached automatically, so the model is told
+ * not to author it (the tool schema does not even offer those fields).
+ */
+export function documentBlocksPrompt(aiBlocks: EstimateInput['aiBlocks']): string {
+  const lines = [
+    '## Document blocks',
+    "Do not write payment terms or warranty terms; the company's own text is attached automatically.",
+    aiBlocks?.timeline
+      ? 'Write a timeline only if the source material states dates or durations; otherwise omit it.'
+      : 'Omit the timeline field.',
+    aiBlocks?.notes
+      ? 'Write notes only for assumptions the client must know; otherwise omit them.'
+      : 'Omit the notes field.',
+  ]
+  return lines.join('\n')
+}
+
+/**
  * HARD-02 / UNIFY-02 — single prompt source of truth for BOTH generate and refine.
  *
  * `opts.mode` swaps ONLY the opening role/task paragraph; the `## Language`,
@@ -78,6 +97,12 @@ Also generate a short, professional project name in 2-5 words derived from the w
       .join('\n')
   } else {
     prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`
+  }
+
+  // SEED-056 Phase C: generate mode only. Refine keeps the full schema and the
+  // owner's instruction decides, so it gets no such paragraph.
+  if (mode === 'generate') {
+    prompt += `\n\n${documentBlocksPrompt(input.aiBlocks)}`
   }
 
   // TAX-02 — per-item labor/materials classification instruction. CLASSIFICATION

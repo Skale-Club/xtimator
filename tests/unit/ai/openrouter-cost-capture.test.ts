@@ -90,8 +90,6 @@ function makeInput(): EstimateInput {
     transcripts: ['kitchen remodel'],
     photoDescriptions: [],
     priceBookItems: [],
-    defaultPaymentTerms: null,
-    defaultWarrantyTerms: null,
     costContext: {
       attemptId: 'attempt-123',
       companyId: 'company-abc',

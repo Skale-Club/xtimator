@@ -289,8 +289,6 @@ describe('caption sanitization through prompt-builder (no parallel unsanitized p
     photoDescriptions: [],
     priceBookItems: [],
     currencyCode: 'USD',
-    defaultPaymentTerms: null,
-    defaultWarrantyTerms: null,
     language: 'en',
   }
 

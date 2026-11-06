@@ -66,8 +66,6 @@ const INPUT = {
   transcripts: [],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 beforeEach(() => {

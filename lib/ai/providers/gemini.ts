@@ -5,6 +5,7 @@ import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
+import { shapeEstimateToolSchema } from '../tool-schema'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { InvalidEstimateOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
@@ -287,7 +288,7 @@ export class GeminiAdapter implements AIProvider {
     const createEstimateDeclaration = {
       name: 'create_estimate',
       description: 'Create a structured estimate with sections and line items',
-      parameters: {
+      parameters: shapeEstimateToolSchema({
         type: Type.OBJECT,
         required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
         properties: {
@@ -346,7 +347,7 @@ export class GeminiAdapter implements AIProvider {
             },
           },
         },
-      },
+      }, { mode: 'generate', aiBlocks: input.aiBlocks }),
     }
 
     const response = await ai.models.generateContent({

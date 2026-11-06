@@ -13,8 +13,6 @@ const baseInput: EstimateInput = {
   transcripts: ['Replace water heater'],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 describe('buildSystemPrompt — price book injection', () => {

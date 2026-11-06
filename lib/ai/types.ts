@@ -58,8 +58,13 @@ export type EstimateInput = {
   prompts?: string[]
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
   currencyCode?: string
-  defaultPaymentTerms: string | null
-  defaultWarrantyTerms: string | null
+  /**
+   * SEED-056: which prose blocks the company lets the AI author. Payment and
+   * warranty terms are NEVER authored in generate mode (the company's own text
+   * is attached server-side), so only timeline / notes are flagged. Absent =
+   * both off.
+   */
+  aiBlocks?: { timeline: boolean; notes: boolean }
   /**
    * Phase 52 (SEED-016): target language for AI-generated copy.
    * Defaults to 'en'. EstimateOutput must be in this language.

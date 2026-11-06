@@ -27,8 +27,6 @@ const baseInput: EstimateInput = {
   transcripts: [],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 function makeToolUseResponse(items: unknown[]) {

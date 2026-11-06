@@ -13,8 +13,6 @@ const baseInput: EstimateInput = {
   photoDescriptions: [],
   priceBookItems: [],
   currencyCode: 'USD',
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 describe('Phase 89 deferral closed — prompt forwarding to AI prompt builder', () => {

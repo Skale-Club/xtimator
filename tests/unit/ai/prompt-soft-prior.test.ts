@@ -29,8 +29,6 @@ const baseInput: EstimateInput = {
   transcripts: ['Deep clean a 3-seat sofa and two armchairs'],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 describe('buildSystemPrompt — industry as soft prior (generate mode)', () => {

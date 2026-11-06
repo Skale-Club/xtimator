@@ -175,8 +175,6 @@ describe('OpenRouterAdapter streaming', () => {
       transcripts: ['bathroom remodel'],
       photoDescriptions: [],
       priceBookItems: [],
-      defaultPaymentTerms: null,
-      defaultWarrantyTerms: null,
       costContext: { attemptId: 'attempt-1', companyId: 'company-1', projectId: 'project-1' },
       ...extra,
     }

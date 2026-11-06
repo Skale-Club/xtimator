@@ -107,8 +107,6 @@ const baseEstimateInput = {
   transcripts: ['Replace water heater'],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 const existingEstimate = {

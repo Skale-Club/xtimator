@@ -76,6 +76,7 @@ function makeSupabaseMock({
   hasClient = true,
   existingClients = [] as Array<{ id: string; name: string }>,
   clientIdUpdateError = null as { message: string } | null,
+  companyExtra = {} as Record<string, unknown>,
 }: {
   projectName?: string
   hasClient?: boolean
@@ -150,6 +151,7 @@ function makeSupabaseMock({
                 default_payment_terms: 'Net 30',
                 default_warranty_terms: '1 year',
                 name: 'Test Co',
+                ...companyExtra,
               },
               error: null,
             }),
@@ -281,6 +283,90 @@ describe('generateEstimateForProject', () => {
     expect(estimatesInsertSpy).toHaveBeenCalledOnce()
     const insertPayload = estimatesInsertSpy.mock.calls[0][0] as { public_slug_token: string }
     expect(insertPayload.public_slug_token).toBe('deterministic-token-1')
+  })
+
+  it('SEED-056: payment / warranty are always the company text, never what the model wrote; timeline / notes are discarded while their blocks are off', async () => {
+    const { fromMock, estimatesInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    generateEstimateMock.mockResolvedValue({
+      ...DEFAULT_AI_OUTPUT,
+      payment_terms: 'Invented: 50% upfront',
+      warranty_terms: 'Invented: lifetime',
+      timeline: 'Invented: 2 weeks',
+      notes: 'Invented note',
+    })
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const input = generateEstimateMock.mock.calls[0][0] as { aiBlocks: unknown }
+    expect(input.aiBlocks).toEqual({ timeline: false, notes: false })
+    const payload = estimatesInsertSpy.mock.calls[0][0] as Record<string, unknown>
+    expect(payload.payment_terms).toBe('Net 30')
+    expect(payload.warranty_terms).toBe('1 year')
+    expect(payload.timeline).toBeNull()
+    expect(payload.notes).toBeNull()
+  })
+
+  it('SEED-056: timeline / notes are kept when the company turned those blocks on', async () => {
+    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+      companyExtra: { document_blocks: { timeline: true, notes: true } },
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    generateEstimateMock.mockResolvedValue({ ...DEFAULT_AI_OUTPUT, timeline: '2 weeks', notes: 'Access via alley' })
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const input = generateEstimateMock.mock.calls[0][0] as { aiBlocks: unknown }
+    expect(input.aiBlocks).toEqual({ timeline: true, notes: true })
+    const payload = estimatesInsertSpy.mock.calls[0][0] as Record<string, unknown>
+    expect(payload.timeline).toBe('2 weeks')
+    expect(payload.notes).toBe('Access via alley')
+  })
+
+  it('SEED-056: materialises presentation_settings at creation (summary on for AI, configured text on, rest off) and valid_until', async () => {
+    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+      companyExtra: { default_validity_days: 14 },
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const payload = estimatesInsertSpy.mock.calls[0][0] as {
+      presentation_settings: { sections: Record<string, boolean> }
+      valid_until: string | null
+    }
+    expect(payload.presentation_settings.sections).toEqual({
+      summary: true,
+      sections: true,
+      payment_terms: true,
+      warranty_terms: true,
+      timeline: false,
+      notes: false,
+      photos: true,
+      estimate_terms: false,
+      valid_until: false,
+    })
+    expect(payload.valid_until).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('SEED-056: a company with no payment / warranty text and "AI summary" off starts with a bare document', async () => {
+    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+      companyExtra: { default_payment_terms: null, default_warranty_terms: null, document_blocks: { summary: false } },
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+    await generateEstimateForProject('company-1', 'project-1')
+
+    const payload = estimatesInsertSpy.mock.calls[0][0] as {
+      payment_terms: string | null
+      presentation_settings: { sections: Record<string, boolean> }
+    }
+    expect(payload.payment_terms).toBeNull()
+    expect(payload.presentation_settings.sections).toMatchObject({
+      summary: false,
+      payment_terms: false,
+      warranty_terms: false,
+    })
   })
 
   it('calls generateEstimate with correct input fields', async () => {

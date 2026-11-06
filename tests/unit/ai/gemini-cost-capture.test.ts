@@ -70,8 +70,6 @@ const baseInput: EstimateInput = {
   transcripts: [],
   photoDescriptions: [],
   priceBookItems: [],
-  defaultPaymentTerms: null,
-  defaultWarrantyTerms: null,
 }
 
 // A sample usageMetadata shape matching @google/genai's

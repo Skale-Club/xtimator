@@ -13,6 +13,7 @@ import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../type
 import { getIntegrationKey } from '@/lib/platform-config'
 import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
+import { shapeEstimateToolSchema, type EstimateToolFlags } from '../tool-schema'
 import { InvalidEstimateOutputError, TruncatedOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
@@ -114,6 +115,16 @@ export const estimateToolSchema = {
   },
 }
 
+/**
+ * SEED-056 Phase C: the tool definition for one call. `estimateToolSchema` above
+ * is the FULL schema (refine mode, parity test); generate mode drops the fields
+ * the model must not author (payment / warranty always; timeline / notes unless
+ * the company turned that block on). See lib/ai/tool-schema.ts.
+ */
+export function buildEstimateToolSchema(flags: EstimateToolFlags): typeof estimateToolSchema {
+  return shapeEstimateToolSchema(estimateToolSchema, flags)
+}
+
 type OpenRouterChatResponse = {
   choices?: Array<{
     message?: {
@@ -173,6 +184,7 @@ export class OpenRouterAdapter implements AIProvider {
       operationName: 'generate_estimate',
       costContext: input.costContext,
       onToolArguments,
+      toolFlags: { mode: 'generate', aiBlocks: input.aiBlocks },
     })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
@@ -199,6 +211,7 @@ export class OpenRouterAdapter implements AIProvider {
       user,
       operationName: 'refine_estimate',
       costContext: input.costContext,
+      toolFlags: { mode: 'refine' },
     })
     const r = normalizeOutput(raw)
     if (!r.ok) throw new InvalidEstimateOutputError(r.error)
@@ -222,6 +235,8 @@ export class OpenRouterAdapter implements AIProvider {
      * exact same checks as a buffered one.
      */
     onToolArguments?: (argumentsSoFar: string) => void
+    /** Which document-block fields the tool exposes (SEED-056). */
+    toolFlags: EstimateToolFlags
   }): Promise<Record<string, unknown>> {
     // BYOK: the per-company key override wins; otherwise the platform key.
     const apiKey = this.apiKeyOverride ?? (await getIntegrationKey('openrouter'))
@@ -250,7 +265,7 @@ export class OpenRouterAdapter implements AIProvider {
           function: {
             name: 'create_estimate',
             description: 'Create a structured estimate with sections and line items',
-            parameters: estimateToolSchema,
+            parameters: buildEstimateToolSchema(args.toolFlags),
           },
         },
       ],

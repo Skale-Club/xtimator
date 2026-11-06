@@ -37,6 +37,7 @@ import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import {
   computeValidUntil,
+  aiAuthoredFields,
   documentBlocksContext,
   initialSectionVisibility,
   resolveDocumentBlocks,
@@ -282,8 +283,7 @@ export async function generateEstimateForProject(
     prompts: prompts.length > 0 ? prompts : undefined,
     priceBookItems,
     currencyCode,
-    defaultPaymentTerms: company.default_payment_terms ?? null,
-    defaultWarrantyTerms: company.default_warranty_terms ?? null,
+    aiBlocks: aiAuthoredFields(documentBlocks),
     language,
     // Phase 110 (COST-01): non-LLM correlation context for cost capture. Comes
     // from the TRUSTED params (companyId is a function param, never LLM-derived).
@@ -653,12 +653,14 @@ export async function generateEstimateForProject(
       status: 'draft',
       workflow_status: 'draft',
       summary: aiEstimate.summary,
-      notes: aiEstimate.notes ?? null,
-      timeline: aiEstimate.timeline ?? null,
-      payment_terms:
-        aiEstimate.payment_terms ?? company.default_payment_terms ?? null,
-      warranty_terms:
-        aiEstimate.warranty_terms ?? company.default_warranty_terms ?? null,
+      // SEED-056: the model may only author timeline / notes when the company
+      // switched those blocks on; anything it returns otherwise is discarded
+      // (belt and braces against model drift). Payment and warranty are ALWAYS
+      // the company's own text, so a fresh estimate is never "customized".
+      notes: documentBlocks.notes ? (aiEstimate.notes ?? null) : null,
+      timeline: documentBlocks.timeline ? (aiEstimate.timeline ?? null) : null,
+      payment_terms: company.default_payment_terms ?? null,
+      warranty_terms: company.default_warranty_terms ?? null,
       // SEED-056: materialised at creation (copy, not reference); legacy rows
       // keep NULL and the resolver's all-visible fallback.
       presentation_settings: { sections: initialSectionVisibility(documentBlocks) },

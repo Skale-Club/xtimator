@@ -246,8 +246,6 @@ describe('end-to-end: a photo WITH extraction reaches buildUserContent sanitized
     photoDescriptions: [],
     priceBookItems: [],
     currencyCode: 'USD',
-    defaultPaymentTerms: null,
-    defaultWarrantyTerms: null,
     language: 'en',
   }
 
