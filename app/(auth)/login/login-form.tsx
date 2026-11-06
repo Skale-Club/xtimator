@@ -21,6 +21,7 @@ import { signIn, resetPassword } from '@/lib/actions/auth'
 import { createClient } from '@/lib/supabase/client'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { PhoneSignIn } from '@/components/auth/phone-sign-in'
+import { AuthAgreement, AuthBrand, GradientTopLine } from '@/components/auth/owned-auth-dialog'
 
 // ---------------------------------------------------------------------------
 // Styles (Xphere dark design system)
@@ -453,9 +454,15 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ appName, logoUrl }: LoginFormProps) {
-  return ownedAuthEnabled() ? <div className="w-full max-w-[400px] rounded-2xl border bg-card p-8 text-card-foreground shadow-xl">
-    <div className="mb-6 flex items-center justify-center gap-2"><AppIcon logoUrl={logoUrl} appName={appName} className="size-7" /><span className="font-semibold">{appName}</span></div>
+  return ownedAuthEnabled() ? <div className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-card p-5 text-card-foreground shadow-[0_24px_80px_rgba(0,0,0,0.65)] sm:p-7">
+    <GradientTopLine />
+    <div className="relative pb-5 pt-1 text-center">
+      <AuthBrand appName={appName} logoUrl={logoUrl} />
+      <h1 className="sr-only">Sign in to {appName}</h1>
+      <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Sign in or create your account with your phone number.</p>
+    </div>
     <PhoneSignIn />
+    <AuthAgreement />
   </div> : <LegacyLoginForm appName={appName} logoUrl={logoUrl} />
 }
 

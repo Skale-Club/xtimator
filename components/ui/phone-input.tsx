@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
 import type React from 'react'
 import {
   IconArgentina,
@@ -22,15 +23,8 @@ import {
   IconUnitedStates,
   IconUruguay,
 } from 'nucleo-flags'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-} from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { COUNTRIES, applyMask, maxDigits, type Country } from '@/lib/phone/countries'
 
@@ -152,6 +146,7 @@ export function PhoneInput({
   const initial = parseIncoming(value ?? '')
   const [countryCode, setCountryCode] = useState(initial.countryCode)
   const [localNumber, setLocalNumber] = useState(initial.localNumber)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const country = COUNTRIES.find(c => c.code === countryCode) ?? COUNTRIES[0]
 
@@ -214,54 +209,71 @@ export function PhoneInput({
   }
 
   function handleCountryChange(code: string) {
+    setPickerOpen(false)
+    if (code === countryCode) return
     setCountryCode(code)
     setLocalNumber('')
     onChange('')
   }
 
+  function renderCountry(c: Country) {
+    return (
+      <CommandItem key={c.code} value={`${c.name} +${c.dial} ${c.code}`} onSelect={() => handleCountryChange(c.code)} className="min-h-10">
+        <FlagSvg code={c.code} className="shrink-0 rounded-sm" />
+        <span className="truncate">{c.name}</span>
+        <span className="ml-auto pl-3 tabular-nums text-muted-foreground">+{c.dial}</span>
+        <Check className={`size-4 shrink-0 ${c.code === countryCode ? 'opacity-100' : 'opacity-0'}`} aria-hidden />
+      </CommandItem>
+    )
+  }
+
   return (
     <div className={`flex gap-2 ${className ?? ''}`}>
-      <Select value={countryCode} onValueChange={handleCountryChange} disabled={disabled}>
-        <SelectTrigger className="w-[100px] shrink-0 min-h-[44px] gap-1.5">
-          <span className="flex items-center gap-1.5 text-sm">
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild disabled={disabled}>
+          <button
+            type="button"
+            aria-label={`Country: ${country.name} +${country.dial}`}
+            className="flex min-h-[44px] w-[104px] shrink-0 items-center gap-1.5 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30"
+          >
             <FlagSvg code={countryCode} className="shrink-0 rounded-sm" />
-            <span className="text-muted-foreground">+{country.dial}</span>
-          </span>
-        </SelectTrigger>
-        <SelectContent className="max-h-72">
-          <SelectGroup>
-            <SelectLabel>Suggested</SelectLabel>
-            {preferred.map(c => (
-              <SelectItem key={c.code} value={c.code}>
-                <span className="flex items-center gap-2 min-w-0">
-                  <FlagSvg code={c.code} className="shrink-0 rounded-sm" />
-                  <span className="truncate">{c.name}</span>
-                  <span className="ml-auto pl-3 text-muted-foreground shrink-0">+{c.dial}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-          <SelectSeparator />
-          <SelectGroup>
-            <SelectLabel>Other countries</SelectLabel>
-            {others.map(c => (
-              <SelectItem key={c.code} value={c.code}>
-                <span className="flex items-center gap-2 min-w-0">
-                  <FlagSvg code={c.code} className="shrink-0 rounded-sm" />
-                  <span className="truncate">{c.name}</span>
-                  <span className="ml-auto pl-3 text-muted-foreground shrink-0">+{c.dial}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+            <span className="tabular-nums text-muted-foreground">+{country.dial}</span>
+            <ChevronDown className={`ml-auto size-4 shrink-0 opacity-50 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} aria-hidden />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          collisionPadding={8}
+          data-country-picker
+          className="w-[min(18rem,calc(100vw-1rem))] p-0"
+          onOpenAutoFocus={event => {
+            // A touch screen would throw the keyboard up over the list; there the
+            // search field is focused only when the person taps it.
+            if (window.matchMedia?.('(pointer: coarse)').matches) event.preventDefault()
+          }}
+        >
+          <Command filter={(itemValue, search) => {
+            const query = search.trim().toLowerCase().replace(/^\+/, '')
+            if (!query) return 1
+            return itemValue.toLowerCase().split(' ').some(word => word.replace(/^\+/, '').startsWith(query)) || itemValue.toLowerCase().includes(query) ? 1 : 0
+          }}>
+            <CommandInput placeholder="Search country or code" className="text-base sm:text-sm" />
+            <CommandList className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height,18rem)-3rem))]">
+              <CommandEmpty>No country found.</CommandEmpty>
+              <CommandGroup heading="Suggested">{preferred.map(renderCountry)}</CommandGroup>
+              <CommandSeparator />
+              <CommandGroup heading="Other countries">{others.map(renderCountry)}</CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       <Input
         id={id}
         name={name}
         type="tel"
-        autoComplete="tel"
+        inputMode="tel"
+        autoComplete="tel-national"
         autoFocus={autoFocus}
         disabled={disabled}
         placeholder={placeholder ?? country.format.replace(/#/g, '0')}

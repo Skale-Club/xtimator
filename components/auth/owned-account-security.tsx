@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { PhoneSignIn } from './phone-sign-in'
+import { VISIBLE_AREA_DIALOG } from '@/lib/visual-viewport'
+import { cn } from '@/lib/utils'
 import { identityError } from '@/lib/auth/google-browser'
 import { invalidateOwnedBrowserSession } from '@/lib/auth/owned-browser'
 
@@ -51,6 +53,6 @@ export function OwnedAccountSecurity() {
         {sent ? <Button type="button" variant="ghost" disabled={busy} onClick={() => { setSent(false); setCode('') }}>Change email or request another code</Button> : null}
       </form>
     </section>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-w-[400px]"><DialogTitle>Account verification</DialogTitle><DialogDescription className="sr-only">Verify a new login phone after a recent sign-in.</DialogDescription>{open ? <PhoneSignIn purpose="link" /> : null}</DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className={cn('w-[92%] max-w-md rounded-2xl', VISIBLE_AREA_DIALOG)} onInteractOutside={event => event.preventDefault()}><DialogTitle>Account verification</DialogTitle><DialogDescription className="sr-only">Verify a new login phone after a recent sign-in.</DialogDescription>{open ? <PhoneSignIn purpose="link" /> : null}</DialogContent></Dialog>
   </CardContent></Card>
 }
