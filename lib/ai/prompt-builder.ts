@@ -47,9 +47,9 @@ export function sanitizeField(value: string): string {
 }
 
 const LANGUAGE_INSTRUCTIONS: Record<'en' | 'pt' | 'es', string> = {
-  en: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in English. Use US English conventions for dates: MM/DD/YYYY.',
-  pt: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
-  es: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
+  en: 'Generate ALL text fields (summary, section titles, item descriptions, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in English. Use US English conventions for dates: MM/DD/YYYY.',
+  pt: 'Generate ALL text fields (summary, section titles, item descriptions, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Units stay in the closed list (each, hour, sq ft, linear ft, cu yd, day, job): these are US service businesses, so only the copy is translated, never the units or the measurement system. suggested_project_name should also be in Portuguese.',
+  es: 'Generate ALL text fields (summary, section titles, item descriptions, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Units stay in the closed list (each, hour, sq ft, linear ft, cu yd, day, job): these are US service businesses, so only the copy is translated, never the units or the measurement system. suggested_project_name should also be in Spanish.',
 }
 
 /** The language directive for one estimate language (shared by the planning call). */

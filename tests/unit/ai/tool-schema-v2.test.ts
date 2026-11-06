@@ -183,7 +183,8 @@ describe('unit normaliser', () => {
 
   it('keeps unknown units as written (trimmed): the closed list guides, it never rejects', () => {
     expect(normalizeUnit('  m2 ')).toBe('m2')
-    expect(normalizeUnit('horas')).toBe('horas')
+    expect(normalizeUnit('horas')).toBe('hour')
+    expect(normalizeUnit('serviço')).toBe('job')
     expect(normalizeUnit('gal')).toBe('gal')
     expect(normalizeUnit('')).toBe('')
   })

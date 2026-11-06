@@ -76,6 +76,18 @@ const SYNONYMS: Record<string, CanonicalUnit> = {
   // day
   day: 'day',
   days: 'day',
+  // pt / es spellings a model may still emit: map them back into the closed list
+  un: 'each',
+  und: 'each',
+  unid: 'each',
+  unidad: 'each',
+  hora: 'hour',
+  horas: 'hour',
+  dia: 'day',
+  dias: 'day',
+  servico: 'job',
+  'serviço': 'job',
+  servicio: 'job',
   // job
   job: 'job',
   jobs: 'job',

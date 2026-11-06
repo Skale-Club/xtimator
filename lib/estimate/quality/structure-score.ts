@@ -84,6 +84,60 @@ export interface StructureResult {
   findings: StructureFinding[]
 }
 
+type Lang = 'en' | 'pt' | 'es'
+
+/**
+ * Owner-facing finding messages, in the ESTIMATE's language (the model hints stay English: they
+ * are instructions to the model, which writes in the estimate language anyway). The checks that
+ * only make sense for English wording (mandatory lines, section vocabulary) never run for pt/es,
+ * so their messages exist in English only.
+ */
+const MESSAGES: Record<Lang, {
+  thin: (n: number) => string
+  emptySection: (titles: string[]) => string
+  badUnit: (n: number, names: string) => string
+  zeroQuantity: (n: number, names: string) => string
+  missingBasis: (n: number, total: number) => string
+  duplicates: (n: number, names: string[]) => string
+  miscHeavy: (pct: number) => string
+  noSummary: string
+  tooManyQuestions: (n: number) => string
+}> = {
+  en: {
+    thin: (n) => `Only ${n} line${n === 1 ? '' : 's'} for a job of this size.`,
+    emptySection: (t) => `Empty section${t.length > 1 ? 's' : ''}: ${t.join(', ')}.`,
+    badUnit: (n, names) => `${n} line${n > 1 ? 's' : ''} without a standard unit: ${names}.`,
+    zeroQuantity: (n, names) => `${n} priced line${n > 1 ? 's' : ''} with no quantity: ${names}.`,
+    missingBasis: (n, total) => `The walkthrough states measurements, but ${n} of ${total} lines do not say where their quantity comes from.`,
+    duplicates: (n, names) => `Repeated line${n > 1 ? 's' : ''}: ${names.join(', ')}.`,
+    miscHeavy: (pct) => `${pct}% of the total sits in "misc / other" lines.`,
+    noSummary: 'No scope summary.',
+    tooManyQuestions: (n) => `${n} open questions: too many to be useful.`,
+  },
+  pt: {
+    thin: (n) => `Só ${n} ${n === 1 ? 'linha' : 'linhas'} para um serviço deste tamanho.`,
+    emptySection: (t) => `${t.length > 1 ? 'Seções vazias' : 'Seção vazia'}: ${t.join(', ')}.`,
+    badUnit: (n, names) => `${n} ${n > 1 ? 'linhas sem unidade padrão' : 'linha sem unidade padrão'}: ${names}.`,
+    zeroQuantity: (n, names) => `${n} ${n > 1 ? 'linhas com preço e sem quantidade' : 'linha com preço e sem quantidade'}: ${names}.`,
+    missingBasis: (n, total) => `O áudio traz medidas, mas ${n} de ${total} linhas não dizem de onde vem a quantidade.`,
+    duplicates: (n, names) => `${n > 1 ? 'Linhas repetidas' : 'Linha repetida'}: ${names.join(', ')}.`,
+    miscHeavy: (pct) => `${pct}% do total está em linhas "diversos / outros".`,
+    noSummary: 'Sem resumo do escopo.',
+    tooManyQuestions: (n) => `${n} perguntas em aberto: demais para serem úteis.`,
+  },
+  es: {
+    thin: (n) => `Solo ${n} ${n === 1 ? 'línea' : 'líneas'} para un trabajo de este tamaño.`,
+    emptySection: (t) => `${t.length > 1 ? 'Secciones vacías' : 'Sección vacía'}: ${t.join(', ')}.`,
+    badUnit: (n, names) => `${n} ${n > 1 ? 'líneas sin unidad estándar' : 'línea sin unidad estándar'}: ${names}.`,
+    zeroQuantity: (n, names) => `${n} ${n > 1 ? 'líneas con precio y sin cantidad' : 'línea con precio y sin cantidad'}: ${names}.`,
+    missingBasis: (n, total) => `La grabación trae medidas, pero ${n} de ${total} líneas no dicen de dónde sale la cantidad.`,
+    duplicates: (n, names) => `${n > 1 ? 'Líneas repetidas' : 'Línea repetida'}: ${names.join(', ')}.`,
+    miscHeavy: (pct) => `${pct}% del total está en líneas "varios / otros".`,
+    noSummary: 'Sin resumen del alcance.',
+    tooManyQuestions: (n) => `${n} preguntas abiertas: demasiadas para ser útiles.`,
+  },
+}
+
 const MISC_RE = /^(misc|miscellaneous|other|sundry|various|general allowance|contingency|allowance)\b/i
 const MISC_SHARE_LIMIT = 0.15
 const THIN_BIG_JOB = 1_000
@@ -125,7 +179,9 @@ export function mentionsMeasurements(text: string): boolean {
 
 export function scoreStructure(input: StructureInput): StructureResult {
   const findings: StructureFinding[] = []
-  const english = (input.language ?? 'en') === 'en'
+  const lang: Lang = input.language ?? 'en'
+  const english = lang === 'en'
+  const M = MESSAGES[lang] ?? MESSAGES.en
   // Never trust the shape: a null section or items list must not throw.
   const sections = (Array.isArray(input.sections) ? input.sections : []).filter(
     (s): s is StructureSection => !!s && typeof s === 'object',
@@ -141,7 +197,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'thin_estimate',
       penalty: 20,
-      message: `Only ${items.length} line${items.length === 1 ? '' : 's'} for a job of this size.`,
+      message: M.thin(items.length),
       hint: `Break the work into more specific line items; ${items.length} line${items.length === 1 ? ' is' : 's are'} too coarse for a job this size.`,
     })
   }
@@ -152,24 +208,25 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'empty_section',
       penalty: Math.min(20, empty.length * 10),
-      message: `Empty section${empty.length > 1 ? 's' : ''}: ${empty.map((s) => `"${s.title}"`).join(', ')}.`,
+      message: M.emptySection(empty.map((s) => `"${s.title}"`)),
       hint: `Fill or remove the empty section${empty.length > 1 ? 's' : ''} ${empty.map((s) => `"${s.title}"`).join(', ')}.`,
     })
   }
 
-  // Units from the closed list (English estimates; other languages only need a unit).
+  // Units from the closed list (every language).
   const known = new Set<string>(CANONICAL_UNITS)
   const badUnit = items.filter((i) => {
     const unit = (i.unit ?? '').trim()
     if (!unit) return true
-    return english && !known.has(normalizeUnit(unit))
+    // Units stay in the closed (US) list in EVERY language: only the copy is translated.
+    return !known.has(normalizeUnit(unit))
   })
   if (items.length > 0 && badUnit.length > 0) {
     const share = badUnit.length / items.length
     add({
       code: 'bad_unit',
       penalty: Math.min(20, Math.round(20 * Math.min(1, share * 1.5))),
-      message: `${badUnit.length} line${badUnit.length > 1 ? 's' : ''} without a standard unit: ${quote(badUnit)}.`,
+      message: M.badUnit(badUnit.length, quote(badUnit)),
       hint: `Give ${quote(badUnit)} a unit from: ${CANONICAL_UNITS.join(', ')}.`,
     })
   }
@@ -180,7 +237,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'zero_quantity',
       penalty: Math.min(15, zeroQty.length * 5),
-      message: `${zeroQty.length} priced line${zeroQty.length > 1 ? 's' : ''} with no quantity: ${quote(zeroQty)}.`,
+      message: M.zeroQuantity(zeroQty.length, quote(zeroQty)),
       hint: `Set a real quantity for ${quote(zeroQty)}.`,
     })
   }
@@ -193,7 +250,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
       add({
         code: 'missing_basis',
         penalty: Math.min(15, Math.round(15 * share)),
-        message: `The walkthrough states measurements, but ${noBasis.length} of ${items.length} lines do not say where their quantity comes from.`,
+        message: M.missingBasis(noBasis.length, items.length),
         hint: `The source material states measurements. Derive the quantity of ${quote(noBasis)} from them and give each line a one-line basis.`,
       })
     }
@@ -221,7 +278,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'duplicate_description',
       penalty: Math.min(15, dupes.length * 5),
-      message: `Repeated line${dupes.length > 1 ? 's' : ''}: ${dupes.slice(0, 2).map(([d]) => `"${d}"`).join(', ')}.`,
+      message: M.duplicates(dupes.length, dupes.slice(0, 2).map(([d]) => `"${d}"`)),
       hint: `Merge or differentiate the repeated lines: ${dupes.slice(0, 3).map(([d]) => `"${d}"`).join(', ')}.`,
     })
   }
@@ -244,7 +301,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
       add({
         code: 'misc_heavy',
         penalty: 15,
-        message: `${Math.round((miscTotal / total) * 100)}% of the total sits in "misc / other" lines.`,
+        message: M.miscHeavy(Math.round((miscTotal / total) * 100)),
         hint: 'Replace the "misc / other" lines with specific, itemised work; none may carry more than 15% of the total.',
       })
     }
@@ -254,7 +311,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'missing_summary',
       penalty: 10,
-      message: 'No scope summary.',
+      message: M.noSummary,
       hint: 'Write a 2-4 sentence summary of the work: what, where and for whom.',
     })
   }
@@ -263,7 +320,7 @@ export function scoreStructure(input: StructureInput): StructureResult {
     add({
       code: 'too_many_questions',
       penalty: 5,
-      message: `${input.openQuestions} open questions: too many to be useful.`,
+      message: M.tooManyQuestions(input.openQuestions ?? 0),
       hint: 'Keep only the 5 open questions that move the price the most.',
     })
   }

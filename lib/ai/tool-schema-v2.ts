@@ -27,7 +27,7 @@ export const ESTIMATE_V2_TEXT = {
   scope_confidence:
     "How complete the source material was for pricing this job: 'low', 'medium' or 'high'.",
   purpose: 'One line on what this section covers.',
-  unit: `The unit of measure. Prefer one of: ${CANONICAL_UNITS.join(', ')}. In a non-English estimate use the translated unit.`,
+  unit: `The unit of measure. Prefer one of: ${CANONICAL_UNITS.join(', ')}. Units stay in this list in every language (US measurements).`,
   confidence:
     "How sure you are of this line (quantity and price together): 'low', 'medium' or 'high'.",
   basis:

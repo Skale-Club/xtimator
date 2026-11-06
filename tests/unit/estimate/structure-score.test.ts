@@ -88,11 +88,53 @@ describe('scoreStructure', () => {
     expect(finding.message).toContain('2 lines')
   })
 
-  it('non-English estimates only need a unit, not an English one', () => {
-    const r = scoreStructure({ ...GOOD, language: 'pt', sections: [{ title: 'Paredes', items: [item({ unit: 'm2' }), item({ unit: 'horas' })] }] })
-    expect(codes(r)).not.toContain('bad_unit')
-    expect(codes(r)).not.toContain('off_vocabulary')
-    expect(codes(r)).not.toContain('missing_mandatory')
+  it('units stay US in every language: a metric unit is flagged, a closed-list unit is not', () => {
+    const us = scoreStructure({ ...GOOD, language: 'pt', sections: [{ title: 'Paredes', items: [item({ unit: 'sq ft' }), item({ unit: 'horas' })] }] })
+    expect(codes(us)).not.toContain('bad_unit')
+    expect(codes(us)).not.toContain('off_vocabulary')
+    expect(codes(us)).not.toContain('missing_mandatory')
+    const metric = scoreStructure({ ...GOOD, language: 'pt', sections: [{ title: 'Paredes', items: [item({ unit: 'm2' }), item({ unit: 'sq ft' })] }] })
+    expect(codes(metric)).toContain('bad_unit')
+  })
+
+  it('owner messages come in the estimate language (en / pt / es), hints stay English', () => {
+    const bad = (language: 'en' | 'pt' | 'es') =>
+      scoreStructure({ ...GOOD, summary: '', language, sections: [{ title: 'Paredes', items: [item({ unit: null, quantity: 0 }), item({ description: 'Outra', unit: null })] }] })
+    const msgs = (r: ReturnType<typeof scoreStructure>) => Object.fromEntries(r.findings.map((f) => [f.code, f.message]))
+    expect(msgs(bad('en')).missing_summary).toBe('No scope summary.')
+    expect(msgs(bad('pt')).missing_summary).toBe('Sem resumo do escopo.')
+    expect(msgs(bad('es')).missing_summary).toBe('Sin resumen del alcance.')
+    expect(msgs(bad('pt')).bad_unit).toMatch(/sem unidade padrão/)
+    expect(msgs(bad('es')).bad_unit).toMatch(/sin unidad estándar/)
+    expect(msgs(bad('pt')).zero_quantity).toMatch(/sem quantidade/)
+    for (const lang of ['en', 'pt', 'es'] as const) {
+      for (const f of bad(lang).findings) {
+        expect(f.hint).toMatch(/[A-Za-z]/)
+        expect(f.hint).not.toMatch(/sem unidade|sin unidad|Sem resumo|Sin resumen/)
+      }
+    }
+  })
+
+  it('every message exists in every language and mentions the same counts', () => {
+    const many = (language: 'en' | 'pt' | 'es') =>
+      scoreStructure({
+        summary: 'Resumo longo o suficiente para passar da regra.',
+        language,
+        playbook: painting,
+        openQuestions: 7,
+        sections: [
+          { title: 'A', items: [item({ unit: null }), item({ unit: null }), item({ description: 'Miscellaneous', unit: 'job', quantity: 1, unit_price: 9999 })] },
+          { title: 'B', items: [] },
+        ],
+      })
+    for (const lang of ['pt', 'es'] as const) {
+      const r = many(lang)
+      for (const code of ['empty_section', 'bad_unit', 'misc_heavy', 'too_many_questions'] as const) {
+        const f = r.findings.find((x) => x.code === code)
+        expect(f, `${lang}/${code}`).toBeDefined()
+      }
+      expect(r.findings.find((x) => x.code === 'too_many_questions')!.message).toContain('7')
+    }
   })
 
   it('flags a priced line with no quantity', () => {
