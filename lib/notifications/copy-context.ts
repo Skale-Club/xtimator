@@ -106,9 +106,9 @@ export function buildFullCopyContext(
         creditCta: ctx.creditCta ?? 'Subscribe to Pro',
       }
     case 'quota.80pct':
-      // quotaPercent stays defaulted: the Phase-172 DB row for this event still
-      // renders {{quotaPercent}} until notification_templates is updated to the
-      // credit wording (see copy.ts), and a blank would read "used % of ...".
+      // quotaPercent stays defaulted as a safety net: a row not yet migrated to
+      // the credit wording (20261106000003) or an admin-edited one may still
+      // render {{quotaPercent}}, and a blank would read "used % of ...".
       return {
         ...ctx,
         quotaPercent: ctx.quotaPercent ?? 80,

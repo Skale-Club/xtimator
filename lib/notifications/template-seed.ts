@@ -108,14 +108,14 @@ export const EVENT_TEMPLATE_SEED: Record<EventType, TemplateSeedEntry> = {
     variables: [],
   },
   'quota.80pct': {
-    title: 'Approaching monthly limit',
-    body: 'You have used {{quotaPercent}}% of your monthly AI quota.',
-    variables: ['quotaPercent'],
+    title: "You're running low on credits",
+    body: "{{creditCta}} so you don't run out in the middle of an estimate.",
+    variables: ['creditCta'],
   },
   'quota.exhausted': {
-    title: 'Monthly quota exhausted',
-    body: 'You have used all included AI credits this month. Upgrade or wait until reset.',
-    variables: [],
+    title: "You're out of credits",
+    body: '{{creditCta}} to keep creating estimates.',
+    variables: ['creditCta'],
   },
   'whatsapp.inbound': {
     title: 'New WhatsApp message',

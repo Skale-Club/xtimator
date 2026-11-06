@@ -221,11 +221,7 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
       },
     }
 
-    // SEED-055 Phase E: copy.ts moved to the credit wording ahead of the
-    // notification_templates rows (a migration, applied by hand). Until that row
-    // update lands the seed keeps its Phase-172 text, so byte-equivalence is
-    // skipped for these two events only (they are asserted directly below).
-    const COPY_AHEAD_OF_SEED: EventType[] = ['quota.80pct', 'quota.exhausted']
+    // SEED-055 Phase E credit wording (seed mirrors 20261106000003).
     expect(buildNotificationCopy('quota.exhausted', fixtures['quota.exhausted']).title).toBe(
       "You're out of credits",
     )
@@ -234,7 +230,6 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
     )
 
     for (const eventType of Object.keys(EVENT_TEMPLATE_SEED) as EventType[]) {
-      if (COPY_AHEAD_OF_SEED.includes(eventType)) continue
       const ctx = fixtures[eventType]
       const seedRendered = renderTemplate(
         EVENT_TEMPLATE_SEED[eventType].body,

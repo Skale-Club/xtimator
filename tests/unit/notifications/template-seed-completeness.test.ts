@@ -30,6 +30,14 @@ const MIGRATION_PATH = join(
   'supabase/migrations/20260721000001_phase172_notification_templates.sql'
 )
 
+// Later migrations that re-word seeded rows. The seed module always mirrors the
+// LATEST wording, so a body must appear verbatim in the Phase-172 migration or
+// in one of these follow-ups (the tuple check stays on Phase 172, which owns
+// the row inserts).
+const FOLLOW_UP_MIGRATION_PATHS = [
+  join(process.cwd(), 'supabase/migrations/20261106000003_credit_alert_templates.sql'),
+]
+
 describe('EVENT_TEMPLATE_SEED exhaustiveness', () => {
   it('has exactly one seed entry per current EventType (matches EVENT_CATEGORIES key set)', () => {
     const seedKeys = Object.keys(EVENT_TEMPLATE_SEED).sort()
@@ -52,6 +60,10 @@ describe('EVENT_TEMPLATE_SEED exhaustiveness', () => {
 
 describe('migration SQL / TS seed drift guard', () => {
   const migrationSql = readFileSync(MIGRATION_PATH, 'utf-8')
+  const bodySearchSql = [
+    migrationSql,
+    ...FOLLOW_UP_MIGRATION_PATHS.map((p) => readFileSync(p, 'utf-8')),
+  ].join('\n')
 
   it('contains a scope/event_type/channel tuple and a verbatim body for every seed entry', () => {
     for (const [eventType, entry] of Object.entries(EVENT_TEMPLATE_SEED)) {
@@ -62,11 +74,10 @@ describe('migration SQL / TS seed drift guard', () => {
       ).toBe(true)
 
       // SQL-escape single quotes the same way a SQL string literal would
-      // (none of the current 17 bodies contain an apostrophe, so this is a
-      // no-op today — kept correct for future entries).
+      // (only the quota.80pct credit body contains an apostrophe today).
       const escapedBody = entry.body.replace(/'/g, "''")
       expect(
-        migrationSql.includes(escapedBody),
+        bodySearchSql.includes(escapedBody),
         `migration SQL is missing the verbatim body for "${eventType}": ${entry.body}`
       ).toBe(true)
     }

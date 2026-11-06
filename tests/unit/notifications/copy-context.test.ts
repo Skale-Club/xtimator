@@ -65,15 +65,6 @@ const KNOWN_WHITESPACE_ARTIFACT_EVENTS = new Set<EventType>([
   'estimate.expired',
 ])
 
-/**
- * SEED-055 Phase E: copy.ts carries the credit wording for these two events
- * while the notification_templates rows still hold the Phase-172 text (updating
- * them is a migration, applied by hand). Byte-equivalence is skipped for them;
- * the tests below prove the sparse context still renders no blanks through the
- * OLD seed body AND carries the new CTA for the credit copy.
- */
-const COPY_AHEAD_OF_SEED = new Set<EventType>(['quota.80pct', 'quota.exhausted'])
-
 function normalizeWhitespaceArtifact(s: string): string {
   return s
     .replace(/\s+/g, ' ')
@@ -99,13 +90,7 @@ describe('lib/notifications/copy-context — buildFullCopyContext', () => {
           'text'
         )
 
-        if (COPY_AHEAD_OF_SEED.has(eventType)) {
-          // No blank interpolation through the (old) seed, and the new copy
-          // gets a CTA out of the sparse context.
-          expect(resolverBody).not.toMatch(/\{\{|used %/)
-          expect(oracle.body).toContain('Subscribe to Pro')
-          expect(fullCtx.creditCta).toBe('Subscribe to Pro')
-        } else if (KNOWN_WHITESPACE_ARTIFACT_EVENTS.has(eventType)) {
+        if (KNOWN_WHITESPACE_ARTIFACT_EVENTS.has(eventType)) {
           expect(
             normalizeWhitespaceArtifact(resolverBody),
             `body mismatch for "${eventType}"`
