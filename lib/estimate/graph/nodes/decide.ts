@@ -14,7 +14,9 @@ import type { EstimateStateType } from '../state'
  * onError terminal; otherwise continue to the vagueness assessment.
  */
 export function checkGeneratedEdge(state: EstimateStateType): string {
-  return state.failure || !state.estimateId ? 'onError' : 'assess'
+  if (!state.failure && state.estimateId) return 'assess'
+  // SEED-057 D: a failed TARGETED refine pass falls back to the first draft.
+  return state.previousEstimateId ? 'recoverDraft' : 'onError'
 }
 
 /**

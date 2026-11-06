@@ -27,6 +27,7 @@ import { passthroughRunner, type ChannelAdapter, type StepRunner } from './types
 import { makeGenerateNode } from './nodes/generate'
 import { assessNode } from './nodes/assess'
 import { autoRefineNode } from './nodes/auto-refine'
+import { recoverDraftNode } from './nodes/recover-draft'
 import { checkGeneratedEdge, checkVagueAfterAssessEdge } from './nodes/decide'
 
 /**
@@ -52,16 +53,18 @@ export function buildEstimateGraph(
     .addNode('generate', makeGenerateNode(runner))
     .addNode('assess', assessNode)
     .addNode('autoRefine', autoRefineNode)
+    .addNode('recoverDraft', recoverDraftNode)
     // Topology.
     .addEdge(START, 'ingest')
     .addConditionalEdges('ingest', checkInputsEdge, ['generate', 'onError'])
-    .addConditionalEdges('generate', checkGeneratedEdge, ['assess', 'onError'])
+    .addConditionalEdges('generate', checkGeneratedEdge, ['assess', 'onError', 'recoverDraft'])
     // Phase 96 (D-01): conditional assess edge with cap=1 refine loop.
     // checkVagueAfterAssessEdge routes to autoRefine on first vague result,
     // then to finalize once refineAttempts >= 1. The BOTH targets MUST be
     // listed in the 3rd argument for LangGraph 1.3.6 reachability (Pitfall 1).
     .addConditionalEdges('assess', checkVagueAfterAssessEdge, ['finalize', 'autoRefine'])
     .addEdge('autoRefine', 'generate')
+    .addEdge('recoverDraft', 'finalize')
     .addEdge('finalize', END)
     .addEdge('onError', END)
 

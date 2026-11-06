@@ -57,6 +57,8 @@ export const autoRefineNode = async (
     const targeted = hints.length > 0 ? buildTargetedRefineHint(hints) : REFINE_HINT
     return {
       refineAttempts: (state.refineAttempts ?? 0) + 1,
+      // Kept so a failing second pass can fall back to this draft (recover-draft.ts).
+      previousEstimateId: state.estimateId,
       estimateId: undefined,
       isVague: undefined,
       structureBand: undefined,
