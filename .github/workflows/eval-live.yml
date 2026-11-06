@@ -1,0 +1,94 @@
+name: Eval (live canary)
+
+# SEED-057 Phase F. MANUAL ONLY: runs the golden set against a real model with
+# the current prompt and trade playbooks, and fails when the mean rubric score
+# drops more than 5 points below tests/eval/live/baseline.json. It costs real
+# money (about $1 for the full set at the default model), so it never runs on
+# push or pull_request. Run it before merging a prompt / playbook / schema change.
+#
+# Secret: OPENROUTER_API_KEY_EVAL (a repository secret holding an OpenRouter key
+# with a spend cap). The canary reads it from the environment; it does not touch
+# the platform database or any production key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      two_step:
+        description: "Run plan_scope first (ESTIMATOR_TWO_STEP behaviour)"
+        type: boolean
+        default: false
+      model:
+        description: "Estimator model (blank = anthropic/claude-sonnet-5)"
+        type: string
+        default: ""
+      max_cases:
+        description: "Hard cap on the number of cases (cost control)"
+        type: string
+        default: "20"
+      cases:
+        description: "Comma-separated case ids (blank = all, up to max_cases)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-live
+  cancel-in-progress: false
+
+jobs:
+  live:
+    name: Golden set vs live model
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm install --no-audit --no-fund
+
+      - name: Run the live golden set
+        env:
+          EVAL_LIVE: "1"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY_EVAL }}
+          EVAL_LIVE_TWO_STEP: ${{ inputs.two_step && '1' || '0' }}
+          EVAL_LIVE_MODEL: ${{ inputs.model }}
+          EVAL_LIVE_MAX_CASES: ${{ inputs.max_cases }}
+          EVAL_LIVE_CASES: ${{ inputs.cases }}
+          EVAL_LIVE_OUT: ${{ runner.temp }}/eval-live.json
+        run: npx vitest run tests/eval/live/golden-live.test.ts
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f "${{ runner.temp }}/eval-live.json" ]; then
+            node -e '
+              const r = require(process.argv[1]);
+              const s = r.summary;
+              const lines = [
+                "## Live golden set (" + s.mode + ", " + s.model + ")",
+                "",
+                "Mean **" + s.mean + "** over " + s.cases + " cases, median latency " + (s.medianLatencyMs / 1000).toFixed(1) + "s, cost $" + s.totalCostUsd,
+                s.failed.length ? "Failed: " + s.failed.join(", ") : "",
+                "",
+                "| case | score | latency | cost |",
+                "| --- | --- | --- | --- |",
+                ...r.results.map((x) => "| " + x.id + " | " + (x.rubric ? x.rubric.score : "failed") + " | " + (x.latencyMs / 1000).toFixed(1) + "s | $" + (x.costUsd || 0).toFixed(4) + " |"),
+              ];
+              console.log(lines.join("\n"));
+            ' "${{ runner.temp }}/eval-live.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the report
+        if: always()
+        # Tag-pinned (this repo has no other upload-artifact use to copy a verified SHA from).
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-live-report
+          path: ${{ runner.temp }}/eval-live.json
+          if-no-files-found: ignore

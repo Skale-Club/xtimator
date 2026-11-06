@@ -95,3 +95,4 @@ venv/
 target/
 vendor/
 tmp/
+tests/eval/live/.out/
