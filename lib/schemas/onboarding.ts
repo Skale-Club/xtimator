@@ -35,6 +35,7 @@ export const onboardingSchema = z.object({
   /** Opt-in: seed the price book with starter services + market prices. */
   prefillPriceBook: z.boolean().default(false),
   brandPrimaryColor: z.string().default(SYSTEM_COLORS.primary),
+  logoUrl: z.string().optional(),
 
   // Step 3: Address & Defaults
   address: z.string().optional().default(''),

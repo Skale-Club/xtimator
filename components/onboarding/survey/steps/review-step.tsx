@@ -2,6 +2,7 @@
 
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { INDUSTRIES, resolveIndustries, isKnownIndustry } from '@/lib/industries'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const LABEL_BY_ID = new Map(INDUSTRIES.map((i) => [i.id, i.label]))
 
@@ -19,8 +20,9 @@ function dash(v: string | number | undefined | null): string {
 }
 
 export function ReviewStep({ values, logoPreview }: Props) {
+  const { t } = useTranslation()
   const servicesLabel = resolveIndustries([...values.industries, ...values.customIndustries])
-    .map((v) => LABEL_BY_ID.get(v) ?? v)
+    .map((v) => LABEL_BY_ID.has(v) ? t(LABEL_BY_ID.get(v)!) : v)
     .join(', ')
 
   // Surface a soft warning for custom / unrecognized industries. They're allowed
@@ -38,7 +40,8 @@ export function ReviewStep({ values, logoPreview }: Props) {
     ['Phone', dash(values.phone)],
     ['Email', dash(values.email)],
     ['Services', dash(servicesLabel)],
-    ['Pre-fill price book', values.prefillPriceBook ? 'Yes' : 'No'],
+    ['Language', values.language === 'pt' ? 'Português (BR)' : values.language === 'es' ? 'Español' : 'English'],
+    ['Pre-fill price book', t(values.prefillPriceBook ? 'Yes' : 'No')],
     ['Brand color', dash(values.brandPrimaryColor)],
     ['Address', dash(values.address)],
     ['City / State / ZIP', dash(
@@ -47,9 +50,9 @@ export function ReviewStep({ values, logoPreview }: Props) {
     ['License #', dash(values.licenseNumber)],
     ['Insurance', dash(values.insuranceInfo)],
     ['Tax rate', `${values.defaultTaxRate ?? 0}%`],
-    ['Payment terms', dash(values.defaultPaymentTerms)],
-    ['Warranty terms', dash(values.defaultWarrantyTerms)],
-    ['Validity', `${values.defaultValidityDays ?? 30} days`],
+    ['Payment terms', values.defaultPaymentTerms === 'Net 30' ? t('Net 30') : dash(values.defaultPaymentTerms)],
+    ['Warranty terms', values.defaultWarrantyTerms === '1 year' ? t('1 year') : dash(values.defaultWarrantyTerms)],
+    ['Validity', `${values.defaultValidityDays ?? 30} ${t('days')}`],
   ]
 
   return (
@@ -59,20 +62,18 @@ export function ReviewStep({ values, logoPreview }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoPreview}
-            alt="Logo preview"
+            alt={t('Logo preview')}
             className="h-12 w-12 rounded-md border border-border object-cover"
           />
-          <span className="text-sm text-muted-foreground">Logo selected</span>
+          <span className="text-sm text-muted-foreground">{t('Logo selected')}</span>
         </div>
       ) : null}
 
       {unknownIndustries.length > 0 ? (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-          <span className="font-medium">Double-check your services:</span>{' '}
+          <span className="font-medium">{t('Double-check your services:')}</span>{' '}
           {unknownIndustries.join(', ')}{' '}
-          {unknownIndustries.length === 1 ? 'is a custom entry' : 'are custom entries'} that
-          won&rsquo;t match a built-in template. If one of the standard trades fits your
-          business, pick it for better AI estimates.
+          {t('Custom services do not have a built-in template. Choose a standard service when one fits your business.')}
         </div>
       ) : null}
 
@@ -82,8 +83,8 @@ export function ReviewStep({ values, logoPreview }: Props) {
             key={label}
             className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
           >
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right font-medium text-foreground">{value}</dd>
+            <dt className="shrink-0 text-muted-foreground">{t(label)}</dt>
+            <dd className="min-w-0 break-words text-right font-medium text-foreground">{value}</dd>
           </div>
         ))}
       </dl>

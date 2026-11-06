@@ -2,7 +2,7 @@
 
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
-import { useLanguage } from '@/lib/i18n/language-context'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 
 const FLAG_CLASS = 'h-5 w-5 rounded-[3px] shrink-0'
@@ -19,13 +19,12 @@ interface LanguageStepProps {
 }
 
 export function LanguageStep({ value, onChange }: LanguageStepProps) {
-  const { setLanguage } = useLanguage()
+  const { t } = useTranslation()
 
   const selected = value ?? 'en'
 
   function handleSelect(lang: EstimateLanguage) {
     onChange(lang)
-    setLanguage(lang)
   }
 
   return (
@@ -52,7 +51,7 @@ export function LanguageStep({ value, onChange }: LanguageStepProps) {
               <span className="flex-1">
                 <span className="font-medium">{label}</span>
                 {sublabel ? (
-                  <span className="ml-2 text-sm text-muted-foreground">{sublabel}</span>
+                    <span className="ml-2 text-sm text-muted-foreground">{t(sublabel)}</span>
                 ) : null}
               </span>
               <RadioGroupItem
@@ -65,9 +64,6 @@ export function LanguageStep({ value, onChange }: LanguageStepProps) {
         })}
       </RadioGroup>
 
-      <p className="text-sm text-muted-foreground">
-        Your estimates will default to this language. You can change it per estimate when needed.
-      </p>
     </div>
   )
 }

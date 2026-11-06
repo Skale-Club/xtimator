@@ -1,7 +1,10 @@
+import { onboardingTranslations } from './onboarding-translations'
+
 type TranslationDict = Record<string, string>
 
 export const staticDict: Record<'pt' | 'es', TranslationDict> = {
   pt: {
+    ...onboardingTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -294,6 +297,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
       'Serviço maior que o normal, ainda trabalhando nele',
   },
   es: {
+    ...onboardingTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface SurveyStepProps {
   label: string
@@ -8,17 +9,19 @@ interface SurveyStepProps {
 }
 
 export function SurveyStep({ label, helper, error, children }: SurveyStepProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h1
+          tabIndex={-1}
           aria-live="polite"
-          className="text-2xl font-semibold leading-tight md:text-3xl"
+          className="text-2xl font-semibold leading-tight outline-none md:text-3xl"
         >
-          {label}
+          {t(label)}
         </h1>
         {helper ? (
-          <p className="text-sm text-muted-foreground">{helper}</p>
+          <p className="text-sm text-muted-foreground">{t(helper)}</p>
         ) : null}
       </div>
 
@@ -30,7 +33,7 @@ export function SurveyStep({ label, helper, error, children }: SurveyStepProps) 
           className="text-sm text-destructive"
           data-slot="survey-error"
         >
-          {error}
+          {t(error)}
         </p>
       ) : null}
     </div>

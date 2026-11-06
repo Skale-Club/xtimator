@@ -15,11 +15,13 @@ interface Props {
 
 export function LogoStep({
   values,
+  setValue,
   logoPreview,
   setLogoFile,
   setLogoPreview,
 }: Props) {
   function handleSelect(file: File, preview: string) {
+    setValue('logoUrl', '')
     if (logoPreview && logoPreview !== preview) {
       try {
         URL.revokeObjectURL(logoPreview)
@@ -32,6 +34,7 @@ export function LogoStep({
   }
 
   function handleRemove() {
+    setValue('logoUrl', '')
     if (logoPreview) {
       try {
         URL.revokeObjectURL(logoPreview)

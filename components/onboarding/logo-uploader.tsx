@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
@@ -16,10 +17,10 @@ interface LogoUploaderProps {
 
 export function LogoUploader({
   preview,
-  companyInitial,
   onFileSelect,
   onRemove,
 }: LogoUploaderProps) {
+  const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
 
   function handleClick() {
@@ -34,12 +35,12 @@ export function LogoUploader({
     e.target.value = ''
 
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error('Unsupported image format. Please upload a PNG or JPG file.')
+      toast.error(t('Unsupported image format. Please upload a PNG or JPG file.'))
       return
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('Logo must be under 2MB. Please choose a smaller file.')
+      toast.error(t('Logo must be under 2MB. Please choose a smaller file.'))
       return
     }
 
@@ -56,7 +57,7 @@ export function LogoUploader({
       <button
         type="button"
         role="button"
-        aria-label="Upload company logo"
+        aria-label={t('Upload company logo')}
         onClick={handleClick}
         className="cursor-pointer rounded-lg border border-dashed border-border hover:border-muted-foreground transition-colors"
       >
@@ -64,7 +65,7 @@ export function LogoUploader({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview}
-            alt="Logo preview"
+            alt={t('Logo preview')}
             className="h-20 w-auto max-w-[160px] object-contain rounded-lg p-2"
           />
         ) : (
@@ -89,18 +90,18 @@ export function LogoUploader({
             onClick={handleClick}
             className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            Change
+            {t('Change')}
           </button>
           <button
             type="button"
             onClick={handleRemove}
             className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            Remove
+            {t('Remove')}
           </button>
         </div>
       ) : (
-        <span className="text-sm text-muted-foreground">Upload Logo</span>
+        <span className="text-sm text-muted-foreground">{t('Upload Logo')}</span>
       )}
     </div>
   )

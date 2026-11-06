@@ -5,6 +5,9 @@ import { OnboardingSurvey } from '@/components/onboarding/onboarding-survey'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+import { ownedAuthEnabled } from '@/lib/auth/mode'
+import { accountDefaults } from '@/lib/onboarding/draft'
+import { getOrCreateOnboardingDraft } from '@/lib/queries/onboarding-draft'
 
 export const metadata: Metadata = { robots: PRIVATE_ROBOTS }
 
@@ -27,7 +30,6 @@ export default async function OnboardingPage({
     redirect('/?auth=login')
   }
 
-  const branding = await getBranding()
   const { mode } = await searchParams
   const addMode: 'first' | 'add' = mode === 'add' ? 'add' : 'first'
 
@@ -44,6 +46,10 @@ export default async function OnboardingPage({
       redirect('/dashboard')
     }
   }
+  // Google identity exchange requires SMS before issuing a new owned session.
+  // Also block an older phone-less session from bypassing that requirement.
+  if (ownedAuthEnabled() && !claims.phone) redirect('/?auth=login')
+  const [branding, draft] = await Promise.all([getBranding(), getOrCreateOnboardingDraft(addMode)])
 
   // Prefill company name and subdomain captured during account-creation step two.
   // They were stored on the auth user's metadata at sign up so they survive the
@@ -52,13 +58,15 @@ export default async function OnboardingPage({
     company_name?: string
     subdomain?: string
   }
-  const initialValues =
-    addMode === 'first'
+  const initialValues = {
+    ...accountDefaults(claims),
+    ...(addMode === 'first'
       ? {
           ...(metadata.company_name ? { companyName: metadata.company_name } : {}),
           ...(metadata.subdomain ? { subdomain: metadata.subdomain } : {}),
         }
-      : undefined
+      : {}),
+  }
 
   return (
     <OnboardingSurvey
@@ -66,6 +74,7 @@ export default async function OnboardingPage({
       logoUrl={branding.logoUrl}
       mode={addMode}
       initialValues={initialValues}
+      draft={draft}
     />
   )
 }
