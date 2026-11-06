@@ -143,6 +143,15 @@ describe('company knowledge', () => {
     expect(user).toContain('&lt;script&gt;')
   })
 
+  it('the cap counts the ESCAPED text: markup-heavy entries cannot blow the budget', () => {
+    const hostile = [{ title: 't', body: '<'.repeat(5000) }, { title: 'u', body: '&'.repeat(5000) }]
+    const block = knowledgeUserBlock(hostile, (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))!
+    const inner = [...block.matchAll(/<knowledge>([\s\S]*?)<\/knowledge>/g)].map((m) => m[1].length)
+    expect(inner.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(KNOWLEDGE_MAX_CHARS)
+    // No half entity at a cut.
+    for (const m of block.matchAll(/<knowledge>([\s\S]*?)<\/knowledge>/g)) expect(m[1]).not.toMatch(/&[a-z]*$/)
+  })
+
   it('takes at most five entries and about 1.5k tokens in total', () => {
     const many = Array.from({ length: 12 }, (_, i) => ({ title: `T${i}`, body: 'y'.repeat(3000) }))
     const block = knowledgeUserBlock(many, (s) => s)!

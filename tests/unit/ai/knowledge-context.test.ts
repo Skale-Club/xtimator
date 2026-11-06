@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const retrieveMock = vi.fn()
 vi.mock('@/lib/knowledge/retrieve', () => ({ retrieve: (...a: unknown[]) => retrieveMock(...a) }))
 
-import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
+const existsMock = vi.fn()
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: () => ({
+    from: () => ({ select: () => ({ or: () => ({ limit: () => existsMock() }) }) }),
+  }),
+}))
+
+import { KNOWLEDGE_MIN_SIMILARITY, buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 
 const passage = (n: number) => ({
   id: `p${n}`,
@@ -17,6 +24,7 @@ const passage = (n: number) => ({
 describe('loadKnowledgeContext (SEED-057 E5)', () => {
   beforeEach(() => {
     retrieveMock.mockReset()
+    existsMock.mockReset().mockResolvedValue({ data: [{ id: 'k' }], error: null })
   })
 
   it('asks for the top five and scopes by the trusted company and industries', async () => {
@@ -40,6 +48,32 @@ describe('loadKnowledgeContext (SEED-057 E5)', () => {
       throw new Error('embeddings down')
     })
     expect(await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })).toEqual([])
+  })
+
+  it('drops entries under the similarity floor (the RPC always returns its top k)', async () => {
+    retrieveMock.mockResolvedValue([
+      { ...passage(1), similarity: 0.62 },
+      { ...passage(2), similarity: KNOWLEDGE_MIN_SIMILARITY },
+      { ...passage(3), similarity: 0.12 },
+    ])
+    const out = await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })
+    expect(out.map((p) => p.title)).toEqual(['Title 1', 'Title 2'])
+  })
+
+  it('skips the embedding call entirely when there is no knowledge to find', async () => {
+    existsMock.mockResolvedValue({ data: [], error: null })
+    expect(await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })).toEqual([])
+    expect(retrieveMock).not.toHaveBeenCalled()
+  })
+
+  it('fails OPEN: if the existence check errors, retrieval still runs', async () => {
+    existsMock.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    retrieveMock.mockResolvedValue([passage(1)])
+    expect(await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })).toHaveLength(1)
+    existsMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
+    expect(await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })).toHaveLength(1)
   })
 
   it('does not call retrieval for an empty query', async () => {

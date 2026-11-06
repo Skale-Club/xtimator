@@ -75,9 +75,9 @@ export interface KnowledgeSnippet {
 /**
  * The user-message block carrying knowledge entries, or null when there are
  * none. Every entry goes through `escape` (the caller passes sanitizeField) and
- * is wrapped in its own <knowledge> tag. The character cap is applied to the
- * RAW text before escaping so the budget is what the model actually reads, and
- * the last entry is truncated rather than dropped.
+ * is wrapped in its own <knowledge> tag. The character cap is applied AFTER
+ * escaping, so the budget is what the model actually reads, and the last entry
+ * is truncated (never mid-entity) rather than dropped.
  */
 export function knowledgeUserBlock(
   entries: KnowledgeSnippet[] | undefined,
@@ -90,9 +90,12 @@ export function knowledgeUserBlock(
     if (remaining <= 0) break
     const raw = `${entry.title.trim()}\n${entry.body.trim()}`.trim()
     if (!raw) continue
-    const clipped = raw.length > remaining ? raw.slice(0, remaining) : raw
-    remaining -= clipped.length
-    tagged.push(`<knowledge>${escape(clipped)}</knowledge>`)
+    // The cap is on what the model READS: escaping can grow the text (< becomes &lt;), so it is
+    // applied AFTER escaping, and never cuts an entity in half.
+    let text = escape(raw)
+    if (text.length > remaining) text = text.slice(0, remaining).replace(/&[a-z]*$/i, '')
+    remaining -= text.length
+    if (text) tagged.push(`<knowledge>${text}</knowledge>`)
   }
   return tagged.length > 0 ? `## Company Knowledge\n${tagged.join('\n')}` : null
 }
