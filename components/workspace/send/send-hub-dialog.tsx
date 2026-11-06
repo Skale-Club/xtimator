@@ -52,7 +52,7 @@ import { logDeliveryAction, setEstimateSharePassword } from '@/lib/actions/estim
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
 import {
   resolveTemplate,
-  buildItemsBreakdown,
+  buildMessageBreakdown,
 } from '@/lib/utils/estimate-template'
 import { formatCurrency } from '@/lib/utils/format'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
@@ -140,7 +140,8 @@ export function SendHubDialog({
     company_name: companyName,
     owner_name: ownerName,
     total: formatCurrency(estimate.total, estimate.currency_code),
-    items_breakdown: buildItemsBreakdown(estimate, resolvedSettings),
+    // Line items plus the visible payment / timeline / warranty / notes blocks (SEED-056).
+    items_breakdown: buildMessageBreakdown(estimate, resolvedSettings),
   })
   const messageText =
     draft?.id === estimate.id ? draft.text : generatedText

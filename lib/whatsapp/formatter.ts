@@ -12,6 +12,7 @@
 import { formatMoney } from '@/lib/money/currency'
 import { LABELS as DOCUMENT_LABELS } from '@/lib/estimate/document/labels'
 import { formatPercent } from '@/lib/estimate/document/format'
+import { termsTextBlocks } from '@/lib/estimate/document/terms-text'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import {
   resolvePresentationSettings,
@@ -48,6 +49,9 @@ export type FormatterEstimate = {
   balance_due?: number | null
   payment_terms: string | null
   timeline: string | null
+  /** SEED-056 Phase E: sent after the totals when their section is visible. */
+  warranty_terms?: string | null
+  notes?: string | null
   sections: FormatterSection[]
   /** Phase 52: language of AI-generated content; drives label translation */
   language?: 'en' | 'pt' | 'es'
@@ -194,6 +198,14 @@ export function formatEstimateForWhatsApp(
   if (dep.showDeposit) {
     lines.push(`${L.deposit}: -${money(dep.depositAmount)}`)
     lines.push(`${L.balanceDue}: ${money(dep.balanceDue)}`)
+    lines.push('')
+  }
+
+  // ── Terms blocks (SEED-056 Phase E) ───────────────────────────────────────
+  // Payment / timeline / warranty / notes, each only when its section is
+  // visible and it has text -- the same gate the PDF and the web page use.
+  for (const block of termsTextBlocks(estimate, resolved)) {
+    lines.push(block)
     lines.push('')
   }
 

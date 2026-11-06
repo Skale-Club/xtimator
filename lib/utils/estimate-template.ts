@@ -11,6 +11,7 @@ import {
   isSectionVisible,
   type ResolvedPresentationSettings,
 } from '@/lib/estimate/presentation-settings'
+import { termsTextBlocks } from '@/lib/estimate/document/terms-text'
 
 export interface TemplateData {
   client_name: string
@@ -110,5 +111,35 @@ export function buildItemsBreakdown(
         .join('\n')
       return `${header}\n${items}`
     })
+    .join('\n\n')
+}
+
+/**
+ * SEED-056 Phase E: the payment / timeline / warranty / notes blocks as text,
+ * each only when its section is visible and non-empty (same gate as every other
+ * rendering). Returns '' when there is nothing to say.
+ */
+export function buildTermsBreakdown(
+  estimate: EstimateWithSections,
+  resolvedSettings?: ResolvedPresentationSettings | null
+): string {
+  const resolved = resolvedSettings ?? resolvePresentationSettings(null)
+  return termsTextBlocks(estimate, resolved).join('\n\n')
+}
+
+/**
+ * The full {{items_breakdown}} value for the plain-text send template: line
+ * items followed by the visible terms blocks. buildItemsBreakdown alone keeps
+ * its original contract (line items only).
+ */
+export function buildMessageBreakdown(
+  estimate: EstimateWithSections,
+  resolvedSettings?: ResolvedPresentationSettings | null
+): string {
+  return [
+    buildItemsBreakdown(estimate, resolvedSettings),
+    buildTermsBreakdown(estimate, resolvedSettings),
+  ]
+    .filter((part) => part !== '')
     .join('\n\n')
 }

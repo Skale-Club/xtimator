@@ -9,6 +9,7 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
 import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
+import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
@@ -101,7 +102,7 @@ export async function actionSend(
       .select(`
         id, share_token, public_slug_token, total, subtotal, tax_rate, tax_amount,
         deposit_type, deposit_value, balance_due, currency_code, summary,
-        payment_terms, timeline, language,
+        payment_terms, timeline, warranty_terms, notes, presentation_settings, language,
         sections:estimate_sections(
           title, subtotal,
           items:estimate_items(description, quantity, unit, unit_price, total)
@@ -203,7 +204,15 @@ export async function actionSend(
     } else {
       const body =
         deliveryFormat === 'formatted_text'
-          ? formatEstimateForWhatsApp(estimate as FormatterEstimate, clientName, companyName)
+          ? formatEstimateForWhatsApp(
+              estimate as FormatterEstimate,
+              clientName,
+              companyName,
+              null,
+              null,
+              // SEED-056: honour the estimate's own block visibility, like send-estimate does.
+              (estimate as { presentation_settings?: PresentationSettings | null }).presentation_settings ?? null,
+            )
           : buildShareLinkMessage(shareUrl, clientName)
       try {
         await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } })
