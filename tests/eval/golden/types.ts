@@ -28,7 +28,7 @@ export interface ConceptExpectation {
 /** A quantity the source states (or implies exactly), to be matched within a tolerance. */
 export interface QuantityExpectation extends ConceptExpectation {
   value: number
-  /** English cases only: the canonical unit the line must use. */
+  /** The canonical (US) unit the line must use, in every language. */
   unit?: string
   /** Defaults to 0.2 (plus or minus 20 percent). */
   tolerance?: number

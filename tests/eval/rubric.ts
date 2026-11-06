@@ -110,8 +110,8 @@ export function scoreAgainstRubric(c: GoldenCase, out: EstimateOutput): RubricRe
       const candidates = descriptions.filter((d) => q.any.some((a) => d.text.includes(fold(a))))
       const hit = candidates.some(({ item }) => {
         const within = Math.abs(item.quantity - q.value) <= q.value * tolerance
-        const unitOk =
-          c.language !== 'en' || !q.unit || normalizeUnit(item.unit ?? '') === normalizeUnit(q.unit)
+        // Units stay US in every language, so the unit is checked in every language.
+        const unitOk = !q.unit || normalizeUnit(item.unit ?? '') === normalizeUnit(q.unit)
         return within && unitOk
       })
       if (hit) ok++

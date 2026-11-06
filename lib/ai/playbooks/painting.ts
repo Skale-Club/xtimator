@@ -47,7 +47,7 @@ export const painting: Playbook = {
     ['prime', 'primer', 'priming'],
   ],
   example: {
-    scenario: 'Repaint walls, ceiling and trim of a 12 x 14 ft bedroom with 8 ft ceilings.',
+    scenario: 'Repaint walls, ceiling and trim of a 12 x 14 ft bedroom with 8 ft ceilings, one door and one window.',
     sections: [
       {
         title: 'Prep and protection',
@@ -58,7 +58,7 @@ export const painting: Playbook = {
       {
         title: 'Walls',
         items: [
-          { description: 'Prime and paint walls, two coats', quantity: 340, unit: 'sq ft', unitPrice: 1.9, confidence: 'high', basis: 'perimeter 52 ft x 8 ft - 76 sq ft of openings, from the stated 12 x 14 ft room' },
+          { description: 'Prime and paint walls, two coats', quantity: 381, unit: 'sq ft', unitPrice: 1.9, confidence: 'high', basis: 'perimeter 52 ft x 8 ft - 35 sq ft of openings (door 20, window 15)' },
         ],
       },
       {

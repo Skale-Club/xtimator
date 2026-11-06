@@ -107,127 +107,126 @@ const remodelEn = fromExample('remodel', 'Small Bath Remodel', 'Remodel a 5 x 8 
 // Portuguese, one per trade (hand-written)
 // ---------------------------------------------------------------------------
 
-const cleaningPt = ref('Limpeza Pós-Obra', 'cleaning', 'Limpeza pesada pós-obra de um apartamento de dois quartos e um banheiro, com cozinha completa e janelas.', [
+const cleaningPt = ref('Limpeza Pesada', 'cleaning', 'Limpeza pesada de uma casa de três quartos e dois banheiros, com lavagem do tapete da sala.', [
   ['Áreas', [
-    ['Limpeza completa da cozinha (armários, bancadas, pia)', 1, 'un', 150, 'high', 'uma cozinha citada no áudio'],
-    ['Limpeza do banheiro (box, louças, azulejos)', 1, 'un', 80, 'high', 'um banheiro citado no áudio'],
-    ['Limpeza dos quartos (piso, rodapés, armários)', 2, 'un', 60, 'high', 'dois quartos citados no áudio'],
-    ['Limpeza da sala e do corredor', 1, 'un', 90, 'medium', 'tamanho estimado pela foto'],
+    ['Limpeza completa da cozinha (armários, bancadas, pia)', 1, 'each', 150, 'high', 'uma cozinha citada no áudio'],
+    ['Limpeza dos banheiros (box, louças, azulejos)', 2, 'each', 80, 'high', 'dois banheiros citados no áudio'],
+    ['Limpeza dos quartos (piso, rodapés, armários)', 3, 'each', 60, 'high', 'três quartos citados no áudio'],
+    ['Limpeza da sala e do corredor', 1, 'each', 95, 'medium', 'tamanho estimado pela foto'],
   ]],
   ['Adicionais', [
-    ['Limpeza dos vidros das janelas', 10, 'm2', 6, 'medium', 'cerca de dez metros quadrados de vidro citados no áudio'],
-    ['Remoção de resíduos de tinta e cimento', 1, 'serviço', 120, 'low', 'quantidade de resíduo estimada pela foto'],
+    ['Lavagem do tapete da sala', 200, 'sq ft', 0.45, 'high', '200 pés quadrados citados no áudio'],
+    ['Taxa de sujeira pesada', 1, 'job', 70, 'low', 'estado da casa descrito como muito sujo'],
   ]],
-], { assumptions: ['O apartamento estará vazio na data da limpeza'], exclusions: ['Lavagem de carpetes', 'Remoção de entulho'], questions: ['Há sujeira de tinta no piso que exija produto específico?'] })
+], { assumptions: ['A casa estará desocupada durante a limpeza'], exclusions: ['Limpeza de janelas externas', 'Remoção de entulho'], questions: ['Os armários por dentro também entram na limpeza?'] })
 
-const paintingPt = ref('Pintura da Sala', 'painting', 'Pintura das paredes e do teto de uma sala de 4 x 5 m com pé-direito de 2,7 m, incluindo preparação e limpeza.', [
+const paintingPt = ref('Pintura da Sala', 'painting', 'Pintura das paredes e do teto de uma sala de 15 x 18 pés com pé-direito de 9 pés, incluindo preparação e limpeza.', [
   ['Preparação e proteção', [
-    ['Preparação das paredes, massa corrida e proteção do piso', 1, 'serviço', 220, 'medium', 'preparação padrão para uma sala'],
+    ['Massa corrida nos furos, lixa e proteção do piso', 1, 'job', 240, 'medium', 'preparação padrão para uma sala'],
   ]],
   ['Paredes', [
-    ['Pintura das paredes, duas demãos com selador', 44, 'm2', 14, 'high', 'perímetro de 18 m x 2,7 m menos 4 m2 de aberturas'],
+    ['Pintura das paredes, duas demãos com selador', 560, 'sq ft', 1.8, 'high', 'perímetro de 66 pés x 9 pés menos cerca de 35 pés quadrados de aberturas'],
   ]],
   ['Teto', [
-    ['Pintura do teto, duas demãos', 20, 'm2', 12, 'high', 'sala de 4 x 5 m citada no áudio'],
+    ['Pintura do teto, duas demãos', 270, 'sq ft', 1.4, 'high', 'sala de 15 x 18 pés citada no áudio'],
   ]],
   ['Acabamentos', [
-    ['Pintura dos rodapés', 18, 'ml', 7, 'medium', 'perímetro da sala'],
+    ['Pintura dos rodapés', 63, 'linear ft', 2.2, 'medium', 'perímetro da sala menos a porta'],
   ]],
   ['Limpeza', [
-    ['Limpeza final e descarte de materiais', 1, 'serviço', 70, 'high', 'padrão'],
+    ['Limpeza final e descarte de materiais', 1, 'job', 70, 'high', 'padrão'],
   ]],
 ], { assumptions: ['As paredes estão em bom estado e precisam de pouco reparo'], exclusions: ['Mudança de móveis'], questions: ['Quem fornece a tinta?'] })
 
-const landscapingPt = ref('Gramado do Quintal', 'landscaping', 'Preparo do solo e plantio de grama em placas em 80 m2 do quintal, com poda de duas árvores.', [
+const landscapingPt = ref('Gramado do Quintal', 'landscaping', 'Preparo do solo e plantio de grama em placas em 900 pés quadrados do quintal, com poda de duas árvores.', [
   ['Preparo do terreno', [
-    ['Limpeza, nivelamento e adubação do solo', 80, 'm2', 5, 'medium', '80 m2 citados no áudio'],
+    ['Limpeza, nivelamento e adubação do solo', 900, 'sq ft', 0.55, 'medium', '900 pés quadrados citados no áudio'],
   ]],
   ['Plantio', [
-    ['Grama em placas fornecida e plantada', 88, 'm2', 14, 'high', '80 m2 mais 10% de perda'],
+    ['Grama em placas fornecida e plantada', 990, 'sq ft', 1.3, 'high', '900 pés quadrados mais 10% de perda'],
   ]],
   ['Poda', [
-    ['Poda de árvores de médio porte', 2, 'un', 180, 'high', 'duas árvores citadas no áudio'],
+    ['Poda de árvores de médio porte', 2, 'each', 180, 'high', 'duas árvores citadas no áudio'],
   ]],
   ['Limpeza', [
-    ['Descarte de restos de poda e entulho', 1, 'serviço', 150, 'medium', 'volume estimado'],
+    ['Descarte de restos de poda e entulho', 1, 'job', 150, 'medium', 'volume estimado'],
   ]],
 ], { assumptions: ['Há ponto de água disponível no local'], exclusions: ['Remoção de tocos'], questions: ['O quintal tem irrigação instalada?'] })
 
-const plumbingPt = ref('Vaso e Torneira', 'plumbing', 'Troca do vaso sanitário e da torneira da pia do banheiro, com conserto do vazamento no registro.', [
+const plumbingPt = ref('Vaso e Registro', 'plumbing', 'Troca do vaso sanitário e conserto do vazamento no registro do banheiro.', [
   ['Louças e metais', [
-    ['Troca do vaso sanitário (cliente fornece o vaso)', 1, 'un', 260, 'high', 'um vaso citado no áudio'],
-    ['Troca da torneira da pia', 1, 'un', 120, 'high', 'uma torneira citada no áudio'],
+    ['Troca do vaso sanitário (cliente fornece o vaso)', 1, 'each', 260, 'high', 'um vaso citado no áudio'],
   ]],
   ['Água e esgoto', [
-    ['Conserto do vazamento no registro', 1, 'serviço', 150, 'medium', 'um registro citado no áudio'],
-    ['Engate flexível, vedação e anel de borracha', 1, 'serviço', 55, 'medium', 'peças padrão'],
+    ['Conserto do vazamento no registro', 1, 'job', 150, 'medium', 'um registro citado no áudio'],
+    ['Engate flexível, vedação e anel de borracha', 1, 'job', 55, 'medium', 'peças padrão'],
   ]],
   ['Teste e limpeza', [
-    ['Teste de pressão, retirada do vaso antigo e limpeza', 1, 'serviço', 70, 'high', 'padrão para os dois itens'],
+    ['Retirada do vaso antigo, teste de pressão e limpeza', 1, 'job', 70, 'high', 'padrão'],
   ]],
 ], { assumptions: ['O registro pode ser consertado sem quebrar a parede'], exclusions: ['Reparo de azulejos'], questions: ['O registro precisa ser trocado?'] })
 
 const electricalPt = ref('Tomadas e Pontos de Luz', 'electrical', 'Instalação de cinco tomadas novas e três pontos de luz na sala.', [
   ['Instalação elétrica', [
-    ['Instalação de tomada 20 A', 5, 'un', 65, 'high', 'cinco tomadas citadas no áudio'],
-    ['Instalação de ponto de luz com interruptor', 3, 'un', 90, 'high', 'três pontos citados no áudio'],
-    ['Cabo e eletroduto', 40, 'ml', 4.5, 'medium', 'trajeto estimado de 35 m'],
+    ['Instalação de tomada', 5, 'each', 65, 'high', 'cinco tomadas citadas no áudio'],
+    ['Instalação de ponto de luz com interruptor', 3, 'each', 90, 'high', 'três pontos citados no áudio'],
+    ['Cabo e eletroduto', 120, 'linear ft', 1.4, 'medium', 'trajeto estimado de 115 pés'],
   ]],
   ['Quadro de disjuntores', [
-    ['Disjuntores novos para os circuitos', 2, 'un', 45, 'medium', 'dois circuitos novos'],
+    ['Disjuntores novos para os circuitos', 2, 'each', 45, 'medium', 'dois circuitos novos'],
   ]],
   ['Acabamento e limpeza', [
-    ['Fechamento de rasgos na parede e limpeza', 1, 'serviço', 140, 'medium', 'rasgos para o eletroduto'],
+    ['Fechamento de rasgos na parede e limpeza', 1, 'job', 140, 'medium', 'rasgos para o eletroduto'],
   ]],
 ], { assumptions: ['O quadro tem espaço para dois disjuntores'], exclusions: ['Pintura após o reparo'], questions: ['O quadro tem espaço livre?'] })
 
-const hvacPt = ref('Ar Condicionado Split', 'hvac', 'Instalação de um ar condicionado split de 12 mil BTU no quarto, com 5 m de tubulação.', [
+const hvacPt = ref('Ar Condicionado Mini Split', 'hvac', 'Instalação de um ar condicionado mini split de 12 mil BTU no quarto, com 16 pés de tubulação.', [
   ['Equipamento', [
-    ['Ar condicionado split 12.000 BTU, fornecido e instalado', 1, 'un', 1900, 'high', 'um aparelho citado no áudio'],
-    ['Tubulação de cobre e isolamento', 5, 'ml', 38, 'high', '5 metros citados no áudio'],
+    ['Mini split 12.000 BTU, fornecido e instalado', 1, 'each', 1900, 'high', 'um aparelho citado no áudio'],
+    ['Tubulação de cobre e isolamento', 16, 'linear ft', 12, 'high', '16 pés citados no áudio'],
   ]],
   ['Elétrica e comando', [
-    ['Circuito dedicado e disjuntor', 1, 'serviço', 210, 'medium', 'circuito exclusivo para o aparelho'],
+    ['Circuito dedicado e disjuntor', 1, 'job', 210, 'medium', 'circuito exclusivo para o aparelho'],
   ]],
   ['Partida e testes', [
-    ['Vácuo, carga de gás e teste de funcionamento', 1, 'serviço', 180, 'high', 'obrigatório em instalação nova'],
+    ['Vácuo, carga de gás e teste de funcionamento', 1, 'job', 180, 'high', 'obrigatório em instalação nova'],
   ]],
   ['Limpeza', [
-    ['Fixação do suporte, dreno e limpeza da obra', 1, 'serviço', 120, 'medium', 'padrão'],
+    ['Fixação do suporte, dreno e limpeza da obra', 1, 'job', 120, 'medium', 'padrão'],
   ]],
 ], { assumptions: ['A parede externa permite fixar o suporte'], exclusions: ['Reparo de alvenaria'], questions: ['Onde sai o dreno da condensadora?'] })
 
-const roofingPt = ref('Telhado e Calha', 'roofing', 'Troca de 30 telhas quebradas e refação da calha de 12 metros.', [
+const roofingPt = ref('Telhas e Calha', 'roofing', 'Troca de 30 telhas quebradas e calha nova de 40 pés.', [
   ['Retirada', [
-    ['Retirada das telhas quebradas e descarte', 30, 'un', 4, 'high', '30 telhas citadas no áudio'],
-    ['Retirada da calha antiga', 12, 'ml', 6, 'high', '12 metros citados no áudio'],
+    ['Retirada das telhas quebradas e descarte', 30, 'each', 4, 'high', '30 telhas citadas no áudio'],
+    ['Retirada da calha antiga', 40, 'linear ft', 2, 'high', '40 pés citados no áudio'],
   ]],
   ['Cobertura', [
-    ['Telha cerâmica nova, fornecida e assentada', 30, 'un', 9, 'high', '30 telhas citadas no áudio'],
-    ['Vedação e rufos nas emendas', 12, 'ml', 11, 'medium', 'mesmo trecho da calha'],
+    ['Telha nova, fornecida e assentada', 30, 'each', 9, 'high', '30 telhas citadas no áudio'],
+    ['Vedação e rufos nas emendas', 40, 'linear ft', 3.5, 'medium', 'mesmo trecho da calha'],
   ]],
   ['Calha', [
-    ['Calha nova em chapa galvanizada, instalada', 12, 'ml', 48, 'high', '12 metros citados no áudio'],
+    ['Calha nova em chapa galvanizada, instalada', 40, 'linear ft', 14, 'high', '40 pés citados no áudio'],
   ]],
   ['Limpeza', [
-    ['Limpeza e remoção de entulho', 1, 'serviço', 180, 'medium', 'padrão'],
+    ['Limpeza e remoção de entulho', 1, 'job', 180, 'medium', 'padrão'],
   ]],
 ], { assumptions: ['A estrutura de madeira do telhado está em bom estado'], exclusions: ['Troca de madeiramento'], questions: ['Há infiltração dentro do forro?'] })
 
-const remodelPt = ref('Reforma do Banheiro', 'remodel', 'Reforma de um banheiro de 2 x 3 m: troca do piso e do revestimento das paredes, com demolição e limpeza.', [
+const remodelPt = ref('Reforma do Banheiro', 'remodel', 'Reforma de um banheiro de 6 x 9 pés: troca do piso e do revestimento das paredes, com demolição e limpeza.', [
   ['Demolição', [
-    ['Demolição do piso e do revestimento antigo, com retirada de entulho', 1, 'serviço', 780, 'high', 'banheiro inteiro citado no áudio'],
+    ['Demolição do piso e do revestimento antigo, com retirada de entulho', 1, 'job', 780, 'high', 'banheiro inteiro citado no áudio'],
   ]],
   ['Base', [
-    ['Regularização do contrapiso e impermeabilização', 6, 'm2', 38, 'high', 'banheiro de 2 x 3 m citado no áudio'],
+    ['Regularização do contrapiso e impermeabilização', 54, 'sq ft', 4, 'high', 'banheiro de 6 x 9 pés citado no áudio'],
   ]],
   ['Acabamento', [
-    ['Porcelanato no piso, fornecido e assentado', 6.6, 'm2', 70, 'high', '6 m2 mais 10% de perda'],
-    ['Revestimento das paredes', 12, 'm2', 62, 'high', '12 m2 citados no áudio'],
-    ['Rejunte e silicone', 1, 'serviço', 90, 'medium', 'padrão'],
+    ['Porcelanato no piso, fornecido e assentado', 59, 'sq ft', 12, 'high', '54 pés quadrados mais 10% de perda'],
+    ['Revestimento das paredes', 120, 'sq ft', 11, 'high', '120 pés quadrados citados no áudio'],
+    ['Rejunte e silicone', 1, 'job', 90, 'medium', 'padrão'],
   ]],
   ['Limpeza', [
-    ['Limpeza final da obra', 1, 'serviço', 120, 'high', 'padrão'],
+    ['Limpeza final da obra', 1, 'job', 120, 'high', 'padrão'],
   ]],
 ], { assumptions: ['O encanamento existente será mantido'], exclusions: ['Troca de louças e metais'], questions: ['As louças e os metais também serão trocados?'] })
 
@@ -307,7 +306,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     description: 'Bedroom repaint with stated room dimensions and ceiling height.',
     inputs: {
       transcripts: [
-        "Okay, this is Dana's bedroom. The room is twelve by fourteen feet with eight foot ceilings. We're repainting the walls, the ceiling and the baseboards, and there's one door we need to do both sides. A couple of small nail holes to patch. She picked the colors already. Two coats on everything and we'll prime the walls first.",
+        "Okay, this is Dana's bedroom. The room is twelve by fourteen feet with eight foot ceilings. We're repainting the walls, the ceiling and the baseboards, and there's one door we need to do both sides, and one window. A couple of small nail holes to patch. She picked the colors already. Two coats on everything and we'll prime the walls first.",
       ],
     },
     expect: {
@@ -321,7 +320,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'cleanup', any: ['cleanup', 'clean'] },
       ],
       quantities: [
-        { label: 'wall area', any: ['wall'], value: 340, unit: 'sq ft', tolerance: 0.25 },
+        { label: 'wall area', any: ['wall'], value: 381, unit: 'sq ft', tolerance: 0.25 },
         { label: 'ceiling area', any: ['ceiling'], value: 168, unit: 'sq ft' },
         { label: 'baseboard length', any: ['baseboard'], value: 49, unit: 'linear ft', tolerance: 0.25 },
       ],
@@ -500,10 +499,10 @@ export const GOLDEN_CASES: GoldenCase[] = [
     id: 'cleaning-pt-pos-obra',
     language: 'pt',
     trade: 'cleaning',
-    description: 'Limpeza pos-obra de apartamento de dois quartos.',
+    description: 'Limpeza pesada de casa de tres quartos e dois banheiros.',
     inputs: {
       transcripts: [
-        'Oi, é uma limpeza pós-obra num apartamento de dois quartos e um banheiro. A cozinha precisa de limpeza completa e tem uns dez metros quadrados de vidro nas janelas. Tem resíduo de tinta e de cimento no piso da sala. O apartamento vai estar vazio. Não precisa lavar carpete.',
+        'Oi, é uma limpeza pesada numa casa de três quartos e dois banheiros. A cozinha precisa de limpeza completa e o carpete da sala, uns duzentos pés quadrados, tem que ser lavado. A casa está muito suja, a família ficou meses fora. Vai estar vazia no dia.',
       ],
     },
     expect: {
@@ -512,11 +511,12 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'cozinha', any: ['cozinha'] },
         { label: 'banheiro', any: ['banheiro'] },
         { label: 'quartos', any: ['quarto'] },
-        { label: 'janelas', any: ['janela', 'vidro'] },
+        { label: 'tapete', any: ['tapete', 'carpete'] },
       ],
       quantities: [
-        { label: 'quartos', any: ['quarto'], value: 2 },
-        { label: 'vidros', any: ['janela', 'vidro'], value: 10, tolerance: 0.3 },
+        { label: 'quartos', any: ['quarto'], value: 3, unit: 'each' },
+        { label: 'banheiros', any: ['banheiro'], value: 2, unit: 'each' },
+        { label: 'tapete', any: ['tapete', 'carpete'], value: 200, unit: 'sq ft' },
       ],
       total: band(cleaningPt),
     },
@@ -529,7 +529,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     description: 'Pintura de sala com medidas informadas.',
     inputs: {
       transcripts: [
-        'Vamos pintar a sala da dona Marta. A sala tem quatro por cinco metros e o pé-direito é dois e setenta. É para pintar as paredes e o teto, duas demãos, com selador antes. Tem uma porta e uma janela. Precisa passar massa em alguns furos e proteger o piso. No fim, limpar tudo.',
+        'Vamos pintar a sala da dona Marta. A sala tem quinze por dezoito pés e o pé-direito é de nove pés. É para pintar as paredes e o teto, duas demãos, com selador antes, e os rodapés. Tem uma porta e duas janelas. Precisa passar massa em alguns furos e proteger o piso. No fim, limpar tudo.',
       ],
     },
     expect: {
@@ -541,8 +541,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'limpeza', any: ['limpeza'] },
       ],
       quantities: [
-        { label: 'paredes', any: ['parede'], value: 44, tolerance: 0.25 },
-        { label: 'teto', any: ['teto'], value: 20 },
+        { label: 'paredes', any: ['parede'], value: 560, unit: 'sq ft', tolerance: 0.25 },
+        { label: 'teto', any: ['teto'], value: 270, unit: 'sq ft' },
       ],
       total: band(paintingPt),
     },
@@ -552,10 +552,10 @@ export const GOLDEN_CASES: GoldenCase[] = [
     id: 'landscaping-pt-gramado',
     language: 'pt',
     trade: 'landscaping',
-    description: 'Gramado de oitenta metros quadrados e poda de duas arvores.',
+    description: 'Gramado de novecentos pes quadrados e poda de duas arvores.',
     inputs: {
       transcripts: [
-        'O quintal do seu Paulo tem uns oitenta metros quadrados de terra batida. A ideia é preparar o solo, colocar grama em placas e adubar. Também tem duas árvores médias para podar e tem que levar embora os galhos.',
+        'O quintal do seu Paulo tem uns novecentos pés quadrados de terra batida. A ideia é preparar o solo, colocar grama em placas e adubar. Também tem duas árvores médias para podar e tem que levar embora os galhos.',
       ],
     },
     expect: {
@@ -567,8 +567,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'descarte', any: ['descarte', 'resto', 'entulho'] },
       ],
       quantities: [
-        { label: 'grama', any: ['grama'], value: 88, tolerance: 0.2 },
-        { label: 'árvores', any: ['arvore', 'árvore', 'poda'], value: 2 },
+        { label: 'grama', any: ['grama'], value: 990, unit: 'sq ft', tolerance: 0.2 },
+        { label: 'árvores', any: ['arvore', 'árvore', 'poda'], value: 2, unit: 'each' },
       ],
       total: band(landscapingPt),
     },
@@ -578,23 +578,21 @@ export const GOLDEN_CASES: GoldenCase[] = [
     id: 'plumbing-pt-vaso-torneira',
     language: 'pt',
     trade: 'plumbing',
-    description: 'Troca de vaso sanitario e torneira, vazamento no registro.',
+    description: 'Troca de vaso sanitario e vazamento no registro.',
     inputs: {
       transcripts: [
-        'Preciso trocar o vaso sanitário do banheiro, o cliente já comprou o vaso, e trocar a torneira da pia. Tem também um vazamento no registro da parede. Levar o vaso velho embora e fazer o teste no final.',
+        'Preciso trocar o vaso sanitário do banheiro, o cliente já comprou o vaso. Tem também um vazamento no registro da parede. Levar o vaso velho embora e fazer o teste de pressão no final.',
       ],
     },
     expect: {
       sections: ['loucas', 'agua', 'teste'],
       concepts: [
         { label: 'vaso', any: ['vaso'] },
-        { label: 'torneira', any: ['torneira'] },
         { label: 'registro', any: ['registro', 'vazamento'] },
         { label: 'teste', any: ['teste'] },
       ],
       quantities: [
-        { label: 'vaso', any: ['vaso'], value: 1 },
-        { label: 'torneira', any: ['torneira'], value: 1 },
+        { label: 'vaso', any: ['vaso'], value: 1, unit: 'each' },
       ],
       total: band(plumbingPt),
     },
@@ -607,7 +605,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     description: 'Cinco tomadas e tres pontos de luz.',
     inputs: {
       transcripts: [
-        'Na sala vamos instalar cinco tomadas novas e três pontos de luz com interruptor. O quadro fica no corredor, uns trinta e cinco metros de fio até a sala. Precisa de dois disjuntores novos. Depois tem que fechar os rasgos na parede e limpar.',
+        'Na sala vamos instalar cinco tomadas novas e três pontos de luz com interruptor. O quadro fica no corredor, uns cento e vinte pés de fio até a sala. Precisa de dois disjuntores novos. Depois tem que fechar os rasgos na parede e limpar.',
       ],
     },
     expect: {
@@ -619,8 +617,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'disjuntores', any: ['disjuntor'] },
       ],
       quantities: [
-        { label: 'tomadas', any: ['tomada'], value: 5 },
-        { label: 'pontos de luz', any: ['ponto de luz', 'luz'], value: 3 },
+        { label: 'tomadas', any: ['tomada'], value: 5, unit: 'each' },
+        { label: 'pontos de luz', any: ['ponto de luz', 'luz'], value: 3, unit: 'each' },
       ],
       total: band(electricalPt),
     },
@@ -630,10 +628,10 @@ export const GOLDEN_CASES: GoldenCase[] = [
     id: 'hvac-pt-split',
     language: 'pt',
     trade: 'hvac',
-    description: 'Ar condicionado split de doze mil BTU.',
+    description: 'Mini split de doze mil BTU.',
     inputs: {
       transcripts: [
-        'Instalar um ar condicionado split de doze mil BTU no quarto do casal. A condensadora vai na parede externa, uns cinco metros de tubulação de cobre. Precisa de um circuito exclusivo no quadro, fazer o vácuo, carregar o gás e testar. O dreno desce pela parede.',
+        'Instalar um mini split de doze mil BTU no quarto do casal. A condensadora vai na parede externa, uns dezesseis pés de tubulação de cobre. Precisa de um circuito exclusivo no quadro, fazer o vácuo, carregar o gás e testar. O dreno desce pela parede.',
       ],
     },
     expect: {
@@ -645,8 +643,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'teste ou gás', any: ['vacuo', 'vácuo', 'gás', 'gas', 'teste'] },
       ],
       quantities: [
-        { label: 'aparelho', any: ['split', 'ar condicionado'], value: 1 },
-        { label: 'tubulação', any: ['tubulacao', 'tubulação', 'cobre'], value: 5, tolerance: 0.25 },
+        { label: 'aparelho', any: ['split', 'ar condicionado'], value: 1, unit: 'each' },
+        { label: 'tubulação', any: ['tubulacao', 'tubulação', 'cobre'], value: 16, unit: 'linear ft', tolerance: 0.25 },
       ],
       total: band(hvacPt),
     },
@@ -659,7 +657,7 @@ export const GOLDEN_CASES: GoldenCase[] = [
     description: 'Troca de telhas quebradas e calha nova.',
     inputs: {
       transcripts: [
-        'A casa tem umas trinta telhas quebradas na parte da frente e a calha de doze metros está toda enferrujada. Vamos tirar as telhas quebradas, assentar telha nova, trocar a calha por uma de chapa galvanizada e vedar as emendas. No fim, tirar o entulho.',
+        'A casa tem umas trinta telhas quebradas na parte da frente e a calha de quarenta pés está toda enferrujada. Vamos tirar as telhas quebradas, assentar telha nova, trocar a calha por uma de chapa galvanizada e vedar as emendas. No fim, tirar o entulho.',
       ],
     },
     expect: {
@@ -671,8 +669,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'limpeza', any: ['limpeza', 'entulho'] },
       ],
       quantities: [
-        { label: 'telhas', any: ['telha'], value: 30 },
-        { label: 'calha', any: ['calha'], value: 12 },
+        { label: 'telhas', any: ['telha'], value: 30, unit: 'each' },
+        { label: 'calha', any: ['calha'], value: 40, unit: 'linear ft' },
       ],
       total: band(roofingPt),
     },
@@ -682,10 +680,10 @@ export const GOLDEN_CASES: GoldenCase[] = [
     id: 'remodel-pt-banheiro',
     language: 'pt',
     trade: 'remodel',
-    description: 'Reforma de banheiro de dois por tres metros.',
+    description: 'Reforma de banheiro de seis por nove pes.',
     inputs: {
       transcripts: [
-        'Reforma do banheiro, ele tem dois por três metros. Quebrar o piso e o revestimento velhos e tirar o entulho. Depois regularizar o contrapiso, impermeabilizar, assentar porcelanato no piso e revestir doze metros quadrados de parede. Rejunte no final e limpeza da obra.',
+        'Reforma do banheiro, ele tem seis por nove pés. Quebrar o piso e o revestimento velhos e tirar o entulho. Depois regularizar o contrapiso, impermeabilizar, assentar porcelanato no piso e revestir cento e vinte pés quadrados de parede. Rejunte no final e limpeza da obra.',
       ],
     },
     expect: {
@@ -698,8 +696,8 @@ export const GOLDEN_CASES: GoldenCase[] = [
         { label: 'limpeza', any: ['limpeza'] },
       ],
       quantities: [
-        { label: 'piso', any: ['porcelanato'], value: 6.6, tolerance: 0.2 },
-        { label: 'revestimento', any: ['revestimento'], value: 12 },
+        { label: 'piso', any: ['porcelanato'], value: 59, unit: 'sq ft', tolerance: 0.2 },
+        { label: 'revestimento', any: ['revestimento'], value: 120, unit: 'sq ft' },
       ],
       total: band(remodelPt),
     },
