@@ -14,9 +14,9 @@ interface Props {
 export function LocationStep({ values, setValue, onNext }: Props) {
   const { t } = useTranslation()
   return <div className="space-y-2">
-    <Label htmlFor="survey-region">{t('Service area')}</Label>
+    <Label htmlFor="survey-region" className="sr-only">{t('Service area')}</Label>
     <Input id="survey-region" autoFocus autoComplete="off" enterKeyHint="next" maxLength={120}
-      placeholder={t('Greater Boston, Connecticut or Framingham')}
+      placeholder={t('e.g. Greater Boston')}
       className="min-h-11 text-base" value={values.city} onChange={event => setValue('city', event.target.value)}
       onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); onNext() } }} />
   </div>

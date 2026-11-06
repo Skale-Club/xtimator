@@ -34,10 +34,10 @@ export function IndustryStep({ values, setValue }: Props) {
         />
         <span className="text-sm">
           <span className="font-medium text-foreground">
-            {t('Pre-fill my price book with starter prices.')}
+            {t('Start with suggested prices.')}
           </span>{' '}
           <span className="text-muted-foreground">
-            {t('Editable US reference prices for your selected services.')}
+            {t('US reference prices.')}
           </span>
         </span>
       </label>

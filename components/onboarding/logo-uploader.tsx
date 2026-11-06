@@ -48,7 +48,7 @@ export function LogoUploader({ preview, onFileSelect, onRemove, presentation = '
           {status === 'uploading' ? <Loader2 aria-hidden className="size-4 animate-spin" /> : status === 'error' ? <TriangleAlert aria-hidden className="size-4 shrink-0" /> : <CheckCircle2 aria-hidden className="size-4 shrink-0" />}
           {t(status === 'uploading' ? 'Uploading logo...' : status === 'saved' ? 'Logo uploaded' : status === 'error' ? 'Could not save your logo. Please try again.' : 'Logo selected')}
         </p>
-        {status !== 'error' ? <p className="text-xs leading-relaxed text-muted-foreground">{t('Check your logo before continuing. You can change it below.')}</p> : onRetry ? <button type="button" onClick={onRetry} className="min-h-11 cursor-pointer text-primary underline">{t('Retry')}</button> : null}
+        {status !== 'error' ? <p className="text-xs leading-relaxed text-muted-foreground">{t('Review your logo.')}</p> : onRetry ? <button type="button" onClick={onRetry} className="min-h-11 cursor-pointer text-primary underline">{t('Retry')}</button> : null}
       </div> : null}
       <div className="flex items-center justify-center gap-4">
         <button type="button" onClick={chooseFile} className={cn('cursor-pointer text-sm text-muted-foreground hover:text-foreground', onboarding && 'min-h-11 px-2')}>{t('Change')}</button>
