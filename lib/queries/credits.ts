@@ -39,42 +39,90 @@ export interface CreditOverview {
 const OWNER_SAFE_LEDGER_COLUMNS = 'operation_type, delta_credits, reason, created_at'
 
 /**
- * Phase (CREDITFIX) — actual cycle-grant lookup, replacing the old assumption
- * that every cycle starts at exactly the configured `monthlyCreditGrant`. Sums
- * `credit_ledger.delta_credits` for rows credited this UTC calendar month with
- * reason 'grant' (the monthly/signup grant) or 'topup' (a purchased pack) —
- * the two reasons that actually ADD to a company's allowance for the cycle.
- * Debits ('debit'/'adjust' etc.) are excluded so a mid-cycle top-up correctly
- * raises the denominator instead of being invisible.
+ * SEED-055 Phase E - the topbar chip / usage bar denominator: what the company
+ * was GRANTED in its live paid lots. Sums `granted` over the company's live
+ * (`expires_at > now`) `monthly` lot plus its live `topup` lots, so a mid-cycle
+ * top-up correctly raises the denominator. Signup / adjust lots are excluded
+ * (they are not part of a billing cycle), and expired lots drop out on their
+ * own at the cycle boundary - no UTC-calendar-month assumption any more.
  *
- * Service client (credit_ledger has deny-all RLS, mirrors getCreditOverview
- * above). Never throws — returns 0 on any failure so a transient read error
- * degrades to "nothing granted this cycle" (caller then hides the usage bar
- * entirely rather than showing a wrong percentage).
+ * With no live monthly/topup lot this returns 0, and callers fall back to the
+ * raw balance instead of a percentage (unchanged behaviour).
+ *
+ * Service client (mirrors getCreditOverview). Never throws - returns 0 on any
+ * failure so a transient read error degrades to "no bar".
  */
 export async function getCycleGrantedCredits(companyId: string): Promise<number> {
   try {
     const svc = requireServiceClient()
-    const now = new Date()
-    const startOfMonthIso = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    ).toISOString()
-
     const { data, error } = await svc
-      .from('credit_ledger')
-      .select('delta_credits')
+      .from('credit_lots')
+      .select('granted')
       .eq('company_id', companyId)
-      .in('reason', ['grant', 'topup'])
-      .gte('created_at', startOfMonthIso)
+      .in('source', ['monthly', 'topup'])
+      .gt('expires_at', new Date().toISOString())
 
     if (error || !data) return 0
 
-    return (data as { delta_credits: number }[]).reduce(
-      (sum, row) => sum + (row.delta_credits ?? 0),
+    return (data as { granted: number }[]).reduce(
+      (sum, row) => sum + (row.granted ?? 0),
       0
     )
   } catch {
     return 0
+  }
+}
+
+export type LiveCreditLotSource = 'monthly' | 'topup' | 'signup' | 'adjust'
+
+/** One live lot as the owner sees it: how much is left and when it lapses. */
+export interface LiveCreditLot {
+  source: LiveCreditLotSource
+  remaining: number
+  /** ISO timestamp, or null when the lot never expires (signup / adjust). */
+  expiresAt: string | null
+}
+
+const LOT_SOURCE_ORDER: Record<LiveCreditLotSource, number> = {
+  monthly: 0,
+  topup: 1,
+  signup: 2,
+  adjust: 3,
+}
+
+/**
+ * SEED-055 Phase E - the company's credits split by live lot, for the
+ * /settings/billing balance card. Live = `remaining > 0` and not past
+ * `expires_at`. Owner-safe projection (source, remaining, expires_at only).
+ * Ordered monthly -> purchased (soonest expiry first) -> free -> adjustments.
+ * Never throws - an unreadable table degrades to an empty list (the card then
+ * shows the plain balance).
+ */
+export async function getLiveCreditLots(companyId: string): Promise<LiveCreditLot[]> {
+  try {
+    const svc = requireServiceClient()
+    const { data, error } = await svc
+      .from('credit_lots')
+      .select('source, remaining, expires_at')
+      .eq('company_id', companyId)
+      .gt('remaining', 0)
+    if (error || !data) return []
+
+    const now = Date.now()
+    return (data as { source: LiveCreditLotSource; remaining: number; expires_at: string | null }[])
+      .filter((l) => l.source in LOT_SOURCE_ORDER)
+      .filter((l) => l.expires_at == null || new Date(l.expires_at).getTime() > now)
+      .map((l) => ({ source: l.source, remaining: l.remaining, expiresAt: l.expires_at }))
+      .sort((a, b) => {
+        const bySource = LOT_SOURCE_ORDER[a.source] - LOT_SOURCE_ORDER[b.source]
+        if (bySource !== 0) return bySource
+        return (
+          (a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity) -
+          (b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity)
+        )
+      })
+  } catch {
+    return []
   }
 }
 

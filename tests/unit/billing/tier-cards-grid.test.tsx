@@ -89,14 +89,54 @@ describe('TierCardsGrid — isOwner', () => {
   it('disables non-owner CTAs and shows the owner-only hint', () => {
     render(<TierCardsGrid currentTier="free" isOwner={false} />)
     expect(screen.getByText('Only the company owner can manage billing.')).not.toBeNull()
-    expect((screen.getByRole('button', { name: 'Upgrade to Pro' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'Upgrade to Business' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Subscribe to Pro' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('does not show the hint or disable CTAs when isOwner defaults to true', () => {
     render(<TierCardsGrid currentTier="free" />)
     expect(screen.queryByText('Only the company owner can manage billing.')).toBeNull()
-    expect((screen.getByRole('button', { name: 'Upgrade to Pro' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Subscribe to Pro' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('TierCardsGrid — one plan offer (SEED-055)', () => {
+  it('offers Pro only: Free and Business are not rendered', () => {
+    const { container } = render(<TierCardsGrid currentTier="free" />)
+    expect(container.querySelectorAll('[data-tier]')).toHaveLength(1)
+    expect(container.querySelector('[data-tier="pro"]')).not.toBeNull()
+    expect(container.querySelector('[data-tier="business"]')).toBeNull()
+    expect(container.querySelector('[data-tier="free"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Business/ })).toBeNull()
+    expect(screen.queryByText('Business')).toBeNull()
+  })
+
+  it('states the scope and that every feature is included', () => {
+    render(<TierCardsGrid currentTier="free" featureBullets={{ pro: ['All features included'] }} />)
+    expect(screen.getByText('1 company · 1 user')).not.toBeNull()
+    expect(screen.getByText('All features included')).not.toBeNull()
+  })
+
+  it('does not duplicate the scope bullet when the config already has it', () => {
+    render(
+      <TierCardsGrid
+        currentTier="free"
+        featureBullets={{ pro: ['1 company · 1 user', 'All features included'] }}
+      />
+    )
+    expect(screen.getAllByText('1 company · 1 user')).toHaveLength(1)
+  })
+
+  it('shows the annual price and derived saving from the config prices when Annual is selected', () => {
+    render(
+      <TierCardsGrid
+        currentTier="free"
+        monthlyPricesCents={{ pro: 2900 }}
+        annualPrices={{ pro: 29000 }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Annual' }))
+    expect(screen.getByText('$290')).not.toBeNull()
+    expect(screen.getByText(/Save 17%/)).not.toBeNull()
   })
 })
 
@@ -141,7 +181,7 @@ describe('TierCardsGrid — distinct server error passthrough', () => {
     })
 
     render(<TierCardsGrid currentTier="free" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Upgrade to Pro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Subscribe to Pro' }))
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Already on this plan'))
   })
@@ -150,7 +190,7 @@ describe('TierCardsGrid — distinct server error passthrough', () => {
     ;(fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network down'))
 
     render(<TierCardsGrid currentTier="free" />)
-    fireEvent.click(screen.getByRole('button', { name: 'Upgrade to Pro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Subscribe to Pro' }))
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith('Could not start checkout. Please try again.')

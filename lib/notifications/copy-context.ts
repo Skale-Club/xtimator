@@ -96,14 +96,23 @@ export function buildFullCopyContext(
       }
     case 'trial.expired':
     case 'trial.converted':
-    case 'quota.exhausted':
-      // copy.ts's branches for these three reference no ctx fields at all —
+      // copy.ts's branches for these two reference no ctx fields at all —
       // pass ctx through unchanged, not an error.
       return { ...ctx }
+    case 'quota.exhausted':
+      // SEED-055 Phase E: the credit alert carries the CTA label.
+      return {
+        ...ctx,
+        creditCta: ctx.creditCta ?? 'Subscribe to Pro',
+      }
     case 'quota.80pct':
+      // quotaPercent stays defaulted: the Phase-172 DB row for this event still
+      // renders {{quotaPercent}} until notification_templates is updated to the
+      // credit wording (see copy.ts), and a blank would read "used % of ...".
       return {
         ...ctx,
         quotaPercent: ctx.quotaPercent ?? 80,
+        creditCta: ctx.creditCta ?? 'Subscribe to Pro',
       }
     case 'whatsapp.inbound':
       return {

@@ -6,7 +6,8 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
-import { getCreditOverview, getCycleGrantedCredits } from '@/lib/queries/credits'
+import { getCreditOverview, getCycleGrantedCredits, getLiveCreditLots } from '@/lib/queries/credits'
+import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
@@ -19,6 +20,8 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
 import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
@@ -64,30 +67,27 @@ export default async function BillingPage() {
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
-  const [data, credits, cfg, stripePrices, grantedThisCycle] = await Promise.all([
+  const [data, credits, cfg, stripePrices, grantedThisCycle, lots] = await Promise.all([
     getBillingData(company.id),
     getCreditOverview(company.id),
     getBillingConfig(),
     getStripeDisplayPrices(),
-    // CREDITFIX-01: actual credit_ledger 'grant'/'topup' sum for the current
-    // UTC cycle — replaces the static configured monthlyCreditGrant as the
-    // usage bar's denominator (see computeUsagePercent below).
+    // SEED-055 Phase E: `granted` of the live monthly + top-up lots - the usage
+    // bar's denominator (see computeUsagePercent below).
     getCycleGrantedCredits(company.id),
+    // SEED-055 Phase E: the balance split by live lot, with expiry dates.
+    getLiveCreditLots(company.id),
   ])
 
   if (!data) {
     redirect('/onboarding')
   }
 
-  // CREDITFIX-01 (audit finding #1): the denominator is what was ACTUALLY
-  // granted this cycle, not the static config amount — a Business company
-  // with balance 2000 and a configured grant of 12000 used to render "83%
-  // used" having used nothing (the config grant and the ledger disagreed),
-  // and a company that bought a top-up used to clamp to "0% used" forever
-  // (the static grant never grew to reflect the top-up). When nothing has
-  // been granted this cycle (grantedThisCycle === 0), there's no valid
-  // denominator at all — percentUsed is null and the UI renders the raw
-  // balance instead of a misleading bar.
+  // The denominator is what the live monthly + top-up lots were actually
+  // GRANTED (not the static config amount), so a top-up raises it instead of
+  // clamping the bar to 0%. With no live monthly/top-up lot
+  // (grantedThisCycle === 0) there's no valid denominator - percentUsed is
+  // null and the UI renders the raw balance instead of a misleading bar.
   const percentUsed =
     grantedThisCycle === 0
       ? null
@@ -98,14 +98,22 @@ export default async function BillingPage() {
   // Invariant: the tier card must show what Stripe will actually charge — the
   // live Stripe price (when resolvable) OVERRIDES the billing_config price;
   // null Stripe slots fall back to config exactly as before.
+  // Pro is the only plan offered (SEED-055); Business stays in config but is
+  // never passed to a customer-facing surface.
   const annualPrices = {
     pro: stripePrices.pro.yearCents ?? cfg.tiers.pro.subscriptionPriceAnnualCents,
-    business: stripePrices.business.yearCents ?? cfg.tiers.business.subscriptionPriceAnnualCents,
   }
   const monthlyPricesCents = {
     pro: stripePrices.pro.monthCents ?? cfg.tiers.pro.subscriptionPriceCents,
-    business: stripePrices.business.monthCents ?? cfg.tiers.business.subscriptionPriceCents,
   }
+
+  // Top-ups (packs + auto top-up) are Pro-only: shown only to a company with a
+  // live Pro subscription; everyone else is asked to subscribe first.
+  const topupEligible = isTopupEligible(
+    data.tier,
+    data.stripeSubscriptionStatus,
+    data.stripeSubscriptionId
+  )
 
   // Auto-top-up (CREDITUI-07) — read-only display data for the AutoTopupCard,
   // gated behind cfg.autoTopupEnabled below. The Stripe read is wrapped in a
@@ -122,7 +130,7 @@ export default async function BillingPage() {
   } | null = null
   let autoTopupPaymentMethodLabel: string | null = null
 
-  if (cfg.autoTopupEnabled) {
+  if (cfg.autoTopupEnabled && topupEligible) {
     const svc = requireServiceClient()
     const { data: autoTopupRow } = await svc
       .from('companies')
@@ -210,7 +218,7 @@ export default async function BillingPage() {
         <p className="text-sm text-muted-foreground">
           <T>You&rsquo;re on the</T>{' '}
           <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '}
-          <T>plan. Choose the tier that fits your business — upgrade or downgrade anytime.</T>
+          <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} />
         </p>
       </header>
 
@@ -257,7 +265,7 @@ export default async function BillingPage() {
               )}
               {data.tier === 'free' && (
                 <p className="text-muted-foreground">
-                  <T>Free plan — your credit balance below is your remaining allowance.</T>
+                  <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
                 </p>
               )}
             </CardContent>
@@ -306,21 +314,45 @@ export default async function BillingPage() {
         {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
             (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <CreditBalanceCard percentUsed={percentUsed} tier={data.tier} balance={credits.balance} />
+          <CreditBalanceCard
+            percentUsed={percentUsed}
+            tier={data.tier}
+            balance={credits.balance}
+            lots={lots}
+            topupEligible={topupEligible}
+          />
           <CreditHistoryList rows={credits.history} />
         </div>
 
-        {/* Top-up packs (CREDITUI-06) — dollar-denominated pack picker, always
-            visible (not gated behind the low-balance warning). */}
-        <div id="topup-packs" className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
-          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
-        </div>
+        {/* Top-up packs (CREDITUI-06) — Pro only (SEED-055 D5). Everyone else
+            sees one line asking them to subscribe first. */}
+        {topupEligible ? (
+          <div id="topup-packs" className="space-y-4">
+            <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
+            <p className="text-sm text-muted-foreground">
+              <T text={`Purchased credits expire ${cfg.topupExpiryMonths} months after purchase.`} />
+            </p>
+            <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
+          </div>
+        ) : (
+          <div
+            id="topup-packs"
+            data-testid="topup-subscribe-prompt"
+            className="flex flex-col gap-3 rounded-lg border border-[var(--glass-border)] p-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-sm text-muted-foreground">
+              <T>Subscribe to Pro to buy extra credits</T>
+            </p>
+            <a href="#choose-plan" className={cn(buttonVariants({ variant: 'primary' }), 'w-fit')}>
+              <T>Subscribe to Pro</T>
+            </a>
+          </div>
+        )}
 
         {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
             (billing_config.autoTopupEnabled); omitted from the tree entirely,
             not rendered-disabled, when the switch is off. */}
-        {cfg.autoTopupEnabled && (
+        {cfg.autoTopupEnabled && topupEligible && (
           <div className="space-y-4">
             <AutoTopupCard
               enabled={!!autoTopupCompany?.auto_topup_enabled}
@@ -335,9 +367,9 @@ export default async function BillingPage() {
           </div>
         )}
 
-        {/* Tier cards grid (Free / Pro / Business with per-tier gradient escalation) */}
+        {/* Plan card: Pro only, monthly / annual toggle (SEED-055). */}
         <div id="choose-plan" className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight"><T>Choose your plan</T></h2>
+          <h2 className="text-2xl font-semibold tracking-tight"><T>Xtimator Pro</T></h2>
           <TierCardsGrid
             currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
             currentInterval={data.stripeSubscriptionInterval ?? undefined}
@@ -345,11 +377,7 @@ export default async function BillingPage() {
             pendingCancel={!!data.tierCancelledAt}
             annualPrices={annualPrices}
             monthlyPricesCents={monthlyPricesCents}
-            featureBullets={{
-              free: cfg.tiers.free.featureBullets,
-              pro: cfg.tiers.pro.featureBullets,
-              business: cfg.tiers.business.featureBullets,
-            }}
+            featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
           />
         </div>
 

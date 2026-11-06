@@ -13,6 +13,15 @@ const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2 }
 
 export type BillingInterval = 'month' | 'year'
 
+// SEED-055: Pro is the only plan offered to customers. Free is simply where
+// everyone starts (signup credits) and Business stays configured but hidden
+// from every customer-facing surface. Filtered here, not deleted from TIERS, so
+// re-offering a tier later is a one-line change.
+const VISIBLE_TIERS: Tier[] = ['pro']
+
+// Always shown first on the Pro card, whatever billing_config.featureBullets says.
+const PRO_SCOPE_BULLET = '1 company · 1 user'
+
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
   annualPrices?: { pro?: number | null; business?: number | null }
@@ -88,6 +97,7 @@ const TIERS: Array<{
     period: 'month',
     popular: true,
     features: [
+      '1 company · 1 user',
       'All features included',
       'Monthly credits that renew with your plan',
       '20 photos per estimate',
@@ -187,6 +197,7 @@ export function TierCardsGrid({
 
   const normalized: Tier = currentTier === 'trial' ? 'free' : currentTier
   const isPaidUser = normalized === 'pro' || normalized === 'business'
+  const visibleTiers = TIERS.filter((tierItem) => VISIBLE_TIERS.includes(tierItem.tier))
 
   return (
     <div className="space-y-6">
@@ -226,12 +237,16 @@ export function TierCardsGrid({
         </button>
       </div>
 
-      <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {TIERS.map((tierItem) => {
+      <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-6">
+        {visibleTiers.map((tierItem) => {
           const annualDisplay = billingInterval === 'year' ? getAnnualDisplay(tierItem.tier) : null
           const monthlyPrice = getMonthlyPriceDisplay(tierItem.tier, tierItem.price ?? '$0')
           // Config-sourced bullets win; hardcoded TIERS[].features is the fallback.
-          const features = featureBullets?.[tierItem.tier] ?? tierItem.features
+          const configured = featureBullets?.[tierItem.tier] ?? tierItem.features
+          const features =
+            tierItem.tier === 'pro' && !configured.includes(PRO_SCOPE_BULLET)
+              ? [PRO_SCOPE_BULLET, ...configured]
+              : configured
           // Free card is a portal-only downgrade path for paid users — render it
           // disabled (it never had a checkout wire-up; onSelect returns early)
           // so it doesn't read as an enabled no-op.
@@ -266,7 +281,9 @@ export function TierCardsGrid({
                       : 'Switch to monthly'
                     : ranksAbove
                       ? `Switch to ${tierItem.name}`
-                      : `Upgrade to ${tierItem.name}`
+                      : isPaidUser
+                        ? `Upgrade to ${tierItem.name}`
+                        : `Subscribe to ${tierItem.name}`
 
           return (
             <TierCard

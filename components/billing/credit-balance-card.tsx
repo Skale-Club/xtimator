@@ -9,48 +9,68 @@ import {
 } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { UsageProgressBar } from '@/components/billing/usage-progress-bar'
+import { formatCredits } from '@/lib/billing/format-usd'
+import type { LiveCreditLot, LiveCreditLotSource } from '@/lib/queries/credits'
 
 /**
- * Phase 115 (CREDITUI-01 / CREDITUI-02) — owner-facing usage card.
- * Phase 152 (CREDITUI-03 / CREDITUI-04) — rewritten to show a color-escalating
- * usage bar instead of a raw credit count.
- * Phase 153-01 (CREDITUI-06) — the low-balance CTA no longer duplicates an
- * inline purchase button; it's a simple "Top up now" link to the always-visible
- * TopUpPacksGrid section on this same page (the full 3-card grid is too wide
- * for this inline warning banner).
+ * Owner-facing credit balance card.
  *
- * Purely presentational (server-renderable, no DB). Shows a usage percentage
- * bar for this billing cycle, a tier-aware reset caption, and — when usage is
- * in the warning (70-89%) or critical (90-100%) band — an informational
- * warning with a top-up + upgrade CTA.
+ * SEED-055 Phase E: credits are shown as credits (never converted to "about N
+ * estimates") and split by live lot, each with its own expiry:
+ *   Monthly credits   - expire at the end of the billing window
+ *   Purchased credits - top-ups, expire 3 months after purchase (one row per pack)
+ *   Free credits      - signup credits, never expire
+ *   Adjustments       - support-granted, never expire
+ * A usage bar sits above the rows when there is a valid denominator (the live
+ * monthly + top-up grants); `percentUsed` is null otherwise and the bar falls
+ * back to the raw balance (UsageProgressBar).
  *
- * Cardinal rule: the owner sees a USAGE PERCENTAGE only — no dollar amounts,
- * no raw credit count, no per-op cost math. Enforcement is OFF this
- * milestone, so the warning copy is a heads-up nudge, never "blocked"/"denied".
+ * Cardinal rule: no dollar amounts and no per-op cost math - only credits.
  *
- * CREDITFIX-01 exception: `percentUsed` is nullable — when nothing has been
- * granted this cycle yet (a fresh signup mid-migration, a data gap, etc.) a
- * percentage has no valid denominator, so no bar/band/warning is shown at
- * all; UsageProgressBar falls back to rendering the raw `balance` instead of
- * a misleading 0%/100% bar. `balance` is therefore only ever read in that
- * fallback path.
+ * `topupEligible` (Pro with a live subscription) decides whether the low-credit
+ * warning points at the top-up packs or at the subscribe card.
  */
+
+const LOT_LABEL: Record<LiveCreditLotSource, string> = {
+  monthly: 'Monthly credits',
+  topup: 'Purchased credits',
+  signup: 'Free credits',
+  adjust: 'Adjustments',
+}
+
+/** "Dec 3", or "Dec 3, 2027" when the lot outlives the current year. UTC so the
+ *  date matches the Stripe period end regardless of the viewer's timezone. */
+function formatExpiry(iso: string, now = new Date()): string {
+  const d = new Date(iso)
+  const sameYear = d.getUTCFullYear() === now.getUTCFullYear()
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+    timeZone: 'UTC',
+  })
+}
+
 export function CreditBalanceCard({
   percentUsed,
   tier,
   balance,
+  lots = [],
+  topupEligible = true,
 }: {
   percentUsed: number | null
   tier: string
   balance?: number
+  lots?: LiveCreditLot[]
+  topupEligible?: boolean
 }) {
   const band =
     percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
 
   const resetCaption =
     tier === 'free'
-      ? 'Usage resets when you upgrade to a paid plan.'
-      : 'Usage resets at the start of your next billing cycle.'
+      ? 'Free credits never expire. Subscribe to Pro when they run out.'
+      : 'Monthly credits expire when your billing cycle renews.'
 
   return (
     <Card variant="glass" className="p-6">
@@ -58,15 +78,40 @@ export function CreditBalanceCard({
         <div className="flex items-start gap-3">
           <CreditCard className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
           <div>
-            <CardTitle><T>Usage</T></CardTitle>
+            <CardTitle><T>Credit balance</T></CardTitle>
             <CardDescription>
-              <T>Your usage this billing cycle.</T>
+              <T>Your credits by type, and when they expire.</T>
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 px-0 pt-4 text-sm">
         <UsageProgressBar percentUsed={percentUsed} balance={balance} label="Usage this billing cycle" />
+
+        {lots.length > 0 && (
+          <ul data-testid="credit-lots" className="divide-y divide-[var(--glass-border)]">
+            {lots.map((lot, i) => (
+              <li
+                key={i}
+                data-testid="credit-lot-row"
+                data-source={lot.source}
+                className="flex items-baseline justify-between gap-3 py-2"
+              >
+                <span className="text-foreground">
+                  <T text={LOT_LABEL[lot.source]} />
+                  {lot.expiresAt && (
+                    <span className="block text-xs text-muted-foreground">
+                      <T>Expires</T> {formatExpiry(lot.expiresAt)}
+                    </span>
+                  )}
+                </span>
+                <span className="whitespace-nowrap font-mono font-medium [font-variant-numeric:tabular-nums]">
+                  {formatCredits(lot.remaining)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <p className="text-xs text-muted-foreground">
           <T text={resetCaption} />
@@ -85,25 +130,28 @@ export function CreditBalanceCard({
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <p className="text-sm">
                 {band === 'critical' ? (
-                  <T>You&rsquo;ve nearly used up your usage for this cycle. Top up or upgrade to keep generating.</T>
+                  <T>You&rsquo;re almost out of credits for this cycle.</T>
                 ) : (
-                  <T>You&rsquo;re approaching your usage limit for this cycle.</T>
+                  <T>You&rsquo;re running low on credits for this cycle.</T>
                 )}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="#topup-packs"
-                className="text-sm font-medium underline underline-offset-2 hover:no-underline"
-              >
-                <T>Top up now</T>
-              </Link>
-              <Link
-                href="#choose-plan"
-                className="text-sm font-medium underline underline-offset-2 hover:no-underline"
-              >
-                <T>Upgrade plan</T>
-              </Link>
+              {topupEligible ? (
+                <Link
+                  href="#topup-packs"
+                  className="text-sm font-medium underline underline-offset-2 hover:no-underline"
+                >
+                  <T>Top up now</T>
+                </Link>
+              ) : (
+                <Link
+                  href="#choose-plan"
+                  className="text-sm font-medium underline underline-offset-2 hover:no-underline"
+                >
+                  <T>Subscribe to Pro</T>
+                </Link>
+              )}
             </div>
           </div>
         )}

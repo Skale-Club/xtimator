@@ -34,6 +34,8 @@ function rowLabel(row: CreditHistoryRow): React.ReactNode {
   if (row.reason === 'grant') return <T>Monthly grant</T>
   if (row.reason === 'topup') return <T>Top-up</T>
   if (row.reason === 'adjust') return <T>Adjustment</T>
+  // SEED-055: a lot lapsed (monthly window ended / top-up aged out).
+  if (row.reason === 'expire') return <T>Expired</T>
   switch (row.operation_type) {
     case 'estimate':
       return <T>Estimate</T>
@@ -43,6 +45,8 @@ function rowLabel(row: CreditHistoryRow): React.ReactNode {
       return <T>Audio</T>
     case 'price_research':
       return <T>Price research</T>
+    case 'chat':
+      return <T>Xtimator AI chat</T>
     default:
       return <T>Usage</T>
   }

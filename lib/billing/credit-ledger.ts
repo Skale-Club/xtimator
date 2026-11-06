@@ -7,6 +7,7 @@ import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { currentMonthlyCreditWindow } from '@/lib/billing/credit-window'
+import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 
 /**
  * Best-effort ops alert for a swallowed credit-ledger write failure. Shared by
@@ -183,13 +184,40 @@ function monthKey(now = new Date()): string {
  * Reuses the EXISTING billing-category events (`quota.exhausted` for the zero
  * state, `quota.80pct` for a low non-zero crossing) — no new EventType.
  *
- * Copy is INFORMATIONAL only: this milestone runs with enforcement OFF, so the
- * notification is a heads-up + top-up/upgrade nudge — never enforcement language
- * (the account keeps working; this is a reminder, not a wall).
+ * Copy (SEED-055 Phase E): credits are the only wall, so the message says so
+ * plainly and carries one CTA - "Subscribe to Pro" for a company that is not a
+ * live Pro subscriber, "Buy credits" for one that is (see `creditCtaFor`).
  *
  * Never throws (best-effort) — a notification failure must never break the
  * credit debit write that triggered it.
  */
+/**
+ * The single CTA the credit alerts push: top-ups are Pro-only (isTopupEligible),
+ * so a non-subscriber is told to subscribe and a live subscriber to buy credits.
+ * Falls back to the subscribe CTA if the company row cannot be read.
+ */
+async function creditCtaFor(companyId: string): Promise<string> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('companies')
+      .select('tier, stripe_subscription_status, stripe_subscription_id')
+      .eq('id', companyId)
+      .maybeSingle()
+    const row = data as {
+      tier?: string | null
+      stripe_subscription_status?: string | null
+      stripe_subscription_id?: string | null
+    } | null
+    if (row && isTopupEligible(row.tier, row.stripe_subscription_status, row.stripe_subscription_id)) {
+      return 'Buy credits'
+    }
+  } catch {
+    /* fall through to the subscribe CTA */
+  }
+  return 'Subscribe to Pro'
+}
+
 export async function notifyLowCreditBalance(params: {
   companyId: string
   userId?: string | null
@@ -206,7 +234,7 @@ export async function notifyLowCreditBalance(params: {
     // meter and the count meter can never DOUBLE-ping the owner in the same
     // month — whichever fires first wins (they mean the same thing to the user).
     if (previousBalance > 0 && newBalance <= 0) {
-      const ctx = {}
+      const ctx = { creditCta: await creditCtaFor(companyId) }
       const copy = buildNotificationCopy('quota.exhausted', ctx)
       void notify({
         companyId,
@@ -233,7 +261,7 @@ export async function notifyLowCreditBalance(params: {
     // Same unified namespace as notifyQuotaThresholds' 80% ping (`quota-80-…`):
     // "you're running low" reaches the owner at most once per month regardless
     // of which meter (count or credit) crossed first.
-    const ctx = { quotaPercent: 0 }
+    const ctx = { creditCta: await creditCtaFor(companyId) }
     const copy = buildNotificationCopy('quota.80pct', ctx)
     void notify({
       companyId,

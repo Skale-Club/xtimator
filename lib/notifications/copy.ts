@@ -26,6 +26,8 @@ export interface CopyContext {
   clientName?: string
   daysRemaining?: number
   quotaPercent?: number
+  /** CTA for the credit-balance alerts: 'Subscribe to Pro' (non-subscribers) or 'Buy credits' (Pro). */
+  creditCta?: string
   whatsappFrom?: string
   tierFrom?: string
   tierTo?: string
@@ -96,13 +98,13 @@ export function buildNotificationCopy(
       }
     case 'quota.80pct':
       return {
-        title: 'Approaching monthly limit',
-        body: `You have used ${ctx.quotaPercent ?? 80}% of your monthly AI quota.`,
+        title: "You're running low on credits",
+        body: `${ctx.creditCta ?? 'Subscribe to Pro'} so you don't run out in the middle of an estimate.`,
       }
     case 'quota.exhausted':
       return {
-        title: 'Monthly quota exhausted',
-        body: 'You have used all included AI credits this month. Upgrade or wait until reset.',
+        title: "You're out of credits",
+        body: `${ctx.creditCta ?? 'Subscribe to Pro'} to keep creating estimates.`,
       }
     case 'whatsapp.inbound':
       return {

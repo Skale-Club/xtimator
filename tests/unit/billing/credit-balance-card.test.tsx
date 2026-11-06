@@ -33,11 +33,11 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(container.innerHTML).toContain('42% used')
   })
 
-  it('Test 2: renders card title "Usage" and description "Your usage this billing cycle."', () => {
+  it('Test 2: renders card title "Credit balance" and its description', () => {
     const { container } = render(<CreditBalanceCard percentUsed={10} tier="pro" />)
     const html = container.innerHTML
-    expect(html).toContain('Usage')
-    expect(html).toContain('Your usage this billing cycle.')
+    expect(html).toContain('Credit balance')
+    expect(html).toContain('Your credits by type, and when they expire.')
   })
 
   it('Test 3: healthy band (percentUsed=50, <70) renders no amber/red warning', () => {
@@ -49,36 +49,84 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     const { container, getByTestId } = render(<CreditBalanceCard percentUsed={75} tier="pro" />)
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
-    expect(html).toContain('You’re approaching your usage limit for this cycle.')
+    expect(html).toContain('You’re running low on credits for this cycle.')
     expect(html).toContain('#topup-packs')
     expect(html).not.toContain('?topup=1')
-    expect(html).toContain('#choose-plan')
     expect(html).toContain('Top up now')
-    expect(html).toContain('Upgrade plan')
+    expect(html).not.toContain('Upgrade plan')
   })
 
   it('Test 5: critical band (percentUsed=95, 90-100) renders red warning + CTAs', () => {
     const { container, getByTestId } = render(<CreditBalanceCard percentUsed={95} tier="pro" />)
     expect(getByTestId('credit-low-warning')).toBeTruthy()
     const html = container.innerHTML
-    expect(html).toContain(
-      'You’ve nearly used up your usage for this cycle. Top up or upgrade to keep generating.'
-    )
+    expect(html).toContain('You’re almost out of credits for this cycle.')
     expect(html).toContain('#topup-packs')
     expect(html).not.toContain('?topup=1')
-    expect(html).toContain('#choose-plan')
     expect(html).toContain('Top up now')
-    expect(html).toContain('Upgrade plan')
+    expect(html).not.toContain('Upgrade plan')
   })
 
-  it('Test 6a: free tier reset caption', () => {
+  it('Test 5b: a non-eligible company (not a live Pro subscriber) is pointed at Subscribe, not at top-ups', () => {
+    const { container } = render(
+      <CreditBalanceCard percentUsed={95} tier="free" topupEligible={false} />
+    )
+    const html = container.innerHTML
+    expect(html).toContain('Subscribe to Pro')
+    expect(html).toContain('#choose-plan')
+    expect(html).not.toContain('#topup-packs')
+    expect(html).not.toContain('Top up now')
+  })
+
+  it('Test 6a: free tier caption says free credits never expire', () => {
     const { container } = render(<CreditBalanceCard percentUsed={10} tier="free" />)
-    expect(container.innerHTML).toContain('Usage resets when you upgrade to a paid plan.')
+    expect(container.innerHTML).toContain('Free credits never expire. Subscribe to Pro when they run out.')
   })
 
-  it('Test 6b: paid tier reset caption', () => {
+  it('Test 6b: paid tier caption says monthly credits expire at renewal', () => {
     const { container } = render(<CreditBalanceCard percentUsed={10} tier="pro" />)
-    expect(container.innerHTML).toContain('Usage resets at the start of your next billing cycle.')
+    expect(container.innerHTML).toContain('Monthly credits expire when your billing cycle renews.')
+  })
+
+  describe('credits split by live lot (SEED-055 Phase E)', () => {
+    const lots = [
+      { source: 'monthly' as const, remaining: 1240, expiresAt: '2099-12-03T00:00:00Z' },
+      { source: 'topup' as const, remaining: 1300, expiresAt: '2099-02-06T00:00:00Z' },
+      { source: 'signup' as const, remaining: 380, expiresAt: null },
+      { source: 'adjust' as const, remaining: 50, expiresAt: null },
+    ]
+
+    it('renders one row per lot with its label, amount and expiry', () => {
+      const { getAllByTestId } = render(
+        <CreditBalanceCard percentUsed={null} tier="pro" balance={2970} lots={lots} />
+      )
+      const rows = getAllByTestId('credit-lot-row')
+      expect(rows).toHaveLength(4)
+      expect(rows[0].textContent).toContain('Monthly credits')
+      expect(rows[0].textContent).toContain('1,240')
+      expect(rows[0].textContent).toContain('Dec 3, 2099')
+      expect(rows[1].textContent).toContain('Purchased credits')
+      expect(rows[1].textContent).toContain('1,300')
+      expect(rows[1].textContent).toContain('Feb 6, 2099')
+      expect(rows[2].textContent).toContain('Free credits')
+      expect(rows[2].textContent).toContain('380')
+      expect(rows[2].textContent).not.toContain('Expires')
+      expect(rows[3].textContent).toContain('Adjustments')
+      expect(rows[3].textContent).not.toContain('Expires')
+    })
+
+    it('renders no lot list when there are no live lots', () => {
+      const { queryByTestId } = render(<CreditBalanceCard percentUsed={null} tier="free" balance={0} />)
+      expect(queryByTestId('credit-lots')).toBeNull()
+    })
+
+    it('never converts credits into an estimate count', () => {
+      const { container } = render(
+        <CreditBalanceCard percentUsed={null} tier="pro" balance={2970} lots={lots} />
+      )
+      expect(container.innerHTML).not.toContain('≈')
+      expect(container.innerHTML.toLowerCase()).not.toContain('estimates')
+    })
   })
 
   it('Test 7 (CREDITUI-04 cardinal rule): never renders "$", a raw credit count, or markup/token', () => {

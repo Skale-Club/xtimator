@@ -106,7 +106,7 @@ let whatsAppConfigCache: { value: WhatsAppPlatformConfig; fetchedAt: number } | 
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
   heroHeadline: 'Professional estimates in seconds',
   heroSubheadline:
-    'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway.',
+    'Record a site walkthrough, add photos, pricing, and branded estimate before you leave the driveway. Start free — your first estimates are on us. Then $29/mo.',
   ctaLabel: 'Start',
   heroImageUrl: null,
   heroBackgroundType: 'none',

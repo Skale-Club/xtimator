@@ -208,8 +208,8 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
       'trial.expiring_3d': { daysRemaining: 5 },
       'trial.expired': {},
       'trial.converted': {},
-      'quota.80pct': { quotaPercent: 85 },
-      'quota.exhausted': {},
+      'quota.80pct': { quotaPercent: 85, creditCta: 'Buy credits' },
+      'quota.exhausted': { creditCta: 'Buy credits' },
       'whatsapp.inbound': { whatsappFrom: '+15551234567' },
       'ai_job.failed': { jobType: 'Estimate generation', errorMessage: 'Timeout contacting AI provider' },
       'ai_job.completed': { jobType: 'Estimate generation' },
@@ -221,7 +221,20 @@ describe('lib/notifications/template-resolver — resolveNotificationCopy() (TMP
       },
     }
 
+    // SEED-055 Phase E: copy.ts moved to the credit wording ahead of the
+    // notification_templates rows (a migration, applied by hand). Until that row
+    // update lands the seed keeps its Phase-172 text, so byte-equivalence is
+    // skipped for these two events only (they are asserted directly below).
+    const COPY_AHEAD_OF_SEED: EventType[] = ['quota.80pct', 'quota.exhausted']
+    expect(buildNotificationCopy('quota.exhausted', fixtures['quota.exhausted']).title).toBe(
+      "You're out of credits",
+    )
+    expect(buildNotificationCopy('quota.80pct', fixtures['quota.80pct']).title).toBe(
+      "You're running low on credits",
+    )
+
     for (const eventType of Object.keys(EVENT_TEMPLATE_SEED) as EventType[]) {
+      if (COPY_AHEAD_OF_SEED.includes(eventType)) continue
       const ctx = fixtures[eventType]
       const seedRendered = renderTemplate(
         EVENT_TEMPLATE_SEED[eventType].body,

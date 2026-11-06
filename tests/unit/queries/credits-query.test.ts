@@ -149,69 +149,70 @@ describe('getCreditOverview', () => {
 })
 
 /**
- * CREDITFIX-01 (audit finding #1, current milestone) — getCycleGrantedCredits
- * sums credit_ledger.delta_credits for 'grant'/'topup' rows created since the
- * start of the current UTC month. The percent-used bar's denominator now
- * comes from THIS (what was actually granted this cycle), not the static
- * configured monthlyCreditGrant.
+ * SEED-055 Phase E - getCycleGrantedCredits sums `granted` over the company's
+ * live `monthly` + `topup` credit lots (expires_at > now). It is the chip /
+ * usage-bar denominator.
  */
 describe('getCycleGrantedCredits', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  function buildLedgerClient(response: { data: unknown; error: null | { message: string } }) {
+  function buildLotsClient(response: { data: unknown; error: null | { message: string } }) {
+    const fromSpy = vi.fn()
     const selectSpy = vi.fn().mockReturnThis()
     const inSpy = vi.fn().mockReturnThis()
     const eqSpy = vi.fn().mockReturnThis()
-    const gteSpy = vi.fn().mockResolvedValue(response)
+    const gtSpy = vi.fn().mockResolvedValue(response)
     const client = {
-      from: vi.fn().mockImplementation(() => ({
+      from: fromSpy.mockImplementation(() => ({
         select: selectSpy,
         eq: eqSpy,
         in: inSpy,
-        gte: gteSpy,
+        gt: gtSpy,
       })),
     }
-    return { client, selectSpy, inSpy, eqSpy, gteSpy }
+    return { client, fromSpy, selectSpy, inSpy, eqSpy, gtSpy }
   }
 
-  it('sums delta_credits across the returned rows', async () => {
-    const { client } = buildLedgerClient({
-      data: [{ delta_credits: 3500 }, { delta_credits: 5000 }],
+  it('sums granted across the live monthly + topup lots', async () => {
+    const { client } = buildLotsClient({
+      data: [{ granted: 3500 }, { granted: 5000 }],
       error: null,
     })
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-    const result = await getCycleGrantedCredits(COMPANY_ID)
-    expect(result).toBe(8500)
+    expect(await getCycleGrantedCredits(COMPANY_ID)).toBe(8500)
   })
 
-  it('filters reason IN (grant, topup)', async () => {
-    const { client, inSpy } = buildLedgerClient({ data: [], error: null })
+  it('reads credit_lots for the company, source IN (monthly, topup)', async () => {
+    const { client, fromSpy, selectSpy, eqSpy, inSpy } = buildLotsClient({ data: [], error: null })
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
     await getCycleGrantedCredits(COMPANY_ID)
-    expect(inSpy).toHaveBeenCalledWith('reason', ['grant', 'topup'])
+    expect(fromSpy).toHaveBeenCalledWith('credit_lots')
+    expect(selectSpy).toHaveBeenCalledWith('granted')
+    expect(eqSpy).toHaveBeenCalledWith('company_id', COMPANY_ID)
+    expect(inSpy).toHaveBeenCalledWith('source', ['monthly', 'topup'])
   })
 
-  it('filters created_at >= start of the current UTC month', async () => {
-    const { client, gteSpy } = buildLedgerClient({ data: [], error: null })
+  it('only counts lots that have not expired (expires_at > now)', async () => {
+    const { client, gtSpy } = buildLotsClient({ data: [], error: null })
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
+    const before = Date.now()
     await getCycleGrantedCredits(COMPANY_ID)
-    const [col, iso] = gteSpy.mock.calls[0]
-    expect(col).toBe('created_at')
-    const now = new Date()
-    expect(iso).toBe(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString())
+    const [col, iso] = gtSpy.mock.calls[0]
+    expect(col).toBe('expires_at')
+    expect(new Date(iso).getTime()).toBeGreaterThanOrEqual(before)
+    expect(new Date(iso).getTime()).toBeLessThanOrEqual(Date.now())
   })
 
   it('returns 0 when the query errors (never throws)', async () => {
-    const { client } = buildLedgerClient({ data: null, error: { message: 'boom' } })
+    const { client } = buildLotsClient({ data: null, error: { message: 'boom' } })
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-    const result = await getCycleGrantedCredits(COMPANY_ID)
-    expect(result).toBe(0)
+    expect(await getCycleGrantedCredits(COMPANY_ID)).toBe(0)
   })
 
   it('returns 0 when requireServiceClient throws (never throws)', async () => {
@@ -219,15 +220,13 @@ describe('getCycleGrantedCredits', () => {
       throw new Error('no service client')
     })
 
-    const result = await getCycleGrantedCredits(COMPANY_ID)
-    expect(result).toBe(0)
+    expect(await getCycleGrantedCredits(COMPANY_ID)).toBe(0)
   })
 
-  it('returns 0 for an empty result set (nothing granted this cycle)', async () => {
-    const { client } = buildLedgerClient({ data: [], error: null })
+  it('returns 0 with no live monthly/topup lot (chip falls back to the raw balance)', async () => {
+    const { client } = buildLotsClient({ data: [], error: null })
     ;(requireServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-    const result = await getCycleGrantedCredits(COMPANY_ID)
-    expect(result).toBe(0)
+    expect(await getCycleGrantedCredits(COMPANY_ID)).toBe(0)
   })
 })

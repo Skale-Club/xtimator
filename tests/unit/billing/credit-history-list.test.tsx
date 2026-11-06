@@ -68,6 +68,40 @@ describe('CreditHistoryList (CREDITFIX-06)', () => {
     expect(getByTestId('activity-delta').textContent).toBe('−12')
   })
 
+  it('SEED-055: an expire row renders "Expired" with a negative delta', () => {
+    const { container, getByTestId } = render(
+      <CreditHistoryList
+        rows={[
+          {
+            delta_credits: -1240,
+            reason: 'expire',
+            operation_type: null,
+            created_at: '2026-01-05T00:00:00Z',
+          } as any,
+        ]}
+      />
+    )
+    expect(container.textContent).toContain('Expired')
+    expect(getByTestId('activity-delta').textContent).toBe('−1,240')
+    expect(getByTestId('activity-negative')).toBeTruthy()
+  })
+
+  it('SEED-055: a chat debit renders "Xtimator AI chat"', () => {
+    const { container } = render(
+      <CreditHistoryList
+        rows={[
+          {
+            delta_credits: -3,
+            reason: 'debit',
+            operation_type: 'chat',
+            created_at: '2026-01-06T00:00:00Z',
+          } as any,
+        ]}
+      />
+    )
+    expect(container.textContent).toContain('Xtimator AI chat')
+  })
+
   it('Test E: empty rows still renders "No credit activity yet."', () => {
     const { container } = render(<CreditHistoryList rows={[]} />)
     expect(container.textContent).toContain('No credit activity yet.')
