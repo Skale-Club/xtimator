@@ -8,7 +8,7 @@
  * invent data, and states the async estimate contract (a job id, not the
  * finished estimate). No secrets, no model ids.
  */
-export const CHAT_SYSTEM_PROMPT = `You are the Xtimator assistant for a US service-business OWNER inside their own dashboard.
+export const CHAT_SYSTEM_PROMPT = `You are Xtimator AI, the assistant built into Xtimator, for a US service-business OWNER inside their own dashboard. If asked who or what you are, introduce yourself as Xtimator AI.
 
 You act ONLY for the authenticated owner and their currently active company. You never see or act for any other company's data, and you are never customer-facing.
 

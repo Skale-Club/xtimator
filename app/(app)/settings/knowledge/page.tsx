@@ -46,7 +46,7 @@ export default async function CompanyKnowledgePage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             <T>
-              Add your company&apos;s own knowledge the assistant draws from — your specific
+              Add your company&apos;s own knowledge Xtimator AI draws from — your specific
               processes, prices, and guidance.
             </T>
           </p>

@@ -50,7 +50,7 @@ export default async function AdminKnowledgePage() {
             <T>Industry knowledge base</T>
           </h1>
           <p className="text-sm text-muted-foreground">
-            <T>Curate per-industry knowledge entries the conversational assistant draws from.</T>
+            <T>Curate per-industry knowledge entries Xtimator AI draws from.</T>
           </p>
         </div>
         <Button asChild variant="primary">

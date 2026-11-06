@@ -125,7 +125,7 @@ export async function sendWelcomeEmail(ctx: WelcomeEmailContext): Promise<void> 
           <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#111111;">📱 Create estimates from WhatsApp</p>
           <p style="margin:0 0 14px;font-size:14px;line-height:1.7;color:#444444;">
             Tap the button below to start a chat. Send a <strong>voice note</strong> or text describing
-            the job and our assistant builds the estimate for you — you can also ask it questions any time.
+            the job and Xtimator AI builds the estimate for you — you can also ask it questions any time.
             Prefer Portuguese? Just write in Portuguese and it replies in Portuguese.
           </p>
           <table cellpadding="0" cellspacing="0" border="0" role="presentation">
@@ -187,7 +187,7 @@ export async function sendWelcomeEmail(ctx: WelcomeEmailContext): Promise<void> 
     ]
     if (waLink) {
       textLines.push(
-        `1) Create estimates from WhatsApp — start a chat and send a voice note or text describing the job; the assistant builds the estimate and answers your questions. Prefer Portuguese? Write in Portuguese and it replies in Portuguese.`,
+        `1) Create estimates from WhatsApp — start a chat and send a voice note or text describing the job; Xtimator AI builds the estimate and answers your questions. Prefer Portuguese? Write in Portuguese and it replies in Portuguese.`,
         `   Get started on WhatsApp: ${waLink}`,
         `   (Don't use WhatsApp? You can do everything in the app instead.)`,
         ``,

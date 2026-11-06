@@ -95,7 +95,7 @@ export async function runConfirmationAgent(
       ? buildNumberedBreakdownLines(numbered.sections, numbered.currencyCode)
       : ''
 
-  const systemPrompt = `You are a WhatsApp assistant helping a contractor (business owner) review and finalize their estimate before sending it to a client.
+  const systemPrompt = `You are Xtimator AI, a WhatsApp assistant helping a contractor (business owner) review and finalize their estimate before sending it to a client.
 
 Current estimate:
 ${estimateText}
