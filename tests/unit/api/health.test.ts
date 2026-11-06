@@ -101,6 +101,17 @@ describe('HETZNER-04: GET /api/health', () => {
     expect(storage.list).toHaveBeenCalledWith('logos', '')
   })
 
+  it('SEED-058: ?quick=1 skips the storage probe and still reports storage ok', async () => {
+    const storage = makeStorageOk()
+    vi.mocked(createServiceClient).mockReturnValue(makeSupabaseOk() as never)
+    vi.mocked(getServerStorage).mockReturnValue(storage as never)
+
+    const res = await GET(new Request('http://localhost/api/health?quick=1'))
+    expect(res.status).toBe(200)
+    expect(storage.list).not.toHaveBeenCalled()
+    expect(await res.json()).toMatchObject({ ok: true, db: 'ok', storage: 'ok' })
+  })
+
   it('does not mark an unconfigured owned login ready for deployment', async () => {
     vi.stubEnv('NEXT_PUBLIC_AUTH_MODE', 'owned')
     vi.stubEnv('GOOGLE_AUTH_PROJECT_ID', undefined)

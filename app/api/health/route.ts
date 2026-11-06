@@ -41,8 +41,13 @@ function errorMessage(e: unknown): string {
   return String(e)
 }
 
-export async function GET() {
+export async function GET(request?: Request) {
   const commit = process.env.GIT_SHA ?? 'unknown'
+  // SEED-058 §1: `?quick=1` skips the storage LIST probe (0.9–1.8 s measured
+  // locally) — for dev warmers and high-frequency monitors. Docker/Coolify and
+  // the deploy workflow keep calling the full probe. `request` is optional so
+  // existing direct callers (tests) keep the full-probe behaviour.
+  const quick = request ? new URL(request.url).searchParams.get('quick') === '1' : false
   let db: 'ok' | 'fail' = 'ok'
   let storage: 'ok' | 'fail' = 'ok'
   let error: string | undefined
@@ -69,8 +74,10 @@ export async function GET() {
   // Works for both STORAGE_PROVIDER=supabase (Supabase Storage) and
   // STORAGE_PROVIDER=s3 (Hetzner Object Storage / any S3-compatible target).
   try {
-    const storageClient = getServerStorage()
-    await storageClient.list('logos', '')
+    if (!quick) {
+      const storageClient = getServerStorage()
+      await storageClient.list('logos', '')
+    }
   } catch (e) {
     storage = 'fail'
     const msg = errorMessage(e)

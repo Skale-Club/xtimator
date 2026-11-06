@@ -11,7 +11,13 @@ Sentry.init({
   // for a bug-reporting tool. Text is still masked (maskAllText) for layout
   // debugging; only images/video are blocked.
   sendDefaultPii: false,
-  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  // SEED-058 §1: no browser tracing in dev unless opted in (NEXT_PUBLIC_SENTRY_DEV_TRACES=1).
+  tracesSampleRate:
+    process.env.NODE_ENV === "production"
+      ? 0.1
+      : process.env.NEXT_PUBLIC_SENTRY_DEV_TRACES === "1"
+        ? 1.0
+        : 0,
   // Only record replays when an error happens: session replays of normal traffic
   // burned the org-wide Sentry replay quota. Errors still get a full replay.
   replaysSessionSampleRate: 0,

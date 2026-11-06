@@ -8,6 +8,12 @@ Sentry.init({
   // would attach IPs/cookies/headers to every event by default. See the
   // matching change in instrumentation.ts / instrumentation-client.ts.
   sendDefaultPii: false,
-  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+  // SEED-058 §1: no edge tracing in dev unless opted in (SENTRY_DEV_TRACES=1).
+  tracesSampleRate:
+    process.env.NODE_ENV === "production"
+      ? 0.1
+      : process.env.SENTRY_DEV_TRACES === "1"
+        ? 1.0
+        : 0,
   enableLogs: true,
 });

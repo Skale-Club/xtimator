@@ -57,7 +57,15 @@ export async function register() {
       // attach IPs/cookies/headers to every event by default. See the
       // matching client-side change in instrumentation-client.ts.
       sendDefaultPii: false,
-      tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      // SEED-058 §1: dev traced 100% of requests by default, shipping a span
+      // tree per page load / AI call while coding. Off in dev unless opted in
+      // (SENTRY_DEV_TRACES=1); error capture is unaffected.
+      tracesSampleRate:
+        process.env.NODE_ENV === 'production'
+          ? 0.1
+          : process.env.SENTRY_DEV_TRACES === '1'
+            ? 1.0
+            : 0,
       includeLocalVariables: true,
       enableLogs: true,
       skipOpenTelemetrySetup: true, // CRITICAL — prevents global-provider collision
@@ -76,9 +84,14 @@ export async function register() {
     // 2. Langfuse span processor — gracefully no-ops when keys are absent (empty
     //    string), so the app boots and runs without Langfuse configured locally.
     //    SECURITY: keys come from process.env only — never hardcoded here.
+    //    SEED-058 §1: in dev the exporter is only armed when LANGFUSE_DEV=1 —
+    //    empty keys make the processor a no-op, so local AI calls stop shipping
+    //    traces to Langfuse Cloud unless explicitly wanted.
+    const langfuseArmed =
+      process.env.NODE_ENV === 'production' || process.env.LANGFUSE_DEV === '1'
     langfuseProcessor = new LangfuseSpanProcessor({
-      publicKey: process.env.LANGFUSE_PUBLIC_KEY ?? '',
-      secretKey: process.env.LANGFUSE_SECRET_KEY ?? '',
+      publicKey: langfuseArmed ? (process.env.LANGFUSE_PUBLIC_KEY ?? '') : '',
+      secretKey: langfuseArmed ? (process.env.LANGFUSE_SECRET_KEY ?? '') : '',
       baseUrl: process.env.LANGFUSE_BASEURL ?? 'https://cloud.langfuse.com',
       // Pre-launch audit fix (IA/low): full prompts — WhatsApp transcripts and
       // other customer PII — were exported verbatim in trace input/output,
