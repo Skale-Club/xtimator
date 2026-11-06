@@ -1,6 +1,6 @@
 ---
 id: SEED-057
-status: execution plan, reviewed 2026-11-06 against the code
+status: executed 2026-11-06 (phases A-G shipped; two-step generation is behind ESTIMATOR_TWO_STEP, default off)
 planted: 2026-11-06
 planted_during: SEED-055 rollout (no active milestone)
 trigger_when: With SEED-056 (same program: "the estimate, delivered well"). Owner asked for it on 2026-11-06.
@@ -262,3 +262,27 @@ apply the migration first, verify `estimates.ai_meta`,
 `estimate_items.confidence/basis/optional`, the widened `price_source` CHECK and
 `price_observations` exist, then push. Until it is applied the AI assumptions /
 open questions simply are not persisted. `ESTIMATOR_TWO_STEP` needs no schema.
+
+## 6. Execution record (2026-11-06)
+
+| Phase | Commit | What landed |
+|---|---|---|
+| A | a9b24451 | Output contract v2 (additive, tolerant zod; same keys on the openrouter, anthropic and gemini tools; unit normaliser), `estimates.ai_meta`, per-line `confidence/basis/optional`, the migration. |
+| B | 826979b8 | Eight trade playbooks + general (plain data), structure contract + quantity rules in every mode, selected playbook + worked example in generate mode, Knowledge base injected (top 5, 1.5k tokens, `<knowledge>`), prompt size budget under test. |
+| D | e8edd65d | `scoreStructure`, targeted auto-refine (keeps the first draft), 50-69 delivered with a quality block in `ai_meta`, needs-details from the estimator's own open questions. |
+| C | 1a48f97c | `plan_scope` then `create_estimate` behind `ESTIMATOR_TWO_STEP` (default off), Haiku for the plan, `planning` journal phase. |
+| E | a1bd974e | `price_observations` + `company_history` price source (accepted estimates only, median of the last 10 per concept + unit), concept keys, unit-aware research. |
+| F | 72e7d9a2 | 18-case synthetic golden set (en/pt), rubric reusing the production structure score, live canary skipped unless `EVAL_LIVE=1`, manual `eval-live.yml`. |
+| G | f607b96a | AI assumptions / open questions panel, "AI needs review" banner, per-line confidence dot, all owner-only; share loaders strip `ai_meta`. |
+
+Deviations from the plan above, on purpose:
+
+- **Quality block only when it matters.** `ai_meta.quality` is written when the band is `review` or `refine`, not for every estimate, so a good draft leaves its row exactly as before.
+- **`optional` is recorded, not rendered.** The flag is stored per line, but totals and the four renderings are unchanged: an "optional" line still counts. Rendering optional lines (and excluding them from the total) is its own piece of work.
+- **Answering an open question** opens the existing Edit with AI popup for the project; it does not pre-fill the answer or re-run refine by itself. The panel is read-only (no inline editing of assumptions).
+- **The dot** is on the editable desktop row (width view) only; the page-view preview and the mobile card do not show it.
+- **Research cache key.** The persisted researched-price cache keeps its normalised-name key and appends the unit (`name [sq ft]`); the full concept key is used for the in-run memo and for company history. Changing the persisted key would orphan every cached price.
+- **Company history needs one observation** (the median of the last 10, so with a single accepted job the median is that price).
+- **`planning` is a journal phase but not a checklist row**; the capture overlay keeps "Reading the job details" active while it runs.
+- **Live canary baseline is empty** (`tests/eval/live/baseline.json`): the first live run only reports; set the baseline after reviewing it.
+- **Playbook content** is a first draft written for review, not validated by the owner or against live output yet.
