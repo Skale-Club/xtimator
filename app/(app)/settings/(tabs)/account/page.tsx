@@ -5,6 +5,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { ProfileSection } from '@/components/settings/profile-section'
 import { AccountSection } from '@/components/settings/account-section'
+import Link from 'next/link'
 import { T } from '@/components/i18n/t'
 
 export const metadata = { title: 'Account | Settings' }
@@ -39,6 +40,15 @@ export default async function AccountTabPage() {
       </header>
       <ProfileSection profile={profile} />
       <AccountSection />
+      <section className="rounded-[var(--radius-md)] border px-6 py-5">
+        <h2 className="text-sm font-medium"><T>Delete account</T></h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          <T>Permanently delete your account and the companies you own.</T>{' '}
+          <Link href="/delete-account" className="font-medium text-destructive underline underline-offset-4">
+            <T>Delete account</T>
+          </Link>
+        </p>
+      </section>
     </div>
   )
 }

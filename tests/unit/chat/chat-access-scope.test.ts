@@ -24,6 +24,7 @@ const PUBLIC_ROUTE_GROUPS = [
   'app/(capture)',
   'app/admin',
   'app/blog',
+  'app/delete-account',
   'app/demo',
   'app/estimate',
   'app/oauth',

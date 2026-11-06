@@ -10,6 +10,7 @@ export const PRIVATE_ROBOTS: NonNullable<Metadata['robots']> = {
 export const PUBLIC_STATIC_ROUTES = [
   '/',
   '/blog',
+  '/delete-account',
   '/industries',
   '/privacy-policy',
   '/terms-of-service',

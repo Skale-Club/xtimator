@@ -525,11 +525,25 @@ export async function deleteAccount() {
   // supabase/migrations/20260729000001_signature_evidence_retention.sql.
   const { data: ownedCompanies, error: companiesError } = await serviceClient
     .from('companies')
-    .select('id')
+    .select('id, stripe_subscription_id, stripe_subscription_status')
     .eq('user_id', claims.sub as string)
 
   if (companiesError) {
     return { error: 'Failed to delete account. Please try again.' }
+  }
+
+  // Erasing the company does not touch Stripe, so a live subscription would keep
+  // billing a customer whose account no longer exists. Make the owner cancel it in
+  // Billing first; only canceled/ended subscriptions may be erased with the account.
+  const hasLiveSubscription = (ownedCompanies ?? []).some(
+    (company) =>
+      company.stripe_subscription_id &&
+      !['canceled', 'incomplete_expired'].includes(company.stripe_subscription_status ?? ''),
+  )
+  if (hasLiveSubscription) {
+    return {
+      error: 'Cancel your paid plan in Settings → Billing before deleting your account.',
+    }
   }
 
   for (const company of ownedCompanies ?? []) {

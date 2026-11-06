@@ -100,6 +100,14 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               </li>
               <li>
                 <Link
+                  href="/delete-account"
+                  className="transition-colors hover:text-white"
+                >
+                  Delete Account
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/?auth=login"
                   className="transition-colors hover:text-white"
                 >
