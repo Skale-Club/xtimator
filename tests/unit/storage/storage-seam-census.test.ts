@@ -177,6 +177,7 @@ const STORAGE_SEAM_MANIFEST: Row[] = [
   { id: 'lib/actions/admin-whatsapp.ts#getServerStorage', disposition: 'server-provider' },
   { id: 'lib/actions/client.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/company.ts#serverStorage', disposition: 'server-provider' },
+  { id: 'lib/actions/onboarding-draft.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/photo.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/price-book.ts#serverStorage', disposition: 'server-provider' },
   { id: 'lib/actions/recording.ts#serverStorage', disposition: 'server-provider' },

@@ -627,6 +627,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'The transport dispatches authenticated tools; every tenant write tool guards trusted company context.',
     ['POST'],
   ),
+  ...guarded('app/api/onboarding/draft/route.ts', 'assertWritable', ['POST'], [
+    { path: 'lib/actions/onboarding-draft.ts', symbol: 'saveOnboardingDraft' },
+  ]),
   ...guarded('app/api/notifications/[id]/read/route.ts', 'demoGuardResponse', ['PATCH']),
   ...excepted('app/api/notifications/list/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...guarded('app/api/notifications/mark-all-read/route.ts', 'demoGuardResponse', ['POST']),
@@ -806,6 +809,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/actions/company.ts', 'assertWritable', [
     'createOrUpdateCompany',
     'uploadOnboardingLogoAction',
+  ]),
+  ...guarded('lib/actions/onboarding-draft.ts', 'assertWritable', [
+    'saveOnboardingDraft', 'uploadOnboardingDraftLogo', 'completeOnboarding',
   ]),
   ...guarded('lib/actions/custom-domain.ts', 'assertWritable', ['saveCustomDomain']),
   ...guarded('lib/actions/estimate-photo.ts', 'assertWritable', [
