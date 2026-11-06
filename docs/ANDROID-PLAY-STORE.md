@@ -8,7 +8,10 @@ Status em 2026-11-05. Documento para continuar o trabalho em outro computador.
 |---|---|
 | Conta Google Play Console | ✅ Organização **SKALE CLUB LLC**, dona `skale.club@gmail.com`, Account ID `9003252933054961379`. Tudo verificado (site, trader, identidade/LLC, telefones). Botão **Create app** liberado. |
 | App no Console | ✅ Criado (app id `4972530910854739329`). Release `3 (3)` (abre em `/dashboard`) publicada no **teste interno** em 2026-11-05 |
-| Rota `/.well-known/assetlinks.json` | ✅ Com os dois fingerprints (app signing `AC:DE:D8…C0:5C` + upload `6F:3B:D5…E3:D2`) neste branch; ainda **não** em produção |
+| Rota `/.well-known/assetlinks.json` | ✅ Em produção com os dois fingerprints (app signing `AC:DE:D8…C0:5C` + upload `6F:3B:D5…E3:D2`); app abre sem barra de URL |
+| Ficha da loja | ✅ Rascunho salvo em 2026-11-06: nome "Xtimator: AI Estimates", descrições, ícone 512, feature graphic 1024×500 e 4 screenshots 1080×1920 (gerados de `xtimator.com` em moldura de 432×768 a 2×). Categoria **Business**; contato `support@xtimator.com` + `https://xtimator.com` (publicados) |
+| Exclusão de conta | ✅ `https://xtimator.com/delete-account` (pública; logado apaga com confirmação `DELETE`), linkada em Settings → Account e no rodapé. Recusa se houver assinatura Stripe ativa |
+| E-mail de suporte | ✅ `support@xtimator.com`, caixa nativa no Xmail (org Xtimator) |
 | Projeto Android (TWA) / `.aab` | ✅ Gerado em `~/Dev/xtimator-android` (fora de git), `versionCode 3`, `startUrl /dashboard`, `minSdkVersion 24` |
 | Chave de upload (keystore) | ✅ `~/.android-keys/xtimator-upload.jks`, alias `upload` (fazer backup + senha no cofre) |
 
@@ -135,6 +138,7 @@ Depois: **Test and release → Testing → Internal testing → Create new relea
 - [x] App criado no Play Console + `.aab` no teste interno
 - [x] Fingerprints (app signing + upload) em `lib/pwa/android-twa.ts` → PR → deploy
 - [x] `assetlinks.json` validado; app abre sem barra de URL
-- [ ] Ficha da loja + App content + conta de demo
+- [x] Ficha da loja (textos, imagens, screenshots, categoria, contato) + URL de exclusão de conta
+- [ ] App content (privacy policy, sign-in details/conta de demo, ads, content rating, target audience, data safety, government/financial/health)
 - [ ] Decisão sobre Stripe vs política de pagamentos do Play
 - [ ] Enviar para produção
