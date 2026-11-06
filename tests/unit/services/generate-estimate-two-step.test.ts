@@ -92,13 +92,15 @@ describe('generateEstimateForProject - two-step generation (SEED-057 C)', () => 
 
   it('flag ON: plans first, then hands the plan and its trade to the estimator', async () => {
     process.env.ESTIMATOR_TWO_STEP = '1'
-    planScopeMock.mockResolvedValue(PLAN)
+    planScopeMock.mockResolvedValue({ plan: PLAN, costUsd: 0.004 })
     await run()
 
     expect(planScopeMock).toHaveBeenCalledOnce()
     const input = generateEstimateMock.mock.calls[0][0] as { plan?: ScopePlan; playbookTrade?: string }
     expect(input.plan).toEqual(PLAN)
     expect(input.playbookTrade).toBe('roofing')
+    // The planning spend is handed to the estimator call, to be folded into its ONE cost row.
+    expect((generateEstimateMock.mock.calls[0][0] as { costContext: { extraCostUsd: number } }).costContext.extraCostUsd).toBe(0.004)
 
     const phases = phaseMock.mock.calls.map((c) => (c[0] as { phase: string }).phase)
     expect(phases.indexOf('planning')).toBeGreaterThan(phases.indexOf('context'))
@@ -107,7 +109,7 @@ describe('generateEstimateForProject - two-step generation (SEED-057 C)', () => 
 
   it('flag ON: planning that fails or is unusable falls back to one step', async () => {
     process.env.ESTIMATOR_TWO_STEP = 'true'
-    planScopeMock.mockResolvedValue(null)
+    planScopeMock.mockResolvedValue({ plan: null, costUsd: 0.004 })
     const result = await run()
     expect(result.estimateId).toBe('estimate-1')
     const input = generateEstimateMock.mock.calls[0][0] as Record<string, unknown>
@@ -117,7 +119,7 @@ describe('generateEstimateForProject - two-step generation (SEED-057 C)', () => 
 
   it("flag ON: the plan's assumptions, exclusions and questions are not lost if the estimator drops them", async () => {
     process.env.ESTIMATOR_TWO_STEP = '1'
-    planScopeMock.mockResolvedValue(PLAN)
+    planScopeMock.mockResolvedValue({ plan: PLAN, costUsd: 0.004 })
     const result = await run()
 
     expect(mock.estimateInserts[0].ai_meta).toMatchObject({
@@ -131,7 +133,7 @@ describe('generateEstimateForProject - two-step generation (SEED-057 C)', () => 
 
   it("flag ON: the estimator's own lists win over the plan's", async () => {
     process.env.ESTIMATOR_TWO_STEP = '1'
-    planScopeMock.mockResolvedValue(PLAN)
+    planScopeMock.mockResolvedValue({ plan: PLAN, costUsd: 0.004 })
     generateEstimateMock.mockResolvedValue({ ...OUTPUT, assumptions: ['Its own assumption'] })
     await run()
     expect((mock.estimateInserts[0].ai_meta as { assumptions: string[] }).assumptions).toEqual(['Its own assumption'])

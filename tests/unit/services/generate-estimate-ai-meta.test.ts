@@ -95,22 +95,41 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
     })
     const rows = mock.itemInserts[0]
     expect(rows[0]).toMatchObject({ confidence: 'high', basis: '12 x 14 ft room stated in the audio' })
-    expect(rows[0]).not.toHaveProperty('optional')
-    expect(rows[1]).not.toHaveProperty('confidence')
-    expect(rows[1]).not.toHaveProperty('basis')
+    expect(rows[0].optional).toBe(false)
+    expect(rows[1]).toMatchObject({ confidence: null, basis: null })
   })
 
-  it('a legacy output writes exactly the pre-SEED-057 rows (no new keys at all)', async () => {
+  it('every inserted item row has the same keys, even in a mixed batch (PostgREST unions keys and NULLs the rest)', async () => {
+    setup({
+      ...RICH,
+      sections: [
+        {
+          title: 'Painting',
+          items: [
+            { description: 'A', quantity: 1, unit_price: 10, price_source: 'ai_estimate', optional: true, confidence: 'low', basis: 'b' },
+            { description: 'B', quantity: 1, unit_price: 10, price_source: 'ai_estimate' },
+            { description: 'C', quantity: 1, unit_price: 10, price_source: 'ai_estimate', confidence: 'high' },
+          ],
+        },
+      ],
+    })
+    const mock = makeServiceMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    await generateEstimateForProject('company-1', 'project-1')
+    const rows = mock.itemInserts[0]
+    const keySets = new Set(rows.map((r) => Object.keys(r).sort().join(',')))
+    expect(keySets.size).toBe(1)
+    expect(rows.map((r) => r.optional)).toEqual([true, false, false])
+    expect(rows[1]).toMatchObject({ confidence: null, basis: null })
+  })
+
+  it('a legacy output has no ai_meta and non-null defaults on the item rows', async () => {
     setup(LEGACY)
     const mock = makeServiceMock()
     vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
-
     await generateEstimateForProject('company-1', 'project-1')
-
     expect(mock.estimateInserts[0]).not.toHaveProperty('ai_meta')
-    for (const key of ['confidence', 'basis', 'optional']) {
-      expect(mock.itemInserts[0][0]).not.toHaveProperty(key)
-    }
+    expect(mock.itemInserts[0][0]).toMatchObject({ confidence: null, basis: null, optional: false })
   })
 
   it('retries the estimate insert without ai_meta when the column does not exist yet', async () => {

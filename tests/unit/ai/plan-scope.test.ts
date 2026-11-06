@@ -67,7 +67,7 @@ describe('planScope', () => {
         assumptions: ['8 ft ceilings'],
       }),
     )
-    const plan = await planScope(input)
+    const { plan } = await planScope(input)
 
     expect(plan?.detected_trade).toBe('painting')
     expect(plan?.measurements).toHaveLength(1)
@@ -96,20 +96,11 @@ describe('planScope', () => {
     expect(system.content).toMatch(/Do NOT include any price/)
   })
 
-  it("records the cost as an 'estimate' operation of the SAME attempt", async () => {
+  it('returns the cost instead of recording a row of its own (the drafting row carries it)', async () => {
     respond(toolCall({ sections: [{ title: 'A' }] }))
-    await planScope(input)
-    expect(costMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attemptId: 'att-1',
-        operationType: 'estimate',
-        provider: 'openrouter',
-        model: 'haiku-model',
-        realCostUsd: 0.0042,
-        companyId: 'co-1',
-        projectId: 'pr-1',
-      }),
-    )
+    const out = await planScope(input)
+    expect(out.costUsd).toBe(0.0042)
+    expect(costMock).not.toHaveBeenCalled()
   })
 
   it('uses the company BYOK key when it has one', async () => {
@@ -130,13 +121,13 @@ describe('planScope', () => {
     ['a network failure', () => vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))],
   ])('%s -> null (the caller generates in one step)', async (_label, arrange) => {
     arrange()
-    await expect(planScope(input)).resolves.toBeNull()
+    expect((await planScope(input)).plan).toBeNull()
   })
 
-  it('records the cost even when the plan turns out unusable', async () => {
+  it('reports the cost even when the plan turns out unusable', async () => {
     respond(toolCall({}))
-    expect(await planScope(input)).toBeNull()
-    expect(costMock).toHaveBeenCalledOnce()
+    expect(await planScope(input)).toEqual({ plan: null, costUsd: 0.0042 })
+    expect(costMock).not.toHaveBeenCalled()
   })
 })
 

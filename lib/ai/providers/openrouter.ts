@@ -239,6 +239,7 @@ export class OpenRouterAdapter implements AIProvider {
       attemptId?: string | null
       companyId?: string | null
       projectId?: string | null
+      extraCostUsd?: number | null
     }
     /**
      * 260927: when set, the request is STREAMED and this receives the growing
@@ -362,7 +363,10 @@ export class OpenRouterAdapter implements AIProvider {
       // ai_cost_events empty and broke credit debiting entirely. recordAICost
       // is never-throw (internal try/catch), so awaiting it is safe and can
       // never affect the estimate return.
-      const realCostUsd = json.usage?.cost ?? null
+      // SEED-057 C: plan_scope's spend rides on THIS row (one row per attempt + operation).
+      const draftCostUsd = json.usage?.cost ?? null
+      const realCostUsd =
+        draftCostUsd === null ? null : draftCostUsd + (args.costContext?.extraCostUsd ?? 0)
       await recordAICost({
         attemptId: args.costContext?.attemptId ?? randomUUID(),
         operationType: 'estimate',

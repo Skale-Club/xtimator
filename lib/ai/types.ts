@@ -118,6 +118,11 @@ export type EstimateInput = {
     attemptId?: string | null
     companyId?: string | null
     projectId?: string | null
+    /**
+     * USD already spent on this attempt's plan_scope call. The estimator adapter folds it
+     * into its ONE cost row (ai_cost_events is unique per attempt + operation).
+     */
+    extraCostUsd?: number | null
   }
   /**
    * 260927: live drafting progress, read off the streamed tool-call arguments

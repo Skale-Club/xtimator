@@ -354,7 +354,12 @@ export async function generateEstimateForProject(
   // generation simply runs in one step, exactly as with the flag off.
   if (isTwoStepEnabled()) {
     phase('planning', { inputCount })
-    const plan = await planScope(estimateInput)
+    const planned = await planScope(estimateInput)
+    const plan = planned.plan
+    // The planning spend rides on the drafting call's single cost row.
+    if (planned.costUsd) {
+      estimateInput.costContext = { ...estimateInput.costContext, extraCostUsd: planned.costUsd }
+    }
     if (plan) {
       estimateInput.plan = plan
       if (plan.detected_trade) estimateInput.playbookTrade = plan.detected_trade
@@ -918,9 +923,11 @@ export async function generateEstimateForProject(
       markup_pct: (item.markup_pct as number | undefined) ?? null,
       // SEED-057: per-line AI metadata. Only present on the row when the model
       // supplied it, so rows (and tests) for legacy outputs are unchanged.
-      ...(item.confidence ? { confidence: item.confidence } : {}),
-      ...(item.basis ? { basis: item.basis } : {}),
-      ...(item.optional ? { optional: true } : {}),
+      // Every row carries the SAME keys: PostgREST unions the keys across a bulk insert and
+      // sends NULL for a row that lacks one, and `optional` is NOT NULL DEFAULT false.
+      confidence: item.confidence ?? null,
+      basis: item.basis ?? null,
+      optional: item.optional === true,
     }))
   })
 

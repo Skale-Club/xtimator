@@ -120,6 +120,11 @@ export async function analyzePhotoGemini(base64: string, mimeType: string): Prom
  * SDK type systems), so key+enum parity is the drift lock — mirrors AIREL-03's
  * approach for the estimate schemas (tests/unit/ai/tool-schema-fields.test.ts).
  */
+/** SEED-057 C: fold plan_scope's spend into the single drafting cost row; null stays null. */
+function withExtraCost(base: number | null, extra: number | null | undefined): number | null {
+  return base === null ? null : base + (extra ?? 0)
+}
+
 export const extractPhotoDeclaration = {
   name: 'extract_photo',
   description: 'Extract structured surfaces/measurements/materials/damage from a job-site photo.',
@@ -426,7 +431,10 @@ export class GeminiAdapter implements AIProvider {
       operationType: 'estimate',
       provider: 'gemini',
       model: 'gemini-2.5-flash',
-      realCostUsd: computeGeminiCostUsd('gemini-2.5-flash', response.usageMetadata),
+      realCostUsd: withExtraCost(
+        computeGeminiCostUsd('gemini-2.5-flash', response.usageMetadata),
+        input.costContext?.extraCostUsd
+      ),
       companyId: input.costContext?.companyId ?? null,
       projectId: input.costContext?.projectId ?? null,
     })

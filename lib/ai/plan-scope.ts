@@ -18,10 +18,8 @@ import 'server-only'
  * gets (buildUserContent: every field sanitised and tagged), and the Security
  * block stays LAST in the system prompt.
  */
-import { randomUUID } from 'node:crypto'
 import { getORKey, OPENROUTER_BASE, OR_DEFAULTS, AI_CHAT_TIMEOUT_MS } from '@/lib/ai/openrouter-client'
 import { getByokOpenRouterKey } from '@/lib/billing/byok'
-import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { buildUserContent, languageInstruction, playbookFor, securityPrompt } from './prompt-builder'
 import { ESTIMATE_V2_TEXT, ESTIMATE_V2_TOP_PROPERTIES } from './tool-schema-v2'
 import { CANONICAL_UNITS } from './units'
@@ -100,7 +98,19 @@ export function buildPlanSystemPrompt(input: EstimateInput): string {
 }
 
 /** Run the planning call. Returns null on ANY failure; the caller then generates in one step. */
-export async function planScope(input: EstimateInput): Promise<ScopePlan | null> {
+export interface PlanScopeOutcome {
+  /** null = no usable plan; the caller generates in one step. */
+  plan: ScopePlan | null
+  /**
+   * What the call cost, known even when the plan is unusable. NOT recorded here:
+   * ai_cost_events is unique per (attempt, operation), so the caller hands this to the
+   * estimator via costContext.extraCostUsd and the drafting row carries draft + plan.
+   */
+  costUsd: number | null
+}
+
+export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome> {
+  let costUsd: number | null = null
   try {
     const companyId = input.costContext?.companyId ?? null
     const byok = companyId ? await getByokOpenRouterKey(companyId).catch(() => null) : null
@@ -137,7 +147,7 @@ export async function planScope(input: EstimateInput): Promise<ScopePlan | null>
       }),
       signal: AbortSignal.timeout(Math.min(PLAN_TIMEOUT_MS, AI_CHAT_TIMEOUT_MS)),
     })
-    if (!res.ok) return null
+    if (!res.ok) return { plan: null, costUsd }
 
     const json = (await res.json()) as {
       choices?: Array<{
@@ -147,27 +157,18 @@ export async function planScope(input: EstimateInput): Promise<ScopePlan | null>
       error?: { message?: string }
       usage?: { cost?: number }
     }
-    // The cost was incurred whether or not the plan is usable: record it first.
-    await recordAICost({
-      attemptId: input.costContext?.attemptId ?? randomUUID(),
-      operationType: 'estimate',
-      provider: 'openrouter',
-      model,
-      realCostUsd: json.usage?.cost ?? null,
-      companyId,
-      projectId: input.costContext?.projectId ?? null,
-    })
-    if (json.error?.message) return null
+    costUsd = typeof json.usage?.cost === 'number' ? json.usage.cost : null
+    if (json.error?.message) return { plan: null, costUsd }
     const choice = json.choices?.[0]
-    if (choice?.finish_reason === 'length') return null
+    if (choice?.finish_reason === 'length') return { plan: null, costUsd }
     const args = choice?.message?.tool_calls?.find((t) => t.function?.name === 'plan_scope')?.function?.arguments
-    if (!args) return null
+    if (!args) return { plan: null, costUsd }
 
     const parsed = scopePlanSchema.safeParse(JSON.parse(args))
-    if (!parsed.success || !isUsablePlan(parsed.data)) return null
-    return parsed.data
+    if (!parsed.success || !isUsablePlan(parsed.data)) return { plan: null, costUsd }
+    return { plan: parsed.data, costUsd }
   } catch (err) {
     console.warn('[plan-scope] planning failed (generating in one step):', err)
-    return null
+    return { plan: null, costUsd }
   }
 }
