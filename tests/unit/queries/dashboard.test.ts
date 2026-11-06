@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { createClient } from '@supabase/supabase-js'
 import { getDashboardStats, getProjects } from '@/lib/queries/dashboard'
 
 function createMockSupabase(overrides: Record<string, unknown> = {}) {
@@ -49,7 +50,9 @@ function createMockSupabase(overrides: Record<string, unknown> = {}) {
         eq: vi.fn(() => countChain),
         in: vi.fn(() => {
           // pendingEstimates
-          return Promise.resolve({ count: opts.pendingCount })
+          const result: Record<string, unknown> = Promise.resolve({ count: opts.pendingCount }) as unknown as Record<string, unknown>
+          result.is = () => result
+          return result
         }),
         is: vi.fn(() => projectsCountResult),
       }
@@ -117,6 +120,89 @@ describe('getDashboardStats', () => {
 
     expect(stats.totalProjects).toBe(5)
     expect(stats.totalRevenue).toBe(4000)
+  })
+})
+
+// Exercise the real Supabase query builder against an in-memory PostgREST
+// fixture. Relationship filters restrict root rows only with an inner join.
+let visibilityFixtureId = 0
+function createVisibilityFixture() {
+  const projects = [
+    { id: 'active-draft', company_id: 'company-1', archived_at: null as string | null, deleted_at: null as string | null },
+    { id: 'active-sent', company_id: 'company-1', archived_at: null as string | null, deleted_at: null as string | null },
+    { id: 'archived', company_id: 'company-1', archived_at: '2026-11-01', deleted_at: null },
+    { id: 'trashed', company_id: 'company-1', archived_at: null, deleted_at: '2026-11-01' },
+    { id: 'both', company_id: 'company-1', archived_at: '2026-11-01', deleted_at: '2026-11-02' },
+    { id: 'other-company', company_id: 'company-2', archived_at: null, deleted_at: null },
+  ]
+  const estimates = [
+    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'draft' },
+    { project_id: 'active-sent', company_id: 'company-1', is_current: true, status: 'sent' },
+    { project_id: 'archived', company_id: 'company-1', is_current: true, status: 'draft' },
+    { project_id: 'trashed', company_id: 'company-1', is_current: true, status: 'sent' },
+    { project_id: 'both', company_id: 'company-1', is_current: true, status: 'draft' },
+    { project_id: 'missing', company_id: 'company-1', is_current: true, status: 'draft' },
+    { project_id: 'active-draft', company_id: 'company-1', is_current: false, status: 'draft' },
+    { project_id: 'active-draft', company_id: 'company-1', is_current: true, status: 'viewed' },
+    { project_id: 'other-company', company_id: 'company-2', is_current: true, status: 'draft' },
+    // Revenue/accepted behavior remains historical, independent of visibility.
+    { project_id: 'archived', company_id: 'company-1', is_current: true, status: 'accepted', client_response: 'accepted', total: 500 },
+  ]
+  const fetchFixture = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init)
+    const url = new URL(request.url)
+    const table = url.pathname.split('/').pop()
+    let rows: Record<string, unknown>[] = table === 'projects' ? projects : estimates
+    const innerProject = (url.searchParams.get('select') ?? '').includes('!inner')
+    if (table === 'estimates' && innerProject) {
+      rows = rows.filter(row => projects.some(project => project.id === row.project_id))
+    }
+    for (const [column, predicate] of url.searchParams) {
+      if (['select', 'order', 'limit', 'offset'].includes(column)) continue
+      rows = rows.filter(row => {
+        let value = row[column]
+        if (column.startsWith('projects.')) {
+          if (!innerProject) return true
+          const parent = projects.find(project => project.id === row.project_id)
+          value = parent?.[column.slice('projects.'.length) as 'archived_at' | 'deleted_at']
+        }
+        if (predicate === 'is.null') return value === null
+        if (predicate.startsWith('eq.')) return String(value) === predicate.slice(3)
+        if (predicate.startsWith('in.(')) return predicate.slice(4, -1).split(',').includes(String(value))
+        throw new Error(`Unhandled fixture predicate: ${column}=${predicate}`)
+      })
+    }
+    return new Response(request.method === 'HEAD' ? null : JSON.stringify(rows), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'content-range': `*/${rows.length}` },
+    })
+  })
+  return {
+    projects,
+    supabase: createClient('https://fixture.supabase.co', 'fixture-key', {
+      global: { fetch: fetchFixture },
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: `visibility-fixture-${visibilityFixtureId++}` },
+    }),
+  }
+}
+
+describe('pending estimate project visibility', () => {
+  it('counts only current draft/sent estimates for visible projects of this company', async () => {
+    const { supabase } = createVisibilityFixture()
+    const stats = await getDashboardStats(supabase, 'company-1')
+    expect(stats.pendingEstimates).toBe(2)
+    expect(stats.totalProjects).toBe(2)
+    expect(stats.acceptedEstimates).toBe(1)
+    expect(stats.totalRevenue).toBe(500)
+  })
+
+  it.each(['archived_at', 'deleted_at'] as const)('removes hidden estimates and includes them again after restoring %s', async field => {
+    const { supabase, projects } = createVisibilityFixture()
+    expect((await getDashboardStats(supabase, 'company-1')).pendingEstimates).toBe(2)
+    projects[0][field] = '2026-11-06'
+    expect((await getDashboardStats(supabase, 'company-1')).pendingEstimates).toBe(1)
+    projects[0][field] = null
+    expect((await getDashboardStats(supabase, 'company-1')).pendingEstimates).toBe(2)
   })
 })
 

@@ -41,13 +41,16 @@ export async function getDashboardStats(
       .eq('company_id', companyId)
       .is('archived_at', null)
       .is('deleted_at', null),
-    // Pending estimates (draft or sent, current version)
+    // Pending estimates belong to active projects, matching the project count.
+    // An inner join is required: filtering a left embed keeps hidden root rows.
     supabase
       .from('estimates')
-      .select('*', { count: 'exact', head: true })
+      .select('id, projects!estimates_project_id_fkey!inner(id)', { count: 'exact', head: true })
       .eq('company_id', companyId)
       .eq('is_current', true)
-      .in('status', ['draft', 'sent']),
+      .in('status', ['draft', 'sent'])
+      .is('projects.archived_at', null)
+      .is('projects.deleted_at', null),
     // Accepted estimates (current version, client accepted)
     supabase
       .from('estimates')
