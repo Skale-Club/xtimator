@@ -33,6 +33,13 @@ export default async function OnboardingPage({
   const { mode } = await searchParams
   const addMode: 'first' | 'add' = mode === 'add' ? 'add' : 'first'
 
+  // SEED-055 D9: adding a company is unavailable (1 company + 1 user until
+  // add-ons exist). `?mode=add` has no entry point anymore; a hand-typed URL
+  // goes back to the app instead of an onboarding form whose submit is refused.
+  if (addMode === 'add') {
+    redirect('/dashboard')
+  }
+
   // D-13/D-14 guard: a user who already has an active company landing on the
   // plain onboarding URL (no `?mode=add`) has nothing to onboard — send them
   // to the dashboard instead of re-running 'first'-mode onboarding, which used
