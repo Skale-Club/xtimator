@@ -38,11 +38,15 @@ A quinta tela mostra apenas a escolha da cor. As cores ocupam a largura disponí
 
 ## 6. Logo e conclusão
 
-A sexta tela é exclusiva para o logo opcional. Ele pode ser PNG ou JPG de até 2 MB e pode ser adicionado depois.
+A sexta tela é exclusiva para o logo opcional, com título, instrução e área de envio centralizados. Ele pode ser PNG ou JPG de até 2 MB e pode ser adicionado depois. Ao selecionar, a imagem aparece em destaque. O formulário informa quando está enviando, quando o envio terminou ou se houve erro, com opção de tentar novamente. A pessoa pode alterar ou remover a imagem antes de confirmar.
 
-**Começar a usar** salva a empresa, marca o onboarding como concluído e leva ao painel. Não há perguntas de licença, seguro, impostos, condições de pagamento, garantia ou validade, nem uma revisão final.
+Com um logo selecionado, **Confirmar e começar** confirma a prévia e conclui o cadastro. Sem logo, **Começar a usar** salva a empresa, marca o onboarding como concluído e leva ao painel. Não há perguntas de licença, seguro, impostos, condições de pagamento, garantia ou validade, nem uma revisão final.
 
 ![Logo da empresa](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/06-logo.jpg)
+
+Prévia com uma imagem de teste selecionada:
+
+![Prévia centralizada do logo](C:/Users/Vanildo/.codex/visualizations/2026/11/06/01a1b0c7-2eb1-7223-acad-f913de7b979e/onboarding-six/07-logo-previa.jpg)
 
 ## Rascunho e retomada
 

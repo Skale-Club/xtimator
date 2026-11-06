@@ -11,6 +11,8 @@ interface Props {
   logoPreview: string | null
   setLogoPreview: (p: string | null) => void
   onNext: () => void
+  logoUploadStatus?: 'uploading' | 'saved' | 'error'
+  onRetryLogo?: () => void
 }
 
 export function LogoStep({
@@ -19,6 +21,8 @@ export function LogoStep({
   logoPreview,
   setLogoFile,
   setLogoPreview,
+  logoUploadStatus,
+  onRetryLogo,
 }: Props) {
   function handleSelect(file: File, preview: string) {
     setValue('logoUrl', '')
@@ -48,10 +52,10 @@ export function LogoStep({
 
   return (
     <LogoUploader
+      presentation="onboarding"
       preview={logoPreview}
-      companyInitial={
-        values.companyName?.charAt(0)?.toUpperCase() || '?'
-      }
+      status={logoUploadStatus ?? (values.logoUrl ? 'saved' : 'selected')}
+      onRetry={onRetryLogo}
       onFileSelect={handleSelect}
       onRemove={handleRemove}
     />

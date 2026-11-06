@@ -6,12 +6,13 @@ interface SurveyStepProps {
   helper?: string
   error: string | null
   children: ReactNode
+  centered?: boolean
 }
 
-export function SurveyStep({ label, helper, error, children }: SurveyStepProps) {
+export function SurveyStep({ label, helper, error, children, centered = false }: SurveyStepProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col gap-4${centered ? ' text-center' : ''}`}>
       <div className="flex flex-col gap-1">
         <h1
           tabIndex={-1}

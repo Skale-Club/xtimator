@@ -1,5 +1,9 @@
 // Keep the first-run flow fully translated without waiting for an API call.
 const copy = [
+  ['Confirm logo and start', 'Confirmar e começar', 'Confirmar y empezar'],
+  ['Uploading logo...', 'Enviando logo...', 'Subiendo logo...'],
+  ['Logo uploaded', 'Logo enviado com sucesso', 'Logo subido correctamente'],
+  ['Check your logo before continuing. You can change it below.', 'Confira seu logo antes de continuar. Você pode trocá-lo abaixo.', 'Revise su logo antes de continuar. Puede cambiarlo abajo.'],
   ['Could not finish setup. Please try again.', 'Não foi possível concluir a configuração. Tente novamente.', 'No se pudo completar la configuración. Inténtelo de nuevo.'],
   ['Setup is already being completed. Please try again shortly.', 'A configuração já está sendo concluída. Tente novamente em instantes.', 'La configuración ya se está completando. Inténtelo de nuevo en un momento.'],
   ['Which language would you like to use Xtimator in?', 'Em qual idioma você quer usar o Xtimator?', '¿En qué idioma quiere usar Xtimator?'],

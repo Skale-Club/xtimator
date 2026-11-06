@@ -7,7 +7,7 @@ The active first-run flow has six questions:
 3. **Services** — grouped rows like iPhone Settings, with one group open at a time and selections retained across groups. Custom services and starter catalogue prices are optional.
 4. **Service region** — a free-form city, metro area or state (for example Greater Boston, Connecticut or Framingham). No street address is requested. This is stored in the existing `companies.city` locality field.
 5. **Brand color** — compact color rectangles on their own screen. Next (or Enter in the custom color field) advances to the logo.
-6. **Company logo** — an optional upload on its own screen, followed directly by completion. No review, license, insurance, tax, payment, warranty or validity questions.
+6. **Company logo** — a centered optional upload with a large preview, uploading/success/error feedback, retry, change and remove actions. With a logo, the final button explicitly confirms the logo and starts the app; without one it starts directly. No review, license, insurance, tax, payment, warranty or validity questions.
 
 Phone sign-in already verifies the phone. In owned authentication, a new Google account must complete the existing SMS verification before the application issues its session and admits it to onboarding. The server also blocks older sessions without a verified phone from opening/completing onboarding.
 

@@ -26,6 +26,8 @@ interface SurveyShellProps {
   completionDisabled?: boolean
   draftStatus?: 'saving' | 'saved' | 'error'
   onRetrySave?: () => void
+  logoUploadStatus?: 'uploading' | 'saved' | 'error'
+  onRetryLogo?: () => void
 }
 
 export function SurveyShell({
@@ -37,6 +39,8 @@ export function SurveyShell({
   completionDisabled = false,
   draftStatus,
   onRetrySave,
+  logoUploadStatus,
+  onRetryLogo,
 }: SurveyShellProps) {
   const { t } = useTranslation()
   const stepContent = useRef<HTMLDivElement>(null)
@@ -66,6 +70,8 @@ export function SurveyShell({
     setLogoFile,
     logoPreview,
     setLogoPreview,
+    logoUploadStatus,
+    onRetryLogo,
     onNext: isLast ? onComplete : () => goNext(),
   }
 
@@ -179,6 +185,7 @@ export function SurveyShell({
                       label={currentStep.label}
                       helper={currentStep.helper}
                       error={error}
+                      centered={currentStep.key === 'logo'}
                     >
                       {renderStep()}
                     </SurveyStep>
@@ -207,7 +214,7 @@ export function SurveyShell({
                           {isSubmitting ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : null}
-                          {t(isSubmitting ? 'Saving...' : 'Start using Xtimator')}
+                          {t(isSubmitting ? 'Saving...' : logoPreview ? 'Confirm logo and start' : 'Start using Xtimator')}
                         </Button>
                       ) : (
                         <>

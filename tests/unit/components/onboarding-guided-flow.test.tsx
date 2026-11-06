@@ -89,7 +89,7 @@ describe('language-first guided onboarding', () => {
     expect(draft.stepKey).toBe('logo')
     expect(draft.values.logoUrl).toBe('/storage/logos/saved.webp')
     expect(draft.values.brandPrimaryColor).toBe('#123ABC')
-    fireEvent.click(screen.getByRole('button', { name: 'Start using Xtimator' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm logo and start' }))
     expect(complete).toHaveBeenCalledOnce()
   })
   it('shows draft syncing errors with a retry action', () => {
@@ -152,3 +152,4 @@ describe('compact brand colors', () => {
     expect(screen.getByRole('radio', { name: 'System secondary' }).getAttribute('aria-checked')).toBe('true')
   })
 })
+

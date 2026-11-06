@@ -33,6 +33,8 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
   const autosave = useDraftAutosave(draft, state.values, state.currentStep.key, state.ready)
   const [isSubmitting, startTransition] = useTransition()
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(false)
+  const [uploadAttempt, setUploadAttempt] = useState(0)
   const completing = useRef(false)
   const upload = useRef<{ file: File; promise: ReturnType<typeof uploadOnboardingDraftLogo> } | null>(null)
   const file = state.logoFile
@@ -40,7 +42,7 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
   const { setValue, setLogoPreview } = state
 
   useEffect(() => {
-    if (!file || savedLogo) { setUploading(false); return }
+    if (!file || savedLogo) { setUploading(false); setUploadError(false); return }
     let cancelled = false
     if (upload.current?.file !== file) {
       const form = new FormData()
@@ -49,15 +51,16 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
       upload.current = { file, promise: uploadOnboardingDraftLogo(form) }
     }
     setUploading(true)
+    setUploadError(false)
     void upload.current.promise.then(result => {
       if (cancelled) return
       if (result.url) { setValue('logoUrl', result.url); setLogoPreview(result.url) }
-      else toast.error(translate.current(result.error ?? 'Could not save your logo. Please try again.'))
+      else { setUploadError(true); toast.error(translate.current(result.error ?? 'Could not save your logo. Please try again.')) }
     }).catch(() => {
-      if (!cancelled) toast.error(translate.current('Could not save your logo. Please try again.'))
+      if (!cancelled) { setUploadError(true); toast.error(translate.current('Could not save your logo. Please try again.')) }
     }).finally(() => { if (!cancelled) setUploading(false) })
     return () => { cancelled = true }
-  }, [draft.id, file, savedLogo, setValue, setLogoPreview])
+  }, [draft.id, file, savedLogo, setValue, setLogoPreview, uploadAttempt])
 
   function handleComplete() {
     if (completing.current || uploading) return
@@ -90,5 +93,7 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
 
   return <SurveyShell appName={appName} logoUrl={logoUrl} state={state}
     isSubmitting={isSubmitting} completionDisabled={uploading} onComplete={handleComplete}
+    logoUploadStatus={uploading ? 'uploading' : uploadError ? 'error' : savedLogo ? 'saved' : undefined}
+    onRetryLogo={() => { upload.current = null; setUploadAttempt(attempt => attempt + 1) }}
     draftStatus={uploading ? 'saving' : autosave.status} onRetrySave={autosave.retry} />
 }
