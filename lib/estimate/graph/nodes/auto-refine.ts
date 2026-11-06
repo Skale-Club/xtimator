@@ -54,10 +54,25 @@ export const autoRefineNode = async (
   if (!state.isVague) {
     const hints = state.structureHints ?? []
     const notes = hints.length > 0 ? hints : [VAGUE_NOTE]
+    // Remember the project's status (estimate_ready vs awaiting_details) so a fallback to this
+    // draft restores it instead of assuming. Best-effort.
+    let previousProjectStatus: string | undefined
+    try {
+      const { data } = await requireServiceClient()
+        .from('projects')
+        .select('status')
+        .eq('id', state.projectId)
+        .eq('company_id', state.companyId)
+        .maybeSingle()
+      previousProjectStatus = (data as { status?: string } | null)?.status ?? undefined
+    } catch {
+      previousProjectStatus = undefined
+    }
     return {
       refineAttempts: (state.refineAttempts ?? 0) + 1,
       // Kept so a failing second pass can fall back to this draft (recover-draft.ts).
       previousEstimateId: state.estimateId,
+      previousProjectStatus,
       estimateId: undefined,
       isVague: undefined,
       structureBand: undefined,

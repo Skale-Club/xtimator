@@ -52,6 +52,10 @@ const AUTO_REFINE_MAX_ATTEMPTS = (() => {
  * channel-appropriate needs_details outcome when the cap is reached.
  */
 export function checkVagueAfterAssessEdge(state: EstimateStateType): string {
+  // SEED-057 D: a targeted pass that came back VAGUE must not leave the project without a
+  // current estimate (finalize would delete it and flip to awaiting_details): fall back to
+  // the first draft, which was good enough to deliver.
+  if (state.isVague && state.previousEstimateId) return 'recoverDraft'
   const canRefine = (state.refineAttempts ?? 0) < AUTO_REFINE_MAX_ATTEMPTS
   if (!state.isVague) {
     // SEED-057 D: a usable but poorly structured draft (score < 50) gets the same

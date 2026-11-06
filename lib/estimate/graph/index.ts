@@ -62,9 +62,10 @@ export function buildEstimateGraph(
     // checkVagueAfterAssessEdge routes to autoRefine on first vague result,
     // then to finalize once refineAttempts >= 1. The BOTH targets MUST be
     // listed in the 3rd argument for LangGraph 1.3.6 reachability (Pitfall 1).
-    .addConditionalEdges('assess', checkVagueAfterAssessEdge, ['finalize', 'autoRefine'])
+    .addConditionalEdges('assess', checkVagueAfterAssessEdge, ['finalize', 'autoRefine', 'recoverDraft'])
     .addEdge('autoRefine', 'generate')
-    .addEdge('recoverDraft', 'finalize')
+    // A draft that could not be restored (failure left in state) is a real error.
+    .addConditionalEdges('recoverDraft', (s) => (s.estimateId && !s.failure ? 'finalize' : 'onError'), ['finalize', 'onError'])
     .addEdge('finalize', END)
     .addEdge('onError', END)
 

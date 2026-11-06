@@ -70,6 +70,8 @@ export const EstimateState = Annotation.Root({
    * graph restores this estimate and delivers it instead of failing the job.
    */
   previousEstimateId: Annotation<string | undefined>(),
+  /** SEED-057 D: the project status before the targeted pass, restored with the draft. */
+  previousProjectStatus: Annotation<string | undefined>(),
   /** SEED-057 D: the model's open questions, most impactful first (feeds needs-details). */
   openQuestions: Annotation<string[] | undefined>(),
   /** Scaffolded for Phase 96 auto-refine; unused this phase. */
