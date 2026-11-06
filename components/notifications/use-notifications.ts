@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { createClient as createBrowserSupabase } from '@/lib/supabase/client'
+import { useEffect, useState, useCallback } from 'react'
 import {
   type EventCategory,
   EVENT_CATEGORIES,
@@ -13,13 +12,16 @@ import {
  * Phase 77 (NOTIF-05 + NOTIF-11) — Bell-panel state hook.
  *
  *  - Initial load: GET /api/notifications/list?limit=20
- *  - Live updates: Supabase Realtime channel
- *      `notifications:${companyId}:${userId}` filtered to INSERTs on `notifications`
- *      where `company_id = $companyId`; client-side filters out other users.
- *  - 300ms debounce batches bursts (e.g. multi-row dispatches) before flushing.
- *  - markRead / markAllRead are optimistic — UI updates first, API call confirms.
- *  - Channel removed + debounce cleared on unmount → no leak.
+ *  - Live updates: SEED-056 replaced the Supabase Realtime `postgres_changes`
+ *      subscription (which never delivered: the publication had 0 tables) with
+ *      bounded polling of the same list endpoint - every NOTIFICATIONS_POLL_MS
+ *      while the tab is visible, paused while hidden, and refetched on focus /
+ *      when the tab becomes visible again. Polls are silent (no loading flicker).
+ *  - markRead / markAllRead are optimistic - UI updates first, API call confirms.
+ *  - Interval + listeners removed on unmount, so nothing leaks.
  */
+
+export const NOTIFICATIONS_POLL_MS = 30_000
 
 export interface NotificationListItem {
   id: string
@@ -84,29 +86,11 @@ export function useNotifications({
   const [items, setItems] = useState<NotificationListItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingRef = useRef<NotificationListItem[]>([])
-
-  const flush = useCallback(() => {
-    if (pendingRef.current.length === 0) return
-    const batch = pendingRef.current
-    pendingRef.current = []
-    setItems((prev) => {
-      // Dedupe by id (avoid double-render if refresh + realtime race).
-      const seen = new Set(prev.map((i) => i.id))
-      const fresh = batch.filter((i) => !seen.has(i.id))
-      return [...fresh, ...prev]
-    })
-  }, [])
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (silent: boolean) => {
+    if (!silent) setLoading(true)
     try {
       const res = await fetch('/api/notifications/list?limit=20')
-      if (!res.ok) {
-        setLoading(false)
-        return
-      }
+      if (!res.ok) return
       const data = (await res.json()) as { items: RawNotificationRow[] }
       setItems(
         (data.items ?? [])
@@ -116,48 +100,52 @@ export function useNotifications({
     } catch {
       // best-effort; keep last-known state
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    refresh()
-  }, [refresh])
+  const refresh = useCallback(() => load(false), [load])
 
+  useEffect(() => {
+    void load(false)
+  }, [load])
+
+  // Bounded polling: only while the tab is visible; refetch on focus/visible.
   useEffect(() => {
     if (!companyId || !userId) return
-    const supabase = createBrowserSupabase()
-    const channel = supabase
-      .channel(`notifications:${companyId}:${userId}`)
-      .on(
-        'postgres_changes' as never,
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `company_id=eq.${companyId}`,
-        } as never,
-        (payload: { new: RawNotificationRow }) => {
-          const row = payload.new
-          // Server channel filter is company-wide; client-side narrow:
-          // visible if (user_id is null OR user_id === me).
-          if (row.user_id && row.user_id !== userId) return
-          if (!isVisibleNotificationEventType(row.event_type)) return
-          pendingRef.current.push(rowToItem(row))
-          if (debounceRef.current) clearTimeout(debounceRef.current)
-          debounceRef.current = setTimeout(flush, 300)
-        },
-      )
-      .subscribe()
+    let timer: ReturnType<typeof setInterval> | null = null
 
-    return () => {
-      supabase.removeChannel(channel)
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = null
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer)
+        timer = null
       }
     }
-  }, [companyId, userId, flush])
+    const start = () => {
+      if (timer) return
+      timer = setInterval(() => void load(true), NOTIFICATIONS_POLL_MS)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void load(true)
+        start()
+      } else {
+        stop()
+      }
+    }
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') void load(true)
+    }
+
+    if (document.visibilityState === 'visible') start()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [companyId, userId, load])
 
   const markRead = useCallback(async (id: string) => {
     const now = new Date().toISOString()
