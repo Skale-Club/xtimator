@@ -96,7 +96,7 @@ describe('language-first guided onboarding', () => {
     function ErrorSurvey() {const state = useSurveyState(INITIAL); return <SurveyShell appName="Xtimator" logoUrl={null} state={state} isSubmitting={false} onComplete={vi.fn()} draftStatus="error" onRetrySave={retry} />}
     const retry=vi.fn()
     render(<ErrorSurvey />)
-    expect(screen.getByRole('status').textContent).toContain('Saved on this device')
+    expect(screen.getByRole('status').textContent).toContain('Your progress is safe')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(retry).toHaveBeenCalledOnce()
   })

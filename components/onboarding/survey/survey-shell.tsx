@@ -243,7 +243,7 @@ export function SurveyShell({
                     </div>
                     </div>
                     {draftStatus ? <p role="status" className="mt-2 text-center text-xs text-muted-foreground">
-                      {t(draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'saving' ? 'Saving draft...' : 'Saved on this device. We’ll retry syncing.')}
+                      {t(draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'saving' ? 'Saving draft...' : 'Your progress is safe. Please try again.')}
                       {draftStatus === 'error' && onRetrySave ? <button type="button" onClick={onRetrySave} className="ml-2 min-h-8 text-primary underline">{t('Retry')}</button> : null}
                     </p> : null}
                   </footer>
