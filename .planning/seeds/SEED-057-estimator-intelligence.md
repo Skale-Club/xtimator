@@ -236,7 +236,7 @@ Files: `tests/eval/*`, new `tests/eval/rubric.ts`, `tests/eval/live/*`
 |---|---|---|
 | E1 | Two-step generation (plan → price) | Build behind a flag; enable only when the live eval shows ≥ +10 rubric points at ≤ +15 s median. |
 | E2 | Trade playbooks | Start with the 8 trades above; the owner reviews each file (they are plain data). |
-| E3 | Company history as a price source | Yes, from accepted estimates only (not drafts), per concept+unit, median of the last 10. |
+| E3 | Company history as a price source | Yes, from accepted estimates only (not drafts), per concept+unit, median of the last 10, **at least 2 observations**, and only within 0.33x-3x of the price it replaces (validation fix). |
 | E4 | Model | Keep `anthropic/claude-sonnet-5` for `create_estimate`; use `claude-haiku-4-5` for `plan_scope` only if the eval shows no loss. |
 | E5 | Knowledge base injection | Yes, top-5 entries by similarity, hard cap 1.5k tokens. |
 
@@ -250,7 +250,15 @@ Files: `tests/eval/*`, new `tests/eval/rubric.ts`, `tests/eval/live/*`
   a banner instead of blocking; only < 50 refines, cap 1 as today.
 - Live evals cost money: manual trigger, capped case count.
 
-**Deploy order (migration `20261108000001_estimator_intelligence.sql`).**
+**DEPLOY ORDER, READ FIRST (validation update).**
+1. Rebase local `main` on `origin/main` BEFORE anything else: it is ahead 25 and behind 7, and the
+   two sides share a PostgREST compat shim migration. Do not push before that.
+2. Apply AND verify BOTH migrations on production: `20261107000002_document_blocks.sql` (SEED-056;
+   `generateEstimateForProject` and `getAuthContext` select `companies.document_blocks` by name and
+   fail closed without it) and `20261108000001_estimator_intelligence.sql` (this seed).
+3. Only then push. Both pushes auto-deploy.
+
+**Deploy notes for migration `20261108000001_estimator_intelligence.sql`.**
 Unlike SEED-056, the code is written to survive running BEFORE the migration:
 no SELECT on a hot path names a new column (the editor reads `estimates` with
 `select('*')` and items through `estimate_items(*)`), the new columns are
@@ -286,3 +294,37 @@ Deviations from the plan above, on purpose:
 - **`planning` is a journal phase but not a checklist row**; the capture overlay keeps "Reading the job details" active while it runs.
 - **Live canary baseline is empty** (`tests/eval/live/baseline.json`): the first live run only reports; set the baseline after reviewing it.
 - **Playbook content** is a first draft written for review, not validated by the owner or against live output yet.
+
+## 7. Validation fixes (2026-11-06)
+
+Opus validation failed the first cut (1 blocker, 4 majors). Fixed in the commits after `83166bd6`:
+
+- **Blocker.** A bulk item insert gave only some rows the new keys; PostgREST NULLs the missing ones and
+  `optional` is NOT NULL, so a mixed batch would fail with 23502 after the migration. Every row now carries
+  `confidence`, `basis` and `optional` (null / null / false). Section, estimate and `price_observations`
+  inserts already used uniform keys.
+- **Cost.** `plan_scope` no longer inserts its own `ai_cost_events` row (the unique attempt+operation index
+  made the drafting row fail silently). Its cost travels on `costContext.extraCostUsd` and the one drafting
+  row (openrouter and the gemini fallback) records draft + plan.
+- **Targeted refine failure.** The pass remembers `previousEstimateId`; on any failure a `recoverDraft` node
+  restores that draft as current, demotes every other version, resets the project and routes to finalize.
+- **Concept keys.** labor / materials / supply(ied) / provide(d) are no longer filler; boiler is not a water
+  heater; synonym phrases are glued so `heater` cannot rewrite `water heater`.
+- **Output budget.** 16384 output tokens on all estimate calls; `basis` is capped at 80 characters (truncated,
+  never rejected).
+- **Also:** MCP `get_estimate` strips owner-only fields; second-attempt guidance is a trusted `Quality notes`
+  system section (`EstimateInput.qualityHints`), not an untrusted `<description>`; `unitKey` strips `per ` / `/`;
+  the confidence dot needs a price source; price observations are withdrawn if the acceptance is undone
+  mid-write; knowledge has a 0.30 cosine-similarity floor, the 6000-char cap counts escaped text, and an empty
+  knowledge base skips the embedding call; units stay US in pt/es and the structure messages come in en/pt/es.
+
+Known and accepted:
+
+- **Cache suffix.** The persisted researched-price cache name now carries `[unit]` for items that have a unit,
+  so existing unit-bearing cache rows are orphaned (each misses once) until their 30-day TTL expires.
+- **Refine with AI.** "Edit with AI" produces a NEW version with its own `ai_meta`, so the previous version's
+  banner and open questions simply stop being the current ones; nothing is cleared in place (writing
+  `estimates` would restamp the `updated_at` concurrency token). The review banner stays until the version is
+  replaced even if the owner hand-edits the flagged lines (not worth the extra state).
+- **Not fixed on purpose:** the migration's legacy constraint name, and back-to-back repeated synonym phrases in
+  `conceptKey` (a repeated phrase can survive one pass).
