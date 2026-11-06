@@ -29,6 +29,9 @@ import {
   estimateViewedNotificationJob,
   autoBlogSweepJob,
   autoBlogRssFetchJob,
+  cleanupOrphanDraftProjectsJob,
+  purgeWhatsAppProcessedMessagesJob,
+  purgeExpiredWhatsAppSessionsJob,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -53,5 +56,8 @@ export const { GET, POST, PUT } = serve({
     estimateViewedNotificationJob,
     autoBlogSweepJob,
     autoBlogRssFetchJob,
+    cleanupOrphanDraftProjectsJob,
+    purgeWhatsAppProcessedMessagesJob,
+    purgeExpiredWhatsAppSessionsJob,
   ],
 })
