@@ -43,6 +43,7 @@ import {
   resolveDocumentBlocks,
 } from '@/lib/estimate/document-blocks'
 import { buildAiMeta, isMissingColumnError } from '@/lib/estimate/ai-meta'
+import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -176,7 +177,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, name, default_estimate_language, tax_config'
+        'industry, industries, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, name, default_estimate_language, tax_config'
       )
       .eq('id', companyId)
       .single(),
@@ -293,6 +294,25 @@ export async function generateEstimateForProject(
     // from the TRUSTED params (companyId is a function param, never LLM-derived).
     costContext: options.costContext,
   }
+
+  // SEED-057 E5: the company's own knowledge (house rules, prices). Never throws
+  // and is bounded in time; a knowledge outage costs the estimate its extra
+  // context, nothing else.
+  const knowledge = await loadKnowledgeContext({
+    companyId, // param, never LLM-derived
+    industries: Array.isArray(company.industries) && company.industries.length > 0
+      ? (company.industries as string[])
+      : company.industry
+        ? [company.industry as string]
+        : [],
+    query: buildKnowledgeQuery([
+      // The eager-create placeholder name says nothing about the job.
+      (project.name as string | null)?.startsWith(PLACEHOLDER_PREFIX) ? null : (project.name as string | null),
+      ...transcripts.slice(0, 2),
+      ...prompts.slice(0, 2),
+    ]),
+  })
+  if (knowledge.length > 0) estimateInput.knowledge = knowledge
 
   // WhatsApp-only: append the platform admin's system-prompt addendum.
   // Not fetched for web/MCP so those channels are unaffected.

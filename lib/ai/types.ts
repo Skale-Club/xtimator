@@ -62,6 +62,17 @@ export type EstimateInput = {
    * (Phase 89 deferral closed 2026-05-27.)
    */
   prompts?: string[]
+  /**
+   * SEED-057 E5: the company's own knowledge entries (top-5 by similarity,
+   * capped at ~1.5k tokens by the prompt builder). Untrusted text: it is
+   * escaped and wrapped in <knowledge> tags in the user message.
+   */
+  knowledge?: Array<{ title: string; body: string }>
+  /**
+   * SEED-057: an explicit trade for the playbook choice (set from the
+   * plan_scope pre-pass). Absent = the builder reads the source material.
+   */
+  playbookTrade?: string
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
   currencyCode?: string
   /**

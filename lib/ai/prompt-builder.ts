@@ -1,6 +1,13 @@
 // lib/ai/prompt-builder.ts
 import type { EstimateInput, EstimateOutput } from './types'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
+import { resolvePlaybook } from './playbooks'
+import {
+  KNOWLEDGE_INSTRUCTION_PROMPT,
+  STRUCTURE_CONTRACT_PROMPT,
+  knowledgeUserBlock,
+  playbookPrompt,
+} from './prompt-sections'
 
 /**
  * Security Review S06 — AI prompt-injection hardening.
@@ -37,9 +44,9 @@ export function sanitizeField(value: string): string {
 }
 
 const LANGUAGE_INSTRUCTIONS: Record<'en' | 'pt' | 'es', string> = {
-  en: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in English. Use US English conventions for dates: MM/DD/YYYY.',
-  pt: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
-  es: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
+  en: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in English. Use US English conventions for dates: MM/DD/YYYY.',
+  pt: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
+  es: 'Generate ALL text fields (summary, section titles, item descriptions, units, assumptions, exclusions, open questions, line basis, and notes / timeline when present) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
 }
 
 /**
@@ -59,6 +66,20 @@ export function documentBlocksPrompt(aiBlocks: EstimateInput['aiBlocks']): strin
       : 'Omit the notes field.',
   ]
   return lines.join('\n')
+}
+
+/**
+ * SEED-057: the playbook for this generation. The source material is scanned
+ * for trade keywords (what was actually asked for) before falling back to the
+ * configured project type and company industry.
+ */
+export function playbookFor(input: EstimateInput) {
+  return resolvePlaybook({
+    detectedTrade: input.playbookTrade,
+    industry: input.industry,
+    projectType: input.projectType,
+    text: [...input.transcripts, ...input.photoDescriptions, ...(input.prompts ?? [])].join('\n'),
+  })
 }
 
 /**
@@ -85,7 +106,7 @@ export function buildSystemPrompt(
   let prompt =
     mode === 'refine'
       ? `You are a professional estimator. Update the existing estimate to reflect the user's refinement instruction. Modify, add, or remove sections/items as needed to reflect the request; keep everything else unchanged. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book and "ai_estimate" for items estimated from market rates.`
-      : `You are a professional estimator. The company primarily works in ${input.industry ?? 'general services'}, but ALWAYS estimate the work that is actually requested — if the request belongs to a different trade, price it faithfully for that trade at realistic US market rates. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections (e.g., Materials, Labor, Equipment). Each line item needs a clear description, quantity, unit (e.g., sq ft, hours, each, linear ft), and unit price.
+      : `You are a professional estimator. The company primarily works in ${input.industry ?? 'general services'}, but ALWAYS estimate the work that is actually requested — if the request belongs to a different trade, price it faithfully for that trade at realistic US market rates. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections that follow the trade playbook below. Each line item needs a clear description, quantity, unit, and unit price (see Estimate structure).
 
 Use ${currencyCode} for all numeric prices. Return monetary values as plain numbers only, without currency symbols or formatted strings.
 
@@ -108,6 +129,19 @@ Also generate a short, professional project name in 2-5 words derived from the w
   // owner's instruction decides, so it gets no such paragraph.
   if (mode === 'generate') {
     prompt += `\n\n${documentBlocksPrompt(input.aiBlocks)}`
+  }
+
+  // SEED-057: the structure contract applies to every mode (a refined estimate
+  // keeps the same units, basis and confidence discipline). The trade playbook
+  // with its worked example is generate-only: refine already has the estimate's
+  // own shape in front of it, and re-sending an example would only invite the
+  // model to restructure what the owner asked it to leave alone.
+  prompt += `\n\n${STRUCTURE_CONTRACT_PROMPT}`
+  if (mode === 'generate') {
+    prompt += `\n\n${playbookPrompt(playbookFor(input))}`
+    if (input.knowledge && input.knowledge.length > 0) {
+      prompt += `\n\n${KNOWLEDGE_INSTRUCTION_PROMPT}`
+    }
   }
 
   // TAX-02 — per-item labor/materials classification instruction. CLASSIFICATION
@@ -199,6 +233,11 @@ export function buildUserContent(input: EstimateInput): string {
           .join('\n')
     )
   }
+
+  // SEED-057 E5: the company's own knowledge (house rules, prices), retrieved
+  // upstream. Same hardened boundary as every other untrusted field.
+  const knowledge = knowledgeUserBlock(input.knowledge, sanitizeField)
+  if (knowledge) parts.push(knowledge)
 
   return parts.join('\n\n')
 }
