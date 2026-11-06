@@ -10,6 +10,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// SEED-055 D9: new companies / invites are disabled in production; these suites
+// cover the machinery that sits behind the gate, so open the add-on here.
+vi.mock('@/lib/billing/addon-availability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/addon-availability')>()),
+  isAddonAvailable: () => true,
+}))
+
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }))

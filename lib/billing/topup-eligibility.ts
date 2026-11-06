@@ -5,17 +5,22 @@
  *
  * "Live" = Stripe status active / trialing / past_due (past_due keeps access
  * while Stripe dunning retries, matching the monthly-lot rule). A paid tier
- * with a canceled / unpaid / unknown status is NOT eligible. Pure - safe to
- * import from routes, the auto top-up trigger and tests.
+ * with a canceled / unpaid status is NOT eligible. A NULL status is a legacy
+ * row written before the status column existed: it counts as live only when a
+ * Stripe subscription id is present (the same rule as the monthly cron and
+ * access-state). Pure - safe to import from routes, the auto top-up trigger
+ * and tests.
  */
 const ELIGIBLE_STATUSES = new Set(['active', 'trialing', 'past_due'])
 
 export function isTopupEligible(
   tier: string | null | undefined,
   subscriptionStatus: string | null | undefined,
+  subscriptionId?: string | null,
 ): boolean {
   if (tier !== 'pro' && tier !== 'business') return false
-  return subscriptionStatus != null && ELIGIBLE_STATUSES.has(subscriptionStatus)
+  if (subscriptionStatus == null) return Boolean(subscriptionId)
+  return ELIGIBLE_STATUSES.has(subscriptionStatus)
 }
 
 /** 403 body shared by both top-up session routes. */

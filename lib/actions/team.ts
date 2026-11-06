@@ -1,5 +1,6 @@
 'use server'
 
+import { isAddonAvailable, INVITE_UNAVAILABLE_ERROR } from '@/lib/billing/addon-availability'
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -55,7 +56,14 @@ export async function inviteMember(
   displayName: string,
   email: string,
   role: 'admin' | 'member'
-): Promise<{ success: true } | { error: string }> {
+): Promise<{ success: true } | { error: string; code?: 'addon_unavailable' }> {
+  // SEED-055 D9: one company + one user until add-ons exist. Refused for
+  // everyone before any read or write. Existing members and pending invites
+  // stay as they are (revoke / remove / role change are unaffected).
+  if (!isAddonAvailable('extraSeats')) {
+    return { error: INVITE_UNAVAILABLE_ERROR, code: 'addon_unavailable' }
+  }
+
   // 1. Gate — owner|admin only. requireCompanyManager throws on deny.
   let ctx
   try {

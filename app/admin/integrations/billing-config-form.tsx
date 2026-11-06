@@ -38,7 +38,6 @@ type TierFormState = {
   pdfEnabled: boolean
   priceBookEnabled: boolean
   customDomainEnabled: boolean
-  chatEnabled: boolean
   featureBullets: string
 }
 
@@ -94,7 +93,6 @@ export function BillingConfigForm({ current }: Props) {
           pdfEnabled: ent.pdfEnabled,
           priceBookEnabled: ent.priceBookEnabled,
           customDomainEnabled: ent.customDomainEnabled,
-          chatEnabled: ent.chatEnabled,
           featureBullets: current.tiers[tier].featureBullets.join('\n'),
         }
         return acc
@@ -207,7 +205,6 @@ export function BillingConfigForm({ current }: Props) {
               pdfEnabled: s.pdfEnabled,
               priceBookEnabled: s.priceBookEnabled,
               customDomainEnabled: s.customDomainEnabled,
-              chatEnabled: s.chatEnabled,
             },
             featureBullets: s.featureBullets
               .split('\n')
@@ -587,16 +584,6 @@ export function BillingConfigForm({ current }: Props) {
                     className="h-4 w-4"
                   />
                   {t('Custom domain')}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={tiers[tier].chatEnabled}
-                    onChange={(e) => updateTier(tier, 'chatEnabled', e.target.checked)}
-                    disabled={isPending}
-                    className="h-4 w-4"
-                  />
-                  {t('Chat')}
                 </label>
               </div>
 

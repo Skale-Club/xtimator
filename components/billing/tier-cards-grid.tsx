@@ -55,11 +55,10 @@ interface TierCardsGridProps {
  * the prop omits). Their defaults mirror billing_config's featureBullets, which
  * were verified accurate against lib/entitlements.ts's tier-gating on 2026-07-06:
  *
- * - Free/Pro/Business "photos per estimate" match maxPhotosPerEstimate (3/20/50).
- * - Free "estimates" bullet: free is credit-gated (maxEstimatesPerMonth null — no
- *   count cap), not a fixed monthly count.
- * - Pro "Unlimited estimates": maxEstimatesPerMonth=200 is an anti-abuse ceiling,
- *   functions as unlimited for realistic usage.
+ * - SEED-055: every plan has every feature; plans differ only by credits. Free
+ *   and Pro share the same limits (20 photos per estimate), so no bullet promises
+ *   a limit that no longer exists. Pro "photos per estimate" matches
+ *   maxPhotosPerEstimate (20); Business keeps its 50.
  * - Business "Custom domain": matches customDomainEnabled=true (business-exclusive).
  * - "Custom branding" (pro) / "Stripe Connect payments" (business): no code-level
  *   gate exists — aspirational/ungated copy, editable in the panel.
@@ -78,9 +77,8 @@ const TIERS: Array<{
     price: '$0',
     period: 'month',
     features: [
-      'Estimates until your free credits run out',
-      '3 photos per estimate',
-      'Basic templates',
+      'All features included',
+      'Free credits to try it',
       'Email support',
     ],
   },
@@ -90,7 +88,8 @@ const TIERS: Array<{
     period: 'month',
     popular: true,
     features: [
-      'Unlimited estimates',
+      'All features included',
+      'Monthly credits that renew with your plan',
       '20 photos per estimate',
       'Custom branding',
       'Priority email support',

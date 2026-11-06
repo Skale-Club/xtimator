@@ -844,6 +844,9 @@ export async function markAsSentAction(estimateId: string) {
   if (denied) return denied
   const { supabase, company } = ctx
   const companyId = company.id as string
+  // SEED-055 Phase D: a paywalled company is read-only - it cannot send/mark sent.
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return billingDenied
 
   // Fetch estimate to get project_id
   const { data: estimate } = await supabase
@@ -961,6 +964,8 @@ export async function logDeliveryAction(input: {
     }
     const { supabase, company } = ctx
     const companyId = company.id as string
+    // SEED-055 Phase D: read-only while paywalled - no delivery-log writes.
+    if (await billingEditDenied(companyId)) return
 
     // Verify the estimate belongs to this company (RLS also enforces it, but
     // this gives us a clear early-return path with logging).
@@ -1023,6 +1028,8 @@ export async function setEstimateSharePassword(
 
   const denied = await assertCompanyWritable(companyId)
   if (denied) return { success: false, error: denied.error }
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return { success: false, error: billingDenied.error }
 
   let update: { share_password_hash: string | null; share_password_set_at: string | null }
 

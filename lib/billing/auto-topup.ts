@@ -85,7 +85,7 @@ export async function triggerAutoTopupIfNeeded(input: {
     const { data: co } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at, tier, stripe_subscription_status'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at, tier, stripe_subscription_status, stripe_subscription_id'
       )
       .eq('id', input.companyId)
       .maybeSingle()
@@ -101,13 +101,14 @@ export async function triggerAutoTopupIfNeeded(input: {
       auto_topup_last_charge_attempt_at?: string | null
       tier?: string | null
       stripe_subscription_status?: string | null
+      stripe_subscription_id?: string | null
     } | null
 
     if (!company?.auto_topup_enabled) return
     // SEED-055 Phase C: top-ups are sold to Pro companies with a live
     // subscription only. Silent skip - a free / lapsed company with a stale
     // auto top-up opt-in must never be charged.
-    if (!isTopupEligible(company.tier, company.stripe_subscription_status)) return
+    if (!isTopupEligible(company.tier, company.stripe_subscription_status, company.stripe_subscription_id)) return
     if (company.auto_topup_threshold_credits == null) return
     if (input.newBalance >= company.auto_topup_threshold_credits) return
     if (!company.stripe_customer_id || company.auto_topup_pack_index == null) return

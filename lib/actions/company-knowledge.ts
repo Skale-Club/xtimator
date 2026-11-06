@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { embed } from '@/lib/knowledge/embed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import {
   companyKnowledgeEntrySchema,
   type CompanyKnowledgeEntryInput,
@@ -65,6 +66,9 @@ async function getAuthContext() {
 
   const denied = await assertWritable() // demo read-only guard: { error } | null
   if (denied) return denied
+  // SEED-055 Phase D: a paywalled company is read-only.
+  const billingDenied = await billingEditDenied(activeCompanyId)
+  if (billingDenied) return billingDenied
 
   return { supabase, company }
 }

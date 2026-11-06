@@ -321,7 +321,6 @@ describe('per-tier entitlements in billing_config', () => {
     'pdfEnabled',
     'priceBookEnabled',
     'customDomainEnabled',
-    'chatEnabled',
   ] as const
 
   it('DEFAULT entitlements per tier match lib/entitlements.ts field-by-field', () => {
@@ -364,9 +363,50 @@ describe('per-tier entitlements in billing_config', () => {
     expect(cfg.tiers.pro.entitlements.maxEstimatesPerMonth).toBe(
       DEFAULT_BILLING_CONFIG.tiers.pro.entitlements.maxEstimatesPerMonth
     )
-    expect(cfg.tiers.pro.entitlements.chatEnabled).toBe(
-      DEFAULT_BILLING_CONFIG.tiers.pro.entitlements.chatEnabled
+  })
+
+  it('SEED-055: a stored row that still carries chatEnabled parses and the key is stripped', async () => {
+    serviceClientImpl = () =>
+      makeServiceClient({
+        metadata: {
+          tiers: { pro: { entitlements: { maxPhotosPerEstimate: 40, chatEnabled: true } } },
+        },
+      })
+    const cfg = await getBillingConfig()
+    expect(cfg.tiers.pro.entitlements.maxPhotosPerEstimate).toBe(40)
+    expect('chatEnabled' in cfg.tiers.pro.entitlements).toBe(false)
+  })
+
+  it('SEED-055: billingConfigSchema accepts a legacy entitlements object with chatEnabled and strips it', () => {
+    const legacy = structuredClone(DEFAULT_BILLING_CONFIG) as unknown as {
+      tiers: Record<string, { entitlements: Record<string, unknown> }>
+    }
+    legacy.tiers.pro.entitlements.chatEnabled = true
+    const parsed = billingConfigSchema.safeParse(legacy)
+    expect(parsed.success).toBe(true)
+    if (parsed.success) {
+      expect('chatEnabled' in parsed.data.tiers.pro.entitlements).toBe(false)
+    }
+  })
+
+  it('SEED-055: free tier defaults carry the Pro limits and no feature bullet promises a removed limit', () => {
+    const { free, pro } = DEFAULT_BILLING_CONFIG.tiers
+    for (const key of [
+      'maxPhotosPerEstimate',
+      'maxAudioMinutesPerEstimate',
+      'maxPriceResearchPerMonth',
+      'priceBookEnabled',
+      'maxEstimatesPerDay',
+    ] as const) {
+      expect(free.entitlements[key], key).toBe(pro.entitlements[key])
+    }
+    for (const t of TIER_NAMES) {
+      expect(DEFAULT_BILLING_CONFIG.tiers[t].entitlements.maxEstimatesPerMonth).toBeNull()
+    }
+    expect(free.featureBullets).toEqual(
+      expect.arrayContaining(['All features included', 'Free credits to try it'])
     )
+    expect(pro.featureBullets.join(' ')).not.toMatch(/unlimited/i)
   })
 
   it('new per-tier stripePriceId fields default to null for all three tiers', () => {

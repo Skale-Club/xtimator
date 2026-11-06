@@ -50,7 +50,20 @@ vi.mock('@/lib/supabase/service', () => ({
     from: (table: string) =>
       table === 'companies'
         ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: companyRow, error: null }) }) }) }
-        : { select: () => ({ eq: async () => ({ count: 3, error: null }) }) },
+        : table === 'credit_lots'
+          ? {
+              // Non-subscribers spend signup/adjust lots only: one signup lot
+              // that mirrors the fixture's cached balance.
+              select: () => ({
+                eq: () => ({
+                  in: async () => ({
+                    data: [{ source: 'signup', remaining: Math.max(0, companyRow?.credit_balance ?? 0), expires_at: null }],
+                    error: null,
+                  }),
+                }),
+              }),
+            }
+          : { select: () => ({ eq: async () => ({ count: 3, error: null }) }) },
   }),
   createServiceClient: () => null,
 }))

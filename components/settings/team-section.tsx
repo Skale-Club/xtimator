@@ -1,19 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Users, UserPlus, Trash2, X } from 'lucide-react'
+import { Users, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatUSD } from '@/lib/utils/format'
-import { inviteMember, removeMember, changeMemberRole, revokeInvite } from '@/lib/actions/team'
+import { removeMember, changeMemberRole, revokeInvite } from '@/lib/actions/team'
 import type { RosterMember, RosterInvite } from '@/lib/queries/team'
 import type { SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 
@@ -53,49 +42,12 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
   const [members, setMembers] = useState(initialMembers)
   const [invites, setInvites] = useState(initialInvites)
 
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteName, setInviteName] = useState('')
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<ManageableRole>('member')
-  const [formError, setFormError] = useState('')
   const [isPending, startTransition] = useTransition()
 
   const roleLabel = (role: RosterMember['role']) => {
     if (role === 'owner') return t('Owner')
     if (role === 'admin') return t('Admin')
     return t('Member')
-  }
-
-  function handleInvite() {
-    if (!inviteName.trim() || !inviteEmail.trim()) {
-      setFormError(t('Name and email are required.'))
-      return
-    }
-    setFormError('')
-
-    startTransition(async () => {
-      const displayName = inviteName.trim()
-      const email = inviteEmail.trim()
-      const role = inviteRole
-      const result = await inviteMember(companyId, displayName, email, role)
-      if ('error' in result) {
-        setFormError(result.error ?? t('An unexpected error occurred.'))
-        return
-      }
-      setInvites((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          display_name: displayName,
-          email: email.toLowerCase(),
-          role,
-        },
-      ])
-      setInviteName('')
-      setInviteEmail('')
-      setInviteRole('member')
-      setInviteOpen(false)
-    })
   }
 
   function handleChangeRole(userId: string, role: ManageableRole) {
@@ -129,80 +81,13 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
 
   return (
     <div className="space-y-6">
+      {/* SEED-055 D9: one company + one user until add-ons exist. Inviting
+          teammates is unavailable for everyone; the member list stays visible
+          and existing members/invites can still be managed. */}
       {canManage && (
-        <div className="flex justify-end">
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="min-h-[44px]">
-                <UserPlus className="w-4 h-4 mr-2" />
-                {t('Invite')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t('Invite a teammate')}</DialogTitle>
-                <DialogDescription>
-                  {t('They will receive an email with a link to join your company.')}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <Label htmlFor="invite-name">{t('Full Name')}</Label>
-                  <Input
-                    id="invite-name"
-                    autoComplete="name"
-                    placeholder="Jane Smith"
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
-                    className="min-h-[44px]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invite-email">{t('Email')}</Label>
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder="jane@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                    className="min-h-[44px]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invite-role">{t('Role')}</Label>
-                  <Select
-                    value={inviteRole}
-                    onValueChange={(v) => setInviteRole(v as ManageableRole)}
-                  >
-                    <SelectTrigger id="invite-role" className="min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">{t('Member')}</SelectItem>
-                      <SelectItem value="admin">{t('Admin')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {formError && <p className="text-sm text-destructive">{formError}</p>}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  className="min-h-[44px]"
-                  onClick={() => setInviteOpen(false)}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button className="min-h-[44px]" onClick={handleInvite} disabled={isPending}>
-                  {isPending ? t('Sending…') : t('Send Invite')}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          {t('Inviting teammates is not available yet.')}
+        </p>
       )}
 
       {/* Seat-cost summary (SEAT-08) — owner/admin only; null means do not show.
@@ -241,7 +126,7 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
           <Users className="w-8 h-8 text-muted-foreground mb-3" />
           <p className="text-sm font-medium">{t('No members yet')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {t('Invite teammates so they can collaborate on estimates.')}
+            {t('Teammates will be able to join once add-ons are available.')}
           </p>
         </div>
       ) : (

@@ -23,6 +23,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { priceBookItemSchema, type PriceBookItemFormValues } from '@/lib/schemas/price-book'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 export type CreateServiceInput = {
   name: string
@@ -50,6 +51,9 @@ export async function createPriceBookService(
 ): Promise<CreateServiceResult> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
+  // SEED-055 Phase D: a paywalled company is read-only.
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return { ok: false, message: billingDenied.error }
 
   // Validate through the SAME schema the dashboard form uses (defense in depth).
   const parsed = priceBookItemSchema.safeParse({

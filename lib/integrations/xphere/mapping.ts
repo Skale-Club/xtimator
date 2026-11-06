@@ -66,9 +66,13 @@ const NOTE_BY_EVENT: Record<
  * No side effects, no I/O.
  */
 export function buildSyncPayload(
-  company: XphereCompanyInput,
+  rawCompany: XphereCompanyInput,
   event: XphereSyncEvent,
 ): XphereSyncPayload {
+  // SEED-055: the 14-day `trial` tier is retired (free IS the trial). A legacy
+  // row that still carries it is treated as `free`.
+  const company: XphereCompanyInput =
+    rawCompany.tier === 'trial' ? { ...rawCompany, tier: 'free' } : rawCompany
   // trial.expired forces Churned/lost regardless of the stored tier.
   const opp: StageStatus =
     event === 'trial.expired'

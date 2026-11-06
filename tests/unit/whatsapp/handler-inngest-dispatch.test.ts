@@ -140,7 +140,6 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
       pdfEnabled: true,
       priceBookEnabled: true,
       customDomainEnabled: false,
-      chatEnabled: true,
     })
   })
 
@@ -240,7 +239,6 @@ describe('INNGEST-07: lib/whatsapp/handler dispatch', () => {
       pdfEnabled: true,
       priceBookEnabled: false,
       customDomainEnabled: false,
-      chatEnabled: false,
     })
     const { client } = makeSupabase({ companyTier: 'free' })
     await processInboundMessages([AUDIO_MSG], 'company-1', '15551234567', client)

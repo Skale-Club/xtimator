@@ -37,7 +37,6 @@ export type TierEntitlements = {
   pdfEnabled: boolean
   priceBookEnabled: boolean
   customDomainEnabled: boolean
-  chatEnabled: boolean
 }
 export type TierBilling = {
   monthlyCreditGrant: number
@@ -194,20 +193,18 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
       stripePriceIdYear: null,
       entitlements: {
         maxEstimatesPerMonth: null,
-        maxEstimatesPerDay: null,
-        maxPriceResearchPerMonth: 50,
-        maxPhotosPerEstimate: 3,
-        maxAudioMinutesPerEstimate: 2,
+        maxEstimatesPerDay: 30,
+        maxPriceResearchPerMonth: 1000,
+        maxPhotosPerEstimate: 20,
+        maxAudioMinutesPerEstimate: 15,
         whatsappEnabled: true,
         pdfEnabled: true,
-        priceBookEnabled: false,
+        priceBookEnabled: true,
         customDomainEnabled: false,
-        chatEnabled: false,
       },
       featureBullets: [
-        'Estimates until your free credits run out',
-        '3 photos per estimate',
-        'Basic templates',
+        'All features included',
+        'Free credits to try it',
         'Email support',
       ],
     },
@@ -219,7 +216,7 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
       stripePriceIdMonth: null,
       stripePriceIdYear: null,
       entitlements: {
-        maxEstimatesPerMonth: 200,
+        maxEstimatesPerMonth: null,
         maxEstimatesPerDay: 30,
         maxPriceResearchPerMonth: 1000,
         maxPhotosPerEstimate: 20,
@@ -228,10 +225,10 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
         pdfEnabled: true,
         priceBookEnabled: true,
         customDomainEnabled: false,
-        chatEnabled: true,
       },
       featureBullets: [
-        'Unlimited estimates',
+        'All features included',
+        'Monthly credits that renew with your plan',
         '20 photos per estimate',
         'Custom branding',
         'Priority email support',
@@ -254,7 +251,6 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
         pdfEnabled: true,
         priceBookEnabled: true,
         customDomainEnabled: true,
-        chatEnabled: true,
       },
       featureBullets: [
         'Everything in Pro',
@@ -355,6 +351,10 @@ export async function getBillingConfig(): Promise<BillingConfig> {
   const tiers = Object.fromEntries(
     tierNames.map((t) => {
       const storedTier = storedTiers[t] ?? {}
+      // SEED-055: `chatEnabled` was removed (chat is for everyone). A stored row
+      // written before that still carries it - drop it so it never resurfaces.
+      const storedEnt = { ...(storedTier.entitlements ?? {}) } as Record<string, unknown>
+      delete storedEnt.chatEnabled
       return [
         t,
         {
@@ -362,7 +362,7 @@ export async function getBillingConfig(): Promise<BillingConfig> {
           ...storedTier,
           entitlements: {
             ...DEFAULT_BILLING_CONFIG.tiers[t].entitlements,
-            ...(storedTier.entitlements ?? {}),
+            ...(storedEnt as Partial<TierEntitlements>),
           },
         },
       ]

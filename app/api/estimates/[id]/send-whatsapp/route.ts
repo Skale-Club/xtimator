@@ -5,6 +5,7 @@ import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { deliverEstimateViaWhatsApp } from '@/lib/whatsapp/send-estimate'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 
 interface SendWhatsAppRequestBody {
@@ -77,6 +78,12 @@ export async function POST(
     // account, service-role, or WhatsApp dispatch work can occur.
     const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
     if (targetBlocked) return targetBlocked
+
+    // SEED-055 Phase D: a paywalled company is read-only - it cannot send estimates.
+    const billingDenied = await billingEditDenied(estimate.company_id)
+    if (billingDenied) {
+      return NextResponse.json({ error: billingDenied.error, code: billingDenied.code }, { status: 402 })
+    }
 
     if (!estimate.share_token) {
       return NextResponse.json({ error: 'Estimate has no share link' }, { status: 400 })

@@ -150,7 +150,6 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
       pdfEnabled: true,
       priceBookEnabled: true,
       customDomainEnabled: false,
-      chatEnabled: true,
     })
   })
 
@@ -298,7 +297,6 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
         pdfEnabled: true,
         priceBookEnabled: false,
         customDomainEnabled: false,
-        chatEnabled: false,
       })
 
       const { client, projectInsertSpy } = makeSupabaseMock({ companyTier: 'free' })

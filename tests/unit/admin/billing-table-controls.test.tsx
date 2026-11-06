@@ -31,7 +31,6 @@ function company(overrides: Partial<TestCompany> & { id: string }): TestCompany 
   return {
     name: 'Acme Corp',
     tier: 'free',
-    tier_trial_ends_at: null,
     stripe_subscription_id: null,
     tier_renews_at: null,
     credit_balance: 0,

@@ -12,7 +12,11 @@ import { assertWritable } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
-import { creditBlockState, BILLING_BLOCK_MESSAGES } from '@/lib/billing/access-guard'
+import {
+  creditBlockState,
+  billingCreateDenied,
+  BILLING_BLOCK_MESSAGES,
+} from '@/lib/billing/access-guard'
 import type { BillingBlockCode } from '@/lib/billing/block-codes'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
@@ -74,6 +78,25 @@ export async function createTextRecording(
     return { error: ctx.error }
   }
   const { supabase, company } = ctx
+
+  // SEED-055 Phase D: creating anything is gated even when the description is
+  // only being saved (no auto-generate) - a paywalled company is read-only and
+  // an out-of-credits one cannot start new work.
+  const billingDenied = await billingCreateDenied(company.id, 'estimate')
+  if (billingDenied) {
+    void recordPipelineEvent({
+      attemptId: eventAttemptId,
+      inputType: 'manual_text',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId,
+      errorCode: 'insufficient_credits',
+      errorMessage: 'Insufficient credits',
+      provider: null,
+    })
+    return { error: billingDenied.error, code: billingDenied.code }
+  }
 
   const { data: recording, error: insertError } = await supabase
     .from('recordings')

@@ -1,5 +1,6 @@
 'use server'
 
+import { isAddonAvailable, ADD_COMPANY_UNAVAILABLE_ERROR } from '@/lib/billing/addon-availability'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
@@ -163,6 +164,14 @@ export async function createOrUpdateCompany(
   options?: CreateOrUpdateCompanyOptions
 ) {
   const mode = options?.mode ?? 'first'
+
+  // SEED-055 D9: one company + one user per account until add-ons exist.
+  // Refuse before ANY read or write. The super-admin handoff
+  // (lib/actions/admin-handoff.ts) creates companies through its own path and
+  // is unaffected. Existing extra companies / memberships stay as they are.
+  if (mode === 'add' && !isAddonAvailable('extraCompanies')) {
+    return { error: ADD_COMPANY_UNAVAILABLE_ERROR, code: 'addon_unavailable' as const }
+  }
   const supabase = await createClient()
 
   // T-79-03-01: re-verify auth.uid() at the top. user_id in INSERTs is sourced

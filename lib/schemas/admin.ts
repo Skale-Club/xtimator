@@ -223,7 +223,6 @@ const tierEntitlementsSchema = z.object({
   pdfEnabled: z.boolean(),
   priceBookEnabled: z.boolean(),
   customDomainEnabled: z.boolean(),
-  chatEnabled: z.boolean(),
 })
 
 const tierBillingSchema = z.object({

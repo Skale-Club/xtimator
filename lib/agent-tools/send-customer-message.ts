@@ -4,6 +4,7 @@ import { assertSendAllowed } from '@/lib/notifications/customer-send-gate'
 import type { TriggerSource } from '@/lib/notifications/customer-send'
 import { sendCustomerMessage as dispatchCustomerMessage } from '@/lib/notifications/customer-send'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import {
   createSendConfirmation,
   resolvePendingByChannelRef,
@@ -88,6 +89,7 @@ export type DraftSendResult =
         | 'no_recipient_email'
         | 'no_recipient_phone'
         | 'rate_limited'
+        | 'paywalled'
       candidates?: string[]
     }
 
@@ -142,6 +144,8 @@ export async function draftCustomerMessage(
 ): Promise<DraftSendResult> {
   const denied = await assertCompanyWritable(params.companyId)
   if (denied) throw new Error(denied.error)
+  // SEED-055 Phase D: a paywalled company is read-only - it cannot message customers.
+  if (await billingEditDenied(params.companyId)) return { ok: false, error: 'paywalled' }
 
   const rateOk = await checkAgenticSendRateLimit(params.companyId)
   if (!rateOk) {
@@ -257,6 +261,7 @@ export async function confirmSendByChannelRef(
 ): Promise<ConfirmSendResult> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
+  if (await billingEditDenied(companyId)) return { ok: false, error: 'paywalled' }
 
   const pending = await resolvePendingByChannelRef(supabase, companyId, channelRef)
   if (!pending) {
@@ -272,6 +277,7 @@ export async function confirmSendByToken(
 ): Promise<ConfirmSendResult> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
+  if (await billingEditDenied(companyId)) return { ok: false, error: 'paywalled' }
 
   const pending = await resolveByToken(supabase, companyId, token)
   if (!pending) {

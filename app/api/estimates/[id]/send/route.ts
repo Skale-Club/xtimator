@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { rateLimit } from '@/lib/ratelimit'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { assertSendAllowed } from '@/lib/notifications/customer-send-gate'
 import { sendCustomerMessage } from '@/lib/notifications/customer-send'
@@ -92,6 +93,12 @@ export async function POST(
     // company, so deny before loading providers or using a service client.
     const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
     if (targetBlocked) return targetBlocked
+
+    // SEED-055 Phase D: a paywalled company is read-only - it cannot send estimates.
+    const billingDenied = await billingEditDenied(estimate.company_id)
+    if (billingDenied) {
+      return NextResponse.json({ error: billingDenied.error, code: billingDenied.code }, { status: 402 })
+    }
 
     const projectId = estimate.project_id
 

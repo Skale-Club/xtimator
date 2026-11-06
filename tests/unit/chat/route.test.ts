@@ -70,7 +70,24 @@ vi.mock('@/lib/ratelimit', () => ({
   rateLimit: (...args: unknown[]) => rateLimitMock(...args),
 }))
 vi.mock('@/lib/billing/billing-config', () => ({
-  getBillingConfig: vi.fn(async () => ({ absorbedChatRateLimitPerMin: 20 })),
+  getBillingConfig: vi.fn(async () => ({
+    absorbedChatRateLimitPerMin: 20,
+    estimatedCreditsByOp: { chat: 3 },
+  })),
+}))
+// SEED-055 Phase D: credit gate + per-turn debit (no real DB / ledger here).
+const assertCanCreateMock = vi.fn(
+  async (..._args: unknown[]): Promise<{ ok: true } | { ok: false; code: string }> => ({ ok: true }),
+)
+vi.mock('@/lib/billing/access-state', () => ({
+  assertCanCreate: (...args: unknown[]) => assertCanCreateMock(...args),
+}))
+const recordCreditDebitMock = vi.fn(async (..._args: unknown[]) => undefined)
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  recordCreditDebit: (...args: unknown[]) => recordCreditDebitMock(...args),
+}))
+vi.mock('@/lib/billing/record-ai-cost', () => ({
+  recordAICost: vi.fn(async () => undefined),
 }))
 
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -98,7 +115,7 @@ function makeServiceClientMock(companyRow: unknown) {
 }
 
 /** A model that emits one short assistant text turn then finishes. */
-function makeMockModel() {
+function makeMockModel(cost?: number) {
   return new MockLanguageModelV3({
     doStream: async () => ({
       stream: simulateReadableStream({
@@ -110,6 +127,7 @@ function makeMockModel() {
             type: 'finish',
             finishReason: 'stop',
             usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            ...(cost != null && { providerMetadata: { openrouter: { usage: { cost } } } }),
           },
         ] as never,
       }),
@@ -193,20 +211,60 @@ describe('POST /api/chat', () => {
     expect(resolveChatModelMock).not.toHaveBeenCalled()
   })
 
-  it('returns 403 chat_not_on_plan and never builds tools or streams for a free-tier company', async () => {
+  it('SEED-055: returns 402 plan_limit_reached with the credit state and never builds a model or debits', async () => {
+    assertCanCreateMock.mockResolvedValueOnce({ ok: false, code: 'paywalled' })
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+
+    expect(res.status).toBe(402)
+    const body = (await res.json()) as Record<string, unknown>
+    expect(body).toEqual({
+      error: 'plan_limit_reached',
+      reason: 'credits',
+      state: 'paywalled',
+      upgradeUrl: '/settings/billing',
+    })
+    expect(assertCanCreateMock).toHaveBeenCalledWith('company-SECRET', 3)
+    expect(buildChatToolsMock).not.toHaveBeenCalled()
+    expect(resolveChatModelMock).not.toHaveBeenCalled()
+    expect(recordCreditDebitMock).not.toHaveBeenCalled()
+  })
+
+  it('SEED-055: an out_of_credits denial surfaces its own state', async () => {
+    assertCanCreateMock.mockResolvedValueOnce({ ok: false, code: 'out_of_credits' })
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+    expect(res.status).toBe(402)
+    expect(((await res.json()) as { state: string }).state).toBe('out_of_credits')
+  })
+
+  it('SEED-055: a free-tier company streams like any other (chat is on every plan)', async () => {
     requireServiceClientMock.mockReturnValue(
       makeServiceClientMock({ industries: [], default_estimate_language: 'en', tier: 'free' }) as never,
     )
 
     const res = await POST(chatRequest({ messages: [userMessage] }))
 
-    expect(res.status).toBe(403)
-    const body = (await res.json()) as { error?: string; upgradeUrl?: string }
-    expect(body.error).toBe('chat_not_on_plan')
-    expect(body.upgradeUrl).toBe('/settings/billing')
-    // No model build for an unentitled tenant (gate fires before resolution).
-    expect(buildChatToolsMock).not.toHaveBeenCalled()
-    expect(resolveChatModelMock).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    await new Response(res.body).text()
+  })
+
+  it('SEED-055: debits exactly one chat turn from the measured cost', async () => {
+    resolveChatModelMock.mockResolvedValue(makeMockModel(0.0123) as never)
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+    await new Response(res.body).text()
+    await vi.waitFor(() => expect(recordCreditDebitMock).toHaveBeenCalledTimes(1))
+
+    const arg = recordCreditDebitMock.mock.calls[0][0] as {
+      companyId: string
+      operationType: string
+      realCostUsd: number
+      attemptId: string
+    }
+    expect(arg.companyId).toBe('company-SECRET')
+    expect(arg.operationType).toBe('chat')
+    expect(arg.realCostUsd).toBeCloseTo(0.0123, 6)
+    expect(arg.attemptId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('allows a pro-tier company to stream (200)', async () => {

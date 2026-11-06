@@ -138,7 +138,6 @@ beforeEach(() => {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
-    chatEnabled: true,
   })
 })
 

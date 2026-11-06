@@ -6,6 +6,7 @@ import { convertImageToWebp } from '@/lib/image/webp'
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 
 // Security-hardening S3 (audit finding B / fix-pack F2, finding #9) — SAME
@@ -30,6 +31,9 @@ async function getAuthContext() {
 
   const denied = await assertWritable()
   if (denied) return denied
+  // SEED-055 Phase D: a paywalled company is read-only.
+  const billingDenied = await billingEditDenied(activeCompanyId)
+  if (billingDenied) return billingDenied
 
   return { supabase, company }
 }

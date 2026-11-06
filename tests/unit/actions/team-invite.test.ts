@@ -18,6 +18,13 @@ vi.setConfig({ testTimeout: 15_000, hookTimeout: 15_000 })
 
 // ─── role gate ──────────────────────────────────────────────────────────────
 const requireCompanyManager = vi.fn()
+// SEED-055 D9: new companies / invites are disabled in production; these suites
+// cover the machinery that sits behind the gate, so open the add-on here.
+vi.mock('@/lib/billing/addon-availability', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/addon-availability')>()),
+  isAddonAvailable: () => true,
+}))
+
 vi.mock('@/lib/auth/require-company-role', () => ({
   requireCompanyManager: (...args: unknown[]) => requireCompanyManager(...args),
 }))

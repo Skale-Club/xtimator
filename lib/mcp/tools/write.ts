@@ -495,6 +495,7 @@ async function handleDraftCustomerMessage(
             no_recipient_email: `${input.client_name} has no email on file.`,
             no_recipient_phone: `${input.client_name} has no phone on file.`,
             rate_limited: 'Daily agentic-send limit reached for this company — try again tomorrow.',
+            paywalled: 'This account is read-only until it subscribes. Subscribe in Billing to message customers.',
           }[result.error]
     throw invalidInput(msg ?? 'Could not prepare that message.')
   }

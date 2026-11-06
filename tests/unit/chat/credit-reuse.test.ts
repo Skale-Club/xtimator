@@ -1,44 +1,54 @@
 /**
- * Static credit-reuse regression for app/api/chat/route.ts (CHATMETER-01).
+ * Chat metering regression for app/api/chat/route.ts (SEED-055 Phase D, D3).
  *
- * Pitfall 4 — the chat REUSES the existing generation debit. Estimate generation
- * debits credits inside the Inngest job's `record-credit-debit` step
- * (lib/inngest/functions/generate-estimate.ts → recordCreditDebit); per v4.7 the
- * conversation turn itself is ABSORBED (no per-message charge). Adding any debit
- * in the /api/chat route would either DOUBLE-charge a generation (the job already
- * debits) or WRONGLY charge the conversation. This invariant is enforced by
- * ABSENCE, so a static source assertion is the right shape: it has no model, no
- * network, and it fails loudly the moment someone wires a debit into the route.
+ * The chat is available on every plan and each turn costs credits:
+ *   - exactly ONE `chat` debit per turn, from the conversation's own measured
+ *     model cost, under a per-turn attempt id;
+ *   - NONE on the 402 path (credit gate fires before any model is built);
+ *   - never double-charging: estimate generation debits itself inside its
+ *     Inngest job, so the route must not debit an estimate/generation op.
+ *
+ * Behaviour is exercised in tests/unit/chat/route.test.ts; this file pins the
+ * static shape that keeps those guarantees from regressing.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const ROUTE_PATH = resolve(process.cwd(), 'app/api/chat/route.ts')
+// Strip comments so the header prose cannot satisfy (or break) the assertions.
+const source = readFileSync(resolve(process.cwd(), 'app/api/chat/route.ts'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '')
 
-/** Credit-mutation identifiers the route must NEVER contain. */
-const FORBIDDEN_DEBIT_TOKENS = [
-  'recordCreditDebit',
-  'grantCredits',
-  'consumeCredits',
-] as const
+function count(re: RegExp): number {
+  return (source.match(re) ?? []).length
+}
 
-describe('app/api/chat/route.ts — no credit debit (CHATMETER-01)', () => {
-  const source = readFileSync(ROUTE_PATH, 'utf8')
+describe('app/api/chat/route.ts - metered chat turn', () => {
+  it('calls recordCreditDebit exactly once, for operationType chat', () => {
+    expect(count(/recordCreditDebit\(/g)).toBe(1)
+    expect(source).toMatch(/recordCreditDebit\(\{[^}]*operationType:\s*'chat'/)
+  })
 
-  it.each(FORBIDDEN_DEBIT_TOKENS)(
-    'does not call %s (generation debits inside the Inngest job; the conversation is absorbed)',
-    (token) => {
-      expect(source.includes(token)).toBe(false)
-    },
-  )
+  it('never debits a generation/estimate op (generation debits itself)', () => {
+    for (const op of ['estimate', 'photo_batch', 'audio_minutes', 'price_research']) {
+      expect(source).not.toContain(`operationType: '${op}'`)
+    }
+    expect(source).not.toContain('grantCredits')
+    expect(source).not.toContain('consumeCredits')
+  })
 
-  it('does not import a debit symbol from @/lib/billing/credit-ledger', () => {
-    // The route may legitimately read other modules, but it must not pull a debit
-    // helper. The forbidden-token check above already covers the call site; this
-    // additive guard catches a stray import even before a call is wired.
-    const importsDebit = /from\s+['"]@\/lib\/billing\/credit-ledger['"]/.test(source)
-      && FORBIDDEN_DEBIT_TOKENS.some((t) => source.includes(t))
-    expect(importsDebit).toBe(false)
+  it('shares one per-turn attemptId between the cost event and the debit', () => {
+    expect(count(/crypto\.randomUUID\(\)/g)).toBeGreaterThanOrEqual(1)
+    expect(source).toMatch(/const attemptId = crypto\.randomUUID\(\)/)
+    expect(source).toMatch(/recordAICost\(\{\s*attemptId,/)
+    expect(source).toMatch(/recordCreditDebit\(\{[^}]*attemptId\s*\}\)/)
+  })
+
+  it('gates with assertCanCreate before resolving the model', () => {
+    const gate = source.indexOf('assertCanCreate(companyId')
+    const model = source.indexOf('await resolveChatModel(')
+    expect(gate).toBeGreaterThan(0)
+    expect(gate).toBeLessThan(model)
   })
 })

@@ -63,10 +63,10 @@ describe('chat scope fence (bubble-only surface)', () => {
     const src = read('app/(app)/layout.tsx')
     expect(src).toContain('ChatBubble')
     expect(src).toContain('!isDemo && <ChatBubble')
-    // Config-sourced entitlement gate: the bubble's chatEnabled is resolved via
-    // the async getEntitlementsForTier(tier) resolver before render.
-    expect(src).toContain('chatEnabled={chatEnabled}')
-    expect(src).toContain('getEntitlementsForTier(tier)')
+    // SEED-055: chat is on every plan, so the layout no longer resolves an
+    // entitlement - the (soon to be removed) prop is always true.
+    expect(src).toContain('chatEnabled={true}')
+    expect(src).not.toContain('getEntitlementsForTier')
   })
 
   it('does not expose /chat in tenant navigation', () => {
@@ -89,9 +89,10 @@ describe('chat scope fence (bubble-only surface)', () => {
     expect(offenders).toEqual([])
   })
 
-  it('keeps the dormant API owner-authenticated and entitlement-gated', () => {
+  it('keeps the API owner-authenticated and credit-gated (no plan gate)', () => {
     const src = read(ROUTE_PATH)
     expect(src).toContain('getClaims')
-    expect(src).toContain('chat_not_on_plan')
+    expect(src).toContain('assertCanCreate')
+    expect(src).not.toContain('chat_not_on_plan')
   })
 })

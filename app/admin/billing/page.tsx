@@ -17,7 +17,7 @@ export default async function AdminBillingPage() {
     aggregateAiCostByOperation(),
     svc
       .from('companies')
-      .select('id, name, tier, tier_trial_ends_at, stripe_subscription_id, tier_renews_at, credit_balance, auto_topup_enabled')
+      .select('id, name, tier, stripe_subscription_id, tier_renews_at, credit_balance, auto_topup_enabled')
       .order('created_at', { ascending: false })
       .limit(200),
   ])

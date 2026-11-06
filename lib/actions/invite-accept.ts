@@ -1,5 +1,6 @@
 'use server'
 
+import { isAddonAvailable, ACCEPT_INVITE_UNAVAILABLE_ERROR } from '@/lib/billing/addon-availability'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { switchActiveCompany } from '@/lib/actions/active-company'
@@ -27,7 +28,14 @@ import { assertWritable } from '@/lib/demo/guard'
  */
 export async function acceptInvite(
   token: string
-): Promise<{ success: true } | { error: string }> {
+): Promise<{ success: true } | { error: string; code?: 'addon_unavailable' }> {
+  // SEED-055 D9: one company + one user until add-ons exist, so an existing
+  // invite can no longer be accepted. Refused before any read or write; the
+  // invite page renders this message in its error card.
+  if (!isAddonAvailable('extraSeats')) {
+    return { error: ACCEPT_INVITE_UNAVAILABLE_ERROR, code: 'addon_unavailable' }
+  }
+
   // 1. Identify the accepting user (request-scoped client → auth claims).
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()

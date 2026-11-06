@@ -50,8 +50,9 @@ const SUGGESTIONS = [
 function describeChatError(raw: string): string {
   try {
     const parsed = JSON.parse(raw) as { error?: string }
-    if (parsed.error === 'chat_not_on_plan') {
-      return 'In-app chat is a Pro feature — upgrade your plan to use it.'
+    if (parsed.error === 'plan_limit_reached') {
+      // The UpgradeModal opens for the 402 itself; this is the inline fallback.
+      return 'You are out of credits. Open Billing to subscribe or buy more.'
     }
     if (parsed.error === 'rate_limit') {
       return 'You are sending messages too quickly. Please wait a moment and try again.'

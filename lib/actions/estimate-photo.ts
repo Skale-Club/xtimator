@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { getAttachedPhotoIds } from '@/lib/queries/estimate-photo'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 
@@ -66,6 +67,9 @@ export async function addPhotoToEstimate(estimateId: string, photoId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
+  // SEED-055 Phase D: a paywalled company is read-only.
+  const billingDenied = await billingEditDenied(company.id)
+  if (billingDenied) return billingDenied
 
   const guard = await assertPhotoMutationAllowed(supabase, estimateId)
   if ('error' in guard) return { error: guard.error }
@@ -99,7 +103,9 @@ export async function addPhotoToEstimate(estimateId: string, photoId: string) {
 export async function removePhotoFromEstimate(estimateId: string, photoId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
-  const { supabase } = ctx
+  const { supabase, company } = ctx
+  const billingDenied = await billingEditDenied(company.id)
+  if (billingDenied) return billingDenied
 
   const guard = await assertPhotoMutationAllowed(supabase, estimateId)
   if ('error' in guard) return { error: guard.error }

@@ -124,6 +124,8 @@ export function makeManageTools(companyId: string, supabase: SupabaseClient, own
           return `${client_name} doesn't have an email on file, so I can't draft an email to them. Add an email to their client record first.`
         case 'no_recipient_phone':
           return `${client_name} doesn't have a phone number on file, so I can't draft a text to them. Add a phone number to their client record first.`
+        case 'paywalled':
+          return "Your free credits are used up, so sending customer messages is paused. Subscribe to Xtimator Pro in Billing to keep going. Nothing was drafted."
         case 'rate_limited':
           return "You've hit the daily limit for sending customer messages this way — nothing was drafted. Please try again tomorrow."
         default:

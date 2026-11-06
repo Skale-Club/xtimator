@@ -9,6 +9,7 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 interface SendSmsRequestBody {
   to: string
@@ -88,6 +89,12 @@ export async function POST(
     // causing any provider or service-role work for the deterministic demo.
     const targetBlocked = await demoGuardResponse({ companyId: estimate.company_id })
     if (targetBlocked) return targetBlocked
+
+    // SEED-055 Phase D: a paywalled company is read-only - it cannot send estimates.
+    const billingDenied = await billingEditDenied(estimate.company_id)
+    if (billingDenied) {
+      return NextResponse.json({ error: billingDenied.error, code: billingDenied.code }, { status: 402 })
+    }
 
     if (!estimate.share_token) {
       return NextResponse.json({ error: 'Estimate has no share link' }, { status: 400 })

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   const { data: company } = companyId
     ? await supabase
         .from('companies')
-        .select('id, stripe_customer_id, tier, stripe_subscription_status')
+        .select('id, stripe_customer_id, tier, stripe_subscription_status, stripe_subscription_id')
         .eq('id', companyId)
         .maybeSingle()
     : { data: null }
@@ -69,7 +69,11 @@ export async function POST(request: NextRequest) {
 
   // SEED-055 Phase C: top-ups are sold to Pro companies with a live
   // subscription only (a free company must subscribe, not buy packs).
-  if (!isTopupEligible(company.tier as string | null, company.stripe_subscription_status as string | null)) {
+  if (!isTopupEligible(
+      company.tier as string | null,
+      company.stripe_subscription_status as string | null,
+      company.stripe_subscription_id as string | null,
+    )) {
     return NextResponse.json(TOPUP_REQUIRES_SUBSCRIPTION_BODY, { status: 403 })
   }
 

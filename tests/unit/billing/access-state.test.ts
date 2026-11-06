@@ -35,7 +35,10 @@ type Row = {
   byok_enabled: boolean | null
   stripe_subscription_id: string | null
   stripe_subscription_status: string | null
+  credit_debt?: number | null
 }
+
+type Lot = { source: string; remaining: number; expires_at: string | null }
 
 const base: Row = {
   tier: 'free',
@@ -45,10 +48,32 @@ const base: Row = {
   stripe_subscription_status: null,
 }
 
-/** Fake supabase client: a mutable company row + a ledger row count. */
-function fakeClient(state: { row: Row | null; ledgerCount: number }) {
+/**
+ * Fake supabase client: a mutable company row + a ledger row count + credit
+ * lots. When `lots` is omitted the company holds a single signup lot equal to
+ * its (positive) cached balance, i.e. the cache and the lots agree.
+ */
+function fakeClient(state: { row: Row | null; ledgerCount: number; lots?: Lot[] }) {
   return {
     from: (table: string) => {
+      if (table === 'credit_lots') {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: async (_col: string, sources: string[]) => {
+                const lots = state.lots ?? [
+                  {
+                    source: 'signup',
+                    remaining: Math.max(0, state.row?.credit_balance ?? 0),
+                    expires_at: null,
+                  },
+                ]
+                return { data: lots.filter((l) => sources.includes(l.source)), error: null }
+              },
+            }),
+          }),
+        }
+      }
       if (table === 'companies') {
         return {
           select: () => ({
@@ -76,8 +101,15 @@ beforeEach(() => {
   requireServiceClient.mockReset()
 })
 
-async function stateFor(row: Partial<Row>, opts: { ledgerCount?: number; companyId?: string } = {}) {
-  const client = fakeClient({ row: { ...base, ...row }, ledgerCount: opts.ledgerCount ?? 5 })
+async function stateFor(
+  row: Partial<Row>,
+  opts: { ledgerCount?: number; companyId?: string; lots?: Lot[] } = {}
+) {
+  const client = fakeClient({
+    row: { ...base, ...row },
+    ledgerCount: opts.ledgerCount ?? 5,
+    lots: opts.lots,
+  })
   return getAccessState(opts.companyId ?? COMPANY, client)
 }
 
@@ -152,7 +184,12 @@ describe('getAccessState matrix', () => {
   )
 
   it('reports tier, balance and enforcement', async () => {
-    const res = await stateFor({ tier: 'pro', credit_balance: 12 })
+    const res = await stateFor({
+      tier: 'pro',
+      credit_balance: 12,
+      stripe_subscription_id: 'sub_1',
+      stripe_subscription_status: 'active',
+    })
     expect(res).toEqual({ state: 'active', tier: 'pro', balance: 12, enforcement: true })
   })
 
@@ -256,5 +293,87 @@ describe('assertCanEdit', () => {
     ).toEqual({ ok: true })
     enforcementEnabled = false
     expect(await assertCanEdit(COMPANY)).toEqual({ ok: true })
+  })
+})
+
+describe('spendable balance for non-subscribers (SEED-055 D4)', () => {
+  const topup: Lot = { source: 'topup', remaining: 500, expires_at: null }
+  const signup = (remaining: number): Lot => ({ source: 'signup', remaining, expires_at: null })
+  const proSub = {
+    tier: 'pro',
+    stripe_subscription_id: 'sub_1',
+    stripe_subscription_status: 'active',
+  }
+
+  it('a free company holding only a topup lot is paywalled despite a positive cached balance', async () => {
+    const res = await stateFor({ tier: 'free', credit_balance: 500 }, { lots: [topup] })
+    expect(res.state).toBe('paywalled')
+    expect(res.balance).toBe(0)
+  })
+
+  it('a pro subscriber with the same topup lot is active and uses credit_balance', async () => {
+    const res = await stateFor({ ...proSub, credit_balance: 500 }, { lots: [topup] })
+    expect(res.state).toBe('active')
+    expect(res.balance).toBe(500)
+  })
+
+  it('signup and adjust lots stay spendable without a subscription', async () => {
+    const adjust: Lot = { source: 'adjust', remaining: 40, expires_at: null }
+    const res = await stateFor(
+      { tier: 'free', credit_balance: 590 },
+      { lots: [signup(50), adjust, topup] }
+    )
+    expect(res.state).toBe('active')
+    expect(res.balance).toBe(90)
+  })
+
+  it('credit_debt is subtracted from the spendable balance', async () => {
+    const res = await stateFor(
+      { tier: 'free', credit_balance: 0, credit_debt: 30 },
+      { lots: [signup(30)] }
+    )
+    expect(res.state).toBe('paywalled')
+    expect(res.balance).toBe(0)
+  })
+
+  it('expired signup lots do not count', async () => {
+    const expired: Lot = { source: 'signup', remaining: 100, expires_at: '2020-01-01T00:00:00Z' }
+    expect((await stateFor({ tier: 'free', credit_balance: 100 }, { lots: [expired] })).state).toBe(
+      'paywalled'
+    )
+  })
+
+  it('a canceled subscriber cannot spend a leftover topup lot', async () => {
+    const res = await stateFor(
+      { tier: 'pro', credit_balance: 500, stripe_subscription_id: 'sub_1', stripe_subscription_status: 'canceled' },
+      { lots: [topup] }
+    )
+    expect(res.state).toBe('paywalled')
+  })
+
+  it('assertCanCreate compares the estimate against the spendable balance', async () => {
+    const client = fakeClient({
+      row: { ...base, credit_balance: 500 },
+      ledgerCount: 1,
+      lots: [signup(2), topup],
+    })
+    expect(await assertCanCreate(COMPANY, 5, client)).toEqual({ ok: false, code: 'paywalled' })
+    expect(await assertCanCreate(COMPANY, 2, client)).toEqual({ ok: true })
+  })
+
+  it('falls back to the cached balance when the lots cannot be read', async () => {
+    const client = {
+      from: (table: string) => {
+        if (table === 'credit_lots') {
+          return {
+            select: () => ({
+              eq: () => ({ in: async () => ({ data: null, error: { message: 'boom' } }) }),
+            }),
+          }
+        }
+        return fakeClient({ row: { ...base, credit_balance: 7 }, ledgerCount: 1 }).from(table)
+      },
+    } as never
+    expect((await getAccessState(COMPANY, client)).state).toBe('active')
   })
 })

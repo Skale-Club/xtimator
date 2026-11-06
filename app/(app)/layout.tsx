@@ -13,7 +13,6 @@ import { Topbar } from '@/components/app-shell/topbar'
 import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
-import { TrialBanner } from '@/components/billing/trial-banner'
 import { PaywallBanner } from '@/components/billing/paywall-banner'
 import { getPaywallContext } from '@/lib/billing/access-guard'
 import { DemoBanner } from '@/components/demo/demo-banner'
@@ -31,7 +30,6 @@ import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EstimateCreationPopup } from '@/components/projects/estimate-creation-popup'
 import { BackgroundGenerationWatcher } from '@/components/capture/background-generation-watcher'
 import { ChatBubble } from '@/components/chat/chat-bubble'
-import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { BreadcrumbProvider } from '@/components/app-shell/breadcrumb-context'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
@@ -189,7 +187,7 @@ export default async function AppShellLayout({
       // user-keyed lookup which presumed a 1:1 user→company relationship.
       requireServiceClient()
         .from('companies')
-        .select('tier, tier_trial_ends_at, credit_balance')
+        .select('tier, credit_balance')
         .eq('id', activeCompanyId)
         .single(),
       // Phase 81 (SWITCH-13): membership list for the company switcher dropdown.
@@ -209,7 +207,6 @@ export default async function AppShellLayout({
     ])
   const isAdmin = !!adminRow.data
 
-  const tier = billingRow.data?.tier ?? 'free'
   const balance = billingRow.data?.credit_balance ?? 0
   // When nothing has been granted this cycle, there's no valid denominator —
   // percentUsed is null (Topbar only renders CreditChip for a `number`, so
@@ -220,23 +217,10 @@ export default async function AppShellLayout({
       ? null
       : computeUsagePercent({ balance, cycleGrant: Math.max(grantedThisCycle, balance) })
 
-  const trialDaysRemaining =
-    billingRow.data?.tier === 'free' && billingRow.data?.tier_trial_ends_at
-      ? Math.ceil(
-          (new Date(billingRow.data.tier_trial_ends_at).getTime() - new Date().getTime()) /
-            (1000 * 60 * 60 * 24)
-        )
-      : null
-
   const navUser = {
     email: userData.user?.email ?? '',
     avatarUrl: (userData.user?.user_metadata?.avatar_url as string | undefined) ?? null,
   }
-
-  // Runtime-editable entitlements: the chat bubble's enablement now comes from
-  // billing_config (via getEntitlementsForTier), resolved before the JSX so the
-  // render stays synchronous.
-  const chatEnabled = (await getEntitlementsForTier(tier)).chatEnabled
 
   return (
     <TourProvider>
@@ -273,9 +257,6 @@ export default async function AppShellLayout({
             {paywall.state !== 'active' && (
               <PaywallBanner state={paywall.state} priceLabel={paywall.priceLabel} />
             )}
-            {trialDaysRemaining !== null && trialDaysRemaining < 3 && (
-              <TrialBanner daysRemaining={trialDaysRemaining} />
-            )}
             <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               {children}
             </main>
@@ -284,7 +265,10 @@ export default async function AppShellLayout({
           {/* The in-app chat bubble — hidden in the read-only demo (write tools
               refuse mutations there anyway) and in Support Mode (admin tooling,
               rendered by the other branch above). */}
-          {!isDemo && <ChatBubble chatEnabled={chatEnabled} />}
+          {/* SEED-055: chat is on every plan (credits meter it), so `chatEnabled` is
+              always true. The prop goes away together with chat-upgrade-prompt.tsx
+              once chat-bubble.tsx is free to edit. */}
+          {!isDemo && <ChatBubble chatEnabled={true} />}
           <NewProjectDialog />
           <EstimateCreationPopup />
           <BackgroundGenerationWatcher />

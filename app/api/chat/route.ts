@@ -12,13 +12,21 @@
  *   5. Persists the NEW assistant/tool tail in onFinish via the Phase-123
  *      appendMessage helper (creating the conversation first when absent).
  *
- * ───────────────────────── CHATMETER-01 / Pitfall 4 ──────────────────────────
- * This route adds NO credit mutation. Estimate generation debits inside its
- * existing Inngest job (lib/inngest/functions/generate-estimate.ts
- * `record-credit-debit` step); the conversation turn is ABSORBED per v4.7. Adding
- * a debit here would double-charge generation or wrongly charge the conversation.
- * A static regression test (tests/unit/chat/credit-reuse.test.ts) asserts this
- * file imports/calls none of the credit-ledger debit/grant/consume helpers.
+ * ───────────────── SEED-055 Phase D: chat is metered, for everyone ────────────
+ * The in-app chat is available on every plan; credits are the only wall.
+ *   - BEFORE the model is built, `assertCanCreate(companyId,
+ *     estimatedCreditsByOp.chat)` gates the turn. A denial is a 402 with the
+ *     same contract as the other AI routes: { error: 'plan_limit_reached',
+ *     reason: 'credits', state, upgradeUrl } (UpgradeModal reads it).
+ *   - AFTER the turn, the conversation's OWN model cost (summed over the
+ *     streamText steps) is debited once via recordCreditDebit({ operationType:
+ *     'chat' }) under a per-turn attempt id (idempotent on replay).
+ *   - Never double-charged: when the turn calls the create-estimate tool,
+ *     estimate generation debits itself inside its own Inngest job; only this
+ *     route's model usage is debited here.
+ * The per-minute rate limit (absorbedChatRateLimitPerMin) stays as abuse
+ * protection. tests/unit/chat/credit-reuse.test.ts asserts exactly one `chat`
+ * debit per turn and none on the 402 path.
  * ──────────────────────────────────────────────────────────────────────────────
  *
  * Runtime: the DEFAULT Node runtime — do NOT opt into edge (Pitfall 6). The
@@ -45,15 +53,39 @@ import {
   findMessageRow,
   type ChatRole,
 } from '@/lib/queries/chat'
-import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { rateLimit } from '@/lib/ratelimit'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { assertCanCreate } from '@/lib/billing/access-state'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 
 // Pre-launch audit fix (B9): every other AI endpoint has a rate limit; this
-// one didn't (the turn itself is credit-absorbed per CHATMETER-01, so this IS
-// its only cost control). Also caps message count as a blunt guard against a
+// one didn't. It stays as abuse protection now that the turn is also credit
+// metered (SEED-055 Phase D). Also caps message count as a blunt guard against a
 // single request carrying an absurd synthetic history.
 const MAX_MESSAGES_PER_TURN = 100
+
+type OpenRouterMeta = { openrouter?: { usage?: { cost?: number | null } } } | undefined
+
+function costOf(meta: unknown): number | null {
+  const cost = (meta as OpenRouterMeta)?.openrouter?.usage?.cost
+  return typeof cost === 'number' && Number.isFinite(cost) ? cost : null
+}
+
+/**
+ * The turn's real USD model cost: sum of every step that reported one, else the
+ * stream-level metadata, else null (unknown - never a guessed 0).
+ */
+async function readTurnCostUsd(result: {
+  steps: PromiseLike<ReadonlyArray<{ providerMetadata?: unknown }>>
+  providerMetadata: PromiseLike<unknown>
+}): Promise<number | null> {
+  let total: number | null = null
+  for (const step of await result.steps) {
+    const c = costOf(step.providerMetadata)
+    if (c != null) total = (total ?? 0) + c
+  }
+  return total ?? costOf(await result.providerMetadata)
+}
 
 export async function POST(req: Request) {
   // 1. Authenticate the owner.
@@ -97,7 +129,7 @@ export async function POST(req: Request) {
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
-    .select('industries, default_estimate_language, tier')
+    .select('industries, default_estimate_language')
     .eq('id', companyId)
     .maybeSingle()
   const industries =
@@ -107,16 +139,19 @@ export async function POST(req: Request) {
   const language =
     lang === 'en' || lang === 'pt' || lang === 'es' ? lang : undefined
 
-  // 3b. Entitlement gate (CHATMETER-02, SECURITY boundary): the in-app chat is a
-  //     Pro/Business feature. This 403 MUST run BEFORE resolveChatModel /
-  //     buildChatTools / streamText so an unentitled tenant triggers no model
-  //     build (mirrors the send-whatsapp channel gate; bare Response to match
-  //     this file's 401/400 style). The page gate (Plan 02) is additive UX only.
-  const tier = (company as { tier?: string | null } | null)?.tier ?? 'free'
-  if (!(await getEntitlementsForTier(tier)).chatEnabled) {
+  // 3b. Credit gate (SEED-055 Phase D). Runs BEFORE resolveChatModel /
+  //     buildChatTools / streamText so a blocked tenant triggers no model build.
+  //     Same 402 contract as the other AI routes; inert while enforcement is OFF.
+  const gate = await assertCanCreate(companyId, billingCfg.estimatedCreditsByOp?.chat ?? 1)
+  if (!gate.ok) {
     return new Response(
-      JSON.stringify({ error: 'chat_not_on_plan', upgradeUrl: '/settings/billing' }),
-      { status: 403, headers: { 'content-type': 'application/json' } },
+      JSON.stringify({
+        error: 'plan_limit_reached',
+        reason: 'credits',
+        state: gate.code,
+        upgradeUrl: '/settings/billing',
+      }),
+      { status: 402, headers: { 'content-type': 'application/json' } },
     )
   }
 
@@ -148,33 +183,30 @@ export async function POST(req: Request) {
     stopWhen: stepCountIs(5),
   })
 
-  // 5b. MEASURE-ONLY cost capture (CR13). Chat is an ABSORBED cost — it never
-  //     debits credits (this route calls no charging helper at all — the
-  //     CHATMETER-01 guard test enforces that — and 'chat' is not
-  //     in credit_ledger's operation_type CHECK) — but it must still be
-  //     MEASURED, or the calibration model counts absorbed spend as zero.
-  //     OpenRouter reports the turn's real USD cost in providerMetadata once
-  //     the stream settles; a provider that reports nothing records null,
-  //     never a guessed 0. Fire-and-forget: awaiting would delay the stream,
-  //     and recordAICost is itself never-throw.
+  // 5b. Cost capture + debit. OpenRouter reports each step's real USD cost in
+  //     providerMetadata once the stream settles; the turn's cost is the sum
+  //     over its steps (a tool loop makes several model calls). A provider that
+  //     reports nothing records null, never a guessed 0 - and a null cost is
+  //     never debited. The SAME per-turn attemptId keys the cost event and the
+  //     debit, so a replay cannot charge twice. Fire-and-forget: awaiting would
+  //     delay the stream; both helpers are never-throw.
+  const attemptId = crypto.randomUUID()
   void (async () => {
     try {
-      const meta = (await result.providerMetadata) as
-        | { openrouter?: { usage?: { cost?: number | null } } }
-        | undefined
-      const cost = meta?.openrouter?.usage?.cost
+      const realCostUsd = await readTurnCostUsd(result)
       await recordAICost({
-        attemptId: crypto.randomUUID(),
+        attemptId,
         operationType: 'chat',
         provider: 'openrouter',
-        realCostUsd: typeof cost === 'number' && Number.isFinite(cost) ? cost : null,
+        realCostUsd,
         companyId,
         model: typeof model === 'object' && model && 'modelId' in model
           ? (model as { modelId?: string }).modelId ?? null
           : null,
       })
+      await recordCreditDebit({ companyId, operationType: 'chat', realCostUsd, attemptId })
     } catch (err) {
-      console.warn('[chat] absorbed-cost capture skipped:', err instanceof Error ? err.message : err)
+      console.warn('[chat] cost capture / debit skipped:', err instanceof Error ? err.message : err)
     }
   })()
 

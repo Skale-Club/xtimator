@@ -15,6 +15,11 @@ import type { BillingBlockCode } from '@/lib/billing/block-codes'
  *   out_of_credits  balance <= 0 on a live Pro/Business subscription - no new
  *                   estimates or AI, editing existing estimates stays allowed
  *
+ * The balance that gates is the SPENDABLE balance (SEED-055 D4): a live
+ * subscriber spends `credit_balance` (every lot); a company that is not a live
+ * subscriber can only spend signup + admin `adjust` lots (minus credit_debt) -
+ * purchased top-up lots, and a lapsed monthly lot, do not count.
+ *
  * With `billing_config.enforcementEnabled === false` every path resolves to
  * `active` and nothing is written (the self-heal below is also gated on it).
  */
@@ -36,10 +41,14 @@ type CompanyRow = {
   byok_enabled: boolean | null
   stripe_subscription_id: string | null
   stripe_subscription_status: string | null
+  credit_debt?: number | null
 }
 
 const COMPANY_COLUMNS =
-  'tier, credit_balance, byok_enabled, stripe_subscription_id, stripe_subscription_status'
+  'tier, credit_balance, credit_debt, byok_enabled, stripe_subscription_id, stripe_subscription_status'
+
+/** Lot sources a non-subscriber may still spend. */
+const NON_SUBSCRIBER_SOURCES = ['signup', 'adjust'] as const
 
 /** Subscription statuses that keep a paid tier "live" (past_due = Stripe dunning). */
 const LIVE_STATUSES = new Set(['active', 'trialing', 'past_due'])
@@ -56,6 +65,34 @@ function emptyBalanceState(row: CompanyRow): BillingBlockCode {
   const status = row.stripe_subscription_status
   const liveStatus = status == null || LIVE_STATUSES.has(status)
   return paidTier && hasSub && liveStatus ? 'out_of_credits' : 'paywalled'
+}
+
+/**
+ * Spendable balance of a company that is NOT a live subscriber:
+ * SUM(remaining of live signup/adjust lots) - credit_debt. Falls back to the
+ * cached `credit_balance` if the lots cannot be read (never lock out on a read
+ * hiccup).
+ */
+async function spendableNonSubscriberBalance(
+  db: SupabaseClient,
+  companyId: string,
+  row: CompanyRow
+): Promise<number> {
+  const { data, error } = await db
+    .from('credit_lots')
+    .select('remaining, expires_at')
+    .eq('company_id', companyId)
+    .in('source', [...NON_SUBSCRIBER_SOURCES])
+  if (error || !data) return row.credit_balance ?? 0
+  const now = Date.now()
+  const live = (data as Array<{ remaining?: number | null; expires_at?: string | null }>).reduce(
+    (acc, l) => {
+      const expired = l.expires_at != null && new Date(l.expires_at).getTime() <= now
+      return expired ? acc : acc + (l.remaining ?? 0)
+    },
+    0
+  )
+  return live - (row.credit_debt ?? 0)
 }
 
 type Resolved = AccessStateResult & { exempt: boolean; blocked: BillingBlockCode }
@@ -95,8 +132,11 @@ async function resolve(companyId: string, client?: SupabaseClient): Promise<Reso
     }
   }
 
-  const balance = row.credit_balance ?? 0
   const blocked = emptyBalanceState(row)
+  const balance =
+    exempt || blocked === 'out_of_credits'
+      ? (row.credit_balance ?? 0)
+      : await spendableNonSubscriberBalance(db, companyId, row)
   const state: AccessState = exempt || balance > 0 ? 'active' : blocked
   return { state, tier: row.tier, balance, enforcement, exempt, blocked }
 }

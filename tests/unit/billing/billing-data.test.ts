@@ -69,7 +69,7 @@ describe('getBillingData (company-scoped)', () => {
     expect(result).not.toBeNull()
     expect(result!.tier).toBe('pro')
     expect(result!.entitlements).toMatchObject({
-      maxEstimatesPerMonth: 200,
+      maxEstimatesPerMonth: null,
       maxPhotosPerEstimate: 20,
       whatsappEnabled: true,
     })

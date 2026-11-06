@@ -24,6 +24,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { embed } from '@/lib/knowledge/embed'
 import { companyKnowledgeEntrySchema } from '@/lib/schemas/knowledge'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 export type AddKnowledgeInput = { title: string; body: string; source?: string | null }
 
@@ -36,6 +37,9 @@ export async function addCompanyKnowledge(
 ): Promise<AddKnowledgeResult> {
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
+  // SEED-055 Phase D: a paywalled company is read-only.
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return { ok: false, message: billingDenied.error }
 
   const parsed = companyKnowledgeEntrySchema.safeParse(input)
   if (!parsed.success) {

@@ -28,7 +28,6 @@ type Company = {
   id: string
   name: string | null
   tier: string
-  tier_trial_ends_at: string | null
   stripe_subscription_id: string | null
   tier_renews_at: string | null
   credit_balance: number
@@ -159,12 +158,6 @@ function CompanyRow({
           <TableCell colSpan={6} className="py-4">
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
-                <span>
-                  <T>Trial ends:</T>{' '}
-                  {company.tier_trial_ends_at
-                    ? new Date(company.tier_trial_ends_at).toLocaleDateString()
-                    : '—'}
-                </span>
                 <span>
                   <T>Stripe sub:</T>{' '}
                   {company.stripe_subscription_id ? company.stripe_subscription_id.slice(-8) : '—'}

@@ -26,11 +26,27 @@ beforeEach(() => {
 })
 
 describe('entitlements', () => {
-  // Billing v2: the free tier is CREDIT-gated (one-time signup grant → wall).
-  // Count caps are null so the credit balance is the single binding limit.
-  it('free tier has null count caps (credit balance is the binding limit)', () => {
-    expect(tiers.free.maxEstimatesPerMonth).toBeNull()
-    expect(tiers.free.maxEstimatesPerDay).toBeNull()
+  // SEED-055: every account has every feature from day one; plans differ only
+  // by credits. The monthly estimate cap is null everywhere; the per-day count
+  // is a generous anti-abuse ceiling, equal on free and pro.
+  it('no tier has a monthly estimate cap (credits are the meter)', () => {
+    for (const name of ['free', 'pro', 'business'] as TierName[]) {
+      expect(tiers[name].maxEstimatesPerMonth).toBeNull()
+    }
+    expect(tiers.free.maxEstimatesPerDay).toBe(tiers.pro.maxEstimatesPerDay)
+  })
+
+  it('free carries the Pro values for every feature limit', () => {
+    for (const key of [
+      'maxPhotosPerEstimate',
+      'maxAudioMinutesPerEstimate',
+      'maxPriceResearchPerMonth',
+      'priceBookEnabled',
+      'whatsappEnabled',
+      'pdfEnabled',
+    ] as const) {
+      expect(tiers.free[key], key).toBe(tiers.pro[key])
+    }
   })
 
   it('free tier has whatsappEnabled true (WhatsApp available on all plans)', () => {
@@ -58,7 +74,7 @@ describe('entitlements', () => {
     expect(serialized.free.maxEstimatesPerMonth).toBeNull()
     expect(serialized.business.maxEstimatesPerMonth).toBeNull()
     // numeric values survive
-    expect(serialized.pro.maxEstimatesPerMonth).toBe(200)
+    expect(serialized.pro.maxEstimatesPerDay).toBe(30)
   })
 
   it('getEntitlements returns correct entitlements for known tier', () => {
@@ -93,14 +109,14 @@ describe('entitlements', () => {
     }
   })
 
-  it('documents the per-tier research allowance: free 50 / pro 1000 / business null', () => {
-    expect(tiers.free.maxPriceResearchPerMonth).toBe(50)
+  it('documents the per-tier research allowance: free = pro = 1000 / business null', () => {
+    expect(tiers.free.maxPriceResearchPerMonth).toBe(1000)
     expect(tiers.pro.maxPriceResearchPerMonth).toBe(1000)
     expect(tiers.business.maxPriceResearchPerMonth).toBeNull()
   })
 
-  it('getEntitlements resolves the research allowance (free 50, business null)', () => {
-    expect(getEntitlements('free').maxPriceResearchPerMonth).toBe(50)
+  it('getEntitlements resolves the research allowance (free 1000, business null)', () => {
+    expect(getEntitlements('free').maxPriceResearchPerMonth).toBe(1000)
     expect(getEntitlements('business').maxPriceResearchPerMonth).toBeNull()
   })
 
@@ -127,29 +143,11 @@ describe('entitlements', () => {
     expect(getEntitlements('garbage').monthlyCreditGrant).toBe(0)
   })
 
-  // Phase 126 (CHATMETER-02): chatEnabled gates the in-app chat as a Pro/Business
-  // feature. The flag is now runtime-editable via billing_config (an admin can
-  // open chat up on free from the panel), but the DEFAULT preserves the prior
-  // behavior — free does NOT include in-app chat.
-  it('free tier has chatEnabled false (in-app chat is a Pro/Business feature)', () => {
-    expect(tiers.free.chatEnabled).toBe(false)
-  })
-
-  it('pro tier has chatEnabled true', () => {
-    expect(tiers.pro.chatEnabled).toBe(true)
-  })
-
-  it('business tier has chatEnabled true', () => {
-    expect(tiers.business.chatEnabled).toBe(true)
-  })
-
-  it('getEntitlements resolves chatEnabled (free false, pro true)', () => {
-    expect(getEntitlements('free').chatEnabled).toBe(false)
-    expect(getEntitlements('pro').chatEnabled).toBe(true)
-  })
-
-  it('getEntitlements falls back to free chatEnabled (false) for an unknown tier', () => {
-    expect(getEntitlements('garbage').chatEnabled).toBe(false)
+  // SEED-055: chat is for everyone - the `chatEnabled` flag no longer exists.
+  it('chatEnabled is gone from every tier', () => {
+    for (const name of ['free', 'pro', 'business'] as TierName[]) {
+      expect('chatEnabled' in tiers[name]).toBe(false)
+    }
   })
 
   // Billing v2: the 14-day trial tier is RETIRED — the free tier IS the trial
@@ -175,13 +173,11 @@ describe('getEntitlementsForTier (config-sourced, server-side authority)', () =>
   it('config-set values WIN per field over the static default', async () => {
     const cfg = cloneConfig()
     cfg.tiers.pro.entitlements.maxPhotosPerEstimate = 99
-    cfg.tiers.pro.entitlements.chatEnabled = false
     cfg.tiers.pro.entitlements.maxEstimatesPerMonth = null
     getBillingConfigMock.mockResolvedValue(cfg)
 
     const ent = await getEntitlementsForTier('pro')
     expect(ent.maxPhotosPerEstimate).toBe(99)
-    expect(ent.chatEnabled).toBe(false)
     expect(ent.maxEstimatesPerMonth).toBeNull()
     // Untouched fields still resolve from the (config = static) default.
     expect(ent.maxAudioMinutesPerEstimate).toBe(tiers.pro.maxAudioMinutesPerEstimate)
@@ -293,20 +289,20 @@ describe('checkQuota price_research gating', () => {
     vi.resetModules()
   })
 
-  it('free company at the allowance (50 prior) -> { allowed: false, remaining: 0 }', async () => {
+  it('free company at the allowance (1000 prior) -> { allowed: false, remaining: 0 }', async () => {
     const { checkQuota } = await import('@/lib/quota')
-    const supabase = makeResearchSupabase({ tier: 'free', priorCount: 50 })
+    const supabase = makeResearchSupabase({ tier: 'free', priorCount: 1000 })
     const result = await checkQuota(supabase, 'company-1', 'price_research')
     expect(result.allowed).toBe(false)
     expect(result.remaining).toBe(0)
   })
 
-  it('free company with 0 prior -> { allowed: true, remaining: 50 }', async () => {
+  it('free company with 0 prior -> { allowed: true, remaining: 1000 }', async () => {
     const { checkQuota } = await import('@/lib/quota')
     const supabase = makeResearchSupabase({ tier: 'free', priorCount: 0 })
     const result = await checkQuota(supabase, 'company-1', 'price_research')
     expect(result.allowed).toBe(true)
-    expect(result.remaining).toBe(50)
+    expect(result.remaining).toBe(1000)
   })
 
   it('business company (null limit) -> { allowed: true, remaining: null }', async () => {

@@ -37,10 +37,12 @@ describe('XPHERE-B3-MAP buildSyncPayload — stage literals', () => {
     expect(payload.opportunity?.status).toBe('won')
   })
 
-  it('Test 3: tier trial → stage "Trial", status open', () => {
+  it('Test 3: a legacy tier trial is mapped to free (SEED-055)', () => {
     const payload = buildSyncPayload(makeCompany({ tier: 'trial' }), 'company.updated')
-    expect(payload.opportunity?.stage).toBe('Trial')
-    expect(payload.opportunity?.status).toBe('open')
+    const free = buildSyncPayload(makeCompany({ tier: 'free' }), 'company.updated')
+    expect(payload.opportunity).toEqual(free.opportunity)
+    expect(payload.company.custom_fields.xtimator_tier).toBe('free')
+    expect(payload.company.tags).toEqual(['xtimator:free'])
   })
 
   it('Test 4: event trial.expired → stage "Churned", status lost', () => {

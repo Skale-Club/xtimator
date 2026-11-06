@@ -13,9 +13,8 @@
 // super-admin only) run on their own OpenRouter key and bypass the credit
 // system entirely.
 //
-// The per-month/per-day estimate counts below are ANTI-ABUSE ceilings on paid
-// tiers, not the customer-facing meter. On free they are null so the credit
-// balance is the single binding limit.
+// SEED-055: credits are the only meter. The per-month estimate cap is null on
+// every tier; the per-day count is a generous anti-abuse ceiling only.
 
 export type TierName = 'free' | 'pro' | 'business'
 
@@ -45,27 +44,25 @@ export type Entitlements = {
   pdfEnabled: boolean
   priceBookEnabled: boolean
   customDomainEnabled: boolean
-  chatEnabled: boolean // CHATMETER-02 — in-app chat is a Pro/Business feature
 }
 
 export const tiers: Record<TierName, Entitlements> = {
   free: {
-    // Billing v2: free is credit-gated (one-time signup grant, then the wall).
-    // Count caps are null so the credit balance is the single binding limit.
+    // SEED-055: every account has every feature from day one; plans differ only
+    // by credits. Free carries the Pro values; the per-day cap is abuse-only.
     maxEstimatesPerMonth: null,
-    maxEstimatesPerDay: null,
-    maxPriceResearchPerMonth: 50, // ~$0.25 research ceiling at ~$0.005/search
+    maxEstimatesPerDay: 30,
+    maxPriceResearchPerMonth: 1000, // ~$5/mo research ceiling
     monthlyCreditGrant: 0, // free gets NO monthly grant — only the one-time signup grant
-    maxPhotosPerEstimate: 3,
-    maxAudioMinutesPerEstimate: 2,
+    maxPhotosPerEstimate: 20,
+    maxAudioMinutesPerEstimate: 15,
     whatsappEnabled: true,
     pdfEnabled: true,
-    priceBookEnabled: false,
+    priceBookEnabled: true,
     customDomainEnabled: false,
-    chatEnabled: false,
   },
   pro: {
-    maxEstimatesPerMonth: 200, // anti-abuse ceiling; credits are the real meter
+    maxEstimatesPerMonth: null, // credits are the meter (SEED-055)
     maxEstimatesPerDay: 30,
     maxPriceResearchPerMonth: 1000, // ~$5/mo research ceiling
     monthlyCreditGrant: 3500, // mirrors DEFAULT_BILLING_CONFIG.tiers.pro (margin-safe placeholder)
@@ -75,7 +72,6 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: false,
-    chatEnabled: true,
   },
   business: {
     maxEstimatesPerMonth: null, // unlimited
@@ -88,7 +84,6 @@ export const tiers: Record<TierName, Entitlements> = {
     pdfEnabled: true,
     priceBookEnabled: true,
     customDomainEnabled: true,
-    chatEnabled: true,
   },
 } as const satisfies Record<TierName, Entitlements>
 
