@@ -15,6 +15,8 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 import { isEstimateTemplateId, DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
+import { blockFlagForTextChange, mergeDocumentBlocks } from '@/lib/estimate/document-blocks-store'
+import { hasText, type DocumentBlocksRaw } from '@/lib/estimate/document-blocks'
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -286,6 +288,14 @@ export async function updateDefaults(data: {
     return { error: 'Validity period must be at least 1 day.' }
   }
 
+  // SEED-056: the block flag follows the text. Read the previous text first so
+  // an unchanged save does not flip a switch the owner turned off on purpose.
+  const { data: previous } = await supabase
+    .from('companies')
+    .select('default_payment_terms, default_warranty_terms')
+    .eq('id', company.id)
+    .single()
+
   const { error } = await supabase
     .from('companies')
     .update({
@@ -304,6 +314,19 @@ export async function updateDefaults(data: {
 
   if (error) {
     return { error: 'Failed to save defaults. Please try again.' }
+  }
+
+  const blockPatch: DocumentBlocksRaw = {}
+  const paymentFlag = blockFlagForTextChange(previous?.default_payment_terms, data.defaultPaymentTerms)
+  const warrantyFlag = blockFlagForTextChange(previous?.default_warranty_terms, data.defaultWarrantyTerms)
+  if (paymentFlag !== undefined) blockPatch.payment_terms = paymentFlag
+  if (warrantyFlag !== undefined) blockPatch.warranty_terms = warrantyFlag
+  if (Object.keys(blockPatch).length > 0) {
+    const merged = await mergeDocumentBlocks(supabase, company.id, blockPatch)
+    if (merged.error) {
+      console.error('[settings] updateDefaults document_blocks merge error:', merged.error)
+      return { error: 'Failed to save defaults. Please try again.' }
+    }
   }
 
   revalidatePath('/settings')
@@ -354,6 +377,15 @@ export async function updateEstimateTerms(data: {
 
   if (error) {
     console.error('[settings] updateEstimateTerms DB error:', error)
+    return { error: 'Failed to save estimate terms. Please try again.' }
+  }
+
+  // SEED-056: the fine-print block is on exactly when it is enabled AND has text.
+  const merged = await mergeDocumentBlocks(supabase, company.id, {
+    estimate_terms: data.estimateTermsEnabled && hasText(data.estimateTermsText),
+  })
+  if (merged.error) {
+    console.error('[settings] updateEstimateTerms document_blocks merge error:', merged.error)
     return { error: 'Failed to save estimate terms. Please try again.' }
   }
 

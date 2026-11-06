@@ -66,6 +66,8 @@ interface WhatsAppOnlyLabels {
   introAnon: string
   closing: string
   regards: string
+  /** Shown when the terms had to be cut to fit WhatsApp's message limit. */
+  termsTruncated: string
 }
 
 const WHATSAPP_ONLY_LABELS: Record<'en' | 'pt' | 'es', WhatsAppOnlyLabels> = {
@@ -77,6 +79,7 @@ const WHATSAPP_ONLY_LABELS: Record<'en' | 'pt' | 'es', WhatsAppOnlyLabels> = {
     closing:
       "Let me know if you have any questions or would like to schedule. I'd be happy to assist you!",
     regards: 'Best regards,',
+    termsTruncated: 'The full terms are on your estimate link.',
   },
   pt: {
     greetingWithName: (n) => `Olá ${n},`,
@@ -85,6 +88,7 @@ const WHATSAPP_ONLY_LABELS: Record<'en' | 'pt' | 'es', WhatsAppOnlyLabels> = {
     introAnon: 'Segue seu orçamento:',
     closing: 'Fique à vontade para entrar em contato com dúvidas ou para agendar. Terei prazer em ajudar!',
     regards: 'Atenciosamente,',
+    termsTruncated: 'Os termos completos estão no link do seu orçamento.',
   },
   es: {
     greetingWithName: (n) => `Hola ${n},`,
@@ -94,6 +98,7 @@ const WHATSAPP_ONLY_LABELS: Record<'en' | 'pt' | 'es', WhatsAppOnlyLabels> = {
     closing:
       '¿Preguntas? Con gusto le ayudamos a programar. ¡Estamos a su disposición!',
     regards: 'Saludos,',
+    termsTruncated: 'Los términos completos están en el enlace de su presupuesto.',
   },
 }
 
@@ -204,10 +209,10 @@ export function formatEstimateForWhatsApp(
   // ── Terms blocks (SEED-056 Phase E) ───────────────────────────────────────
   // Payment / timeline / warranty / notes, each only when its section is
   // visible and it has text -- the same gate the PDF and the web page use.
-  for (const block of termsTextBlocks(estimate, resolved)) {
-    lines.push(block)
-    lines.push('')
-  }
+  // Held back as one string: they are the first thing cut if the message would
+  // exceed WhatsApp's body limit (see below).
+  const termsText = termsTextBlocks(estimate, resolved).join('\n\n')
+  const termsIndex = lines.length
 
   // ── Closing + sign-off ────────────────────────────────────────────────────
   lines.push(L.closing)
@@ -216,5 +221,32 @@ export function formatEstimateForWhatsApp(
   if (responsibleName) lines.push(responsibleName)
   if (companyWebsite) lines.push(companyWebsite)
 
-  return lines.join('\n')
+  const assemble = (terms: string): string => {
+    const out = [...lines]
+    if (terms) out.splice(termsIndex, 0, terms, '')
+    return out.join('\n')
+  }
+
+  let body = assemble(termsText)
+  if (body.length > WHATSAPP_MAX_BODY_CHARS && termsText) {
+    // Cut the terms first, keep everything the client pays for, and point to
+    // the estimate link for the rest.
+    const note = L.termsTruncated
+    const budget = WHATSAPP_MAX_BODY_CHARS - assemble(note).length - 2 // newline + ellipsis
+    const kept = budget > 0 ? `${cutAtWord(termsText, budget)}…\n${note}` : note
+    body = assemble(kept)
+  }
+  // Last resort (an enormous line-item list): never hand WhatsApp an over-limit body.
+  if (body.length > WHATSAPP_MAX_BODY_CHARS) body = `${body.slice(0, WHATSAPP_MAX_BODY_CHARS - 1)}…`
+  return body
+}
+
+/** WhatsApp Cloud API: a text message body holds at most 4096 characters. */
+export const WHATSAPP_MAX_BODY_CHARS = 4096
+
+function cutAtWord(text: string, max: number): string {
+  if (text.length <= max) return text
+  const head = text.slice(0, max)
+  const lastSpace = head.search(/\s\S*$/)
+  return (lastSpace > max / 2 ? head.slice(0, lastSpace) : head).trimEnd()
 }

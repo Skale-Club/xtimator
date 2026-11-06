@@ -37,9 +37,9 @@ export function sanitizeField(value: string): string {
 }
 
 const LANGUAGE_INSTRUCTIONS: Record<'en' | 'pt' | 'es', string> = {
-  en: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in English. Use US English conventions for dates: MM/DD/YYYY.',
-  pt: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
-  es: 'Generate ALL text fields (summary, notes, timeline, payment_terms, warranty_terms, section titles, item descriptions, units) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
+  en: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in English. Use US English conventions for dates: MM/DD/YYYY.',
+  pt: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in Brazilian Portuguese (PT-BR). Use Brazilian conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "sq ft" to "m2" when relevant, "hours" to "horas"). suggested_project_name should also be in Portuguese.',
+  es: 'Generate ALL text fields (summary, section titles, item descriptions, units, and notes / timeline when present) in Latin American Spanish. Use Latin American conventions for dates: DD/MM/YYYY. Translate units appropriately (e.g., "hours" to "horas"). suggested_project_name should also be in Spanish.',
 }
 
 /**
@@ -67,8 +67,13 @@ export function documentBlocksPrompt(aiBlocks: EstimateInput['aiBlocks']): strin
  * `opts.mode` swaps ONLY the opening role/task paragraph; the `## Language`,
  * `## Your Company Price Book`, `## Additional Instructions`, and `## Security`
  * blocks run VERBATIM for both modes (one source — equivalent inputs → equivalent
- * prompts). `mode` defaults to `'generate'`; generate call sites pass no opts, so
- * generate output is byte-identical to before this seam was added (Pitfall 7).
+ * prompts). `mode` defaults to `'generate'`.
+ *
+ * SEED-056: generate mode additionally appends a `## Document blocks` paragraph
+ * (which prose blocks the model may write; payment / warranty are never among
+ * them), so generate output is no longer byte-identical to the pre-seam prompt.
+ * Refine mode is unchanged. The Language block lists only the fields that
+ * apply in both modes; timeline / notes apply only when present.
  */
 export function buildSystemPrompt(
   input: EstimateInput,

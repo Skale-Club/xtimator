@@ -147,8 +147,17 @@ export function initialPresentationSettings(
  * D4: the "Valid until" date (YYYY-MM-DD) for a new estimate =
  * (estimate_date or today) + default_validity_days. Null when the company has
  * no usable validity. Calendar arithmetic is done in UTC so it never drifts by
- * a day with the server's timezone.
+ * a day with the server's timezone. "Today" is the US Eastern calendar date
+ * (the product's audience), not the UTC date: an estimate created at 11 pm ET
+ * must not already be a day old.
  */
+const EASTERN_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' })
+
+/** YYYY-MM-DD of `instant` on the US Eastern calendar. */
+export function easternDate(instant: Date): string {
+  return EASTERN_DATE.format(instant)
+}
+
 export function computeValidUntil(
   estimateDate: string | null | undefined,
   validityDays: number | null | undefined,
@@ -158,7 +167,7 @@ export function computeValidUntil(
   if (!Number.isFinite(days) || days <= 0) return null
   const base = typeof estimateDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(estimateDate)
     ? new Date(`${estimateDate.slice(0, 10)}T00:00:00Z`)
-    : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    : new Date(`${easternDate(today)}T00:00:00Z`)
   if (Number.isNaN(base.getTime())) return null
   base.setUTCDate(base.getUTCDate() + Math.floor(days))
   return base.toISOString().slice(0, 10)

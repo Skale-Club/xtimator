@@ -302,6 +302,8 @@ Files: `components/workspace/estimate/estimate-document.tsx`,
 
 ## 5. Risks and guards
 
+**Deploy order: migration 20261107000002 must be applied to prod and both columns verified BEFORE pushing commits 5365a345 onward — getAuthContext/generateEstimateForProject select companies.document_blocks by name and fail closed without it.**
+
 | Risk | Guard |
 |---|---|
 | Legacy estimates losing blocks | Resolver fallback unchanged; defaults materialised at creation only. |

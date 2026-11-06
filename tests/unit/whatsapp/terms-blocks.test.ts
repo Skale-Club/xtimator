@@ -138,3 +138,74 @@ describe('plain-text template breakdown', () => {
     expect(buildMessageBreakdown(full, resolved).startsWith('Payment Terms:')).toBe(true)
   })
 })
+
+// Both WhatsApp send paths must hand the formatter the same fields, or the same
+// estimate would read differently depending on how it was sent.
+import { readFileSync } from 'node:fs'
+
+describe('WhatsApp send paths select the same terms fields', () => {
+  const needed = ['payment_terms', 'timeline', 'warranty_terms', 'notes', 'presentation_settings']
+
+  for (const file of ['lib/whatsapp/send-estimate.ts', 'lib/whatsapp/confirm-actions.ts']) {
+    it(`${file} selects every field the formatter needs`, () => {
+      const source = readFileSync(file, 'utf8')
+      // The full-estimate select is the template literal that also loads the items.
+      const select = [...source.matchAll(/`([^`]*estimate_items[^`]*)`/g)].map((m) => m[1])[0] ?? ''
+      expect(select.length).toBeGreaterThan(0)
+      for (const field of needed) expect(select, `${file} must select ${field}`).toContain(field)
+    })
+  }
+})
+
+import { WHATSAPP_MAX_BODY_CHARS } from '@/lib/whatsapp/formatter'
+
+describe('WhatsApp body limit (4096 characters)', () => {
+  const longTerms = Array.from({ length: 400 }, (_, i) => `Clause number ${i} of the agreement.`).join(' ')
+
+  it('a message under the limit is untouched', () => {
+    const text = formatEstimateForWhatsApp(ESTIMATE, null, null)
+    expect(text.length).toBeLessThan(WHATSAPP_MAX_BODY_CHARS)
+    expect(text).not.toContain('The full terms are on your estimate link.')
+  })
+
+  it('over the limit: terms are cut first, line items / totals / sign-off survive, a pointer line is added', () => {
+    const text = formatEstimateForWhatsApp({ ...ESTIMATE, payment_terms: longTerms }, 'Johnson', 'Acme', 'Bob', 'acme.com')
+    expect(text.length).toBeLessThanOrEqual(WHATSAPP_MAX_BODY_CHARS)
+    expect(text).toContain('- Demo x 1:')
+    expect(text).toContain('Total:')
+    expect(text).toContain('Best regards,')
+    expect(text).toContain('Bob')
+    expect(text).toContain('acme.com')
+    expect(text).toContain('Payment Terms:\nClause number 0')
+    expect(text).toContain('…\nThe full terms are on your estimate link.')
+    expect(text).not.toContain('Clause number 399')
+  })
+
+  it('cuts on a word boundary', () => {
+    const text = formatEstimateForWhatsApp({ ...ESTIMATE, payment_terms: longTerms }, null, null)
+    const cut = text.slice(0, text.indexOf('…\nThe full terms'))
+    expect(cut.endsWith('agreement.') || /\b(of|the|number|Clause|\d+)$/.test(cut)).toBe(true)
+  })
+
+  it('the pointer line is localised', () => {
+    const text = formatEstimateForWhatsApp({ ...ESTIMATE, language: 'pt', payment_terms: longTerms }, null, null)
+    expect(text.length).toBeLessThanOrEqual(WHATSAPP_MAX_BODY_CHARS)
+    expect(text).toContain('Os termos completos estão no link do seu orçamento.')
+  })
+
+  it('never exceeds the limit even when the line items alone are too long', () => {
+    const items = Array.from({ length: 300 }, (_, i) => ({
+      description: `Line item ${i} with a rather long description to fill the message`,
+      quantity: 1,
+      unit: null,
+      unit_price: 10,
+      total: 10,
+    }))
+    const text = formatEstimateForWhatsApp(
+      { ...ESTIMATE, sections: [{ title: 'Big', subtotal: 3000, items }] },
+      null,
+      null,
+    )
+    expect(text.length).toBeLessThanOrEqual(WHATSAPP_MAX_BODY_CHARS)
+  })
+})

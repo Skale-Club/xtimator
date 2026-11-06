@@ -21,7 +21,7 @@ import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
-import { AddBlockRow, type AddableBlock } from './add-block-row'
+import { AddBlockRow, blockPrefill, isTextBlock, type AddableBlock } from './add-block-row'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
 import {
@@ -534,19 +534,11 @@ export function EstimateEditor({
         ...raw,
         sections: { ...(raw.sections ?? {}), [key]: true },
       })
-      const textField =
-        key === 'summary' || key === 'payment_terms' || key === 'warranty_terms' || key === 'timeline' || key === 'notes'
-          ? key
-          : null
-      if (textField && !isContentReadOnly && current[textField] == null) {
-        const fromCompany =
-          textField === 'payment_terms'
-            ? companyDefaults?.payment_terms
-            : textField === 'warranty_terms'
-              ? companyDefaults?.warranty_terms
-              : null
-        dispatch({ type: 'UPDATE_FIELD', field: textField, value: fromCompany ?? '' })
-      }
+      const textField = isTextBlock(key) ? key : null
+      // Pre-fill only from a non-empty company default; otherwise the column
+      // stays null (never an empty string).
+      const prefill = blockPrefill(key, current, companyDefaults, isContentReadOnly)
+      if (prefill) dispatch({ type: 'UPDATE_FIELD', field: prefill.field, value: prefill.value })
       if (textField) {
         const cardId = {
           summary: 'summary',
@@ -896,6 +888,14 @@ export function EstimateEditor({
           settings={state.presentation_settings}
           hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
           hasValidUntil={!!state.valid_until}
+          readOnly={isContentReadOnly}
+          content={{
+            summary: state.summary,
+            payment_terms: state.payment_terms,
+            warranty_terms: state.warranty_terms,
+            timeline: state.timeline,
+            notes: state.notes,
+          }}
           onAdd={handleAddBlock}
         />
       )}

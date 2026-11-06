@@ -139,3 +139,15 @@ describe('Document blocks prompt paragraph', () => {
     `)
   })
 })
+
+describe('Language block no longer lists payment / warranty fields', () => {
+  for (const language of ['en', 'pt', 'es'] as const) {
+    it(`${language}: names summary and notes / timeline-when-present only`, () => {
+      const prompt = buildSystemPrompt({ ...input, language })
+      const block = prompt.slice(prompt.indexOf('## Language'), prompt.indexOf('\n\n', prompt.indexOf('## Language') + 12))
+      expect(block).not.toContain('payment_terms')
+      expect(block).not.toContain('warranty_terms')
+      expect(block).toContain('notes / timeline when present')
+    })
+  }
+})

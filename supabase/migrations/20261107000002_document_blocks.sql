@@ -15,18 +15,25 @@ ALTER TABLE estimates ADD COLUMN IF NOT EXISTS valid_until DATE;
 
 -- Existing companies keep today's behaviour for timeline/notes (D3); the
 -- literal seeds 'Net 30' / '1 year' count as "never configured" (D2): the text
--- stays in the column, only the block flag is off.
-UPDATE companies SET document_blocks = jsonb_build_object(
-  'summary', true,
-  'payment_terms', (default_payment_terms IS NOT NULL
-                    AND btrim(default_payment_terms) <> ''
-                    AND default_payment_terms <> 'Net 30'),
-  'warranty_terms', (default_warranty_terms IS NOT NULL
-                     AND btrim(default_warranty_terms) <> ''
-                     AND default_warranty_terms <> '1 year'),
-  'timeline', true,
-  'notes', true,
-  'photos', true,
-  'estimate_terms', COALESCE(estimate_terms_enabled, false),
-  'valid_until', false
-) WHERE document_blocks IS NULL;
+-- stays in the column, only the block flag is turned off.
+--
+-- payment_terms / warranty_terms are written ONLY when the text is a literal
+-- seed (false). A blank text omits the key, and so does any real text: an absent
+-- key already resolves to "on iff the company has the text", so owners who typed
+-- their own terms keep them. estimate_terms is omitted entirely for the same
+-- reason (absent follows estimate_terms_enabled AND text).
+UPDATE companies SET document_blocks =
+  jsonb_build_object(
+    'summary', true,
+    'timeline', true,
+    'notes', true,
+    'photos', true,
+    'valid_until', false
+  )
+  || CASE WHEN btrim(COALESCE(default_payment_terms, '')) = 'Net 30'
+          THEN jsonb_build_object('payment_terms', false)
+          ELSE '{}'::jsonb END
+  || CASE WHEN btrim(COALESCE(default_warranty_terms, '')) = '1 year'
+          THEN jsonb_build_object('warranty_terms', false)
+          ELSE '{}'::jsonb END
+WHERE document_blocks IS NULL;

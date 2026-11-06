@@ -82,3 +82,76 @@ describe('AddBlockRow', () => {
     expect(screen.getByTestId('add-block-notes')).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Validation fixes: read-only (locked / sent) estimates and the prefill rule.
+// ---------------------------------------------------------------------------
+import { blockPrefill } from '@/components/workspace/estimate/add-block-row'
+
+describe('addableBlocks on a locked / sent estimate', () => {
+  const opts = { hasCompanyTerms: true, hasValidUntil: true, readOnly: true }
+
+  it('offers a text chip only when its column already has content', () => {
+    const out = addableBlocks(bareBlank, {
+      ...opts,
+      content: { payment_terms: '50% upfront', timeline: '  ', notes: null },
+    })
+    expect(out).toContain('payment_terms')
+    expect(out).not.toContain('timeline')
+    expect(out).not.toContain('notes')
+    expect(out).not.toContain('warranty_terms')
+    expect(out).not.toContain('summary')
+  })
+
+  it('keeps the photos, fine-print and valid-until chips as they are', () => {
+    const settings = { sections: { ...bareBlank.sections, photos: false } }
+    const out = addableBlocks(settings, { ...opts, content: {} })
+    expect(out).toEqual(['photos', 'estimate_terms', 'valid_until'])
+  })
+
+  it('an editable estimate is unaffected by empty columns', () => {
+    const out = addableBlocks(bareBlank, { hasCompanyTerms: false, hasValidUntil: false, readOnly: false, content: {} })
+    expect(out).toContain('timeline')
+  })
+
+  it('the row renders only the chips that qualify', () => {
+    render(
+      <AddBlockRow
+        settings={bareBlank}
+        hasCompanyTerms={false}
+        hasValidUntil={false}
+        readOnly
+        content={{ notes: 'Gate code 1234' }}
+        onAdd={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByTestId('add-block-notes')).toBeTruthy()
+  })
+})
+
+describe('blockPrefill', () => {
+  const defaults = { payment_terms: '50% upfront', warranty_terms: '1 year' }
+
+  it('copies the company default into an empty column', () => {
+    expect(blockPrefill('payment_terms', { payment_terms: null }, defaults, false)).toEqual({
+      field: 'payment_terms',
+      value: '50% upfront',
+    })
+    expect(blockPrefill('warranty_terms', {}, defaults, false)?.value).toBe('1 year')
+  })
+
+  it('leaves the column null (no write at all) when there is no company default', () => {
+    expect(blockPrefill('payment_terms', { payment_terms: null }, { payment_terms: null }, false)).toBeNull()
+    expect(blockPrefill('payment_terms', {}, { payment_terms: '   ' }, false)).toBeNull()
+    expect(blockPrefill('warranty_terms', {}, undefined, false)).toBeNull()
+  })
+
+  it('never prefills timeline / notes / summary, a filled column, or a read-only estimate', () => {
+    expect(blockPrefill('timeline', {}, defaults, false)).toBeNull()
+    expect(blockPrefill('notes', {}, defaults, false)).toBeNull()
+    expect(blockPrefill('summary', {}, defaults, false)).toBeNull()
+    expect(blockPrefill('payment_terms', { payment_terms: 'mine' }, defaults, false)).toBeNull()
+    expect(blockPrefill('payment_terms', {}, defaults, true)).toBeNull()
+  })
+})

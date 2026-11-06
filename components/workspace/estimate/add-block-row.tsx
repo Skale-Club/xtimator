@@ -29,23 +29,68 @@ const CHIP_ORDER: AddableBlock[] = [
   'valid_until',
 ]
 
+export type TextBlock = 'summary' | 'payment_terms' | 'warranty_terms' | 'timeline' | 'notes'
+
+const TEXT_BLOCKS: readonly TextBlock[] = ['summary', 'payment_terms', 'warranty_terms', 'timeline', 'notes']
+
+export function isTextBlock(key: AddableBlock): key is TextBlock {
+  return (TEXT_BLOCKS as readonly string[]).includes(key)
+}
+
+const hasContent = (v: string | null | undefined): boolean => typeof v === 'string' && v.trim() !== ''
+
+export interface AddableOptions {
+  hasCompanyTerms: boolean
+  hasValidUntil: boolean
+  /** Locked / sent estimate: content cannot be edited, only presentation can. */
+  readOnly?: boolean
+  /** Current text of each text block; on a read-only estimate a text chip is
+   *  offered only when its column already has content (there is nothing to type
+   *  into, so revealing an empty card would be a dead end). */
+  content?: Partial<Record<TextBlock, string | null>>
+}
+
 /** Hidden blocks the owner can add right now. Pure, exported for tests. */
 export function addableBlocks(
   settings: PresentationSettings | null,
-  opts: { hasCompanyTerms: boolean; hasValidUntil: boolean },
+  opts: AddableOptions,
 ): AddableBlock[] {
   const resolved = resolvePresentationSettings(settings)
   return CHIP_ORDER.filter((key) => {
     if (key === 'estimate_terms' && !opts.hasCompanyTerms) return false
     if (key === 'valid_until' && !opts.hasValidUntil) return false
+    if (opts.readOnly && isTextBlock(key) && !hasContent(opts.content?.[key])) return false
     return !isSectionVisible(resolved, key)
   })
+}
+
+/**
+ * The field write that accompanies adding a text block: the company default,
+ * but only when the column is still empty, the estimate is editable and the
+ * company really has a default. Never an empty string -- a blank default leaves
+ * the column null.
+ */
+export function blockPrefill(
+  key: AddableBlock,
+  current: Partial<Record<TextBlock, string | null>>,
+  companyDefaults: { payment_terms?: string | null; warranty_terms?: string | null } | null | undefined,
+  readOnly: boolean,
+): { field: TextBlock; value: string } | null {
+  if (readOnly || !isTextBlock(key)) return null
+  if (current[key] != null) return null
+  const fromCompany =
+    key === 'payment_terms' ? companyDefaults?.payment_terms
+    : key === 'warranty_terms' ? companyDefaults?.warranty_terms
+    : null
+  return hasContent(fromCompany) ? { field: key, value: fromCompany as string } : null
 }
 
 export interface AddBlockRowProps {
   settings: PresentationSettings | null
   hasCompanyTerms: boolean
   hasValidUntil: boolean
+  readOnly?: boolean
+  content?: Partial<Record<TextBlock, string | null>>
   onAdd: (key: AddableBlock) => void
 }
 
@@ -53,6 +98,8 @@ export function AddBlockRow({
   settings,
   hasCompanyTerms,
   hasValidUntil,
+  readOnly,
+  content,
   onAdd,
 }: AddBlockRowProps) {
   const { t } = useTranslation()
@@ -66,7 +113,7 @@ export function AddBlockRow({
     estimate_terms: t('Estimate Terms'),
     valid_until: t('Valid Until'),
   }
-  const blocks = addableBlocks(settings, { hasCompanyTerms, hasValidUntil })
+  const blocks = addableBlocks(settings, { hasCompanyTerms, hasValidUntil, readOnly, content })
   if (blocks.length === 0) return null
 
   return (

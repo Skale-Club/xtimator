@@ -3,6 +3,7 @@ import {
   aiAuthoredFields,
   computeValidUntil,
   documentBlocksContext,
+  easternDate,
   initialPresentationSettings,
   initialSectionVisibility,
   parseDocumentBlocks,
@@ -233,7 +234,7 @@ describe('computeValidUntil', () => {
     expect(computeValidUntil('2026-01-15', 30, today)).toBe('2026-02-14')
   })
 
-  it('falls back to today (UTC calendar day)', () => {
+  it('falls back to today (US Eastern calendar day)', () => {
     expect(computeValidUntil(null, 30, today)).toBe('2026-12-06')
   })
 
@@ -245,6 +246,26 @@ describe('computeValidUntil', () => {
     expect(computeValidUntil(null, 0, today)).toBeNull()
     expect(computeValidUntil(null, null, today)).toBeNull()
     expect(computeValidUntil(null, -5, today)).toBeNull()
+  })
+
+  it('uses the US Eastern calendar date, not UTC: 11:30 pm ET on Nov 6 is still Nov 6', () => {
+    const lateEvening = new Date(Date.UTC(2026, 10, 7, 4, 30)) // 23:30 EST, already Nov 7 in UTC
+    expect(easternDate(lateEvening)).toBe('2026-11-06')
+    expect(computeValidUntil(null, 30, lateEvening)).toBe('2026-12-06')
+  })
+
+  it('rolls to the next Eastern day just after midnight ET', () => {
+    const justAfterMidnight = new Date(Date.UTC(2026, 10, 7, 5, 5)) // 00:05 EST Nov 7
+    expect(easternDate(justAfterMidnight)).toBe('2026-11-07')
+    expect(computeValidUntil(null, 30, justAfterMidnight)).toBe('2026-12-07')
+  })
+
+  it('handles daylight saving (EDT, UTC-4): 11:30 pm EDT on Jul 1 is still Jul 1', () => {
+    expect(computeValidUntil(null, 10, new Date(Date.UTC(2026, 6, 2, 3, 30)))).toBe('2026-07-11')
+  })
+
+  it('an explicit estimate date always wins over the clock', () => {
+    expect(computeValidUntil('2026-03-01', 10, new Date(Date.UTC(2026, 10, 7, 4, 30)))).toBe('2026-03-11')
   })
 
   it('ignores a malformed estimate date and uses today', () => {
