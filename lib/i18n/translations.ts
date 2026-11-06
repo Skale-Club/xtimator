@@ -263,6 +263,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     // round-trip would flash English on the one screen whose whole job is to
     // feel calm.
     'Reading the job details': 'Lendo os detalhes do serviço',
+    'Planning the scope': 'Planejando o escopo',
     'Writing the scope of work': 'Escrevendo o escopo do serviço',
     'Pricing the line items': 'Precificando os itens',
     'Checking the numbers': 'Conferindo as contas',
@@ -580,6 +581,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     // Capture processing narration: see the pt block for why these are
     // pre-seeded instead of left to the runtime translation fallback.
     'Reading the job details': 'Leyendo los detalles del trabajo',
+    'Planning the scope': 'Planificando el alcance',
     'Writing the scope of work': 'Redactando el alcance del trabajo',
     'Pricing the line items': 'Poniendo precio a las partidas',
     'Checking the numbers': 'Revisando los números',

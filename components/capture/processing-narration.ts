@@ -35,6 +35,7 @@ export interface RowLabels {
 /** Headline per generate phase, used for the second-pass row's detail line. */
 export const GENERATE_PHASE_LABELS: Record<GeneratePhase, string> = {
   context: 'Reading the job details',
+  planning: 'Planning the scope',
   drafting: 'Writing the scope of work',
   pricing: 'Pricing the line items',
   saving: 'Putting the estimate together',

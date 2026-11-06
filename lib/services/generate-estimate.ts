@@ -46,6 +46,8 @@ import { buildAiMeta, isMissingColumnError, type QualityBand } from '@/lib/estim
 import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
+import { planScope } from '@/lib/ai/plan-scope'
+import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -338,6 +340,22 @@ export async function generateEstimateForProject(
   // (the bulk of the 4m40s `generate_estimate` step measured on 2026-08-06).
   // inputCount is what the model actually has to work from.
   const inputCount = transcripts.length + photoDescriptions.length + prompts.length
+  // SEED-057 Phase C (E1): two-step generation, behind ESTIMATOR_TWO_STEP and
+  // OFF by default. Step one (a fast, cheap model) turns the whole job into a
+  // scope plan: trade, ONE consolidated measurement table, sections,
+  // assumptions and open questions. Step two (the configured model, below)
+  // fills items and prices under the playbook with that table as the only
+  // source of quantities. planScope never throws; a null plan means this
+  // generation simply runs in one step, exactly as with the flag off.
+  if (isTwoStepEnabled()) {
+    phase('planning', { inputCount })
+    const plan = await planScope(estimateInput)
+    if (plan) {
+      estimateInput.plan = plan
+      if (plan.detected_trade) estimateInput.playbookTrade = plan.detected_trade
+    }
+  }
+
   phase('drafting', { inputCount })
 
   // 260927: live drafting progress. The estimator call streams its tool-call
@@ -367,6 +385,17 @@ export async function generateEstimateForProject(
 
   const provider = await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
+
+  // SEED-057 C: the estimator is told to carry the plan's assumptions,
+  // exclusions and open questions forward. If it dropped a list, fall back to
+  // the plan's own, so step one's work is never silently lost.
+  const plan = estimateInput.plan
+  const aiNotes = {
+    assumptions: aiEstimate.assumptions?.length ? aiEstimate.assumptions : plan?.assumptions,
+    exclusions: aiEstimate.exclusions?.length ? aiEstimate.exclusions : plan?.exclusions,
+    open_questions: aiEstimate.open_questions?.length ? aiEstimate.open_questions : plan?.open_questions,
+    scope_confidence: aiEstimate.scope_confidence ?? plan?.scope_confidence,
+  }
 
   // Client suggestion — only when project has no linked client.
   // When an exact-normalized match exists, auto-link inline (service-role context
@@ -691,12 +720,12 @@ export async function generateEstimateForProject(
     summary: aiEstimate.summary,
     sections: dedupedSections,
     playbook: playbookFor(estimateInput),
-    openQuestions: aiEstimate.open_questions?.length ?? 0,
+    openQuestions: aiNotes.open_questions?.length ?? 0,
     hasMeasurements: mentionsMeasurements(sourceText),
     language,
   })
   const aiMeta = buildAiMeta(
-    aiEstimate,
+    aiNotes,
     structure.band === 'ok'
       ? null
       : { score: structure.score, band: structure.band, findings: structure.findings.map((f) => f.message) },
@@ -1015,7 +1044,7 @@ export async function generateEstimateForProject(
       band: structure.band,
       hints: [...structure.findings].sort((a, b) => b.penalty - a.penalty).map((f) => f.hint),
     },
-    openQuestions: [...(aiEstimate.open_questions ?? [])]
+    openQuestions: [...(aiNotes.open_questions ?? [])]
       .sort((a, b) => IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact])
       .map((q) => q.question),
   }

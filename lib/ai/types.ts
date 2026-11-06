@@ -1,6 +1,7 @@
 // lib/ai/types.ts
 import type { EstimateOutput } from './schema'
 import type { DraftProgress } from './providers/openrouter-stream'
+import type { ScopePlan } from './scope-plan'
 
 export type PriceBookEntry = {
   folder_name: string | null
@@ -73,6 +74,11 @@ export type EstimateInput = {
    * plan_scope pre-pass). Absent = the builder reads the source material.
    */
   playbookTrade?: string
+  /**
+   * SEED-057 Phase C: the scope plan from step one of two-step generation
+   * (ESTIMATOR_TWO_STEP). Absent = single-step, today's behavior.
+   */
+  plan?: ScopePlan
   priceBookItems: PriceBookEntry[]  // empty array = no injection (D-10)
   currencyCode?: string
   /**

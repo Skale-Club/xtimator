@@ -20,20 +20,20 @@ import { normalizeUnit } from './units'
 const ENUM3 = ['low', 'medium', 'high'] as const
 type Level = (typeof ENUM3)[number]
 
-function toLevel(v: unknown): Level | undefined {
+export function toLevel(v: unknown): Level | undefined {
   return typeof v === 'string' && (ENUM3 as readonly string[]).includes(v.toLowerCase())
     ? (v.toLowerCase() as Level)
     : undefined
 }
 
-function toShortText(v: unknown, max: number): string | undefined {
+export function toShortText(v: unknown, max: number): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
   return t.length > 0 ? t.slice(0, max) : undefined
 }
 
 /** A list of short strings: trimmed, de-duplicated, capped. Not an array -> undefined. */
-function toTextList(v: unknown, maxItems: number, maxChars: number): string[] | undefined {
+export function toTextList(v: unknown, maxItems: number, maxChars: number): string[] | undefined {
   if (!Array.isArray(v)) return undefined
   const out: string[] = []
   for (const entry of v) {
@@ -50,7 +50,7 @@ export const openQuestionSchema = z.object({
 })
 export type OpenQuestion = z.infer<typeof openQuestionSchema>
 
-function toOpenQuestions(v: unknown): OpenQuestion[] | undefined {
+export function toOpenQuestions(v: unknown): OpenQuestion[] | undefined {
   if (!Array.isArray(v)) return undefined
   const out: OpenQuestion[] = []
   for (const entry of v) {

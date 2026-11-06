@@ -11,6 +11,7 @@
 // Security block names the tag.
 import { CANONICAL_UNITS } from './units'
 import type { Playbook } from './playbooks'
+import type { ScopePlan } from './scope-plan'
 
 export const STRUCTURE_CONTRACT_PROMPT = `## Estimate structure
 - summary: 2-4 sentences saying what work, where, and for whom, in the estimate language.
@@ -94,4 +95,42 @@ export function knowledgeUserBlock(
     tagged.push(`<knowledge>${escape(clipped)}</knowledge>`)
   }
   return tagged.length > 0 ? `## Company Knowledge\n${tagged.join('\n')}` : null
+}
+
+export const SCOPE_PLAN_INSTRUCTION_PROMPT = `## Scope plan
+The user message includes a <scope_plan> prepared from the same source material: the trade, one consolidated measurement table, the sections to fill, and the assumptions, exclusions and open questions found so far.
+- Its measurement table is the ONLY source of quantities. Cite the measurement you used in each line's basis; do not invent a dimension it lacks, and do not re-count a surface it already merged.
+- Fill its sections, in its order; add or drop one only when the work clearly requires it.
+- Carry its assumptions, exclusions and open questions into your output, correcting or extending them. Do not drop them.`
+
+/**
+ * The user-message block carrying the scope plan, or null. The whole rendering
+ * goes through `escape` (sanitizeField) inside ONE <scope_plan> tag.
+ */
+export function scopePlanUserBlock(
+  plan: ScopePlan | undefined,
+  escape: (value: string) => string,
+): string | null {
+  if (!plan) return null
+  const lines: string[] = []
+  if (plan.detected_trade) lines.push(`Trade: ${plan.detected_trade}`)
+  if (plan.measurements.length > 0) {
+    lines.push('Measurements:')
+    for (const m of plan.measurements) {
+      lines.push(`- ${m.subject} | ${m.value} ${m.unit} | ${m.source}${m.from ? ` | ${m.from}` : ''}`)
+    }
+  } else {
+    lines.push('Measurements: none stated')
+  }
+  if (plan.sections.length > 0) {
+    lines.push('Sections:')
+    plan.sections.forEach((s, i) => lines.push(`${i + 1}. ${s.title}${s.purpose ? ` - ${s.purpose}` : ''}`))
+  }
+  if (plan.assumptions.length > 0) lines.push(`Assumptions: ${plan.assumptions.join('; ')}`)
+  if (plan.exclusions.length > 0) lines.push(`Exclusions: ${plan.exclusions.join('; ')}`)
+  if (plan.open_questions.length > 0) {
+    lines.push(`Open questions: ${plan.open_questions.map((q) => `${q.question} (${q.impact})`).join('; ')}`)
+  }
+  if (plan.scope_confidence) lines.push(`Scope confidence: ${plan.scope_confidence}`)
+  return `## Scope Plan\n<scope_plan>${escape(lines.join('\n'))}</scope_plan>`
 }

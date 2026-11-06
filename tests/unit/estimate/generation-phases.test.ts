@@ -17,17 +17,19 @@ import {
 
 describe('phase order', () => {
   it('declares the phases in the order the graph really runs them', () => {
-    // generate node (context → drafting → pricing → saving), then assess
+    // generate node (context → [planning] → drafting → pricing → saving), then assess
     // (reviewing), then the optional auto-refine pass.
     expect(GENERATE_PHASES).toEqual([
       'context',
+      'planning',
       'drafting',
       'pricing',
       'saving',
       'reviewing',
       'refining',
     ])
-    expect(FIRST_PASS_PHASES).toEqual(GENERATE_PHASES.slice(0, 5))
+    // `planning` only exists behind ESTIMATOR_TWO_STEP and is not a checklist row.
+    expect(FIRST_PASS_PHASES).toEqual(GENERATE_PHASES.filter((p) => p !== 'planning' && p !== 'refining'))
   })
 
   it('indexes every declared phase in order', () => {

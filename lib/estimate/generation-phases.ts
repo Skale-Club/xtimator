@@ -35,6 +35,11 @@
 export const GENERATE_PHASES = [
   /** Loading project, recordings, photos, company + price book. */
   'context',
+  /**
+   * SEED-057 two-step generation (ESTIMATOR_TWO_STEP, default off): the fast
+   * scope-plan call before the estimator. Reported only when the flag is on.
+   */
+  'planning',
   /** The estimator LLM call, the single biggest chunk of the step. */
   'drafting',
   /** Price-book anchoring + regional price research for unmatched items. */
@@ -51,6 +56,10 @@ export type GeneratePhase = (typeof GENERATE_PHASES)[number]
 
 /** The phases every generation runs once, in order. `refining` is the optional extra pass. */
 export const FIRST_PASS_PHASES = ['context', 'drafting', 'pricing', 'saving', 'reviewing'] as const
+// `planning` is deliberately NOT a checklist row: it only exists behind a flag, and
+// a row that is skipped on most runs would sit at "pending" and then vanish. The
+// progress model reads a `planning` visit as the Reading-the-job-details row still
+// being active.
 export type FirstPassPhase = (typeof FIRST_PASS_PHASES)[number]
 
 export const GENERATE_PHASE_INDEX: Record<GeneratePhase, number> =
@@ -75,6 +84,7 @@ export const GENERATE_PHASE_INDEX: Record<GeneratePhase, number> =
  */
 export const GENERATE_PHASE_TYPICAL_MS: Record<GeneratePhase, number> = {
   context: 3_000,
+  planning: 15_000,
   drafting: 75_000,
   pricing: 25_000,
   saving: 4_000,
