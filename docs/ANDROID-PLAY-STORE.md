@@ -7,9 +7,9 @@ Status em 2026-11-05. Documento para continuar o trabalho em outro computador.
 | Item | Estado |
 |---|---|
 | Conta Google Play Console | ✅ Organização **SKALE CLUB LLC**, dona `skale.club@gmail.com`, Account ID `9003252933054961379`. Tudo verificado (site, trader, identidade/LLC, telefones). Botão **Create app** liberado. |
-| App no Console | ✅ Criado (app id `4972530910854739329`). Release `2 (2)` publicada no **teste interno** em 2026-11-05 |
+| App no Console | ✅ Criado (app id `4972530910854739329`). Release `3 (3)` (abre em `/dashboard`) publicada no **teste interno** em 2026-11-05 |
 | Rota `/.well-known/assetlinks.json` | ✅ Com os dois fingerprints (app signing `AC:DE:D8…C0:5C` + upload `6F:3B:D5…E3:D2`) neste branch; ainda **não** em produção |
-| Projeto Android (TWA) / `.aab` | ✅ Gerado em `~/Dev/xtimator-android` (fora de git), `versionCode 2`, `minSdkVersion 24` |
+| Projeto Android (TWA) / `.aab` | ✅ Gerado em `~/Dev/xtimator-android` (fora de git), `versionCode 3`, `startUrl /dashboard`, `minSdkVersion 24` |
 | Chave de upload (keystore) | ✅ `~/.android-keys/xtimator-upload.jks`, alias `upload` (fazer backup + senha no cofre) |
 
 **Pegadinhas encontradas no Windows:**
