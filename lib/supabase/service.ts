@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { resolveServiceClientConfig } from '@/lib/supabase/data-api'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { ownedAdminAuth, withOwnedAuth } from '@/lib/auth/owned-client'
 
@@ -13,10 +14,12 @@ import { ownedAdminAuth, withOwnedAuth } from '@/lib/auth/owned-client'
  * Server Actions) prefer requireServiceClient() which is non-nullable.
  */
 export function createServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  const config = resolveServiceClientConfig()
+  if (!config.ok) return null
+  const client = createClient(config.url, config.key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(config.fetch ? { global: { fetch: config.fetch } } : {}),
+  })
   return ownedAuthEnabled() ? withOwnedAuth(client, ownedAdminAuth(client)) : client
 }
 
@@ -26,13 +29,11 @@ export function createServiceClient() {
  * the root cause is immediately obvious instead of a cascade of null errors.
  */
 export function requireServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error(
-      '[requireServiceClient] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY must be set.'
-    )
-  }
-  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  const config = resolveServiceClientConfig()
+  if (!config.ok) throw new Error(`[requireServiceClient] ${config.reason}`)
+  const client = createClient(config.url, config.key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    ...(config.fetch ? { global: { fetch: config.fetch } } : {}),
+  })
   return ownedAuthEnabled() ? withOwnedAuth(client, ownedAdminAuth(client)) : client
 }

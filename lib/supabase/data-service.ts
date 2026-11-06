@@ -1,12 +1,15 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js'
+import { resolveServiceClientConfig } from '@/lib/supabase/data-api'
 
 /** Data transport only. Never use this factory to authenticate an end user. */
 export function createDataServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return null
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
+  const config = resolveServiceClientConfig()
+  if (!config.ok) return null
+  return createClient(config.url, config.key, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    ...(config.fetch ? { global: { fetch: config.fetch } } : {}),
+  })
 }
 
 export function requireDataServiceClient() {
