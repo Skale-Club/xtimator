@@ -21,8 +21,10 @@
 export const ANDROID_TWA_PACKAGE_NAME = 'com.xtimator.app'
 
 export const ANDROID_TWA_SHA256_FINGERPRINTS: readonly string[] = [
-  // Filled in after the app is created in Play Console and the first upload
-  // key exists. Until then the route serves an empty statement list.
+  // Play App Signing key (Google-managed; signs every install from Play).
+  'AC:DE:D8:7A:6F:89:8B:70:18:AB:1A:DF:2E:26:FD:FC:3F:F9:CF:58:A0:06:22:CF:D4:D1:49:9C:80:6F:C0:5C',
+  // Upload key (~/.android-keys/xtimator-upload.jks, alias "upload").
+  '6F:3B:D5:45:06:5D:E4:43:5B:A4:53:96:E9:0D:6A:7A:3B:23:78:02:CA:AE:6F:C5:97:BE:50:A1:C4:1A:E3:D2',
 ]
 
 const FINGERPRINT_PATTERN = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/

@@ -7,10 +7,15 @@ Status em 2026-11-05. Documento para continuar o trabalho em outro computador.
 | Item | Estado |
 |---|---|
 | Conta Google Play Console | ✅ Organização **SKALE CLUB LLC**, dona `skale.club@gmail.com`, Account ID `9003252933054961379`. Tudo verificado (site, trader, identidade/LLC, telefones). Botão **Create app** liberado. |
-| App no Console | ❌ Ainda não criado |
-| Rota `/.well-known/assetlinks.json` | ✅ Pronta neste branch (`feat/android-twa-assetlinks`), ainda **não** em produção. Hoje devolve `[]` |
-| Projeto Android (TWA) / `.aab` | ❌ Não gerado — JDK/Android SDK não foram instalados no PC original |
-| Chave de upload (keystore) | ❌ Não gerada |
+| App no Console | ✅ Criado (app id `4972530910854739329`). Release `2 (2)` publicada no **teste interno** em 2026-11-05 |
+| Rota `/.well-known/assetlinks.json` | ✅ Com os dois fingerprints (app signing `AC:DE:D8…C0:5C` + upload `6F:3B:D5…E3:D2`) neste branch; ainda **não** em produção |
+| Projeto Android (TWA) / `.aab` | ✅ Gerado em `~/Dev/xtimator-android` (fora de git), `versionCode 2`, `minSdkVersion 24` |
+| Chave de upload (keystore) | ✅ `~/.android-keys/xtimator-upload.jks`, alias `upload` (fazer backup + senha no cofre) |
+
+**Pegadinhas encontradas no Windows:**
+- `minSdkVersion` do template do Bubblewrap é 21, mas `androidbrowserhelper` 2.7.4 exige 24 — subir para 24 em `twa-manifest.json` (o build regenera o `build.gradle`).
+- Se `NoDefaultCurrentDirectoryInExePath=1` estiver no ambiente (shell do Claude Desktop), o `cmd` não acha `gradlew.bat`. Rodar o build com `$env:NoDefaultCurrentDirectoryInExePath = ''; bubblewrap build`.
+- A pasta da keystore precisa existir antes do `bubblewrap init`, senão o `keytool` falha e **imprime as senhas** no erro.
 
 **Abordagem:** Trusted Web Activity via [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap). O app Android é só uma casca que abre `https://xtimator.com` em tela cheia pelo Chrome; todo deploy web atualiza o app sem nova versão na loja. Microfone, câmera e push continuam funcionando (é o Chrome).
 
