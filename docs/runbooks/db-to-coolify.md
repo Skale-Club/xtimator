@@ -317,3 +317,21 @@ build variables, R2 backup bucket and a tested restore, and deleting the orphan 
 3. Migrations now go to the Coolify DB (production) AND the Supabase project (development) — apply through the `xtimator-db-copy` helper pattern or a psql session inside the Coolify network.
 4. Dev guard: `npm run dev` must use an explicit `DEV_DATABASE_URL` / `DEV_SUPABASE_PROJECT_REF`; Supabase `prmqgcrnpuvpzruyzvuv` is development from now on (it still holds a frozen copy of production as of T0).
 5. Retire after 7 quiet days: `apply_credit_ledger_entry`, the Supabase pg_cron jobs, `SUPABASE_SECRET_KEY` in production env, operator scripts still reading it (`scripts/{check-admin,grant-admin,seed-demo-workspace,auth-cutover}.mjs`).
+
+### 2026-11-07 - Grants audit after the post-copy migrations
+
+- `db-copy.sh` compared table grants but not FUNCTION privileges, and its ACL replay left `PUBLIC` EXECUTE untouched.
+  It now compares effective EXECUTE (`proacl`, with the NULL default expanded) for `anon`, `authenticated`,
+  `service_role` and `PUBLIC` (`func_acl`), and the replay revokes/regrants `PUBLIC` too.
+- Incident: while recording the three ledger rows by hand, a helper shell script used an UNQUOTED heredoc, so the
+  shell expanded `` `cat shim.sql` `` and the shim was actually executed on the Coolify DB (against the instruction).
+  It re-widened `anon`/`authenticated` on 13 tables and 66 function privileges. Detected by a full read-only ACL diff,
+  repaired by replaying the SOURCE ACLs (narrowing only; Supabase untouched). Lesson: write ledger rows with a
+  quoted heredoc (`<<'SQL'`) or `psql -v c="$(cat file)"`, and never apply the shim outside `db-copy.sh`.
+- Final diff after the repair: no table, column, sequence or function privilege difference for the request roles.
+  Remaining source-only lines are Supabase-internal schema ACLs (`auth`/`extensions` for `dashboard_user`,
+  `supabase_admin`, `supabase_auth_admin`; `public` USAGE for `PUBLIC` and `pg_database_owner`); the target is narrower.
+- Default privileges: both sides grant ALL on new tables, sequences and functions in `public` to
+  `anon`/`authenticated`/`service_role` (Supabase via owners `postgres` and `supabase_admin`, Coolify via owner `xtimator`
+  from the shim). Every new table therefore needs an explicit `REVOKE ... FROM anon, authenticated` in its migration
+  (as `price_observations` has) on BOTH platforms.

@@ -172,7 +172,7 @@ if [ "$VERIFY_ONLY" -eq 0 ]; then
   ROLES="('anon','authenticated','service_role')"
   ACL_SQL="select 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated, service_role;';
 select 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, service_role;';
-select 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated, service_role;';
+select 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;';
 select format('GRANT %s ON %s %s TO %I;', string_agg(a.privilege_type, ',' order by a.privilege_type),
   case c.relkind when 'S' then 'SEQUENCE' else 'TABLE' end, c.oid::regclass, r.rolname)
   from pg_class c join pg_namespace n on n.oid=c.relnamespace, aclexplode(c.relacl) a join pg_roles r on r.oid=a.grantee
@@ -181,9 +181,9 @@ select format('GRANT %s (%I) ON TABLE %s TO %I;', string_agg(a.privilege_type, '
   from (select att.attrelid, att.attname, att.attacl from pg_attribute att join pg_class c on c.oid=att.attrelid join pg_namespace n on n.oid=c.relnamespace
         where n.nspname='public' and att.attacl is not null and not att.attisdropped) t, aclexplode(t.attacl) a join pg_roles r on r.oid=a.grantee
   where r.rolname in $ROLES group by t.attrelid, t.attname, r.rolname;
-select format('GRANT EXECUTE ON FUNCTION %s TO %I;', p.oid::regprocedure, r.rolname)
-  from pg_proc p join pg_namespace n on n.oid=p.pronamespace, aclexplode(p.proacl) a join pg_roles r on r.oid=a.grantee
-  where n.nspname='public' and p.prokind in ('f','p') and a.privilege_type='EXECUTE' and r.rolname in $ROLES;"
+select format('GRANT EXECUTE ON FUNCTION %s TO %s;', p.oid::regprocedure, case when a.grantee=0 then 'PUBLIC' else quote_ident(a.grantee::regrole::text) end)
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where n.nspname='public' and p.prokind in ('f','p') and a.privilege_type='EXECUTE' and (a.grantee=0 or a.grantee::regrole::text in $ROLES);"
   # search_path stays empty on both sides: every name above is schema-qualified by regclass/regprocedure.
   src -c "$ACL_SQL" > "$WORK/acl.sql" || fail "could not read the source ACLs"
   tgt -v ON_ERROR_STOP=1 -f "$WORK/acl.sql" >/dev/null || fail "could not replay the source ACLs on the target"
@@ -220,6 +220,13 @@ q_grants="select table_schema||'.'||table_name, grantee, string_agg(privilege_ty
   from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated','service_role')
   group by 1,2 order by 1,2"
 
+# Effective EXECUTE privileges on public functions for the request roles and PUBLIC
+# (a NULL proacl means the default: PUBLIC may execute).
+q_func_acl="select p.oid::regprocedure::text, case when a.grantee=0 then 'PUBLIC' else a.grantee::regrole::text end
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+  where n.nspname='public' and p.prokind in ('f','p') and a.privilege_type='EXECUTE'
+    and (a.grantee=0 or a.grantee::regrole::text in ('anon','authenticated','service_role')) order by 1,2"
+
 compare() {
   local name="$1" sql="$2" level="${3:-fail}"
   src -c "$sql" > "$WORK/$name.src" 2> "$WORK/$name.src.err" || { echo "  [$name] cannot query source: $(head -1 "$WORK/$name.src.err")"; MISMATCH=1; return; }
@@ -247,6 +254,7 @@ compare policies    "$q_policies"
 compare functions   "$q_functions"
 compare views       "$q_views"
 compare grants      "$q_grants"
+compare func_acl    "$q_func_acl"
 
 pol_src="$(wc -l < "$WORK/policies.src" | tr -d ' ')"
 pol_tgt="$(wc -l < "$WORK/policies.tgt" | tr -d ' ')"
