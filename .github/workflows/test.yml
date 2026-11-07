@@ -27,7 +27,10 @@ jobs:
   unit:
     name: Typecheck + unit/eval suite
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 min stopped fitting: the full suite (~8k tests) took 11.5 min on one
+    # runner and blew 15 on another (2026-11-07), and a timeout reports as
+    # "cancelled", which silently skips Build and Deploy.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
