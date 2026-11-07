@@ -1,4 +1,5 @@
 import 'server-only'
+import { dataApiBaseUrl } from '@/lib/supabase/data-api'
 import { createServerClient } from '@supabase/ssr'
 import type { NextRequest } from 'next/server'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -16,7 +17,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
  */
 export async function checkPlatformAdmin(request: NextRequest): Promise<boolean> {
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    dataApiBaseUrl()!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {

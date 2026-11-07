@@ -33,7 +33,7 @@ export { billingReconciliationJob } from './billing-reconciliation'
 export { estimateViewedNotificationJob } from './estimate-viewed-notification'
 // Auto-blog parity XT-09 — hourly generation sweep + RSS ingestion.
 export { autoBlogSweepJob, autoBlogRssFetchJob } from './autoblog'
-// SEED-056 step 1 - Inngest replacements for the 3 live pg_cron jobs (idempotent;
+// SEED-059 step 1 - Inngest replacements for the 3 live pg_cron jobs (idempotent;
 // safe to overlap with pg_cron until the Supabase -> Coolify cutover).
 export { cleanupOrphanDraftProjectsJob } from './cleanup-orphan-draft-projects'
 export { purgeWhatsAppProcessedMessagesJob } from './purge-whatsapp-processed-messages'

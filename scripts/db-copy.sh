@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SEED-056 step 4/5 - copy Xtimator's production data from Supabase to the
+# SEED-059 step 4/5 - copy Xtimator's production data from Supabase to the
 # self-hosted PostgreSQL (Coolify), then PROVE the copy is identical.
 #
 #   SOURCE_DB_URL=<supabase direct/session URL, read only>  \

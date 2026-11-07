@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { dataApiBaseUrl } from '@/lib/supabase/data-api'
 import { NextResponse, type NextRequest } from 'next/server'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { ownedRequestClaims } from '@/lib/auth/owned-proxy'
@@ -18,7 +19,7 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = ownedAuthEnabled() ? null : createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    dataApiBaseUrl()!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {

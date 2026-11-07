@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * SEED-056 step 1 - Inngest replacements for the 3 live pg_cron jobs.
+ * SEED-059 step 1 - Inngest replacements for the 3 live pg_cron jobs.
  * The service client and the ops alert are mocked; this locks the SQL
  * semantics (cutoffs/filters), failure alerting and the Inngest wiring.
  */

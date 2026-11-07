@@ -159,7 +159,7 @@ describe('validateProductionEnv', () => {
     errorSpy.mockRestore()
   })
 
-  it('SEED-056: DATA_API_MODE=postgrest boots without any Supabase service key', async () => {
+  it('SEED-059: DATA_API_MODE=postgrest boots without any Supabase service key', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     Object.assign(process.env, fullyConfiguredEnv())
     process.env.DATA_API_MODE = 'postgrest'
@@ -172,7 +172,7 @@ describe('validateProductionEnv', () => {
     errorSpy.mockRestore()
   })
 
-  it('SEED-056: DATA_API_MODE=postgrest refuses to boot without XTIMATOR_DATA_JWT_SECRET', async () => {
+  it('SEED-059: DATA_API_MODE=postgrest refuses to boot without XTIMATOR_DATA_JWT_SECRET', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     Object.assign(process.env, fullyConfiguredEnv())
     process.env.DATA_API_MODE = 'postgrest'
@@ -182,7 +182,7 @@ describe('validateProductionEnv', () => {
     expect(() => validateProductionEnv()).toThrow(/XTIMATOR_DATA_JWT_SECRET/)
   })
 
-  it('SEED-056: default (supabase) mode still requires a Supabase service key', async () => {
+  it('SEED-059: default (supabase) mode still requires a Supabase service key', async () => {
     vi.stubEnv('NODE_ENV', 'production')
     Object.assign(process.env, fullyConfiguredEnv())
     delete process.env.DATA_API_MODE

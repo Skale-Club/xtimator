@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 — data-API mode switch for the SERVICE clients.
+ * SEED-059 step 1 — data-API mode switch for the SERVICE clients.
  *
  * `DATA_API_MODE`:
  *   - `supabase` (default): the service client authenticates with the
@@ -11,6 +11,13 @@
  *     `{ role: 'service_role', iss: 'xtimator' }` as both `Authorization: Bearer`
  *     and `apikey`. The token is signed lazily per request and cached until it
  *     is close to expiry, so long-lived clients never carry a stale token.
+ *
+ * Same-origin proxy (app/rest/v1 -> lib/supabase/data-proxy.ts): the BROWSER calls
+ * `${NEXT_PUBLIC_SUPABASE_URL}/rest/v1` with `NEXT_PUBLIC_SUPABASE_URL` set to the
+ * app's own origin, and the app forwards to the upstream. SERVER clients never hop
+ * through the proxy: they use `dataApiBaseUrl()` (the upstream) and, in postgrest
+ * mode with `POSTGREST_INTERNAL_URL` set, `<base>/rest/v1/...` is rewritten to
+ * `${POSTGREST_INTERNAL_URL}/...` (PostgREST has no `/rest/v1` prefix).
  *
  * Secrets and tokens are never logged or included in error messages.
  */
@@ -35,6 +42,55 @@ function dataJwtSecret(): string | null {
   const secret = process.env.XTIMATOR_DATA_JWT_SECRET
   if (!secret || Buffer.byteLength(secret) < MIN_SECRET_BYTES) return null
   return secret
+}
+
+function cleanUrl(raw: string | undefined): string | undefined {
+  const value = raw?.trim().replace(/\/+$/, '')
+  return value ? value : undefined
+}
+
+/** Server-only runtime env: the real upstream (Supabase project URL) behind the same-origin proxy. */
+export function dataApiUpstreamUrl(): string | undefined {
+  return cleanUrl(process.env.DATA_API_UPSTREAM_URL)
+}
+
+/** Server-only runtime env: internal base of the PostgREST container, e.g. http://host:3000. */
+export function postgrestInternalUrl(): string | undefined {
+  return cleanUrl(process.env.POSTGREST_INTERNAL_URL)
+}
+
+/**
+ * Base URL SERVER-side Data API clients use. `DATA_API_UPSTREAM_URL` wins so the
+ * server never depends on whether `NEXT_PUBLIC_SUPABASE_URL` was inlined into the
+ * server bundle at build time (the build value is the app's own origin).
+ */
+export function dataApiBaseUrl(): string | undefined {
+  return dataApiUpstreamUrl() ?? cleanUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)
+}
+
+/** Maps `<anything>/rest/v1/<rest>` to `<internal>/<rest>`; null when the URL is not a Data API URL. */
+export function rewriteToPostgrest(raw: string, internal: string): string | null {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  if (url.pathname !== '/rest/v1' && !url.pathname.startsWith('/rest/v1/')) return null
+  return `${internal}${url.pathname.slice('/rest/v1'.length)}${url.search}`
+}
+
+/** fetch override for server clients (user + service): postgrest mode only, else undefined. */
+export function postgrestRewriteFetch(inner: typeof fetch = fetch): typeof fetch | undefined {
+  if (dataApiMode() !== 'postgrest') return undefined
+  const internal = postgrestInternalUrl()
+  if (!internal) return undefined
+  return (input, init) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const target = rewriteToPostgrest(raw, internal)
+    if (!target) return inner(input, init)
+    return inner(input instanceof Request ? new Request(target, input) : target, init)
+  }
 }
 
 let cache: { secret: string; token: string; exp: number } | null = null
@@ -67,12 +123,13 @@ export type ServiceClientConfig =
 
 /** fetch wrapper that stamps the service JWT on every Data API request. */
 function serviceJwtFetch(): typeof fetch {
+  const send = postgrestRewriteFetch(((input, init) => fetch(input, init)) as typeof fetch) ?? ((input, init) => fetch(input, init))
   return async (input, init) => {
     const token = await signServiceJwt()
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
     headers.set('Authorization', `Bearer ${token}`)
     headers.set('apikey', token)
-    return fetch(input, { ...init, headers })
+    return send(input, { ...init, headers })
   }
 }
 
@@ -82,9 +139,9 @@ function serviceJwtFetch(): typeof fetch {
  * (static-build-safe factories) or a thrown error (runtime factories).
  */
 export function resolveServiceClientConfig(): ServiceClientConfig {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const url = dataApiBaseUrl()
   if (dataApiMode() === 'postgrest') {
-    if (!url) return { ok: false, reason: 'NEXT_PUBLIC_SUPABASE_URL must be set.' }
+    if (!url) return { ok: false, reason: 'DATA_API_UPSTREAM_URL or NEXT_PUBLIC_SUPABASE_URL must be set.' }
     if (!dataJwtSecret()) {
       return {
         ok: false,

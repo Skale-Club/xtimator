@@ -1,5 +1,5 @@
 /**
- * SEED-056 step 1 - replaces the pg_cron job `cleanup-orphan-draft-projects`
+ * SEED-059 step 1 - replaces the pg_cron job `cleanup-orphan-draft-projects`
  * (`SELECT public.cleanup_orphan_draft_projects();`, daily 03:00).
  *
  * The cleanup lives in the SQL function (drafts older than 24h with no

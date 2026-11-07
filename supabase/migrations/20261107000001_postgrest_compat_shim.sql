@@ -1,4 +1,4 @@
--- SEED-056 step 2 - Supabase compatibility shim for a self-hosted PostgREST.
+-- SEED-059 step 2 - Supabase compatibility shim for a self-hosted PostgREST.
 --
 -- PURPOSE
 --   Xtimator's data layer is supabase-js -> PostgREST with 459 RLS policies that

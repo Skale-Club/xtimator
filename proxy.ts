@@ -148,7 +148,10 @@ function isClaimFreeApiRoute(pathname: string): boolean {
     pathname === '/api/inngest' || pathname.startsWith('/api/inngest/') ||
     pathname === '/api/cron' || pathname.startsWith('/api/cron/') ||
     pathname === '/api/health' || pathname.startsWith('/api/health/') ||
-    pathname === '/api/csp-report'
+    pathname === '/api/csp-report' ||
+    // SEED-059 same-origin Data API proxy: the end-user JWT is forwarded to
+    // PostgREST/RLS, so no session lookup (or cookie rotation) belongs here.
+    pathname === '/rest/v1' || pathname.startsWith('/rest/v1/')
   )
 }
 
