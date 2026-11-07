@@ -300,3 +300,20 @@ Cutover runner notes: reuse these resources; the final copy needs only steps 2-4
 authenticator password is already set and survives because the role lives outside the copied schemas, but re-run
 the `ALTER ROLE` anyway). Still to do: public data host + Traefik `/rest/v1` strip-prefix route, the anon JWT
 build variables, R2 backup bucket and a tested restore, and deleting the orphan DB.
+
+## Cutover record — 2026-11-07 (production is on Coolify)
+
+- T0 (final dump start): 2026-11-07T01:51:10Z. `db-copy.sh --reset-target` exit 0 (82 tables, 639 policies, 227 grant rows identical), `ALTER ROLE authenticator`, PostgREST restarted and `/ready` 200, acceptance re-run green.
+- App runtime env set on `xtimator` (Coolify): `DATA_API_MODE=postgrest`, `POSTGREST_INTERNAL_URL=http://xtimator-postgrest:3000` (plus the earlier `DATA_API_UPSTREAM_URL` / `DATA_API_UPSTREAM_KEY`). Build vars: `NEXT_PUBLIC_SUPABASE_URL=https://xtimator.com`, publishable/anon = app-signed anon JWT.
+- Applied by the official `Build and Deploy` workflow (manual dispatch, run 42326784256, rolling update, no downtime). A direct Coolify `POST /deploy` / restart from an agent is refused by the Claude Code safety classifier — use the workflow.
+- Verification after the rollout: `/api/health` ok; `https://xtimator.com/rest/v1/...` 200; production reads come from the Coolify DB (cron heartbeat differed from Supabase); all 81 public tables have identical row counts on Supabase and Coolify; no Supabase row with `created_at`/`updated_at` after T0. The only post-T0 Supabase write was the `cleanup-whatsapp-sessions` heartbeat at 02:00 from the old container (self-healing, no data).
+- App and PostgREST logs clean.
+
+**Rollback (still available while Supabase stays frozen):** delete `DATA_API_MODE` and `POSTGREST_INTERNAL_URL` from the app env and run the `Build and Deploy` workflow; the proxy then forwards to `DATA_API_UPSTREAM_URL` (Supabase). Any write made on Coolify after the cutover would have to be copied back first.
+
+**Follow-ups:**
+1. Delete the orphan database `xtimator-db-ORPHAN-delete-me` (`vfomsys1gqo5ofyoqt4tohvn`) in the Coolify UI (token lacks `delete`).
+2. Off-site backups: add an R2 S3 storage to `xtimator-db` backups and test one restore (local-only today, same gap as xpot-db).
+3. Migrations now go to the Coolify DB (production) AND the Supabase project (development) — apply through the `xtimator-db-copy` helper pattern or a psql session inside the Coolify network.
+4. Dev guard: `npm run dev` must use an explicit `DEV_DATABASE_URL` / `DEV_SUPABASE_PROJECT_REF`; Supabase `prmqgcrnpuvpzruyzvuv` is development from now on (it still holds a frozen copy of production as of T0).
+5. Retire after 7 quiet days: `apply_credit_ledger_entry`, the Supabase pg_cron jobs, `SUPABASE_SECRET_KEY` in production env, operator scripts still reading it (`scripts/{check-admin,grant-admin,seed-demo-workspace,auth-cutover}.mjs`).
