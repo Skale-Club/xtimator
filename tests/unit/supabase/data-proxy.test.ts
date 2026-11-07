@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { dataApiOptions, forwardDataApi } from '@/lib/supabase/data-proxy'
+import { dataApiOptions, forwardDataApi, isElevatedKey } from '@/lib/supabase/data-proxy'
 import { OPTIONS } from '@/app/rest/v1/[...path]/route'
 
 const ORIGIN = 'https://app.example.test'
@@ -68,6 +68,16 @@ describe('supabase mode', () => {
     env({ DATA_API_UPSTREAM_URL: UPSTREAM, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_placeholder' })
     await forwardDataApi(req('/rest/v1/estimates'))
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('apikey')).toBe('sb_publishable_placeholder')
+  })
+
+  it('refuses to use a secret or service_role key as the gateway key', async () => {
+    env({ DATA_API_UPSTREAM_URL: UPSTREAM, DATA_API_UPSTREAM_KEY: 'sb_secret_placeholder' })
+    expect((await forwardDataApi(req('/rest/v1/x'))).status).toBe(500)
+    const serviceJwt = ['e30', Buffer.from(JSON.stringify({ role: 'service_role' })).toString('base64url'), 'sig'].join('.')
+    env({ DATA_API_UPSTREAM_URL: UPSTREAM, DATA_API_UPSTREAM_KEY: serviceJwt })
+    expect((await forwardDataApi(req('/rest/v1/x'))).status).toBe(500)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(isElevatedKey('sb_publishable_placeholder')).toBe(false)
   })
 
   it('500s without upstream config and refuses a loop back to its own origin', async () => {

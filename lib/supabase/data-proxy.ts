@@ -50,13 +50,28 @@ function json(status: number, error: string): Response {
 
 /** Server-side gateway key for the Supabase upstream (never the app-signed anon JWT). */
 function upstreamGatewayKey(): string | undefined {
-  return (
+  const key =
     process.env.DATA_API_UPSTREAM_KEY?.trim() ||
     process.env.SUPABASE_PUBLISHABLE_KEY?.trim() ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
     undefined
-  )
+  // This key rides on every browser-originated request. A secret/service key here
+  // would hand anonymous callers elevated access, so refuse that shape outright.
+  return key && !isElevatedKey(key) ? key : undefined
+}
+
+/** True for a Supabase secret key or a JWT whose role is service_role. */
+export function isElevatedKey(key: string): boolean {
+  if (key.startsWith('sb_secret_')) return true
+  const parts = key.split('.')
+  if (parts.length !== 3) return false
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as { role?: unknown }
+    return payload.role === 'service_role'
+  } catch {
+    return false
+  }
 }
 
 /** Returns the encoded sub-path after /rest/v1/, or null when it is unsafe. */
