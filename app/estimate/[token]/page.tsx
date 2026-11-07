@@ -61,7 +61,7 @@ export default async function SharePage({ params }: SharePageProps) {
   if (lock.status === 'missing') notFound()
   if (lock.status === 'expired') {
     return (
-      <main className="max-w-lg mx-auto px-4 py-24 text-center">
+      <main className="mx-4 mt-16 max-w-lg rounded-xl bg-white px-6 py-10 text-center shadow-lg sm:mx-auto sm:mt-24">
         <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
         <p className="mt-3 text-muted-foreground">
           For your security, estimate links expire after a period of inactivity. Please ask the
@@ -96,7 +96,7 @@ export default async function SharePage({ params }: SharePageProps) {
     const linkState = await getShareLinkState(token)
     if (linkState === 'expired') {
       return (
-        <main className="max-w-lg mx-auto px-4 py-24 text-center">
+        <main className="mx-4 mt-16 max-w-lg rounded-xl bg-white px-6 py-10 text-center shadow-lg sm:mx-auto sm:mt-24">
           <h1 className="text-2xl font-semibold tracking-tight">This estimate link has expired</h1>
           <p className="mt-3 text-muted-foreground">
             For your security, estimate links expire after a period of inactivity. Please ask the

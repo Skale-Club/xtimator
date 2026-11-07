@@ -69,7 +69,7 @@ export function ProposalBar({
   return (
     <header
       data-testid="proposal-bar"
-      className="sticky top-0 z-30 -mx-4 border-b border-border bg-white/90 px-4 backdrop-blur sm:mx-0 sm:rounded-b-lg"
+      className="sticky top-0 z-30 -mx-4 border-b border-border bg-white px-4 shadow-md sm:mx-0 sm:rounded-b-lg"
     >
       <div className="flex min-h-14 items-center gap-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-3">

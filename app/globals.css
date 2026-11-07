@@ -319,8 +319,9 @@
      (RESEARCH G6 + G7). Falls back to --system-primary when tenant has none. */
   [data-theme="light"] {
     --background: 0 0% 100%;
-    /* Stage behind the estimate document "paper" (share page). */
-    --doc-stage: 240 5% 93%;
+    /* Stage behind the estimate document "paper" (share page): dark, so the
+       white paper stands out. Text drawn directly on it uses light colors. */
+    --doc-stage: 240 6% 10%;
     --doc-stage-pad: 1rem;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
