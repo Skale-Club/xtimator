@@ -5,11 +5,16 @@ Every credential below is a placeholder (`<authenticator-password>`); real value
 in Coolify / GitHub Actions only and are never written to this repo.
 
 The app keeps its data contract (supabase-js + RLS over a PostgREST). Only the server
-behind `${NEXT_PUBLIC_SUPABASE_URL}/rest/v1` changes. All code needed for this is
+behind the Data API changes. The browser never talks to the data host directly: it calls the
+app's own origin (`https://xtimator.com/rest/v1/...`) and the **same-origin proxy**
+(`app/rest/v1/[...path]/route.ts`, `lib/supabase/data-proxy.ts`) forwards to the upstream. No
+extra DNS record or public data hostname is needed. All code needed for this is
 already merged and **inert while `DATA_API_MODE` is unset**:
 
 | Piece | Where |
 |---|---|
+| Same-origin Data API proxy at `/rest/v1` (browser -> app -> upstream) | `app/rest/v1/[...path]/route.ts`, `lib/supabase/data-proxy.ts` |
+| Operator JWT signer (`anon` / `service`) | `scripts/sign-data-jwt.mjs` |
 | Service client mode switch (`DATA_API_MODE=supabase\|postgrest`) | `lib/supabase/data-api.ts`, used by `lib/supabase/service.ts` + `lib/supabase/data-service.ts` |
 | pg_cron replacements (Inngest) | `lib/inngest/functions/{cleanup-orphan-draft-projects,purge-whatsapp-processed-messages,purge-expired-whatsapp-sessions}.ts` |
 | Notifications without Realtime | `components/notifications/use-notifications.ts` (30 s polling) |
@@ -22,9 +27,10 @@ already merged and **inert while `DATA_API_MODE` is unset**:
 
 - Measure host headroom on the Coolify server (RAM, disk, CPU). The prod DB is ~33 MB, so
   Postgres + PostgREST need well under 1 GB, but verify instead of assuming.
-- Choose the public data hostname, e.g. `data.xtimator.com`. The browser calls it directly.
-- Cloudflare: new zones default to SSL "Flexible". Set **Full (strict)** BEFORE proxying the
-  data host, otherwise the origin's HTTP->HTTPS redirect loops.
+- No public data hostname is needed: PostgREST stays on the Coolify internal network and the
+  app proxies to it (`POSTGREST_INTERNAL_URL`). If you ever publish a data host anyway, set
+  Cloudflare SSL to **Full (strict)** BEFORE proxying it; direct mode still works (leave
+  `POSTGREST_INTERNAL_URL` unset and point `DATA_API_UPSTREAM_URL` / `NEXT_PUBLIC_SUPABASE_URL` at it).
 - Agree the downtime window (about 10-15 min, quiet period around 06:00 UTC).
 - Tooling on the machine that runs `db-copy.sh`: PostgreSQL **17** client tools
   (`pg_dump`, `pg_restore`, `psql`), `bash`, `diff`.
@@ -79,35 +85,40 @@ Notes:
   sessions (`issueDataToken`), `service_role` for the service token, `anon` for no/anon token.
 - After any schema change: `NOTIFY pgrst, 'reload schema';` (or restart the container).
 
-**Routing.** Coolify's proxy (Traefik) exposes the container at the data host under the
-`/rest/v1` prefix and **strips the prefix**, because supabase-js calls `${url}/rest/v1/...`
-but PostgREST serves from `/`. Container labels (adapt names):
-
-```
-traefik.http.routers.xt-data.rule=Host(`data.xtimator.com`) && PathPrefix(`/rest/v1`)
-traefik.http.routers.xt-data.middlewares=xt-data-strip
-traefik.http.middlewares.xt-data-strip.stripprefix.prefixes=/rest/v1
-```
-
-Only `/rest/v1` is routed; everything else on that host must 404. Verify:
-
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://data.xtimator.com/rest/v1/        # 200 (OpenAPI) or 401
-curl -s -o /dev/null -w '%{http_code}\n' https://data.xtimator.com/                # 404
-```
+**Routing.** PostgREST is **not** exposed publicly. Give the container no domain; the app reaches it
+at `POSTGREST_INTERNAL_URL` (e.g. `http://<postgrest-container-name>:3000`, same Coolify network as the
+app). PostgREST serves from `/` (no `/rest/v1` prefix); the app's proxy and server clients strip it.
+Verify from the app container: `curl -s -o /dev/null -w '%{http_code}\n' $POSTGREST_INTERNAL_URL/` (200 or 401).
 
 **Anonymous browser key.** When there is no session, supabase-js falls back to sending the
-configured publishable/anon key as `Authorization: Bearer`. Supabase's `sb_publishable_...`
-keys are meaningless to a vanilla PostgREST (it would answer 401 "JWT malformed"). So, for
-the self-hosted data host, the build variables `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY` must hold an **anon JWT signed with the same secret**:
+configured publishable/anon key as `Authorization: Bearer`. So, in BOTH modes, the build
+variables `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` hold an
+**anon JWT signed with `XTIMATOR_DATA_JWT_SECRET`** (PostgREST needs it because it rejects
+`sb_publishable_...`; Supabase accepts it because that secret is the project JWT secret):
 
 ```bash
-node -e "const {SignJWT}=require('jose');new SignJWT({role:'anon',iss:'xtimator'}).setProtectedHeader({alg:'HS256',typ:'JWT'}).setIssuedAt().sign(new TextEncoder().encode(process.env.XTIMATOR_DATA_JWT_SECRET)).then(console.log)"
+XTIMATOR_DATA_JWT_SECRET=<secret> node scripts/sign-data-jwt.mjs anon      # no expiry, public in the bundle
+XTIMATOR_DATA_JWT_SECRET=<secret> node scripts/sign-data-jwt.mjs service   # 1 h, operator scripts
 ```
 
-(no expiry on purpose: it grants only what `anon` already has, and it is public in the bundle).
-Rotating `XTIMATOR_DATA_JWT_SECRET` later means re-issuing it and rebuilding.
+The anon JWT grants only what the `anon` role already has. Rotating the secret means re-issuing it
+and rebuilding. In **supabase mode** the proxy replaces the browser `apikey` header with the
+server-side gateway key (`DATA_API_UPSTREAM_KEY`, the Supabase publishable key) because the Supabase
+gateway does not recognise the app-signed token as a project key; `Authorization` passes through.
+
+### Environment reference (same-origin proxy)
+
+| Variable | Kind | Pre-cutover (Supabase) | After cutover (PostgREST) |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | GitHub **build** var | `https://xtimator.com` | unchanged |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | GitHub **build** vars | anon JWT | unchanged |
+| `NEXT_PUBLIC_SUPABASE_URL` | Coolify runtime | keep the Supabase URL (server prefers `DATA_API_UPSTREAM_URL`) | unchanged |
+| `DATA_API_UPSTREAM_URL` | Coolify runtime, server-only | `https://<ref>.supabase.co` | may stay (unused in postgrest mode) |
+| `DATA_API_UPSTREAM_KEY` | Coolify runtime, server-only | Supabase publishable key | unused |
+| `DATA_API_MODE` | Coolify runtime | unset / `supabase` | `postgrest` |
+| `POSTGREST_INTERNAL_URL` | Coolify runtime | unset | `http://<postgrest-container>:3000` |
+| `XTIMATOR_DATA_JWT_SECRET` | Coolify runtime | set (equals the Supabase project JWT secret) | same value (= `PGRST_JWT_SECRET`) |
+| `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Coolify runtime | required | keep until step 7 of the cutover |
 
 ## 3. Compatibility shim
 
@@ -156,13 +167,28 @@ the staging journey below.
 
 ### Staging journey
 
-Point a staging deployment (or a local run) at the new data host with the section 6 env, then:
+Point a staging deployment (or a local run) at the new data host with the cutover env (section 6, step 3), then:
 owned login (phone and Google), dashboard, create/edit/send an estimate, public estimate link,
 signature flow, Stripe webhook (test mode), WhatsApp inbound, MCP, chat, credit-lot RPCs
 (`expire_credit_lots`, grants/debits), notifications bell, Inngest crons (the three new ones
 log `deleted: n`). Fix gaps and re-run the copy until the comparison is clean twice in a row.
 
-## 5. Cutover checklist
+## 5. Pre-cutover deploy (zero downtime, any time before the window)
+
+Ship the proxy first, still on Supabase, as a normal rolling deploy:
+
+1. Generate the anon JWT (`node scripts/sign-data-jwt.mjs anon`).
+2. GitHub Actions **Variables**: `NEXT_PUBLIC_SUPABASE_URL=https://xtimator.com`,
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the anon JWT.
+3. Coolify runtime env: `DATA_API_UPSTREAM_URL=https://<ref>.supabase.co`,
+   `DATA_API_UPSTREAM_KEY=<supabase publishable key>`; leave `DATA_API_MODE` unset and
+   `NEXT_PUBLIC_SUPABASE_URL` as is.
+4. Push / run `Build and Deploy`. Smoke: login, dashboard, an estimate; the browser network tab shows
+   `https://xtimator.com/rest/v1/...` (200/206) and nothing to `*.supabase.co`.
+
+Rollback of this step: restore the three GitHub variables to the Supabase values and redeploy.
+
+## 6. Cutover checklist
 
 Pre-checks (day before): rehearsal green twice; backup restore tested; `authenticator`
 password and PostgREST healthy; anon JWT generated; GitHub variable change reviewed; rollback
@@ -172,19 +198,13 @@ values (the current Supabase URL and keys) written down in your password manager
    endpoint; that is fine, jobs are idempotent). Confirm no traffic.
 2. **Final copy:** `bash scripts/db-copy.sh --reset-target`. Must end with `OK: target is
    identical to source`. Keep going only on exit code 0.
-3. **Env swap** (names only; values from your vault):
-   - GitHub Actions **Variables** (build time, inlined into the bundle):
-     `NEXT_PUBLIC_SUPABASE_URL` -> `https://data.xtimator.com`,
-     `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` -> the anon JWT.
-   - Coolify **runtime** env of the app: `NEXT_PUBLIC_SUPABASE_URL` (same new value),
-     `DATA_API_MODE=postgrest`, `XTIMATOR_DATA_JWT_SECRET` (unchanged value; must equal
-     `PGRST_JWT_SECRET`). `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` are not read in
-     postgrest mode and the boot check no longer requires them; **keep them set until step 7**
-     so rollback is a pure env revert.
-4. **Redeploy.** The URL is a build-time `NEXT_PUBLIC_*` value, so push/re-run the
-   `Build and Deploy` workflow (or `gh workflow run`) so a new image is built with the new
-   variables; Coolify then pulls it. Follow `gh run watch`; the pipeline polls
-   `/api/health` for the new SHA and re-syncs Inngest.
+3. **Runtime env swap only (no rebuild).** The browser build already points at the app's own
+   origin (see section 5), so the cutover is just Coolify **runtime** env: `DATA_API_MODE=postgrest`,
+   `POSTGREST_INTERNAL_URL=http://<postgrest-container>:3000` (`XTIMATOR_DATA_JWT_SECRET` unchanged and
+   equal to `PGRST_JWT_SECRET`). Keep `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` set until
+   step 7 so rollback is a pure env revert.
+4. **Restart the app** in Coolify (a restart is enough; the boot check then requires
+   `XTIMATOR_DATA_JWT_SECRET` instead of the Supabase service key).
 5. **Smoke list** (production, in this order): `/api/health` 200; owned login; dashboard
    loads; open an estimate; create + edit an estimate; send; open the public link in a private
    window; signature; PDF download; notifications bell polls (network tab: `/api/notifications/list`
@@ -198,19 +218,17 @@ values (the current Supabase URL and keys) written down in your password manager
    are irrelevant. Leave them; the Supabase DB is now frozen and not serving traffic. After 7
    days remove the unused Supabase service keys from Coolify.
 
-## 6. Rollback
+## 7. Rollback
 
-Within the window, rollback is an env revert; the Supabase copy is frozen and intact:
+Within the window, rollback is a runtime env revert (no rebuild): remove `DATA_API_MODE` (or set
+`supabase`) and `POSTGREST_INTERNAL_URL`, confirm `DATA_API_UPSTREAM_URL`, `DATA_API_UPSTREAM_KEY` and
+`SUPABASE_SECRET_KEY` are still set, restart the app. The Supabase copy is frozen and intact.
 
-1. Revert GitHub variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY` to the Supabase values; redeploy (rebuild).
-2. Coolify runtime env: `NEXT_PUBLIC_SUPABASE_URL` back to Supabase; remove (or set to
-   `supabase`) `DATA_API_MODE`; confirm `SUPABASE_SECRET_KEY` is still set.
-3. Any rows written on the self-hosted DB after cutover are NOT on Supabase. If real traffic
+Any rows written on the self-hosted DB after cutover are NOT on Supabase. If real traffic
    ran on the new DB, export those rows (compare by `updated_at` / `created_at`) and replay
    them to Supabase before reverting, or accept the loss window explicitly.
 
-## 7. After the cutover
+## 8. After the cutover
 
 - **Dev guard.** The Supabase project `prmqgcrnpuvpzruyzvuv` becomes the development
   database. Add the explicit guard (same pattern as Xpot: `DEV_DATABASE_URL` +
@@ -223,7 +241,7 @@ Within the window, rollback is an env revert; the Supabase copy is frozen and in
   awake, which is what they should do.
 - Operator scripts that read `SUPABASE_SECRET_KEY` (`scripts/check-admin.mjs`,
   `grant-admin.mjs`, `seed-demo-workspace.mjs`, `auth-cutover.mjs`) talk to the data host and
-  need a service JWT in postgrest mode (sign one like section 2 with `role: 'service_role'`).
+  need a service JWT in postgrest mode (`node scripts/sign-data-jwt.mjs service`).
 - Update `CLAUDE.md`, the memory `project_supabase_mcp_mapping` (it will be wrong), the
   `skaleclub-apps/COOLIFY.md` register and the portfolio plan.
 - Archive the frozen prod copy after 7 days.

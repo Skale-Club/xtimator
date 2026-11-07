@@ -121,3 +121,46 @@ describe('postgrest mode', () => {
     expect(() => requireDataServiceClient()).toThrow(/incomplete/)
   })
 })
+
+describe('server clients never hop through the same-origin proxy', () => {
+  const INTERNAL = 'http://postgrest.internal:3000'
+  const UPSTREAM = 'https://proj.example-upstream.test'
+  function stub(values: Record<string, string | undefined>) {
+    stubEnv(values)
+    vi.stubEnv('DATA_API_UPSTREAM_URL', values.DATA_API_UPSTREAM_URL)
+    vi.stubEnv('POSTGREST_INTERNAL_URL', values.POSTGREST_INTERNAL_URL)
+  }
+
+  it('DATA_API_UPSTREAM_URL wins over NEXT_PUBLIC_SUPABASE_URL (which is the app origin in the browser build)', async () => {
+    stub({ NEXT_PUBLIC_SUPABASE_URL: 'https://app.example.test', DATA_API_UPSTREAM_URL: `${UPSTREAM}/`, SUPABASE_SECRET_KEY: 'k' })
+    await requireServiceClient().from('companies').select('id')
+    expect(String(fetchMock.mock.calls[0][0])).toBe(`${UPSTREAM}/rest/v1/companies?select=id`)
+  })
+
+  it('postgrest mode rewrites <base>/rest/v1/ to POSTGREST_INTERNAL_URL/ for the service client', async () => {
+    stub({ DATA_API_MODE: 'postgrest', NEXT_PUBLIC_SUPABASE_URL: URL_, XTIMATOR_DATA_JWT_SECRET: SECRET, POSTGREST_INTERNAL_URL: `${INTERNAL}/` })
+    await requireServiceClient().from('companies').select('id').eq('id', 1)
+    expect(String(fetchMock.mock.calls[0][0])).toBe(`${INTERNAL}/companies?select=id&id=eq.1`)
+    expect(decodeJwt(new Headers(fetchMock.mock.calls[0][1].headers).get('authorization')!.replace(/^Bearer /, ''))).toMatchObject({ role: 'service_role' })
+  })
+
+  it('postgrest mode leaves the URL alone when POSTGREST_INTERNAL_URL is unset', async () => {
+    stub({ DATA_API_MODE: 'postgrest', NEXT_PUBLIC_SUPABASE_URL: URL_, XTIMATOR_DATA_JWT_SECRET: SECRET })
+    await requireServiceClient().from('companies').select('id')
+    expect(String(fetchMock.mock.calls[0][0])).toContain(`${URL_}/rest/v1/companies`)
+  })
+
+  it('rewriteToPostgrest / postgrestRewriteFetch only touch /rest/v1 URLs and only in postgrest mode', async () => {
+    const { rewriteToPostgrest, postgrestRewriteFetch } = await import('@/lib/supabase/data-api')
+    expect(rewriteToPostgrest('https://x.test/rest/v1/a/b?c=d', INTERNAL)).toBe(`${INTERNAL}/a/b?c=d`)
+    expect(rewriteToPostgrest('https://x.test/auth/v1/user', INTERNAL)).toBeNull()
+    stub({})
+    expect(postgrestRewriteFetch()).toBeUndefined()
+    stub({ DATA_API_MODE: 'postgrest', POSTGREST_INTERNAL_URL: INTERNAL })
+    const rewrite = postgrestRewriteFetch()!
+    await rewrite('https://x.test/rest/v1/t?select=*')
+    await rewrite('https://x.test/other')
+    expect(String(fetchMock.mock.calls[0][0])).toBe(`${INTERNAL}/t?select=*`)
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://x.test/other')
+  })
+})

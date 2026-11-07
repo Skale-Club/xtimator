@@ -18,6 +18,7 @@ type ExceptionDisposition =
   | 'machine-signed'
   | 'admin-only'
   | 'demo-exit'
+  | 'rls-delegated'
 
 type Boundary = {
   id: string
@@ -402,6 +403,16 @@ const MACHINE_REASON =
  * classification.
  */
 const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
+  // SEED-059 same-origin Data API proxy. It forwards the caller's own data JWT to
+  // PostgREST, so demo read-only enforcement is the database's (RLS demo_readonly
+  // policies, see tests/integration/demo-readonly-rls.test.ts), not this route's.
+  ...excepted(
+    'app/rest/v1/[...path]/route.ts',
+    'rls-delegated',
+    'Caller-supplied data JWT forwarded unchanged to PostgREST; row-level security decides every read and write',
+    'The proxy holds no service credential and makes no authorization decision; demo principals are constrained by the demo read-only RLS policies exactly as with a direct Data API call.',
+    ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT'],
+  ),
   ...excepted('app/(auth)/callback/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
   ...excepted(
     'app/.well-known/assetlinks.json/route.ts',

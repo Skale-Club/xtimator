@@ -1,6 +1,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { dataApiBaseUrl, postgrestRewriteFetch } from '@/lib/supabase/data-api'
 import { requireDataServiceClient } from '@/lib/supabase/data-service'
 import { getOwnedAccount } from './owned-store'
 import { issueDataToken, readOwnedSession, revokeOwnedSession, sessionClaims, SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE, sessionCookieOptions, toUser } from './owned-session'
@@ -22,7 +23,10 @@ export async function createOwnedClient() {
   const jar = await cookies()
   let sessionPromise: ReturnType<typeof readOwnedSession> | undefined
   const session = () => sessionPromise ??= readOwnedSession(jar.get(SESSION_COOKIE)?.value)
-  const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!, {
+  const rewrite = postgrestRewriteFetch()
+  // Server user client talks to the upstream directly (never through /rest/v1 on this origin).
+  const client = createClient(dataApiBaseUrl()!, (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!, {
+    ...(rewrite ? { global: { fetch: rewrite } } : {}),
     accessToken: async () => { const value = await session(); return value ? issueDataToken(value) : null },
   })
   return withOwnedAuth(client, {

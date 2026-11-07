@@ -1,4 +1,5 @@
 import 'server-only'
+import { dataApiBaseUrl } from '@/lib/supabase/data-api'
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
@@ -101,7 +102,7 @@ export async function establishDemoSession(request: NextRequest): Promise<NextRe
   const secure = demoOrigin.protocol === 'https:'
   const response = NextResponse.redirect(new URL('/dashboard', demoOrigin), 303)
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    dataApiBaseUrl()!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {
       cookieOptions: { secure },

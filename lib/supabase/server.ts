@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { dataApiBaseUrl } from '@/lib/supabase/data-api'
 import { cookies } from 'next/headers'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 
@@ -6,7 +7,7 @@ export async function createClient() {
   if (ownedAuthEnabled()) return (await import('@/lib/auth/owned-client')).createOwnedClient()
   const cookieStore = await cookies() // MUST await — Next.js 15+ requirement
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    dataApiBaseUrl()!,
     (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
     {
