@@ -17,6 +17,8 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Photos': 'Fotos',
     // Client response (manual accept/decline)
     'Client response': 'Resposta do cliente',
+    'Record answer': 'Registrar resposta',
+    'Got the answer by phone or in person? Record it here.': 'O cliente respondeu por telefone ou pessoalmente? Registre aqui.',
     'Signed online': 'Assinado online',
     'Mark as accepted': 'Marcar como aceito',
     'Mark as declined': 'Marcar como recusado',
@@ -353,6 +355,8 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Photos': 'Fotos',
     // Client response (manual accept/decline)
     'Client response': 'Respuesta del cliente',
+    'Record answer': 'Registrar respuesta',
+    'Got the answer by phone or in person? Record it here.': '¿El cliente respondió por teléfono o en persona? Regístralo aquí.',
     'Signed online': 'Firmado en línea',
     'Mark as accepted': 'Marcar como aceptado',
     'Mark as declined': 'Marcar como rechazado',

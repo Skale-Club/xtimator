@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -102,6 +103,7 @@ export function ClientResponseControl({
             variant="ghost"
             disabled={disabled}
             aria-label={t('Client response')}
+            title={t('Got the answer by phone or in person? Record it here.')}
             className="shrink-0 gap-1.5 rounded-full text-foreground"
           >
             {clientResponse === 'accepted' ? (
@@ -111,10 +113,14 @@ export function ClientResponseControl({
             ) : (
               <MessageSquareReply className="h-3.5 w-3.5" />
             )}
-            {stateLabel ? `${stateLabel}${date ? ` · ${date}` : ''}` : t('Client response')}
+            {stateLabel ? `${stateLabel}${date ? ` · ${date}` : ''}` : t('Record answer')}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" side="top">
+        <DropdownMenuContent align="center" side="top" className="max-w-64">
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+            {t('Got the answer by phone or in person? Record it here.')}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
           {clientResponse !== 'accepted' && (
             <DropdownMenuItem onSelect={() => setPending('accepted')}>
               <CheckCircle2 className="h-4 w-4" />

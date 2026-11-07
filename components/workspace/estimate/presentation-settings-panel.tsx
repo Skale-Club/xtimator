@@ -13,7 +13,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
+import { RadioGroup } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -224,7 +225,7 @@ function PanelBody({
                     }
               patch({ tax: nextTax })
             }}
-            className="flex gap-3"
+            className={SEGMENTED_GROUP}
           >
             <RadioOption id="tax-default" value="default" label={t('Default')} />
             <RadioOption id="tax-custom" value="custom" label={t('Custom')} />
@@ -273,7 +274,7 @@ function PanelBody({
                     }
               patch({ discount: next })
             }}
-            className="flex gap-3"
+            className={SEGMENTED_GROUP}
           >
             <RadioOption id="disc-none" value="none" label={t('None')} />
             <RadioOption
@@ -325,7 +326,7 @@ function PanelBody({
                     }
               patch({ deposit: next })
             }}
-            className="flex gap-3"
+            className={SEGMENTED_GROUP}
           >
             <RadioOption id="dep-none" value="none" label={t('None')} />
             <RadioOption id="dep-percent" value="percent" label={t('Percent')} />
@@ -398,6 +399,14 @@ function PanelBody({
   )
 }
 
+/**
+ * Pricing choices render as a segmented control: a bare radio circle's
+ * `border-input` all but disappears on the dark popover, so unselected
+ * options read as plain text. Each segment is still a Radix radio item
+ * (role="radio", arrow-key navigation) whose text is its accessible name.
+ */
+const SEGMENTED_GROUP = 'grid grid-flow-col auto-cols-fr gap-1 rounded-lg border border-border bg-muted p-1'
+
 function RadioOption({
   id,
   value,
@@ -408,11 +417,12 @@ function RadioOption({
   label: string
 }): JSX.Element {
   return (
-    <div className="flex items-center gap-1.5">
-      <RadioGroupItem value={value} id={id} />
-      <Label htmlFor={id} className="text-sm cursor-pointer">
-        {label}
-      </Label>
-    </div>
+    <RadioGroupPrimitive.Item
+      id={id}
+      value={value}
+      className="h-7 cursor-pointer rounded-md px-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-background/60 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-sm"
+    >
+      {label}
+    </RadioGroupPrimitive.Item>
   )
 }
