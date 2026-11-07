@@ -245,3 +245,58 @@ Any rows written on the self-hosted DB after cutover are NOT on Supabase. If rea
 - Update `CLAUDE.md`, the memory `project_supabase_mcp_mapping` (it will be wrong), the
   `skaleclub-apps/COOLIFY.md` register and the portfolio plan.
 - Archive the frozen prod copy after 7 days.
+
+## 8. Execution log
+
+### 2026-11-07 - Coolify provisioning and rehearsal copy (SEED-059 steps 3-4)
+
+Production stayed on Supabase; nothing of the `xtimator` app was touched. No secret appears
+here: operator secrets live in the gitignored `.env.local` under `XTIMATOR_COOLIFY_DB_PASSWORD`,
+`XTIMATOR_COOLIFY_AUTHENTICATOR_PASSWORD` (and the existing `XTIMATOR_DATA_JWT_SECRET`).
+
+Resources (Coolify project `skale-apps`, environment `production`, server `localhost`, network `coolify`):
+
+| Name | uuid | Image / limits | Notes |
+|---|---|---|---|
+| `xtimator-db` | `ly7mvq7dm3p26mwqvf7kx5se` | `pgvector/pgvector:pg17`, 512m | internal only (`is_public=false`), user/db `xtimator`, backup `0 4 * * *` keep 14 local (schedule `cafi8ya2shvrc4lgrkgx6ycy` was created on the orphan; a new one exists on this DB). Internal host = the uuid. |
+| `xtimator-postgrest` | `esxqqajn1d15wznbqzkrxwjx` | `postgrest/postgrest:v12.2.12`, 128m | no domain; network alias `xtimator-postgrest`; port 3000, admin 3001 (`/ready`, `/live`). Env as in section 2. |
+| `xtimator-db-copy` | `kwjcffgakizqpafitngd6mmv` | `postgres:17-alpine`, 1024m | throwaway helper, no domain, STOPPED after the rehearsal; scheduled task `mncdid5g6rpkq0xwpcclhegq` (disabled). |
+| `xtimator-db-ORPHAN-delete-me` | `vfomsys1gqo5ofyoqt4tohvn` | stopped | first DB whose password was lost; empty; the token cannot delete, owner deletes it in the UI. |
+
+Result of `db-copy.sh --reset-target` (exit 0, about 60 s for dump + restore + shim + compare over the
+Supabase session pooler): 82 tables, 2 sequences, 892 columns, 318 constraints, 246 indexes, 8 triggers,
+82 RLS flags, **639 RLS policies** (the "459" in earlier notes was stale), 34 functions, 1 view and
+227 request-role grant rows, all identical. `credit_lots` invariant on source and target:
+0 of 19 companies mismatching, sum(credit_balance) = sum(live lots) = 37397.
+
+PostgREST acceptance (from inside the network, JWTs signed in the helper with the production data secret):
+`/ready` 200, `/live` 200; service_role `GET /companies` 19 rows (= source), `POST /rpc/get_platform_user_count` 24 (= source);
+authenticated JWT of a live-session user (claims as `sessionClaims`, including `session_id`) sees exactly its 1
+company and only its own `company_members` row; the same JWT without a live `session_id` sees 0 rows (the
+RESTRICTIVE `xtimator_owned_session` policy); authenticated `POST /credit_lots` 403; anon and no token `GET /companies` 200 with `[]`.
+
+Bugs found by the rehearsal and fixed in `scripts/db-copy.sh`:
+
+1. The comparison sorted rows with each server's collation, so identical data differed only in order
+   (constraints, functions). Both sides are now `LC_ALL=C sort`ed before diffing.
+2. The shim's blanket `GRANT ALL` is wider than production, which REVOKEs writes on several tables
+   (`credit_lots`, `credit_ledger`, `invoices`, `xtimator_*`, ...). After the second shim run the script now
+   resets `anon/authenticated/service_role` on `public` and replays the SOURCE ACLs (tables, sequences, columns,
+   functions). The grants comparison is now a hard gate instead of a WARN.
+
+How the copy was run without SSH (repeat it at cutover):
+
+1. Start `xtimator-db-copy`. Its env holds `SOURCE_DB_URL` (the pooler URL on port 5432, session mode),
+   `TARGET_DB_URL`, `AUTHENTICATOR_PASSWORD`, `DB_COPY_SCRIPT_B64`, `SHIM_SQL_B64` and `RUN_B64` (a small dispatcher).
+2. After editing `scripts/db-copy.sh`, refresh `DB_COPY_SCRIPT_B64` (base64, CRLF stripped) and restart the helper;
+   a restart wipes `/tmp` and installed packages, so run the `setup` step again (`apk add bash diffutils curl openssl`).
+3. Scheduled-task commands are limited to about 255 characters, so the task runs `echo "$RUN_B64" | base64 -d | sh -s <step>`.
+   Enable the task, wait for its execution, disable it again. Output is read from the task execution `message`
+   (needs a token with `read:sensitive`).
+4. `db-copy.sh --reset-target` (step 7), then `ALTER ROLE authenticator PASSWORD` from `AUTHENTICATOR_PASSWORD`,
+   then start `xtimator-postgrest` and run the acceptance checks against `http://xtimator-postgrest:3000`.
+
+Cutover runner notes: reuse these resources; the final copy needs only steps 2-4 above (`--reset-target`, the
+authenticator password is already set and survives because the role lives outside the copied schemas, but re-run
+the `ALTER ROLE` anyway). Still to do: public data host + Traefik `/rest/v1` strip-prefix route, the anon JWT
+build variables, R2 backup bucket and a tested restore, and deleting the orphan DB.

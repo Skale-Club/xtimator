@@ -19,8 +19,8 @@
 #      columns use extensions.vector, so both must exist first), then pg_restore,
 #      then the shim AGAIN (it re-grants on the freshly restored objects);
 #   4. compares source vs target: per-table row counts, sequences, columns,
-#      constraints, indexes, triggers, RLS flags + policies, functions (and, as
-#      WARN only, table grants for the request roles). ANY mismatch -> exit 1.
+#      constraints, indexes, triggers, RLS flags + policies, functions and table
+#      grants for the request roles. ANY mismatch -> exit 1.
 #
 # Exit codes: 0 identical | 1 mismatch or step failure | 2 usage / refused.
 #
@@ -162,6 +162,32 @@ if [ "$VERIFY_ONLY" -eq 0 ]; then
 
   info "applying the compatibility shim (after restore: grants on restored objects)"
   tgt -f "$SHIM" >/dev/null || fail "shim failed (after restore)"
+
+  # The shim's blanket GRANT ALL is wider than production: Supabase prod REVOKEs
+  # writes on several tables (credit_lots, credit_ledger, invoices, xtimator_*...)
+  # and RLS alone must not be the only guard. Reset the three request roles on the
+  # restored objects and replay the SOURCE ACLs (tables/views, sequences, columns,
+  # functions) so the target grants are identical to production.
+  info "replaying source ACLs for anon/authenticated/service_role"
+  ROLES="('anon','authenticated','service_role')"
+  ACL_SQL="select 'REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated, service_role;';
+select 'REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, service_role;';
+select 'REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated, service_role;';
+select format('GRANT %s ON %s %s TO %I;', string_agg(a.privilege_type, ',' order by a.privilege_type),
+  case c.relkind when 'S' then 'SEQUENCE' else 'TABLE' end, c.oid::regclass, r.rolname)
+  from pg_class c join pg_namespace n on n.oid=c.relnamespace, aclexplode(c.relacl) a join pg_roles r on r.oid=a.grantee
+  where n.nspname='public' and c.relkind in ('r','p','v','m','f','S') and r.rolname in $ROLES group by c.oid, c.relkind, r.rolname;
+select format('GRANT %s (%I) ON TABLE %s TO %I;', string_agg(a.privilege_type, ',' order by a.privilege_type), t.attname, t.attrelid::regclass, r.rolname)
+  from (select att.attrelid, att.attname, att.attacl from pg_attribute att join pg_class c on c.oid=att.attrelid join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname='public' and att.attacl is not null and not att.attisdropped) t, aclexplode(t.attacl) a join pg_roles r on r.oid=a.grantee
+  where r.rolname in $ROLES group by t.attrelid, t.attname, r.rolname;
+select format('GRANT EXECUTE ON FUNCTION %s TO %I;', p.oid::regprocedure, r.rolname)
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace, aclexplode(p.proacl) a join pg_roles r on r.oid=a.grantee
+  where n.nspname='public' and p.prokind in ('f','p') and a.privilege_type='EXECUTE' and r.rolname in $ROLES;"
+  # search_path stays empty on both sides: every name above is schema-qualified by regclass/regprocedure.
+  src -c "$ACL_SQL" > "$WORK/acl.sql" || fail "could not read the source ACLs"
+  tgt -v ON_ERROR_STOP=1 -f "$WORK/acl.sql" >/dev/null || fail "could not replay the source ACLs on the target"
+
   tgt -c "analyze" >/dev/null || info "WARN: ANALYZE failed (non-fatal)"
 fi
 
@@ -198,6 +224,8 @@ compare() {
   local name="$1" sql="$2" level="${3:-fail}"
   src -c "$sql" > "$WORK/$name.src" 2> "$WORK/$name.src.err" || { echo "  [$name] cannot query source: $(head -1 "$WORK/$name.src.err")"; MISMATCH=1; return; }
   tgt -c "$sql" > "$WORK/$name.tgt" 2> "$WORK/$name.tgt.err" || { echo "  [$name] cannot query target: $(head -1 "$WORK/$name.tgt.err")"; MISMATCH=1; return; }
+  # Row ORDER depends on each server's collation; compare content, not order.
+  LC_ALL=C sort -o "$WORK/$name.src" "$WORK/$name.src"; LC_ALL=C sort -o "$WORK/$name.tgt" "$WORK/$name.tgt"
   local n; n="$(wc -l < "$WORK/$name.src" | tr -d ' ')"
   if diff -q "$WORK/$name.src" "$WORK/$name.tgt" >/dev/null; then
     echo "  [$name] OK ($n rows)"
@@ -218,7 +246,7 @@ compare rls_flags   "$q_rls_flags"
 compare policies    "$q_policies"
 compare functions   "$q_functions"
 compare views       "$q_views"
-compare grants      "$q_grants" warn
+compare grants      "$q_grants"
 
 pol_src="$(wc -l < "$WORK/policies.src" | tr -d ' ')"
 pol_tgt="$(wc -l < "$WORK/policies.tgt" | tr -d ' ')"
