@@ -198,7 +198,9 @@ describe('lib/actions/settings.ts', () => {
 
     const result = await updateCompanySettings(fd)
 
-    expect(result).toEqual({ success: true })
+    // The stored URL is returned too, so the settings form keeps sending it
+    // on later saves instead of the stale pre-upload one.
+    expect(result).toEqual({ success: true, logoUrl: `/storage/logos/${COMPANY_ID}/logo.webp` })
     const payload = lastPayload('companies')
     expect(payload.logo_url).toBe(`/storage/logos/${COMPANY_ID}/logo.webp`)
     expectSameOrigin(payload.logo_url)

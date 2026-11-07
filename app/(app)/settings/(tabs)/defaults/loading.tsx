@@ -1,52 +1,23 @@
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   SettingsPageSkeleton,
   SettingsCard,
+  SkeletonFields,
+  SkeletonRows,
 } from '@/components/skeletons/settings-page-skeleton'
 
+// Text-free on purpose: the real page's title is translated, so an English
+// placeholder title would flash before it.
 export default function DefaultsSettingsLoading() {
   return (
-    <SettingsPageSkeleton
-      noPadding
-      title="Estimates"
-      description="Set estimate defaults and delivery options."
-    >
-      <SettingsCard>
-        <div className="space-y-8">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-10 w-full rounded-md" />
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-28 w-full rounded-md" />
-              </div>
-            ))}
-          </div>
-
-          <Skeleton className="h-10 w-44 rounded-md" />
-        </div>
+    <SettingsPageSkeleton>
+      <SettingsCard title>
+        <SkeletonFields count={2} />
       </SettingsCard>
-
-      {/* Estimate Terms skeleton */}
-      <SettingsCard>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-border p-4">
-            <div className="space-y-1.5">
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-3 w-64" />
-            </div>
-            <Skeleton className="h-6 w-10 rounded-full" />
-          </div>
-          <Skeleton className="h-10 w-40 rounded-md" />
-        </div>
+      <SettingsCard title>
+        <SkeletonFields count={2} tall />
+      </SettingsCard>
+      <SettingsCard title>
+        <SkeletonRows count={3} />
       </SettingsCard>
     </SettingsPageSkeleton>
   )

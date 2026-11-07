@@ -26,18 +26,21 @@ import { formatUSD } from '@/lib/utils/format'
 import { removeMember, changeMemberRole, revokeInvite } from '@/lib/actions/team'
 import type { RosterMember, RosterInvite } from '@/lib/queries/team'
 import type { SeatCostSummary } from '@/lib/billing/seat-cost-summary'
+import { SettingsCard, SettingsStack } from '@/components/settings/settings-ui'
 
 type ManageableRole = 'admin' | 'member'
 
 interface Props {
   companyId: string
+  /** The signed-in person, marked "You" in the list. */
+  currentUserId?: string
   members: RosterMember[]
   invites: RosterInvite[]
   canManage: boolean
   seatCost: SeatCostSummary | null
 }
 
-export function TeamSection({ companyId, members: initialMembers, invites: initialInvites, canManage, seatCost }: Props) {
+export function TeamSection({ companyId, currentUserId, members: initialMembers, invites: initialInvites, canManage, seatCost }: Props) {
   const { t } = useTranslation()
   const [members, setMembers] = useState(initialMembers)
   const [invites, setInvites] = useState(initialInvites)
@@ -79,26 +82,20 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
     })
   }
 
+  const seatWord = (n: number) => (n === 1 ? t('seat') : t('seats'))
+
   return (
-    <div className="space-y-6">
-      {/* SEED-055 D9: one company + one user until add-ons exist. Inviting
-          teammates is unavailable for everyone; the member list stays visible
-          and existing members/invites can still be managed. */}
-      {canManage && (
-        <p className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-          {t('Inviting teammates is not available yet.')}
-        </p>
-      )}
+    <SettingsStack>
 
       {/* Seat-cost summary (SEAT-08) — owner/admin only; null means do not show.
           Every figure comes from the seatCost prop via formatUSD — no hardcoded
           dollar amount or seat number in the copy. */}
       {seatCost && (
-        <div className="rounded-lg border p-4 space-y-2">
+        <SettingsCard title={t('Seats')} bodyClassName="space-y-2">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-medium">
-                {seatCost.activeSeats} {t('seats')} · {seatCost.includedSeats} {t('included')} ·{' '}
+                {seatCost.activeSeats} {seatWord(seatCost.activeSeats)} · {seatCost.includedSeats} {t('included')} ·{' '}
                 {seatCost.billableSeats} {t('billable')}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -114,15 +111,24 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
           </div>
           {!seatCost.enforcementEnabled && (
             <p className="text-xs text-muted-foreground">
-              {t('Seat billing is not yet active — this is an estimate.')}
+              {t('Seat billing is not active yet. This is an estimate.')}
             </p>
           )}
-        </div>
+        </SettingsCard>
       )}
 
       {/* Members */}
+      <SettingsCard
+        title={t('Members')}
+        description={
+          canManage
+            ? t('Inviting teammates is not available yet. You can still manage the people already here.')
+            : undefined
+        }
+        bodyClassName="p-0 sm:p-0"
+      >
       {members.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed rounded-lg text-center">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
           <Users className="w-8 h-8 text-muted-foreground mb-3" />
           <p className="text-sm font-medium">{t('No members yet')}</p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -130,19 +136,36 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
           </p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border">
+        <div className="divide-y divide-[var(--glass-border)]">
           {members.map((member) => {
             const manageable = canManage && member.role !== 'owner'
             return (
               <div
                 key={member.user_id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 sm:px-6"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {member.display_name ?? member.email ?? '—'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">{member.email ?? '—'}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+                  >
+                    {(member.display_name || member.email || '?').charAt(0).toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">
+                        {member.display_name ?? member.email ?? (member.role === 'owner' ? t('Account owner') : t('Team member'))}
+                      </span>
+                      {member.user_id === currentUserId && (
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                          {t('You')}
+                        </span>
+                      )}
+                    </p>
+                    {member.display_name && member.email && (
+                      <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {manageable ? (
@@ -207,15 +230,16 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
         </div>
       )}
 
+      </SettingsCard>
+
       {/* Pending invites */}
       {invites.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">{t('Pending invites')}</h3>
-          <div className="divide-y rounded-lg border">
+        <SettingsCard title={t('Pending invites')} bodyClassName="p-0 sm:p-0">
+          <div className="divide-y divide-[var(--glass-border)]">
             {invites.map((invite) => (
               <div
                 key={invite.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 sm:px-6"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">
@@ -262,8 +286,8 @@ export function TeamSection({ companyId, members: initialMembers, invites: initi
               </div>
             ))}
           </div>
-        </div>
+        </SettingsCard>
       )}
-    </div>
+    </SettingsStack>
   )
 }

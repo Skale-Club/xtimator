@@ -6,8 +6,9 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { EstimateTemplateForm } from '@/components/settings/estimate-template-form'
 import type { CompanySettings } from '@/lib/queries/company'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
-export const metadata = { title: 'Message Template | Settings' }
+export const metadata = { title: 'Client message | Settings' }
 
 export default async function EstimateTemplatesPage() {
   const claims = await getAuthClaims()
@@ -19,15 +20,11 @@ export default async function EstimateTemplatesPage() {
   if (isDemoCompany(template.id)) redirect('/settings/company')
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Message Template</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Customize what clients see when you send them an estimate.</T>
-        </p>
-      </header>
+    <div className="space-y-6">
+      <SettingsHeader
+        title={<T>Client message</T>}
+        description={<T>The text that goes with every estimate you send.</T>}
+      />
       <EstimateTemplateForm company={template as unknown as CompanySettings} />
     </div>
   )

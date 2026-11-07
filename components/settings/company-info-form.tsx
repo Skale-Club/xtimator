@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from 'react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Pipette, Upload } from 'lucide-react'
+import { Pipette, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { CompanySettings } from '@/lib/queries/company'
@@ -13,11 +13,10 @@ import { resolveIndustries, splitIndustries, isKnownIndustry } from '@/lib/indus
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
 
-import { Card, CardContent } from '@/components/ui/card'
+import { SettingsCard, SettingsSaveBar, SettingsStack } from '@/components/settings/settings-ui'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EstimateTemplatePicker } from '@/components/settings/estimate-template-picker'
@@ -63,6 +62,9 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
+  // The logo URL the server has stored. A new upload only exists as a blob
+  // preview until saved, so later saves send this as the existing logo.
+  const [savedLogoUrl, setSavedLogoUrl] = useState<string | null>(company.logo_url)
   const [isPending, startTransition] = useTransition()
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -155,7 +157,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
       fd.set('defaultEstimateLanguage', values.defaultEstimateLanguage || '')
       fd.set('currencyCode', values.currencyCode)
       fd.set('estimateTemplateStyle', values.estimateTemplateStyle)
-      fd.set('existingLogoUrl', logoPreview && !logoFile ? company.logo_url || '' : '')
+      fd.set('existingLogoUrl', logoPreview && !logoFile ? savedLogoUrl || '' : '')
 
       if (logoFile) {
         fd.set('logo', logoFile)
@@ -166,28 +168,45 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
         toast.error(result.error)
       } else {
         toast.success(t('Company information saved.'))
+        // New baseline: the save bar goes back to "All changes saved".
+        const stored = 'logoUrl' in result ? (result.logoUrl ?? null) : savedLogoUrl
+        setSavedLogoUrl(stored)
+        setLogoFile(null)
+        setLogoPreview(stored)
+        setPrefillNewServices(false)
+        form.reset(values)
       }
     })
   }
 
+  const logoDirty = logoFile !== null || logoPreview !== savedLogoUrl
+  const dirty = form.formState.isDirty || logoDirty
+
+  function discardChanges() {
+    form.reset()
+    setLogoFile(null)
+    setLogoPreview(savedLogoUrl)
+    setPrefillNewServices(false)
+  }
+
   return (
-    <Card className="w-full rounded-[var(--radius-md)]">
-      <CardContent className="py-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-8 border-0 p-0">
-
-              {/* Logo + Brand Color — top two-column row (two squares side by
-                  side at all widths, including phone — quick-260725-clr) */}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+          <SettingsStack>
+            <SettingsCard
+              title={t('Brand')}
+              description={t('Your logo and color appear on estimates, PDFs and client links.')}
+            >
+              {/* Two squares side by side at every width, phone included. */}
               <div className="grid grid-cols-2 gap-4">
-
                 {/* Logo card */}
                 <div className="relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border border-dashed border-border">
                   <button
                     type="button"
                     aria-label="Upload company logo"
                     onClick={() => logoInputRef.current?.click()}
-                    className="group relative flex min-h-[180px] flex-1 flex-col items-center justify-center gap-3 p-6 transition-colors hover:bg-muted/20"
+                    className="group relative flex min-h-[160px] flex-1 flex-col items-center justify-center gap-3 p-6 transition-colors hover:bg-muted/20"
                   >
                     {logoPreview ? (
                       <>
@@ -257,7 +276,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                         <button
                           type="button"
                           aria-label={t('Change color')}
-                          className="group relative flex min-h-[180px] w-full cursor-pointer flex-col overflow-hidden rounded-[var(--radius-md)] border border-border text-left"
+                          className="group relative flex min-h-[160px] w-full cursor-pointer flex-col overflow-hidden rounded-[var(--radius-md)] border border-border text-left"
                         >
                           <div
                             className="relative flex-1"
@@ -281,44 +300,50 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   )}
                 />
               </div>
+            </SettingsCard>
 
-              {/* Main fields */}
-              <div className="grid gap-5 lg:grid-cols-2">
-                {/* Company Name */}
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem className="lg:col-span-2">
-                      <FormLabel>{t('Company Name')} *</FormLabel>
-                      <FormControl>
-                        <Input placeholder={t('Your Company')} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <SettingsCard
+              title={t('Business details')}
+              description={t('Shown in the header of every estimate you send.')}
+            >
+              <div className="space-y-5">
+                <div className="grid items-start gap-5 sm:grid-cols-2">
+                  {/* Company Name */}
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Company Name')} *</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('Your Company')} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {/* Owner Name */}
-                <FormField
-                  control={form.control}
-                  name="ownerName"
-                  render={({ field }) => (
-                    <FormItem className="lg:col-span-2">
-                      <FormLabel>{t('Owner Name')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormDescription className="text-xs text-muted-foreground">
-                        {t('Appears on generated estimates when the owner name is included.')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  {/* Owner Name */}
+                  <FormField
+                    control={form.control}
+                    name="ownerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Owner Name')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="John Doe" {...field} />
+                        </FormControl>
+                        <FormDescription className="text-xs text-muted-foreground">
+                          {t('Appears on generated estimates when the owner name is included.')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
+                </div>
                 {/* Phone, Email & Website — same row on desktop */}
-                <div className="lg:col-span-2 grid gap-5 lg:grid-cols-3">
+                <div className="grid items-start gap-5 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="phone"
@@ -353,7 +378,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                     control={form.control}
                     name="website"
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="sm:col-span-2">
                         <FormLabel>{t('Website')}</FormLabel>
                         <FormControl>
                           <Input placeholder="https://company.com" {...field} />
@@ -364,118 +389,219 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   />
                 </div>
 
-                {/* Services (multi-select) */}
-                <FormItem className="lg:col-span-2">
-                  <FormLabel>{t('Services')}</FormLabel>
-                  <FormDescription className="text-xs text-muted-foreground">
-                    {t('Select all the services your business offers. Used to tailor estimates and price-book starters.')}
-                  </FormDescription>
-                  <div className="mt-2">
-                    <IndustrySelector
-                      value={watchedIndustries}
-                      customValues={watchedCustoms}
-                      onChange={(ids) =>
-                        form.setValue('industries', ids, { shouldDirty: true })
-                      }
-                      onCustomChange={(customs) =>
-                        form.setValue('customIndustries', customs, { shouldDirty: true })
-                      }
+                {/* Address */}
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Address')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder="123 Main St" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* City, State, Zip */}
+                <div className="grid items-start gap-5 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('City')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('City')} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="state"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('State')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="CA" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="zip"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Zip')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="90210" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* License & Insurance */}
+                <div className="grid items-start gap-5 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="licenseNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('License Number')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('License #')} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="insuranceInfo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Insurance Info')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder={t('Insurance details')} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+              </div>
+            </SettingsCard>
+
+            <SettingsCard
+              title={t('Services')}
+              description={t('Select all the services your business offers. Used to tailor estimates and price-book starters.')}
+            >
+              {/* Services (multi-select) */}
+              <FormItem>
+                <FormLabel className="sr-only">{t('Services')}</FormLabel>
+                <div>
+                  <IndustrySelector
+                    value={watchedIndustries}
+                    customValues={watchedCustoms}
+                    onChange={(ids) =>
+                      form.setValue('industries', ids, { shouldDirty: true })
+                    }
+                    onCustomChange={(customs) =>
+                      form.setValue('customIndustries', customs, { shouldDirty: true })
+                    }
+                  />
+                  {(() => {
+                    // Soft warning for custom / unrecognized industries (uses the
+                    // isKnownIndustry helper). Custom entries are allowed but don't
+                    // map to a built-in template/knowledge scope; flag them so a
+                    // mismatch (e.g. "Technology" for a cleaner) is caught.
+                    const unknown = [...watchedIndustries, ...watchedCustoms].filter(
+                      (v) => v.trim() !== '' && !isKnownIndustry(v),
+                    )
+                    return unknown.length > 0 ? (
+                      <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                        {t('Custom service')}: {unknown.join(', ')} —{' '}
+                        {t("won't match a built-in template. Pick a standard trade if one fits, for better AI estimates.")}
+                      </p>
+                    ) : null
+                  })()}
+                </div>
+                {showPrefill && (
+                  <label
+                    htmlFor="settings-prefill"
+                    className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3"
+                  >
+                    <Checkbox
+                      id="settings-prefill"
+                      checked={prefillNewServices}
+                      onCheckedChange={(checked) => setPrefillNewServices(checked === true)}
+                      className="mt-0.5"
                     />
-                    {(() => {
-                      // Soft warning for custom / unrecognized industries (uses the
-                      // isKnownIndustry helper). Custom entries are allowed but don't
-                      // map to a built-in template/knowledge scope; flag them so a
-                      // mismatch (e.g. "Technology" for a cleaner) is caught.
-                      const unknown = [...watchedIndustries, ...watchedCustoms].filter(
-                        (v) => v.trim() !== '' && !isKnownIndustry(v),
-                      )
-                      return unknown.length > 0 ? (
-                        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                          {t('Custom service')}: {unknown.join(', ')} —{' '}
-                          {t("won't match a built-in template. Pick a standard trade if one fits, for better AI estimates.")}
-                        </p>
-                      ) : null
-                    })()}
-                  </div>
-                  {showPrefill && (
-                    <label
-                      htmlFor="settings-prefill"
-                      className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3"
-                    >
-                      <Checkbox
-                        id="settings-prefill"
-                        checked={prefillNewServices}
-                        onCheckedChange={(checked) => setPrefillNewServices(checked === true)}
-                        className="mt-0.5"
-                      />
-                      <span className="text-sm">
-                        <span className="font-medium text-foreground">
-                          {t('Add starter prices for the service(s) you just added.')}
-                        </span>{' '}
-                        <span className="text-muted-foreground">
-                          {t("We'll add common services and average market prices for the newly selected service(s). These are starting points — edit them anytime.")}
-                        </span>
+                    <span className="text-sm">
+                      <span className="font-medium text-foreground">
+                        {t('Add starter prices for the service(s) you just added.')}
+                      </span>{' '}
+                      <span className="text-muted-foreground">
+                        {t("We'll add common services and average market prices for the newly selected service(s). These are starting points — edit them anytime.")}
                       </span>
-                    </label>
-                  )}
-                </FormItem>
+                    </span>
+                  </label>
+                )}
+              </FormItem>
 
-                {/* Default Estimate Language */}
-                <FormField
-                  control={form.control}
-                  name="defaultEstimateLanguage"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Default estimate language')}</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ''}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={t('English (default)')} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="en">{t('English (default)')}</SelectItem>
-                          <SelectItem value="pt">Português (Brazil)</SelectItem>
-                          <SelectItem value="es">Español</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            </SettingsCard>
 
-                {/* Currency */}
-                <FormField
-                  control={form.control}
-                  name="currencyCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="USD - US Dollar" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {SUPPORTED_CURRENCIES.map((currency) => (
-                            <SelectItem key={currency.code} value={currency.code}>
-                              {currency.code} - {currency.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <SettingsCard
+              title={t('Language, currency and design')}
+              description={t('Defaults for every new estimate.')}
+            >
+              <div className="space-y-5">
+                <div className="grid items-start gap-5 sm:grid-cols-2">
+                  {/* Default Estimate Language */}
+                  <FormField
+                    control={form.control}
+                    name="defaultEstimateLanguage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Default estimate language')}</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder={t('English (default)')} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="en">{t('English (default)')}</SelectItem>
+                            <SelectItem value="pt">Português (Brazil)</SelectItem>
+                            <SelectItem value="es">Español</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
+                  {/* Currency */}
+                  <FormField
+                    control={form.control}
+                    name="currencyCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="USD - US Dollar" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SUPPORTED_CURRENCIES.map((currency) => (
+                              <SelectItem key={currency.code} value={currency.code}>
+                                {currency.code} - {currency.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                </div>
                 {/* Estimate Design (visual template for PDF/share rendering) */}
                 <FormField
                   control={form.control}
                   name="estimateTemplateStyle"
                   render={({ field }) => (
-                    <FormItem className="lg:col-span-2">
+                    <FormItem>
                       <FormLabel>{t('Estimate Design')}</FormLabel>
                       <FormDescription className="text-xs text-muted-foreground">
                         {t('Choose the visual style used for PDF and shared estimate links.')}
@@ -486,110 +612,28 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                   )}
                 />
               </div>
+            </SettingsCard>
+          </SettingsStack>
+        </fieldset>
 
-            {/* Address */}
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Address')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder="123 Main St" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* City, State, Zip */}
-            <div className="grid gap-5 sm:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="city"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('City')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('City')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="state"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('State')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="CA" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="zip"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Zip')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="90210" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* License & Insurance */}
-            <div className="grid gap-5 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="licenseNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('License Number')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('License #')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="insuranceInfo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Insurance Info')}</FormLabel>
-                    <FormControl>
-                      <Input placeholder={t('Insurance details')} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            </fieldset>
-
-            {readOnly ? (
-              <p className="text-sm text-muted-foreground">
-                {t('This is a read-only demo. Create a free account to edit your profile.')}
-              </p>
-            ) : (
-              <Button type="submit" disabled={isPending} className="min-w-40">
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('Save Company Info')}
-              </Button>
-            )}
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+        {readOnly ? (
+          <p className="mt-6 text-sm text-muted-foreground">
+            {t('This is a read-only demo. Create a free account to edit your profile.')}
+          </p>
+        ) : (
+          <SettingsSaveBar
+            className="mt-6"
+            dirty={dirty}
+            pending={isPending}
+            onDiscard={discardChanges}
+            saveLabel={t('Save changes')}
+            savingLabel={t('Saving…')}
+            unsavedLabel={t('Unsaved changes')}
+            savedLabel={t('All changes saved')}
+            discardLabel={t('Discard')}
+          />
+        )}
+      </form>
+    </Form>
   )
 }

@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   // Estimate title
   estimateTitle: {
     fontSize: 24,
-    fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold,
+    fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyTitle,
     marginBottom: 20,
     textAlign: 'center',
   },

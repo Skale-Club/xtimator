@@ -1,22 +1,16 @@
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   SettingsPageSkeleton,
   SettingsCard,
+  SkeletonFields,
 } from '@/components/skeletons/settings-page-skeleton'
 
-export default function AppearanceLoading() {
+// Text-free on purpose: the real page's title is translated, so an English
+// placeholder title would flash before it.
+export default function AppearanceSettingsLoading() {
   return (
-    <SettingsPageSkeleton
-      noPadding
-      title="Appearance"
-      description="Choose how the app looks. System follows your device's preference."
-    >
-      <SettingsCard>
-        <div className="flex gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-24 rounded-md" />
-          ))}
-        </div>
+    <SettingsPageSkeleton>
+      <SettingsCard title>
+        <SkeletonFields count={3} />
       </SettingsCard>
     </SettingsPageSkeleton>
   )

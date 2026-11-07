@@ -26,13 +26,13 @@ describe('Demo tab visibility (181-01)', () => {
   describe('SettingsNav demoHidden filter', () => {
     const nav = read('components/settings/settings-nav.tsx')
 
-    it('flags exactly 6 items demoHidden', () => {
+    it('flags exactly 7 items demoHidden (the 6 non-exposed tabs + Appearance)', () => {
       const matches = nav.match(/demoHidden: true/g) ?? []
-      expect(matches.length).toBe(6)
+      expect(matches.length).toBe(7)
     })
 
-    it('filters ITEMS using the same idiom as the primary app nav', () => {
-      expect(nav).toContain('ITEMS.filter((item) => !(isDemo && item.demoHidden))')
+    it('filters each group with the isDemo && demoHidden idiom', () => {
+      expect(nav).toContain('g.items.filter((i) => !(isDemo && i.demoHidden))')
     })
 
     it('does not flag the company entry demoHidden', () => {
@@ -78,8 +78,9 @@ describe('Demo tab visibility (181-01)', () => {
       expect(client).toContain('isDemo?: boolean')
     })
 
-    it('passes isDemo down to SettingsNav', () => {
-      expect(client).toContain('SettingsNav collapsed={collapsed} isDemo={isDemo}')
+    it('passes isDemo down to the rail and the phone strip', () => {
+      expect(client).toContain('<SettingsNav isDemo={isDemo} />')
+      expect(client).toContain('<SettingsNavStrip isDemo={isDemo} />')
     })
   })
 

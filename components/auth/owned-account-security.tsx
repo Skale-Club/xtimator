@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { SettingsCard } from '@/components/settings/settings-ui'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { PhoneSignIn } from './phone-sign-in'
 import { VISIBLE_AREA_DIALOG } from '@/lib/visual-viewport'
@@ -34,15 +34,14 @@ export function OwnedAccountSecurity() {
     } catch (error) { setError(identityError(error)) }
     finally { setBusy(false) }
   }
-  return <Card><CardContent className="space-y-8 py-6">
-    <section className="space-y-3">
-      <h2 className="font-medium">Login phone</h2>
-      <p className="text-sm text-muted-foreground">Sign in with a text message code. Changing your login phone requires a recent sign-in and verification of the new number. Your profile contact number is separate.</p>
-      <Button variant="outline" onClick={() => setOpen(true)}>Verify a new login phone</Button>
-    </section>
-    <section className="space-y-3">
-      <h2 className="font-medium">Verified email</h2>
-      <p className="text-sm text-muted-foreground">Used for account recovery and team invitations.</p>
+  return <>
+    <SettingsCard title="Login phone" description="You sign in with a text message code sent to this number. Your profile phone is separate.">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Changing it needs a recent sign-in and a code sent to the new number.</p>
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Change login phone</Button>
+      </div>
+    </SettingsCard>
+    <SettingsCard title="Verified email" description="Used for account recovery and team invitations.">
       <form onSubmit={submit} className="max-w-sm space-y-3">
         <label htmlFor="owned-account-email" className="block text-sm">New email address</label>
         <Input id="owned-account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} disabled={busy || sent} required />
@@ -52,7 +51,7 @@ export function OwnedAccountSecurity() {
         <Button disabled={busy || (sent && code.length !== 6)}>{sent ? 'Verify email' : 'Send verification code'}</Button>
         {sent ? <Button type="button" variant="ghost" disabled={busy} onClick={() => { setSent(false); setCode('') }}>Change email or request another code</Button> : null}
       </form>
-    </section>
+    </SettingsCard>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className={cn('w-[92%] max-w-md rounded-2xl', VISIBLE_AREA_DIALOG)} onInteractOutside={event => event.preventDefault()}><DialogTitle>Account verification</DialogTitle><DialogDescription className="sr-only">Verify a new login phone after a recent sign-in.</DialogDescription>{open ? <PhoneSignIn purpose="link" /> : null}</DialogContent></Dialog>
-  </CardContent></Card>
+  </>
 }

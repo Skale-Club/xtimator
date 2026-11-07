@@ -120,7 +120,9 @@ export function ProjectWorkspace({
       <div className="min-w-0 flex-1">
         <ProjectHeader project={project} />
 
-        <div className="px-5 py-6 md:px-6">
+        {/* pt-0: the header's own pb-5 is the gap above the content (top and
+            bottom of the title block match). */}
+        <div className="px-5 pt-0 pb-6 md:px-6">
         {activeTab === 'client' && (
           <Button
             size="sm"
@@ -187,13 +189,16 @@ export function ProjectWorkspace({
             the sticky rail/floating-bar's containing block, so the page can be
             scrolled past where that containing block ends — both stickies detach
             in that last sliver, reading as a jump right at the end of scroll.
-            On desktop the floating action pill is `fixed` to the viewport
-            (always overlaying), so the md height also provides scroll clearance:
-            tall enough for the estimate's last content to clear the ~46px pill
-            sitting 8px above the bottom edge. */}
+            Desktop no longer needs extra clearance: the floating action pill
+            used to be `fixed` (always overlaying, hence 64px here so the last
+            content could clear it), but it now floats centred on the document
+            from a zero-height sticky line, and at the end of the scroll it only
+            sits over the document's own bottom padding. The 64px read as an
+            empty band under the document, so md is 0. Phones keep the bottom-
+            nav clearance. */}
         <div
           aria-hidden
-          className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-16"
+          className="h-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:h-0"
         />
       </div>
     </div>

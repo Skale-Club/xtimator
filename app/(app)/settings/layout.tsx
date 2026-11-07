@@ -14,8 +14,11 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   // Demo and real-tenant sessions both render this same tree, unconditionally
   // — SettingsLayoutClient threads isDemo down to SettingsNav, which filters
   // its own tab list rather than this layout branching on demo at all.
+  // min-h-full, not h-full: with a fixed height the container ended at one
+  // screen, so the sticky rail's containing block ended there too and the rail
+  // scrolled away with the page. Growing with the content keeps it pinned.
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-full flex-col">
       <SettingsLayoutClient isDemo={isDemo}>{children}</SettingsLayoutClient>
     </div>
   )

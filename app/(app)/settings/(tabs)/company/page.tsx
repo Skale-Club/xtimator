@@ -6,6 +6,7 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { CompanyInfoForm } from '@/components/settings/company-info-form'
 import { TradeSuggestionBanner } from '@/components/settings/trade-suggestion-banner'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Company | Settings' }
 
@@ -24,14 +25,10 @@ export default async function CompanyTabPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Company Information</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Keep the business details that appear across estimates, client links, and generated documents up to date.</T>
-        </p>
-      </header>
+      <SettingsHeader
+        title={<T>Company</T>}
+        description={<T>The business details your clients see on every estimate.</T>}
+      />
       {tradeSuggestion && (
         <TradeSuggestionBanner
           suggestedTrade={tradeSuggestion.suggestedTrade}

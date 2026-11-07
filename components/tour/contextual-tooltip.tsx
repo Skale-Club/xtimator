@@ -32,6 +32,11 @@ interface ContextualTooltipProps {
   className?: string
   /** Anchor element — the child gets the hover/focus listeners via Radix's TooltipTrigger asChild. */
   children?: React.ReactNode
+  /**
+   * Keep the tooltip closed (e.g. while the anchor's own menu is open, so the
+   * hint never sits on top of the options being picked).
+   */
+  suppressed?: boolean
 }
 
 /**
@@ -50,6 +55,7 @@ export function ContextualTooltip({
   side = "right",
   className,
   children,
+  suppressed = false,
   // tooltipKey accepted and intentionally ignored — kept for back-compat
   tooltipKey: _tooltipKey,
 }: ContextualTooltipProps) {
@@ -76,7 +82,8 @@ export function ContextualTooltip({
   if (noHover) return <>{children}</>
 
   return (
-    <Tooltip>
+    // Controlled only while suppressed; otherwise Radix's own hover/focus logic.
+    <Tooltip open={suppressed ? false : undefined}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent
         side={side}

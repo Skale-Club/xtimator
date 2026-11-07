@@ -6,7 +6,7 @@ import { getPriceBookItems, getFolders } from '@/lib/queries/price-book'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { PriceBookList } from '@/components/price-book/price-book-list'
 import { UndoImportBanner } from '@/components/price-book/UndoImportBanner'
-import { Card } from '@/components/ui/card'
+import { ListPage } from '@/components/ui/list-page'
 
 export const metadata = { title: 'Price Book' }
 
@@ -35,15 +35,12 @@ export default async function PriceBookPage() {
   }
 
   return (
-    <div className="w-full max-w-none space-y-4 p-4 md:p-6">
-      <UndoImportBanner />
-      <Card variant="glass" className="p-4 md:p-6">
-        <PriceBookList
-          items={items}
-          folders={folders}
-          currencyCode={company.currency_code}
-        />
-      </Card>
-    </div>
+    <ListPage above={<UndoImportBanner />}>
+      <PriceBookList
+        items={items}
+        folders={folders}
+        currencyCode={company.currency_code}
+      />
+    </ListPage>
   )
 }

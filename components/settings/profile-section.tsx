@@ -4,7 +4,8 @@ import { useRef, useState, useTransition } from 'react'
 import { Camera, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateProfile } from '@/lib/actions/settings'
-import { Card, CardContent } from '@/components/ui/card'
+import { SettingsCard } from '@/components/settings/settings-ui'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { Button } from '@/components/ui/button'
@@ -23,7 +24,11 @@ interface ProfileSectionProps {
 }
 
 export function ProfileSection({ profile }: ProfileSectionProps) {
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
+  // The crop editor is a tool, not a second copy of the avatar: it opens when
+  // a new photo is picked or when asked for, and closes after saving.
+  const [adjusting, setAdjusting] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarPosition, setAvatarPosition] = useState<ImagePosition>(profile.avatarPosition ?? DEFAULT_IMAGE_POSITION)
   const [phone, setPhone] = useState(profile.phone)
@@ -38,6 +43,7 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
     if (!file) return
     setAvatarPreview(URL.createObjectURL(file))
     setAvatarPosition(DEFAULT_IMAGE_POSITION)
+    setAdjusting(true)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -49,87 +55,92 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Profile updated.')
+        toast.success(t('Profile updated.'))
+        setAdjusting(false)
       }
     })
   }
 
   return (
-    <Card className="w-full rounded-[var(--radius-md)]">
-      <CardContent className="py-6">
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
-          {/* Avatar */}
-          <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-            <div>
-              <h3 className="text-sm font-medium">Profile Photo</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Shown as your avatar on sign-in and in the app navbar.
-              </p>
+    <form ref={formRef} onSubmit={handleSubmit}>
+      <SettingsCard
+        title={t('Profile')}
+        description={t('Your name, photo and contact phone on this account.')}
+        footer={
+          <Button type="submit" size="sm" disabled={isPending} className="min-w-28">
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {t('Save profile')}
+          </Button>
+        }
+      >
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-5">
+            <div className="relative">
+              <Avatar className="h-20 w-20">
+                {displayAvatar && (
+                  <AvatarImage
+                    src={displayAvatar}
+                    alt={t('Profile photo')}
+                    className="object-cover"
+                    style={{
+                      objectPosition: `${50 + avatarPosition.x}% ${50 + avatarPosition.y}%`,
+                      transform: `scale(${avatarPosition.scale})`,
+                    }}
+                  />
+                )}
+                <AvatarFallback className="text-2xl bg-primary text-white font-semibold">{initial}</AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow hover:bg-primary/90 transition-colors"
+                aria-label={t('Change photo')}
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <div className="flex items-center gap-5">
-              <div className="relative">
-                <Avatar className="h-20 w-20">
-                  {displayAvatar && (
-                    <AvatarImage
-                      src={displayAvatar}
-                      alt="Profile photo"
-                      className="object-cover"
-                      style={{
-                        objectPosition: `${50 + avatarPosition.x}% ${50 + avatarPosition.y}%`,
-                        transform: `scale(${avatarPosition.scale})`,
-                      }}
-                    />
-                  )}
-                  <AvatarFallback className="text-2xl bg-primary text-white font-semibold">{initial}</AvatarFallback>
-                </Avatar>
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow hover:bg-primary/90 transition-colors"
-                  aria-label="Change photo"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="space-y-1">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => avatarInputRef.current?.click()}>
-                  Choose photo
+                  {t('Choose photo')}
                 </Button>
-                <p className="text-xs text-muted-foreground">PNG, JPG, or WebP · max 4 MB</p>
+                {displayAvatar && !adjusting && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setAdjusting(true)}>
+                    {t('Adjust')}
+                  </Button>
+                )}
               </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                name="avatar"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={handleAvatarChange}
-              />
+              <p className="text-xs text-muted-foreground">PNG, JPG, WebP · max 4 MB</p>
             </div>
-            {displayAvatar && (
-              <div className="xl:col-start-2">
-                <ImagePositionEditor
-                  src={displayAvatar}
-                  alt="Profile photo position preview"
-                  aspectRatio={1}
-                  shape="circle"
-                  fit="cover"
-                  value={avatarPosition}
-                  onChange={setAvatarPosition}
-                  className="max-w-[240px]"
-                />
-              </div>
-            )}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              name="avatar"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
 
-          {/* Name */}
-          <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-            <div>
-              <h3 className="text-sm font-medium">Account Name</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Your name on this Xtimator account.</p>
+          {displayAvatar && adjusting && (
+            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] p-4">
+              <p className="text-sm font-medium">{t('Position your photo')}</p>
+              <ImagePositionEditor
+                src={displayAvatar}
+                alt={t('Profile photo position preview')}
+                aspectRatio={1}
+                shape="circle"
+                fit="cover"
+                value={avatarPosition}
+                onChange={setAvatarPosition}
+                className="max-w-[200px]"
+              />
             </div>
+          )}
+
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Account name</Label>
+              <Label htmlFor="fullName">{t('Your name')}</Label>
               <Input
                 id="fullName"
                 name="fullName"
@@ -138,30 +149,17 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
                 autoComplete="name"
               />
             </div>
-          </div>
-
-          {/* Profile phone (account / recovery) */}
-          <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-            <div>
-              <h3 className="text-sm font-medium">Phone</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Your contact phone for your account and recovery.</p>
-            </div>
-            <div>
-              {/* PhoneInput is controlled; the country dropdown holds the dial code and the
-                  field masks to (XXX) XXX-XXXX as you type. We surface the full emitted value
-                  ("+1 (XXX) XXX-XXXX") via a hidden input so the plain FormData submit captures
-                  it — the PhoneInput's own input is intentionally name-less. */}
+            <div className="space-y-2">
+              <Label htmlFor="phone">{t('Phone')}</Label>
+              {/* PhoneInput is controlled and name-less; the hidden input carries
+                  its full value ("+1 (XXX) XXX-XXXX") into the FormData submit. */}
               <PhoneInput id="phone" value={phone} onChange={setPhone} />
               <input type="hidden" name="phone" value={phone} />
+              <p className="text-xs text-muted-foreground">{t('For your account and recovery. Not shown to clients.')}</p>
             </div>
           </div>
-
-          <Button type="submit" disabled={isPending} className="min-w-40">
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </SettingsCard>
+    </form>
   )
 }

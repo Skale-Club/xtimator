@@ -24,13 +24,34 @@ export async function getClients(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<ClientWithCount[]> {
+  return loadClientsWithCounts<Omit<ClientWithCount, 'project_count'>>(
+    supabase, companyId, 'id, name, email, phone, logo_url, created_at',
+  )
+}
+
+/** Load editable fields once, so opening an editor requires no extra request. */
+export async function getClientsForEditing(
+  supabase: SupabaseClient,
+  companyId: string,
+): Promise<ClientDetail[]> {
+  return loadClientsWithCounts<Omit<ClientDetail, 'project_count'>>(
+    supabase, companyId,
+    'id, name, email, phone, logo_url, created_at, address, city, state, zip, notes, preferred_language',
+  )
+}
+
+async function loadClientsWithCounts<T extends Omit<ClientWithCount, 'project_count'>>(
+  supabase: SupabaseClient,
+  companyId: string,
+  columns: string,
+): Promise<Array<T & { project_count: number }>> {
   // Both queries only filter by companyId and are independent — run them in
   // parallel instead of clients-then-projects in series (one fewer round-trip
   // on the clients list page).
   const [{ data: clients }, { data: projects }] = await Promise.all([
     supabase
       .from('clients')
-      .select('id, name, email, phone, logo_url, created_at')
+      .select(columns)
       .eq('company_id', companyId)
       .order('name'),
     supabase
@@ -48,7 +69,7 @@ export async function getClients(
     }
   }
 
-  return clients.map((c) => ({
+  return (clients as unknown as T[]).map((c) => ({
     ...c,
     project_count: countMap.get(c.id) ?? 0,
   }))

@@ -7,6 +7,8 @@ import { ProfileSection } from '@/components/settings/profile-section'
 import { AccountSection } from '@/components/settings/account-section'
 import Link from 'next/link'
 import { T } from '@/components/i18n/t'
+import { SettingsCard, SettingsHeader } from '@/components/settings/settings-ui'
+import { Button } from '@/components/ui/button'
 
 export const metadata = { title: 'Account | Settings' }
 
@@ -30,25 +32,22 @@ export default async function AccountTabPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Account</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Manage your profile and security settings.</T>
-        </p>
-      </header>
+      <SettingsHeader
+        title={<T>Account</T>}
+        description={<T>Your profile, how you sign in, and your account.</T>}
+      />
       <ProfileSection profile={profile} />
       <AccountSection />
-      <section className="rounded-[var(--radius-md)] border px-6 py-5">
-        <h2 className="text-sm font-medium"><T>Delete account</T></h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          <T>Permanently delete your account and the companies you own.</T>{' '}
-          <Link href="/delete-account" className="font-medium text-destructive underline underline-offset-4">
-            <T>Delete account</T>
-          </Link>
-        </p>
-      </section>
+      <SettingsCard
+        className="border-destructive/30"
+        title={<T>Delete account</T>}
+        description={<T>Permanently delete your account and the companies you own. This can&apos;t be undone.</T>}
+        action={
+          <Button asChild variant="destructive" size="sm">
+            <Link href="/delete-account"><T>Delete account</T></Link>
+          </Button>
+        }
+      />
     </div>
   )
 }

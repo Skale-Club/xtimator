@@ -1011,15 +1011,6 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     MACHINE_REASON,
     ['monthlyCreditGrantJob'],
   ),
-  // SEED-055 Phase B: hourly sweep that zeroes lapsed credit lots via the
-  // expire_credit_lots RPC. Platform-level, no session and no tenant input.
-  ...excepted(
-    'lib/inngest/functions/expire-credit-lots.ts',
-    'machine-signed',
-    MACHINE_AUTHORITY,
-    MACHINE_REASON,
-    ['expireCreditLotsJob'],
-  ),
   // Read-only reconciliation cron: reports drift via notifyOps, never writes a
   // tenant row, so there is no demo-write surface to guard.
   ...excepted(

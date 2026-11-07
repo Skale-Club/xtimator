@@ -81,7 +81,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
                 Archive
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-400 focus:text-red-400"
+                variant="destructive"
                 disabled={isPending}
                 onClick={() => setSoftConfirmOpen(true)}
               >
@@ -103,7 +103,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
                 Unarchive
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-400 focus:text-red-400"
+                variant="destructive"
                 disabled={isPending}
                 onClick={() => setSoftConfirmOpen(true)}
               >
@@ -122,7 +122,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
                 Restore
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-400 focus:text-red-400"
+                variant="destructive"
                 disabled={isPending}
                 onClick={() => setConfirmOpen(true)}
               >

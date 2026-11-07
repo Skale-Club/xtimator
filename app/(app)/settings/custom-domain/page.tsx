@@ -4,8 +4,8 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getCustomDomainSettings } from '@/lib/queries/company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { CustomDomainForm } from '@/components/settings/custom-domain-form'
-import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Custom Domain' }
 
@@ -19,18 +19,12 @@ export default async function CustomDomainPage() {
   if (isDemoCompany(settings.id)) redirect('/settings/company')
 
   return (
-    <div className="space-y-8 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Custom Domain</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Serve estimate share links from your own domain instead of xtimator.com.</T>
-        </p>
-      </header>
-      <Card variant="glass" className="p-8">
-        <CustomDomainForm settings={settings} />
-      </Card>
+    <div className="space-y-6">
+      <SettingsHeader
+        title={<T>Custom Domain</T>}
+        description={<T>Serve estimate share links from your own domain instead of xtimator.com.</T>}
+      />
+      <CustomDomainForm settings={settings} />
     </div>
   )
 }

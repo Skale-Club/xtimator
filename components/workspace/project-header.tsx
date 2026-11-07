@@ -28,7 +28,10 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
   useBreadcrumb(breadcrumbItems)
 
   return (
-    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 pb-3 pt-4 md:px-6">
+    // Same 20px above and below the title block. The content under it starts
+    // flush (project-workspace.tsx: pt-0), so this pb-5 is the whole gap; it
+    // used to be 12px here + 24px of content padding = 36px vs 16px on top.
+    <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 py-5 md:px-6">
       {/* items-start on mobile so a 2-line wrapped title (ProjectTitle line-clamp-2)
           keeps the action button anchored to the top instead of floating mid-title;
           sm+ stays center-aligned with the single-line title. */}

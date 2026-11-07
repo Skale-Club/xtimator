@@ -1,3 +1,4 @@
+import { BookOpen, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
@@ -9,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,30 +40,38 @@ export default async function CompanyKnowledgePage() {
   const entries = (data ?? []) as OverlayRow[]
 
   return (
-    <div className="space-y-8 p-6">
-      <header className="flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-            <T>Knowledge base</T>
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            <T>
-              Add your company&apos;s own knowledge Xtimator AI draws from — your specific
-              processes, prices, and guidance.
-            </T>
-          </p>
-        </div>
-        <Button asChild variant="primary">
-          <Link href="/settings/knowledge/new">
-            <T>New entry</T>
-          </Link>
-        </Button>
-      </header>
+    <div className="space-y-6">
+      <SettingsHeader
+        title={<T>AI knowledge</T>}
+        description={<T>Your own processes, prices and guidance. The AI reads these when it writes your estimates.</T>}
+        actions={
+          <Button asChild variant="primary">
+            <Link href="/settings/knowledge/new">
+              <Plus className="h-4 w-4" />
+              <T>New entry</T>
+            </Link>
+          </Button>
+        }
+      />
 
       <Card variant="glass" className="p-0 overflow-hidden">
         {entries.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            <T>No entries yet. Add your first knowledge entry.</T>
+          <div className="flex flex-col items-center px-6 py-12 text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <BookOpen className="h-5 w-5 text-primary" aria-hidden />
+            </div>
+            <p className="text-base font-semibold">
+              <T>Teach the AI how your business works</T>
+            </p>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              <T>Add the details a new estimator would need: how you price jobs, what you always include, what you never do.</T>
+            </p>
+            <Button asChild variant="outline" className="mt-5">
+              <Link href="/settings/knowledge/new">
+                <Plus className="h-4 w-4" />
+                <T>Add your first entry</T>
+              </Link>
+            </Button>
           </div>
         ) : (
           <table className="w-full text-sm">

@@ -1,95 +1,38 @@
 'use client'
 
-import { useState, useEffect, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { SettingsNav } from './settings-nav'
+import type { ReactNode } from 'react'
+import { SettingsNav, SettingsNavStrip } from './settings-nav'
 
-const STORAGE_KEY = 'xtimator:settings-nav-collapsed'
-
+/**
+ * Settings shell.
+ *
+ * - md+: a fixed-width grouped rail on the left, sticky so it stays put while
+ *   the page scrolls (its containing block is the min-h-full container in
+ *   app/(app)/settings/layout.tsx, which grows with the content). Its height
+ *   leaves out main's md:pb-6 too (4rem top bar + 1.5rem): that padding sits
+ *   outside the containing block, so a full-height rail got nudged up 24px at
+ *   the very end of the scroll.
+ * - Below md: no rail. A single row of pills, pinned under the top bar, so the
+ *   page keeps the whole phone width.
+ *
+ * The content column owns the page padding and the reading width, so no page
+ * adds its own `p-6` or max-width.
+ */
 export function SettingsLayoutClient({ children, isDemo }: { children: ReactNode; isDemo?: boolean }) {
-  const [collapsed, setCollapsed] = useState(false)
-
-  useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === 'true')
-    } catch {}
-  }, [])
-
-  function toggle() {
-    setCollapsed(prev => {
-      const next = !prev
-      try { localStorage.setItem(STORAGE_KEY, String(next)) } catch {}
-      return next
-    })
-  }
-
-  // quick-260725: the settings sections render as a LEFT vertical collapsible
-  // rail at EVERY breakpoint — phone, tablet, and desktop — replacing the
-  // previous phone-only horizontal pill strip. The container is an in-flow
-  // flex-row at all widths: a fixed-width rail on the left (w-52 expanded /
-  // w-14 collapsed, default EXPANDED) and the page content filling the rest
-  // (flex-1 min-w-0). The rail is a viewport-height, self-scrolling sticky
-  // column — its own overflow-y-auto lets a tall nav + footer toggle scroll
-  // within it while the page content scrolls independently.
-  //
-  // Desktop (md+) is byte-for-byte unchanged: every class that used to be
-  // `md:`-gated here is now the unconditional base, so md+ resolves to exactly
-  // the same computed styles it did before. The collapse toggle is now visible
-  // and usable at all breakpoints (previously `hidden md:flex`).
   return (
-    <div className="flex min-h-0 flex-1 flex-row items-start">
-      <div
-        className={cn(
-          'sticky top-0 shrink-0 self-start h-[calc(100vh-4rem)] overflow-y-auto',
-          'transition-[width] duration-200 ease-in-out',
-          collapsed ? 'w-14' : 'w-52',
-        )}
-      >
-        <aside
-          className={cn(
-            'shrink-0 border-border bg-background h-full w-full flex flex-col',
-            'overflow-y-auto scrollbar-none border-r pt-8 pb-0',
-            collapsed ? 'px-1' : 'px-3',
-          )}
-        >
-          <div className="flex-1">
-            <SettingsNav collapsed={collapsed} isDemo={isDemo} />
-          </div>
-
-          {/* Collapse toggle — visible and usable at ALL breakpoints. Same
-              footer alignment as the primary sidebar. */}
-          <div className="mt-auto flex flex-col justify-center h-[var(--app-rail-footer-h)] shrink-0 border-t border-[var(--glass-border)] p-2">
-            {collapsed ? (
-              <button
-                type="button"
-                onClick={toggle}
-                title="Expand"
-                className="w-9 h-7 flex items-center justify-center rounded-[var(--radius-md)] text-muted-foreground/40 hover:text-muted-foreground hover:bg-[var(--glass-bg-light)] transition-colors"
-                aria-label="Expand sidebar"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            ) : (
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={toggle}
-                  title="Collapse"
-                  className="p-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
-                  aria-label="Collapse sidebar"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        </aside>
+    <div className="flex min-h-0 flex-1 flex-col md:flex-row md:items-start">
+      <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur md:hidden">
+        <SettingsNavStrip isDemo={isDemo} />
       </div>
 
-      {/* Page content — fills the space beside the rail at all breakpoints. */}
+      <aside className="sticky top-0 hidden h-[calc(100dvh-5.5rem)] w-56 shrink-0 self-start overflow-y-auto scrollbar-none border-r border-border px-3 py-8 md:block">
+        <SettingsNav isDemo={isDemo} />
+      </aside>
+
       <div className="min-w-0 flex-1">
-        {children}
+        <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 md:px-8 md:py-8">
+          {children}
+        </div>
       </div>
     </div>
   )

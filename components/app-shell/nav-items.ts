@@ -14,13 +14,15 @@ export interface NavItem {
   overflow?: boolean
   /** On mobile, lives in the top-right avatar (user) dropdown instead of the bottom bar. */
   userMenu?: boolean
+  /** Fully prefetch read-only list data, rather than only its loading shell. */
+  prefetch?: true
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'New Xtimate',  href: '/projects/new', icon: FolderPlus, primary: true, exact: true, modal: 'new-project' },
   { label: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
-  { label: 'Projects',     href: '/projects',     icon: FolderOpen },
-  { label: 'Clients',      href: '/clients',      icon: Users },
+  { label: 'Projects',     href: '/projects',     icon: FolderOpen, prefetch: true },
+  { label: 'Clients',      href: '/clients',      icon: Users, prefetch: true },
   { label: 'Price Book',   href: '/price-book',   icon: BookOpen },
   { label: 'Trash',        href: '/trash',        icon: Trash2,     demoHidden: true, userMenu: true },
   // Phase 181: Settings IS reachable in demo (filtered to Company/Team/Notifications

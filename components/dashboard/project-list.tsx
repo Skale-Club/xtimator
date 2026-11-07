@@ -1,54 +1,41 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import type { ProjectWithClient } from '@/lib/queries/dashboard'
 import { ProjectActions } from '@/components/dashboard/project-actions'
-import { ProjectStatusTabs } from '@/components/projects/project-status-tabs'
 import { ProjectTable } from '@/components/projects/project-table'
+import { T } from '@/components/i18n/t'
 
-type StatusFilter = 'all' | 'draft' | 'estimate_ready' | 'sent' | 'paid'
-
-const STATUS_OPTIONS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
+// The status tabs live inside the table (one owner for every filter), so
+// "Clear filters" resets the tab together with the search.
+const STATUS_TABS = [
   { value: 'all', label: 'All' },
   { value: 'draft', label: 'Draft' },
   { value: 'estimate_ready', label: 'Estimate ready' },
   { value: 'sent', label: 'Sent' },
   { value: 'paid', label: 'Paid' },
-]
+] as const
 
 interface ProjectListProps {
   projects: ProjectWithClient[]
 }
 
 export function ProjectList({ projects }: ProjectListProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const filteredProjects = useMemo(
-    () =>
-      statusFilter === 'all'
-        ? projects
-        : projects.filter((project) => project.status === statusFilter),
-    [projects, statusFilter],
-  )
-
   return (
     <ProjectTable<ProjectWithClient>
-      projects={filteredProjects}
-      title={<h2 className="text-2xl font-semibold tracking-[-0.015em] shrink-0">Recent projects</h2>}
+      projects={projects}
+      title={<h2 className="text-xl font-semibold tracking-[-0.015em] sm:text-2xl"><T>Recent projects</T></h2>}
+      headerRight={projects.length > 0 ? (
+        <Link href="/projects" className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10">
+          <T>View all</T>
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      ) : undefined}
       pageSize={10}
-      headerLeft={(
-        <>
-          <ProjectStatusTabs
-            value={statusFilter}
-            options={STATUS_OPTIONS}
-            onValueChange={setStatusFilter}
-          />
-          <div className="w-px bg-border self-stretch shrink-0" />
-        </>
-      )}
-      emptyTitle={projects.length === 0 ? undefined : 'No projects match your filters'}
-      emptyDescription={projects.length === 0 ? undefined : 'Try another status or clear the search.'}
-      emptyActionLabel={projects.length === 0 ? 'New Project' : undefined}
-      emptyActionHref={projects.length === 0 ? '/projects/new' : undefined}
+      statusTabs={STATUS_TABS}
+      emptyActionLabel="New Project"
+      emptyActionHref="/projects/new"
       renderActions={(project) => (
         <ProjectActions projectId={project.id} projectName={project.name} />
       )}

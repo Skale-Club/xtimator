@@ -20,6 +20,10 @@ missing in the deployed container.
 - **Source URLs** (Google Fonts' serving CDN):
   - Regular 400: https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hjQ.ttf
   - Bold 700: https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYAZ9hjQ.ttf
+  - ExtraBold 800 (vendored 2026-11-06, Classic ESTIMATE title only): https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuDyYAZ9hjQ.ttf
+    Same Latin cut as the two above (518 glyphs, identical vertical metrics, so the
+    PDF line height stays 1.21). The Bold URL in this list reproduces the vendored
+    Inter-Bold.ttf byte for byte, which is how this sibling URL was chosen.
   - License: https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt
 
 Inter is the same family the web app renders via `next/font/google` in

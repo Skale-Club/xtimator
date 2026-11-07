@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, startTransition } from 'react'
+import { useSyncExternalStore } from 'react'
 import { useTheme } from 'next-themes'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,10 +17,23 @@ const ITEMS: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'system', label: 'System', Icon: Monitor },
 ]
 
+const subscribeToHydration = () => () => {}
+const clientHydrationSnapshot = () => true
+const serverHydrationSnapshot = () => false
+
+function useHydrated() {
+  // Match the server markup during hydration, then read the browser's theme.
+  return useSyncExternalStore(
+    subscribeToHydration,
+    clientHydrationSnapshot,
+    serverHydrationSnapshot,
+  )
+}
+
 function persist(next: Theme, setTheme: (v: Theme) => void) {
-  startTransition(() => {
-    setTheme(next)
-  })
+  // Keep the visual update urgent: a transition here would be batched with
+  // Next's server-action transition and wait for persistence + the RSC refresh.
+  setTheme(next)
   saveThemePreference(next).then((res) => {
     if (!res.ok) toast.error(res.message)
   })
@@ -32,8 +45,7 @@ function persist(next: Theme, setTheme: (v: Theme) => void) {
  */
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useHydrated()
 
   const current = (mounted ? theme : 'dark') as Theme
   const Icon = current === 'light' ? Sun : Moon
@@ -62,8 +74,7 @@ export function ThemeToggle() {
  */
 export function ThemeToggleRadioGroup() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useHydrated()
   const current = (mounted ? theme : 'system') as Theme
 
   return (

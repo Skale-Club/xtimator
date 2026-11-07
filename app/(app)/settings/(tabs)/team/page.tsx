@@ -6,7 +6,9 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { listCompanyRoster } from '@/lib/queries/team'
 import { buildSeatCostSummary, type SeatCostSummary } from '@/lib/billing/seat-cost-summary'
 import { TeamSection } from '@/components/settings/team-section'
+import { createClient } from '@/lib/supabase/server'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Team | Settings' }
 
@@ -45,22 +47,40 @@ export default async function TeamTabPage() {
   // the runtime billing config + the company tier, reusing the Phase-139 pure seat math.
   // The active seat count is the live roster member rows. A plain member gets
   // null and the cost line is not rendered (consistent with the manage gate).
+  // The owner row is created before the owner's name/email are known, so it
+  // can come back blank. Fill the signed-in person's own row from their auth
+  // profile instead of showing "—" (only fetched when it is actually blank).
+  const selfId = claims.sub as string
+  let members = roster.members
+  if (members.some((m) => m.user_id === selfId && (!m.display_name || !m.email))) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      const name = (user?.user_metadata?.full_name as string | undefined) || null
+      const contact = user?.email || (user?.phone ? `+${user.phone.replace(/^\+/, '')}` : null)
+      members = members.map((m) =>
+        m.user_id === selfId
+          ? { ...m, display_name: m.display_name ?? name, email: m.email ?? contact }
+          : m,
+      )
+    } catch {
+      // Keep the roster as-is; the row falls back to a generic label.
+    }
+  }
+
   const seatCost: SeatCostSummary | null =
     canManage ? await buildSeatCostSummary(companyId, roster.members.length) : null
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Team</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>People who can create clients and estimates. Their name appears as &ldquo;Prepared by&rdquo; on estimates they generate.</T>
-        </p>
-      </header>
+      <SettingsHeader
+        title={<T>Team</T>}
+        description={<T>People who can create clients and estimates. Their name appears as &ldquo;Prepared by&rdquo; on estimates they generate.</T>}
+      />
       <TeamSection
         companyId={companyId}
-        members={roster.members}
+        currentUserId={selfId}
+        members={members}
         invites={roster.invites}
         canManage={canManage}
         seatCost={seatCost}

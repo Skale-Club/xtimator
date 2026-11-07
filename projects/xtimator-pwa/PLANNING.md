@@ -2,7 +2,6 @@
 
 **Type:** Utility
 **Status:** Ideation complete — ready for `/seed launch`
-**Skill Loadout:** GSD (execute-phase, plan-phase)
 **Target Repo:** `C:\Users\Vanildo\Dev\xtimator`
 
 ---
@@ -146,13 +145,3 @@ next.config.ts                   ← wrap with withPWA
 
 - **Icon source**: Use the branding logo from Supabase storage as source, or design a new standalone mark? (Recommendation: use existing logo, add safe-zone padding for maskable variant)
 - **Splash screen**: iOS reads `apple-touch-icon` + `theme-color` for the splash. No extra config needed unless a custom splash is wanted.
-
----
-
-## Skill Loadout
-
-| Tool | Purpose |
-|------|---------|
-| `/gsd:plan-phase` | Plan each task as a GSD phase |
-| `/gsd:execute-phase` | Execute with atomic commits and state tracking |
-| `/gsd:quick` | One-off fixes during QA |

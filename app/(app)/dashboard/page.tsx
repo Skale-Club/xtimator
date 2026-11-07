@@ -6,7 +6,8 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-client'
 import { ProjectList } from '@/components/dashboard/project-list'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ListCard } from '@/components/ui/list-page'
+import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
 import { T } from '@/components/i18n/t'
 
 export default async function DashboardPage() {
@@ -53,7 +54,7 @@ export default async function DashboardPage() {
       </Suspense>
 
       <section className="px-6 mt-12">
-        <Suspense fallback={<ProjectListSkeleton />}>
+        <Suspense fallback={<RecentProjectsSkeleton />}>
           <DashboardProjects companyId={company.id} />
         </Suspense>
       </section>
@@ -70,19 +71,6 @@ async function DashboardStats({ companyId, currencyCode }: { companyId: string; 
 async function DashboardProjects({ companyId }: { companyId: string }) {
   const supabase = await createClient()
   const projects = await getProjects(supabase, companyId)
-  return <ProjectList projects={projects} />
-}
-
-function StatCardsSkeleton() {
-  return (
-    <div className="px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-[120px] rounded-lg" />
-      ))}
-    </div>
-  )
-}
-
-function ProjectListSkeleton() {
-  return <Skeleton className="h-64 w-full rounded-lg" />
+  // Same glass card as the Projects, Clients and Price Book screens.
+  return <ListCard><ProjectList projects={projects} /></ListCard>
 }

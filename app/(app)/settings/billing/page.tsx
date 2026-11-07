@@ -31,8 +31,9 @@ import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
 import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
-export const metadata = { title: 'Billing & Plans' }
+export const metadata = { title: 'Plan and billing | Settings' }
 
 const TIER_DISPLAY: Record<string, string> = {
   free: 'Free',
@@ -207,22 +208,16 @@ export default async function BillingPage() {
   const hasStripeCustomer = !!data.stripeCustomerId
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <Suspense fallback={null}>
         <BillingStatusToast />
       </Suspense>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Plans</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>You&rsquo;re on the</T>{' '}
-          <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '}
-          <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} />
-        </p>
-      </header>
+      <SettingsHeader
+        title={<T>Plan and billing</T>}
+        description={<><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} /></>}
+      />
 
-      <div className="w-full space-y-8">
+      <div className="w-full space-y-6">
         {isPastDue && (
           <div
             data-testid="past-due-banner"
@@ -276,7 +271,7 @@ export default async function BillingPage() {
               <div className="flex items-start gap-3">
                 <TrendingUp className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
                 <div>
-                  <CardTitle><T>Usage This Month</T></CardTitle>
+                  <CardTitle><T>Usage this month</T></CardTitle>
                   <CardDescription>
                     <T>Counts reset at the start of each UTC calendar month.</T>
                   </CardDescription>
@@ -313,7 +308,9 @@ export default async function BillingPage() {
 
         {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
             (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* items-start: the history list can be long; the balance card keeps
+            its own height instead of stretching into an empty box. */}
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <CreditBalanceCard
             percentUsed={percentUsed}
             tier={data.tier}
@@ -328,7 +325,7 @@ export default async function BillingPage() {
             sees one line asking them to subscribe first. */}
         {topupEligible ? (
           <div id="topup-packs" className="space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight"><T>Add credits</T></h2>
+            <h2 className="text-lg font-semibold"><T>Add credits</T></h2>
             <p className="text-sm text-muted-foreground">
               <T text={`Purchased credits expire ${cfg.topupExpiryMonths} months after purchase.`} />
             </p>
@@ -369,7 +366,7 @@ export default async function BillingPage() {
 
         {/* Plan card: Pro only, monthly / annual toggle (SEED-055). */}
         <div id="choose-plan" className="space-y-4">
-          <h2 className="text-2xl font-semibold tracking-tight"><T>Xtimator Pro</T></h2>
+          <h2 className="text-lg font-semibold"><T>Xtimator Pro</T></h2>
           <TierCardsGrid
             currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
             currentInterval={data.stripeSubscriptionInterval ?? undefined}

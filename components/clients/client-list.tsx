@@ -27,12 +27,11 @@ import {
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { deleteClientAction } from '@/lib/actions/client'
-import { createClient } from '@/lib/supabase/client'
 import type { ClientWithCount, ClientDetail } from '@/lib/queries/clients'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientListProps {
-  clients: ClientWithCount[]
+  clients: ClientDetail[]
   companyId: string
 }
 
@@ -54,17 +53,9 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     setSheetOpen(true)
   }
 
-  async function handleEditClient(clientId: string) {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .single()
-    if (data) {
-      setEditingClient({ ...data, project_count: 0 })
-      setSheetOpen(true)
-    }
+  function handleEditClient(client: ClientDetail) {
+    setEditingClient(client)
+    setSheetOpen(true)
   }
 
   function handleDeletePrompt(client: ClientWithCount) {
@@ -91,11 +82,10 @@ export function ClientList({ clients, companyId }: ClientListProps) {
     setSheetOpen(open)
     if (!open) {
       setEditingClient(null)
-      router.refresh()
     }
   }
 
-  const columns: Column<ClientWithCount>[] = [
+  const columns: Column<ClientDetail>[] = [
     {
       key: 'name',
       header: t('Name'),
@@ -146,7 +136,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
       cell: (client) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`${t('Actions')}: ${client.name}`}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -154,11 +144,11 @@ export function ClientList({ clients, companyId }: ClientListProps) {
             <DropdownMenuItem asChild>
               <Link href={`/clients/${client.id}`}>{t('View')}</Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleEditClient(client.id)}>
+            <DropdownMenuItem onClick={() => handleEditClient(client)}>
               {t('Edit')}
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-red-400 focus:text-red-400"
+              variant="destructive"
               onClick={() => handleDeletePrompt(client)}
             >
               {t('Delete')}
@@ -171,7 +161,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
 
   return (
     <>
-      <DataTable<ClientWithCount>
+      <DataTable<ClientDetail>
         data={clients}
         columns={columns}
         getRowKey={(c) => c.id}
@@ -197,8 +187,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
         emptyAction={handleAddClient}
         noResultsTitle={t('No clients match your search')}
         headerRight={
-          <Button variant="primary" onClick={handleAddClient}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button variant="primary" size="sm" className="h-9 rounded-lg" onClick={handleAddClient}>
+            <Plus className="h-4 w-4" />
             {t('Add Client')}
           </Button>
         }
@@ -219,7 +209,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
             <div className="shrink-0 relative z-10">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`${t('Actions')}: ${client.name}`}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -227,8 +217,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
                   <DropdownMenuItem asChild>
                     <Link href={`/clients/${client.id}`}>{t('View')}</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleEditClient(client.id)}>{t('Edit')}</DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-400 focus:text-red-400" onClick={() => handleDeletePrompt(client)}>
+                  <DropdownMenuItem onClick={() => handleEditClient(client)}>{t('Edit')}</DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => handleDeletePrompt(client)}>
                     {t('Delete')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>

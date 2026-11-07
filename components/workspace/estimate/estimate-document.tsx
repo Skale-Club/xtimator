@@ -61,7 +61,7 @@ import {
 } from '@/lib/estimate/presentation-settings'
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
 import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
-import { LETTER_HEIGHT_PX, cardTintFill } from '@/lib/estimate/document/tokens'
+import { LETTER_HEIGHT_PX, PAPER_SWITCH_CLASS, cardTintFill } from '@/lib/estimate/document/tokens'
 import type {
   DocumentCompany,
   CompanyDefaults,
@@ -198,6 +198,18 @@ interface EstimateDocumentProps {
 // Common class string for inline editable fields (looks like plain text, activates on focus/hover)
 const INLINE_INPUT_CLS =
   'w-full bg-transparent text-base p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
+// Edit-table cells (width view). Every editable cell is the same 32px field:
+// invisible at rest, a hairline border while the row is hovered (so it reads
+// as editable without boxing the whole table), primary border while focused.
+// Insets are fixed so values line up under their headers:
+//   cell px-1 (4px) + field border (1px) + field px-2 (8px) = 13px → EDIT_TH_PX.
+//   Description: cell pl-0 + border 1px + px-[3px] = 4px → text at the 40px rail.
+const EDIT_FIELD_CLS =
+  'h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-base tabular-nums outline-none transition-colors group-hover:border-border hover:border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/15 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15'
+const EDIT_DESC_FIELD_CLS =
+  'h-8 w-full rounded-md border border-transparent bg-transparent px-[3px] text-base outline-none transition-colors group-hover:border-border hover:border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/15'
+const EDIT_CELL = 'py-1.5 px-1 align-middle'
+const EDIT_TH_PX = 'px-[13px]'
 const INLINE_TEXTAREA_CLS =
   'w-[calc(100%+0.5rem)] -mx-1 bg-transparent text-base text-muted-foreground whitespace-pre-line resize-none leading-relaxed p-1 focus:outline-none focus:bg-muted/30 focus:rounded-sm hover:bg-muted/20 hover:rounded-sm transition-colors'
 
@@ -329,8 +341,10 @@ function SortableDocumentItemRow({
       data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/40"
     >
-      {/* drag handle + row-actions kebab */}
-      <td className="py-1 px-1 w-12 align-middle">
+      {/* drag handle + row-actions kebab — the shared edit gutter: handle at
+          4px, ⋮ at 20px, text from 40px (= the document's sm:px-10 margin).
+          The section header and "Add item" use the same columns. */}
+      <td className="py-1.5 pl-1 pr-0 w-9 align-middle">
         <div className="flex items-center gap-0.5">
           <span
             className="cursor-grab inline-flex items-center text-muted-foreground/30 group-hover:text-muted-foreground/60"
@@ -382,8 +396,8 @@ function SortableDocumentItemRow({
           </DropdownMenu>
         </div>
       </td>
-      {/* description */}
-      <td className={showConfidenceDot ? 'py-1 px-1 align-middle relative' : 'py-1 px-1 align-middle'}>
+      {/* description — pl-0 + the input's own p-1 puts the text at 40px */}
+      <td className={showConfidenceDot ? 'py-1.5 pl-0 pr-1 align-middle relative' : 'py-1.5 pl-0 pr-1 align-middle'}>
         <PriceBookCombobox
           value={item.description}
           onChange={(next) =>
@@ -406,13 +420,13 @@ function SortableDocumentItemRow({
           items={priceBookItems}
           currencyCode={currencyCode}
           placeholder="Item description"
-          className={INLINE_INPUT_CLS}
+          className={EDIT_DESC_FIELD_CLS}
           noMatchesLabel={L.noMatches}
         />
         {showConfidenceDot && <ConfidenceDot confidence={item.confidence} basis={item.basis} />}
       </td>
       {/* qty */}
-      <td className="py-1 px-1 w-16 align-middle">
+      <td className={`${EDIT_CELL} w-16`}>
         <input
           type="number"
           step="any"
@@ -427,11 +441,11 @@ function SortableDocumentItemRow({
               value: parseFloat(e.target.value) || 0,
             })
           }
-          className={`${INLINE_INPUT_CLS} text-center tabular-nums`}
+          className={`${EDIT_FIELD_CLS} text-center`}
         />
       </td>
       {/* unit */}
-      <td className="py-1 px-1 w-24 align-middle">
+      <td className={`${EDIT_CELL} w-24`}>
         <Select
           value={item.unit ?? ''}
           onValueChange={(value) =>
@@ -444,7 +458,8 @@ function SortableDocumentItemRow({
             })
           }
         >
-          <SelectTrigger className="h-8 bg-transparent border-0 shadow-none text-base px-1 hover:bg-muted/20 focus:ring-1 focus:ring-primary/30">
+          {/* Centred under its centred header; the chevron stays quiet. */}
+          <SelectTrigger className={`${EDIT_FIELD_CLS} data-[size=default]:h-8 justify-center gap-1 shadow-none [&_svg]:opacity-40`}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -455,8 +470,9 @@ function SortableDocumentItemRow({
         </Select>
       </td>
       {/* unit price */}
-      <td className="py-1 px-1 w-28 align-middle">
+      <td className={`${EDIT_CELL} w-28`}>
         <MoneyInput
+          symbolPlacement="beside"
           value={item.unit_price}
           currencyCode={currencyCode}
           onValueChange={(value) =>
@@ -468,14 +484,15 @@ function SortableDocumentItemRow({
               value,
             })
           }
-          className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums pl-6 pr-1 py-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+          className={EDIT_FIELD_CLS}
         />
       </td>
       {/* line discount + taxable — Disc. is hidden until the row has (or is
           drafting) a discount (see DocumentSectionBlock's showDiscountCol). */}
       {showDiscountCol && (
-        <td className="py-1 px-1 w-20 align-middle">
+        <td className={`${EDIT_CELL} w-24`}>
           <MoneyInput
+            symbolPlacement="beside"
             value={item.discount ?? 0}
             currencyCode={currencyCode}
             onValueChange={(value) =>
@@ -487,11 +504,13 @@ function SortableDocumentItemRow({
                 value,
               })
             }
-            className="h-8 bg-transparent border-0 shadow-none text-right text-base tabular-nums pl-6 pr-1 py-1 focus:ring-1 focus:ring-primary/30 hover:bg-muted/20 hover:rounded-sm"
+            className={EDIT_FIELD_CLS}
           />
         </td>
       )}
-      <td className="py-1 px-1 w-12 text-center align-middle">
+      <td className={`${EDIT_CELL} w-14`}>
+        {/* A 32px box like the fields, so the switch sits on the row's centre line. */}
+        <div className="flex h-8 items-center justify-center">
         <Switch
           checked={item.taxable ?? true}
           onCheckedChange={(checked) =>
@@ -504,10 +523,12 @@ function SortableDocumentItemRow({
             })
           }
           aria-label={L.taxable}
+          className={PAPER_SWITCH_CLASS}
         />
+        </div>
       </td>
       {/* total */}
-      <td className="py-1 pl-0 pr-6 sm:pr-10 w-36 text-right text-base tabular-nums font-medium align-middle whitespace-nowrap">
+      <td className="py-1.5 pl-1 pr-6 sm:pr-10 w-36 text-right text-base tabular-nums font-medium align-middle whitespace-nowrap">
         {formatMoney(item.total, currencyCode)}
       </td>
     </tr>
@@ -657,15 +678,17 @@ function DocumentSectionBlock({
       {/* Section header bar */}
       <div
         data-page-block-id={`${section.id}-header`}
-        className={`flex items-center gap-2 ${SECTION_PX} py-2 group/header`}
+        // Edit mode on sm+: the same gutter as the item rows (handle 4px,
+        // ⋮ 20px, title text 40px). Phones keep handle · title · ⋮ in a row.
+        className={`flex items-center py-2 group/header ${isEditable ? 'pl-6 pr-6 sm:pl-1 sm:pr-10' : SECTION_PX}`}
         style={{ backgroundColor: brandColor }}
       >
         {isEditable && (
           <span
-            className="cursor-grab text-white/40 group-hover/header:text-white/70 flex-shrink-0 transition-colors"
+            className="order-1 cursor-grab text-white/40 group-hover/header:text-white/70 flex-shrink-0 transition-colors"
             {...dragHandleProps}
           >
-            <GripVertical className="h-4 w-4" />
+            <GripVertical className="h-3.5 w-3.5" />
           </span>
         )}
 
@@ -680,7 +703,7 @@ function DocumentSectionBlock({
               })
             }
             style={{ color: brandOnFill }}
-            className="flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            className="order-3 ml-2 sm:ml-0.5 flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
           />
         ) : (
           <span className="flex-1 font-semibold text-base tracking-wide select-none" style={{ color: brandOnFill }}>{section.title}</span>
@@ -693,9 +716,9 @@ function DocumentSectionBlock({
                 type="button"
                 aria-label={L.sectionActions}
                 style={{ color: brandOnFill }}
-                className="flex-shrink-0 p-1 transition-opacity opacity-60 hover:opacity-100"
+                className="order-4 ml-2 p-1 sm:order-2 sm:ml-0.5 sm:p-0 flex-shrink-0 transition-opacity opacity-60 hover:opacity-100"
               >
-                <MoreVertical className="h-4 w-4" />
+                <MoreVertical className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -781,17 +804,19 @@ function DocumentSectionBlock({
             >
               <table className="w-full">
                 <thead>
-                  <tr className="bg-muted/50 text-sm text-muted-foreground border-b border-border/50 select-none">
-                    <th className="py-1.5 px-1 w-12" />
-                    <th className="py-1.5 px-2 text-left font-medium">{L.description}</th>
-                    <th className="py-1.5 px-2 w-16 text-center font-medium">{L.qty}</th>
-                    <th className="py-1.5 px-2 w-16 text-center font-medium">{L.unit}</th>
-                    <th className="py-1.5 px-2 w-28 text-right font-medium">{L.unitPrice}</th>
+                  {/* Same size as the read-only header (text-xs); each label sits
+                      exactly over its column's values (see EDIT_TH_PX). */}
+                  <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50 select-none">
+                    <th className="py-2 p-0 w-9" />
+                    <th className="py-2 pl-1 pr-2 text-left font-medium">{L.description}</th>
+                    <th className="py-2 px-1 w-16 text-center font-medium">{L.qty}</th>
+                    <th className="py-2 px-1 w-24 text-center font-medium">{L.unit}</th>
+                    <th className={`py-2 ${EDIT_TH_PX} w-28 text-right font-medium`}>{L.unitPrice}</th>
                     {/* Disc. stays hidden until a row has (or drafts) a
                         discount — see showDiscountCol above. */}
-                    {showDiscountCol && <th className="py-1.5 px-2 w-20 text-right font-medium">{L.lineDiscount}</th>}
-                    <th className="py-1.5 px-2 w-12 text-center font-medium">{L.taxable}</th>
-                    <th className="py-1.5 pl-0 pr-6 sm:pr-10 w-36 text-right font-medium">{L.total}</th>
+                    {showDiscountCol && <th className={`py-2 ${EDIT_TH_PX} w-24 text-right font-medium`}>{L.lineDiscount}</th>}
+                    <th className="py-2 px-1 w-14 text-center font-medium">{L.taxable}</th>
+                    <th className="py-2 pl-1 pr-6 sm:pr-10 w-36 text-right font-medium">{L.total}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -850,10 +875,12 @@ function DocumentSectionBlock({
 
       {/* Add item — edit mode only, placed right after the last item. */}
       {isEditable && dispatch && (
-        <div className={`${SECTION_PX} py-1.5 border-t border-dashed border-border/50`}>
+        // sm+: the "+" (12px) sits in the ⋮ column (21px) and the label starts
+        // at 40px with the item text.
+        <div className="pl-6 pr-6 sm:pl-[21px] sm:pr-10 py-1.5 border-t border-dashed border-border/50">
           <button
             onClick={() => dispatch({ type: 'ADD_ITEM', sectionId: section.id })}
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors select-none"
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 sm:gap-[7px] transition-colors select-none"
           >
             <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             {L.addItem}
@@ -932,6 +959,41 @@ function SortableDocumentSection({
 // DocumentTotals
 // ---------------------------------------------------------------------------
 
+// Edit-mode totals rows share three columns so every row lines up:
+//   [label (flex-1) ... controls]  [amount, fixed width, right-aligned]
+// Below sm the controls group takes its own line and the amount wraps under it.
+const TOTALS_ROW = 'flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base'
+const TOTALS_CONTROLS = 'flex items-center gap-2 w-full sm:w-auto sm:flex-1 min-w-0'
+const TOTALS_SELECT = 'h-8 data-[size=default]:h-8 w-[104px] shrink-0 rounded-md border-zinc-200 bg-white text-sm shadow-none focus:ring-2 focus:ring-primary/15'
+const TOTALS_FIELD = 'h-8 w-20 shrink-0 rounded-md border border-zinc-200 bg-white px-2 text-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15'
+
+/** The amount column of a totals row. Always rendered (empty when there is no
+ *  amount) so the controls of every row end on the same line. */
+function TotalsAmount({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`shrink-0 ml-auto w-24 text-right tabular-nums font-medium ${children == null ? 'hidden sm:block' : ''} ${className ?? ''}`}>
+      {children}
+    </span>
+  )
+}
+
+/** A percentage field the same size as the other totals controls. */
+function PercentField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <label className={`${TOTALS_FIELD} flex shrink-0 cursor-text items-center justify-end gap-0.5`}>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="min-w-0 w-full bg-transparent p-0 text-right tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <span className="text-muted-foreground">%</span>
+    </label>
+  )
+}
+
 function DocumentTotals({
   data,
   dispatch,
@@ -967,7 +1029,8 @@ function DocumentTotals({
 
   return (
     <div data-page-block-id="totals" data-track-section="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
-      <div className="w-full max-w-xs space-y-2">
+      {/* Edit mode is wider: label | controls | amount columns need the room. */}
+      <div className={`w-full ${isEditable && dispatch ? 'max-w-sm' : 'max-w-xs'} space-y-2`}>
         {/* Subtotal */}
         <div className="flex justify-between text-base">
           <span className="text-muted-foreground select-none">{L.subtotal}</span>
@@ -976,74 +1039,63 @@ function DocumentTotals({
 
         {/* Discount */}
         {isEditable && dispatch ? (
-          <div
-            data-testid="totals-discount-row"
-            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base"
-          >
-            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
-              <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.discount}</span>
-              <Select
-                value={discountTypeVal}
-                onValueChange={(val) => {
-                  const type = val === 'none' ? null : val
-                  dispatch({
-                    type: 'UPDATE_DISCOUNT',
-                    discount_type: type,
-                    discount_value: type ? data.discount_value : 0,
-                  })
-                }}
-              >
-                <SelectTrigger className="h-7 text-xs w-[90px] shrink-0 border-zinc-300 focus:ring-zinc-300">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{L.discountNone}</SelectItem>
-                  <SelectItem value="percentage">{L.discountPct}</SelectItem>
-                  <SelectItem value="fixed">{L.discountFixed}</SelectItem>
-                </SelectContent>
-              </Select>
-              {data.discount_type && (
-                data.discount_type === 'fixed' ? (
-                  <MoneyInput
-                    value={data.discount_value}
-                    currencyCode={data.currency_code}
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: 'UPDATE_DISCOUNT',
-                        discount_type: data.discount_type,
-                        discount_value: value,
-                      })
-                    }
-                    className="h-7 w-20 text-xs"
-                  />
-                ) : (
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+          <div data-testid="totals-discount-row" className={TOTALS_ROW}>
+            <div className={TOTALS_CONTROLS}>
+              <span className="flex-1 text-muted-foreground whitespace-nowrap select-none">{L.discount}</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Select
+                  value={discountTypeVal}
+                  onValueChange={(val) => {
+                    const type = val === 'none' ? null : val
+                    dispatch({
+                      type: 'UPDATE_DISCOUNT',
+                      discount_type: type,
+                      discount_value: type ? data.discount_value : 0,
+                    })
+                  }}
+                >
+                  <SelectTrigger className={TOTALS_SELECT}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{L.discountNone}</SelectItem>
+                    <SelectItem value="percentage">{L.discountPct}</SelectItem>
+                    <SelectItem value="fixed">{L.discountFixed}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {data.discount_type && (
+                  data.discount_type === 'fixed' ? (
+                    <MoneyInput
+                      symbolPlacement="beside"
                       value={data.discount_value}
-                      onChange={(e) =>
+                      currencyCode={data.currency_code}
+                      onValueChange={(value) =>
                         dispatch({
                           type: 'UPDATE_DISCOUNT',
                           discount_type: data.discount_type,
-                          discount_value: parseFloat(e.target.value) || 0,
+                          discount_value: value,
                         })
                       }
-                      className="h-7 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      className={TOTALS_FIELD}
                     />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                      %
-                    </span>
-                  </div>
-                )
-              )}
+                  ) : (
+                    <PercentField
+                      value={data.discount_value}
+                      onChange={(v) =>
+                        dispatch({
+                          type: 'UPDATE_DISCOUNT',
+                          discount_type: data.discount_type,
+                          discount_value: v,
+                        })
+                      }
+                    />
+                  )
+                )}
+              </div>
             </div>
-            {data.discount_amount > 0 && (
-              <span className="tabular-nums text-destructive font-medium shrink-0 ml-auto">
-                -{fmt(data.discount_amount)}
-              </span>
-            )}
+            <TotalsAmount className="text-destructive">
+              {data.discount_amount > 0 ? `-${fmt(data.discount_amount)}` : null}
+            </TotalsAmount>
           </div>
         ) : data.discount_amount > 0 ? (
           <div className="flex justify-between text-base">
@@ -1057,42 +1109,28 @@ function DocumentTotals({
           </div>
         ) : null}
 
-        {/* Tax */}
+        {/* Tax — the Default/Customized marker sits beside the label, on the row. */}
         {isEditable && dispatch ? (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between gap-2 text-base">
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground shrink-0 select-none">{L.tax}</span>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={taxPercent}
-                    onChange={(e) => {
-                      const pct = parseFloat(e.target.value) || 0
-                      dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })
-                    }}
-                    className="h-7 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
+          <div data-testid="totals-tax-row" className={TOTALS_ROW}>
+            <div className={TOTALS_CONTROLS}>
+              <span className="flex flex-1 items-center gap-2 min-w-0 select-none">
+                <span className="text-muted-foreground shrink-0">{L.tax}</span>
+                {hasTaxDefault && (
+                  <DefaultStateIndicator
+                    isOverridden={isTaxOverridden}
+                    onReset={() =>
+                      dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })
+                    }
+                    L={L}
                   />
-                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                    %
-                  </span>
-                </div>
-              </div>
-              <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
+                )}
+              </span>
+              <PercentField
+                value={taxPercent}
+                onChange={(pct) => dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })}
+              />
             </div>
-            {hasTaxDefault && (
-              <div className="flex justify-start">
-                <DefaultStateIndicator
-                  isOverridden={isTaxOverridden}
-                  onReset={() =>
-                    dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })
-                  }
-                  L={L}
-                />
-              </div>
-            )}
+            <TotalsAmount>{fmt(data.tax_amount)}</TotalsAmount>
           </div>
         ) : data.tax_amount > 0 ? (
           <div className="flex justify-between text-base">
@@ -1116,74 +1154,62 @@ function DocumentTotals({
 
         {/* Deposit — none/percent/amount. Preview only; server recomputes on save (GUARD-03). */}
         {isEditable && dispatch ? (
-          <div
-            data-testid="totals-deposit-row"
-            className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base pt-2"
-          >
-            <div className="flex items-center gap-1.5 w-full sm:w-auto sm:flex-1 min-w-0">
-              <span className="text-muted-foreground whitespace-nowrap shrink-0 select-none">{L.deposit}</span>
-              <Select
-                value={depositTypeVal}
-                onValueChange={(val) =>
-                  dispatch({
-                    type: 'UPDATE_DEPOSIT',
-                    deposit_type: val,
-                    deposit_value: val === 'none' ? null : (data.deposit_value ?? 0),
-                  })
-                }
-              >
-                <SelectTrigger className="h-9 text-xs w-[90px] shrink-0 border-zinc-300 focus:ring-zinc-300">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{L.depositNone}</SelectItem>
-                  <SelectItem value="percent">{L.depositPct}</SelectItem>
-                  <SelectItem value="amount">{L.depositAmount}</SelectItem>
-                </SelectContent>
-              </Select>
-              {depositTypeVal !== 'none' && (
-                depositTypeVal === 'amount' ? (
-                  <MoneyInput
-                    value={data.deposit_value ?? 0}
-                    currencyCode={data.currency_code}
-                    onValueChange={(value) =>
-                      dispatch({
-                        type: 'UPDATE_DEPOSIT',
-                        deposit_type: 'amount',
-                        deposit_value: value,
-                      })
-                    }
-                    className="h-9 w-20 text-xs"
-                  />
-                ) : (
-                  <div className="relative">
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      step="0.01"
-                      min="0"
+          <div data-testid="totals-deposit-row" className={`${TOTALS_ROW} pt-2`}>
+            <div className={TOTALS_CONTROLS}>
+              <span className="flex-1 text-muted-foreground whitespace-nowrap select-none">{L.deposit}</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Select
+                  value={depositTypeVal}
+                  onValueChange={(val) =>
+                    dispatch({
+                      type: 'UPDATE_DEPOSIT',
+                      deposit_type: val,
+                      deposit_value: val === 'none' ? null : (data.deposit_value ?? 0),
+                    })
+                  }
+                >
+                  <SelectTrigger className={TOTALS_SELECT}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{L.depositNone}</SelectItem>
+                    <SelectItem value="percent">{L.depositPct}</SelectItem>
+                    <SelectItem value="amount">{L.depositAmount}</SelectItem>
+                  </SelectContent>
+                </Select>
+                {depositTypeVal !== 'none' && (
+                  depositTypeVal === 'amount' ? (
+                    <MoneyInput
+                      symbolPlacement="beside"
                       value={data.deposit_value ?? 0}
-                      onChange={(e) =>
+                      currencyCode={data.currency_code}
+                      onValueChange={(value) =>
+                        dispatch({
+                          type: 'UPDATE_DEPOSIT',
+                          deposit_type: 'amount',
+                          deposit_value: value,
+                        })
+                      }
+                      className={TOTALS_FIELD}
+                    />
+                  ) : (
+                    <PercentField
+                      value={data.deposit_value ?? 0}
+                      onChange={(v) =>
                         dispatch({
                           type: 'UPDATE_DEPOSIT',
                           deposit_type: 'percent',
-                          deposit_value: parseFloat(e.target.value) || 0,
+                          deposit_value: v,
                         })
                       }
-                      className="h-9 w-16 text-right text-xs bg-muted/30 rounded px-1 pr-4 focus:outline-none focus:ring-1 focus:ring-primary/30"
                     />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                      %
-                    </span>
-                  </div>
-                )
-              )}
+                  )
+                )}
+              </div>
             </div>
-            {data.deposit > 0 && (
-              <span className="tabular-nums text-muted-foreground font-medium shrink-0 ml-auto">
-                -{fmt(data.deposit)}
-              </span>
-            )}
+            <TotalsAmount className="text-muted-foreground">
+              {data.deposit > 0 ? `-${fmt(data.deposit)}` : null}
+            </TotalsAmount>
           </div>
         ) : dep.showDeposit ? (
           /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
@@ -1628,7 +1654,9 @@ export function EstimateDocument({
 
   return (
     <div
-      className="rounded-3xl border-4 shadow-lg overflow-hidden"
+      // Subtle 8px corner and no outline: the old 24px radius with a 4px grey
+      // border read as a heavy frame around the page.
+      className="rounded-[8px] shadow-lg overflow-hidden"
       style={{
         backgroundColor: '#ffffff',
         colorScheme: 'light',
@@ -1646,7 +1674,6 @@ export function EstimateDocument({
         '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
         '--glass-border': 'rgba(15, 23, 42, 0.08)',
         color: 'hsl(240 10% 3.9%)',
-        borderColor: '#3f3f46',
       } as React.CSSProperties}
     >
       {/* Company header — only when company provided (share/view mode + editor) */}
@@ -1704,7 +1731,7 @@ export function EstimateDocument({
         style={{ backgroundColor: brandColor }}
       >
         <h1
-          className="text-2xl sm:text-4xl font-bold tracking-widest select-none"
+          className="text-2xl sm:text-4xl font-extrabold tracking-widest select-none"
           style={{ color: brandOnFill }}
         >
           {L.estimate}

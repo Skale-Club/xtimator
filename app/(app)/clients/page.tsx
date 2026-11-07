@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getClients } from '@/lib/queries/clients'
+import { getClientsForEditing } from '@/lib/queries/clients'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { ClientList } from '@/components/clients/client-list'
+import { ListPage } from '@/components/ui/list-page'
 
 export default async function ClientsPage() {
   const claims = await getAuthClaims()
@@ -15,11 +16,11 @@ export default async function ClientsPage() {
   if (!company) redirect('/onboarding')
 
   const supabase = await createClient()
-  const clients = await getClients(supabase, company.id)
+  const clients = await getClientsForEditing(supabase, company.id)
 
   return (
-    <div className="p-6">
+    <ListPage>
       <ClientList clients={clients} companyId={company.id} />
-    </div>
+    </ListPage>
   )
 }

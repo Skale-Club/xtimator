@@ -1,7 +1,4 @@
 export default function SettingsTabsLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="p-6">
-      {children}
-    </div>
-  )
+  // Padding and width come from SettingsLayoutClient; nothing to add here.
+  return <>{children}</>
 }

@@ -7,6 +7,8 @@ const mockRefresh = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: mockRefresh, push: vi.fn() }),
   usePathname: () => '/price-book',
+  // The search is kept in the URL.
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock('next/link', () => ({

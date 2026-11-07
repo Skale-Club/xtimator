@@ -1,29 +1,28 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SETTINGS_CARD_CLASS } from '@/components/settings/settings-ui'
 
 interface SettingsPageSkeletonProps {
   title?: string
   description?: string
   children?: ReactNode
+  /** Kept for old call sites. The settings layout owns the page padding now,
+   *  so the skeleton never adds any. */
   noPadding?: boolean
 }
 
-/**
- * Reusable skeleton for all settings pages.
- * Use `noPadding` for pages inside the `(tabs)` route group — their layout
- * already provides `p-6`, so adding it here would double the padding.
- */
-export function SettingsPageSkeleton({
-  title,
-  description,
-  children,
-  noPadding,
-}: SettingsPageSkeletonProps) {
+/** Loading state for every settings page: the same header and cards as the
+ *  real pages (components/settings/settings-ui.tsx). */
+export function SettingsPageSkeleton({ title, description, children }: SettingsPageSkeletonProps) {
   return (
-    <div className={noPadding ? 'space-y-6' : 'space-y-6 p-6'}>
+    <div className="space-y-6">
       <SettingsHeader title={title} description={description} />
-      {children}
+      {children ?? (
+        <SettingsCard title>
+          <SkeletonFields count={4} />
+        </SettingsCard>
+      )}
     </div>
   )
 }
@@ -35,38 +34,70 @@ interface SettingsHeaderProps {
 
 export function SettingsHeader({ title, description }: SettingsHeaderProps) {
   return (
-    <header className="flex flex-col gap-1">
+    <header className="space-y-1">
       {title ? (
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       ) : (
-        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-8 w-40" />
       )}
       {description ? (
         <p className="text-sm text-muted-foreground">{description}</p>
       ) : (
-        <Skeleton className="h-4 w-72" />
+        <Skeleton className="h-4 w-72 max-w-full" />
       )}
     </header>
   )
 }
 
 interface SettingsCardProps {
-  children: ReactNode
+  children?: ReactNode
   className?: string
+  /** Draw the card's title bar. */
+  title?: boolean
 }
 
-/**
- * Skeleton card that visually matches `<Card className="w-full rounded-[var(--radius-md)]">`.
- */
-export function SettingsCard({ children, className }: SettingsCardProps) {
+/** Skeleton of components/settings/settings-ui.tsx's SettingsCard. */
+export function SettingsCard({ children, className, title }: SettingsCardProps) {
   return (
-    <div
-      className={cn(
-        'w-full rounded-[var(--radius-md)] border bg-card p-6 text-card-foreground shadow-sm',
-        className,
+    <div className={cn(SETTINGS_CARD_CLASS, className)}>
+      {title && (
+        <div className="space-y-2 border-b border-[var(--glass-border)] px-5 py-4 sm:px-6">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-4 w-64 max-w-full" />
+        </div>
       )}
-    >
-      {children}
+      {children && <div className="px-5 py-5 sm:px-6">{children}</div>}
+    </div>
+  )
+}
+
+/** Label + input pairs in a two-column grid. */
+export function SkeletonFields({ count = 2, tall }: { count?: number; tall?: boolean }) {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className={cn('w-full rounded-md', tall ? 'h-28' : 'h-10')} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Switch rows (label + help text, switch on the right). */
+export function SkeletonRows({ count = 3 }: { count?: number }) {
+  return (
+    <div className="divide-y divide-[var(--glass-border)]">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+          <div className="space-y-1.5">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-3 w-56 max-w-full" />
+          </div>
+          <Skeleton className="h-6 w-10 rounded-full" />
+        </div>
+      ))}
     </div>
   )
 }
@@ -76,17 +107,11 @@ interface SettingsSectionProps {
   description?: string
 }
 
-/**
- * Left-hand section explainer used inside two-column settings cards.
- */
+/** Section heading inside a skeleton card. */
 export function SettingsSection({ title, description }: SettingsSectionProps) {
   return (
     <div>
-      {title ? (
-        <h3 className="text-sm font-medium">{title}</h3>
-      ) : (
-        <Skeleton className="h-5 w-32" />
-      )}
+      {title ? <h3 className="text-sm font-medium">{title}</h3> : <Skeleton className="h-5 w-32" />}
       {description ? (
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       ) : (

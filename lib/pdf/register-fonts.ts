@@ -14,6 +14,8 @@ const FONTS_DIR = path.join(process.cwd(), 'public', 'fonts')
 
 Font.register({ family: 'Inter', src: path.join(FONTS_DIR, 'inter', 'Inter-Regular.ttf') })
 Font.register({ family: 'Inter-Bold', src: path.join(FONTS_DIR, 'inter', 'Inter-Bold.ttf') })
+// The Classic ESTIMATE title only (ESTIMATE_DESIGN_TOKENS.classic.fontFamilyTitle).
+Font.register({ family: 'Inter-ExtraBold', src: path.join(FONTS_DIR, 'inter', 'Inter-ExtraBold.ttf') })
 Font.register({ family: 'Lora', src: path.join(FONTS_DIR, 'lora', 'Lora-Regular.ttf') })
 Font.register({ family: 'Lora-Bold', src: path.join(FONTS_DIR, 'lora', 'Lora-Bold.ttf') })
 

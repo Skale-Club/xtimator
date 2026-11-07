@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { History, Info } from 'lucide-react'
@@ -258,6 +258,8 @@ export function EstimateEditor({
   // so the panel renders as a sibling of EstimateFloatingActions and can read
   // state.presentation_settings + hasEstimateBeenSentOrViewed at the boundary.
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // The floating bar's gear: the desktop settings popover opens anchored to it.
+  const settingsGearRef = useRef<HTMLButtonElement>(null)
   // Phase 164 Plan 02 (TRUST-02) — stale-tab latch (Opus warning #3 / audit
   // B6): the CLIENT's own sent_at/client_response/hasSignature can be stale
   // (another tab/session locked this estimate after THIS tab last loaded it).
@@ -773,6 +775,31 @@ export function EstimateEditor({
   // Render
   // -------------------------------------------------------------------------
 
+
+  // One definition, two placements: under the width document, or inside the
+  // page view's sheet column (with the zoom control as `leading`).
+  // The gear toggles the settings panel, which opens anchored to it.
+  const floatingActions = (leading?: ReactNode) => (
+    <EstimateFloatingActions
+      isCurrent={isCurrent}
+      status={slotSaveStatus}
+      onSend={handleSend}
+      onOpenPhotos={onOpenPhotos}
+      onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen((open) => !open)}
+      settingsButtonRef={settingsGearRef}
+      leading={leading}
+      responseControl={
+        <ClientResponseControl
+          clientResponse={state.client_response}
+          respondedAt={state.responded_at}
+          signedOnline={state.hasSignature}
+          disabled={state.isDirty || saveStatus === 'saving'}
+          onRecord={handleRecordClientResponse}
+        />
+      }
+    />
+  )
+
   return (
     <div className="space-y-3">
       {/* The delivered-and-locked banner that used to render here was removed
@@ -867,6 +894,9 @@ export function EstimateEditor({
             onDetachPhoto={isContentReadOnly ? undefined : handleDetachPhoto}
             onOpenClientPanel={gearDisabled ? undefined : () => setSettingsOpen(true)}
             editLabels={editLabels}
+            // The action bar lives inside the sheet column here, so it centres
+            // on the page; "Add section" leads it. Zoom has its own corner box.
+            bottomBar={(leading) => floatingActions(leading)}
           />
         ) : (
           <EstimateDocument
@@ -936,22 +966,7 @@ export function EstimateEditor({
           "Edit with AI" is the one AI entry point for an existing estimate) and
           Link Client moved into the gear panel below. A wide pill overflowed the
           preview horizontally and made the whole document rock side to side. */}
-      <EstimateFloatingActions
-        isCurrent={isCurrent}
-        status={slotSaveStatus}
-        onSend={handleSend}
-        onOpenPhotos={onOpenPhotos}
-        onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen(true)}
-        responseControl={
-          <ClientResponseControl
-            clientResponse={state.client_response}
-            respondedAt={state.responded_at}
-            signedOnline={state.hasSignature}
-            disabled={state.isDirty || saveStatus === 'saving'}
-            onRecord={handleRecordClientResponse}
-          />
-        }
-      />
+      {viewMode !== 'page' && floatingActions()}
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
           Phase 164 Plan 02 (TRUST-02 carve-out): the gear panel's OWN gate is
@@ -971,6 +986,7 @@ export function EstimateEditor({
             viewed_at: estimate.viewed_at,
           })}
           clientSlot={linkClientSlot}
+          anchorRef={settingsGearRef}
           hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
           hasValidUntil={!!state.valid_until}
         />

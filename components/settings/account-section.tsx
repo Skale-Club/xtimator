@@ -9,11 +9,10 @@ import { toast } from 'sonner'
 
 import { changePassword, changeEmail } from '@/lib/actions/settings'
 
-import { Card, CardContent } from '@/components/ui/card'
+import { SettingsCard } from '@/components/settings/settings-ui'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { OwnedAccountSecurity } from '@/components/auth/owned-account-security'
@@ -91,84 +90,70 @@ function LegacyAccountSection() {
     })
   }
 
+  const field = (
+    name: keyof PasswordValues,
+    label: string,
+    autoComplete: string,
+  ) => (
+    <FormField
+      control={passwordForm.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input type="password" autoComplete={autoComplete} {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+
   return (
-    <Card className="w-full rounded-[var(--radius-md)]">
-      <CardContent className="space-y-8 py-6">
-        {/* Change Password */}
-        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <div>
-            <h3 className="text-sm font-medium">{t('Change Password')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('Use a strong password that is not shared with other services.')}
-            </p>
-          </div>
-          <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-              <FormField
-                control={passwordForm.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Current Password')}</FormLabel>
-                    <FormControl>
-                      <Input type="password" autoComplete="current-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={passwordForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('New Password')}</FormLabel>
-                    <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={passwordForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Confirm New Password')}</FormLabel>
-                    <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" disabled={isPendingPassword} className="min-w-40">
+    <>
+      <Form {...passwordForm}>
+        <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}>
+          <SettingsCard
+            title={t('Password')}
+            description={t('Use a strong password that is not shared with other services.')}
+            footer={
+              <Button type="submit" size="sm" disabled={isPendingPassword} className="min-w-28">
                 {isPendingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('Change Password')}
+                {t('Change password')}
               </Button>
-            </form>
-          </Form>
-        </div>
+            }
+          >
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2 sm:max-w-[calc(50%-0.625rem)]">
+                {field('currentPassword', t('Current password'), 'current-password')}
+              </div>
+              {field('newPassword', t('New password'), 'new-password')}
+              {field('confirmPassword', t('Confirm new password'), 'new-password')}
+            </div>
+          </SettingsCard>
+        </form>
+      </Form>
 
-        <Separator />
-
-        {/* Change Email */}
-        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <div>
-            <h3 className="text-sm font-medium">{t('Change Email')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('A confirmation message will be sent to the new address.')}
-            </p>
-          </div>
-          <Form {...emailForm}>
-            <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+      <Form {...emailForm}>
+        <form onSubmit={emailForm.handleSubmit(onEmailSubmit)}>
+          <SettingsCard
+            title={t('Email')}
+            description={t('A confirmation message will be sent to the new address.')}
+            footer={
+              <Button type="submit" size="sm" disabled={isPendingEmail} className="min-w-28">
+                {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('Change email')}
+              </Button>
+            }
+          >
+            <div className="sm:max-w-[calc(50%-0.625rem)]">
               <FormField
                 control={emailForm.control}
                 name="newEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('New Email Address')}</FormLabel>
+                    <FormLabel>{t('New email address')}</FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="new@email.com" autoComplete="email" {...field} />
                     </FormControl>
@@ -176,14 +161,10 @@ function LegacyAccountSection() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isPendingEmail} className="min-w-40">
-                {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t('Change Email')}
-              </Button>
-            </form>
-          </Form>
-        </div>
-      </CardContent>
-    </Card>
+            </div>
+          </SettingsCard>
+        </form>
+      </Form>
+    </>
   )
 }

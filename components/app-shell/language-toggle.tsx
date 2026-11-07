@@ -20,7 +20,7 @@ const LANGUAGES: { value: Language; label: string; Flag: React.ComponentType<{ c
   { value: 'es', label: 'Español',   Flag: FlagES },
 ]
 
-export function LanguageToggle() {
+export function LanguageToggle({ onOpenChange }: { onOpenChange?: (open: boolean) => void } = {}) {
   const [mounted, setMounted] = useState(false)
   const { language, setLanguage } = useLanguage()
 
@@ -31,7 +31,7 @@ export function LanguageToggle() {
   const current = LANGUAGES.find(l => l.value === language) ?? LANGUAGES[0]
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

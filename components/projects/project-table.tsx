@@ -2,15 +2,14 @@
 
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { FolderOpen, Loader2, Pencil } from 'lucide-react'
-import { DataTable, type Column } from '@/components/ui/data-table'
+import { DataTable, type ActiveFilter, type Column, type DataTableProps } from '@/components/ui/data-table'
 import { ClientSheet } from '@/components/clients/client-sheet'
 import { ClientPicker } from '@/components/clients/client-picker'
 import { formatMoney } from '@/lib/money/currency'
 import { formatDate } from '@/lib/utils/format-date'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { createClient } from '@/lib/supabase/client'
 import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
@@ -32,8 +31,15 @@ interface ProjectTableProps<TProject extends ProjectTableRow> {
   projects: TProject[]
   renderActions: (project: TProject) => ReactNode
   searchPlaceholder?: string
-  statusFilters?: readonly string[]
-  defaultStatusFilter?: string
+  /** Client-side status tabs; the first one ("All") shows everything. */
+  statusTabs?: ReadonlyArray<{ value: string; label: string }>
+  /** Server-side view tabs the caller owns (Projects: Active / Archived / Trash). */
+  viewTabs?: ReadonlyArray<{ value: string; label: string }>
+  viewValue?: string
+  onViewChange?: (value: string) => void
+  filters?: DataTableProps<TProject>['filters']
+  activeFilters?: ActiveFilter[]
+  onClearFilters?: () => void
   emptyTitle?: string
   emptyDescription?: string
   emptyActionLabel?: string
@@ -42,11 +48,11 @@ interface ProjectTableProps<TProject extends ProjectTableRow> {
   noResultsDescription?: string
   fallbackCurrencyCode?: unknown
   headerRight?: ReactNode
-  headerLeft?: ReactNode
   title?: ReactNode
   pageSize?: number
   actionsHeader?: string
   companyId?: string
+  editingClients?: ClientDetail[]
 }
 
 function ProjectClientCell({
@@ -122,8 +128,13 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   projects,
   renderActions,
   searchPlaceholder,
-  statusFilters,
-  defaultStatusFilter,
+  statusTabs,
+  viewTabs,
+  viewValue,
+  onViewChange,
+  filters,
+  activeFilters,
+  onClearFilters,
   emptyTitle,
   emptyDescription,
   emptyActionLabel,
@@ -132,29 +143,25 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   noResultsDescription,
   fallbackCurrencyCode,
   headerRight,
-  headerLeft,
   title,
   pageSize,
   actionsHeader,
   companyId,
+  editingClients,
 }: ProjectTableProps<TProject>) {
   const { t } = useTranslation()
-  const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null)
   const [createClientForProjectId, setCreateClientForProjectId] = useState<string | null>(null)
 
-  async function handleEditClient(clientId: string) {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .single()
-    if (data) {
-      setEditingClient({ ...data, project_count: 0 })
-      setSheetOpen(true)
+  function handleEditClient(clientId: string) {
+    const client = editingClients?.find((entry) => entry.id === clientId)
+    if (!client) {
+      toast.error(t('Client not found. Please reload the page.'))
+      return
     }
+    setEditingClient(client)
+    setSheetOpen(true)
   }
 
   function handleSheetChange(open: boolean) {
@@ -276,20 +283,28 @@ export function ProjectTable<TProject extends ProjectTableRow>({
           },
         ]}
         defaultSort="newest"
-        filterTabs={statusFilters?.map((status) => ({
-          key: status,
-          label: status,
-          match: status === 'all' ? undefined : (project: TProject) => project.status === status,
-        }))}
-        defaultFilter={defaultStatusFilter}
+        filterTabs={
+          viewTabs?.map((tab) => ({ key: tab.value, label: t(tab.label) })) ??
+          statusTabs?.map((tab, index) => ({
+            key: tab.value,
+            label: t(tab.label),
+            match: index === 0 ? undefined : (project: TProject) => project.status === tab.value,
+          }))
+        }
+        filterValue={viewTabs ? viewValue : undefined}
+        onFilterChange={viewTabs ? onViewChange : undefined}
+        filterTabsLabel={viewTabs ? t('View') : t('Status')}
+        filters={filters}
+        activeFilters={activeFilters}
+        onClearFilters={onClearFilters}
         emptyTitle={emptyTitle ?? t('No projects yet')}
         emptyDescription={emptyDescription ?? t('Create your first project to get started')}
         emptyActionLabel={emptyActionLabel}
         emptyActionHref={emptyActionHref}
         noResultsTitle={noResultsTitle ?? t('No projects match your search')}
+        noFilterResultsTitle={t('No projects match your filters')}
         noResultsDescription={noResultsDescription ?? ''}
         emptyIcon={FolderOpen}
-        headerLeft={headerLeft}
         headerRight={headerRight}
         title={title}
         pageSize={pageSize}
@@ -320,9 +335,8 @@ export function ProjectTable<TProject extends ProjectTableRow>({
           client={null}
           companyId={companyId}
           onCreated={async (clientId) => {
-            await linkProjectToClient(createClientForProjectId, clientId)
-            setCreateClientForProjectId(null)
-            router.refresh()
+            const result = await linkProjectToClient(createClientForProjectId, clientId)
+            if (result.error) throw new Error(result.error)
           }}
         />
       )}

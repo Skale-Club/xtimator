@@ -2,15 +2,15 @@
 
 exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stable post-alignment 1`] = `
 <div
-  class="rounded-3xl border-4 shadow-lg overflow-hidden"
-  style="background-color: rgb(255, 255, 255); color-scheme: light; --foreground: 240 10% 3.9%; --muted-foreground: 240 3.8% 46.1%; --muted: 240 4.8% 95.9%; --border: 240 5.9% 90%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%; --glass-bg: rgba(255, 255, 255, 0.65); --glass-bg-strong: rgba(255, 255, 255, 0.97); --glass-border: rgba(15, 23, 42, 0.08); color: rgb(9, 9, 11); border-color: rgb(63, 63, 70);"
+  class="rounded-[8px] shadow-lg overflow-hidden"
+  style="background-color: rgb(255, 255, 255); color-scheme: light; --foreground: 240 10% 3.9%; --muted-foreground: 240 3.8% 46.1%; --muted: 240 4.8% 95.9%; --border: 240 5.9% 90%; --card: 0 0% 100%; --card-foreground: 240 10% 3.9%; --glass-bg: rgba(255, 255, 255, 0.65); --glass-bg-strong: rgba(255, 255, 255, 0.97); --glass-border: rgba(15, 23, 42, 0.08); color: rgb(9, 9, 11);"
 >
   <div
     class="py-3 sm:py-6 px-6 sm:px-10 text-center"
     style="background-color: rgb(64, 110, 241);"
   >
     <h1
-      class="text-2xl sm:text-4xl font-bold tracking-widest select-none"
+      class="text-2xl sm:text-4xl font-extrabold tracking-widest select-none"
       style="color: rgb(255, 255, 255);"
     >
       ESTIMATE
@@ -73,7 +73,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
   >
     <div>
       <div
-        class="flex items-center gap-2 px-6 sm:px-10 py-2 group/header"
+        class="flex items-center py-2 group/header px-6 sm:px-10"
         data-page-block-id="sec-1-header"
         style="background-color: rgb(64, 110, 241);"
       >

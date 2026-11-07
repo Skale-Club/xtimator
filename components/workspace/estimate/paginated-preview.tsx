@@ -26,7 +26,7 @@
 // inside the sheet approximates the PDF's.
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Minus, Plus } from 'lucide-react'
 import { formatMoney } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
@@ -60,7 +60,7 @@ import type { PageAssignment, PageBlock } from '@/lib/estimate/pagination/types'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import type { EstimateAction } from './use-estimate-reducer'
 import { resolveUnitOptions } from './estimate-document'
-import { AddSectionButton, DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editable'
+import { DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editable'
 import { classicTemplate } from './preview-template/classic'
 import { modernTemplate } from './preview-template/modern'
 import { ItemTableColgroup } from './preview-template/shared'
@@ -126,6 +126,12 @@ export interface PaginatedPreviewProps {
   onOpenClientPanel?: () => void
   /** Edit-chrome strings in the app language (English defaults). */
   editLabels?: EditLabels
+  /**
+   * The floating action bar, drawn sticky at the bottom of the SHEET column so
+   * it centres on the page (not the window), with this view's zoom control
+   * passed in to sit inside it.
+   */
+  bottomBar?: (leading: ReactNode) => ReactNode
 }
 
 // ---------------------------------------------------------------------------
@@ -350,7 +356,7 @@ function PageSheet({
         data-page-sheet={pageIndex}
         // flex column like a react-pdf <Page>: vertical margins between blocks
         // ADD (as in the PDF) instead of collapsing the way block margins do.
-        className={`flex flex-col bg-white shadow-xl ${tpl.sheetClassName}`.trim()}
+        className={`flex flex-col overflow-hidden rounded-[8px] bg-white shadow-xl ${tpl.sheetClassName}`.trim()}
         style={{
           width: LETTER_WIDTH_PX,
           minHeight: LETTER_HEIGHT_PX,
@@ -362,7 +368,9 @@ function PageSheet({
         {pageIndex === 0 ? tpl.header(ctx) : tpl.compactHeader(ctx)}
         {renderPageBlocks(page.blocks, ctx, tpl, page.continuesTable, firstTermsCardBlockId)}
       </div>
-      <p className="select-none pt-2 text-center text-xs text-muted-foreground" style={{ width: LETTER_WIDTH_PX }}>
+      {/* Left-aligned: the centre under the last sheet is where the floating
+          action bar rests at the end of the scroll (it used to hide this). */}
+      <p className="select-none pt-2 text-left text-xs text-muted-foreground" style={{ width: LETTER_WIDTH_PX }}>
         {ctx.L.page} {pageIndex + 1} {ctx.L.of} {totalPages}
       </p>
     </div>
@@ -377,7 +385,7 @@ function SkeletonSheet() {
   return (
     <div className="flex justify-center">
       <div
-        className="bg-white shadow-xl animate-pulse"
+        className="rounded-[8px] bg-white shadow-xl animate-pulse"
         style={{ width: LETTER_WIDTH_PX, minHeight: LETTER_HEIGHT_PX, ...LIGHT_PIN_STYLE }}
       >
         <div className="p-10 space-y-6">
@@ -434,6 +442,7 @@ export function PaginatedPreview({
   onDetachPhoto,
   onOpenClientPanel,
   editLabels = DEFAULT_EDIT_LABELS,
+  bottomBar,
 }: PaginatedPreviewProps) {
   const lang = (language ?? 'en') as EstimateLanguage
   const L = DOC_LABELS[lang] ?? DOC_LABELS.en
@@ -655,62 +664,61 @@ export function PaginatedPreview({
     document.querySelector(`[data-page-sheet="${idx}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // Zoom: its own small box at the bottom-right corner of the page, on the
+  // action bar's line but apart from it, so it never competes with the bar.
+  const zoomControl = (
+    <div role="group" aria-label="Zoom" className="pointer-events-auto flex shrink-0 items-center rounded-full border border-border bg-background/95 p-1 text-foreground shadow-xl backdrop-blur">
+      <button
+        type="button"
+        aria-label="Zoom out"
+        className="flex size-9 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
+        disabled={zoom <= 0.5}
+        onClick={() => zoomStep(-0.1)}
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        aria-label="Fit width"
+        title="Fit width"
+        className="h-9 min-w-12 rounded-full px-1.5 text-center text-sm tabular-nums hover:bg-muted"
+        onClick={() => setManualZoom(null)}
+      >
+        {Math.round(zoom * 100)}%
+      </button>
+      <button
+        type="button"
+        aria-label="Zoom in"
+        className="flex size-9 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
+        disabled={zoom >= 1.5}
+        onClick={() => zoomStep(0.1)}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+
+
   if (pages === null) {
-    return <SkeletonSheet />
+    return <>
+      <SkeletonSheet />
+      {bottomBar?.(null)}
+    </>
   }
+
+  const hasRail = pages.length > 1
 
   const sizerHeightPx = naturalHeightPx !== null ? naturalHeightPx * zoom : undefined
 
   return (
     <div className="flex justify-center gap-6">
       {/* Side toolbar — sticky beside the sheets like a PDF viewer's sidebar:
-          "Add section" (edit mode), the zoom control, then (multi-page only)
+          (multi-page only)
           the page thumbnails. Page view is desktop-only, so this is lg+ only.
           It used to be a fixed bottom-right pill that floated over the chat
           launcher, detached from the document it zooms. */}
-      <aside className="hidden lg:flex flex-col items-center gap-4 sticky top-24 self-start shrink-0 max-h-[calc(100vh-8rem)]">
-        {dispatch && (
-          <AddSectionButton
-            labels={editLabels}
-            onAdd={(title, firstItemDescription) =>
-              dispatch({ type: 'ADD_SECTION', title: title || undefined, firstItemDescription })
-            }
-          />
-        )}
+      {hasRail && <aside className="hidden lg:flex flex-col items-center gap-4 sticky top-24 self-start shrink-0 max-h-[calc(100vh-8rem)]">
 
-        <div
-          role="group"
-          aria-label="Zoom"
-          className="flex w-14 flex-col items-center gap-0.5 rounded-xl border border-border bg-background/95 p-1 text-foreground shadow-sm"
-        >
-          <button
-            type="button"
-            aria-label="Zoom in"
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
-            disabled={zoom >= 1.5}
-            onClick={() => zoomStep(0.1)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Fit width"
-            title="Fit width"
-            className="w-full rounded-md py-0.5 text-center text-[11px] tabular-nums hover:bg-muted"
-            onClick={() => setManualZoom(null)}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom out"
-            className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted disabled:opacity-40"
-            disabled={zoom <= 0.5}
-            onClick={() => zoomStep(-0.1)}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-        </div>
 
         {pages.length > 1 && (
           <nav aria-label="Pages" className="flex min-h-0 flex-col gap-3 overflow-y-auto py-1 pr-1">
@@ -747,11 +755,11 @@ export function PaginatedPreview({
             ))}
           </nav>
         )}
-      </aside>
+      </aside>}
 
       {/* px-4 = 16px each side, the real geometry the fit-zoom effect's
           "+ 32" compensates for — see the comment on that effect above. */}
-      <div ref={measureRef} className="min-w-0 flex-1 flex justify-center px-4">
+      <div ref={measureRef} className="min-w-0 flex-1 flex flex-col items-center px-4">
         <div style={{ position: 'relative', width: LETTER_WIDTH_PX * zoom, height: sizerHeightPx, margin: '0 auto' }}>
           <div
             ref={contentRef}
@@ -778,6 +786,19 @@ export function PaginatedPreview({
               />
             ))}
           </div>
+        </div>
+        {/* A direct child of this tall column: `sticky` can only travel within
+            its parent, so a wrapper here would pin it below the last page. */}
+        {/* "Add section" is in each section's ⋮ menu (margin), not the bar. */}
+        {bottomBar?.(null)}
+        {/* Zero-height sticky line pinned at the bar's level (bottom-3), as wide
+            as the page: the zoom box hangs from it at the page's right edge.
+            Zero height so it adds no space under the last page. */}
+        <div
+          className="pointer-events-none sticky z-40 h-0"
+          style={{ width: LETTER_WIDTH_PX * zoom, bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+        >
+          <div className="absolute bottom-0 right-0">{zoomControl}</div>
         </div>
       </div>
     </div>

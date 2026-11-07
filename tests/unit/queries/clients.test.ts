@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { getClients, getClientById, getClientProjects } from '@/lib/queries/clients'
+import { getClients, getClientsForEditing, getClientById, getClientProjects } from '@/lib/queries/clients'
 
 function createMockSupabase(overrides: Record<string, unknown> = {}) {
   const defaults = {
@@ -50,6 +50,17 @@ function createMockSupabase(overrides: Record<string, unknown> = {}) {
 }
 
 describe('getClients', () => {
+  it('preloads editing fields with the correct project count in the same two queries', async () => {
+    const detail = { id: 'c1', name: 'Alice', email: null, phone: null, logo_url: null, created_at: '2026-01-01', address: '123 Main', city: 'Boston', state: 'MA', zip: '02101', notes: 'Keep these notes', preferred_language: 'pt' }
+    const supabase = createMockSupabase({ clients: [detail], projects: [{ client_id: 'c1' }] })
+    const clients = await getClientsForEditing(supabase, 'company-1')
+
+    expect(clients).toEqual([{ ...detail, project_count: 1 }])
+    expect(supabase.from).toHaveBeenCalledTimes(2)
+    const clientQuery = vi.mocked(supabase.from).mock.results[0].value
+    expect(clientQuery.select).toHaveBeenCalledWith(expect.stringContaining('preferred_language'))
+  })
+
   it('returns empty array when no clients', async () => {
     const supabase = createMockSupabase({ clients: [] })
     const clients = await getClients(supabase, 'company-1')

@@ -24,15 +24,8 @@ import { useMemo, useState, useTransition } from 'react'
 import { Bell, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { SettingsCard, SettingsRow, SettingsRows, SettingsStack } from '@/components/settings/settings-ui'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useAppLanguage } from '@/lib/i18n/language-context'
@@ -224,162 +217,157 @@ export function NotificationsForm({
 
   return (
     <>
-      <fieldset disabled={readOnly} className="space-y-6 border-0 p-0 m-0">
-      <Card className="w-full rounded-[var(--radius-md)]">
-        <CardContent className="space-y-6 py-6">
-          <div className="flex items-center justify-between gap-4 rounded-[var(--radius-md)] border border-border bg-background p-4">
-            <Label htmlFor="master-email-digest" className="grid flex-1 gap-1">
-              <span className="font-medium">{t('Email digest enabled')}</span>
-              <span className="text-sm font-normal text-muted-foreground">
-                {t('Master switch | turn off to silence every email notification.')}
-              </span>
-            </Label>
-            <Switch
-              id="master-email-digest"
-              data-testid="master-email-digest"
-              checked={emailDigest}
-              onCheckedChange={setEmailDigest}
-            />
-          </div>
-
-          <div className="overflow-hidden rounded-[var(--radius-md)] border border-border">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <span>{t('Category')}</span>
-              <span className="w-16 text-center">{t('In-app')}</span>
-              <span className="w-16 text-center">{t('Email')}</span>
-              <span className="w-16 text-center">{t('SMS')}</span>
-            </div>
-            {CATEGORIES.map((c) => {
-              const state = matrix[c.key]
-              return (
-                <div
-                  key={c.key}
-                  className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <CategoryIcon
-                      category={c.key}
-                      className="h-4 w-4 text-[hsl(var(--primary))]"
-                    />
-                    <div className="grid">
-                      <span className="text-sm font-medium">{t(c.label)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {t(c.description)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex w-16 justify-center">
-                    <Switch
-                      data-testid={`pref-in_app-${c.key}`}
-                      checked={state.in_app}
-                      onCheckedChange={(v) => setChannel(c.key, 'in_app', v)}
-                      aria-label={`${t(c.label)} ${t('In-app')}`}
-                    />
-                  </div>
-                  <div className="flex w-16 justify-center">
-                    <Switch
-                      data-testid={`pref-email-${c.key}`}
-                      checked={state.email && emailDigest}
-                      disabled={!emailDigest}
-                      onCheckedChange={(v) => setChannel(c.key, 'email', v)}
-                      aria-label={`${t(c.label)} ${t('Email')}`}
-                    />
-                  </div>
-                  <div className="flex w-16 justify-center">
-                    <Switch
-                      data-testid={`pref-sms-${c.key}`}
-                      checked={state.sms && phoneOnFile}
-                      disabled={!phoneOnFile}
-                      onCheckedChange={(v) => setChannel(c.key, 'sms', v)}
-                      aria-label={`${t(c.label)} ${t('SMS')}`}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-            {!phoneOnFile && (
-              <div className="border-t border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
-                {t(
-                  'Add a verified phone in your profile to enable SMS notifications.',
-                )}
-              </div>
-            )}
-          </div>
-
-          {smsConsentPending && (
-            <div
-              data-testid="sms-consent"
-              className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
-            >
-              <p className="font-medium">{t('Enable paid SMS notifications?')}</p>
-              <p className="mt-1 text-muted-foreground">{t(SMS_CONSENT_COPY)}</p>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  data-testid="sms-consent-confirm"
-                  onClick={confirmSmsConsent}
-                >
-                  {t('I agree — enable SMS')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  data-testid="sms-consent-decline"
-                  onClick={declineSmsConsent}
-                >
-                  {t('Cancel')}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              onClick={onSave}
-              disabled={isPending}
-              data-testid="save-prefs"
-              className="min-w-40"
-            >
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save preferences')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="w-full rounded-[var(--radius-md)]">
-        <CardHeader className="border-b border-border">
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" aria-hidden />
-            {t('Browser notifications')}
-          </CardTitle>
-          <CardDescription>
-            {pushSupported
-              ? t('Show desktop notifications even when Xtimator is in a background tab.')
-              : t('Browser notifications not supported in this browser')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 py-6">
-          <div className="text-sm text-muted-foreground">
-            {pushEnabled
-              ? t('Enabled | browser may show desktop alerts for new notifications.')
-              : t('Not enabled. Click the button to grant permission.')}
-          </div>
+      <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+      <SettingsStack>
+      <SettingsCard
+        title={t('What to notify you about')}
+        description={t('Pick a channel for each kind of event.')}
+        bodyClassName="p-0 sm:p-0"
+        footer={
           <Button
             type="button"
+            size="sm"
+            onClick={onSave}
+            disabled={isPending}
+            data-testid="save-prefs"
+            className="min-w-28"
+          >
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {t('Save preferences')}
+          </Button>
+        }
+      >
+        <div className="border-b border-[var(--glass-border)] px-5 py-4 sm:px-6">
+          <SettingsRows>
+            <SettingsRow
+              htmlFor="master-email-digest"
+              label={t('Email notifications')}
+              description={t('Turn off to stop every notification email at once.')}
+            >
+              <Switch
+                id="master-email-digest"
+                data-testid="master-email-digest"
+                checked={emailDigest}
+                onCheckedChange={setEmailDigest}
+              />
+            </SettingsRow>
+          </SettingsRows>
+        </div>
+
+        <div className="grid grid-cols-[1fr_repeat(3,2.75rem)] items-center gap-x-2 border-b border-[var(--glass-border)] px-5 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:grid-cols-[1fr_repeat(3,4rem)] sm:gap-x-4 sm:px-6">
+          <span>{t('Event')}</span>
+          <span className="text-center">{t('In-app')}</span>
+          <span className="text-center">{t('Email')}</span>
+          <span className="text-center">{t('SMS')}</span>
+        </div>
+        <div className="divide-y divide-[var(--glass-border)]">
+          {CATEGORIES.map((c) => {
+            const state = matrix[c.key]
+            return (
+              <div
+                key={c.key}
+                className="grid grid-cols-[1fr_repeat(3,2.75rem)] items-center gap-x-2 px-5 py-3 sm:grid-cols-[1fr_repeat(3,4rem)] sm:gap-x-4 sm:px-6"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <CategoryIcon
+                    category={c.key}
+                    className="hidden h-4 w-4 shrink-0 text-[hsl(var(--primary))] sm:block"
+                  />
+                  <div className="grid min-w-0">
+                    <span className="text-sm font-medium">{t(c.label)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {t(c.description)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <Switch
+                    data-testid={`pref-in_app-${c.key}`}
+                    checked={state.in_app}
+                    onCheckedChange={(v) => setChannel(c.key, 'in_app', v)}
+                    aria-label={`${t(c.label)} ${t('In-app')}`}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <Switch
+                    data-testid={`pref-email-${c.key}`}
+                    checked={state.email && emailDigest}
+                    disabled={!emailDigest}
+                    onCheckedChange={(v) => setChannel(c.key, 'email', v)}
+                    aria-label={`${t(c.label)} ${t('Email')}`}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <Switch
+                    data-testid={`pref-sms-${c.key}`}
+                    checked={state.sms && phoneOnFile}
+                    disabled={!phoneOnFile}
+                    onCheckedChange={(v) => setChannel(c.key, 'sms', v)}
+                    aria-label={`${t(c.label)} ${t('SMS')}`}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {!phoneOnFile && (
+          <p className="border-t border-[var(--glass-border)] px-5 py-3 text-xs text-muted-foreground sm:px-6">
+            {t('Add a verified phone in your profile to enable SMS notifications.')}
+          </p>
+        )}
+
+        {smsConsentPending && (
+          <div
+            data-testid="sms-consent"
+            className="m-5 rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/10 p-4 text-sm sm:mx-6"
+          >
+            <p className="font-medium">{t('Enable paid SMS notifications?')}</p>
+            <p className="mt-1 text-muted-foreground">{t(SMS_CONSENT_COPY)}</p>
+            <div className="mt-3 flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                data-testid="sms-consent-confirm"
+                onClick={confirmSmsConsent}
+              >
+                {t('I agree, enable SMS')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="sms-consent-decline"
+                onClick={declineSmsConsent}
+              >
+                {t('Cancel')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </SettingsCard>
+
+      <SettingsCard
+        title={t('Browser notifications')}
+        description={
+          pushSupported
+            ? t('Desktop alerts, even when Xtimator is in a background tab.')
+            : t('Browser notifications not supported in this browser')
+        }
+        action={
+          <Button
+            type="button"
+            size="sm"
             variant={pushEnabled ? 'outline' : 'default'}
             disabled={!pushSupported || pushBusy}
             onClick={onTogglePush}
             data-testid="enable-push"
           >
-            {pushBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {pushEnabled ? t('Disable browser notifications') : t('Enable browser notifications')}
+            {pushBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4" />}
+            {pushEnabled ? t('Turn off') : t('Turn on')}
           </Button>
-        </CardContent>
-      </Card>
+        }
+      />
+      </SettingsStack>
       </fieldset>
       {readOnly && (
         <p className="mt-6 text-sm text-muted-foreground">

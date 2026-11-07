@@ -39,7 +39,7 @@ export function ChatUpgradePrompt() {
           </h2>
           <p className="text-sm text-muted-foreground">
             {t(
-              'Upgrade to Pro or Business to chat with your AI assistant — generate estimates, query your data, and ask trade how-to questions without leaving Xtimator.',
+              'Upgrade to Pro or Business to chat with your AI assistant. Generate estimates, query your data, and ask trade how-to questions without leaving Xtimator.',
             )}
           </p>
           <Button asChild className="mt-2 w-full">

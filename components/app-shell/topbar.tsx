@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
@@ -47,6 +47,7 @@ export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
   const router = useRouter()
   const pageTitle = usePageTitle(pathname)
   const breadcrumbs = useCurrentBreadcrumbs()
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false)
 
   // Cmd+Shift+A (or Ctrl+Shift+A) → jump to /admin (admin-only)
   useEffect(() => {
@@ -113,13 +114,16 @@ export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
             <ShieldCheck className="h-4 w-4" />
           </Link>
         )}
+        {/* The hint opens to the LEFT and stays closed while the menu is open:
+            it used to open below, on top of the language options. */}
         <ContextualTooltip
           tooltipKey={TOOLTIP_KEYS.languageToggle}
           text="Switch languages | estimates can be sent in EN, PT, or ES"
-          side="bottom"
+          side="left"
+          suppressed={languageMenuOpen}
         >
           <span data-tour="language-toggle">
-            <LanguageToggle />
+            <LanguageToggle onOpenChange={setLanguageMenuOpen} />
           </span>
         </ContextualTooltip>
         {typeof percentUsed === 'number' && <CreditChip percentUsed={percentUsed} />}

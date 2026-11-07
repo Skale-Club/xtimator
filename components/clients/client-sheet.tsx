@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
-import { useForm } from 'react-hook-form'
+import { useState, useTransition } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -40,70 +40,43 @@ interface ClientSheetProps {
   onOpenChange: (open: boolean) => void
   client: ClientDetail | null
   companyId: string
-  onCreated?: (clientId: string) => void
+  onCreated?: (clientId: string) => void | Promise<void>
 }
 
 const LANGUAGE_NOT_SET_VALUE = '__language_not_set__'
 
-export function ClientSheet({
+export function ClientSheet(props: ClientSheetProps) {
+  // Mount a fresh form when opened, with the existing values ready on the
+  // first render. Closing/cancelling discards the draft without a refresh.
+  return props.open ? <ClientSheetForm key={props.client?.id ?? 'new'} {...props} /> : null
+}
+
+function ClientSheetForm({
   open,
   onOpenChange,
   client,
-  companyId,
   onCreated,
 }: ClientSheetProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(client?.logo_url ?? null)
   const isEditing = !!client
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      state: '',
-      zip: '',
-      notes: '',
-      preferred_language: '',
+      name: client?.name ?? '',
+      email: client?.email ?? '',
+      phone: client?.phone ?? '',
+      address: client?.address ?? '',
+      city: client?.city ?? '',
+      state: client?.state ?? '',
+      zip: client?.zip ?? '',
+      notes: client?.notes ?? '',
+      preferred_language: (client?.preferred_language ?? '') as ClientFormValues['preferred_language'],
     },
   })
-
-  useEffect(() => {
-    if (client) {
-      form.reset({
-        name: client.name,
-        email: client.email ?? '',
-        phone: client.phone ?? '',
-        address: client.address ?? '',
-        city: client.city ?? '',
-        state: client.state ?? '',
-        zip: client.zip ?? '',
-        notes: client.notes ?? '',
-        preferred_language: (client.preferred_language ?? '') as 'en' | 'pt' | 'es' | '',
-      })
-      setLogoPreview(client.logo_url ?? null)
-      setLogoFile(null)
-    } else {
-      form.reset({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        city: '',
-        state: '',
-        zip: '',
-        notes: '',
-        preferred_language: '',
-      })
-      setLogoPreview(null)
-      setLogoFile(null)
-    }
-  }, [client, form])
 
   async function uploadLogo(clientId: string, file: File): Promise<string | null> {
     const fd = new FormData()
@@ -152,14 +125,22 @@ export function ClientSheet({
         }
 
         toast.success('Client created')
-        if (result.data?.id) onCreated?.(result.data.id)
+        if (result.data?.id && onCreated) {
+          try {
+            await onCreated(result.data.id)
+          } catch (error) {
+            // Creation succeeded. Close the form so retrying a follow-up
+            // operation cannot accidentally create a duplicate client.
+            toast.error(error instanceof Error ? error.message : 'Could not finish linking the client.')
+          }
+        }
       }
       onOpenChange(false)
       router.refresh()
     })
   }
 
-  const clientInitial = form.watch('name')?.charAt(0) || ''
+  const clientInitial = useWatch({ control: form.control, name: 'name' })?.charAt(0) || ''
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

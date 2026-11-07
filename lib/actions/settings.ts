@@ -198,7 +198,9 @@ export async function updateCompanySettings(formData: FormData) {
   updateTag('company')
   revalidatePath('/settings')
   revalidatePath('/dashboard')
-  return { success: true }
+  // The stored logo URL, so the form can keep sending it on later saves
+  // (a just-uploaded logo only exists client-side as a blob preview).
+  return { success: true, logoUrl: logoUrl || null }
 }
 
 /**

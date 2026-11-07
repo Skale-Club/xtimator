@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -11,6 +13,7 @@ import {
 } from '@/components/settings/stripe-connect-card'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Stripe | Settings' }
 
@@ -88,15 +91,18 @@ export default async function StripeIntegrationPage({
   const toastConnected = sp.connected === '1'
 
   return (
-    <div className="space-y-6 p-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Stripe</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Connect Stripe to let customers pay estimates online.</T>
-        </p>
-      </header>
+    <div className="space-y-6">
+      <Link
+        href="/settings/integrations"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+        <T>Integrations</T>
+      </Link>
+      <SettingsHeader
+        title={<T>Stripe</T>}
+        description={<T>Connect Stripe to let customers pay estimates online.</T>}
+      />
       {toastConnected && (
         <Card
           variant="glass"

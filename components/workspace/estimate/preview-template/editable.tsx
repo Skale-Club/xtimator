@@ -682,8 +682,9 @@ export function ItemRowActions({ ctx, sectionId, item }: { ctx: RenderCtx; secti
   )
 }
 
-/** Section kebab, parked in the sheet's RIGHT page margin beside the section
- *  header. The host must be `relative group`. */
+/** Section kebab, parked in the sheet's LEFT page margin beside the section
+ *  header — the same column as the line kebabs (right-full mr-3), so every
+ *  edit control lines up. The host must be `relative group`. */
 export function SectionActions({ ctx, sectionId }: { ctx: RenderCtx; sectionId: string }) {
   const edit = ctx.edit
   if (!edit) return null
@@ -692,14 +693,14 @@ export function SectionActions({ ctx, sectionId }: { ctx: RenderCtx; sectionId: 
   const drawn = ctx.data.sections.filter((s) => (ctx.itemsBySection.get(s.id) ?? []).length > 0)
   const index = drawn.findIndex((s) => s.id === sectionId)
   return (
-    <span className="absolute left-full top-1/2 ml-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
+    <span className="absolute right-full top-1/2 mr-3 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label={t.sectionActions} className={MARGIN_BTN}>
             <MoreVertical className="h-3.5 w-3.5" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="right">
+        <DropdownMenuContent align="start" side="left">
           <DropdownMenuItem onSelect={() => edit.startNewItem(sectionId)}>{t.addItem}</DropdownMenuItem>
           <DropdownMenuItem disabled={index <= 0} onSelect={() => edit.moveSection(sectionId, -1)}>
             {t.moveUp}
@@ -751,69 +752,86 @@ export function NewItemSlot({ ctx, sectionId }: { ctx: RenderCtx; sectionId: str
     <button
       type="button"
       onClick={() => edit.startNewItem(sectionId)}
-      className="absolute left-0 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-normal text-zinc-500 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-zinc-900 group-hover:opacity-100 focus-visible:opacity-100 [font-family:ui-sans-serif,system-ui,sans-serif]"
+      // The "+" sits in the margin column the kebabs use (a 24px box, 12px
+      // before the content: -left-9 = -(24 + 12)px), so the label starts on
+      // the content margin with the line descriptions.
+      className="absolute -left-9 top-1/2 flex -translate-y-1/2 items-center gap-3 rounded-md py-0.5 pr-1.5 text-xs font-normal text-zinc-500 opacity-0 transition-opacity hover:text-zinc-900 group-hover:opacity-100 focus-visible:opacity-100 [font-family:ui-sans-serif,system-ui,sans-serif]"
     >
-      <Plus className="h-3 w-3" />
+      <span className="flex w-6 justify-center"><Plus className="h-3 w-3" /></span>
       {edit.labels.addItem}
     </button>
   )
 }
 
-/** Side-toolbar "Add section": asks for the title AND the first line up
- *  front, for the same reason NewItemSlot does — a section with no described
- *  line is not drawn. */
-export function AddSectionButton({
+/**
+ * "Add section", always visible under the LAST section of the document (the
+ * same place the width view's button sits). It hangs from that section's
+ * subtotal row (absolute, top-full) over the blank space before the totals,
+ * so it never changes the layout the pagination engine measured for the PDF.
+ * The host (the subtotal row) must be `relative`.
+ */
+export function AddSectionSlot({ ctx, sectionId }: { ctx: RenderCtx; sectionId: string }) {
+  const edit = ctx.edit
+  const [open, setOpen] = useState(false)
+  if (!edit) return null
+  // Only sections that draw (have a described line) count; the button follows the last one.
+  const drawn = ctx.data.sections.filter((s) => (ctx.itemsBySection.get(s.id) ?? []).length > 0)
+  if (drawn.at(-1)?.id !== sectionId) return null
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="absolute left-0 top-full z-10 mt-1.5 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] font-normal transition-colors [font-family:ui-sans-serif,system-ui,sans-serif]"
+          style={{ color: ctx.brandText, backgroundColor: `${ctx.brandColor}1A` }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${ctx.brandColor}33` }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = `${ctx.brandColor}1A` }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {edit.labels.addSection}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="start" className="w-72">
+        <AddSectionForm
+          labels={edit.labels}
+          onAdd={(title, firstItemDescription) => {
+            edit.dispatch({ type: 'ADD_SECTION', title: title || undefined, firstItemDescription })
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** The "Add section" form: asks for the title AND the first line up front,
+ *  for the same reason NewItemSlot does — a section with no described line is
+ *  not drawn. Opened from AddSectionSlot, under the last section. */
+function AddSectionForm({
   labels,
   onAdd,
 }: {
   labels: EditLabels
   onAdd: (title: string, firstItemDescription: string) => void
 }) {
-  const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [firstItem, setFirstItem] = useState('')
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) {
-          setTitle('')
-          setFirstItem('')
-        }
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!firstItem.trim()) return
+        onAdd(title.trim(), firstItem.trim())
       }}
     >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title={labels.addSection}
-          className="flex w-14 flex-col items-center gap-1 rounded-xl border border-border bg-background/95 py-2 text-[11px] font-normal leading-tight text-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
-        >
-          <Plus className="h-4 w-4" />
-          {labels.addSection}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-72">
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!firstItem.trim()) return
-            onAdd(title.trim(), firstItem.trim())
-            setOpen(false)
-            setTitle('')
-            setFirstItem('')
-          }}
-        >
-          <p className="text-sm font-normal">{labels.addSection}</p>
-          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={labels.sectionTitle} />
-          <Input value={firstItem} onChange={(e) => setFirstItem(e.target.value)} placeholder={labels.firstLine} />
-          <Button type="submit" size="sm" className="w-full" disabled={!firstItem.trim()}>
-            {labels.addSection}
-          </Button>
-        </form>
-      </PopoverContent>
-    </Popover>
+      <p className="text-sm font-normal">{labels.addSection}</p>
+      <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={labels.sectionTitle} />
+      <Input value={firstItem} onChange={(e) => setFirstItem(e.target.value)} placeholder={labels.firstLine} />
+      <Button type="submit" size="sm" className="w-full" disabled={!firstItem.trim()}>
+        {labels.addSection}
+      </Button>
+    </form>
   )
 }
 

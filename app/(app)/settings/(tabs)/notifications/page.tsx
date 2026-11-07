@@ -7,6 +7,7 @@ import { isDemoCompany } from '@/lib/demo/config'
 import { DEFAULT_PREFERENCES } from '@/lib/notifications/event-types'
 import { NotificationsForm } from '@/components/settings/notifications-form'
 import { T } from '@/components/i18n/t'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Notifications | Settings' }
 
@@ -34,14 +35,10 @@ export default async function NotificationsTabPage() {
   }
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Notification preferences</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Choose how you want to be notified for each event category.</T>
-        </p>
-      </header>
+      <SettingsHeader
+        title={<T>Notifications</T>}
+        description={<T>Choose what you hear about and where.</T>}
+      />
       <NotificationsForm
         initial={initial}
         defaults={DEFAULT_PREFERENCES}

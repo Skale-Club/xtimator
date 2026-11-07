@@ -1,8 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 
-export async function createClient() {
+// React's cache is scoped to the server request. Layouts, pages and tenant
+// queries share one client/session without retaining credentials across users.
+export const createClient = cache(async () => {
   if (ownedAuthEnabled()) return (await import('@/lib/auth/owned-client')).createOwnedClient()
   const cookieStore = await cookies() // MUST await — Next.js 15+ requirement
   return createServerClient(
@@ -26,4 +29,4 @@ export async function createClient() {
       },
     }
   )
-}
+})

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, type ReactNode, type JSX } from 'react'
+import { useState, useEffect, type ReactNode, type JSX, type RefObject } from 'react'
 import { Eye, DollarSign, Percent } from 'lucide-react'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
 } from '@/components/ui/popover'
 import {
@@ -68,6 +69,13 @@ export interface PresentationSettingsPanelProps {
   clientSlot?: ReactNode
   /** Optional trigger children — otherwise the panel opens/closes only via onOpenChange. */
   children?: ReactNode
+  /**
+   * The element the desktop popover opens from (the floating bar's gear).
+   * Without an anchor Radix parks the popover off-screen (translate -200%),
+   * which is why the gear looked dead on desktop. A click on the anchor is not
+   * an "outside" click, so the gear can toggle the panel closed.
+   */
+  anchorRef?: RefObject<HTMLElement | null>
   /** Offer the Estimate Terms (fine print) switch; only when the company has fine-print text. */
   hasCompanyTerms?: boolean
   /** Offer the Valid-until switch; only when the estimate carries a valid_until date. */
@@ -95,8 +103,19 @@ export function PresentationSettingsPanel(
   if (isDesktop) {
     return (
       <Popover open={props.open} onOpenChange={props.onOpenChange}>
-        {props.children ?? <span />}
-        <PopoverContent align="end" side="top" className="w-[360px] p-0">
+        {props.anchorRef
+          ? <PopoverAnchor virtualRef={props.anchorRef as RefObject<HTMLElement>} />
+          : props.children ?? <span />}
+        <PopoverContent
+          align="center"
+          side="top"
+          sideOffset={12}
+          collisionPadding={16}
+          className="w-[360px] p-0"
+          onInteractOutside={(event) => {
+            if (props.anchorRef?.current?.contains(event.target as Node)) event.preventDefault()
+          }}
+        >
           {body}
         </PopoverContent>
       </Popover>

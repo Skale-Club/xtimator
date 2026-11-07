@@ -1,15 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ClientList } from '@/components/clients/client-list'
-import type { ClientWithCount } from '@/lib/queries/clients'
+import type { ClientDetail } from '@/lib/queries/clients'
+
+const { refreshMock, createBrowserClientMock } = vi.hoisted(() => ({
+  refreshMock: vi.fn(),
+  createBrowserClientMock: vi.fn(() => { throw new Error('Editing must not fetch from the browser') }),
+}))
+
+beforeEach(() => {
+  refreshMock.mockClear()
+  createBrowserClientMock.mockClear()
+})
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
-    refresh: vi.fn(),
+    refresh: refreshMock,
     push: vi.fn(),
   }),
   usePathname: () => '/clients',
+  // The shared list keeps search/sort/page in the URL.
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 // Mock next/link
@@ -35,25 +47,22 @@ vi.mock('@/lib/actions/client', () => ({
 
 // Mock Supabase browser client
 vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () => Promise.resolve({ data: null }),
-        }),
-      }),
-    }),
-  }),
+  createClient: createBrowserClientMock,
 }))
 
 // Mock ClientSheet to avoid form complexity in list tests
 vi.mock('@/components/clients/client-sheet', () => ({
-  ClientSheet: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="client-sheet">Sheet Open</div> : null,
+  ClientSheet: ({ open, client, onOpenChange }: { open: boolean; client: ClientDetail | null; onOpenChange: (open: boolean) => void }) =>
+    open ? <div data-testid="client-sheet">
+      <span>{client?.address}</span><span>{client?.notes}</span>
+      <button onClick={() => onOpenChange(false)}>Close editor</button>
+    </div> : null,
 }))
 
-const mockClients: ClientWithCount[] = [
+const emptyDetails = { address: null, city: null, state: null, zip: null, notes: null, preferred_language: null }
+const mockClients: ClientDetail[] = [
   {
+    ...emptyDetails,
     id: '1',
     name: 'Acme Corp',
     email: 'info@acme.com',
@@ -61,8 +70,11 @@ const mockClients: ClientWithCount[] = [
     logo_url: null,
     created_at: '2026-01-01',
     project_count: 3,
+    address: '123 Main Street',
+    notes: 'Existing client notes',
   },
   {
+    ...emptyDetails,
     id: '2',
     name: 'Beta LLC',
     email: 'hello@beta.com',
@@ -72,6 +84,7 @@ const mockClients: ClientWithCount[] = [
     project_count: 0,
   },
   {
+    ...emptyDetails,
     id: '3',
     name: 'Gamma Inc',
     email: null,
@@ -83,6 +96,26 @@ const mockClients: ClientWithCount[] = [
 ]
 
 describe('ClientList', () => {
+  it('opens editing immediately with all saved fields and no browser request', () => {
+    render(<ClientList clients={mockClients} companyId="c1" />)
+    fireEvent.keyDown(screen.getAllByRole('button', { name: 'Actions: Acme Corp' })[0], { key: 'Enter' })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
+
+    expect(screen.getByTestId('client-sheet')).toBeTruthy()
+    expect(screen.getByText('123 Main Street')).toBeTruthy()
+    expect(screen.getByText('Existing client notes')).toBeTruthy()
+    expect(createBrowserClientMock).not.toHaveBeenCalled()
+  })
+
+  it('does not refresh the page when cancelling the editor', () => {
+    render(<ClientList clients={mockClients} companyId="c1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add Client' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close editor' }))
+
+    expect(screen.queryByTestId('client-sheet')).toBeNull()
+    expect(refreshMock).not.toHaveBeenCalled()
+  })
+
   it('renders empty state when clients array is empty', () => {
     render(<ClientList clients={[]} companyId="c1" />)
     expect(screen.getByText('No clients yet')).toBeDefined()

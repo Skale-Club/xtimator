@@ -131,7 +131,7 @@ describe('EstimateDocument edit-mode row/section actions', () => {
     })
   })
 
-  it('the two MoneyInput call sites (unit price + discount) use pl-6 (guards the $-overlap regression)', () => {
+  it('the two MoneyInput call sites (unit price + discount) draw the symbol BESIDE the number (guards the $-overlap regression)', () => {
     const data = buildData()
     // Give the target item a discount so its Disc. MoneyInput cell renders too.
     const targetItemId = data.sections[0].items[0].id
@@ -145,9 +145,16 @@ describe('EstimateDocument edit-mode row/section actions', () => {
     // the unit-price and discount MoneyInput instances within the row.
     const moneyInputs = row!.querySelectorAll<HTMLInputElement>('input[inputmode="numeric"]')
     expect(moneyInputs.length).toBe(2)
+    // The overlap came from an absolutely positioned "$" over an input with too
+    // little left padding. symbolPlacement="beside" removes the overlay: the
+    // symbol is a normal sibling just before the input inside one <label>, so
+    // it can never cover a digit, and it sits next to the amount.
     moneyInputs.forEach((input) => {
-      expect(input.className).toContain('pl-6')
-      expect(input.className).not.toMatch(/(^|\s)p-1(\s|$)/)
+      const field = input.parentElement!
+      expect(field.tagName).toBe('LABEL')
+      const symbol = input.previousElementSibling as HTMLElement | null
+      expect(symbol?.textContent).toBe('$')
+      expect(symbol!.className).not.toMatch(/(^|\s)absolute(\s|$)/)
     })
   })
 })

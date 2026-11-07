@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { Share2, Camera, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -20,6 +20,10 @@ interface EstimateFloatingActionsProps {
    *  also hosts the Link-Client affordance). When omitted the gear button is
    *  not rendered (backward-compat). */
   onOpenSettings?: () => void
+  /** Controls drawn first in the pill, before a divider (the page view's zoom). */
+  leading?: ReactNode
+  /** The gear button, so the settings popover can open from it. */
+  settingsButtonRef?: Ref<HTMLButtonElement>
   /** "Client response" control (record the client's answer in-app), drawn before Share. */
   responseControl?: ReactNode
 }
@@ -39,16 +43,73 @@ interface EstimateFloatingActionsProps {
 // excess now scrolls INSIDE the pill and never reaches the document.
 // ---------------------------------------------------------------------------
 
+// Update: the pill is `sticky` at every width now, inside the column that
+// holds the document, so it centers on the DOCUMENT rather than the viewport
+// (the old lg `fixed inset-x-0` put it off-centre beside the sidebar and the
+// page view's side rail). In the page view PaginatedPreview renders it inside
+// the sheet column (with its zoom control) for the same reason.
+
+// The sticky line is ZERO height and the pill hangs from it (absolute,
+// bottom-0): the bar floats over the content like the old `fixed` one did,
+// instead of reserving its own ~50px strip under the last page (which showed
+// up as an empty band at the bottom of the document).
 function Pill({ children }: { children: ReactNode }) {
   return (
     <div
-      className="sticky bottom-3 lg:fixed lg:inset-x-0 lg:bottom-2 z-40 flex justify-center px-4 lg:px-0 pointer-events-none"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="pointer-events-none sticky z-40 h-0 w-full"
+      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
-      <div className="pointer-events-auto inline-flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
-        {children}
+      <div className="absolute bottom-0 left-1/2 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 justify-center">
+        <div className="pointer-events-auto inline-flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+          {children}
+        </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * The collapsed bar: a small tab glued to the bottom edge of the screen, its
+ * bottom cut off by the edge. `fixed`, not `sticky`: a sticky tab drops back
+ * into the flow at the end of the document and floats above the page padding.
+ * A zero-height, full-width marker in the flow tracks the document column's
+ * centre, so the fixed tab stays centred on the document (not the window)
+ * when the window or the sidebar changes width.
+ */
+function CollapsedTab({ onExpand }: { onExpand: () => void }) {
+  const markerRef = useRef<HTMLDivElement>(null)
+  const [centerX, setCenterX] = useState<number | null>(null)
+
+  useLayoutEffect(() => {
+    const el = markerRef.current
+    if (!el) return
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      setCenterX(r.left + r.width / 2)
+    }
+    update()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    ro?.observe(el)
+    window.addEventListener('resize', update)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+
+  return (
+    <>
+      <div ref={markerRef} aria-hidden className="h-0 w-full" />
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label="Show actions"
+        className="fixed bottom-0 z-40 flex min-h-7 w-16 -translate-x-1/2 items-start justify-center rounded-t-xl border border-b-0 border-border bg-background/95 pt-1 text-foreground shadow-[0_-6px_16px_rgba(0,0,0,0.25)] backdrop-blur transition-colors hover:bg-muted"
+        style={{ left: centerX ?? '50%', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <ChevronUp className="h-4 w-4" />
+      </button>
+    </>
   )
 }
 
@@ -66,6 +127,8 @@ export function EstimateFloatingActions({
   onSend,
   onOpenPhotos,
   onOpenSettings,
+  leading,
+  settingsButtonRef,
   responseControl,
 }: EstimateFloatingActionsProps) {
   // Quick-260718-w4k — the pill collapses to a single small round button so it
@@ -77,26 +140,19 @@ export function EstimateFloatingActions({
 
   const isSaving = status === 'saving'
 
-  if (collapsed) {
-    return (
-      <Pill>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setCollapsed(false)}
-          aria-label="Show actions"
-          className="rounded-full text-foreground"
-        >
-          <ChevronUp className="h-3.5 w-3.5" />
-        </Button>
-      </Pill>
-    )
-  }
+  if (collapsed) return <CollapsedTab onExpand={() => setCollapsed(false)} />
 
   return (
     <Pill>
+      {leading && (
+        <>
+          {leading}
+          <span aria-hidden className="h-5 w-px shrink-0 bg-border" />
+        </>
+      )}
       {onOpenSettings && (
         <Button
+          ref={settingsButtonRef}
           size="sm"
           variant="ghost"
           onClick={onOpenSettings}

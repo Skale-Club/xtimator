@@ -66,11 +66,10 @@ describe('Account consolidation (142.1-02)', () => {
     expect(account).not.toContain('company_whatsapp')
   })
 
-  it('account loading represents both profile and security sections', () => {
+  it('account loading draws the profile and security cards without text', () => {
     const loading = read('app/(app)/settings/(tabs)/account/loading.tsx')
-    expect(loading).toContain('Profile Photo')
-    expect(loading).toContain('Change Password')
-    expect(loading).toContain('Change Email')
+    // Text-free skeleton (an English title would flash before the translated one).
+    expect((loading.match(/<SettingsCard/g) ?? []).length).toBeGreaterThanOrEqual(2)
     expect(loading).not.toContain('WhatsApp')
   })
 

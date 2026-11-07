@@ -37,6 +37,7 @@ import {
   NewItemSlot,
   PhotoRemoveButton,
   SectionActions,
+  AddSectionSlot,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
 import { isSectionVisible } from '@/lib/estimate/presentation-settings'
@@ -410,6 +411,7 @@ export const modernTemplate: PreviewTemplate = {
         style={{ ...font(9, LORA_LH), paddingTop: pt(8), paddingBottom: pt(8) }}
       >
         <NewItemSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
+        <AddSectionSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
         <span className={`font-bold ${MUTED} select-none`} style={{ marginRight: pt(12) }}>
           {ctx.L.sectionSubtotal}
         </span>

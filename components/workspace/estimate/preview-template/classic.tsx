@@ -35,6 +35,7 @@ import {
   NewItemSlot,
   PhotoRemoveButton,
   SectionActions,
+  AddSectionSlot,
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
 import { isSectionVisible } from '@/lib/estimate/presentation-settings'
@@ -284,8 +285,9 @@ export const classicTemplate: PreviewTemplate = {
         className="text-center"
         style={{ backgroundColor: ctx.brandColor, paddingTop: pt(16), paddingBottom: pt(16), marginBottom: pt(20) }}
       >
+        {/* 800, matching the PDF's Inter-ExtraBold title (fontFamilyTitle). */}
         <h1
-          className="font-bold select-none"
+          className="font-extrabold select-none"
           style={{ ...font(24, INTER_LH), color: ctx.brandOnFill }}
         >
           {ctx.L.estimate}
@@ -431,6 +433,7 @@ export const classicTemplate: PreviewTemplate = {
         style={{ ...font(9, INTER_LH), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
         <NewItemSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
+        <AddSectionSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
         <span className="font-bold text-muted-foreground select-none" style={{ marginRight: pt(12) }}>
           {ctx.L.sectionSubtotal}
         </span>

@@ -81,7 +81,7 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
+            variant="destructive"
             onClick={() => setShowDeleteDialog(true)}
           >
             {t('Delete')}

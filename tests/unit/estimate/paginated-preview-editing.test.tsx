@@ -225,9 +225,11 @@ describe.each(['classic', 'modern'] as const)('PaginatedPreview editing — %s',
     expect(within(subtotal).queryByRole('textbox')).toBeNull()
   })
 
-  it('"Add section" asks for the first line before creating the section', () => {
+  it('"Add section" (under the last section) asks for the first line before creating the section', () => {
     const dispatch = vi.fn()
     renderPreview({ templateId, dispatch })
+    // One button, under the last section — like the width view's.
+    expect(screen.getAllByRole('button', { name: /add section/i })).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: /add section/i }))
     const submit = screen.getAllByRole('button', { name: /add section/i }).at(-1)!
     expect((submit as HTMLButtonElement).disabled).toBe(true)

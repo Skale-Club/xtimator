@@ -22,6 +22,7 @@ import { LABELS, type DocumentLabels } from '@/lib/estimate/document/labels'
 import type { DocumentItem } from '@/lib/estimate/document/model'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import { PriceBookCombobox } from './price-book-combobox'
+import { PAPER_SWITCH_CLASS } from '@/lib/estimate/document/tokens'
 
 // The mobile line-item editor is the desktop table row folded onto two lines.
 // Every control, class, label and action mirrors `SortableDocumentItemRow`
@@ -296,6 +297,7 @@ export function ItemCardMobile({
             onCheckedChange={(checked) => onUpdate('taxable', checked)}
             disabled={isReadOnly}
             aria-label={L.taxable}
+            className={PAPER_SWITCH_CLASS}
           />
         </div>
       </div>

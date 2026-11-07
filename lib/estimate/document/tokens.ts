@@ -8,6 +8,16 @@
 // anywhere else (tests/unit/estimate/pt-px-conversion-source.test.ts
 // enforces this via static grep).
 export const PT_PER_PX = 72 / 96
+
+/**
+ * Switches drawn on the estimate's white paper. The paper forces a light
+ * surface but the app theme may be dark, and the stock Switch then paints a
+ * dark track with a near-black thumb (its dark-mode thumb uses --foreground,
+ * which the paper sets to near-black). Pin light colors instead: light grey
+ * track off, primary on, white thumb.
+ */
+export const PAPER_SWITCH_CLASS =
+  'shadow-none data-[state=unchecked]:bg-zinc-300 dark:data-[state=unchecked]:bg-zinc-300 data-[state=checked]:bg-primary [&_[data-slot=switch-thumb]]:!bg-white [&_[data-slot=switch-thumb]]:shadow-sm'
 export const PX_PER_PT = 96 / 72
 export const LETTER_WIDTH_PT = 612
 export const LETTER_HEIGHT_PT = 792
@@ -24,6 +34,8 @@ import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 export interface EstimateDesignTokens {
   fontFamily: string
   fontFamilyBold: string
+  /** The ESTIMATE title: Classic draws it one step heavier (Inter ExtraBold, 800). */
+  fontFamilyTitle: string
   /** Correction 1 (183-RESEARCH.md) — Classic gives its title banner and
    *  section headers a solid backgroundColor: brandColor fill; Modern uses
    *  a hairline/accent-only treatment with NO fill, by design. Static per
@@ -34,8 +46,8 @@ export interface EstimateDesignTokens {
 }
 
 export const ESTIMATE_DESIGN_TOKENS: Record<EstimateTemplateId, EstimateDesignTokens> = {
-  classic: { fontFamily: 'Inter', fontFamilyBold: 'Inter-Bold', solidHeaderFill: true },
-  modern: { fontFamily: 'Lora', fontFamilyBold: 'Lora-Bold', solidHeaderFill: false },
+  classic: { fontFamily: 'Inter', fontFamilyBold: 'Inter-Bold', fontFamilyTitle: 'Inter-ExtraBold', solidHeaderFill: true },
+  modern: { fontFamily: 'Lora', fontFamilyBold: 'Lora-Bold', fontFamilyTitle: 'Lora-Bold', solidHeaderFill: false },
 }
 
 // Phase 184 Plan 01 (PGBRK-05) — font-metrics-derived line-height multiplier,
@@ -56,6 +68,7 @@ export const ESTIMATE_DESIGN_TOKENS: Record<EstimateTemplateId, EstimateDesignTo
 export const LINE_HEIGHT: Record<string, number> = {
   Inter: 1.21,
   'Inter-Bold': 1.21,
+  'Inter-ExtraBold': 1.21, // same vertical metrics as Inter-Bold (ascent 1984, descent -494, lineGap 0, upm 2048)
   Lora: 1.28,
   'Lora-Bold': 1.28,
 }

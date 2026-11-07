@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Settings, Trash2, LogOut, HelpCircle } from 
 import { cn } from '@/lib/utils'
 import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
+import { NavigationPending } from './navigation-pending'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ContextualTooltip, TOOLTIP_KEYS } from '@/components/tour/contextual-tooltip'
 import {
@@ -15,11 +16,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { signOut } from '@/lib/auth/sign-out'
 import { useTourContext } from '@/components/tour/tour-provider'
@@ -241,7 +239,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
           const Icon = item.icon
 
           const baseLayout =
-            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-200 ease-in-out'
+            'group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-[var(--font-weight-medium)] transition-all duration-200 ease-in-out has-[[data-navigation-pending]]:bg-primary/10 has-[[data-navigation-pending]]:text-primary'
 
           const linkClassName = item.primary
             ? cn(
@@ -287,8 +285,10 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
             <Link
               key={item.href}
               href={item.href}
+              prefetch={item.prefetch}
               data-tour={dataTour ?? undefined}
               data-active={isActive || undefined}
+              aria-current={isActive ? 'page' : undefined}
               className={linkClassName}
             >
               <Icon className="h-5 w-5 shrink-0" />
@@ -300,6 +300,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
               >
                 {t(item.label)}
               </span>
+              <NavigationPending label={t('Loading...')} className={collapsed ? 'right-0 top-0 translate-y-0' : undefined} />
             </Link>
           )
 

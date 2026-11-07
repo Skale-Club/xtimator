@@ -56,8 +56,11 @@ describe('demo-hidden settings tab guards (181-03, PARITY-02)', () => {
   describe('app/(app)/settings/(tabs)/delivery/page.tsx', () => {
     const src = read('app/(app)/settings/(tabs)/delivery/page.tsx')
 
-    it('guards on isDemoCompany(company.id)', () => {
-      expect(src).toContain('isDemoCompany(company.id)')
+    // Delivery moved into Estimate defaults; the old route only redirects
+    // there, and that page carries the demo guard.
+    it('redirects to the guarded estimates page', () => {
+      expect(src).toContain("redirect('/settings/estimates')")
+      expect(read('app/(app)/settings/(tabs)/estimates/page.tsx')).toContain('isDemoCompany(company.id)')
     })
   })
 

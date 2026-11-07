@@ -1,3 +1,4 @@
+import { ChevronLeft } from 'lucide-react'
 // Phase 90: MCP settings sub-page.
 //
 // Surface that lets the user add Xtimator as a custom MCP connector inside
@@ -44,12 +45,17 @@ export default async function McpSettingsPage() {
   const claudeCodeCmd = `claude mcp add xtimator ${mcpUrl}`
 
   return (
-    <div className="space-y-8 p-6">
-      <header className="flex flex-col gap-2">
+    <div className="space-y-6">
+      <Link
+        href="/settings/integrations"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+        Integrations
+      </Link>
+      <header className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
-          <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-            MCP Server
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">MCP Server</h1>
           <Badge variant="secondary">Beta</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -62,16 +68,10 @@ export default async function McpSettingsPage() {
           {' '}<code className="rounded bg-muted px-1 py-0.5 text-xs">check_job_status</code>{' '}
           from inside the chat.
         </p>
-        <Link
-          href="/settings/integrations"
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-        >
-          ← Back to Integrations
-        </Link>
       </header>
 
       {/* Connect URL */}
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>Connect URL</CardTitle>
           <CardDescription>
@@ -89,7 +89,7 @@ export default async function McpSettingsPage() {
       </Card>
 
       {/* How to connect: single button → dialog with per-client tabs */}
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>How to connect</CardTitle>
           <CardDescription>
@@ -103,7 +103,7 @@ export default async function McpSettingsPage() {
       </Card>
 
       {/* Available tools */}
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>Available tools</CardTitle>
           <CardDescription>
@@ -133,7 +133,7 @@ export default async function McpSettingsPage() {
       </Card>
 
       {/* Permissions */}
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>Permissions</CardTitle>
         </CardHeader>

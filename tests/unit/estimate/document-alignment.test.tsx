@@ -169,7 +169,7 @@ describe('EstimateDocument alignment (DOCUX-05)', () => {
     expect((footer as Element).className.split(/\s+/).includes('px-3')).toBe(false)
   })
 
-  it('section padding — add-item row uses px-6 sm:px-10 in edit mode (not px-3)', () => {
+  it('section padding — add-item LABEL sits on the 40px rail in edit mode (the "+" in the ⋮ gutter)', () => {
     const { container } = render(
       <EstimateDocument mode="edit" dispatch={vi.fn()} {...baseProps} />
     )
@@ -178,8 +178,14 @@ describe('EstimateDocument alignment (DOCUX-05)', () => {
     const rows = Array.from(container.querySelectorAll('div.border-dashed'))
     const addItem = rows.find((r) => (r.textContent ?? '').includes('Add item'))
     expect(addItem).toBeTruthy()
-    expect(classHas(addItem as Element, 'px-6', 'sm:px-10')).toBe(true)
+    // Phones: the plain 24px gutter. sm+: the row starts at 21px so the 12px
+    // "+" lines up under the row kebabs, and a 7px gap puts the label at
+    // 21 + 12 + 7 = 40px — the same rail as the item descriptions (sm:px-10).
+    expect(classHas(addItem as Element, 'pl-6', 'pr-6', 'sm:pl-[21px]', 'sm:pr-10')).toBe(true)
     expect((addItem as Element).className.split(/\s+/).includes('px-3')).toBe(false)
+    const button = (addItem as Element).querySelector('button')!
+    expect(classHas(button, 'sm:gap-[7px]')).toBe(true)
+    expect(button.querySelector('svg')?.getAttribute('class')).toContain('sm:h-3')
   })
 
   it('section padding — edit-mode mobile stacked item card wrapper uses SECTION_PX (px-6 sm:px-10)', () => {

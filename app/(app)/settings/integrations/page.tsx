@@ -15,6 +15,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Integrations | Settings' }
 
@@ -45,15 +46,11 @@ export default async function SettingsIntegrationsPage() {
   }
 
   return (
-    <div className="space-y-8 p-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-[clamp(28px,3.5vw,40px)] font-semibold tracking-tight">
-          <T>Integrations</T>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          <T>Connect the tools your business runs on.</T>
-        </p>
-      </header>
+    <div className="space-y-6">
+      <SettingsHeader
+        title={<T>Integrations</T>}
+        description={<T>Connect the tools your business runs on.</T>}
+      />
 
       {/* Collect payments — Stripe Connect setup. */}
       <section className="space-y-3">
@@ -64,7 +61,7 @@ export default async function SettingsIntegrationsPage() {
           href="/settings/integrations/stripe"
           className="group block focus:outline-none"
         >
-          <Card className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
+          <Card variant="glass" className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -96,7 +93,7 @@ export default async function SettingsIntegrationsPage() {
           href="/settings/integrations/mcp"
           className="group block focus:outline-none"
         >
-          <Card className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
+          <Card variant="glass" className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">
             <CardHeader>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">

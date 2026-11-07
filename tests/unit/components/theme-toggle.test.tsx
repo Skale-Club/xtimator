@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 
 // --- Mocks --------------------------------------------------------------
 
@@ -67,6 +68,22 @@ describe('ThemeToggle (dropdown variant)', () => {
     expect(svg?.getAttribute('class')?.toLowerCase()).toContain('sun')
   })
 
+  it('hydrates the saved light theme without a server/client markup mismatch', () => {
+    setTheme('light')
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(<ThemeToggle />)
+    document.body.appendChild(container)
+    expect(container.querySelector('svg')?.getAttribute('class')).toContain('moon')
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+
+    const onRecoverableError = vi.fn()
+    render(<ThemeToggle />, { container, hydrate: true, onRecoverableError })
+
+    expect(container.querySelector('svg')?.getAttribute('class')).toContain('sun')
+    expect(container.querySelector('svg')?.getAttribute('aria-hidden')).toBe('false')
+    expect(onRecoverableError).not.toHaveBeenCalled()
+  })
+
   it('renders Moon icon when theme === "system" (dropdown trigger is light↔dark only; Monitor lives in the RadioGroup variant)', () => {
     setTheme('system')
     const { container } = render(<ThemeToggle />)
@@ -81,6 +98,20 @@ describe('ThemeToggle (dropdown variant)', () => {
 // --- ThemeToggleRadioGroup (settings variant) ---------------------------
 
 describe('ThemeToggleRadioGroup (settings variant)', () => {
+  it('hydrates the saved preference without a server/client markup mismatch', () => {
+    setTheme('light')
+    const container = document.createElement('div')
+    container.innerHTML = renderToString(<ThemeToggleRadioGroup />)
+    document.body.appendChild(container)
+    expect(container.querySelector('#theme-system')?.getAttribute('aria-checked')).toBe('true')
+
+    const onRecoverableError = vi.fn()
+    render(<ThemeToggleRadioGroup />, { container, hydrate: true, onRecoverableError })
+
+    expect(screen.getByRole('radio', { name: /^light$/i }).getAttribute('aria-checked')).toBe('true')
+    expect(onRecoverableError).not.toHaveBeenCalled()
+  })
+
   it('renders three radio items with accessible labels Light, Dark, System', async () => {
     setTheme('dark')
     render(<ThemeToggleRadioGroup />)

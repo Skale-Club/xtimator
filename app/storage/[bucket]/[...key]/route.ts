@@ -33,6 +33,7 @@
 import { isProxyBucket, normalizeProxyKey, cacheControlFor, isPubliclyReadableBucket } from '@/lib/storage/proxy-policy'
 import { fetchStoredAsset } from '@/lib/storage/asset-source'
 import { canReadPrivateKey } from '@/lib/storage/proxy-auth'
+import { fetchFromDevRemote } from '@/lib/storage/dev-remote'
 
 // AWS SDK (via asset-source.ts) and the service-role client are Node-only.
 export const runtime = 'nodejs'
@@ -82,7 +83,15 @@ export async function GET(
 
   // Gate 4: the actual read. R2 first, Supabase read-through fallback.
   const asset = await fetchStoredAsset(bucket, key)
-  if (!asset) return notFound()
+  if (!asset) {
+    // `next dev` only, public buckets only: localhost has no R2 keys, so borrow
+    // the object from production instead of showing a broken image (dev-remote.ts).
+    if (isPubliclyReadableBucket(bucket)) {
+      const remote = await fetchFromDevRemote(bucket, key)
+      if (remote) return remote
+    }
+    return notFound()
+  }
 
   const headers = new Headers({
     'Content-Type': asset.contentType,

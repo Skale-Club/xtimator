@@ -34,9 +34,6 @@ export function ClientDetailActions({ client, companyId }: ClientDetailActionsPr
 
   function handleSheetChange(open: boolean) {
     setSheetOpen(open)
-    if (!open) {
-      router.refresh()
-    }
   }
 
   function handleConfirmDelete() {

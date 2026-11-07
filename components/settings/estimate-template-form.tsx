@@ -12,7 +12,7 @@ import { estimateTemplateSchema, type EstimateTemplateFormValues } from '@/lib/s
 import { saveEstimateTemplate } from '@/lib/actions/estimate-template'
 import { TEMPLATE_DEFAULTS } from '@/lib/utils/estimate-template'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SettingsCard } from '@/components/settings/settings-ui'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -49,110 +49,88 @@ export function EstimateTemplateForm({ company }: EstimateTemplateFormProps) {
         toast.error(result.error)
       } else {
         toast.success(t('Template saved.'))
+        form.reset(values)
         router.refresh()
       }
     })
   }
 
   return (
-    <Card className="w-full rounded-[var(--radius-md)]">
-      <CardHeader className="border-b border-border">
-        <CardTitle>{t('Message Template')}</CardTitle>
-        <CardDescription>
-          {t('Default message pre-filled when you copy or share an estimate. Edit it per-estimate in the send flow.')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="py-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-
-            <FormField
-              control={form.control}
-              name="greeting"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Greeting')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={2}
-                      placeholder={TEMPLATE_DEFAULTS.greeting}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="opener"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Opening')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={3}
-                      placeholder={TEMPLATE_DEFAULTS.opener}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="closer"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Closing')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={3}
-                      placeholder={TEMPLATE_DEFAULTS.closer}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="signature"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Sign-off')}</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={3}
-                      placeholder={TEMPLATE_DEFAULTS.signature}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <p className="text-xs text-muted-foreground">
-              {t('Available variables:')}{' '}
-              <span className="font-mono">{'{client_name}'}</span>,{' '}
-              <span className="font-mono">{'{company_name}'}</span>,{' '}
-              <span className="font-mono">{'{owner_name}'}</span>,{' '}
-              <span className="font-mono">{'{total}'}</span>
-            </p>
-
-            <Button type="submit" disabled={isPending} className="min-w-40">
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        <SettingsCard
+          title={t('Message')}
+          description={t('Filled in when you share or copy an estimate. You can still edit it each time you send.')}
+          footer={
+            <Button type="submit" size="sm" disabled={isPending} className="min-w-28">
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save')}
+              {t('Save message')}
             </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          }
+        >
+          <div className="space-y-5">
+              <FormField
+                control={form.control}
+                name="greeting"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Greeting')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} placeholder={TEMPLATE_DEFAULTS.greeting} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="opener"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Opening')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder={TEMPLATE_DEFAULTS.opener} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="closer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Closing')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder={TEMPLATE_DEFAULTS.closer} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="signature"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Sign-off')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder={TEMPLATE_DEFAULTS.signature} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            <div className="rounded-[var(--radius-md)] bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              {t('Variables you can use:')}{' '}
+              <span className="font-mono text-foreground">{'{client_name}'}</span>,{' '}
+              <span className="font-mono text-foreground">{'{company_name}'}</span>,{' '}
+              <span className="font-mono text-foreground">{'{owner_name}'}</span>,{' '}
+              <span className="font-mono text-foreground">{'{total}'}</span>
+            </div>
+          </div>
+        </SettingsCard>
+      </form>
+    </Form>
   )
 }

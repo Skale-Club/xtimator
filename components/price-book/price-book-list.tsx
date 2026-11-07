@@ -55,6 +55,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
+import { ListSearch, TOOLBAR_CONTROL } from '@/components/ui/list-toolbar'
+import { useListUrlState } from '@/components/ui/list-url-state'
+import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/dashboard/empty-state'
 import { PriceBookItemDialog } from '@/components/price-book/price-book-item-dialog'
 import { PriceBookImportWizard } from '@/components/price-book/import-wizard'
@@ -84,7 +87,13 @@ export function PriceBookList({
 }: PriceBookListProps) {
   const router = useRouter()
   const { t } = useTranslation()
-  const [search, setSearch] = useState('')
+  // Search lives in the URL like every list (Back and reload keep it).
+  const url = useListUrlState()
+  const [search, setSearchState] = useState(() => url.read('q') ?? '')
+  function setSearch(value: string) {
+    setSearchState(value)
+    url.write({ q: value.trim() || null })
+  }
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PriceBookItem | null>(null)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
@@ -112,8 +121,8 @@ export function PriceBookList({
 
   // Filter FIRST (Pitfall 4: order matters — group depends on filtered)
   const filtered = useMemo(() => {
-    if (!search.trim()) return items
-    const q = search.toLowerCase()
+    const q = search.trim().toLowerCase()
+    if (!q) return items
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
@@ -344,29 +353,52 @@ export function PriceBookList({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-2xl font-semibold tracking-[-0.015em] shrink-0">Price Book</h2>
-        <div className="relative ml-auto w-[220px] min-w-[160px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search items..."
+      {/* Same layout as the shared list header: one row on wide screens (title,
+          search that shrinks to fit, actions); on smaller ones the search takes
+          its own full-width line and the secondary actions fold into a ⋯ menu. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
+        <h2 className="min-h-9 min-w-0 flex-1 content-center text-xl font-semibold tracking-[-0.015em] sm:text-2xl lg:flex-none">
+          {t('Price Book')}
+        </h2>
+        <div className="order-last flex w-full min-w-0 items-center lg:order-none lg:w-auto lg:flex-1 lg:justify-end">
+          <ListSearch
+            className="min-w-0 flex-1 lg:max-w-64"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9"
+            onChange={setSearch}
+            placeholder="Search items..."
           />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setNewFolderDialogOpen(true)}>
-          <FolderPlus className="h-4 w-4 mr-2" />
-          {t('New Category')}
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
-          <Upload className="h-4 w-4 mr-2" />
-          Import CSV
-        </Button>
-        <Button size="sm" onClick={handleAddItem}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Service
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" className={cn(TOOLBAR_CONTROL, 'hidden lg:inline-flex')} onClick={() => setNewFolderDialogOpen(true)}>
+            <FolderPlus className="h-4 w-4" />
+            {t('New Category')}
+          </Button>
+          <Button variant="outline" size="sm" className={cn(TOOLBAR_CONTROL, 'hidden lg:inline-flex')} onClick={() => setImportDialogOpen(true)}>
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon-sm" className={cn(TOOLBAR_CONTROL, 'size-9 lg:hidden')} aria-label={t('More actions')}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setNewFolderDialogOpen(true)}>
+                <FolderPlus className="h-4 w-4" />
+                {t('New Category')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setImportDialogOpen(true)}>
+                <Upload className="h-4 w-4" />
+                {t('Import CSV')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="primary" size="sm" className="h-9 rounded-lg" onClick={handleAddItem}>
+            <Plus className="h-4 w-4" />
+            Add Service
+          </Button>
+        </div>
       </div>
 
       {/* No results from search */}
@@ -391,11 +423,12 @@ export function PriceBookList({
             return (
               <div key={folderId ?? '__uncategorized__'} className="space-y-4">
                 {/* Folder header */}
-                <div className="flex flex-wrap items-center gap-2 border-b pb-2">
+                <div className="flex items-center gap-2 border-b pb-2">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="size-8 rounded-lg"
+                    aria-label={isCollapsed ? t('Expand category') : t('Collapse category')}
                     onClick={() => {
                       if (!folderId) return
                       setCollapsedFolders((prev) => {
@@ -426,16 +459,16 @@ export function PriceBookList({
                       onBlur={() => handleRenameConfirm(folderId!)}
                     />
                   ) : (
-                    <span className="font-semibold text-sm flex items-center gap-1.5">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                      {folderName}
-                      <span className="text-muted-foreground font-normal ml-1">
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold" title={folderName}>
+                      <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{folderName}</span>
+                      <span className="ml-1 shrink-0 font-normal text-muted-foreground">
                         ({folderItems.length})
                       </span>
                     </span>
                   )}
 
-                  <div className="ml-auto flex items-center gap-1">
+                  <div className="ml-auto flex shrink-0 items-center gap-0.5">
                     {/* Select-all for this category's VISIBLE items — icon button,
                         not a checkbox (quick-260718-s8a): click selects all; when
                         everything is already selected, click deselects. */}
@@ -445,7 +478,7 @@ export function PriceBookList({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={`h-6 w-6 mr-0.5 ${selState === false ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary'}`}
+                          className={`size-8 rounded-lg ${selState === false ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary'}`}
                           onClick={() => toggleFolderSelected(folderItems, selState !== true)}
                           aria-label={`Select all in ${folderName}`}
                           aria-pressed={selState === true}
@@ -459,16 +492,18 @@ export function PriceBookList({
                     {!isVirtual && !isRenaming && (
                       <>
                         <Button
-                          variant="ghost" size="icon" className="h-6 w-6"
+                          variant="ghost" size="icon" className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                          aria-label={t('Rename category')}
                           onClick={() => {
                             setRenamingFolderId(folderId!)
                             setRenamingFolderValue(folderName)
                           }}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                          variant="ghost" size="icon" className="size-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={selected.size > 0 ? t('Delete selected items') : t('Delete category')}
                           data-testid={`delete-folder-btn-${folderId}`}
                           onClick={() => {
                             // Dual function (quick-260718-d2f): with a selection,
@@ -482,20 +517,22 @@ export function PriceBookList({
                             }
                           }}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </>
                     )}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="ml-1"
+                      className={cn(TOOLBAR_CONTROL, 'ml-1.5 h-8 gap-1 px-2.5')}
                       disabled={folderItems.length === 0}
                       onClick={() => handleAdjustFolder(folderId, folderName)}
                       data-testid={`adjust-btn-folder-${folderId ?? 'uncategorized'}`}
+                      aria-label={t('Adjust prices by %')}
                     >
-                      <Percent className="h-3.5 w-3.5 mr-1.5" />
-                      Adjust %
+                      <Percent className="h-3.5 w-3.5" />
+                      {/* Icon-only on a phone so the category row stays one line. */}
+                      <span className="hidden sm:inline">Adjust %</span>
                     </Button>
                   </div>
                 </div>

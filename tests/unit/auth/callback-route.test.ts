@@ -53,6 +53,10 @@ vi.mock('@/lib/theme/cookie', () => ({
   isValidTheme: () => false,
 }))
 
+// These cases exercise the legacy OAuth callback. Keep its mode explicit so
+// a developer's owned-auth configuration cannot bypass the mocked exchange.
+vi.mock('@/lib/auth/mode', () => ({ ownedAuthEnabled: () => false }))
+
 function makeRequest(query: string) {
   return new NextRequest(`https://0.0.0.0:3000/callback${query}`)
 }

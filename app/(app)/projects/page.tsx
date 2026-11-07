@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { getProjectsForListPage, type ProjectListStatus } from '@/lib/queries/project'
-import { getClients } from '@/lib/queries/clients'
+import { getClientsForEditing } from '@/lib/queries/clients'
 import { ProjectsPageShell } from '@/components/projects/projects-page-shell'
 
 function parseStatus(raw: string | string[] | undefined): ProjectListStatus {
@@ -35,7 +35,7 @@ export default async function ProjectsPage({
   const supabase = await createClient()
   const [projects, clients] = await Promise.all([
     getProjectsForListPage(supabase, company.id, { status, clientId }),
-    getClients(supabase, company.id),
+    getClientsForEditing(supabase, company.id),
   ])
 
   return (

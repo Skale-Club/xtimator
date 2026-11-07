@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
+import { NavigationPending } from './navigation-pending'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   DropdownMenu,
@@ -24,12 +24,8 @@ const TOUR_TARGET: Record<string, string> = {
 }
 
 export function BottomNav({ isDemo }: { isDemo?: boolean }) {
-  const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const { t } = useTranslation()
-
-  useEffect(() => { setMounted(true) }, [])
-  if (!mounted) return null
 
   function openModal(modalValue: string) {
     // History API → flips the dialog instantly with no RSC page re-render.
@@ -69,7 +65,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
         const Icon = item.icon
         const dataTour = TOUR_TARGET[item.href] ?? undefined
         const itemClass = cn(
-          'flex flex-1 basis-0 min-h-[44px] min-w-[44px] flex-col items-center justify-center px-3 py-2 transition-colors duration-150',
+          'relative flex flex-1 basis-0 min-h-[44px] min-w-[44px] flex-col items-center justify-center px-3 py-2 transition-colors duration-150 has-[[data-navigation-pending]]:text-primary',
           isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
           item.primary && 'relative'
         )
@@ -122,14 +118,17 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={item.prefetch}
             data-tour={dataTour}
             data-active={isActive || undefined}
+            aria-current={isActive ? 'page' : undefined}
             aria-label={t(item.label)}
             className={itemClass}
           >
             {iconEl}
             {labelEl}
             {indicatorEl}
+            <NavigationPending label={t('Loading...')} className="right-1 top-1 translate-y-0" />
           </Link>
         )
       })}
@@ -154,9 +153,10 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
               const Icon = item.icon
               return (
                 <DropdownMenuItem key={item.href} asChild className="cursor-pointer gap-2">
-                  <Link href={item.href}>
+                  <Link href={item.href} prefetch={item.prefetch}>
                     <Icon className="h-4 w-4" />
                     {t(item.label)}
+                    <NavigationPending label={t('Loading...')} />
                   </Link>
                 </DropdownMenuItem>
               )

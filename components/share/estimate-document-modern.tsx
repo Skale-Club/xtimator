@@ -134,12 +134,11 @@ export function EstimateDocumentModern({
 
   return (
     <div
-      className="font-serif rounded-3xl border shadow-lg overflow-hidden"
+      className="font-serif rounded-[8px] shadow-lg overflow-hidden"
       style={{
         backgroundColor: '#ffffff',
         colorScheme: 'light',
         color: 'hsl(240 10% 3.9%)',
-        borderColor: '#e4e4e7',
       }}
     >
       {/* Company header — thin hairline rule instead of Classic's brand-filled top border */}
@@ -191,7 +190,7 @@ export function EstimateDocumentModern({
       {/* ESTIMATE title — small, letter-spaced, left-aligned, thin rule underneath */}
       <div className="px-8 sm:px-12 pt-8">
         <h1
-          className="text-sm font-semibold tracking-[0.2em] select-none"
+          className="text-sm font-bold tracking-[0.2em] select-none"
           style={{ color: brandText }}
         >
           {L.estimate}
