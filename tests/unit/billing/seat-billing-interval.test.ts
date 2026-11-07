@@ -36,6 +36,7 @@ const subscriptionItemsUpdate = vi.fn(async () => ({}))
 const subscriptionItemsCreate = vi.fn(async () => ({}))
 const productsSearch = vi.fn()
 const productsCreate = vi.fn()
+const productsUpdate = vi.fn()
 
 /** Configurable per-test: which interval the mock subscription advertises. */
 let mockSubscriptionInterval: 'month' | 'year' = 'month'
@@ -85,6 +86,7 @@ function makeMockStripe() {
     products: {
       search: productsSearch,
       create: productsCreate,
+      update: productsUpdate,
     },
   }
 }
@@ -174,6 +176,7 @@ beforeEach(() => {
   // Re-apply after clearAllMocks so ensureSeatProduct still resolves.
   productsSearch.mockResolvedValue({ data: [{ id: 'prod_seat' }] })
   productsCreate.mockResolvedValue({ id: 'prod_seat' })
+  productsUpdate.mockResolvedValue({})
   subscriptionItemsUpdate.mockResolvedValue({})
   subscriptionItemsCreate.mockResolvedValue({})
 
@@ -231,7 +234,7 @@ describe('FIX 1 (HIGH): syncSubscriptionSeatItem — seat item ordered FIRST in 
         create: subscriptionItemsCreate,
         del: vi.fn(async () => ({})),
       },
-      products: { search: productsSearch, create: productsCreate },
+      products: { search: productsSearch, create: productsCreate, update: productsUpdate },
     }
 
     await syncSubscriptionSeatItem(mockStripe as never, 'sub_seat_first', {
@@ -464,5 +467,36 @@ describe('ANN-04 (fix): syncSeatBilling idempotency on an annual subscription', 
     expect(updateCall.quantity).toBe(3)
     expect(updateCall.price_data.unit_amount).toBe(15000)
     expect(updateCall.price_data.recurring.interval).toBe('year')
+  })
+})
+
+
+describe('seat product brand image', () => {
+  const IMG = 'https://xtimator.com/icons/icon-512.png'
+  const run = () =>
+    syncSubscriptionSeatItem(makeMockStripe() as never, 'sub_img', {
+      quantity: 2,
+      unitAmount: 1500,
+    })
+
+  it('creates a new seat product with the brand image', async () => {
+    productsSearch.mockResolvedValue({ data: [] })
+    await run()
+    expect(productsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ images: [IMG], metadata: { kind: SEAT_ITEM_METADATA_KIND } })
+    )
+  })
+
+  it('backfills the image on an existing seat product without one', async () => {
+    productsSearch.mockResolvedValue({ data: [{ id: 'prod_seat', images: [] }] })
+    await run()
+    expect(productsCreate).not.toHaveBeenCalled()
+    expect(productsUpdate).toHaveBeenCalledWith('prod_seat', { images: [IMG] })
+  })
+
+  it('does not touch an existing seat product that already has the image', async () => {
+    productsSearch.mockResolvedValue({ data: [{ id: 'prod_seat', images: [IMG] }] })
+    await run()
+    expect(productsUpdate).not.toHaveBeenCalled()
   })
 })

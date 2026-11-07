@@ -26,9 +26,11 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: () => getStripeClientMock(),
 }))
 
-const { syncTierPrice, syncAllTierPrices, archivePrices } = await import(
+const { syncTierPrice, syncAllTierPrices, archivePrices, ensureTierProduct } = await import(
   '@/lib/billing/stripe-subscription-prices'
 )
+
+const IMG = 'https://xtimator.com/icons/icon-512.png'
 
 // ---- fake Stripe SDK boundary ----------------------------------------------
 function makeStripe(overrides: {
@@ -37,20 +39,22 @@ function makeStripe(overrides: {
   update?: ReturnType<typeof vi.fn>
   productsSearch?: ReturnType<typeof vi.fn>
   productsCreate?: ReturnType<typeof vi.fn>
+  productsUpdate?: ReturnType<typeof vi.fn>
 } = {}) {
   const productsSearch =
-    overrides.productsSearch ?? vi.fn().mockResolvedValue({ data: [{ id: 'prod_existing' }] })
+    overrides.productsSearch ?? vi.fn().mockResolvedValue({ data: [{ id: 'prod_existing', images: [IMG] }] })
   const productsCreate =
     overrides.productsCreate ?? vi.fn().mockResolvedValue({ id: 'prod_new' })
+  const productsUpdate = overrides.productsUpdate ?? vi.fn().mockResolvedValue({})
   const pricesRetrieve = overrides.retrieve ?? vi.fn()
   const pricesCreate =
     overrides.create ?? vi.fn().mockResolvedValue({ id: 'price_new' })
   const pricesUpdate = overrides.update ?? vi.fn().mockResolvedValue({})
   const stripe = {
-    products: { search: productsSearch, create: productsCreate },
+    products: { search: productsSearch, create: productsCreate, update: productsUpdate },
     prices: { retrieve: pricesRetrieve, create: pricesCreate, update: pricesUpdate },
   }
-  return { stripe: stripe as unknown as Stripe, productsSearch, productsCreate, pricesRetrieve, pricesCreate, pricesUpdate }
+  return { stripe: stripe as unknown as Stripe, productsSearch, productsCreate, productsUpdate, pricesRetrieve, pricesCreate, pricesUpdate }
 }
 
 beforeEach(() => {
@@ -239,5 +243,93 @@ describe('syncAllTierPrices', () => {
     // Never archived by the sync itself — that is saveBillingConfig's job,
     // after the config upsert succeeds.
     expect(pricesUpdate).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('product image + single product per tier', () => {
+  it('creates a new tier product with the brand image', async () => {
+    const productsSearch = vi.fn().mockResolvedValue({ data: [] })
+    const { stripe, productsCreate } = makeStripe({ productsSearch })
+
+    expect(await ensureTierProduct(stripe, 'pro')).toBe('prod_new')
+    expect(productsCreate).toHaveBeenCalledWith({
+      name: 'Xtimator Pro',
+      images: [IMG],
+      metadata: { kind: 'subscription_pro' },
+    })
+  })
+
+  it('backfills the image on an existing product that has none, never creating', async () => {
+    const productsSearch = vi.fn().mockResolvedValue({ data: [{ id: 'prod_old', images: [] }] })
+    const { stripe, productsCreate, productsUpdate } = makeStripe({ productsSearch })
+
+    expect(await ensureTierProduct(stripe, 'business')).toBe('prod_old')
+    expect(productsCreate).not.toHaveBeenCalled()
+    expect(productsUpdate).toHaveBeenCalledWith('prod_old', { images: [IMG] })
+  })
+
+  it('does not update an existing product that already has the image', async () => {
+    const { stripe, productsUpdate } = makeStripe()
+    await ensureTierProduct(stripe, 'pro')
+    expect(productsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('never throws when the image backfill fails', async () => {
+    const productsSearch = vi.fn().mockResolvedValue({ data: [{ id: 'prod_old', images: [] }] })
+    const productsUpdate = vi.fn().mockRejectedValue(new Error('boom'))
+    const { stripe } = makeStripe({ productsSearch, productsUpdate })
+    await expect(ensureTierProduct(stripe, 'pro')).resolves.toBe('prod_old')
+  })
+
+  it('reuses the product behind a configured price id before searching (search lag)', async () => {
+    const retrieve = vi.fn().mockResolvedValue({
+      product: { id: 'prod_from_price', active: true, images: [IMG], metadata: { kind: 'subscription_pro' } },
+    })
+    const productsSearch = vi.fn().mockResolvedValue({ data: [] })
+    const { stripe, productsCreate } = makeStripe({ retrieve, productsSearch })
+
+    expect(await ensureTierProduct(stripe, 'pro', ['price_m'])).toBe('prod_from_price')
+    expect(retrieve).toHaveBeenCalledWith('price_m', { expand: ['product'] })
+    expect(productsSearch).not.toHaveBeenCalled()
+    expect(productsCreate).not.toHaveBeenCalled()
+  })
+
+  it('ignores a price whose product has a different metadata.kind', async () => {
+    const retrieve = vi.fn().mockResolvedValue({
+      product: { id: 'prod_other', active: true, images: [IMG], metadata: { kind: 'seat' } },
+    })
+    const { stripe } = makeStripe({ retrieve })
+    expect(await ensureTierProduct(stripe, 'pro', ['price_m'])).toBe('prod_existing')
+  })
+
+  it('syncAllTierPrices creates ONE product per tier when month and year are both new (search lag)', async () => {
+    const cfgNew = {
+      tiers: {
+        pro: { subscriptionPriceCents: 2900, subscriptionPriceAnnualCents: 29000, stripePriceIdMonth: null, stripePriceIdYear: null },
+        business: { subscriptionPriceCents: 9900, subscriptionPriceAnnualCents: 99000, stripePriceIdMonth: null, stripePriceIdYear: null },
+      },
+    } as never
+    // Search never sees what we create (eventual consistency).
+    const productsSearch = vi.fn().mockResolvedValue({ data: [] })
+    let n = 0
+    const productsCreate = vi.fn().mockImplementation(async () => ({ id: `prod_${++n}` }))
+    const create = vi.fn().mockResolvedValue({ id: 'price_x' })
+    const { stripe } = makeStripe({ productsSearch, productsCreate, create })
+    getStripeClientMock.mockResolvedValue(stripe)
+
+    await syncAllTierPrices(cfgNew)
+
+    expect(productsCreate).toHaveBeenCalledTimes(2) // pro + business, not 4
+    const products = create.mock.calls.map((c) => (c[0] as { product: string }).product)
+    expect(products).toEqual(['prod_1', 'prod_1', 'prod_2', 'prod_2'])
+  })
+
+  it('syncTierPrice uses a product id passed in and does not resolve one itself', async () => {
+    const { stripe, productsSearch, productsCreate, pricesCreate } = makeStripe()
+    await syncTierPrice(stripe, 'pro', 'year', 29000, null, 'prod_given')
+    expect(pricesCreate).toHaveBeenCalledWith(expect.objectContaining({ product: 'prod_given' }))
+    expect(productsSearch).not.toHaveBeenCalled()
+    expect(productsCreate).not.toHaveBeenCalled()
   })
 })

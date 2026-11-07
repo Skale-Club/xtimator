@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
 import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
@@ -110,7 +111,10 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             unit_amount: pack.priceCents, // server-side — never from the body (Pitfall 4)
-            product_data: { name: `${pack.credits} Xtimator credits` },
+            product_data: {
+              name: `${pack.credits} Xtimator credits`,
+              images: [STRIPE_PRODUCT_IMAGE_URL],
+            },
           },
         },
       ],

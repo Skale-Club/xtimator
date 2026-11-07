@@ -162,6 +162,10 @@ describe('POST /api/billing/create-topup-session (TOPUP-02 route)', () => {
     expect(arg.mode).toBe('payment')
     expect(arg.line_items[0].price_data.unit_amount).toBe(5000)
     expect(arg.line_items[0].price_data.currency).toBe('usd')
+    // Every Xtimator product carries the brand image.
+    expect(arg.line_items[0].price_data.product_data.images).toEqual([
+      'https://xtimator.com/icons/icon-512.png',
+    ])
     // Inline price_data ONLY — never a pre-created Price id.
     expect(arg.line_items[0]).not.toHaveProperty('price')
     expect(arg.metadata.type).toBe('credit_topup')

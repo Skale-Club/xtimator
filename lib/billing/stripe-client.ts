@@ -1,6 +1,7 @@
 import 'server-only'
 import Stripe from 'stripe'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
 
 /**
  * Returns a Stripe client initialized per-request using the DB-stored secret key.
@@ -64,9 +65,23 @@ async function ensureSeatProduct(stripe: Stripe): Promise<string> {
     limit: 1,
   })
   const found = existing.data[0]
-  if (found) return found.id
+  if (found) {
+    const images = found.images ?? []
+    if (!(images.length === 1 && images[0] === STRIPE_PRODUCT_IMAGE_URL)) {
+      try {
+        await stripe.products.update(found.id, { images: [STRIPE_PRODUCT_IMAGE_URL] })
+      } catch (err) {
+        console.warn(
+          `[stripe-client] failed to set image on seat product ${found.id}:`,
+          err instanceof Error ? err.message : err
+        )
+      }
+    }
+    return found.id
+  }
   const created = await stripe.products.create({
     name: 'Xtimator additional seat',
+    images: [STRIPE_PRODUCT_IMAGE_URL],
     metadata: { kind: SEAT_ITEM_METADATA_KIND },
   })
   return created.id

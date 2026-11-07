@@ -2,6 +2,7 @@ import 'server-only'
 import type Stripe from 'stripe'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import type { BillingConfigInput } from '@/lib/schemas/admin'
+import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
 
 /**
  * Panel-managed subscription Prices (v4.18) — the admin types a dollar amount in
@@ -36,22 +37,73 @@ const TIER_PRODUCT_NAMES: Record<PricedTier, string> = {
   business: 'Xtimator Business',
 }
 
+/** Best-effort: make sure an existing product carries the brand image. Never throws. */
+export async function backfillProductImage(
+  stripe: Stripe,
+  product: { id: string; images?: string[] | null }
+): Promise<void> {
+  const images = product.images ?? []
+  if (images.length === 1 && images[0] === STRIPE_PRODUCT_IMAGE_URL) return
+  try {
+    await stripe.products.update(product.id, { images: [STRIPE_PRODUCT_IMAGE_URL] })
+  } catch (err) {
+    console.warn(
+      `[stripe-subscription-prices] failed to set image on product ${product.id}:`,
+      err instanceof Error ? err.message : err
+    )
+  }
+}
+
 /**
  * Find-or-create the metadata-tagged subscription Product for a tier
  * (metadata.kind === `subscription_${tier}`), reused across every save. A Price
  * requires a backing Product id, so we provision ONE tagged product the first
  * time and reuse it forever — the unit_amount stays config-driven on the Price.
+ *
+ * `products.search` is eventually consistent (~1 min), so a product created a
+ * moment ago may not be found. To avoid creating a duplicate, we FIRST look at
+ * the product behind any currently-configured price id of this tier
+ * (`existingPriceIds`) and reuse it when its metadata.kind matches.
  */
-export async function ensureTierProduct(stripe: Stripe, tier: PricedTier): Promise<string> {
+export async function ensureTierProduct(
+  stripe: Stripe,
+  tier: PricedTier,
+  existingPriceIds: Array<string | null | undefined> = []
+): Promise<string> {
   const kind = `subscription_${tier}`
+
+  for (const priceId of existingPriceIds) {
+    if (!priceId) continue
+    try {
+      const price = await stripe.prices.retrieve(priceId, { expand: ['product'] })
+      const product = price.product
+      if (
+        product &&
+        typeof product === 'object' &&
+        !('deleted' in product && product.deleted) &&
+        (product as Stripe.Product).active !== false &&
+        (product as Stripe.Product).metadata?.kind === kind
+      ) {
+        await backfillProductImage(stripe, product as Stripe.Product)
+        return product.id
+      }
+    } catch {
+      // Stored price id no longer resolves — try the next source.
+    }
+  }
+
   const existing = await stripe.products.search({
     query: `active:'true' AND metadata['kind']:'${kind}'`,
     limit: 1,
   })
   const found = existing.data[0]
-  if (found) return found.id
+  if (found) {
+    await backfillProductImage(stripe, found)
+    return found.id
+  }
   const created = await stripe.products.create({
     name: TIER_PRODUCT_NAMES[tier],
+    images: [STRIPE_PRODUCT_IMAGE_URL],
     metadata: { kind },
   })
   return created.id
@@ -81,7 +133,10 @@ export async function syncTierPrice(
   tier: PricedTier,
   interval: Interval,
   amountCents: number,
-  currentPriceId: string | null
+  currentPriceId: string | null,
+  /** Product id (or a lazy, memoized resolver) shared by month+year so ONE
+   *  product exists per tier. Omitted → resolved via ensureTierProduct. */
+  productRef?: string | (() => Promise<string>)
 ): Promise<SyncTierPriceResult> {
   if (amountCents <= 0) return { priceId: null, supersededPriceId: null }
 
@@ -100,7 +155,12 @@ export async function syncTierPrice(
     }
   }
 
-  const product = await ensureTierProduct(stripe, tier)
+  const product =
+    typeof productRef === 'string'
+      ? productRef
+      : productRef
+        ? await productRef()
+        : await ensureTierProduct(stripe, tier, [currentPriceId])
   const created = await stripe.prices.create({
     currency: 'usd',
     unit_amount: amountCents,
@@ -190,12 +250,21 @@ export async function syncAllTierPrices(
   }
   const supersededPriceIds: string[] = []
   for (const tier of tiers) {
+    // Resolve the tier's product ONCE (lazily — only if a Price must be created)
+    // and share it between month and year, so search lag can't spawn a duplicate.
+    let productPromise: Promise<string> | null = null
+    const productRef = () =>
+      (productPromise ??= ensureTierProduct(stripe, tier, [
+        existing[tier].month,
+        existing[tier].year,
+      ]))
     const month = await syncTierPrice(
       stripe,
       tier,
       'month',
       cfg.tiers[tier].subscriptionPriceCents,
-      existing[tier].month
+      existing[tier].month,
+      productRef
     )
     result[tier].month = month.priceId
     if (month.supersededPriceId) supersededPriceIds.push(month.supersededPriceId)
@@ -205,7 +274,8 @@ export async function syncAllTierPrices(
       tier,
       'year',
       cfg.tiers[tier].subscriptionPriceAnnualCents,
-      existing[tier].year
+      existing[tier].year,
+      productRef
     )
     result[tier].year = year.priceId
     if (year.supersededPriceId) supersededPriceIds.push(year.supersededPriceId)
