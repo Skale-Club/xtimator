@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 
 export function UpgradeButtons() {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
   const [loading, setLoading] = useState<'pro' | 'business' | null>(null)
 
   async function handleUpgrade(plan: 'pro' | 'business') {
@@ -29,6 +31,9 @@ export function UpgradeButtons() {
       setLoading(null)
     }
   }
+
+  // Android TWA (Google Play): purchase-free mode - never render a purchase control.
+  if (isTwa) return null
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row">

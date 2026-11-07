@@ -57,19 +57,24 @@ export function CreditBalanceCard({
   balance,
   lots = [],
   topupEligible = true,
+  hidePurchase = false,
 }: {
   percentUsed: number | null
   tier: string
   balance?: number
   lots?: LiveCreditLot[]
   topupEligible?: boolean
+  /** Android TWA (Google Play): no purchase links or subscribe nudges. */
+  hidePurchase?: boolean
 }) {
   const band =
     percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
 
   const resetCaption =
     tier === 'free'
-      ? 'Free credits never expire. Subscribe to Pro when they run out.'
+      ? hidePurchase
+        ? 'Free credits never expire.'
+        : 'Free credits never expire. Subscribe to Pro when they run out.'
       : 'Monthly credits expire when your billing cycle renews.'
 
   return (
@@ -136,6 +141,7 @@ export function CreditBalanceCard({
                 )}
               </p>
             </div>
+            {!hidePurchase && (
             <div className="flex flex-wrap items-center gap-3">
               {topupEligible ? (
                 <Link
@@ -153,6 +159,7 @@ export function CreditBalanceCard({
                 </Link>
               )}
             </div>
+            )}
           </div>
         )}
       </CardContent>

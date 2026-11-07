@@ -22,6 +22,8 @@ import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
 import { TourHelpButton } from '@/components/tour/tour-help-button'
+import { TwaProvider } from '@/components/pwa/twa-provider'
+import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { SWRegister } from '@/components/pwa/sw-register'
 import { SessionKeepalive } from '@/components/pwa/session-keepalive'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
@@ -42,6 +44,8 @@ export default async function AppShellLayout({
   children: React.ReactNode
 }) {
   const claims = await getAuthClaims()
+  // Android TWA (Google Play): purchase-free mode (no prices / buy CTAs).
+  const isTwa = await isTwaRequest()
 
   if (!claims) {
     redirect('/?auth=login')
@@ -102,6 +106,7 @@ export default async function AppShellLayout({
             })
 
       return (
+        <TwaProvider isTwa={isTwa}>
         <TourProvider>
           <BreadcrumbProvider>
             <div className="flex h-[100dvh] overflow-hidden">
@@ -149,6 +154,7 @@ export default async function AppShellLayout({
             </div>
           </BreadcrumbProvider>
         </TourProvider>
+        </TwaProvider>
       )
     }
     // supportCompany resolution failed (e.g. company deleted mid-session) —
@@ -223,6 +229,7 @@ export default async function AppShellLayout({
   }
 
   return (
+    <TwaProvider isTwa={isTwa}>
     <TourProvider>
       <BreadcrumbProvider>
         <div className="flex h-[100dvh] overflow-hidden">
@@ -255,7 +262,7 @@ export default async function AppShellLayout({
             />
             {isDemo && <DemoBanner />}
             {paywall.state !== 'active' && (
-              <PaywallBanner state={paywall.state} priceLabel={paywall.priceLabel} />
+              <PaywallBanner state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
             )}
             <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               {children}
@@ -283,5 +290,6 @@ export default async function AppShellLayout({
         </div>
       </BreadcrumbProvider>
     </TourProvider>
+    </TwaProvider>
   )
 }

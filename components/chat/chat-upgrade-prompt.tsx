@@ -18,9 +18,11 @@ import Link from 'next/link'
 import { MessageSquare, Sparkles } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { Button } from '@/components/ui/button'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 
 export function ChatUpgradePrompt() {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -42,9 +44,11 @@ export function ChatUpgradePrompt() {
               'Upgrade to Pro or Business to chat with your AI assistant. Generate estimates, query your data, and ask trade how-to questions without leaving Xtimator.',
             )}
           </p>
-          <Button asChild className="mt-2 w-full">
-            <Link href="/settings/billing">{t('Upgrade your plan')}</Link>
-          </Button>
+          {!isTwa && (
+            <Button asChild className="mt-2 w-full">
+              <Link href="/settings/billing">{t('Upgrade your plan')}</Link>
+            </Button>
+          )}
         </div>
       </div>
     </div>

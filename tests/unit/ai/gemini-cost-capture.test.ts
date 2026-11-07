@@ -279,6 +279,33 @@ describe('computeGeminiCostUsd (lib/ai/pricing/gemini.ts)', () => {
     expect(computeGeminiCostUsd('gemini-2.5-flash', undefined)).toBeNull()
   })
 
+  it('prices a function-call usage shape with NO candidatesTokenCount (derived from totalTokenCount)', () => {
+    // @google/genai omits candidatesTokenCount for functionCall responses.
+    const cost = computeGeminiCostUsd('gemini-2.5-flash', {
+      promptTokenCount: 1000,
+      thoughtsTokenCount: 200,
+      totalTokenCount: 1700,
+    })
+    // output = 1700 - 1000 = 700 (500 candidates + 200 thoughts)
+    expect(cost).toBeCloseTo((1000 * 0.3 + 700 * 2.5) / 1_000_000, 8)
+  })
+
+  it('subtracts toolUsePromptTokenCount when deriving output from the total', () => {
+    const cost = computeGeminiCostUsd('gemini-2.5-flash', {
+      promptTokenCount: 1000,
+      toolUsePromptTokenCount: 100,
+      totalTokenCount: 1600,
+    })
+    expect(cost).toBeCloseTo((1000 * 0.3 + 500 * 2.5) / 1_000_000, 8)
+  })
+
+  it('prices prompt-only usage (no candidates, no total) as input + known thoughts', () => {
+    expect(computeGeminiCostUsd('gemini-2.5-flash', { promptTokenCount: 1000 })).toBeCloseTo(
+      (1000 * 0.3) / 1_000_000,
+      8
+    )
+  })
+
   it('returns null when token counts are non-numeric/absent', () => {
     expect(computeGeminiCostUsd('gemini-2.5-flash', {})).toBeNull()
     expect(
@@ -287,6 +314,8 @@ describe('computeGeminiCostUsd (lib/ai/pricing/gemini.ts)', () => {
         candidatesTokenCount: 500,
       })
     ).toBeNull()
+    // no promptTokenCount => genuinely no usable usage, even with a total
+    expect(computeGeminiCostUsd('gemini-2.5-flash', { totalTokenCount: 900 })).toBeNull()
   })
 
   it('covers the models this repo actually calls (at least flash/pro/2.0-flash priced)', () => {

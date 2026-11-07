@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { AlertTriangle, CreditCard } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { useIsTwa } from '@/components/pwa/twa-provider'
+import { TWA_OUT_OF_CREDITS_COPY } from '@/lib/pwa/twa-signal'
 
 /**
  * SEED-055 Phase D: persistent, NON-dismissable top banner for a company whose
@@ -22,6 +24,25 @@ export function PaywallBanner({
   priceLabel: string
 }) {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
+
+  // Android TWA (Google Play): no price, no CTA, no link - plain neutral note.
+  if (isTwa) {
+    return (
+      <div
+        role="status"
+        data-testid="paywall-banner"
+        data-state={state}
+        data-twa="true"
+        className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400"
+      >
+        <span className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {t(TWA_OUT_OF_CREDITS_COPY)}
+        </span>
+      </div>
+    )
+  }
 
   if (state === 'out_of_credits') {
     return (

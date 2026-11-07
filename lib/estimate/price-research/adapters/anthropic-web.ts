@@ -27,6 +27,7 @@ import { buildResearchSearchPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
 import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { computeAnthropicCostUsd, type AnthropicCostUsage } from '@/lib/ai/pricing/anthropic'
 
 // Model id per CLAUDE.md (Anthropic estimate/photo path).
 const MODEL = 'claude-sonnet-4-20250514'
@@ -52,7 +53,7 @@ type AnthropicContentBlock = {
   }>
 }
 
-type AnthropicResponse = { content?: AnthropicContentBlock[] }
+type AnthropicResponse = { content?: AnthropicContentBlock[]; usage?: AnthropicCostUsage | null }
 
 export function makeAnthropicWebProvider(): PriceResearchProvider {
   const missFor = (item: { name: string }, currency: string): PriceResearchResult => ({
@@ -108,9 +109,10 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
         // spent real money regardless of how the search tool / evidence gate
         // resolves below — record it ONCE per lookup() call (mirrors the
         // openrouter-web sibling). The Anthropic SDK response carries no
-        // dollar figure (unlike OpenRouter's `usage.cost`) and this codebase
-        // has no Anthropic pricing table yet, so realCostUsd is null (never
-        // guessed) — the row still COUNTS the attempt. AWAITED (not void) so
+        // dollar figure (unlike OpenRouter's `usage.cost`), so it is priced
+        // from response.usage via computeAnthropicCostUsd (tokens + web-search
+        // requests); null (never guessed) when usage is absent. AWAITED (not
+        // void) so
         // the orchestrator's single, non-retrying read-back can rely on this
         // row already being committed by the time lookup() resolves.
         await recordAICost({
@@ -118,7 +120,7 @@ export function makeAnthropicWebProvider(): PriceResearchProvider {
           operationType: 'price_research',
           provider: 'anthropic',
           model: MODEL,
-          realCostUsd: null, // cost-unknown: no Anthropic pricing table yet (see lib/ai/pricing/gemini.ts for the pattern)
+          realCostUsd: computeAnthropicCostUsd(MODEL, response.usage),
           companyId: costContext?.companyId ?? null,
           projectId: costContext?.projectId ?? null,
           units: items.length,

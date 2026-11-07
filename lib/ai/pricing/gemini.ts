@@ -28,7 +28,11 @@ export interface GeminiCostUsage {
   promptTokenCount?: number | null
   candidatesTokenCount?: number | null
   thoughtsTokenCount?: number | null
+  toolUsePromptTokenCount?: number | null
+  totalTokenCount?: number | null
 }
+
+const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 
 /**
  * Computes the real USD cost of one Gemini call from its `usageMetadata`.
@@ -51,16 +55,29 @@ export function computeGeminiCostUsd(
   if (!price) return null
   if (!usage) return null
 
-  const { promptTokenCount, candidatesTokenCount, thoughtsTokenCount } = usage
-  if (typeof promptTokenCount !== 'number' || !Number.isFinite(promptTokenCount)) return null
-  if (typeof candidatesTokenCount !== 'number' || !Number.isFinite(candidatesTokenCount)) return null
+  const { promptTokenCount, candidatesTokenCount, thoughtsTokenCount, toolUsePromptTokenCount, totalTokenCount } =
+    usage
+  if (!isNum(promptTokenCount)) return null
 
-  const thoughts =
-    typeof thoughtsTokenCount === 'number' && Number.isFinite(thoughtsTokenCount)
-      ? thoughtsTokenCount
-      : 0
+  const thoughts = isNum(thoughtsTokenCount) ? thoughtsTokenCount : 0
+  const toolUse = isNum(toolUsePromptTokenCount) ? toolUsePromptTokenCount : 0
 
-  const outputTokens = candidatesTokenCount + thoughts
+  // Root cause of the always-NULL production cost: with function calling
+  // (and often with thinking) @google/genai OMITS `candidatesTokenCount`
+  // (a functionCall part is not "candidate text") while still reporting
+  // promptTokenCount / thoughtsTokenCount / totalTokenCount. totalTokenCount =
+  // prompt + candidates + toolUsePrompt + thoughts, so a missing candidates
+  // count is recoverable. Output (billed) = candidates + thoughts.
+  let outputTokens: number
+  if (isNum(candidatesTokenCount)) {
+    outputTokens = candidatesTokenCount + thoughts
+  } else if (isNum(totalTokenCount)) {
+    outputTokens = Math.max(0, totalTokenCount - promptTokenCount - toolUse)
+  } else {
+    // No candidates and no total: thoughts (if any) are the only output we know.
+    outputTokens = thoughts
+  }
+
   const rawCost = (promptTokenCount * price.input + outputTokens * price.output) / 1_000_000
   return Math.round(Math.max(0, rawCost) * 1e8) / 1e8
 }

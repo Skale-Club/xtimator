@@ -6,6 +6,7 @@ import { classifyDemoEntryRequest, getRequestOrigin } from '@/lib/demo/session'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { ownedRequestClaims } from '@/lib/auth/owned-proxy'
+import { TWA_COOKIE_MAX_AGE, TWA_COOKIE_NAME, TWA_COOKIE_VALUE, hasTwaLaunchSignal } from '@/lib/pwa/twa-signal'
 import {
   REFERRAL_COOKIE,
   REFERRAL_COOKIE_OPTIONS,
@@ -218,7 +219,7 @@ export function botDefenseResponse(request: NextRequest): NextResponse | null {
   return null
 }
 
-export async function proxy(request: NextRequest) {
+async function proxyInner(request: NextRequest) {
   const blocked = botDefenseResponse(request)
   if (blocked) return blocked
   const { pathname, search } = request.nextUrl
@@ -316,6 +317,31 @@ export async function proxy(request: NextRequest) {
 
   // Allow public routes and authenticated access to protected routes
   return applyReferralCookie(request, supabaseResponse)
+}
+
+/**
+ * Android TWA purchase-free mode: when the request carries a TWA launch signal
+ * (Referer android-app://com.xtimator.app, or ?source=twa) set the sticky
+ * first-party `xt_twa=1` cookie on the response, and on the forwarded request so
+ * the very first server render already sees it. Never cleared on absence.
+ */
+export async function proxy(request: NextRequest) {
+  const isSignal = hasTwaLaunchSignal({
+    referer: request.headers.get('referer'),
+    searchParams: request.nextUrl.searchParams,
+  })
+  if (isSignal) request.cookies.set(TWA_COOKIE_NAME, TWA_COOKIE_VALUE)
+  const response = await proxyInner(request)
+  if (isSignal) {
+    response.cookies.set(TWA_COOKIE_NAME, TWA_COOKIE_VALUE, {
+      path: '/',
+      sameSite: 'lax',
+      secure: true,
+      httpOnly: false,
+      maxAge: TWA_COOKIE_MAX_AGE,
+    })
+  }
+  return response
 }
 
 export const config = {

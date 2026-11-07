@@ -4,6 +4,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
+import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
@@ -35,6 +36,11 @@ export async function POST(request: NextRequest) {
   const claims = claimsData?.claims ?? null
   if (!claims) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Google Play policy: no purchase flow inside the Android TWA app.
+  if (await isTwaRequest()) {
+    return NextResponse.json(TWA_PURCHASE_BLOCKED_BODY, { status: 403 })
   }
 
   const blocked = await demoGuardResponse()

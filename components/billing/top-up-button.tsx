@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 import { toast } from 'sonner'
 
 /**
@@ -31,6 +32,7 @@ export function TopUpButton({
   isOwner?: boolean
 }) {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
   const [loading, setLoading] = useState(false)
 
   async function handleTopUp() {
@@ -53,6 +55,9 @@ export function TopUpButton({
       setLoading(false)
     }
   }
+
+  // Android TWA (Google Play): purchase-free mode - never render a purchase control.
+  if (isTwa) return null
 
   return (
     <div className="flex flex-col gap-1">

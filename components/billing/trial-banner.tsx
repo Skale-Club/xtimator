@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 
 export function TrialBanner({ daysRemaining }: { daysRemaining: number }) {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
 
   // Translate-then-replace pattern (see generate-invoice-dialog.tsx): the
   // whole sentence is translated as a unit — not "day"/"days" in isolation —
@@ -22,13 +24,14 @@ export function TrialBanner({ daysRemaining }: { daysRemaining: number }) {
     <div className="flex items-center justify-center gap-2 bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-sm text-amber-600 dark:text-amber-400">
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span>
-        {message}{' '}
-        <Link
+        {message}
+        {!isTwa && ' '}
+        {!isTwa && <Link
           href="/settings/billing"
           className="font-semibold underline underline-offset-2 hover:no-underline"
         >
           {t('Upgrade now')}
-        </Link>
+        </Link>}
       </span>
     </div>
   )

@@ -390,7 +390,23 @@ export async function checkCredits(
     // Record-only mode: never block (still report shortfall for UI).
     return { allowed: true, balance, shortfall }
   }
-  return { allowed: shortfall === 0, balance, shortfall }
+
+  // Enforcement ON: decide from the SAME resolution assertCanCreate uses, so a
+  // lapsed subscriber holding only top-up lots (not spendable) is refused here
+  // too. Lazy import: access-state already lazily imports this module for the
+  // signup self-heal, so neither side has a module-init cycle.
+  try {
+    const { resolveSpendable } = await import('@/lib/billing/access-state')
+    const r = await resolveSpendable(companyId, estimatedCredits, supabase)
+    if (r.exempt) return { allowed: true, balance, shortfall: 0 }
+    return { allowed: r.ok, balance: r.balance, shortfall: Math.max(0, estimatedCredits - r.balance) }
+  } catch (err) {
+    // Fail-open on infrastructure errors (matches access-guard): a broken read
+    // must not lock every company out. Debits still record; the ledger and
+    // reconcileBalance are the backstop.
+    console.warn('[checkCredits] spendable-balance resolution failed, failing open:', err)
+    return { allowed: true, balance, shortfall }
+  }
 }
 
 /**

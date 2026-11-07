@@ -166,6 +166,23 @@ export async function assertCanCreate(
 }
 
 /**
+ * The same decision assertCanCreate makes, but exposing the SPENDABLE balance it
+ * was made on. Used by credit-ledger's checkCredits so the AI routes/jobs and the
+ * create gate can never disagree (a lapsed subscriber's leftover top-up lots are
+ * not spendable in either). `exempt` is true for BYOK, the demo company and an
+ * unknown company row; `balance` is 0 while enforcement is OFF (no DB read).
+ */
+export async function resolveSpendable(
+  companyId: string,
+  estimatedCredits: number,
+  client?: SupabaseClient
+): Promise<{ ok: boolean; balance: number; exempt: boolean; enforcement: boolean }> {
+  const r = await resolve(companyId, client)
+  const ok = r.exempt || (r.state === 'active' && r.balance >= estimatedCredits)
+  return { ok, balance: r.balance, exempt: r.exempt, enforcement: r.enforcement }
+}
+
+/**
  * Gate for EDITING existing data. Only the paywall (read-only app) refuses an
  * edit; an out-of-credits Pro company may still fix a price before sending.
  */

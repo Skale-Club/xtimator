@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 
 export interface CaptureFailureProps {
   /**
@@ -32,6 +33,15 @@ export function CaptureFailure({
   billingBlock,
 }: CaptureFailureProps) {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
+  if (billingBlock && isTwa) {
+    // Android TWA: no purchase CTA; the error message itself stays.
+    return (
+      <div className="space-y-3" data-testid="capture-failure">
+        <p className="text-sm text-destructive">{errorMessage}</p>
+      </div>
+    )
+  }
   if (billingBlock) {
     const cta =
       billingBlock === 'paywalled'

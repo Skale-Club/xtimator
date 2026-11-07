@@ -6,6 +6,7 @@ import {
   isBillingBlockCode,
   type BillingBlockCode,
 } from '@/lib/billing/block-codes'
+import { TWA_OUT_OF_CREDITS_COPY, readTwaCookieClient } from '@/lib/pwa/twa-signal'
 
 type Translate = (key: string) => string
 type RouterLike = { push: (href: string) => void }
@@ -18,17 +19,25 @@ type RouterLike = { push: (href: string) => void }
  * created without credits.
  */
 export function billingBlockCopy(code: BillingBlockCode, t: Translate) {
+  // Android TWA (Google Play): purchase-free mode - neutral copy, no CTA.
+  if (readTwaCookieClient()) {
+    return {
+      title: t("You're out of credits"),
+      description: t(TWA_OUT_OF_CREDITS_COPY),
+      cta: null as string | null,
+    }
+  }
   if (code === 'out_of_credits') {
     return {
       title: t("You're out of credits"),
       description: t('Buy credits to keep creating estimates.'),
-      cta: t('Buy credits'),
+      cta: t('Buy credits') as string | null,
     }
   }
   return {
     title: t('Your free credits are used up'),
     description: t('Subscribe to Xtimator Pro to keep creating estimates.'),
-    cta: t('Subscribe'),
+    cta: t('Subscribe') as string | null,
   }
 }
 
@@ -48,7 +57,9 @@ export function showBillingBlockToast(
     id: `billing-block-${code}`,
     description: copy.description,
     duration: 9000,
-    action: { label: copy.cta, onClick: () => router.push(BILLING_SETTINGS_PATH) },
+    ...(copy.cta
+      ? { action: { label: copy.cta, onClick: () => router.push(BILLING_SETTINGS_PATH) } }
+      : {}),
   })
   return true
 }

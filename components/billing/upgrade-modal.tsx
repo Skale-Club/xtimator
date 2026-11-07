@@ -9,6 +9,7 @@ import {
   BILLING_SETTINGS_PATH,
   isBillingBlockCode,
 } from '@/lib/billing/block-codes'
+import { TWA_OUT_OF_CREDITS_COPY, readTwaCookieClient } from '@/lib/pwa/twa-signal'
 
 /**
  * Every AI route that can answer 402 `plan_limit_reached`. Matches relative and
@@ -63,11 +64,21 @@ export function UpgradeModal() {
                 id: 'billing-block',
                 description: copy.description,
                 duration: 9000,
-                action: { label: copy.cta, onClick: () => router.push(target) },
+                ...(copy.cta
+                  ? { action: { label: copy.cta, onClick: () => router.push(target) } }
+                  : {}),
               })
               return
             }
             // A non-credit plan cap (e.g. the daily abuse ceiling).
+            if (readTwaCookieClient()) {
+              toast.error(t('Plan limit reached'), {
+                id: 'billing-block',
+                description: t(TWA_OUT_OF_CREDITS_COPY),
+                duration: 9000,
+              })
+              return
+            }
             toast.error(t('Plan limit reached'), {
               id: 'billing-block',
               description: t("You've hit your plan limit. Upgrade to keep going."),

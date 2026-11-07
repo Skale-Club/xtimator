@@ -568,21 +568,52 @@ describe('SEED-055 Phase B: expireCreditLots', () => {
 // CREDIT-05 — checkCredits enforcement gate
 // =============================================================================
 describe('CREDIT-05: checkCredits', () => {
-  // checkCredits takes an INJECTED supabase client (mirror checkQuota).
-  function injectedClient(balance: number | null) {
+  // checkCredits takes an INJECTED supabase client (mirror checkQuota). With
+  // enforcement ON it resolves through access-state, which also reads the
+  // company row via maybeSingle() and (for non-subscribers) credit_lots.
+  type Lot = { source: string; remaining: number; expires_at: string | null }
+  function injectedClient(
+    balance: number | null,
+    extra: Record<string, unknown> = {},
+    lots: Lot[] = []
+  ) {
+    // Default: a live Pro subscriber, so the cached balance is what is spendable.
+    const row =
+      balance === null
+        ? null
+        : {
+            credit_balance: balance,
+            tier: 'pro',
+            stripe_subscription_id: 'sub_1',
+            stripe_subscription_status: 'active',
+            byok_enabled: false,
+            credit_debt: 0,
+            ...extra,
+          }
     return {
-      from() {
+      from(table: string) {
+        if (table === 'credit_lots') {
+          return {
+            select: () => ({
+              eq: () => ({
+                in: async (_c: string, sources: string[]) => ({
+                  data: lots.filter((l) => sources.includes(l.source)),
+                  error: null,
+                }),
+              }),
+            }),
+          }
+        }
         return {
           select() {
             return {
               eq() {
                 return {
                   async single() {
-                    return {
-                      data:
-                        balance === null ? null : { credit_balance: balance },
-                      error: null,
-                    }
+                    return { data: row, error: null }
+                  },
+                  async maybeSingle() {
+                    return { data: row, error: null }
                   },
                 }
               },
@@ -617,12 +648,12 @@ describe('CREDIT-05: checkCredits', () => {
     expect(res.shortfall).toBe(0)
   })
 
-  it('null balance defaults to 0', async () => {
+  it('missing company row reports balance 0 and, like assertCanCreate, never locks out', async () => {
     billingConfig.enforcementEnabled = true
     const res = await checkCredits(injectedClient(null) as never, COMPANY, 100)
     expect(res.balance).toBe(0)
-    expect(res.shortfall).toBe(100)
-    expect(res.allowed).toBe(false)
+    expect(res.shortfall).toBe(0)
+    expect(res.allowed).toBe(true)
   })
 
   // Billing v2 (BYOK): a company on its OWN OpenRouter key is never gated by
@@ -652,5 +683,59 @@ describe('CREDIT-05: checkCredits', () => {
     const res = await checkCredits(byokClient as never, COMPANY, 100)
     expect(res.allowed).toBe(true)
     expect(res.shortfall).toBe(0)
+  })
+
+  // Agreement with assertCanCreate: a lapsed subscriber (free tier, canceled)
+  // whose cached balance is made only of a purchased top-up lot cannot spend it.
+  const lapsed = { tier: 'free', stripe_subscription_status: 'canceled' }
+  const topupOnly: Lot[] = [{ source: 'topup', remaining: 500, expires_at: null }]
+
+  it('lapsed subscriber holding only a top-up lot is REFUSED when enforcement is ON', async () => {
+    billingConfig.enforcementEnabled = true
+    const res = await checkCredits(injectedClient(500, lapsed, topupOnly) as never, COMPANY, 100)
+    expect(res.allowed).toBe(false)
+    expect(res.balance).toBe(0)
+    expect(res.shortfall).toBe(100)
+  })
+
+  it('lapsed subscriber holding only a top-up lot is allowed when enforcement is OFF', async () => {
+    billingConfig.enforcementEnabled = false
+    const res = await checkCredits(injectedClient(500, lapsed, topupOnly) as never, COMPANY, 100)
+    expect(res.allowed).toBe(true)
+    expect(res.balance).toBe(500)
+  })
+
+  it('lapsed subscriber with a live signup lot can still spend it when enforcement is ON', async () => {
+    billingConfig.enforcementEnabled = true
+    const lots: Lot[] = [...topupOnly, { source: 'signup', remaining: 150, expires_at: null }]
+    const res = await checkCredits(injectedClient(650, lapsed, lots) as never, COMPANY, 100)
+    expect(res.allowed).toBe(true)
+    expect(res.balance).toBe(150)
+    expect(res.shortfall).toBe(0)
+  })
+
+  it('fails open when the spendable-balance resolution throws', async () => {
+    billingConfig.enforcementEnabled = true
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let calls = 0
+    const flaky = {
+      from() {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () => ({ data: { credit_balance: 0, byok_enabled: false }, error: null }),
+              maybeSingle: async () => {
+                calls++
+                throw new Error('db down')
+              },
+            }),
+          }),
+        }
+      },
+    }
+    const res = await checkCredits(flaky as never, COMPANY, 100)
+    expect(calls).toBe(1)
+    expect(res.allowed).toBe(true)
+    warn.mockRestore()
   })
 })

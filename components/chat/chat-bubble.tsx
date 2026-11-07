@@ -49,6 +49,7 @@ import {
   type ChatConversationSummary,
 } from '@/lib/actions/chat'
 import { ChatThread } from '@/components/chat/chat-thread'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 import '@/lib/visual-viewport'
 
 interface ThreadState {
@@ -104,6 +105,7 @@ function clampPanel(x: number, y: number) {
 }
 
 export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
+  const isTwa = useIsTwa()
   const { t } = useTranslation()
   const [spot, setSpot] = useState<BubbleSpot | null>(null)
   const [dragAt, setDragAt] = useState<{ x: number; y: number } | null>(null)
@@ -454,9 +456,11 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                     'Upgrade to Pro or Business to chat with your AI assistant. Generate estimates, query your data, and ask trade how-to questions without leaving Xtimator.',
                   )}
                 </p>
-                <Button asChild size="sm" className="mt-1">
-                  <Link href="/settings/billing">{t('Upgrade your plan')}</Link>
-                </Button>
+                {!isTwa && (
+                  <Button asChild size="sm" className="mt-1">
+                    <Link href="/settings/billing">{t('Upgrade your plan')}</Link>
+                  </Button>
+                )}
               </div>
             </div>
           ) : loading ? (

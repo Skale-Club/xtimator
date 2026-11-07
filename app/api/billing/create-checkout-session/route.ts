@@ -6,6 +6,7 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
+import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
@@ -31,12 +32,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Google Play policy: no purchase flow inside the Android TWA app.
+  if (await isTwaRequest()) {
+    return NextResponse.json(TWA_PURCHASE_BLOCKED_BODY, { status: 403 })
+  }
+
   // Read-only demo: never start a real Stripe checkout.
   const blocked = await demoGuardResponse()
   if (blocked) return blocked
 
   const body = await request.json() as { plan?: string; billingInterval?: string }
-  const plan = body.plan === 'business' ? 'business' : 'pro'
+  // Pro is the only plan offered to customers. Business is configured but
+  // hidden from every customer surface, so it is rejected, not coerced.
+  if (body.plan !== undefined && body.plan !== 'pro') {
+    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
+  }
+  const plan = 'pro' as const
   const billingInterval = body.billingInterval === 'year' ? 'year' : 'month'
 
   // Scope to the active company (getActiveCompanyId validates membership via RLS),
@@ -92,9 +103,14 @@ export async function POST(request: NextRequest) {
     : `STRIPE_PRICE_${plan.toUpperCase()}`
 
   if (!priceId) {
+    // Never leak configuration names to the client: log the detail server-side.
+    console.error(`[create-checkout-session] no Stripe price id resolved (${envVarName} / billing_config)`)
     return NextResponse.json(
-      { error: `${envVarName} env var not set` },
-      { status: 500 }
+      {
+        error: 'Subscriptions are not available yet. Please try again later.',
+        code: 'billing_not_configured',
+      },
+      { status: 503 }
     )
   }
 

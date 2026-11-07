@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { CreditCard, TrendingUp, AlertTriangle } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
+import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
@@ -65,6 +66,11 @@ export default async function BillingPage() {
     .catch(() => false)
 
   if (isDemoCompany(company.id)) redirect('/settings/company')
+
+  // Android TWA (Google Play): purchase-free mode. The page shows the current
+  // plan, credit balance and history only - no prices, no purchase controls, no
+  // Stripe Checkout/Portal entry points.
+  const isTwa = await isTwaRequest()
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
@@ -214,7 +220,13 @@ export default async function BillingPage() {
       </Suspense>
       <SettingsHeader
         title={<T>Plan and billing</T>}
-        description={<><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} /></>}
+        description={
+          isTwa ? (
+            <><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T>plan.</T></>
+          ) : (
+            <><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} /></>
+          )
+        }
       />
 
       <div className="w-full space-y-6">
@@ -226,10 +238,14 @@ export default async function BillingPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <p className="text-sm">
-                <T>We couldn&rsquo;t charge your card — update your payment method to keep your plan.</T>
+                {isTwa ? (
+                  <T>We couldn&rsquo;t charge your card. Manage your plan on xtimator.com from a web browser.</T>
+                ) : (
+                  <T>We couldn&rsquo;t charge your card — update your payment method to keep your plan.</T>
+                )}
               </p>
             </div>
-            {hasStripeCustomer && <ManageSubscriptionButton isOwner={isOwner} />}
+            {!isTwa && hasStripeCustomer && <ManageSubscriptionButton isOwner={isOwner} />}
           </div>
         )}
 
@@ -260,7 +276,11 @@ export default async function BillingPage() {
               )}
               {data.tier === 'free' && (
                 <p className="text-muted-foreground">
-                  <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
+                  {isTwa ? (
+                    <T>Free plan — your free credits never expire.</T>
+                  ) : (
+                    <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
+                  )}
                 </p>
               )}
             </CardContent>
@@ -317,13 +337,21 @@ export default async function BillingPage() {
             balance={credits.balance}
             lots={lots}
             topupEligible={topupEligible}
+            hidePurchase={isTwa}
           />
           <CreditHistoryList rows={credits.history} />
         </div>
 
         {/* Top-up packs (CREDITUI-06) — Pro only (SEED-055 D5). Everyone else
             sees one line asking them to subscribe first. */}
-        {topupEligible ? (
+        {isTwa ? (
+          <p
+            data-testid="twa-plan-note"
+            className="rounded-lg border border-[var(--glass-border)] p-4 text-sm text-muted-foreground"
+          >
+            <T>Manage your plan on xtimator.com from a web browser.</T>
+          </p>
+        ) : topupEligible ? (
           <div id="topup-packs" className="space-y-4">
             <h2 className="text-lg font-semibold"><T>Add credits</T></h2>
             <p className="text-sm text-muted-foreground">
@@ -349,7 +377,7 @@ export default async function BillingPage() {
         {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
             (billing_config.autoTopupEnabled); omitted from the tree entirely,
             not rendered-disabled, when the switch is off. */}
-        {cfg.autoTopupEnabled && topupEligible && (
+        {!isTwa && cfg.autoTopupEnabled && topupEligible && (
           <div className="space-y-4">
             <AutoTopupCard
               enabled={!!autoTopupCompany?.auto_topup_enabled}
@@ -365,6 +393,7 @@ export default async function BillingPage() {
         )}
 
         {/* Plan card: Pro only, monthly / annual toggle (SEED-055). */}
+        {!isTwa && (
         <div id="choose-plan" className="space-y-4">
           <h2 className="text-lg font-semibold"><T>Xtimator Pro</T></h2>
           <TierCardsGrid
@@ -377,13 +406,14 @@ export default async function BillingPage() {
             featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
           />
         </div>
+        )}
 
         {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04).
             CREDITFIX (audit finding #6): create-portal-session requires
             stripe_customer_id — an admin-set tier (both paid companies in
             prod, per the audit) has none, so the button 400s forever. Gate
             the action on hasStripeCustomer; explain instead when absent. */}
-        {isPaid && (
+        {!isTwa && isPaid && (
           <Card variant="glass" className="p-6">
             <CardHeader className="p-0">
               <CardTitle><T>Manage subscription</T></CardTitle>

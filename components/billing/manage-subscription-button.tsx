@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { useIsTwa } from '@/components/pwa/twa-provider'
 
 export function ManageSubscriptionButton({ isOwner = true }: { isOwner?: boolean }) {
   const { t } = useTranslation()
+  const isTwa = useIsTwa()
   const [loading, setLoading] = useState(false)
 
   async function handleManage() {
@@ -25,6 +27,9 @@ export function ManageSubscriptionButton({ isOwner = true }: { isOwner?: boolean
       setLoading(false)
     }
   }
+
+  // Android TWA (Google Play): purchase-free mode - never render a purchase control.
+  if (isTwa) return null
 
   return (
     <div className="flex flex-col items-start gap-1">

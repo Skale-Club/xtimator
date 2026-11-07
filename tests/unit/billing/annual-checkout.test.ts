@@ -152,23 +152,24 @@ describe('annual billing interval', () => {
     )
   })
 
-  it('billingInterval: year + plan: business → uses STRIPE_PRICE_BUSINESS_ANNUAL', async () => {
+  it('plan: business is rejected with 400 (Pro is the only offered plan)', async () => {
     const res = await POST(makeRequest({ plan: 'business', billingInterval: 'year' }))
-    expect(res.status).toBe(200)
-
-    const call = mockSessionsCreate.mock.calls[0][0]
-    expect(call.line_items[0].price).toBe('price_test_business_annual')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Invalid plan' })
+    expect(mockSessionsCreate).not.toHaveBeenCalled()
   })
 
-  it('billingInterval: year with annual env unset → 500 with STRIPE_PRICE_PRO_ANNUAL in error', async () => {
+  it('billingInterval: year with annual env unset → 503 without leaking the env var name', async () => {
     delete process.env.STRIPE_PRICE_PRO_ANNUAL
     delete process.env.STRIPE_PRICE_BUSINESS_ANNUAL
 
     const res = await POST(makeRequest({ plan: 'pro', billingInterval: 'year' }))
-    const body = await res.json() as { error: string }
+    const body = await res.json() as { error: string; code: string }
 
-    expect(res.status).toBe(500)
-    expect(body.error).toContain('STRIPE_PRICE_PRO_ANNUAL')
+    expect(res.status).toBe(503)
+    expect(body.code).toBe('billing_not_configured')
+    expect(body.error).toBe('Subscriptions are not available yet. Please try again later.')
+    expect(JSON.stringify(body)).not.toContain('STRIPE_PRICE')
   })
 })
 
