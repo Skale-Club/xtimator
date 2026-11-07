@@ -24,16 +24,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const { getIntegrationKey, getOpenRouterDefaultModel, createServiceClient, requireServiceClient } =
   vi.hoisted(() => ({
     getIntegrationKey: vi.fn(async () => 'sk-test-or-placeholder' as string | null),
-    getOpenRouterDefaultModel: vi.fn(async () => 'anthropic/claude-sonnet-4' as string | null),
+    getOpenRouterDefaultModel: vi.fn(async () => 'anthropic/claude-sonnet-5.5' as string | null),
     createServiceClient: vi.fn(),
     requireServiceClient: vi.fn(),
   }))
-const { anthropicCreate } = vi.hoisted(() => ({ anthropicCreate: vi.fn() }))
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class {
-    messages = { create: anthropicCreate }
-  },
-}))
 const mockRecordAICost = vi.fn()
 const mockRecordCreditDebit = vi.fn()
 
@@ -64,7 +58,6 @@ vi.mock('@/lib/quota', () => ({
   recordUsage: vi.fn(async () => undefined),
 }))
 
-import { makeAnthropicWebProvider } from '@/lib/estimate/price-research/adapters/anthropic-web'
 import { makeOpenRouterWebProvider } from '@/lib/estimate/price-research/adapters/openrouter-web'
 import { getPriceResearchProviderChain, isUsableCandidate } from '@/lib/estimate/price-research/provider'
 import { researchUnmatchedPrices, type ResearchContext } from '@/lib/estimate/price-research/orchestrator'
@@ -100,7 +93,7 @@ const region = { city: 'Austin', state: 'TX' }
 beforeEach(() => {
   vi.clearAllMocks()
   getIntegrationKey.mockResolvedValue('sk-test-or-placeholder')
-  getOpenRouterDefaultModel.mockResolvedValue('anthropic/claude-sonnet-4')
+  getOpenRouterDefaultModel.mockResolvedValue('anthropic/claude-sonnet-5.5')
   mockEngineRow(null)
 })
 afterEach(() => {
@@ -312,32 +305,5 @@ describe('Fix (price-research cost attribution): orchestrator debit read-back', 
       operationType: 'price_research',
       realCostUsd: null,
     })
-  })
-})
-
-describe('anthropic-web adapter records a measured cost (usage priced)', () => {
-  it('records a non-null realCostUsd computed from response.usage incl. web searches', async () => {
-    anthropicCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'not json' }],
-      usage: { input_tokens: 10_000, output_tokens: 1_000, server_tool_use: { web_search_requests: 2 } },
-    })
-    await makeAnthropicWebProvider().lookup(
-      [{ name: 'Drywall' }] as never,
-      region as never,
-      'USD',
-      { attemptId: 'att-1', companyId: 'co-1', projectId: 'pr-1' } as never
-    )
-    expect(mockRecordAICost).toHaveBeenCalledTimes(1)
-    const arg = mockRecordAICost.mock.calls[0][0]
-    expect(arg.operationType).toBe('price_research')
-    expect(arg.provider).toBe('anthropic')
-    // 10k*3/1M + 1k*15/1M + 2*0.01 = 0.03 + 0.015 + 0.02
-    expect(arg.realCostUsd).toBeCloseTo(0.065, 8)
-  })
-
-  it('stays null (never 0) when the response carries no usage', async () => {
-    anthropicCreate.mockResolvedValue({ content: [{ type: 'text', text: 'x' }] })
-    await makeAnthropicWebProvider().lookup([{ name: 'Drywall' }] as never, region as never, 'USD')
-    expect(mockRecordAICost.mock.calls[0][0].realCostUsd).toBeNull()
   })
 })

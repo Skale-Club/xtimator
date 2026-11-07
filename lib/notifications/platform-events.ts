@@ -37,6 +37,7 @@ export type PlatformEventKind =
   | 'transcription_failed'
   | 'vision_failed'
   | 'ai_fallback'
+  | 'ai_provider_failed'
   | 'pipeline_stuck'
   | 'cron_failed'
   | 'error_spike'
@@ -68,6 +69,7 @@ export const PLATFORM_EVENTS: Record<PlatformEventKind, PlatformEventDef> = {
   transcription_failed: { kind: 'transcription_failed', label: 'Audio transcription failed', category: 'job_failure', locked: false },
   vision_failed: { kind: 'vision_failed', label: 'Photo analysis failed', category: 'job_failure', locked: false },
   ai_fallback: { kind: 'ai_fallback', label: 'AI provider fallback engaged', category: 'critical', locked: false },
+  ai_provider_failed: { kind: 'ai_provider_failed', label: 'AI provider call failed (OpenRouter)', category: 'critical', locked: false },
   pipeline_stuck: { kind: 'pipeline_stuck', label: 'Generation pipeline stuck', category: 'critical', locked: true },
   cron_failed: { kind: 'cron_failed', label: 'Scheduled cron job failed', category: 'critical', locked: true },
   // Layer 3 (aggregate): one alert per error RATE, not per error. `critical` in

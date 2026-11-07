@@ -12,8 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *     (`invalidOutput: true`), which 99/100 wiring maps to `{ failure: { reason: 'invalid_output' } }`.
  *
  * The retry seam is `getAIProviderWithFallback` (`@/lib/ai/provider-with-fallback`).
- * We mock `@/lib/ai` (primary `getAIProvider`) and the Gemini fallback adapter so
- * the fallback never fires for the valid-first-time assertion, then assert call
+ * We mock `@/lib/ai` (the OpenRouter `getAIProvider`; there is no other provider) then assert call
  * counts on the mocked primary's `generateEstimate`.
  *
  * `InvalidEstimateOutputError` is imported from `@/lib/ai/with-fallback` (Plan
@@ -23,23 +22,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
-import { InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
+import { InvalidEstimateOutputError, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
 
 const primaryGenerate = vi.fn()
-const fallbackGenerate = vi.fn()
 
 vi.mock('@/lib/ai', () => ({
   getAIProvider: vi.fn(async () => ({
     generateEstimate: primaryGenerate,
     refineEstimate: vi.fn(),
   })),
-}))
-
-vi.mock('@/lib/ai/providers/gemini', () => ({
-  GeminiAdapter: class {
-    generateEstimate = fallbackGenerate
-    refineEstimate = vi.fn()
-  },
 }))
 
 const VALID_OUTPUT = {
@@ -70,7 +61,6 @@ const INPUT = {
 
 beforeEach(() => {
   primaryGenerate.mockReset()
-  fallbackGenerate.mockReset()
 })
 
 describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
@@ -82,7 +72,6 @@ describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
 
     expect(result).toEqual(VALID_OUTPUT)
     expect(primaryGenerate).toHaveBeenCalledTimes(1)
-    expect(fallbackGenerate).not.toHaveBeenCalled()
   })
 
   it('retry once then succeed = exactly two calls', async () => {
@@ -105,5 +94,22 @@ describe('GUARD-01: bounded schema-retry at the provider boundary', () => {
     const provider = await getAIProviderWithFallback('company-1')
 
     await expect(provider.generateEstimate(INPUT)).rejects.toMatchObject({ invalidOutput: true })
+  })
+
+  it('OpenRouter failure -> raises the existing ProvidersUnavailableError after ONE call; no other provider is used (owner rule)', async () => {
+    primaryGenerate.mockRejectedValueOnce(new Error('OpenRouter request failed (500)'))
+
+    const provider = await getAIProviderWithFallback('company-1')
+
+    let caught: unknown
+    try {
+      await provider.generateEstimate(INPUT)
+    } catch (err) {
+      caught = err
+    }
+    expect(caught).toBeInstanceOf(ProvidersUnavailableError)
+    expect((caught as { providerUnavailable?: boolean }).providerUnavailable).toBe(true)
+    expect(((caught as { cause?: Error }).cause as Error).message).toContain('OpenRouter request failed')
+    expect(primaryGenerate).toHaveBeenCalledTimes(1)
   })
 })

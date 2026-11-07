@@ -12,17 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *  (c) schema-invalid tool args -> typed InvalidPhotoExtractionError AND
  *      recordAICost was STILL called (the cost-ordering contract — a
  *      billable response that fails the zod gate still cost money).
- *  (d) PARITY: the same invalid fixture is rejected identically via BOTH
- *      provider paths (one shared zod gate — the real drift lock).
  *  (e) tool-declaration derivation: OpenRouter's request `parameters` IS
- *      `photoExtractionToolSchema()` (deep-equal); Gemini's declaration
- *      CANNOT deep-equal it (different SDK type system — no `Type.ENUM`) so
- *      property KEYS + the three enum VALUE-SETS (embedded in description
- *      text) are asserted instead, mirroring the AIREL-03 test's approach.
- *  (f) temperature 0.3 + max_tokens/maxOutputTokens 700 present in both
- *      providers' request bodies; Gemini's config is FLAT (no nested
- *      generationConfig key); the structured timeout is the dedicated 40s
- *      constant, distinct from the 120s chat constant.
+ *      `photoExtractionToolSchema()` (deep-equal).
+ *  (f) temperature 0.3 + max_tokens 700 present in the request body; the
+ *      structured timeout is the dedicated 40s constant, distinct from the
+ *      120s chat constant.
+ * Owner rule: OpenRouter only (the Gemini sibling path was removed).
  */
 
 vi.mock('@/lib/platform-config', () => ({
@@ -38,20 +33,6 @@ const mockRecordAICost = vi.fn(async (..._args: unknown[]) => {})
 vi.mock('@/lib/billing/record-ai-cost', () => ({
   recordAICost: (...args: unknown[]) => mockRecordAICost(...args),
 }))
-const mockGeminiGenerate = vi.fn()
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: class MockGoogleGenAI {
-    models = { generateContent: (...args: unknown[]) => mockGeminiGenerate(...args) }
-  },
-  Type: {
-    OBJECT: 'OBJECT',
-    STRING: 'STRING',
-    NUMBER: 'NUMBER',
-    ARRAY: 'ARRAY',
-    BOOLEAN: 'BOOLEAN',
-  },
-  FunctionCallingConfigMode: { ANY: 'ANY' },
-}))
 
 import {
   analyzePhotoStructuredOR,
@@ -59,7 +40,6 @@ import {
   STRUCTURED_VISION_TIMEOUT_MS,
   AI_CHAT_TIMEOUT_MS,
 } from '@/lib/ai/openrouter-client'
-import { analyzePhotoStructuredGemini, extractPhotoDeclaration } from '@/lib/ai/providers/gemini'
 import { photoExtractionToolSchema } from '@/lib/ai/photo-extraction-schema'
 
 type MockFetch = ReturnType<typeof vi.fn>
@@ -191,121 +171,5 @@ describe('analyzePhotoStructuredOR (PEXT-01/03/05)', () => {
   it('the structured timeout constant is a dedicated 40s budget, distinct from the 120s chat constant', () => {
     expect(STRUCTURED_VISION_TIMEOUT_MS).toBe(40_000)
     expect(STRUCTURED_VISION_TIMEOUT_MS).not.toBe(AI_CHAT_TIMEOUT_MS)
-  })
-})
-
-describe('analyzePhotoStructuredGemini (PEXT-01/03/04/05)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('happy path — validated PhotoExtraction, recordAICost called (provider gemini, realCostUsd null)', async () => {
-    mockGeminiGenerate.mockResolvedValueOnce({
-      functionCalls: [{ name: 'extract_photo', args: VALID_EXTRACTION }],
-    })
-    const costContext = { attemptId: 'attempt-2', companyId: 'company-2', projectId: 'project-2' }
-
-    const result = await analyzePhotoStructuredGemini('base64data', 'image/jpeg', costContext)
-
-    expect(result.overall_description).toBe(VALID_EXTRACTION.overall_description)
-    expect(mockRecordAICost).toHaveBeenCalledOnce()
-    expect(mockRecordAICost).toHaveBeenCalledWith(
-      expect.objectContaining({
-        attemptId: 'attempt-2',
-        companyId: 'company-2',
-        projectId: 'project-2',
-        operationType: 'vision',
-        provider: 'gemini',
-        realCostUsd: null,
-      })
-    )
-  })
-
-  it('(f) config is FLAT (no nested generationConfig), maxOutputTokens 700, temperature 0.3', async () => {
-    mockGeminiGenerate.mockResolvedValueOnce({
-      functionCalls: [{ name: 'extract_photo', args: VALID_EXTRACTION }],
-    })
-
-    await analyzePhotoStructuredGemini('base64data', 'image/jpeg')
-
-    const callArgs = mockGeminiGenerate.mock.calls[0][0] as { config: Record<string, unknown> }
-    expect(callArgs.config.generationConfig).toBeUndefined()
-    expect(callArgs.config.maxOutputTokens).toBe(700)
-    expect(callArgs.config.temperature).toBe(0.3)
-  })
-
-  it('(c/d) schema-invalid tool args -> typed InvalidPhotoExtractionError, same fixture as the OR path', async () => {
-    mockGeminiGenerate.mockResolvedValueOnce({
-      functionCalls: [{ name: 'extract_photo', args: INVALID_EXTRACTION }],
-    })
-
-    await expect(analyzePhotoStructuredGemini('base64data', 'image/jpeg')).rejects.toThrow(
-      InvalidPhotoExtractionError
-    )
-  })
-})
-
-describe('PARITY (PEXT-04) — the ONE zod gate rejects the same invalid fixture via BOTH provider paths', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    global.fetch = vi.fn() as unknown as typeof fetch
-  })
-
-  it('(d) the same invalid fixture is rejected identically via OpenRouter AND Gemini', async () => {
-    ;(global.fetch as MockFetch).mockResolvedValueOnce(mockToolCallResponse(INVALID_EXTRACTION))
-    await expect(analyzePhotoStructuredOR('base64data', 'image/jpeg')).rejects.toThrow(
-      InvalidPhotoExtractionError
-    )
-
-    mockGeminiGenerate.mockResolvedValueOnce({
-      functionCalls: [{ name: 'extract_photo', args: INVALID_EXTRACTION }],
-    })
-    await expect(analyzePhotoStructuredGemini('base64data', 'image/jpeg')).rejects.toThrow(
-      InvalidPhotoExtractionError
-    )
-  })
-
-  it('(e) OpenRouter tool parameters IS photoExtractionToolSchema() (deep-equal) — Gemini CANNOT (different SDK type system)', () => {
-    // OpenRouter's parameters are asserted deep-equal in the (f) test above.
-    // Gemini's declaration uses @google/genai Type.* enums (STRING/OBJECT/...)
-    // with no Type.ENUM, so it structurally cannot match the JSON-schema
-    // shape — key+enum parity (below) is the actual drift lock instead.
-    expect(extractPhotoDeclaration.parameters).not.toEqual(photoExtractionToolSchema())
-  })
-
-  it('(e) Gemini declaration property KEYS match photoExtractionToolSchema() top-level keys', () => {
-    const zodKeys = Object.keys(photoExtractionToolSchema().properties as Record<string, unknown>).sort()
-    const geminiKeys = Object.keys(extractPhotoDeclaration.parameters.properties).sort()
-    expect(geminiKeys).toEqual(zodKeys)
-  })
-
-  it('(e) Gemini enum VALUE-SETS (dimension/confidence/severity) match the zod tool schema exactly', () => {
-    type ToolSchema = {
-      properties: {
-        measurements: { items: { properties: { dimension: { enum: string[] }; confidence: { enum: string[] } } } }
-        damage: { items: { properties: { severity: { enum: string[] } } } }
-      }
-    }
-    const toolSchema = photoExtractionToolSchema() as unknown as ToolSchema
-
-    function extractQuoted(desc: string): string[] {
-      return [...desc.matchAll(/'([^']+)'/g)].map((m) => m[1])
-    }
-
-    const geminiMeasurements = extractPhotoDeclaration.parameters.properties.measurements.items
-      .properties as { dimension: { description: string }; confidence: { description: string } }
-    const geminiDamage = extractPhotoDeclaration.parameters.properties.damage.items.properties as {
-      severity: { description: string }
-    }
-
-    expect(new Set(extractQuoted(geminiMeasurements.dimension.description))).toEqual(
-      new Set(toolSchema.properties.measurements.items.properties.dimension.enum)
-    )
-    expect(new Set(extractQuoted(geminiMeasurements.confidence.description))).toEqual(
-      new Set(toolSchema.properties.measurements.items.properties.confidence.enum)
-    )
-    expect(new Set(extractQuoted(geminiDamage.severity.description))).toEqual(
-      new Set(toolSchema.properties.damage.items.properties.severity.enum)
-    )
   })
 })

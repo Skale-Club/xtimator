@@ -11,17 +11,19 @@
  * the identical root cause.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * Phase 171 (171-02) — PEXT-01/03/05: the analyze-photos worker's structured
- * extraction ladder (structured-OR -> structured-Gemini -> prose).
+ * extraction ladder (structured-OR -> prose; OpenRouter ONLY, never Gemini).
  *
  * Locks:
  *  (a) structured-OR success -> both `ai_extraction` + `ai_description`
  *      persisted in ONE update, extraction validated, prose never called.
- *  (b) structured-OR fails, structured-Gemini succeeds -> persisted from the
- *      Gemini extraction.
- *  (c) both structured rungs fail -> the prose path persists `ai_description`
+ *  (b) structured-OR fails -> the prose (OpenRouter) rung serves; no Gemini
+ *      code exists in the worker's import graph (owner rule).
+ *  (c) structured-OR fails -> the prose path persists `ai_description`
  *      ONLY (byte-identical to pre-171), photo still counts as SUCCEEDED.
  *  (d) `PHOTO_STRUCTURED_EXTRACTION=off` -> structured providers never
  *      called, behavior byte-identical to the pre-171 prose pipeline.
@@ -40,8 +42,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockAnalyzePhotoOR = vi.fn()
 const mockAnalyzePhotoStructuredOR = vi.fn()
-const mockAnalyzePhotoGemini = vi.fn()
-const mockAnalyzePhotoStructuredGemini = vi.fn()
 const mockRecordUsage = vi.fn().mockResolvedValue(undefined)
 const mockRecordCreditDebit = vi.fn().mockResolvedValue(undefined)
 const mockCheckCredits = vi.fn().mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
@@ -60,10 +60,6 @@ vi.mock('@/lib/inngest/client', () => ({
 vi.mock('@/lib/ai/openrouter-client', () => ({
   analyzePhotoOR: (...args: unknown[]) => mockAnalyzePhotoOR(...args),
   analyzePhotoStructuredOR: (...args: unknown[]) => mockAnalyzePhotoStructuredOR(...args),
-}))
-vi.mock('@/lib/ai/providers/gemini', () => ({
-  analyzePhotoGemini: (...args: unknown[]) => mockAnalyzePhotoGemini(...args),
-  analyzePhotoStructuredGemini: (...args: unknown[]) => mockAnalyzePhotoStructuredGemini(...args),
 }))
 vi.mock('@/lib/quota', () => ({
   recordUsage: (...args: unknown[]) => mockRecordUsage(...args),
@@ -220,7 +216,6 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
     const result = await invokeJob()
 
     expect(mockAnalyzePhotoStructuredOR).toHaveBeenCalledOnce()
-    expect(mockAnalyzePhotoStructuredGemini).not.toHaveBeenCalled()
     expect(mockAnalyzePhotoOR).not.toHaveBeenCalled()
     expect(state.updateCalls).toHaveLength(1)
     expect(state.updateCalls[0].patch).toEqual({
@@ -230,26 +225,26 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
     expect(result.results[0].description).toBe(VALID_EXTRACTION.overall_description)
   })
 
-  it('(b) structured-OR fails, structured-Gemini succeeds -> persisted from the Gemini extraction', async () => {
+  it('(b) structured-OR fails -> prose OpenRouter rung serves; Gemini is never involved', async () => {
     state.photos = makePhotos(1)
     mockAnalyzePhotoStructuredOR.mockRejectedValue(new Error('OR structured down'))
-    mockAnalyzePhotoStructuredGemini.mockResolvedValue(VALID_EXTRACTION)
+    mockAnalyzePhotoOR.mockResolvedValue('a prose description')
 
     await invokeJob()
 
     expect(mockAnalyzePhotoStructuredOR).toHaveBeenCalledOnce()
-    expect(mockAnalyzePhotoStructuredGemini).toHaveBeenCalledOnce()
-    expect(mockAnalyzePhotoOR).not.toHaveBeenCalled()
-    expect(state.updateCalls[0].patch).toEqual({
-      ai_extraction: VALID_EXTRACTION,
-      ai_description: VALID_EXTRACTION.overall_description,
-    })
+    expect(mockAnalyzePhotoOR).toHaveBeenCalledOnce()
+    expect(state.updateCalls[0].patch).toEqual({ ai_description: 'a prose description' })
+    const src = readFileSync(
+      resolve(process.cwd(), 'lib/inngest/functions/analyze-photos.ts'),
+      'utf8'
+    )
+    expect(src.toLowerCase().includes('providers/gemini')).toBe(false)
   })
 
-  it('(c) both structured rungs fail -> prose path persists ai_description ONLY, photo still counts as succeeded', async () => {
+  it('(c) structured-OR fails -> prose path persists ai_description ONLY, photo still counts as succeeded', async () => {
     state.photos = makePhotos(1)
     mockAnalyzePhotoStructuredOR.mockRejectedValue(new Error('OR structured down'))
-    mockAnalyzePhotoStructuredGemini.mockRejectedValue(new Error('Gemini structured down'))
     mockAnalyzePhotoOR.mockResolvedValue('a prose description')
 
     const result = await invokeJob()
@@ -268,7 +263,6 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
     const result = await invokeJob()
 
     expect(mockAnalyzePhotoStructuredOR).not.toHaveBeenCalled()
-    expect(mockAnalyzePhotoStructuredGemini).not.toHaveBeenCalled()
     expect(mockAnalyzePhotoOR).toHaveBeenCalledTimes(3)
     expect(state.updateCalls).toHaveLength(3)
     for (const call of state.updateCalls) {
@@ -280,7 +274,6 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
   it('(e) all rungs (structured + prose) fail for every photo -> job throws (skip-and-continue policy preserved)', async () => {
     state.photos = makePhotos(3)
     mockAnalyzePhotoStructuredOR.mockRejectedValue(new Error('OR structured down'))
-    mockAnalyzePhotoStructuredGemini.mockRejectedValue(new Error('Gemini structured down'))
     mockAnalyzePhotoOR.mockRejectedValue(new Error('prose down too'))
 
     await expect(invokeJob()).rejects.toThrow(/Photo analysis failed/)
@@ -289,10 +282,10 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
     expect(mockRecordCreditDebit).not.toHaveBeenCalled()
   })
 
-  it('(f) costContext (attemptId/companyId/projectId) is passed to every structured call', async () => {
+  it('(f) costContext (attemptId/companyId/projectId) is passed to the structured call', async () => {
     state.photos = makePhotos(1)
     mockAnalyzePhotoStructuredOR.mockRejectedValue(new Error('OR structured down'))
-    mockAnalyzePhotoStructuredGemini.mockResolvedValue(VALID_EXTRACTION)
+    mockAnalyzePhotoOR.mockResolvedValue('a prose description')
 
     await invokeJob({ companyId: 'company-9', projectId: 'project-9' })
 
@@ -300,11 +293,6 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
       expect.any(String),
       expect.any(String),
       undefined,
-      expect.objectContaining({ attemptId: 'attempt-1', companyId: 'company-9', projectId: 'project-9' })
-    )
-    expect(mockAnalyzePhotoStructuredGemini).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
       expect.objectContaining({ attemptId: 'attempt-1', companyId: 'company-9', projectId: 'project-9' })
     )
   })

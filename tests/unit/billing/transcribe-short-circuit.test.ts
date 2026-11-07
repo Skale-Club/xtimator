@@ -30,7 +30,7 @@ import { resolve } from 'node:path'
  *
  * Part A: the job's short-circuit — transcript-exists skips download + Whisper
  *   + cost + debit entirely; generate dispatch still proceeds.
- * Part B: provider attribution — fallback records 'openai', not 'openrouter'.
+ * Part B: provider attribution — always 'openrouter' (OpenRouter only; no OpenAI fallback).
  * Part C: recordAICost swallows a 23505 duplicate as success (never throws).
  * Part D: the migration's SQL dedupes existing rows BEFORE creating the
  *   partial unique index, and the index excludes vision/photo_batch.
@@ -244,20 +244,6 @@ describe('BILL-05/D5: provider attribution reflects servedBy, not a hardcoded va
       companies: { user_id: 'user-1', tier: 'business' },
     }
     svcConfig.blobSize = 500_000
-  })
-
-  it("servedBy 'fallback' -> the cost row AND the succeeded pipeline event record provider 'openai'", async () => {
-    mockTranscribeAudioOR.mockResolvedValue({ text: 'via openai fallback', servedBy: 'fallback' })
-
-    await invokeJob()
-
-    const costCall = mockRecordAICost.mock.calls[0][0] as { provider: string }
-    expect(costCall.provider).toBe('openai')
-
-    const succeededCall = mockRecordPipelineEvent.mock.calls.find(
-      (c) => (c[0] as { status?: string }).status === 'succeeded'
-    )?.[0] as { provider?: string } | undefined
-    expect(succeededCall?.provider).toBe('openai')
   })
 
   it("servedBy 'primary' -> both record provider 'openrouter'", async () => {

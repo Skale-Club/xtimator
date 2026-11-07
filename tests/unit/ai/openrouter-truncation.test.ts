@@ -33,12 +33,10 @@ vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
 
 import { OpenRouterAdapter } from '@/lib/ai/providers/openrouter'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { notifyOps } from '@/lib/observability/ops-alert'
-import { callWithFallback, TruncatedOutputError } from '@/lib/ai/with-fallback'
-import type { EstimateInput, EstimateOutput } from '@/lib/ai/types'
+import { callWithFallback, TruncatedOutputError, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
+import type { EstimateInput } from '@/lib/ai/types'
 
 const mockGetKey = getIntegrationKey as ReturnType<typeof vi.fn>
-const mockNotifyOps = notifyOps as ReturnType<typeof vi.fn>
 
 const MODEL = 'anthropic/claude-sonnet-4-5'
 
@@ -175,36 +173,23 @@ describe('OpenRouterAdapter — finish_reason truncation (AIREL-02)', () => {
   })
 })
 
-describe('TruncatedOutputError x callWithFallback — not terminal, diagnosable (AIREL-02)', () => {
+describe('TruncatedOutputError x callWithFallback — surfaces as ProvidersUnavailableError, diagnosable (AIREL-02)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('a primary TruncatedOutputError still runs the fallback exactly once (NOT treated as terminal like InvalidEstimateOutputError)', async () => {
+  it('a primary TruncatedOutputError raises ProvidersUnavailableError with the truncation as .cause (no second provider)', async () => {
     const primary = vi.fn().mockRejectedValue(new TruncatedOutputError('generate_estimate'))
-    const fallbackResult: EstimateOutput = {
-      suggested_project_name: 'From Gemini',
-      suggested_client_name: null,
-      summary: 'served by fallback',
-      sections: [],
+
+    let caught: unknown
+    try {
+      await callWithFallback({ op: 'generate_estimate', primary })
+    } catch (err) {
+      caught = err
     }
-    const fallback = vi.fn().mockResolvedValue(fallbackResult)
 
-    const outcome = await callWithFallback({ op: 'generate_estimate', primary, fallback })
-
-    expect(outcome.servedBy).toBe('fallback')
-    expect(outcome.fallbackFired).toBe(true)
-    expect(fallback).toHaveBeenCalledTimes(1)
-  })
-
-  it('the fallback-served ops alert names TruncatedOutputError so the cause is diagnosable (not masked as a generic Error)', async () => {
-    const primary = vi.fn().mockRejectedValue(new TruncatedOutputError('generate_estimate'))
-    const fallback = vi.fn().mockResolvedValue('ok')
-
-    await callWithFallback({ op: 'generate_estimate', primary, fallback })
-
-    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
-    const [alert] = mockNotifyOps.mock.calls[0]
-    expect(String(alert.message)).toContain('TruncatedOutputError')
+    expect(caught).toBeInstanceOf(ProvidersUnavailableError)
+    expect((caught as { cause?: unknown }).cause).toBeInstanceOf(TruncatedOutputError)
+    expect(primary).toHaveBeenCalledTimes(1)
   })
 })

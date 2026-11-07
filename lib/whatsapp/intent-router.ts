@@ -6,7 +6,7 @@
  * Replaces the rigid send/cancel gate in handler.ts that rejected mid-confirm
  * audio/photo with a canned "reply send or cancel". The flow:
  *
- *   normalize → loadHistory → classify (ChatOpenAI gpt-4o) → dispatch
+ *   normalize → loadHistory → classify (OpenRouter via makeWhatsAppLLM) → dispatch
  *
  * The normalized text + session context + recent conversation history are
  * classified into exactly one of four intents and routed to the EXISTING flows:
@@ -22,8 +22,7 @@
  * companyId resolved upstream; the LLM never supplies a tenant.
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
-import { ChatOpenAI } from '@langchain/openai'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { makeWhatsAppLLM } from '@/lib/whatsapp/llm'
 import {
   HumanMessage,
   AIMessage,
@@ -163,6 +162,7 @@ async function sendOwnerReplyChunks(
 }
 
 async function classify(
+  companyId: string,
   normalizedText: string,
   session: Session | null,
   history: BaseMessage[]
@@ -191,11 +191,7 @@ DISAMBIGUATION — QUERY vs KNOWLEDGE (decide carefully):
 
 Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE, MANAGE.`
 
-  const model = new ChatOpenAI({
-    apiKey: (await getIntegrationKey('openai')) ?? undefined,
-    model: 'gpt-4o',
-    temperature: 0,
-  })
+  const model = await makeWhatsAppLLM(companyId, 'classify')
 
   const result = await model.invoke([
     new SystemMessage(systemPrompt),
@@ -254,11 +250,7 @@ async function dispatchQuery(input: RouteInput, normalizedText: string): Promise
   const companyProfileBlock = buildCompanyProfileBlock(profile)
 
   const tools = makeQueryTools(input.companyId, input.supabase)
-  const llm = new ChatOpenAI({
-    apiKey: (await getIntegrationKey('openai')) ?? undefined,
-    model: 'gpt-4o',
-    temperature: 0,
-  })
+  const llm = await makeWhatsAppLLM(input.companyId)
 
   // T-mk4-01/02: this prompt only REINFORCES single-tenant isolation in natural
   // language. The actual isolation control is the companyId closure inside
@@ -357,11 +349,7 @@ async function dispatchManage(
   // accepts a tenant, so untrusted message text can never switch companies.
   // ownerPhone is likewise a trusted closure — the channelRef any draft binds to.
   const tools = makeManageTools(input.companyId, input.supabase, input.ownerPhone)
-  const llm = new ChatOpenAI({
-    apiKey: (await getIntegrationKey('openai')) ?? undefined,
-    model: 'gpt-4o',
-    temperature: 0,
-  })
+  const llm = await makeWhatsAppLLM(input.companyId)
 
   const systemPrompt = `You are Xtimator AI, the Xtimator assistant helping a service-business owner over WhatsApp manage their own account. If asked who or what you are, introduce yourself as Xtimator AI.
 
@@ -470,7 +458,7 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
   // primary estimating flow alive by falling back to the safe CREATE path.
   let intent: Intent
   try {
-    intent = await classify(normalized.text, session, history)
+    intent = await classify(companyId, normalized.text, session, history)
   } catch (err) {
     console.error('[WhatsApp] intent classification failed; defaulting to CREATE', err)
     intent = 'CREATE'

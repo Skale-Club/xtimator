@@ -21,16 +21,6 @@ const MODELS = [
     label: 'Whisper v1',
     hint: 'Classic, lowest cost, universally available.',
   },
-  {
-    id: 'openai/gpt-4o-mini-transcribe',
-    label: 'GPT-4o mini transcribe',
-    hint: 'Higher accuracy than Whisper at a modest cost bump.',
-  },
-  {
-    id: 'openai/gpt-4o-transcribe',
-    label: 'GPT-4o transcribe',
-    hint: 'Best accuracy for noisy audio and accents; highest cost.',
-  },
 ] as const
 
 /**
@@ -45,7 +35,9 @@ const MODELS = [
 export function TranscriptionModelSelector({ current }: Props) {
   // Normalise a bare legacy id ('whisper-1') to an OpenRouter slug so the saved
   // value matches a radio option and reads as "Active".
-  const initial = current.includes('/') ? current : `openai/${current}`
+  // Whisper is the only allowed model: any other stored value shows as Whisper.
+  const normalised = current.includes('/') ? current : `openai/${current}`
+  const initial = MODELS.some((m) => m.id === normalised) ? normalised : MODELS[0].id
   const [model, setModel] = useState<string>(initial)
   const [isPending, startTransition] = useTransition()
   const { t } = useTranslation()

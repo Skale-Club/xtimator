@@ -22,17 +22,19 @@ vi.mock('@/lib/supabase/service', () => ({
 // The Plan-02 adapter modules are dynamically imported by the factory. Mock them
 // here so Plan 01's factory dispatch is testable before the adapters land.
 const openRouterLookup = vi.fn(async () => [])
-const anthropicLookup = vi.fn(async () => [])
 vi.mock('@/lib/estimate/price-research/adapters/openrouter-web', () => ({
   makeOpenRouterWebProvider: vi.fn(() => ({ lookup: openRouterLookup })),
 }))
-vi.mock('@/lib/estimate/price-research/adapters/anthropic-web', () => ({
-  makeAnthropicWebProvider: vi.fn(() => ({ lookup: anthropicLookup })),
+// An Anthropic key IS configured: the chain must still stay OpenRouter-only.
+const getIntegrationKeyMock = vi.fn(async () => 'sk-ant-placeholder' as string | null)
+vi.mock('@/lib/platform-config', () => ({
+  getIntegrationKey: (...args: unknown[]) => (getIntegrationKeyMock as (...a: unknown[]) => unknown)(...args),
 }))
 
 import { createServiceClient } from '@/lib/supabase/service'
 import {
   getPriceResearchProvider,
+  getPriceResearchProviderChain,
   isUsableCandidate,
   type PriceResearchResult,
 } from '@/lib/estimate/price-research/provider'
@@ -119,15 +121,31 @@ describe('getPriceResearchProvider — source resolution from platform_integrati
     expect(typeof provider!.lookup).toBe('function')
     await provider!.lookup([{ name: 'x' }], { city: 'Austin', state: 'TX' }, 'USD')
     expect(openRouterLookup).toHaveBeenCalledTimes(1)
-    expect(anthropicLookup).not.toHaveBeenCalled()
   })
 
-  it('dispatches to the Anthropic-web adapter when research_source === "anthropic_web"', async () => {
+  it('a stored legacy "anthropic_web" source resolves to the OpenRouter web source', async () => {
     mockSourceRow({ metadata: { research_source: 'anthropic_web' } })
     const provider = await getPriceResearchProvider()
     expect(provider).not.toBeNull()
     await provider!.lookup([{ name: 'x' }], { city: 'Austin', state: 'TX' }, 'USD')
-    expect(anthropicLookup).toHaveBeenCalledTimes(1)
-    expect(openRouterLookup).not.toHaveBeenCalled()
+    expect(openRouterLookup).toHaveBeenCalledTimes(1)
+  })
+
+  it('the chain contains ONLY the OpenRouter-backed provider even when an Anthropic key is configured', async () => {
+    for (const research_source of ['openrouter_web', 'anthropic_web']) {
+      vi.clearAllMocks()
+      mockSourceRow({ metadata: { research_source } })
+      const chain = await getPriceResearchProviderChain()
+      expect(chain).toHaveLength(1)
+      await chain[0].lookup([{ name: 'x' }], { city: 'Austin', state: 'TX' }, 'USD')
+      expect(openRouterLookup).toHaveBeenCalledTimes(1)
+      // The Anthropic key is never consulted: no direct-Anthropic quality fallback.
+      expect(getIntegrationKeyMock).not.toHaveBeenCalledWith('anthropic')
+    }
+  })
+
+  it('the chain is empty when no source is configured (safe no-op)', async () => {
+    mockSourceRow(null)
+    expect(await getPriceResearchProviderChain()).toEqual([])
   })
 })

@@ -4,7 +4,7 @@
  * resolveChatModelId mirrors getAIProvider (lib/ai/index.ts) EXACTLY:
  *   1. companies.ai_model_override (per-company, via the service client)
  *   2. platform ai_config.openrouter_default_model (getOpenRouterDefaultModel)
- *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5')
+ *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5.5')
  *
  * resolveChatModel sources the key via getIntegrationKey('openrouter') (NEVER
  * process.env directly — Pitfall 5), throws when it is null, and constructs
@@ -69,12 +69,12 @@ beforeEach(() => {
 
 describe('resolveChatModelId', () => {
   it('returns companies.ai_model_override when set (slot step 1)', async () => {
-    const { client, eqs } = makeServiceClientMock({ ai_model_override: 'anthropic/claude-opus-4' })
+    const { client, eqs } = makeServiceClientMock({ ai_model_override: 'anthropic/claude-opus-5' })
     requireServiceClientMock.mockReturnValue(client as never)
 
     const id = await resolveChatModelId('company-1')
 
-    expect(id).toBe('anthropic/claude-opus-4')
+    expect(id).toBe('anthropic/claude-opus-5')
     expect(client.from).toHaveBeenCalledWith('companies')
     expect(eqs).toContainEqual(['id', 'company-1'])
     // Override short-circuits — the platform default is never consulted.
@@ -84,11 +84,11 @@ describe('resolveChatModelId', () => {
   it('falls back to ai_config.openrouter_default_model when no override (slot step 2)', async () => {
     const { client } = makeServiceClientMock({ ai_model_override: null })
     requireServiceClientMock.mockReturnValue(client as never)
-    getOpenRouterDefaultModelMock.mockResolvedValue('openai/gpt-5')
+    getOpenRouterDefaultModelMock.mockResolvedValue('anthropic/claude-sonnet-5.5')
 
     const id = await resolveChatModelId('company-1')
 
-    expect(id).toBe('openai/gpt-5')
+    expect(id).toBe('anthropic/claude-sonnet-5.5')
   })
 
   it('falls back to OR_DEFAULTS.chat when neither override nor default is set (slot step 3)', async () => {
@@ -99,15 +99,28 @@ describe('resolveChatModelId', () => {
     const id = await resolveChatModelId('company-1')
 
     expect(id).toBe(OR_DEFAULTS.chat)
-    expect(id).toBe('anthropic/claude-sonnet-5')
+    expect(id).toBe('anthropic/claude-sonnet-5.5')
+  })
+
+  it('ignores a disallowed stored override and platform default (policy), falling to OR_DEFAULTS.chat', async () => {
+    const { client } = makeServiceClientMock({ ai_model_override: 'openai/gpt-4o' })
+    requireServiceClientMock.mockReturnValue(client as never)
+    getOpenRouterDefaultModelMock.mockResolvedValue('google/gemini-2.5-flash')
+
+    expect(await resolveChatModelId('company-1')).toBe(OR_DEFAULTS.chat)
+
+    const haiku = makeServiceClientMock({ ai_model_override: 'anthropic/claude-haiku-5.5' })
+    requireServiceClientMock.mockReturnValue(haiku.client as never)
+    getOpenRouterDefaultModelMock.mockResolvedValue('anthropic/claude-haiku-5.5')
+    expect(await resolveChatModelId('company-1')).toBe(OR_DEFAULTS.chat)
   })
 
   it('skips the company read when no companyId and uses the platform default', async () => {
-    getOpenRouterDefaultModelMock.mockResolvedValue('openai/gpt-5')
+    getOpenRouterDefaultModelMock.mockResolvedValue('anthropic/claude-sonnet-5.5')
 
     const id = await resolveChatModelId()
 
-    expect(id).toBe('openai/gpt-5')
+    expect(id).toBe('anthropic/claude-sonnet-5.5')
     expect(requireServiceClientMock).not.toHaveBeenCalled()
   })
 })
@@ -127,7 +140,7 @@ describe('resolveChatModel', () => {
 
   it('constructs createOpenRouter({ apiKey })(modelId) with the resolved slot id', async () => {
     getIntegrationKeyMock.mockResolvedValue('test-key')
-    const { client } = makeServiceClientMock({ ai_model_override: 'anthropic/claude-opus-4' })
+    const { client } = makeServiceClientMock({ ai_model_override: 'anthropic/claude-opus-5' })
     requireServiceClientMock.mockReturnValue(client as never)
 
     const model = await resolveChatModel('company-1')
@@ -138,8 +151,8 @@ describe('resolveChatModel', () => {
     const settings = createOpenRouterMock.mock.calls[0]![0]
     expect(settings.apiKey).toBe('test-key')
     // The factory was called with the RESOLVED model id.
-    expect(openrouterFactory).toHaveBeenCalledWith('anthropic/claude-opus-4')
-    expect(model).toEqual({ __model: 'anthropic/claude-opus-4' })
+    expect(openrouterFactory).toHaveBeenCalledWith('anthropic/claude-opus-5')
+    expect(model).toEqual({ __model: 'anthropic/claude-opus-5' })
   })
 
   it('returns the injected modelOverride without touching the key or provider (test seam)', async () => {

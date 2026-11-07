@@ -1,211 +1,103 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 /**
- * HARD-03 — callWithFallback wrapper (Wave 0 RED scaffold).
- *
- * Pins the OpenRouter→Gemini fallback contract that plan 99-01 implements:
- *   - primary success returns the primary result, marks servedBy:'primary',
- *     fallbackFired:false, and NEVER calls the fallback (QA-03 — exactly 1 call).
- *   - primary failure runs the fallback EXACTLY ONCE and returns its result with
- *     servedBy:'fallback', fallbackFired:true.
- *   - both providers down throws a marked `ProvidersUnavailableError` carrying the
- *     PRIMARY error as `.cause` (so the caller maps it to provider_unavailable).
- *
- * RED today: `@/lib/ai/with-fallback` does not exist (created in 99-01). These tests
- * fail to resolve the module — real RED, not stubbed.
+ * callWithFallback wrapper — OpenRouter ONLY (owner rule). There is no secondary
+ * provider: a primary failure raises the marked `ProvidersUnavailableError`
+ * (carrying the original error as `.cause`) so callers/UI keep their error shape.
  */
 
-// Sentry mock retained (harmless) so the module graph parses even though
-// with-fallback.ts no longer imports Sentry directly — notifyOps now owns it.
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
+const notifyOpsMock = vi.fn(async (_a: unknown) => undefined)
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: (a: unknown) => notifyOpsMock(a),
+}))
 
-// The observability signal now routes through notifyOps (the never-throw
-// Sentry + Telegram fan-out); the observability block asserts on THIS mock.
-vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
-
-import { notifyOps } from '@/lib/observability/ops-alert'
-import { callWithFallback, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
-
-const mockNotifyOps = notifyOps as ReturnType<typeof vi.fn>
+import {
+  callWithFallback,
+  ProvidersUnavailableError,
+  InvalidEstimateOutputError,
+} from '@/lib/ai/with-fallback'
 
 describe('callWithFallback', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('primary success — returns servedBy:primary, fallbackFired:false, fallback NOT called', async () => {
+  it('primary success - returns servedBy:primary and invokes primary exactly once', async () => {
     const primary = vi.fn().mockResolvedValue('A')
-    const fallback = vi.fn().mockResolvedValue('B')
 
-    const outcome = await callWithFallback({ op: 'generate', primary, fallback })
+    const outcome = await callWithFallback({ op: 'generate', primary })
 
-    expect(outcome.result).toBe('A')
-    expect(outcome.servedBy).toBe('primary')
-    expect(outcome.fallbackFired).toBe(false)
-    expect(fallback).not.toHaveBeenCalled()
-  })
-
-  it('single call — primary invoked exactly once on success (QA-03)', async () => {
-    const primary = vi.fn().mockResolvedValue('A')
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    await callWithFallback({ op: 'generate', primary, fallback })
-
+    expect(outcome).toEqual({ result: 'A', servedBy: 'primary' })
     expect(primary).toHaveBeenCalledTimes(1)
-    expect(fallback).toHaveBeenCalledTimes(0)
   })
 
-  it('fallback fired — primary throws, returns fallback result with servedBy:fallback, fallbackFired:true', async () => {
-    const primary = vi.fn().mockRejectedValue(new Error('primary down'))
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    const outcome = await callWithFallback({ op: 'generate', primary, fallback })
-
-    expect(outcome.result).toBe('B')
-    expect(outcome.servedBy).toBe('fallback')
-    expect(outcome.fallbackFired).toBe(true)
-    expect(fallback).toHaveBeenCalledTimes(1)
-  })
-
-  it('both fail — throws a marked ProvidersUnavailableError carrying the primary error as cause', async () => {
+  it('primary failure - throws a marked ProvidersUnavailableError carrying the error as cause', async () => {
     const primary = vi.fn().mockRejectedValue(new Error('PRIMARY_ERR'))
-    const fallback = vi.fn().mockRejectedValue(new Error('FALLBACK_ERR'))
-
-    await expect(
-      callWithFallback({ op: 'generate', primary, fallback })
-    ).rejects.toBeInstanceOf(ProvidersUnavailableError)
 
     let caught: unknown
     try {
-      await callWithFallback({ op: 'generate', primary, fallback })
-    } catch (err) {
-      caught = err
-    }
-
-    expect(caught).toBeInstanceOf(ProvidersUnavailableError)
-    // Marker flag the failure model keys off of.
-    expect((caught as { providerUnavailable?: boolean }).providerUnavailable).toBe(true)
-    // The cause is the PRIMARY error (canonical signal), NOT the fallback error.
-    expect((caught as { cause?: unknown }).cause).toBeInstanceOf(Error)
-    expect(((caught as { cause?: Error }).cause as Error).message).toBe('PRIMARY_ERR')
-  })
-
-  it('both fail — exposes the fallback error as fallbackCause while .cause stays the primary error (D8)', async () => {
-    const primary = vi.fn().mockRejectedValue(new Error('PRIMARY_ERR'))
-    const fallback = vi.fn().mockRejectedValue(new Error('FALLBACK_ERR'))
-
-    let caught: unknown
-    try {
-      await callWithFallback({ op: 'generate', primary, fallback })
+      await callWithFallback({ op: 'generate', primary })
     } catch (err) {
       caught = err
     }
 
     expect(caught).toBeInstanceOf(ProvidersUnavailableError)
     expect((caught as { providerUnavailable?: boolean }).providerUnavailable).toBe(true)
-    // .cause contract UNCHANGED: still the PRIMARY error.
     expect(((caught as { cause?: Error }).cause as Error).message).toBe('PRIMARY_ERR')
-    // Additive: the fallback's own failure is now visible to operators.
-    const fallbackCause = (caught as { fallbackCause?: unknown }).fallbackCause
-    expect(fallbackCause).toBeInstanceOf(Error)
-    expect((fallbackCause as Error).message).toBe('FALLBACK_ERR')
-  })
-})
-
-/**
- * quick-260705-bml (FIX-2) → quick-260705-c1y-02 — silent-fallback observability.
- *
- * A successful primary→fallback (OpenRouter down, Gemini served) previously
- * returned fallbackFired:true but emitted NO alert, so a silent degradation ran
- * for hours undetected. callWithFallback now routes a never-throw signal through
- * `notifyOps` (the Sentry + Telegram ops fan-out) on the successful-fallback
- * branch, escalating to 'error' on a billing/auth primary failure. The signal is
- * a pure side-effect: it never changes control flow, the return shape, or the
- * both-fail path, and a throwing notifyOps never breaks the fallback result.
- */
-describe('callWithFallback observability (quick-260705-c1y-02)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+    // No retry on any other provider: the primary ran exactly once.
+    expect(primary).toHaveBeenCalledTimes(1)
   })
 
-  it('successful fallback — routes exactly one warning notifyOps for the served-by-fallback signal', async () => {
-    const primary = vi.fn().mockRejectedValue(new Error('primary down'))
-    const fallback = vi.fn().mockResolvedValue('B')
+  it('invalid-output marker is rethrown UNCHANGED (schema-retry seam handles it)', async () => {
+    const invalid = new InvalidEstimateOutputError({ issues: [] } as never)
+    const primary = vi.fn().mockRejectedValue(invalid)
 
-    const outcome = await callWithFallback({ op: 'generate', primary, fallback })
-
-    expect(outcome.result).toBe('B')
-    expect(outcome.servedBy).toBe('fallback')
-    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
-    const [alert] = mockNotifyOps.mock.calls[0]
-    expect(alert.kind).toBe('ai_fallback')
-    expect(alert.severity).toBe('warning')
-    // The op rides along in the title; the primary error rides along in the message.
-    expect(alert.title).toContain('generate')
-    expect(alert.title).toContain('primary down')
-    expect(String(alert.message)).toContain('primary down')
-    // Non-billing primary error → no ':billing' dedupe suffix.
-    expect(alert.dedupeKey).toBe('ai_fallback:generate')
+    await expect(callWithFallback({ op: 'generate', primary })).rejects.toBe(invalid)
+    // A schema failure is not a provider outage: no ops alert.
+    expect(notifyOpsMock).not.toHaveBeenCalled()
   })
 
-  it('billing/credits primary error (402 / Insufficient credits) — escalates to error + :billing dedupeKey', async () => {
-    const primary = vi
-      .fn()
-      .mockRejectedValue(new Error('OpenRouter request failed (402): Insufficient credits'))
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    await callWithFallback({ op: 'generate', primary, fallback })
-
-    expect(mockNotifyOps).toHaveBeenCalledTimes(1)
-    const [alert] = mockNotifyOps.mock.calls[0]
-    expect(alert.severity).toBe('error')
-    expect(alert.dedupeKey).toBe('ai_fallback:generate:billing')
+  it('transient primary failure fires a warning ops alert (non-billing dedupe key)', async () => {
+    const primary = vi.fn().mockRejectedValue(new Error('OpenRouter returned 503'))
+    await expect(callWithFallback({ op: 'transcribe', primary })).rejects.toBeInstanceOf(
+      ProvidersUnavailableError
+    )
+    expect(notifyOpsMock).toHaveBeenCalledTimes(1)
+    expect(notifyOpsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'ai_provider_failed',
+        severity: 'warning',
+        dedupeKey: 'ai_provider_failed:transcribe',
+        suppressWindowSec: 900,
+      })
+    )
   })
 
-  it('auth primary error (401 / not configured) — escalates to error', async () => {
-    const primary = vi.fn().mockRejectedValue(new Error('Gemini API key not configured'))
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    await callWithFallback({ op: 'transcribe', primary, fallback })
-
-    const [alert] = mockNotifyOps.mock.calls[0]
-    expect(alert.severity).toBe('error')
-    expect(alert.dedupeKey).toBe('ai_fallback:transcribe:billing')
+  it.each([
+    'OpenRouter 402 insufficient credits',
+    'HTTP 401 user not found',
+    'OpenRouter API key not configured',
+  ])('billing/auth failure "%s" escalates to error with the :billing dedupe key', async (msg) => {
+    const primary = vi.fn().mockRejectedValue(new Error(msg))
+    await expect(callWithFallback({ op: 'generate', primary })).rejects.toBeInstanceOf(
+      ProvidersUnavailableError
+    )
+    expect(notifyOpsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'ai_provider_failed',
+        severity: 'error',
+        dedupeKey: 'ai_provider_failed:generate:billing',
+      })
+    )
   })
 
-  it('happy path (primary resolves) — does NOT call notifyOps', async () => {
-    const primary = vi.fn().mockResolvedValue('A')
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    await callWithFallback({ op: 'generate', primary, fallback })
-
-    expect(mockNotifyOps).toHaveBeenCalledTimes(0)
-  })
-
-  it('both fail — the successful-fallback signal is NOT emitted from the both-fail branch', async () => {
-    const primary = vi.fn().mockRejectedValue(new Error('PRIMARY_ERR'))
-    const fallback = vi.fn().mockRejectedValue(new Error('FALLBACK_ERR'))
-
-    await expect(
-      callWithFallback({ op: 'generate', primary, fallback })
-    ).rejects.toBeInstanceOf(ProvidersUnavailableError)
-
-    // The 'served by fallback' signal belongs to the SUCCESSFUL-fallback branch;
-    // a both-fail run must not emit it.
-    expect(mockNotifyOps).not.toHaveBeenCalled()
-  })
-
-  it('never-throw — a throwing notifyOps does not break the fallback result', async () => {
-    vi.mocked(mockNotifyOps).mockImplementationOnce(() => {
-      throw new Error('ops down')
+  it('a throwing notifyOps never breaks the failure path', async () => {
+    notifyOpsMock.mockImplementationOnce(() => {
+      throw new Error('alert down')
     })
-    const primary = vi.fn().mockRejectedValue(new Error('primary down'))
-    const fallback = vi.fn().mockResolvedValue('B')
-
-    const outcome = await callWithFallback({ op: 'generate', primary, fallback })
-
-    expect(outcome.result).toBe('B')
-    expect(outcome.servedBy).toBe('fallback')
-    expect(outcome.fallbackFired).toBe(true)
+    const primary = vi.fn().mockRejectedValue(new Error('boom'))
+    await expect(callWithFallback({ op: 'vision', primary })).rejects.toBeInstanceOf(
+      ProvidersUnavailableError
+    )
   })
 })

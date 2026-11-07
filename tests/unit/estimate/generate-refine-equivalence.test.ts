@@ -13,8 +13,8 @@ import { resolve } from 'node:path'
  * For equivalent inputs, refine and generate must exercise the SAME shared seams: the shared
  * `buildSystemPrompt` (one prompt source of truth) — refine with `{ mode: 'refine' }`, generate
  * with no opts (or `{ mode: 'generate' }`). And the refine adapters must no longer carry a bespoke
- * refine prompt: the literal deletion marker `## Refinement Instruction` must be ABSENT from BOTH
- * `lib/ai/providers/openrouter.ts` and `lib/ai/providers/gemini.ts` (Pitfall 4 — easy to miss one).
+ * refine prompt: the literal deletion marker `## Refinement Instruction` must be ABSENT from
+ * `lib/ai/providers/openrouter.ts` (the only provider).
  *
  * RED today:
  *   - `OpenRouterAdapter.refineEstimate` builds a bespoke prompt and does NOT call buildSystemPrompt,
@@ -149,18 +149,12 @@ describe('Criterion 5: generate + refine both call the shared buildSystemPrompt'
   })
 })
 
-describe('Criterion 5: bespoke refine prompt deleted from BOTH adapters', () => {
+describe('Criterion 5: bespoke refine prompt deleted from the adapter', () => {
   const ROOT = process.cwd()
   const OPENROUTER = resolve(ROOT, 'lib/ai/providers/openrouter.ts')
-  const GEMINI = resolve(ROOT, 'lib/ai/providers/gemini.ts')
 
   it('openrouter.ts no longer contains the bespoke "## Refinement Instruction" marker', () => {
     const src = readFileSync(OPENROUTER, 'utf8')
-    expect(src).not.toContain('## Refinement Instruction')
-  })
-
-  it('gemini.ts no longer contains the bespoke "## Refinement Instruction" marker', () => {
-    const src = readFileSync(GEMINI, 'utf8')
     expect(src).not.toContain('## Refinement Instruction')
   })
 })

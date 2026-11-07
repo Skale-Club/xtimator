@@ -1,29 +1,24 @@
 /**
  * lib/ai/with-fallback.ts
  *
- * Server-only. The single shared OpenRouter→Gemini provider-fallback policy
- * (HARD-03). Every AI call path (generate, refine, transcribe, vision) runs its
- * primary provider through `callWithFallback`; on a thrown error the fallback
- * provider is attempted EXACTLY ONCE. There is no retry loop and no multi-provider
- * cascade — Inngest retries are orthogonal and pre-existing.
- *
- * When BOTH primary and fallback throw, the wrapper throws a MARKED
- * `ProvidersUnavailableError` carrying the original PRIMARY error as `.cause`
- * (the canonical signal). 99-02's generate node maps that marker to the typed
- * failure reason `'provider_unavailable'`. The wrapper NEVER swallows the final
- * failure — it re-throws so the existing never-throw graph nodes convert it to a
- * failure state (ENGINE-04 preserved).
+ * Server-only. The shared AI-call failure policy. EVERY AI call in Xtimator goes
+ * through OpenRouter and ONLY OpenRouter (owner rule): there is no secondary
+ * provider (no direct Gemini, OpenAI or Anthropic). `callWithFallback` is kept as
+ * the single seam so callers and the UI keep the same error shapes: when the
+ * (OpenRouter) primary throws, the wrapper throws a MARKED
+ * `ProvidersUnavailableError` carrying the original error as `.cause`. The
+ * generate/refine nodes map that marker to the typed failure reason
+ * `'provider_unavailable'`. The wrapper NEVER swallows the failure and never
+ * retries on another provider.
  */
 
 import { notifyOps } from '@/lib/observability/ops-alert'
 
-/** Result of a fallback-wrapped AI call. */
+/** Result of a wrapped AI call. */
 export interface FallbackOutcome<T> {
   result: T
-  /** Which provider ultimately served the result. */
-  servedBy: 'primary' | 'fallback'
-  /** True when the primary failed and the fallback produced the result. */
-  fallbackFired: boolean
+  /** Always the OpenRouter primary: there is no secondary provider. */
+  servedBy: 'primary'
 }
 
 /**
@@ -31,10 +26,7 @@ export interface FallbackOutcome<T> {
  *
  * The `providerUnavailable` flag is the deterministic signal the failure model
  * (99-02) keys off of to map this to the typed reason `'provider_unavailable'`.
- * `.cause` carries the original PRIMARY error (not the fallback error).
- * `fallbackCause` (additive, D8) carries the FALLBACK's own error so an
- * operator can see WHY the fallback also failed (e.g. 'Gemini API key not
- * configured') — previously that error was silently discarded.
+ * `.cause` carries the original (OpenRouter) error.
  *
  * Constructor is flexible to support both call shapes in the test contract:
  *   - `new ProvidersUnavailableError(primaryErr)` — wrapper internal use; the
@@ -43,9 +35,6 @@ export interface FallbackOutcome<T> {
  */
 export class ProvidersUnavailableError extends Error {
   readonly providerUnavailable = true as const
-  /** The FALLBACK provider's error (additive — `.cause` stays the PRIMARY error). */
-  fallbackCause?: unknown
-
   constructor(causeOrMessage?: unknown, maybeCause?: unknown) {
     const hasExplicitMessage = arguments.length >= 2
     super(hasExplicitMessage ? String(causeOrMessage) : 'All providers unavailable')
@@ -83,10 +72,8 @@ export class InvalidEstimateOutputError extends Error {
  * on a byte-for-byte VALID-but-incomplete JSON object and persisted as a
  * silent partial estimate.
  *
- * Unlike `InvalidEstimateOutputError`, this is NOT a schema-validation failure
- * and must NOT short-circuit `callWithFallback`'s fallback branch — a
- * truncated primary response still lets the Gemini fallback run exactly once
- * (today's behavior, now diagnosable instead of masked as malformed JSON).
+ * Unlike `InvalidEstimateOutputError`, this is NOT a schema-validation failure;
+ * it surfaces as `ProvidersUnavailableError` (diagnosable via `.cause`).
  */
 export class TruncatedOutputError extends Error {
   readonly truncated = true as const
@@ -97,44 +84,49 @@ export class TruncatedOutputError extends Error {
 }
 
 /**
- * Run `primary()`; on any throw run `fallback()` exactly once.
- *   - primary succeeds → { result, servedBy: 'primary', fallbackFired: false } (fallback NOT called).
- *   - primary throws, fallback succeeds → { result, servedBy: 'fallback', fallbackFired: true }.
- *   - both throw → throws a marked `ProvidersUnavailableError` carrying the PRIMARY error as
- *     `.cause` and the fallback's error as `fallbackCause` (D8, observability only).
+ * Run the OpenRouter `primary()`.
+ *   - succeeds -> { result, servedBy: 'primary' }.
+ *   - throws `InvalidEstimateOutputError` -> rethrown UNCHANGED so the outer
+ *     schema-retry seam can re-call once (GUARD-01).
+ *   - throws anything else -> a marked `ProvidersUnavailableError` carrying the
+ *     original error as `.cause`. No other provider is ever attempted.
  *
- * `op` is retained for future logging/observability (GUARD-04, Phase 100) — no
- * behavior depends on it here. Tenant scope lives inside the `primary`/`fallback`
- * closures; this wrapper never accepts a `companyId` field (multi-tenant invariant).
+ * `op` is retained for logging/observability only. Tenant scope lives inside the
+ * `primary` closure; this wrapper never accepts a `companyId` field.
  */
+export async function callWithFallback<T>(args: {
+  op: string
+  primary: () => Promise<T>
+}): Promise<FallbackOutcome<T>> {
+  try {
+    const result = await args.primary()
+    return { result, servedBy: 'primary' }
+  } catch (primaryErr) {
+    // GUARD-01: a schema-validation failure is NOT a provider-availability failure;
+    // rethrow the marker so the OUTER `withSchemaRetry` seam handles it.
+    if (
+      primaryErr instanceof InvalidEstimateOutputError ||
+      (primaryErr as { invalidOutput?: unknown } | null)?.invalidOutput === true
+    ) {
+      throw primaryErr
+    }
+    reportProviderFailure(args.op, primaryErr)
+    throw new ProvidersUnavailableError(primaryErr)
+  }
+}
+
 /**
- * Never-throw observability for the silent successful-fallback path. Routes the
- * "primary down, fallback served" signal through `notifyOps` (which owns the
- * Sentry + Telegram fan-out). Escalates to 'error' when the primary error string
- * indicates an ACCOUNT-level failure (402 / insufficient credits / 401 /
- * bad-or-missing key) — that means the primary is down for a billing/auth reason
- * (not a transient blip) and an operator must act. Detection is deliberately
- * simple string matching — the wrapper only has the thrown error, so do not
- * over-engineer HTTP parsing.
- *
- * Stays a synchronous `void` function fired-and-forgotten from the fallback
- * branch: `notifyOps` is itself never-throw and is not awaited. The billing
- * escalation gets a distinct dedupeKey suffix (':billing') so a billing outage
- * and a transient blip suppress independently within their windows.
- *
- * Reporting must NEVER break the AI call: `notifyOps` never throws and the body
- * is additionally try/catch-swallowed (belt-and-suspenders).
- *
- * Company-agnostic (multi-tenant invariant): the signal carries op + primary
- * error only, NEVER a companyId.
- *
- * AIREL-02: the reported message is prefixed with the error's `.name` (e.g.
- * `TruncatedOutputError: AI output truncated...`) so a distinguishable marker
- * error is diagnosable in the alert itself — before this, a truncated primary
- * response was indistinguishable from any other generic thrown Error in the
- * ops log (the audit's "masking the cause" finding, C2).
+ * Never-throw ops alert for a failed OpenRouter call. OpenRouter is the ONLY
+ * provider, so a failure here means the customer's operation fails (there is no
+ * silent fallback serving it any more) and an operator must know. Escalates to
+ * 'error' when the error string indicates an ACCOUNT-level failure (402 /
+ * insufficient credits / 401 / bad-or-missing key); the billing escalation gets
+ * its own dedupeKey suffix so an outage and a transient blip suppress
+ * independently. Fire-and-forget: `notifyOps` is never-throw and not awaited;
+ * the body is additionally try/catch-swallowed. Company-agnostic: op + error
+ * only, NEVER a companyId.
  */
-function reportSilentFallback(op: string, primaryErr: unknown): void {
+function reportProviderFailure(op: string, primaryErr: unknown): void {
   try {
     const primaryError =
       primaryErr instanceof Error
@@ -143,52 +135,14 @@ function reportSilentFallback(op: string, primaryErr: unknown): void {
     const billingOrAuth =
       /402|insufficient credits|401|user not found|not configured/i.test(primaryError)
     void notifyOps({
-      kind: 'ai_fallback',
-      title: `AI primary down for '${op}' — serving fallback`,
+      kind: 'ai_provider_failed',
+      title: `OpenRouter call failed for '${op}'`,
       message: primaryError,
       severity: billingOrAuth ? 'error' : 'warning',
-      dedupeKey: `ai_fallback:${op}${billingOrAuth ? ':billing' : ''}`,
+      dedupeKey: `ai_provider_failed:${op}${billingOrAuth ? ':billing' : ''}`,
       suppressWindowSec: 900,
     })
   } catch {
     // notifyOps is itself never-throw; this guard is belt-and-suspenders.
-  }
-}
-
-export async function callWithFallback<T>(args: {
-  op: string
-  primary: () => Promise<T>
-  fallback: () => Promise<T>
-}): Promise<FallbackOutcome<T>> {
-  try {
-    const result = await args.primary()
-    return { result, servedBy: 'primary', fallbackFired: false }
-  } catch (primaryErr) {
-    // GUARD-01: a schema-validation failure is NOT a provider-availability failure.
-    // Falling back to the other provider would mask the invalid output and break the
-    // bounded schema-retry (which must re-call the SAME served provider once). Rethrow
-    // the marker so the OUTER `withSchemaRetry` seam handles it.
-    if (
-      primaryErr instanceof InvalidEstimateOutputError ||
-      (primaryErr as { invalidOutput?: unknown } | null)?.invalidOutput === true
-    ) {
-      throw primaryErr
-    }
-    try {
-      const result = await args.fallback()
-      // Never-throw observability side-effect: surface the silent degradation
-      // (primary down, fallback served) so it is visible within minutes instead
-      // of running unnoticed for hours. Does not touch control flow or return shape.
-      reportSilentFallback(args.op, primaryErr)
-      return { result, servedBy: 'fallback', fallbackFired: true }
-    } catch (fallbackErr) {
-      // Both failed — re-throw the MARKED error carrying the PRIMARY error as
-      // cause (NOT the fallback error). The wrapper never swallows the failure.
-      // D8: the fallback's error rides along as `fallbackCause` so operators can
-      // see why the fallback ALSO failed (previously discarded).
-      const err = new ProvidersUnavailableError(primaryErr)
-      err.fallbackCause = fallbackErr
-      throw err
-    }
   }
 }

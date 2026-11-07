@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 // Complements the GUARD-03 runtime-authority test (totals-authority.test.ts):
 // the server always recomputes totals; the LLM never supplies a trusted total.
 
-const ADAPTERS = ['lib/ai/providers/anthropic.ts', 'lib/ai/providers/gemini.ts']
+const ADAPTERS = ['lib/ai/providers/openrouter.ts']
 
 // Computed-total / tax fields the AI item schema must never declare as a
 // server-trusted numeric property.
@@ -29,10 +29,8 @@ describe('ENG-01: AI has no calculator tool and no server-trusted computed-total
     })
   }
 
-  it('the only allowedFunctionNames / tool_choice target is create_estimate', () => {
-    const anthropic = readFileSync('lib/ai/providers/anthropic.ts', 'utf8')
-    const gemini = readFileSync('lib/ai/providers/gemini.ts', 'utf8')
-    expect(anthropic).toContain("tool_choice: { type: 'tool', name: 'create_estimate' }")
-    expect(gemini).toContain("allowedFunctionNames: ['create_estimate']")
+  it('the only tool_choice target is create_estimate', () => {
+    const openrouter = readFileSync('lib/ai/providers/openrouter.ts', 'utf8')
+    expect(openrouter).toMatch(/tool_choice:\s*\{\s*type:\s*'function',\s*function:\s*\{\s*name:\s*'create_estimate'/)
   })
 })

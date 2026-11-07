@@ -27,11 +27,6 @@ const mockRecordAICost = vi.fn(async (..._args: unknown[]) => {})
 vi.mock('@/lib/billing/record-ai-cost', () => ({
   recordAICost: (...args: unknown[]) => mockRecordAICost(...args),
 }))
-// Defensive no-op — never reached: primary always resolves (ok:true) in
-// every case below, so the Gemini fallback is not consulted.
-vi.mock('@/lib/ai/providers/gemini', () => ({
-  analyzePhotoGemini: vi.fn(async () => 'gemini fallback description'),
-}))
 
 import { analyzePhotoOR } from '@/lib/ai/openrouter-client'
 

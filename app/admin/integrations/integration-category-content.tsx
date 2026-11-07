@@ -109,7 +109,7 @@ export async function IntegrationCategoryContent({
 
   let priceResearch = {
     enabled: false,
-    source: 'openrouter_web' as 'openrouter_web' | 'anthropic_web',
+    source: 'openrouter_web' as 'openrouter_web',
     engine: 'exa' as 'exa' | 'native',
   }
   if (category.showPriceResearchConfig) {
@@ -123,8 +123,9 @@ export async function IntegrationCategoryContent({
       (data?.metadata as { research_source?: string; research_engine?: string } | null) ?? {}
     const src = meta.research_source
     priceResearch = {
+      // Legacy 'anthropic_web' resolves to the OpenRouter source (OpenRouter only).
       enabled: src === 'openrouter_web' || src === 'anthropic_web',
-      source: src === 'anthropic_web' ? 'anthropic_web' : 'openrouter_web',
+      source: 'openrouter_web' as const,
       engine: meta.research_engine === 'native' ? 'native' : 'exa',
     }
   }

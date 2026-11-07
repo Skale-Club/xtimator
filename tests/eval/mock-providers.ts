@@ -59,7 +59,7 @@ export function makeMockProvider(): AIProvider {
  */
 export async function mockTranscribeAudioOR(): Promise<{
   text: string
-  servedBy: 'primary' | 'fallback'
+  servedBy: 'primary'
 }> {
   return { text: activeCase?.inputs.transcripts?.join('\n') ?? '', servedBy: 'primary' }
 }

@@ -27,6 +27,8 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { buildResearchSearchPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
 import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
+import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { isAllowedChatModel } from '@/lib/ai/model-policy'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 
@@ -34,7 +36,7 @@ import { recordAICost } from '@/lib/billing/record-ai-cost'
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
 // Sane default model if no platform default is configured.
-const FALLBACK_MODEL = 'anthropic/claude-sonnet-4'
+const FALLBACK_MODEL = OR_DEFAULTS.chat
 
 const MAX_SEARCH_RESULTS = 5
 
@@ -89,7 +91,7 @@ type OpenRouterResearchResponse = {
 /**
  * Robustly extract the JSON `{results:[...]}` object from the model's reply.
  *
- * Web-search models (e.g. claude-sonnet-4) routinely wrap the JSON in PROSE — a
+ * Web-search models (e.g. claude-sonnet) routinely wrap the JSON in PROSE — a
  * "Let me search…" preamble, a fenced ```json block, and a trailing "Note: …".
  * The naive "whole content is JSON" parse fails on that shape (→ every item a
  * miss), so we try, in order: (1) the inner of a fenced ```json block anywhere in
@@ -152,7 +154,8 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
       if (!apiKey) return items.map((i) => missFor(i, currency))
 
       try {
-        const model = (await getOpenRouterDefaultModel()) ?? FALLBACK_MODEL
+        const configured = await getOpenRouterDefaultModel()
+        const model = isAllowedChatModel(configured) ? configured.trim() : FALLBACK_MODEL
         const engine = await resolveEngine()
 
         const body = {

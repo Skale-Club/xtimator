@@ -3,7 +3,8 @@ import 'server-only'
  * lib/estimate/price-research/provider.ts
  *
  * Server-only. The swappable PriceResearchProvider SEAM — mirrors
- * `getAIProviderWithFallback` (lib/ai/provider-with-fallback.ts). Phase 108 wires
+ * `getAIProviderWithFallback` (lib/ai/provider-with-fallback.ts). Every research source is
+ * OpenRouter-backed (owner rule: no direct Anthropic/Gemini/OpenAI). Phase 108 wires
  * this into the estimate pipeline; THIS phase only ships the port + contracts.
  *
  * Contract guarantees:
@@ -78,7 +79,7 @@ export interface PriceResearchProvider {
 }
 
 /** Active-source string persisted in platform_integrations (admin UI deferred). */
-export type PriceResearchSource = 'openrouter_web' | 'anthropic_web'
+export type PriceResearchSource = 'openrouter_web'
 
 /**
  * THE EVIDENCE GATE — load-bearing correctness contract (Pitfall 1).
@@ -118,7 +119,9 @@ async function getActiveResearchSource(): Promise<PriceResearchSource | null> {
     .maybeSingle()
   const source = (data?.metadata as { research_source?: string } | null)?.research_source
   if (source === 'openrouter_web') return 'openrouter_web'
-  if (source === 'anthropic_web') return 'anthropic_web'
+  // Legacy: installs that stored the retired direct-Anthropic source resolve to the
+  // OpenRouter web source (owner rule: every AI call goes through OpenRouter).
+  if (source === 'anthropic_web') return 'openrouter_web'
   return null
 }
 
@@ -136,54 +139,18 @@ export async function getPriceResearchProvider(): Promise<PriceResearchProvider 
       const { makeOpenRouterWebProvider } = await import('./adapters/openrouter-web')
       return makeOpenRouterWebProvider()
     }
-    case 'anthropic_web': {
-      const { makeAnthropicWebProvider } = await import('./adapters/anthropic-web')
-      return makeAnthropicWebProvider()
-    }
     default:
       return null
   }
 }
 
 /**
- * Resolve the ORDERED, gated provider chain `[primary, fallback?]` (Phase 109).
- *
- * The configured PRIMARY source comes first (via the same dispatch as
- * {@link getPriceResearchProvider}). The Anthropic-web quality-fallback is appended
- * ONLY when it is BOTH (a) not already the primary AND (b) configured/available — the
- * gate is `getIntegrationKey('anthropic')` resolving to a real key, the same credential
- * the Anthropic adapter itself uses. Mirrors the AI provider-fallback ordering
- * (lib/ai/provider-with-fallback.ts): primary first, fallback attempted at most once.
- *
- * Returns `[]` when nothing is configured (the Phase-108 safe no-op is preserved —
- * the orchestrator touches no provider). Never throws: a gate read failure simply
- * omits the fallback. The orchestrator iterates this chain over the SHRINKING miss
- * set, attempting the fallback only for items the primary left without evidence.
+ * Resolve the ORDERED provider chain. Owner rule: every provider is OpenRouter-backed,
+ * so the chain is `[primary]` or `[]` when nothing is configured (the Phase-108 safe
+ * no-op is preserved). A configured Anthropic key does NOT add a direct-Anthropic
+ * quality fallback any more. Never throws.
  */
 export async function getPriceResearchProviderChain(): Promise<PriceResearchProvider[]> {
-  const source = await getActiveResearchSource()
   const primary = await getPriceResearchProvider()
-  // Unconfigured → empty chain (safe no-op; orchestrator never touches a provider).
-  if (!primary) return []
-
-  const chain: PriceResearchProvider[] = [primary]
-
-  // Append the gated Anthropic-web quality-fallback when the primary is NOT already
-  // Anthropic AND an Anthropic key is configured. The gate keeps the fallback dormant
-  // on installs without Anthropic credentials (no wasted call that all-misses anyway).
-  if (source !== 'anthropic_web') {
-    let anthropicKey: string | null = null
-    try {
-      const { getIntegrationKey } = await import('@/lib/platform-config')
-      anthropicKey = await getIntegrationKey('anthropic')
-    } catch {
-      anthropicKey = null // a gate read failure simply omits the fallback (never throws)
-    }
-    if (anthropicKey) {
-      const { makeAnthropicWebProvider } = await import('./adapters/anthropic-web')
-      chain.push(makeAnthropicWebProvider())
-    }
-  }
-
-  return chain
+  return primary ? [primary] : []
 }

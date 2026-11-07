@@ -11,8 +11,7 @@
  * of the session (edits made, previous replies, etc.).
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
-import { ChatOpenAI } from '@langchain/openai'
-import { getIntegrationKey } from '@/lib/platform-config'
+import { makeWhatsAppLLM } from '@/lib/whatsapp/llm'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -128,11 +127,7 @@ Instructions:
 
   const tools = makeConfirmationTools(session, companyId, supabase)
 
-  const model = new ChatOpenAI({
-    apiKey: (await getIntegrationKey('openai')) ?? undefined,
-    model: 'gpt-4o',
-    temperature: 0,
-  })
+  const model = await makeWhatsAppLLM(companyId)
 
   const agent = createReactAgent({ llm: model, tools })
 

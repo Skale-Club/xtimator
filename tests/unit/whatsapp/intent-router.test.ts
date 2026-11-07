@@ -18,6 +18,10 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 
 // --- classifier LLM (ChatOpenAI) ------------------------------------------
 const mockInvoke = vi.fn()
+// The WhatsApp LLM factory (OpenRouter-routed) is mocked so no key/DB lookup runs.
+vi.mock('@/lib/whatsapp/llm', () => ({
+  makeWhatsAppLLM: async () => ({ invoke: (...a: unknown[]) => mockInvoke(...a) }),
+}))
 vi.mock('@langchain/openai', () => ({
   // Class-based so `new ChatOpenAI()` is constructible after vi.clearAllMocks.
   ChatOpenAI: class {

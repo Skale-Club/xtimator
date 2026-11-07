@@ -59,21 +59,44 @@ describe('getAIProvider (OpenRouter resolution)', () => {
 
   it('uses the platform ai_config.openrouter_default_model when set', async () => {
     vi.mocked(requireServiceClient).mockReturnValue(
-      mockSvc({ aiConfig: { metadata: { openrouter_default_model: 'openai/gpt-4o' } } }) as never
+      mockSvc({ aiConfig: { metadata: { openrouter_default_model: 'anthropic/claude-opus-5' } } }) as never
     )
     const provider = await getAIProvider()
     expect(provider).toBeInstanceOf(OpenRouterAdapter)
-    expect((provider as unknown as { model: string }).model).toBe('openai/gpt-4o')
+    expect((provider as unknown as { model: string }).model).toBe('anthropic/claude-opus-5')
   })
 
   it('prefers the per-company ai_model_override when present', async () => {
     vi.mocked(requireServiceClient).mockReturnValue(
       mockSvc({
-        company: { ai_model_override: 'google/gemini-2.0-flash' },
-        aiConfig: { metadata: { openrouter_default_model: 'openai/gpt-4o' } },
+        company: { ai_model_override: 'anthropic/claude-sonnet-5.5' },
+        aiConfig: { metadata: { openrouter_default_model: 'anthropic/claude-opus-5' } },
       }) as never
     )
     const provider = await getAIProvider('company-1')
-    expect((provider as unknown as { model: string }).model).toBe('google/gemini-2.0-flash')
+    expect((provider as unknown as { model: string }).model).toBe('anthropic/claude-sonnet-5.5')
+  })
+
+  it('ignores a stored disallowed override (GPT/Gemini/Haiku) and uses the platform default', async () => {
+    for (const bad of ['openai/gpt-4o', 'google/gemini-2.0-flash', 'anthropic/claude-haiku-5.5']) {
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSvc({
+          company: { ai_model_override: bad },
+          aiConfig: { metadata: { openrouter_default_model: 'anthropic/claude-opus-5' } },
+        }) as never
+      )
+      const provider = await getAIProvider('company-1')
+      expect((provider as unknown as { model: string }).model).toBe('anthropic/claude-opus-5')
+    }
+  })
+
+  it('ignores a stored disallowed platform default and falls back to OR_DEFAULTS.chat', async () => {
+    for (const bad of ['openai/gpt-4o', 'google/gemini-2.5-flash', 'anthropic/claude-haiku-5.5']) {
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSvc({ aiConfig: { metadata: { openrouter_default_model: bad } } }) as never
+      )
+      const provider = await getAIProvider()
+      expect((provider as unknown as { model: string }).model).toBe(OR_DEFAULTS.chat)
+    }
   })
 })

@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { isAllowedChatModel, CHAT_MODEL_POLICY_MESSAGE } from '@/lib/ai/model-policy'
 import { encrypt } from '@/lib/crypto/aes'
 import {
   getIntegrationKey,
@@ -711,10 +712,12 @@ export async function setGlobalOpenRouterModel(
   if (!trimmed) {
     return { ok: false, message: 'Model id is required' }
   }
-  // Loose validation — OpenRouter model ids look like "vendor/slug" or
-  // "vendor/slug:variant". Permissive on purpose so new vendors don't break.
   if (!/^[\w./:-]+$/.test(trimmed)) {
     return { ok: false, message: 'Invalid model id format' }
+  }
+  // Owner policy: this slot drives estimate generation, so Claude Sonnet/Opus only.
+  if (!isAllowedChatModel(trimmed)) {
+    return { ok: false, message: CHAT_MODEL_POLICY_MESSAGE }
   }
 
   const svc = requireServiceClient()
@@ -763,9 +766,9 @@ export async function setGlobalOpenRouterModel(
 }
 
 /**
- * Persist the platform-wide speech-to-text model id. Transcription does NOT
- * route through OpenRouter (it calls OpenAI Whisper directly), so the choice is
- * restricted to the known OpenAI transcription models. Stored alongside
+ * Persist the platform-wide speech-to-text model id. Transcription routes
+ * through OpenRouter and Whisper (`openai/whisper-1`) is the only allowed model
+ * (owner policy; see TRANSCRIPTION_MODELS). Stored alongside
  * `openrouter_default_model` in the `ai_config` metadata.
  */
 export async function setGlobalTranscriptionModel(
@@ -827,7 +830,8 @@ export async function setGlobalTranscriptionModel(
  * `metadata = { research_source, research_engine }`. The readers query the DB
  * live (no redeploy):
  *   - getActiveResearchSource() (lib/estimate/price-research/provider.ts) activates
- *     ONLY on research_source ∈ { 'openrouter_web', 'anthropic_web' }; anything else
+ *     ONLY on research_source ∈ { 'openrouter_web' } (a legacy stored 'anthropic_web'
+ *     also resolves to the OpenRouter source); anything else
  *     (incl. null) → null → getPriceResearchProvider() returns null (dormant no-op).
  *   - resolveEngine() (adapters/openrouter-web.ts): research_engine 'native' literal, else 'exa'.
  *
@@ -835,16 +839,16 @@ export async function setGlobalTranscriptionModel(
  * readers go dormant while research_engine is preserved (re-enabling restores it).
  * Mirrors setGlobalOpenRouterModel: requireAdmin gate FIRST, service-role upsert,
  * invalidate cache + revalidate path + audit. No API key involved — price_research
- * reuses the existing OpenRouter / Anthropic credentials.
+ * reuses the existing OpenRouter credentials (OpenRouter only).
  */
 export async function setPriceResearchSource(input: {
   enabled: boolean
-  source: 'openrouter_web' | 'anthropic_web'
+  source: 'openrouter_web'
   engine: 'exa' | 'native'
 }): Promise<ActionResult> {
   const ctx = await requireAdmin()
 
-  if (input.source !== 'openrouter_web' && input.source !== 'anthropic_web') {
+  if (input.source !== 'openrouter_web') {
     return { ok: false, message: 'Invalid source' }
   }
   if (input.engine !== 'exa' && input.engine !== 'native') {

@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { getIntegrationKey, getOpenRouterDefaultModel, createServiceClient } = vi.hoisted(() => ({
   getIntegrationKey: vi.fn(async () => 'sk-test-or-placeholder' as string | null),
-  getOpenRouterDefaultModel: vi.fn(async () => 'anthropic/claude-sonnet-4' as string | null),
+  getOpenRouterDefaultModel: vi.fn(async () => 'anthropic/claude-sonnet-5.5' as string | null),
   createServiceClient: vi.fn(),
 }))
 
@@ -77,7 +77,7 @@ const region = { city: 'Austin', state: 'TX' }
 beforeEach(() => {
   vi.clearAllMocks()
   getIntegrationKey.mockResolvedValue('sk-test-or-placeholder')
-  getOpenRouterDefaultModel.mockResolvedValue('anthropic/claude-sonnet-4')
+  getOpenRouterDefaultModel.mockResolvedValue('anthropic/claude-sonnet-5.5')
   mockEngineRow(null) // default → exa
 })
 afterEach(() => {

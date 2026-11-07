@@ -6,13 +6,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * The persisted shape MUST satisfy getActiveResearchSource()
  * (lib/estimate/price-research/provider.ts):
- *   - research_source === 'openrouter_web' | 'anthropic_web' → ACTIVE
+ *   - research_source === 'openrouter_web' → ACTIVE
  *   - anything else (incl. null) → DORMANT (getPriceResearchProvider() returns null)
  * resolveEngine() (adapters/openrouter-web.ts): research_engine 'native' literal, else 'exa'.
  *
  * Covers:
  *  1. enable openrouter_web + exa  → upsert metadata.research_source='openrouter_web', research_engine='exa'
- *  2. enable anthropic_web + native → research_source='anthropic_web', research_engine='native'
+ *  2. enable openrouter_web + native → research_source='openrouter_web', research_engine='native'
  *  3. disable                      → research_source = null (dormant), engine preserved
  *  4. invalid source               → ok:false, NO upsert
  *  5. non-admin                    → requireAdmin rejects, NO upsert
@@ -96,14 +96,14 @@ describe('setPriceResearchSource', () => {
     expect(lastUpsertPayload?.metadata?.research_engine).toBe('exa')
   })
 
-  it('2. enable anthropic_web + native → research_source=anthropic_web & research_engine=native', async () => {
+  it('2. enable openrouter_web + native → research_source=openrouter_web & research_engine=native', async () => {
     const res = await setPriceResearchSource({
       enabled: true,
-      source: 'anthropic_web',
+      source: 'openrouter_web',
       engine: 'native',
     })
     expect(res.ok).toBe(true)
-    expect(lastUpsertPayload?.metadata?.research_source).toBe('anthropic_web')
+    expect(lastUpsertPayload?.metadata?.research_source).toBe('openrouter_web')
     expect(lastUpsertPayload?.metadata?.research_engine).toBe('native')
   })
 
@@ -115,7 +115,7 @@ describe('setPriceResearchSource', () => {
     })
     expect(res.ok).toBe(true)
     expect(upsertMock).toHaveBeenCalledTimes(1)
-    // null is NOT in {openrouter_web, anthropic_web} → getActiveResearchSource() → null
+    // null is NOT 'openrouter_web' → getActiveResearchSource() → null
     expect(lastUpsertPayload?.metadata?.research_source).toBeNull()
     expect(lastUpsertPayload?.metadata?.research_engine).toBe('exa')
   })
@@ -123,7 +123,7 @@ describe('setPriceResearchSource', () => {
   it('4. invalid source → ok:false, no upsert', async () => {
     const res = await setPriceResearchSource({
       enabled: true,
-      source: 'brave' as 'openrouter_web' | 'anthropic_web',
+      source: 'brave' as 'openrouter_web',
       engine: 'exa',
     })
     expect(res.ok).toBe(false)

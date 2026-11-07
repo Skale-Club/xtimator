@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/ai/openrouter-client', () => ({
   getORKey: vi.fn().mockResolvedValue('platform-key'),
   OPENROUTER_BASE: 'https://openrouter.test/api/v1',
-  OR_DEFAULTS: { chat: 'chat-model', translation: 'haiku-model' },
+  OR_DEFAULTS: { chat: 'chat-model', fast: 'haiku-model' },
   AI_CHAT_TIMEOUT_MS: 5_000,
 }))
 const byokMock = vi.fn()

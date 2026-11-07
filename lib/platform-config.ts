@@ -490,11 +490,7 @@ export async function getOpenRouterDefaultModel(): Promise<string | null> {
 export const DEFAULT_TRANSCRIPTION_MODEL = 'openai/whisper-1'
 
 /** OpenRouter transcription model slugs selectable from the AI admin screen. */
-export const TRANSCRIPTION_MODELS = [
-  'openai/whisper-1',
-  'openai/gpt-4o-mini-transcribe',
-  'openai/gpt-4o-transcribe',
-] as const
+export const TRANSCRIPTION_MODELS = ['openai/whisper-1'] as const
 
 export type TranscriptionModel = (typeof TRANSCRIPTION_MODELS)[number]
 
@@ -514,11 +510,20 @@ export async function getTranscriptionModel(): Promise<string> {
     .maybeSingle()
   const model = (data?.metadata as { transcription_model?: string } | null)
     ?.transcription_model
-  const raw = model && model.trim() ? model.trim() : DEFAULT_TRANSCRIPTION_MODEL
-  // Legacy values were stored bare ('whisper-1'); normalise to an OpenRouter slug
-  // so consumers (transcribeAudioOR, the admin selector) always see a valid id
-  // without a data migration.
-  return raw.includes('/') ? raw : `openai/${raw}`
+  return coerceTranscriptionModel(model)
+}
+
+/**
+ * Owner policy: Whisper is the ONLY allowed transcription model. Legacy bare ids
+ * ('whisper-1') normalise to the OpenRouter slug; any other stored value (e.g. the
+ * retired gpt-4o-*-transcribe options) resolves to `openai/whisper-1`.
+ */
+export function coerceTranscriptionModel(stored: string | null | undefined): string {
+  const raw = stored && stored.trim() ? stored.trim() : DEFAULT_TRANSCRIPTION_MODEL
+  const slug = raw.includes('/') ? raw : `openai/${raw}`
+  return (TRANSCRIPTION_MODELS as readonly string[]).includes(slug)
+    ? slug
+    : DEFAULT_TRANSCRIPTION_MODEL
 }
 
 /**

@@ -304,8 +304,8 @@ export class OpenRouterAdapter implements AIProvider {
       },
       body: JSON.stringify(body),
       // AIREL-01: the ONLY unbounded fetch on the primary generation path — a
-      // hung socket previously never threw, so the Gemini fallback was
-      // unreachable and the Inngest step stayed pinned indefinitely.
+      // hung socket previously never threw, so the failure was never surfaced and
+      // the Inngest step stayed pinned indefinitely.
       signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
     })
 

@@ -50,7 +50,7 @@ describe('provider-cost-invariant (quick-260821): no silent realCostUsd: null re
 
   it('finds at least the known provider adapter files (sanity check the glob itself works)', () => {
     expect(files.length).toBeGreaterThan(0)
-    expect(files).toEqual(expect.arrayContaining(['gemini.ts', 'openrouter.ts']))
+    expect(files).toEqual(expect.arrayContaining(['openrouter.ts']))
     expect(entries.map((e) => e.file)).toEqual(expect.arrayContaining(['openrouter-web.ts']))
   })
 
@@ -73,8 +73,8 @@ describe('provider-cost-invariant (quick-260821): no silent realCostUsd: null re
           .join('\n')
         throw new Error(
           `Found unjustified "realCostUsd: null" in lib/ai/providers/${file}. ` +
-            `Compute a real cost (see lib/ai/pricing/gemini.ts's computeGeminiCostUsd for the ` +
-            `pattern), or if the cost is genuinely unknowable, add a trailing ` +
+            `Compute a real cost (e.g. OpenRouter's usage.cost) or, ` +
+            `if the cost is genuinely unknowable, add a trailing ` +
             `"// cost-unknown: <reason>" comment on the SAME line to document why.\n${detail}`
         )
       }

@@ -17,6 +17,7 @@ import { createOpenRouter, type LanguageModelV3 } from '@openrouter/ai-sdk-provi
 import { getIntegrationKey, getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { isAllowedChatModel } from '@/lib/ai/model-policy'
 
 /** App-attribution headers — mirrors SITE_HEADERS in lib/ai/openrouter-client.ts. */
 const SITE_HEADERS = {
@@ -29,7 +30,8 @@ const SITE_HEADERS = {
  * slot order EXACTLY:
  *   1. companies.ai_model_override (per-company) — read via the service client.
  *   2. platform ai_config.openrouter_default_model (getOpenRouterDefaultModel).
- *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5').
+ *   3. OR_DEFAULTS.chat ('anthropic/claude-sonnet-5.5'). A stored value that is not
+ *      Claude Sonnet/Opus (lib/ai/model-policy.ts) is ignored at each step..
  */
 export async function resolveChatModelId(companyId?: string): Promise<string> {
   if (companyId) {
@@ -41,11 +43,11 @@ export async function resolveChatModelId(companyId?: string): Promise<string> {
       .maybeSingle()
     const override = (company as { ai_model_override?: string | null } | null)
       ?.ai_model_override
-    if (override && override.trim()) return override
+    if (isAllowedChatModel(override)) return override.trim()
   }
 
   const platformDefault = await getOpenRouterDefaultModel()
-  if (platformDefault && platformDefault.trim()) return platformDefault
+  if (isAllowedChatModel(platformDefault)) return platformDefault.trim()
 
   return OR_DEFAULTS.chat
 }

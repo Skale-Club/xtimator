@@ -5,14 +5,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
  * AbortSignal timeout.
  *
  * Before this fix, `lib/ai/providers/openrouter.ts`'s `callTool` fetch had no
- * signal at all: a hung socket never threw, so `callWithFallback` never ran
- * the Gemini fallback and the Inngest step stayed pinned indefinitely (audit
+ * signal at all: a hung socket never threw, so `callWithFallback` never
+ * surfaced the failure and the Inngest step stayed pinned indefinitely (audit
  * v4.19 § C1). Pins two things:
  *   1. The chat/completions fetch carries an AbortSignal built from the
  *      shared, exported `AI_CHAT_TIMEOUT_MS` constant (single source of truth
  *      with openrouter-client.ts — no duplicated number).
  *   2. An aborted/timed-out fetch propagates as a normal thrown error, so
- *      `callWithFallback` runs the fallback provider exactly once (today's
+ *      `callWithFallback` surfaces ProvidersUnavailableError (no fallback; today's
  *      behavior, now actually reachable).
  *
  * Mirrors openrouter-cost-capture.test.ts's mocking conventions.
@@ -35,9 +35,9 @@ vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
 
 import { OpenRouterAdapter } from '@/lib/ai/providers/openrouter'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { callWithFallback } from '@/lib/ai/with-fallback'
+import { callWithFallback, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
 import { AI_CHAT_TIMEOUT_MS } from '@/lib/ai/openrouter-client'
-import type { EstimateInput, EstimateOutput } from '@/lib/ai/types'
+import type { EstimateInput } from '@/lib/ai/types'
 
 const mockGetKey = getIntegrationKey as ReturnType<typeof vi.fn>
 
@@ -112,23 +112,15 @@ describe('OpenRouterAdapter.callTool — request timeout (AIREL-01)', () => {
     expect(AI_CHAT_TIMEOUT_MS).toBe(120_000)
   })
 
-  it('an aborted fetch propagates so callWithFallback runs the Gemini fallback exactly once', async () => {
+  it('an aborted fetch propagates as ProvidersUnavailableError (no fallback provider, no second fetch)', async () => {
     const abortError = new DOMException('This operation was aborted', 'AbortError')
     ;(global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(abortError)
 
-    const fallbackResult: EstimateOutput = {
-      suggested_project_name: 'From Gemini',
-      suggested_client_name: null,
-      summary: 'served by fallback',
-      sections: [],
-    }
-    const fallback = vi.fn().mockResolvedValue(fallbackResult)
     const primary = () => new OpenRouterAdapter(MODEL).generateEstimate(makeInput())
 
-    const outcome = await callWithFallback({ op: 'generate_estimate', primary, fallback })
-
-    expect(outcome.servedBy).toBe('fallback')
-    expect(outcome.fallbackFired).toBe(true)
-    expect(fallback).toHaveBeenCalledTimes(1)
+    await expect(callWithFallback({ op: 'generate_estimate', primary })).rejects.toBeInstanceOf(
+      ProvidersUnavailableError
+    )
+    expect(global.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1)
   })
 })

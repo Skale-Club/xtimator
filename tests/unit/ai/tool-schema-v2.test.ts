@@ -1,30 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // SEED-057 Phase A: the output contract v2 keys exist, with the same names, on
-// every adapter's create_estimate tool (openrouter / anthropic / gemini), and
+// the OpenRouter adapter's create_estimate tool (the only provider), and
 // the zod gate stays tolerant of legacy and sloppy output.
 
-const mockAnthropicCreate = vi.fn()
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class MockAnthropic {
-    messages = { create: (...args: unknown[]) => mockAnthropicCreate(...args) }
-  },
-}))
-const mockGeminiGenerate = vi.fn()
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: class MockGoogleGenAI {
-    models = { generateContent: (...args: unknown[]) => mockGeminiGenerate(...args) }
-  },
-  Type: { OBJECT: 'object', STRING: 'string', NUMBER: 'number', ARRAY: 'array', BOOLEAN: 'boolean' },
-  FunctionCallingConfigMode: { ANY: 'any' },
-}))
 vi.mock('@/lib/platform-config', () => ({
   getIntegrationKey: vi.fn().mockResolvedValue('test-key'),
 }))
 
 import { estimateToolSchema } from '@/lib/ai/providers/openrouter'
-import { AnthropicAdapter } from '@/lib/ai/providers/anthropic'
-import { GeminiAdapter } from '@/lib/ai/providers/gemini'
 import { estimateOutputSchema } from '@/lib/ai/schema'
 import { CANONICAL_UNITS, isMetricUnit, normalizeUnit, unitKey } from '@/lib/ai/units'
 import type { EstimateInput } from '@/lib/ai/types'
@@ -64,7 +48,7 @@ function shape(schema: Schema) {
   }
 }
 
-describe('output contract v2: the three adapters carry the same keys', () => {
+describe('output contract v2: the OpenRouter adapter carries the v2 keys', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('openrouter (full schema)', () => {
@@ -73,52 +57,6 @@ describe('output contract v2: the three adapters carry the same keys', () => {
     expect(s.section).toEqual(expect.arrayContaining(SECTION_KEYS))
     expect(s.item).toEqual(expect.arrayContaining(ITEM_KEYS))
     expect(s.questionKeys).toEqual(['question', 'impact'])
-  })
-
-  it('anthropic (generate mode)', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({ content: [{ type: 'tool_use', input: okArgs }] })
-    await new AnthropicAdapter().generateEstimate(baseInput)
-    const s = shape(mockAnthropicCreate.mock.calls[0][0].tools[0].input_schema)
-    expect(s.top).toEqual(expect.arrayContaining(TOP_KEYS))
-    expect(s.section).toEqual(expect.arrayContaining(SECTION_KEYS))
-    expect(s.item).toEqual(expect.arrayContaining(ITEM_KEYS))
-    expect(s.questionKeys).toEqual(['question', 'impact'])
-  })
-
-  it('anthropic (refine mode)', async () => {
-    mockAnthropicCreate.mockResolvedValueOnce({ content: [{ type: 'tool_use', input: okArgs }] })
-    await new AnthropicAdapter().refineEstimate({
-      existingEstimate: okArgs as never,
-      instruction: 'x',
-      priceBookItems: [],
-    })
-    const s = shape(mockAnthropicCreate.mock.calls[0][0].tools[0].input_schema)
-    expect(s.top).toEqual(expect.arrayContaining(TOP_KEYS))
-    expect(s.item).toEqual(expect.arrayContaining(ITEM_KEYS))
-  })
-
-  it('gemini (generate mode)', async () => {
-    mockGeminiGenerate.mockResolvedValueOnce({ functionCalls: [{ name: 'create_estimate', args: okArgs }] })
-    await new GeminiAdapter().generateEstimate(baseInput)
-    const decl = mockGeminiGenerate.mock.calls[0][0].config.tools[0].functionDeclarations[0]
-    const s = shape(decl.parameters)
-    expect(s.top).toEqual(expect.arrayContaining(TOP_KEYS))
-    expect(s.section).toEqual(expect.arrayContaining(SECTION_KEYS))
-    expect(s.item).toEqual(expect.arrayContaining(ITEM_KEYS))
-    expect(s.questionKeys).toEqual(['question', 'impact'])
-  })
-
-  it('gemini (refine mode)', async () => {
-    mockGeminiGenerate.mockResolvedValueOnce({ functionCalls: [{ name: 'create_estimate', args: okArgs }] })
-    await new GeminiAdapter().refineEstimate({
-      existingEstimate: okArgs as never,
-      instruction: 'x',
-      priceBookItems: [],
-    })
-    const decl = mockGeminiGenerate.mock.calls[0][0].config.tools[0].functionDeclarations[0]
-    const s = shape(decl.parameters)
-    expect(s.top).toEqual(expect.arrayContaining(TOP_KEYS))
-    expect(s.item).toEqual(expect.arrayContaining(ITEM_KEYS))
   })
 
   it('none of the new fields is required (additive contract)', () => {
@@ -138,7 +76,7 @@ describe('output contract v2: the three adapters carry the same keys', () => {
 describe('output budget', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('openrouter, anthropic and gemini all allow 16384 output tokens for an estimate', async () => {
+  it('openrouter allows 16384 output tokens for an estimate', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ choices: [{ message: { tool_calls: [{ function: { name: 'create_estimate', arguments: JSON.stringify(okArgs) } }] } }] }),
@@ -148,14 +86,6 @@ describe('output budget', () => {
     await new OpenRouterAdapter('m').generateEstimate(baseInput)
     expect(JSON.parse(String(fetchMock.mock.calls[0][1].body)).max_tokens).toBe(16384)
     vi.unstubAllGlobals()
-
-    mockAnthropicCreate.mockResolvedValueOnce({ content: [{ type: 'tool_use', input: okArgs }] })
-    await new AnthropicAdapter().generateEstimate(baseInput)
-    expect(mockAnthropicCreate.mock.calls[0][0].max_tokens).toBe(16384)
-
-    mockGeminiGenerate.mockResolvedValueOnce({ functionCalls: [{ name: 'create_estimate', args: okArgs }] })
-    await new GeminiAdapter().generateEstimate(baseInput)
-    expect(mockGeminiGenerate.mock.calls[0][0].config.maxOutputTokens).toBe(16384)
   })
 })
 

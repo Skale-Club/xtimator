@@ -303,7 +303,7 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           <div className="space-y-1.5">
             <Label htmlFor="ab-text-model"><T>Text model</T></Label>
             <Input id="ab-text-model" value={form.textModel}
-              placeholder="anthropic/claude-sonnet-5"
+              placeholder="anthropic/claude-sonnet-5.5"
               onChange={(e) => setForm((p) => ({ ...p, textModel: e.target.value }))} />
           </div>
           <div className="space-y-1.5">

@@ -76,9 +76,6 @@ vi.mock('@/lib/observability/langfuse', () => ({
 vi.mock('@/lib/billing/record-ai-cost', () => ({
   recordAICost: (...args: unknown[]) => mockRecordAICost(...args),
 }))
-vi.mock('@/lib/ai/providers/gemini', () => ({
-  analyzePhotoGemini: vi.fn(async () => 'gemini fallback description'),
-}))
 vi.mock('@/lib/quota', () => ({
   recordUsage: (...args: unknown[]) => mockRecordUsage(...args),
 }))

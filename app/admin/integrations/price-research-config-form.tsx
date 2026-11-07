@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { setPriceResearchSource } from './actions'
 
-type ResearchSource = 'openrouter_web' | 'anthropic_web'
+type ResearchSource = 'openrouter_web'
 type ResearchEngine = 'exa' | 'native'
 
 type Props = {
@@ -66,7 +66,6 @@ export function PriceResearchConfigForm({ current }: Props) {
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
         >
           <option value="openrouter_web">{t('OpenRouter web')}</option>
-          <option value="anthropic_web">{t('Anthropic web')}</option>
         </select>
       </div>
 

@@ -3,13 +3,12 @@
  *
  * Centralised AI helpers for the app. Every AI task routes through OpenRouter
  * (openrouter.ai) on a single key: estimates, vision, translation, AND audio
- * transcription. Transcription keeps OpenAI's own endpoint as a FALLBACK only
- * (the proven pre-migration path) — see transcribeAudioOR.
+ * transcription. Owner rule: OpenRouter ONLY — no fallback to Gemini, OpenAI
+ * or Anthropic direct; a failure surfaces as an error.
  *
  * Endpoint coverage:
  *   openrouter.ai  /chat/completions     — estimates, refinement, vision, translation
- *   openrouter.ai  /audio/transcriptions — speech-to-text (primary)
- *   api.openai.com /audio/transcriptions — speech-to-text (fallback only)
+ *   openrouter.ai  /audio/transcriptions — speech-to-text
  */
 
 import { randomUUID } from 'node:crypto'
@@ -23,9 +22,7 @@ import { photoExtractionSchema, photoExtractionToolSchema, type PhotoExtraction 
 /**
  * Phase 110 (COST-01): non-LLM cost-correlation context. Optional/additive on the
  * vision + translation call sites — absent → cost still captured with null ids.
- * Exported (Phase 171/PEXT-05) so the Gemini structured-extraction sibling
- * (lib/ai/providers/gemini.ts's analyzePhotoStructuredGemini) shares the SAME
- * shape instead of a duplicated inline type.
+ * Exported so other AI call sites share the SAME shape.
  */
 export type CostContext = {
   attemptId?: string | null
@@ -34,17 +31,18 @@ export type CostContext = {
 }
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
-/** OpenAI's own transcription base — used ONLY by the fallback path now. */
-export const OPENAI_TRANSCRIPTION_BASE = 'https://api.openai.com/v1'
 /** Default transcription model — an OpenRouter slug routed to OpenAI Whisper. */
 export const DEFAULT_TRANSCRIBE_MODEL = 'openai/whisper-1'
 
 /** Default model IDs — overridable via platform config or per-call argument. */
 export const OR_DEFAULTS = {
   /** Best general-purpose model for estimates and vision. */
-  chat: 'anthropic/claude-sonnet-5',
-  /** Lightweight model for bulk translation — keeps costs low. */
-  translation: 'anthropic/claude-haiku-4-5',
+  chat: 'anthropic/claude-sonnet-5.5',
+  /**
+   * Cheap/fast model for high-volume helpers (translation, WhatsApp intent
+   * classifier, short classifications). Claude Haiku, pinned.
+   */
+  fast: 'anthropic/claude-haiku-5.5',
 } as const
 
 const SITE_HEADERS = {
@@ -93,25 +91,13 @@ export async function getORKey(): Promise<string> {
  * id (whisper-1) is prefixed with `openai/` so values saved before the migration
  * keep working with no DB change.
  *
- * FALLBACK — OpenAI's own /v1/audio/transcriptions (multipart), keyed by
- * getIntegrationKey('openai'). This is the previously-shipped path; keeping it as
- * the fallback means this migration can NEVER regress below prior behavior — an
- * earlier OpenRouter-STT migration was reverted for 500s (it used the wrong
- * multipart shape against the OR endpoint + had no key), and the fallback removes
- * that risk entirely.
+ * There is NO fallback (owner rule: OpenRouter only): on failure,
+ * callWithFallback throws ProvidersUnavailableError so Inngest's onFailure
+ * (ai_job.failed) surfaces it.
  *
- * On BOTH failing, callWithFallback throws ProvidersUnavailableError so Inngest's
- * onFailure (ai_job.failed) surfaces it. The `OR` suffix now reflects reality:
- * transcription routes through OpenRouter.
- *
- * Phase 167 (BILL-05/D5): returns `{ text, servedBy }` — previously the caller
- * had no way to know which provider actually served the transcription (the
- * fallback is entirely hidden inside `callWithFallback`), so every job/route
- * hardcoded provider attribution to 'openrouter' even when the OpenAI-direct
- * fallback fired. `callWithFallback` already computes `servedBy`; this just
- * stops discarding it. BOTH consumers were updated for this shape change:
- * lib/inngest/functions/transcribe-audio.ts and
- * lib/estimate/ingest/multimodal.ts (grep confirms no third consumer).
+ * Returns `{ text, servedBy }`; `servedBy` is always 'primary' (OpenRouter) and is
+ * kept so existing consumers (lib/inngest/functions/transcribe-audio.ts and
+ * lib/estimate/ingest/multimodal.ts) keep their shape.
  */
 export async function transcribeAudioOR(
   audioBlob: Blob,
@@ -123,10 +109,9 @@ export async function transcribeAudioOR(
   // (non-Inngest) call path; this brings it in line with analyzePhotoOR /
   // the refine-estimate call, all of which already accept costContext.
   costContext?: CostContext
-): Promise<{ text: string; servedBy: 'primary' | 'fallback' }> {
-  // OpenRouter needs a vendor-prefixed slug; OpenAI's own API needs the bare id.
+): Promise<{ text: string; servedBy: 'primary' }> {
+  // OpenRouter needs a vendor-prefixed slug.
   const orModel = model.includes('/') ? model : `openai/${model}`
-  const openaiModel = orModel.replace(/^openai\//, '')
 
   // PRIMARY — OpenRouter transcription (base64 JSON body, NOT multipart).
   async function openrouterPrimary(): Promise<string> {
@@ -165,41 +150,13 @@ export async function transcribeAudioOR(
     return transcript
   }
 
-  // FALLBACK — OpenAI direct (multipart), the proven pre-migration path.
-  async function openaiFallback(): Promise<string> {
-    const apiKey = await getIntegrationKey('openai')
-    if (!apiKey) throw new Error('OpenAI transcription key not configured')
-    const startTime = new Date()
-    const form = new FormData()
-    form.append('file', audioBlob, `recording.${ext}`)
-    form.append('model', openaiModel)
-    form.append('response_format', 'text')
-
-    const res = await fetch(`${OPENAI_TRANSCRIPTION_BASE}/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-      signal: AbortSignal.timeout(AI_TRANSCRIBE_TIMEOUT_MS),
-    })
-
-    if (!res.ok) {
-      const err = await res.text().catch(() => 'unknown')
-      throw new Error(`OpenAI transcription failed (${res.status}): ${err.slice(0, 400)}`)
-    }
-    const transcript = (await res.text()).trim()
-    await traceTranscription(openaiModel, ext, transcript, startTime)
-    return transcript
-  }
-
   const { callWithFallback } = await import('@/lib/ai/with-fallback')
   const { result, servedBy } = await callWithFallback({
     op: 'transcribe',
     primary: openrouterPrimary,
-    fallback: openaiFallback,
   })
   // D1 guard (quick-260705-2gp): an empty-but-HTTP-ok response is a wrapper
-  // "success" (the fallback is not consulted for it) — genuinely silent audio
-  // returns '' from both providers anyway. Throw AFTER the wrapper so the
+  // "success" — genuinely silent audio returns '' anyway. Throw AFTER the wrapper so the
   // failure propagates out of step.run('whisper-transcribe') and the Inngest
   // onFailure (ai_job.failed) surfaces a CLEAR message instead of a silent
   // empty save + credit charge.
@@ -228,8 +185,8 @@ export async function transcribeAudioOR(
     await recordAICost({
       attemptId: costContext.attemptId ?? randomUUID(),
       operationType: 'audio_minutes',
-      provider: servedBy === 'fallback' ? 'openai' : 'openrouter',
-      model: servedBy === 'fallback' ? openaiModel : orModel,
+      provider: 'openrouter',
+      model: orModel,
       realCostUsd: computeWhisperCostUsd(derived.minutes * 60),
       companyId: costContext.companyId ?? null,
       projectId: costContext.projectId ?? null,
@@ -266,8 +223,7 @@ async function traceTranscription(
 // ---------------------------------------------------------------------------
 
 /**
- * Shared vision prompt. Exported so the Gemini vision fallback
- * (`analyzePhotoGemini`) imports the SAME constant — no duplication.
+ * Shared vision prompt.
  */
 export const PHOTO_PROMPT =
   "Describe this photo from a contractor's perspective. Note materials, conditions, measurements if visible, damage, and areas needing work. Be specific and concise."
@@ -308,8 +264,7 @@ export async function analyzePhotoOR(
   model?: string,
   costContext?: CostContext
 ): Promise<string> {
-  // Primary: OpenRouter vision. On failure, fall back to Gemini vision exactly
-  // once via the shared provider-fallback policy (HARD-03).
+  // OpenRouter vision only; a failure raises ProvidersUnavailableError.
   async function visionPrimary(): Promise<string> {
     const apiKey = await getORKey()
     const visionModel = model ?? OR_DEFAULTS.chat
@@ -425,10 +380,6 @@ export async function analyzePhotoOR(
   const { result } = await callWithFallback({
     op: 'vision',
     primary: visionPrimary,
-    fallback: async () => {
-      const { analyzePhotoGemini } = await import('@/lib/ai/providers/gemini')
-      return analyzePhotoGemini(base64, mimeType)
-    },
   })
   // D2 guard (quick-260705-2gp): same rationale as the transcription guard —
   // an empty-but-HTTP-ok analysis is a wrapper "success", so throw after the
@@ -446,11 +397,9 @@ export async function analyzePhotoOR(
 
 /**
  * PEXT: dedicated timeout for the STRUCTURED extraction attempts ONLY
- * (analyzePhotoStructuredOR below + analyzePhotoStructuredGemini in
- * lib/ai/providers/gemini.ts) — deliberately NOT `AI_CHAT_TIMEOUT_MS` (120s).
- * The worker's fallback ladder can stack up to FOUR provider calls in one
- * Inngest step (structured-OR -> structured-Gemini -> prose-OR -> prose-
- * Gemini); 4x120s would blow the step's time budget before the prose safety
+ * (analyzePhotoStructuredOR below) — deliberately NOT `AI_CHAT_TIMEOUT_MS`
+ * (120s). The worker's ladder can stack TWO OpenRouter calls in one Inngest
+ * step (structured -> prose); the structured attempt is bounded so the prose safety
  * net (today's already-proven path) even runs. Structured attempts are
  * best-effort — 40s each bounds the worst case while prose keeps its
  * existing, untouched timeouts.
@@ -464,7 +413,7 @@ export const STRUCTURED_VISION_MAX_TOKENS = 700
  * contractor framing plus explicit measurement/confidence guidance so the
  * forced tool-call has a fighting chance of populating `measurements[].value`
  * with a defensible confidence tag instead of guessing silently. Exported so
- * `analyzePhotoStructuredGemini` (gemini.ts) uses the SAME instruction text —
+ * the structured path uses this instruction text —
  * no duplicated/diverging prompt.
  */
 export const PHOTO_EXTRACTION_PROMPT =
@@ -494,7 +443,7 @@ export class InvalidPhotoExtractionError extends Error {
 
 /**
  * PEXT-04 — the ONE authoritative zod gate. Both `analyzePhotoStructuredOR`
- * (below) and `analyzePhotoStructuredGemini` (lib/ai/providers/gemini.ts)
+ * (below)
  * funnel their raw parsed tool-call arguments through this SINGLE function
  * rather than each calling `photoExtractionSchema.safeParse` independently —
  * the parity test (d) locks drift by construction (one call site, not two
@@ -516,7 +465,7 @@ export function validatePhotoExtraction(raw: unknown): PhotoExtraction {
  * EXTRACTION=off` and a total structured failure degrade to it byte-
  * identically — PEXT-03).
  *
- * NO internal retry — the worker's structured(OR) -> structured(Gemini) ->
+ * NO internal retry — the worker's structured(OR) ->
  * prose ladder IS the retry. One attempt, one outcome: a validated
  * `PhotoExtraction` or a thrown (typed where possible) error.
  */
@@ -668,7 +617,7 @@ export async function analyzePhotoStructuredOR(
 export async function translateTextsOR(
   texts: string[],
   targetLanguage: 'pt' | 'es',
-  model = OR_DEFAULTS.translation,
+  model = OR_DEFAULTS.fast,
   costContext?: CostContext
 ): Promise<Record<string, string>> {
   const apiKey = await getORKey()

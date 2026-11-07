@@ -96,7 +96,7 @@ export async function buildNeedsDetails(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: OR_DEFAULTS.translation,
+        model: OR_DEFAULTS.fast,
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
       }),

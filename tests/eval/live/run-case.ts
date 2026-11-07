@@ -26,8 +26,8 @@ import type { GoldenCase } from '../golden/types'
 import { scoreAgainstRubric, type RubricResult } from '../rubric'
 
 export const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
-export const DEFAULT_ESTIMATE_MODEL = 'anthropic/claude-sonnet-5'
-export const DEFAULT_PLAN_MODEL = 'anthropic/claude-haiku-4-5'
+export const DEFAULT_ESTIMATE_MODEL = 'anthropic/claude-sonnet-5.5'
+export const DEFAULT_PLAN_MODEL = 'anthropic/claude-haiku-5.5'
 
 export interface LiveOptions {
   apiKey: string

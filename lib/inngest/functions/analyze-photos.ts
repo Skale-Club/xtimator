@@ -13,7 +13,6 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
 import { analyzePhotoOR, analyzePhotoStructuredOR } from '@/lib/ai/openrouter-client'
-import { analyzePhotoStructuredGemini } from '@/lib/ai/providers/gemini'
 import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 import type { Json } from '@/types/database.types'
 import { recordUsage } from '@/lib/quota'
@@ -220,13 +219,12 @@ export const analyzePhotosJob = inngest.createFunction(
             const costContext = { attemptId, companyId, projectId }
 
             // Phase 171 (PEXT-01/03): structured extraction ladder —
-            // structured(OpenRouter) -> structured(Gemini) -> prose (the
-            // existing analyzePhotoOR ladder, untouched, stays the terminal
-            // fallback). ON by default; PHOTO_STRUCTURED_EXTRACTION=off skips
+            // structured(OpenRouter) -> prose (analyzePhotoOR, also OpenRouter;
+            // the terminal rung). Owner rule: OpenRouter only, never Gemini. ON by default; PHOTO_STRUCTURED_EXTRACTION=off skips
             // it entirely so the per-photo behavior is byte-identical to the
             // pre-171 prose pipeline. Read once per photo — env is stable
             // across an Inngest replay, so this stays deterministic/replay-
-            // safe. A structured failure at EITHER rung NEVER fails the
+            // safe. A structured failure NEVER fails the
             // photo: it falls through to the proven prose ladder below,
             // exactly as today — only a prose failure (unchanged from
             // 168-01) counts against skip-and-continue.
@@ -244,14 +242,6 @@ export const analyzePhotosJob = inngest.createFunction(
                   `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
                   structuredErr instanceof Error ? structuredErr.message : String(structuredErr)
                 )
-                try {
-                  extraction = await analyzePhotoStructuredGemini(base64, mimeType, costContext)
-                } catch (geminiErr) {
-                  console.warn(
-                    `[analyze-photos] structured-Gemini extraction failed for photo ${photo.id}:`,
-                    geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
-                  )
-                }
               }
             }
 

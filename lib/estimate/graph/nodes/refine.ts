@@ -14,7 +14,7 @@
  *   - any other error -> 'generation_failed'
  *
  * CRITICAL: it resolves the provider via `getAIProviderWithFallback(companyId)` (NOT
- * `getAIProvider`) so refine inherits the Phase-99 OpenRouter->Gemini fallback AND the
+ * `getAIProvider`) so refine inherits the OpenRouter-only failure mapping AND the
  * Phase-100 zod validation + bounded schema-retry for free. It threads the SAME builder
  * inputs as generate (language / industry / currency / price book resolved from the
  * company row by companyId) so refine feeds the shared prompt builder equivalently.

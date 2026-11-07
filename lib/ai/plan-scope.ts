@@ -5,7 +5,7 @@ import 'server-only'
  * SEED-057 Phase C, step 1 of two-step generation (flag ESTIMATOR_TWO_STEP,
  * default OFF): the `plan_scope` call. See lib/ai/scope-plan.ts for the contract.
  *
- * Model (decision E4): OR_DEFAULTS.translation (Haiku). The expensive
+ * Model (decision E4): OR_DEFAULTS.fast (Haiku). The expensive
  * `create_estimate` call stays on the configured model; this one only reads and
  * organises, it prices nothing, so a small model is enough and cheap.
  *
@@ -115,7 +115,7 @@ export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome>
     const companyId = input.costContext?.companyId ?? null
     const byok = companyId ? await getByokOpenRouterKey(companyId).catch(() => null) : null
     const apiKey = byok ?? (await getORKey())
-    const model = OR_DEFAULTS.translation
+    const model = OR_DEFAULTS.fast
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
       headers: {

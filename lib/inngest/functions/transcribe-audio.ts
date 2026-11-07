@@ -27,7 +27,7 @@
  *     attempts for nothing) so onFailure fires immediately with zero spend.
  *   - `transcribeAudioOR` now returns `{ text, servedBy }`; the job attributes
  *     BOTH the pipeline event and the cost row to the provider that actually
- *     served the call ('openai' on fallback, 'openrouter' otherwise) instead
+ *     served the call (always 'openrouter') instead
  *     of hardcoding 'openrouter' (audit D5).
  */
 import { NonRetriableError } from 'inngest'
@@ -209,7 +209,7 @@ export const transcribeAudioJob = inngest.createFunction(
       if (ident.transcript && ident.transcript.trim().length > 0) {
         return {
           transcript: ident.transcript,
-          servedBy: null as 'primary' | 'fallback' | null,
+          servedBy: null as 'primary' | null,
           shortCircuited: true as const,
           derivedMinutes: null as number | null,
         }
@@ -357,11 +357,7 @@ export const transcribeAudioJob = inngest.createFunction(
 
     // Phase 167 (BILL-05/D5): the provider that actually served THIS run.
     // null (no fresh call happened) when short-circuited.
-    const provider: 'openai' | 'openrouter' | null = transcription.shortCircuited
-      ? null
-      : transcription.servedBy === 'fallback'
-        ? 'openai'
-        : 'openrouter'
+    const provider: 'openrouter' | null = transcription.shortCircuited ? null : 'openrouter'
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded event with duration_ms.
     void recordPipelineEvent({

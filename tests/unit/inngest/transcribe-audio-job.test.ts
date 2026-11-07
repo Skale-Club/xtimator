@@ -50,8 +50,9 @@ describe('INNGEST-03 + INNGEST-06: transcribeAudioJob', () => {
       resolve(process.cwd(), 'lib/ai/openrouter-client.ts'),
       'utf8'
     )
-    // URL is built from OPENAI_TRANSCRIPTION_BASE + the path, so match the parts.
-    expect(clientSrc).toMatch(/api\.openai\.com/)
+    // OpenRouter ONLY: the client never references api.openai.com.
+    expect(clientSrc).toMatch(/OPENROUTER_BASE/)
+    expect(clientSrc).not.toMatch(/api\.openai\.com/)
     expect(clientSrc).toMatch(/\/audio\/transcriptions/)
   })
 

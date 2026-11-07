@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
+import { isAllowedChatModel, CHAT_MODEL_POLICY_MESSAGE } from '@/lib/ai/model-policy'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -27,6 +28,10 @@ export async function setCompanyModelOverride(
   const value = model && model.trim() ? model.trim() : null
   if (value && !/^[\w./:-]+$/.test(value)) {
     return { ok: false, message: 'Invalid model id format' }
+  }
+  // Owner policy: the override drives estimate generation, so Claude Sonnet/Opus only.
+  if (value && !isAllowedChatModel(value)) {
+    return { ok: false, message: CHAT_MODEL_POLICY_MESSAGE }
   }
 
   const svc = requireServiceClient()

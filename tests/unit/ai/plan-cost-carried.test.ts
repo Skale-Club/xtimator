@@ -2,15 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 // SEED-057 C: plan_scope's spend must ride on the ONE drafting cost row
 // (ai_cost_events is unique per attempt + operation), so the credit debit covers
-// draft + plan. Both the primary adapter and the gemini fallback.
-const mockGeminiGenerate = vi.fn()
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: class {
-    models = { generateContent: (...a: unknown[]) => mockGeminiGenerate(...a) }
-  },
-  Type: { OBJECT: 'object', STRING: 'string', NUMBER: 'number', ARRAY: 'array', BOOLEAN: 'boolean' },
-  FunctionCallingConfigMode: { ANY: 'any' },
-}))
+// draft + plan (OpenRouter adapter; the only provider).
 vi.mock('@/lib/platform-config', () => ({ getIntegrationKey: vi.fn().mockResolvedValue('k') }))
 vi.mock('@/lib/billing/record-ai-cost', () => ({ recordAICost: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/observability/langfuse', () => ({
@@ -18,8 +10,6 @@ vi.mock('@/lib/observability/langfuse', () => ({
 }))
 
 import { OpenRouterAdapter } from '@/lib/ai/providers/openrouter'
-import { GeminiAdapter } from '@/lib/ai/providers/gemini'
-import { computeGeminiCostUsd } from '@/lib/ai/pricing/gemini'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import type { EstimateInput } from '@/lib/ai/types'
 
@@ -36,7 +26,6 @@ const input = (extraCostUsd?: number): EstimateInput => ({
 
 beforeEach(() => {
   vi.mocked(recordAICost).mockClear()
-  mockGeminiGenerate.mockReset()
 })
 
 describe('the drafting cost row carries the planning spend', () => {
@@ -68,14 +57,5 @@ describe('the drafting cost row carries the planning spend', () => {
     await new OpenRouterAdapter('m').generateEstimate(input(0.004))
     expect(vi.mocked(recordAICost).mock.calls[1][0].realCostUsd).toBeNull()
     vi.unstubAllGlobals()
-  })
-
-  it('gemini fallback: realCostUsd = draft + plan', async () => {
-    const usageMetadata = { promptTokenCount: 1000, candidatesTokenCount: 500 }
-    mockGeminiGenerate.mockResolvedValue({ functionCalls: [{ name: 'create_estimate', args: ARGS }], usageMetadata })
-    const base = computeGeminiCostUsd('gemini-2.5-flash', usageMetadata as never)!
-    await new GeminiAdapter().generateEstimate(input(0.004))
-    expect(recordAICost).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(recordAICost).mock.calls[0][0].realCostUsd).toBeCloseTo(base + 0.004, 10)
   })
 })

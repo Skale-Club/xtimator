@@ -30,15 +30,16 @@ const EXPECTED_KINDS: PlatformEventKind[] = [
   'transcription_failed',
   'vision_failed',
   'ai_fallback',
+  'ai_provider_failed',
   'pipeline_stuck',
   'cron_failed',
   'error_spike',
 ]
 
 describe('lib/notifications/platform-events', () => {
-  it('PLATFORM_EVENT_KINDS is set-equal to the exact 11 expected kinds', () => {
+  it('PLATFORM_EVENT_KINDS is set-equal to the exact 12 expected kinds', () => {
     expect(new Set(PLATFORM_EVENT_KINDS)).toEqual(new Set(EXPECTED_KINDS))
-    expect(PLATFORM_EVENT_KINDS).toHaveLength(11)
+    expect(PLATFORM_EVENT_KINDS).toHaveLength(12)
   })
 
   it('tenant_payment_received and subscription_payment_received are distinct kinds', () => {

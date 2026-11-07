@@ -17,6 +17,7 @@ export type {
 } from './types'
 
 import { OR_DEFAULTS } from './openrouter-client'
+import { coerceChatModel, isAllowedChatModel } from './model-policy'
 
 type AIConfigMetadata = {
   openrouter_default_model?: string
@@ -51,7 +52,10 @@ export async function getAIProvider(companyId?: string): Promise<AIProvider> {
     ])
     const override = (company as { ai_model_override?: string | null } | null)
       ?.ai_model_override
-    if (override) return new OpenRouterAdapter(override, byokKey ?? undefined)
+    // Policy: a stored override that is not Claude Sonnet/Opus is ignored.
+    if (isAllowedChatModel(override)) {
+      return new OpenRouterAdapter(override.trim(), byokKey ?? undefined)
+    }
     if (byokKey) {
       const model = await resolvePlatformDefaultModel(svc)
       return new OpenRouterAdapter(model, byokKey)
@@ -72,5 +76,5 @@ async function resolvePlatformDefaultModel(
     .maybeSingle()
 
   const meta = (data?.metadata as AIConfigMetadata | null) ?? null
-  return meta?.openrouter_default_model || OR_DEFAULTS.chat
+  return coerceChatModel(meta?.openrouter_default_model, OR_DEFAULTS.chat)
 }

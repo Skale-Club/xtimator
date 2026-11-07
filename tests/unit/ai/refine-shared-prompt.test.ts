@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
  * HARD-02 / UNIFY-02 — refine reuses the shared prompt builder; no bespoke refine prompt remains.
  * (Wave 0 RED scaffold; source edits land in Wave 1.)
  *
- * Both `OpenRouterAdapter.refineEstimate` and `GeminiAdapter.refineEstimate` must:
+ * `OpenRouterAdapter.refineEstimate` (the only provider) must:
  *   1. call the shared `buildSystemPrompt(..., { mode: 'refine' })` — ONE prompt source of truth;
  *   2. NOT contain the bespoke marker `## Refinement Instruction` (Pitfall 4 — deleting one but
  *      leaving the other silently breaks UNIFY-02);
@@ -22,7 +22,6 @@ import { resolve } from 'node:path'
 const ROOT = process.cwd()
 const ADAPTERS = [
   { name: 'openrouter', path: resolve(ROOT, 'lib/ai/providers/openrouter.ts') },
-  { name: 'gemini', path: resolve(ROOT, 'lib/ai/providers/gemini.ts') },
 ] as const
 
 describe('HARD-02/UNIFY-02: refine reuses the shared prompt builder', () => {

@@ -298,8 +298,8 @@ export async function researchUnmatchedPrices(
         // misses keep ai_estimate; the call still returns sections (never hard-fails).
         const quota = await checkQuota(ctx.supabase, ctx.companyId, 'price_research')
         if (quota.allowed) {
-          // ORDERED provider chain: OpenRouter-web primary → gated Anthropic-web
-          // quality-fallback (Phase 109). An empty chain (unconfigured) is a safe
+          // ORDERED provider chain: OpenRouter-web only (no direct-Anthropic
+          // fallback; owner rule). An empty chain (unconfigured) is a safe
           // no-op — misses keep ai_estimate.
           const chain = await getPriceResearchProviderChain()
 
