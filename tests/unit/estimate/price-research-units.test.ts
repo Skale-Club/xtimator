@@ -23,6 +23,7 @@ import { get as cacheGet, put as cachePut } from '@/lib/estimate/price-research/
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { buildResearchSearchPrompt } from '@/lib/estimate/price-research/search-prompt'
 import { priceResearchPayloadSchema } from '@/lib/estimate/price-research/schema'
+import { conceptKey } from '@/lib/estimate/pricing/concept-key'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 
 const ctx: ResearchContext = {
@@ -121,14 +122,86 @@ describe('persisted cache keeps the unit', () => {
     arrange(lookup)
     await researchUnmatchedPrices(one(item('Paint walls', 'sq ft'), item('Travel charge', undefined)), ctx)
     const names = vi.mocked(cacheGet).mock.calls.map((c) => c[1])
-    expect(names).toEqual(['Paint walls [sq ft]', 'Travel charge'])
+    expect(names).toEqual([`${conceptKey('Paint walls')} [sq ft]`, conceptKey('Travel charge') || 'Travel charge'])
   })
 
   it('a researched price is cached under the unit-qualified name', async () => {
     const lookup = vi.fn().mockResolvedValue([result('Paint walls', 1.9, 'sq ft')])
     arrange(lookup)
     await researchUnmatchedPrices(one(item('Paint walls', 'sq ft')), ctx)
-    expect(cachePut).toHaveBeenCalledWith(expect.objectContaining({ name: 'Paint walls [sq ft]' }))
+    expect(cachePut).toHaveBeenCalledWith(expect.objectContaining({ name: `${conceptKey('Paint walls')} [sq ft]` }))
+  })
+})
+
+describe('price_key (generic label) keys the research', () => {
+  const keyed = (description: string, price_key: string | undefined, unit = 'sq ft'): LineItemOutput => ({
+    ...item(description, unit),
+    ...(price_key !== undefined ? { price_key } : {}),
+  })
+
+  it('two lines with different wording but the same price_key and unit share one lookup and one cache name', async () => {
+    const lookup = vi.fn().mockResolvedValue([result('interior wall painting', 2, 'sq ft')])
+    arrange(lookup)
+    const out = await researchUnmatchedPrices(
+      one(
+        keyed('Paint bedroom walls sage green, 12x14', 'interior wall painting'),
+        keyed('Paint hallway walls in beige', 'interior wall painting'),
+      ),
+      ctx,
+    )
+    // the lookup is asked with the generic label, not the free text
+    expect(lookup).toHaveBeenCalledTimes(1)
+    expect(lookup.mock.calls[0][0]).toEqual([{ name: 'interior wall painting', unit: 'sq ft' }])
+    // one metering event, one cache write, one shared cache name for both reads
+    expect(recordUsage).toHaveBeenCalledTimes(1)
+    const expected = `${conceptKey('interior wall painting')} [sq ft]`
+    expect(vi.mocked(cacheGet).mock.calls.map((c) => c[1])).toEqual([expected, expected])
+    expect(cachePut).toHaveBeenCalledTimes(1)
+    expect(cachePut).toHaveBeenCalledWith(expect.objectContaining({ name: expected }))
+    expect(out.sections[0].items.map((i) => i.price_source)).toEqual(['researched', 'researched'])
+  })
+
+  it('without a price_key (or with a blank one) the concept key of the description is used', async () => {
+    const lookup = vi.fn().mockResolvedValue([])
+    arrange(lookup)
+    await researchUnmatchedPrices(one(keyed('Paint walls', undefined), keyed('Install toilet', '   ', 'each')), ctx)
+    expect(vi.mocked(cacheGet).mock.calls.map((c) => c[1])).toEqual([
+      `${conceptKey('Paint walls')} [sq ft]`,
+      `${conceptKey('Install toilet')} [each]`,
+    ])
+    expect(lookup.mock.calls[0][0]).toEqual([
+      { name: 'Paint walls', unit: 'sq ft' },
+      { name: 'Install toilet', unit: 'each' },
+    ])
+  })
+})
+
+describe('web-search telemetry', () => {
+  type OnUsage = { onUsage?: (u: { searches?: number | null }) => void }
+
+  it('telemetry.searches is present only when the adapter reports a count', async () => {
+    const reporting = vi.fn(async (_items: unknown, _region: unknown, _cur: unknown, cc?: OnUsage) => {
+      cc?.onUsage?.({ searches: 3 })
+      return [result('Paint walls', 1.9, 'sq ft')]
+    })
+    arrange(reporting as never)
+    const withSearches = await researchUnmatchedPrices(one(item('Paint walls', 'sq ft')), ctx)
+    expect(withSearches.telemetry?.searches).toBe(3)
+
+    vi.clearAllMocks()
+    arrange(vi.fn().mockResolvedValue([result('Paint walls', 1.9, 'sq ft')]))
+    const without = await researchUnmatchedPrices(one(item('Paint walls', 'sq ft')), ctx)
+    expect(without.telemetry).toBeDefined()
+    expect(without.telemetry).not.toHaveProperty('searches')
+
+    vi.clearAllMocks()
+    const nullCount = vi.fn(async (_i: unknown, _r: unknown, _c: unknown, cc?: OnUsage) => {
+      cc?.onUsage?.({ searches: null })
+      return [result('Paint walls', 1.9, 'sq ft')]
+    })
+    arrange(nullCount as never)
+    const nulled = await researchUnmatchedPrices(one(item('Paint walls', 'sq ft')), ctx)
+    expect(nulled.telemetry).not.toHaveProperty('searches')
   })
 })
 

@@ -15,7 +15,7 @@ vi.mock('@/lib/estimate/pricing/company-history', async (orig) => {
   return { ...actual, loadCompanyHistory: (...a: unknown[]) => mockLoadHistory(...a) }
 })
 
-import { resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
+import { diffLinePrices, resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
 import { buildHistoryIndex } from '@/lib/estimate/pricing/company-history'
 import { priceConcept } from '@/lib/estimate/pricing/concept-key'
 
@@ -50,6 +50,52 @@ beforeEach(() => {
     flaggedUnpriced: 0,
     telemetry: { candidates: 0, cacheHits: 0, providerUsable: 0, missed: 0 },
   }))
+})
+
+describe('diffLinePrices', () => {
+  it('reports lines whose source is not ai_estimate or whose price changed, and skips untouched ones', () => {
+    const before = secs(
+      line({ description: 'Paint walls', unit_price: 1.5 }),
+      line({ description: 'Hauling', unit: 'job', unit_price: 50 }),
+      line({ description: 'Caulking', unit: 'each', unit_price: 20, price_key: 'caulk gap sealing' }),
+    )
+    const after = secs(
+      line({ description: 'Paint walls', unit_price: 1.5 }), // untouched
+      line({ description: 'Hauling', unit: 'job', unit_price: 50, price_source: 'company_history' }), // same price, other source
+      line({ description: 'Caulking', unit: 'each', unit_price: 35, price_source: 'researched', price_key: 'caulk gap sealing' }),
+    )
+    const out = diffLinePrices(before, after)
+    expect(out).toHaveLength(2)
+    expect(out[0]).toMatchObject({ unit: 'job', ai: 50, final: 50, source: 'company_history' })
+    expect(out[1]).toEqual({ key: priceConcept('caulk gap sealing', 'each').key, unit: 'each', ai: 20, final: 35, source: 'researched' })
+  })
+
+  it('a changed price on an ai_estimate line is reported; a missing source is the owner', () => {
+    const out = diffLinePrices(secs(line({ unit_price: 10 })), secs(line({ unit_price: 12 })))
+    expect(out).toHaveLength(1)
+    const owner = diffLinePrices(secs(line({ unit_price: 10 })), secs({ ...line({ unit_price: 10 }), price_source: undefined } as never))
+    expect(owner[0].source).toBe('owner')
+  })
+
+  it('returns [] when the section or item counts differ, and caps the list', () => {
+    expect(diffLinePrices(secs(line({})), [])).toEqual([])
+    expect(diffLinePrices(secs(line({}), line({})), secs(line({})))).toEqual([])
+    const many = Array.from({ length: 80 }, (_, i) => line({ description: `Item ${i}`, unit_price: 1 }))
+    const changed = many.map((l) => ({ ...l, unit_price: 2 }))
+    expect(diffLinePrices(secs(...many), secs(...changed))).toHaveLength(60)
+  })
+
+  it('resolveLinePrices exposes it on both return paths', async () => {
+    mockResearch.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+      sections: [{ ...sections[0], items: [{ ...sections[0].items[0], unit_price: 7, price_source: 'researched' }] }],
+      flaggedUnpriced: 0,
+      telemetry: { candidates: 1, cacheHits: 0, providerUsable: 1, missed: 0 },
+    }))
+    const plain = await resolveLinePrices(secs(line({})), baseOpts)
+    expect(plain.priceChanges).toMatchObject([{ ai: 1.5, final: 7, source: 'researched' }])
+    const deduped = await resolveLinePrices(secs(line({})), { ...baseOpts, totalCeiling: 1_000_000 })
+    expect(deduped.priceChanges).toMatchObject([{ ai: 1.5, final: 7, source: 'researched' }])
+  })
 })
 
 describe('resolveLinePrices precedence', () => {

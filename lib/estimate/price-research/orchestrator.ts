@@ -97,7 +97,14 @@ export interface ResearchOutcome {
    *   - providerUsable   = items re-tagged 'researched' via an evidence-gated provider/memo result.
    *   - missed           = candidates − cacheHits − providerUsable (stayed ai_estimate), floored 0.
    */
-  telemetry?: { candidates: number; cacheHits: number; providerUsable: number; missed: number }
+  telemetry?: {
+    candidates: number
+    cacheHits: number
+    providerUsable: number
+    missed: number
+    /** Web-search requests the provider reported; present only when at least one number was reported. */
+    searches?: number
+  }
 }
 
 /**
@@ -149,6 +156,15 @@ function buildIdemKey(ctx: ResearchContext, name: string): string {
  * the SAME process, so a second pass over the same item is a memo HIT — it pays NO
  * provider call and NO allowance. It is a plain Map; lookups never throw.
  */
+/**
+ * What a line is priced as: the model's generic price_key when it gave one, otherwise the
+ * free-text description. Job-specific wording (colors, dimensions) stays out of the lookup,
+ * the memo and the persisted cache so the same kind of work shares one price across jobs.
+ */
+function priceSubject(item: { description: string; price_key?: string }): string {
+  return item.price_key?.trim() || item.description
+}
+
 function buildMemoKey(region: ResearchContext['region'], name: string, unit?: string | null): string {
   // SEED-057 E: keyed by CONCEPT + UNIT, not the free wording, so "Install toilet" and
   // "Toilet installation" (or two lines for the same work) share ONE lookup, while the
@@ -161,13 +177,18 @@ function buildMemoKey(region: ResearchContext['region'], name: string, unit?: st
 
 /**
  * SEED-057 E: the name the persisted researched-price cache files an item under.
- * An item that has a unit gets it appended, so a price per sq ft is never
- * served for the same words per job; an item without a unit keeps exactly the
- * name it always had (existing cache rows stay valid).
+ * It is the CONCEPT key of the line's price subject (price_key, else description) plus its
+ * unit, so the same kind of work shares a cache row across jobs and a price per sq ft is never
+ * served for the same words per job. A subject with no usable word keeps the plain subject text
+ * (with the unit when there is one). Rows written under the old full-description names stop
+ * matching and simply expire by TTL.
  */
-function cacheNameFor(item: { description: string; unit?: string }): string {
+function cacheNameFor(item: { description: string; price_key?: string; unit?: string }): string {
   const unit = unitKey(item.unit)
-  return unit ? `${item.description} [${unit}]` : item.description
+  const subject = priceSubject(item)
+  const concept = priceConcept(subject, item.unit)
+  if (concept.key) return unit ? `${concept.key} [${unit}]` : concept.key
+  return unit ? `${subject} [${unit}]` : subject
 }
 
 /**
@@ -219,6 +240,9 @@ export async function researchUnmatchedPrices(
       : randomUUID()
     // True once any provider lookup was attempted: gates the single debit below.
     let lookedUp = false
+    // Web-search requests reported by the adapters (observability only).
+    let searches = 0
+    let searchesReported = false
 
     // Candidate set: items still tagged 'ai_estimate' after anchoring. price_book +
     // owner-edited (price_source null) items are out of scope (RPRICE-03 precedence).
@@ -310,7 +334,7 @@ export async function researchUnmatchedPrices(
       // null is a known miss. The remainder still needs a real search.
       const stillMissing: LineItemOutput[] = []
       for (const m of misses) {
-        const mk = buildMemoKey(ctx.region, m.description, m.unit)
+        const mk = buildMemoKey(ctx.region, priceSubject(m), m.unit)
         if (memo.has(mk)) {
           const memoized = memo.get(mk) ?? null
           if (
@@ -351,7 +375,7 @@ export async function researchUnmatchedPrices(
             // every item sharing that key re-tags from the one result + one recordUsage.
             const repByKey = new Map<string, LineItemOutput>()
             for (const m of remaining) {
-              const mk = buildMemoKey(ctx.region, m.description, m.unit)
+              const mk = buildMemoKey(ctx.region, priceSubject(m), m.unit)
               if (!repByKey.has(mk)) repByKey.set(mk, m)
             }
             const lookupItems = Array.from(repByKey.values())
@@ -360,7 +384,7 @@ export async function researchUnmatchedPrices(
             lookedUp = true
             try {
               results = await provider.lookup(
-                lookupItems.map((m) => ({ name: m.description, ...(m.unit ? { unit: m.unit } : {}) })),
+                lookupItems.map((m) => ({ name: priceSubject(m), ...(m.unit ? { unit: m.unit } : {}) })),
                 ctx.region,
                 ctx.currency,
                 // Fix (price-research cost attribution): THIS research pass's
@@ -369,6 +393,13 @@ export async function researchUnmatchedPrices(
                   attemptId: priceResearchAttemptId,
                   companyId: ctx.companyId,
                   projectId: ctx.projectId,
+                  onUsage: (usage) => {
+                    const n = usage?.searches
+                    if (typeof n === 'number' && Number.isFinite(n)) {
+                      searches += n
+                      searchesReported = true
+                    }
+                  },
                 }
               )
             } catch {
@@ -379,12 +410,12 @@ export async function researchUnmatchedPrices(
 
             // Re-associate each result to its requested item by name.
             const byName = new Map<string, LineItemOutput>()
-            for (const m of lookupItems) byName.set(m.description, m)
+            for (const m of lookupItems) byName.set(priceSubject(m), m)
 
             for (const result of results) {
               const requested = byName.get(result.name)
               if (!requested) continue
-              const mk = buildMemoKey(ctx.region, requested.description, requested.unit)
+              const mk = buildMemoKey(ctx.region, priceSubject(requested), requested.unit)
 
               // Meter once per actual search per key (idempotent — RMETER-01). A cache
               // HIT or a memo HIT never reaches here, so neither consumes allowance. A
@@ -408,7 +439,7 @@ export async function researchUnmatchedPrices(
               // cited, positive price — across ALL items sharing this memo key.
               if (usable) {
                 for (const m of remaining) {
-                  if (buildMemoKey(ctx.region, m.description, m.unit) === mk) {
+                  if (buildMemoKey(ctx.region, priceSubject(m), m.unit) === mk) {
                     // Flagged: outside 0.33x..3x of THIS line's model price -> not re-tagged.
                     if (bands && !withinRatioBand(m.unit_price, result.unit_price as number)) continue
                     // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).
@@ -493,6 +524,7 @@ export async function researchUnmatchedPrices(
       cacheHits,
       providerUsable,
       missed: Math.max(0, candidates.length - cacheHits - providerUsable),
+      ...(searchesReported ? { searches } : {}),
     }
     return { sections: rewritten, flaggedUnpriced: countFlaggedUnpriced(rewritten), telemetry }
   } catch {

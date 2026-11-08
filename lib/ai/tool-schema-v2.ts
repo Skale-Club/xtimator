@@ -33,6 +33,8 @@ export const ESTIMATE_V2_TEXT = {
   basis:
     'At most 80 characters saying where the quantity comes from, e.g. "12 x 14 ft room, stated in audio" or "estimated from photo".',
   optional: 'true only for an add-on the client may decline; it is still priced.',
+  price_key:
+    'A short generic name for the priced work, reusable across jobs: the task and the material or finish class only, with NO dimensions, quantities, colors, room names or client details (e.g. "interior wall painting, two coats", "drywall crack repair", "bathroom exhaust fan cover replacement"). The same kind of work on another job must get the same price_key.',
 } as const
 
 /** Top-level properties added by the v2 contract (JSON-schema flavour). */
@@ -89,6 +91,7 @@ export const ESTIMATE_V2_ITEM_PROPERTIES = {
   },
   basis: { type: 'string' as const, description: ESTIMATE_V2_TEXT.basis },
   optional: { type: 'boolean' as const, description: ESTIMATE_V2_TEXT.optional },
+  price_key: { type: 'string' as const, description: ESTIMATE_V2_TEXT.price_key },
 }
 
 /** `unit` already existed; the v2 contract only redescribes it. */

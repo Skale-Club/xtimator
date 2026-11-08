@@ -100,6 +100,8 @@ const lineItemSchema = z.object({
   // SEED-057 — per-line AI metadata (owner-facing, never on a client surface).
   confidence: z.unknown().transform(toLevel).optional(),
   basis: z.unknown().transform((v) => toShortText(v, 80)).optional(),
+  // In-memory only: keys price research/cache, never persisted.
+  price_key: z.unknown().transform((v) => toShortText(v, 80)).optional(),
   optional: z.unknown().transform((v) => (typeof v === 'boolean' ? v : undefined)).optional(),
 })
 

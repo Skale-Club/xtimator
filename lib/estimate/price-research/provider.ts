@@ -61,6 +61,11 @@ export interface ResearchCostContext {
   attemptId?: string | null
   companyId?: string | null
   projectId?: string | null
+  /**
+   * OPTIONAL usage callback: adapters report what a lookup consumed (e.g. the number of
+   * web-search requests) so the caller can record it. Best-effort; adapters never throw from it.
+   */
+  onUsage?: (usage: { searches?: number | null }) => void
 }
 
 export interface PriceResearchProvider {

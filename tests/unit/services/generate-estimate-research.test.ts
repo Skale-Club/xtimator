@@ -88,6 +88,9 @@ function researchedTo180(sections: EstimateSectionOutput[]): EstimateSectionOutp
  * carried the researched price and the status routing.
  */
 let companyTaxRate = 0
+// Region fixtures: the project client's city/state (null = client-less region) and the company's own.
+let clientRegion: { city: string | null; state: string | null } = { city: 'Austin', state: 'TX' }
+let companyRegion: { city: string | null; state: string | null } = { city: 'Dallas', state: 'TX' }
 
 function makeSupabaseMock() {
   const captured: {
@@ -125,8 +128,8 @@ function makeSupabaseMock() {
           email: null,
           phone: null,
           address: null,
-          city: 'Austin',
-          state: 'TX',
+          city: clientRegion.city,
+          state: clientRegion.state,
           zip: null,
           preferred_language: null,
         },
@@ -154,6 +157,8 @@ function makeSupabaseMock() {
                 default_warranty_terms: '1 year',
                 name: 'Test Co',
                 default_estimate_language: null,
+                city: companyRegion.city,
+                state: companyRegion.state,
               },
               error: null,
             }),
@@ -324,6 +329,24 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
     expect(ctx.region).toEqual({ city: 'Austin', state: 'TX' })
     expect(ctx.currency).toBe('USD')
     expect(ctx.projectId).toBe('project-1')
+  })
+
+  it('Test 3b (region fallback): a client with no city/state researches in the company city+state', async () => {
+    clientRegion = { city: null, state: null }
+    companyRegion = { city: 'Dallas', state: 'TX' }
+    try {
+      const { fromMock } = makeSupabaseMock()
+      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+      await generateEstimateForProject('company-1', 'project-1')
+
+      expect(researchMock).toHaveBeenCalledOnce()
+      const ctx = researchMock.mock.calls[0][1] as { region: { city: string | null; state: string | null } }
+      expect(ctx.region).toEqual({ city: 'Dallas', state: 'TX' })
+    } finally {
+      clientRegion = { city: 'Austin', state: 'TX' }
+      companyRegion = { city: 'Dallas', state: 'TX' }
+    }
   })
 
   it('Test 4a (flagged + total>0): routes projects.status to awaiting_details', async () => {

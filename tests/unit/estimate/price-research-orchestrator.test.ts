@@ -35,6 +35,7 @@ import {
 } from '@/lib/estimate/price-research/provider'
 import { get as cacheGet, put as cachePut } from '@/lib/estimate/price-research/cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
+import { conceptKey } from '@/lib/estimate/pricing/concept-key'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 
 // A minimal stand-in for the service-role client — the orchestrator only PASSES it
@@ -232,7 +233,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
     expect(cachePut).toHaveBeenCalledWith(
       expect.objectContaining({
         companyId: 'company-1',
-        name: 'Drywall repair',
+        name: conceptKey('Drywall repair'), // the cache is filed under the concept key, not the free wording
         currency: 'USD',
         datum: expect.objectContaining({ unit_price: 250 }),
       })

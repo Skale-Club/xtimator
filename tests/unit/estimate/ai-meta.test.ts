@@ -65,6 +65,25 @@ describe('source_notes (internal record)', () => {
   })
 })
 
+describe('pricing (internal record)', () => {
+  it('buildAiMeta stores it, parseAiMeta never returns it', () => {
+    const pricing = {
+      research: { candidates: 4, cacheHits: 1, providerUsable: 2, missed: 1, searches: 3 },
+      changes: [{ key: 'drywall repair', unit: 'each', ai: 100, final: 140, source: 'researched' }],
+    }
+    const built = buildAiMeta({ assumptions: ['Standard 8 ft ceilings'] }, null, pricing)
+    expect(built?.pricing).toEqual(pricing)
+    const read = parseAiMeta(JSON.parse(JSON.stringify(built)))
+    expect(read?.assumptions).toEqual(['Standard 8 ft ceilings'])
+    expect(read).not.toHaveProperty('pricing')
+  })
+
+  it('an empty pricing record is not stored', () => {
+    expect(buildAiMeta({}, null, { changes: [] })).toBeNull()
+    expect(buildAiMeta({}, null, undefined)).toBeNull()
+  })
+})
+
 describe('isMissingColumnError', () => {
   it('recognises the PostgREST schema-cache miss and the Postgres undefined_column error', () => {
     expect(

@@ -57,16 +57,21 @@ export const makeRefineNode =
         let currencyCode = normalizeCurrencyCode(undefined)
         let industry: string | null = null
         let language: 'en' | 'pt' | 'es' | undefined
+        let companyRegion: { city: string | null; state: string | null } | undefined
         try {
           const { data: company } = await svc
             .from('companies')
-            .select('industry, currency_code, default_estimate_language')
+            .select('industry, currency_code, default_estimate_language, city, state')
             .eq('id', state.companyId)
             .single()
           currencyCode = normalizeCurrencyCode(company?.currency_code)
           industry = (company?.industry as string | null) ?? null
           language =
             (company?.default_estimate_language as 'en' | 'pt' | 'es' | null) ?? undefined
+          companyRegion = {
+            city: (company?.city as string | null) ?? null,
+            state: (company?.state as string | null) ?? null,
+          }
         } catch {
           // keep neutral defaults
         }
@@ -136,6 +141,7 @@ export const makeRefineNode =
           currencyCode,
           priceBookItems,
           industry,
+          companyRegion,
           svc,
         })
       })
@@ -178,6 +184,8 @@ async function applyRefineGuardrails(args: {
   priceBookItems: AnchorBookRow[]
   /** Company industry, for the playbook (flagged price bands). */
   industry?: string | null
+  /** The company's own city/state: the research region when the project has no client region. */
+  companyRegion?: { city: string | null; state: string | null }
   svc: ReturnType<typeof requireServiceClient>
 }): Promise<EstimateOutput> {
   try {
@@ -219,8 +227,9 @@ async function applyRefineGuardrails(args: {
       projectType = (project as { project_type?: string | null } | null)?.project_type ?? null
       region = { city: client?.city ?? null, state: client?.state ?? null }
     } catch {
-      // no region = unregioned research, same as a client-less generate
+      // no client region: fall back to the company's below
     }
+    if (!region.city && !region.state && args.companyRegion) region = args.companyRegion
 
     // Playbook for the flagged price-band check (ESTIMATOR_PRICE_BANDS): resolved from the
     // existing estimate's text plus the company industry and project type, like generation does.

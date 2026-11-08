@@ -31,6 +31,8 @@ export type LineItemOutput = {
   confidence?: 'low' | 'medium' | 'high'
   basis?: string
   optional?: boolean
+  /** Generic label of the priced work; keys price research/cache. In-memory only, never persisted. */
+  price_key?: string
 }
 
 export type EstimateSectionOutput = {

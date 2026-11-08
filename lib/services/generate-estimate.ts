@@ -178,7 +178,7 @@ export async function generateEstimateForProject(
     supabase
       .from('companies')
       .select(
-        'industry, industries, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, name, default_estimate_language, tax_config'
+        'industry, industries, currency_code, default_tax_rate, default_payment_terms, default_warranty_terms, default_validity_days, document_blocks, estimate_terms_enabled, estimate_terms_text, name, default_estimate_language, tax_config, city, state'
       )
       .eq('id', companyId)
       .single(),
@@ -485,13 +485,14 @@ export async function generateEstimateForProject(
   // anchor + clamp to the price book, company history, web research, then collapse
   // exact duplicates BEFORE totals so duplicates never inflate the persisted total.
   // Never throws; research is metered from the trusted attemptId (projectId is the
-  // fallback seed for a direct service call). Region = the project client's city+state.
+  // fallback seed for a direct service call). Region = the project client's city+state, else the company's own.
   const {
     sections: dedupedSections,
     anchoredCount,
     clampedCount,
     flaggedUnpriced,
     researchTelemetry,
+    priceChanges,
     consistencyFlags: preComputeFlags,
   } = await resolveLinePrices(aiEstimate.sections, {
     companyId, // param, never LLM-derived
@@ -506,7 +507,10 @@ export async function generateEstimateForProject(
       price_per_unit: p.price_per_unit,
       minimum_price: p.minimum_price,
     })),
-    region: { city: client?.city ?? null, state: client?.state ?? null },
+    region:
+      client?.city || client?.state
+        ? { city: client?.city ?? null, state: client?.state ?? null }
+        : { city: company.city ?? null, state: company.state ?? null },
     supabase,
     projectId,
     attemptId: options.costContext?.attemptId ?? undefined,
@@ -678,11 +682,22 @@ export async function generateEstimateForProject(
     language,
     currencyCode,
   })
+  // Internal record only (ai_meta.pricing). Tolerates a missing priceChanges: observability
+  // must never fail a generation.
+  const lineChanges = priceChanges ?? []
+  const pricingRecord =
+    researchTelemetry || lineChanges.length
+      ? {
+          ...(researchTelemetry ? { research: researchTelemetry } : {}),
+          ...(lineChanges.length ? { changes: lineChanges } : {}),
+        }
+      : undefined
   const aiMeta = buildAiMeta(
     aiNotes,
     structure.band === 'ok'
       ? null
       : { score: structure.score, band: structure.band, findings: structure.findings.map((f) => f.message) },
+    pricingRecord,
   )
 
   // Persist estimate

@@ -15,7 +15,7 @@ import type { EstimateInput } from '@/lib/ai/types'
 
 const TOP_KEYS = ['assumptions', 'exclusions', 'open_questions', 'scope_confidence']
 const SECTION_KEYS = ['purpose']
-const ITEM_KEYS = ['confidence', 'basis', 'optional']
+const ITEM_KEYS = ['confidence', 'basis', 'optional', 'price_key']
 
 const baseInput: EstimateInput = {
   industry: 'painting',
@@ -223,6 +223,20 @@ describe('zod gate stays tolerant', () => {
       expect(item.basis).toBeUndefined()
       expect(item.optional).toBeUndefined()
     }
+  })
+
+  it('keeps a valid price_key and drops a non-string one, never rejecting', () => {
+    const ok = base()
+    ;(ok.sections[0].items[0] as Record<string, unknown>).price_key = 'interior wall painting, two coats'
+    const r1 = estimateOutputSchema.safeParse(ok)
+    expect(r1.success).toBe(true)
+    if (r1.success) expect(r1.data.sections[0].items[0].price_key).toBe('interior wall painting, two coats')
+
+    const bad = base()
+    ;(bad.sections[0].items[0] as Record<string, unknown>).price_key = 42
+    const r2 = estimateOutputSchema.safeParse(bad)
+    expect(r2.success).toBe(true)
+    if (r2.success) expect(r2.data.sections[0].items[0].price_key).toBeUndefined()
   })
 
   it('truncates (never rejects) a basis longer than 80 characters', () => {

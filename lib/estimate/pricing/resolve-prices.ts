@@ -30,6 +30,8 @@ import {
   historyCandidateKeys,
   loadCompanyHistory,
 } from '@/lib/estimate/pricing/company-history'
+import { conceptKey } from '@/lib/estimate/pricing/concept-key'
+import { unitKey } from '@/lib/ai/units'
 import {
   checkEstimateConsistency,
   type ConsistencyFlag,
@@ -40,6 +42,55 @@ export type ResearchTelemetry = {
   cacheHits: number
   providerUsable: number
   missed: number
+  /** Web-search requests the provider reported; absent when none was reported. */
+  searches?: number
+}
+
+/** One line whose final price differs from, or was not, the AI's own (internal record). */
+export interface PriceChange {
+  key: string
+  unit: string
+  ai: number
+  final: number
+  source: string
+}
+
+const MAX_PRICE_CHANGES = 60
+
+/**
+ * Lines whose final price was not simply the AI's: a non-'ai_estimate' source (price book,
+ * history, research, owner) or a changed unit_price. Zips the pricing INPUT against the
+ * pre-dedupe output by section and item index; any shape mismatch yields []. Pure, never throws.
+ */
+export function diffLinePrices(
+  before: EstimateSectionOutput[],
+  after: EstimateSectionOutput[]
+): PriceChange[] {
+  try {
+    if (!Array.isArray(before) || !Array.isArray(after) || before.length !== after.length) return []
+    for (let s = 0; s < before.length; s++) {
+      if (before[s].items.length !== after[s].items.length) return []
+    }
+    const out: PriceChange[] = []
+    for (let s = 0; s < before.length; s++) {
+      for (let i = 0; i < before[s].items.length; i++) {
+        const a = before[s].items[i]
+        const f = after[s].items[i]
+        if (f.price_source === 'ai_estimate' && f.unit_price === a.unit_price) continue
+        out.push({
+          key: conceptKey(a.price_key?.trim() || a.description),
+          unit: unitKey(a.unit),
+          ai: a.unit_price,
+          final: f.unit_price,
+          source: f.price_source ?? 'owner',
+        })
+        if (out.length >= MAX_PRICE_CHANGES) return out
+      }
+    }
+    return out
+  } catch {
+    return []
+  }
 }
 
 export interface ResolvePricesProgress {
@@ -89,6 +140,8 @@ export interface ResolvePricesResult {
   researchTelemetry: ResearchTelemetry | undefined
   /** Duplicate / qty-0 flags from the dedupe pass (empty when dedupe is skipped). */
   consistencyFlags: ConsistencyFlag[]
+  /** Internal record of the lines whose final price was not the AI's own (capped). */
+  priceChanges: PriceChange[]
 }
 
 const SERVER_ONLY_SOURCES = new Set(['price_book', 'researched', 'company_history'])
@@ -207,6 +260,9 @@ export async function resolveLinePrices(
     }
   }
 
+  // Pre-dedupe, so indexes still line up with the input sections.
+  const priceChanges = diffLinePrices(sections, researchedSections)
+
   if (opts.totalCeiling === undefined) {
     return {
       sections: researchedSections,
@@ -216,6 +272,7 @@ export async function resolveLinePrices(
       flaggedUnpriced,
       researchTelemetry,
       consistencyFlags: [],
+      priceChanges,
     }
   }
 
@@ -233,6 +290,7 @@ export async function resolveLinePrices(
     flaggedUnpriced,
     researchTelemetry,
     consistencyFlags: consistency.flags,
+    priceChanges,
   }
 }
 

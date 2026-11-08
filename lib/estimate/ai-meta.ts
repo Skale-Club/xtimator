@@ -12,6 +12,7 @@
 // row holds (including rows written by a future version) and never throws.
 import type { EstimateOutput } from '@/lib/ai/types'
 import type { OpenQuestion } from '@/lib/ai/schema'
+import type { PriceChange } from '@/lib/estimate/pricing/resolve-prices'
 
 export type AiLevel = 'low' | 'medium' | 'high'
 
@@ -24,6 +25,12 @@ export interface AiQuality {
   band: QualityBand
   /** Human-readable findings, English, shown to the owner as-is. */
   findings: string[]
+}
+
+/** Pricing observability: how research did and which lines ended up priced differently from the AI. */
+export interface AiPricingRecord {
+  research?: { candidates: number; cacheHits: number; providerUsable: number; missed: number; searches?: number }
+  changes?: PriceChange[]
 }
 
 export interface AiMeta {
@@ -39,6 +46,12 @@ export interface AiMeta {
    * parseAiMeta, so no surface (editor included) can render it. Read it in the database.
    */
   source_notes?: string[]
+  /**
+   * INTERNAL record: price research telemetry and the AI-vs-final price of changed lines.
+   * Written by buildAiMeta, deliberately NOT returned by parseAiMeta, so no surface (editor
+   * included) can render it. Read it in the database.
+   */
+  pricing?: AiPricingRecord
 }
 
 const LEVELS: readonly string[] = ['low', 'medium', 'high']
@@ -48,6 +61,7 @@ export function buildAiMeta(
   out: Pick<EstimateOutput, 'assumptions' | 'exclusions' | 'open_questions' | 'scope_confidence'> &
     Partial<Pick<EstimateOutput, 'source_notes'>>,
   quality?: AiQuality | null,
+  pricing?: AiPricingRecord | null,
 ): AiMeta | null {
   const meta: AiMeta = { v: 1 }
   if (out.source_notes?.length) meta.source_notes = out.source_notes
@@ -56,6 +70,7 @@ export function buildAiMeta(
   if (out.open_questions?.length) meta.open_questions = out.open_questions
   if (out.scope_confidence) meta.scope_confidence = out.scope_confidence
   if (quality) meta.quality = quality
+  if (pricing && (pricing.research || pricing.changes?.length)) meta.pricing = pricing
   return Object.keys(meta).length > 1 ? meta : null
 }
 

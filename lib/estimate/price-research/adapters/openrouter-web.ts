@@ -220,6 +220,12 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
           projectId: costContext?.projectId ?? null,
           units: items.length,
         })
+        // Best-effort usage report (web-search request count); never breaks the lookup.
+        try {
+          costContext?.onUsage?.({ searches: json.usage?.server_tool_use?.web_search_requests ?? null })
+        } catch {
+          // observability only
+        }
 
         const message = json.choices?.[0]?.message
         const content = message?.content
