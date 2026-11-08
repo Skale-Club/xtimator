@@ -3,6 +3,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { isAcademyAvailable } from '@/lib/academy/catalog'
+import { AcademyLanguageRefresh } from '@/components/academy/academy-language-refresh'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,5 +22,10 @@ export default async function AcademyLayout({ children }: { children: React.Reac
 
   if (!(await isAcademyAvailable())) notFound()
 
-  return <div className="w-full p-4 md:p-6">{children}</div>
+  return (
+    <div className="w-full p-4 md:p-6">
+      <AcademyLanguageRefresh />
+      {children}
+    </div>
+  )
 }

@@ -6,13 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   startTransition,
   type Dispatch,
   type SetStateAction,
 } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
 import { onTranslationsLoaded } from './translation-events'
 
 export type Language = 'en' | 'pt' | 'es'
@@ -72,10 +70,6 @@ function readUiLangCookie(): string | null {
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const pathnameRef = useRef(pathname)
-  pathnameRef.current = pathname
   const [language, setLanguageState] = useState<Language>('en')
   const [pendingCount, setPendingCount] = useState(0)
   const [translationsVersion, setTranslationsVersion] = useState(0)
@@ -83,19 +77,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => onTranslationsLoaded(() => setTranslationsVersion((v) => v + 1)), [])
 
   // Mirror the interface language into a cookie so the server-rendered Academy
-  // follows it; refresh the page when it changes while the Academy is open.
-  const mirrorUiLanguage = useCallback(
-    (lang: Language) => {
-      try {
-        if (readUiLangCookie() === lang) return
-        document.cookie = `${UI_LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`
-        if (pathnameRef.current?.startsWith('/academy')) router.refresh()
-      } catch {
-        // cookies unavailable: the Academy falls back to English
-      }
-    },
-    [router]
-  )
+  // follows it, and announce changes (the Academy layout listens and refreshes).
+  const mirrorUiLanguage = useCallback((lang: Language) => {
+    try {
+      if (readUiLangCookie() === lang) return
+      document.cookie = `${UI_LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`
+      window.dispatchEvent(new CustomEvent('xtimator:ui-language', { detail: lang }))
+    } catch {
+      // cookies unavailable: the Academy falls back to English
+    }
+  }, [])
 
   useEffect(() => {
     // Runs on client only — reads localStorage after hydration (SSR-safe)
