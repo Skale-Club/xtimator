@@ -49,7 +49,7 @@ export function UsageProgressBar({
   if (percentUsed === null) {
     return (
       <div className="space-y-1.5" data-testid="usage-progress-bar">
-        <span className="font-mono text-sm font-medium tabular-nums">
+        <span className="text-xs text-muted-foreground tabular-nums">
           {formatCredits(balance ?? 0)} {t('credits')}
         </span>
       </div>
@@ -64,7 +64,9 @@ export function UsageProgressBar({
         aria-valuetext={`${percentUsed}% ${t('used')}`}
         className={cn('h-2', usageBandClass(percentUsed))}
       />
-      <span className="font-mono text-sm font-medium tabular-nums">{percentUsed}% used</span>
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {percentUsed}% {t('used')}
+      </span>
     </div>
   )
 }

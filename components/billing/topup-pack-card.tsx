@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils'
-import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
 import { TopUpButton } from '@/components/billing/top-up-button'
@@ -31,33 +30,28 @@ export function TopUpPackCard({
 }) {
   const amount = formatUsd(priceCents)
   return (
-    <Card
-      variant="glass"
+    <div
       className={cn(
-        'relative flex flex-col gap-4 p-6',
-        recommended &&
-          "overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:rounded-t-[var(--radius-lg)] before:bg-[image:var(--gradient-brand)] before:content-['']"
+        'relative flex flex-col items-center gap-3 rounded-[var(--radius-md)] border px-2 pb-3 pt-5 text-center sm:gap-4 sm:p-5 sm:pt-6',
+        recommended
+          ? 'border-[hsl(var(--primary))]/60 bg-[hsl(var(--primary))]/5'
+          : 'border-[var(--glass-border)] bg-[var(--glass-bg-light)]'
       )}
     >
       {recommended && (
-        <Badge
-          variant="brand"
-          className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap"
-        >
+        <Badge variant="brand" className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
           <T>Best value</T>
         </Badge>
       )}
-      <CardHeader className="p-0">
-        <CardTitle className="text-xl">
-          <span className="font-mono text-3xl font-semibold tracking-tight">{amount}</span>
-        </CardTitle>
-      </CardHeader>
+      <span className="text-2xl font-semibold tracking-tight [font-variant-numeric:tabular-nums] sm:text-3xl">{amount}</span>
       <TopUpButton
         isOwner={isOwner}
+        showOwnerHint={false}
         packIndex={packIndex}
-        label={`Top up ${amount}`}
+        label="Buy"
         variant={recommended ? 'primary' : 'outline'}
+        className="w-full"
       />
-    </Card>
+    </div>
   )
 }

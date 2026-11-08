@@ -1,10 +1,12 @@
 import { onboardingTranslations } from './onboarding-translations'
+import { billingTranslations } from './billing-translations'
 
 type TranslationDict = Record<string, string>
 
 export const staticDict: Record<'pt' | 'es', TranslationDict> = {
   pt: {
     ...onboardingTranslations.pt,
+    ...billingTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -343,6 +345,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
   },
   es: {
     ...onboardingTranslations.es,
+    ...billingTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

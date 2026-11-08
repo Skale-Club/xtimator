@@ -1,12 +1,7 @@
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
-import { History, TrendingUp, TrendingDown } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { T } from '@/components/i18n/t'
+import { LocalizedDate } from '@/components/i18n/localized-date'
+import { SettingsCard } from '@/components/settings/settings-ui'
 import type { CreditHistoryRow } from '@/lib/queries/credits'
 import { formatCredits } from '@/lib/billing/format-usd'
 import { cn } from '@/lib/utils'
@@ -52,67 +47,74 @@ function rowLabel(row: CreditHistoryRow): React.ReactNode {
   }
 }
 
-export function CreditHistoryList({ rows }: { rows: CreditHistoryRow[] }) {
+export function CreditHistoryList({
+  rows,
+  className,
+  fillHeight = false,
+}: {
+  rows: CreditHistoryRow[]
+  className?: string
+  /** On wide screens, take the height of the row (the card beside it) and
+   *  scroll inside it, instead of setting the row height itself. */
+  fillHeight?: boolean
+}) {
   return (
-    <Card variant="glass" className="p-6">
-      <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
-        <div className="flex items-start gap-3">
-          <History className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
-          <div>
-            <CardTitle><T>Recent activity</T></CardTitle>
-            <CardDescription>
-              <T>Your latest credit grants and usage.</T>
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2 px-0 pt-4 text-sm">
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground"><T>No credit activity yet.</T></p>
-        ) : (
-          rows.map((row, i) => {
+    <SettingsCard
+      className={className}
+      title={<T>Recent activity</T>}
+      description={<T>Your latest credit grants and usage.</T>}
+      bodyClassName={cn('p-0 sm:p-0', fillHeight && 'lg:relative lg:min-h-[16rem] lg:flex-1')}
+    >
+      {rows.length === 0 ? (
+        <p className="px-5 py-5 text-sm text-muted-foreground sm:px-6"><T>No credit activity yet.</T></p>
+      ) : (
+        // Up to 50 rows come back: scroll inside the card instead of
+        // stretching the page (and the balance card beside it).
+        <ul
+          className={cn(
+            'max-h-[26rem] divide-y divide-[var(--glass-border)] overflow-y-auto',
+            fillHeight && 'lg:absolute lg:inset-0 lg:max-h-none'
+          )}
+        >
+          {rows.map((row, i) => {
             const positive = row.delta_credits > 0
             return (
-              <div
-                key={i}
-                className="flex items-center justify-between gap-3 border-b border-[var(--glass-border)] py-1.5 last:border-b-0"
-              >
-                <span className="text-foreground">{rowLabel(row)}</span>
-                <div className="flex items-center gap-4">
-                  {positive ? (
-                    <TrendingUp
-                      data-testid="activity-positive"
-                      className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
-                      aria-label="Credit added"
-                    />
-                  ) : (
-                    <TrendingDown
-                      data-testid="activity-negative"
-                      className="h-4 w-4 text-muted-foreground"
-                      aria-label="Credit used"
-                    />
+              <li key={i} className="flex items-center gap-3 px-5 py-3 text-sm sm:px-6">
+                <span
+                  className={cn(
+                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+                    positive
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-[var(--glass-bg-light)] text-muted-foreground'
                   )}
-                  <span
-                    data-testid="activity-delta"
-                    className={cn(
-                      'whitespace-nowrap font-mono text-sm font-medium [font-variant-numeric:tabular-nums]',
-                      positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
-                    )}
-                  >
-                    {positive ? '+' : '−'}
-                    {formatCredits(Math.abs(row.delta_credits))}
+                >
+                  {positive ? (
+                    <ArrowDownLeft data-testid="activity-positive" className="h-4 w-4" aria-label="Credit added" />
+                  ) : (
+                    <ArrowUpRight data-testid="activity-negative" className="h-4 w-4" aria-label="Credit used" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-foreground">{rowLabel(row)}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    <LocalizedDate iso={row.created_at} />
                   </span>
-                  <span className="whitespace-nowrap text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleDateString('en-US', {
-                      dateStyle: 'medium',
-                    })}
-                  </span>
-                </div>
-              </div>
+                </span>
+                <span
+                  data-testid="activity-delta"
+                  className={cn(
+                    'whitespace-nowrap font-medium [font-variant-numeric:tabular-nums]',
+                    positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
+                  )}
+                >
+                  {positive ? '+' : '−'}
+                  {formatCredits(Math.abs(row.delta_credits))}
+                </span>
+              </li>
             )
-          })
-        )}
-      </CardContent>
-    </Card>
+          })}
+        </ul>
+      )}
+    </SettingsCard>
   )
 }

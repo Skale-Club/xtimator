@@ -1,13 +1,8 @@
 import Link from 'next/link'
-import { CreditCard, AlertTriangle } from 'lucide-react'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
+import { AlertTriangle } from 'lucide-react'
 import { T } from '@/components/i18n/t'
+import { LocalizedDate } from '@/components/i18n/localized-date'
+import { SettingsCard } from '@/components/settings/settings-ui'
 import { UsageProgressBar } from '@/components/billing/usage-progress-bar'
 import { formatCredits } from '@/lib/billing/format-usd'
 import type { LiveCreditLot, LiveCreditLotSource } from '@/lib/queries/credits'
@@ -38,17 +33,11 @@ const LOT_LABEL: Record<LiveCreditLotSource, string> = {
   adjust: 'Adjustments',
 }
 
-/** "Dec 3", or "Dec 3, 2027" when the lot outlives the current year. UTC so the
- *  date matches the Stripe period end regardless of the viewer's timezone. */
-function formatExpiry(iso: string, now = new Date()): string {
-  const d = new Date(iso)
-  const sameYear = d.getUTCFullYear() === now.getUTCFullYear()
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-    timeZone: 'UTC',
-  })
+const LOT_DOT: Record<LiveCreditLotSource, string> = {
+  monthly: 'bg-[hsl(var(--primary))]',
+  topup: 'bg-[hsl(var(--success))]',
+  signup: 'bg-[hsl(var(--warning))]',
+  adjust: 'bg-muted-foreground/60',
 }
 
 export function CreditBalanceCard({
@@ -58,6 +47,7 @@ export function CreditBalanceCard({
   lots = [],
   topupEligible = true,
   hidePurchase = false,
+  className,
 }: {
   percentUsed: number | null
   tier: string
@@ -66,6 +56,7 @@ export function CreditBalanceCard({
   topupEligible?: boolean
   /** Android TWA (Google Play): no purchase links or subscribe nudges. */
   hidePurchase?: boolean
+  className?: string
 }) {
   const band =
     percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
@@ -78,91 +69,100 @@ export function CreditBalanceCard({
       : 'Monthly credits expire when your billing cycle renews.'
 
   return (
-    <Card variant="glass" className="p-6">
-      <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
-        <div className="flex items-start gap-3">
-          <CreditCard className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
-          <div>
-            <CardTitle><T>Credit balance</T></CardTitle>
-            <CardDescription>
-              <T>Your credits by type, and when they expire.</T>
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 px-0 pt-4 text-sm">
-        <UsageProgressBar percentUsed={percentUsed} balance={balance} label="Usage this billing cycle" />
-
-        {lots.length > 0 && (
-          <ul data-testid="credit-lots" className="divide-y divide-[var(--glass-border)]">
-            {lots.map((lot, i) => (
-              <li
-                key={i}
-                data-testid="credit-lot-row"
-                data-source={lot.source}
-                className="flex items-baseline justify-between gap-3 py-2"
-              >
-                <span className="text-foreground">
-                  <T text={LOT_LABEL[lot.source]} />
-                  {lot.expiresAt && (
-                    <span className="block text-xs text-muted-foreground">
-                      <T>Expires</T> {formatExpiry(lot.expiresAt)}
-                    </span>
-                  )}
-                </span>
-                <span className="whitespace-nowrap font-mono font-medium [font-variant-numeric:tabular-nums]">
-                  {formatCredits(lot.remaining)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <p className="text-xs text-muted-foreground">
-          <T text={resetCaption} />
-        </p>
-
-        {band !== 'healthy' && (
-          <div
-            data-testid="credit-low-warning"
-            className={
-              band === 'critical'
-                ? 'flex flex-col gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-red-600 dark:text-red-400'
-                : 'flex flex-col gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-amber-600 dark:text-amber-400'
-            }
+    <SettingsCard
+      className={className}
+      title={<T>Credit balance</T>}
+      description={<T>Your credits by type, and when they expire.</T>}
+      bodyClassName="space-y-5"
+    >
+      {/* The total first: the one number the owner came here for. */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span
+            data-testid="credit-balance-total"
+            className="text-4xl font-semibold tracking-tight [font-variant-numeric:tabular-nums]"
           >
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p className="text-sm">
-                {band === 'critical' ? (
-                  <T>You&rsquo;re almost out of credits for this cycle.</T>
-                ) : (
-                  <T>You&rsquo;re running low on credits for this cycle.</T>
-                )}
-              </p>
-            </div>
-            {!hidePurchase && (
-            <div className="flex flex-wrap items-center gap-3">
-              {topupEligible ? (
-                <Link
-                  href="#topup-packs"
-                  className="text-sm font-medium underline underline-offset-2 hover:no-underline"
-                >
-                  <T>Top up now</T>
-                </Link>
-              ) : (
-                <Link
-                  href="#choose-plan"
-                  className="text-sm font-medium underline underline-offset-2 hover:no-underline"
-                >
-                  <T>Subscribe to Pro</T>
-                </Link>
-              )}
-            </div>
-            )}
-          </div>
+            {formatCredits(balance ?? 0)}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            <T>credits available</T>
+          </span>
+        </div>
+        {percentUsed !== null && (
+          <UsageProgressBar percentUsed={percentUsed} balance={balance} label="Usage this billing cycle" />
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {lots.length > 0 && (
+        <ul
+          data-testid="credit-lots"
+          className="divide-y divide-[var(--glass-border)] rounded-[var(--radius-md)] border border-[var(--glass-border)]"
+        >
+          {lots.map((lot, i) => (
+            <li
+              key={i}
+              data-testid="credit-lot-row"
+              data-source={lot.source}
+              className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
+            >
+              <span className="flex min-w-0 items-start gap-2.5">
+                <span aria-hidden className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${LOT_DOT[lot.source]}`} />
+                <span className="min-w-0">
+                  <span className="block font-medium text-foreground">
+                    <T text={LOT_LABEL[lot.source]} />
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {lot.expiresAt ? (
+                      <>
+                        <T>Expires</T> <LocalizedDate iso={lot.expiresAt} variant="short" utc />
+                      </>
+                    ) : (
+                      <T>No expiry</T>
+                    )}
+                  </span>
+                </span>
+              </span>
+              <span className="whitespace-nowrap font-medium [font-variant-numeric:tabular-nums]">
+                {formatCredits(lot.remaining)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        <T text={resetCaption} />
+      </p>
+
+      {band !== 'healthy' && (
+        <div
+          data-testid="credit-low-warning"
+          className={
+            band === 'critical'
+              ? 'flex flex-col gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-red-600 dark:text-red-400 sm:flex-row sm:items-center sm:justify-between'
+              : 'flex flex-col gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-amber-600 dark:text-amber-400 sm:flex-row sm:items-center sm:justify-between'
+          }
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-sm">
+              {band === 'critical' ? (
+                <T>You&rsquo;re almost out of credits for this cycle.</T>
+              ) : (
+                <T>You&rsquo;re running low on credits for this cycle.</T>
+              )}
+            </p>
+          </div>
+          {!hidePurchase && (
+            <Link
+              href={topupEligible ? '#topup-packs' : '#choose-plan'}
+              className="shrink-0 text-sm font-medium underline underline-offset-2 hover:no-underline"
+            >
+              {topupEligible ? <T>Top up now</T> : <T>Subscribe to Pro</T>}
+            </Link>
+          )}
+        </div>
+      )}
+    </SettingsCard>
   )
 }

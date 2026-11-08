@@ -22,6 +22,8 @@ export function TopUpButton({
   label = 'Top up credits',
   variant = 'primary',
   isOwner = true,
+  showOwnerHint = true,
+  className,
 }: {
   packIndex: number
   label?: string
@@ -30,6 +32,9 @@ export function TopUpButton({
   // checkout endpoint is owner-only server-side, so left enabled a member
   // would be told "Please try again" forever. Defaults to true.
   isOwner?: boolean
+  /** Off when the surrounding section already says billing is owner-only. */
+  showOwnerHint?: boolean
+  className?: string
 }) {
   const { t } = useTranslation()
   const isTwa = useIsTwa()
@@ -60,11 +65,11 @@ export function TopUpButton({
   if (isTwa) return null
 
   return (
-    <div className="flex flex-col gap-1">
-      <Button onClick={handleTopUp} disabled={loading || !isOwner} size="sm" variant={variant}>
+    <div className={className ?? 'flex flex-col gap-1'}>
+      <Button onClick={handleTopUp} disabled={loading || !isOwner} size="sm" variant={variant} className="w-full">
         {loading ? t('Redirecting...') : t(label)}
       </Button>
-      {!isOwner && (
+      {!isOwner && showOwnerHint && (
         <p className="text-xs text-muted-foreground">{t('Only the company owner can manage billing.')}</p>
       )}
     </div>

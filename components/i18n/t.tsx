@@ -9,19 +9,26 @@ import { useTranslation } from '@/lib/i18n/use-translation'
  * as-is. Wrapping them in <T> defers translation to the client (where
  * useTranslation runs).
  *
- * Single string-child only. For interpolated strings use the `text` prop or
- * compose multiple <T> tags with a wrapping element.
+ * Single string-child only. For a sentence with a changing part, pass a
+ * template with `{name}` placeholders and the `values` to fill them: the
+ * TEMPLATE is what gets translated (and can live in the static dictionary),
+ * so the sentence translates once instead of once per distinct value.
  *
  * Examples:
  *   <T>Welcome back</T>
- *   <T text={`Welcome back, ${name}`} />
+ *   <T text="Up to {count} photos per estimate." values={{ count: 20 }} />
  */
+type Values = Record<string, string | number>
+
 type Props =
-  | { children: string; text?: never }
-  | { text: string; children?: never }
+  | { children: string; text?: never; values?: Values }
+  | { text: string; children?: never; values?: Values }
 
 export function T(props: Props) {
   const { t } = useTranslation()
   const source = 'text' in props && props.text !== undefined ? props.text : props.children
-  return <>{t(source as string)}</>
+  const translated = t(source as string)
+  if (!props.values) return <>{translated}</>
+  const values = props.values
+  return <>{translated.replace(/\{(\w+)\}/g, (match, key: string) => (key in values ? String(values[key]) : match))}</>
 }

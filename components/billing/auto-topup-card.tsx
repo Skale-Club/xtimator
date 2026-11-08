@@ -1,5 +1,4 @@
 import { RefreshCw, AlertTriangle } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { T } from '@/components/i18n/t'
@@ -11,8 +10,8 @@ import { AutoTopupDialogLauncher } from '@/components/billing/auto-topup-dialog'
  * Server component. Rendered by the caller ONLY when
  * billing_config.autoTopupEnabled is true (the platform kill switch) — this
  * component itself does not re-check the switch, it trusts the caller's gate.
- * Mirrors credit-balance-card.tsx's Card shell (glass variant, icon +
- * CardTitle/CardDescription header, CardContent body).
+ * Renders as one row (no card chrome of its own): the billing page places it
+ * inside the "Add credits" card, under the packs it buys from.
  */
 export function AutoTopupCard({
   enabled,
@@ -38,51 +37,51 @@ export function AutoTopupCard({
   isOwner?: boolean
 }) {
   return (
-    <Card variant="glass" className="p-6">
-      <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
-        <div className="flex items-start gap-3">
-          <RefreshCw className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
-          <div>
-            <CardTitle><T>Auto top-up</T></CardTitle>
-            <CardDescription>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]">
+            <RefreshCw className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 space-y-0.5">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <T>Auto top-up</T>
+              {enabled && (
+                <Badge variant="brand"><T>On</T></Badge>
+              )}
+            </p>
+            <p className="text-sm text-muted-foreground">
               {enabled && packAmount && thresholdAmount ? (
-                <T text={`Auto top-up is enabled. We'll add ${packAmount} when your balance drops below ${thresholdAmount}.`} />
+                <T
+                  text="We'll add {amount} when your balance drops below {threshold} credits."
+                  values={{ amount: packAmount, threshold: thresholdAmount }}
+                />
               ) : (
                 <T>Never run out mid-job. Turn on auto top-up to automatically add credits when your balance gets low.</T>
               )}
-            </CardDescription>
+            </p>
+            {enabled && paymentMethodLabel && (
+              <p className="text-xs text-muted-foreground">{paymentMethodLabel}</p>
+            )}
           </div>
         </div>
-        {enabled && (
-          <CardAction>
-            <Badge variant="brand"><T>On</T></Badge>
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-3 px-0 pt-4 text-sm">
-        {lastFailed && (
-          <Alert variant="destructive">
-            <AlertTriangle />
-            <AlertTitle><T>Auto-top-up failed &mdash; update your payment method to keep it active.</T></AlertTitle>
-          </Alert>
-        )}
-        {enabled && paymentMethodLabel && (
-          <p className="text-xs text-muted-foreground">{paymentMethodLabel}</p>
-        )}
-        <AutoTopupDialogLauncher
-          enabled={enabled}
-          packs={packs}
-          currentThresholdCredits={currentThresholdCredits}
-          currentPackIndex={currentPackIndex}
-          hasPaymentMethod={!!paymentMethodLabel}
-          isOwner={isOwner}
-        />
-        {!isOwner && (
-          <p className="text-xs text-muted-foreground">
-            <T>Only the company owner can manage billing.</T>
-          </p>
-        )}
-      </CardContent>
-    </Card>
+        <div className="shrink-0">
+          <AutoTopupDialogLauncher
+            enabled={enabled}
+            packs={packs}
+            currentThresholdCredits={currentThresholdCredits}
+            currentPackIndex={currentPackIndex}
+            hasPaymentMethod={!!paymentMethodLabel}
+            isOwner={isOwner}
+          />
+        </div>
+      </div>
+      {lastFailed && (
+        <Alert variant="destructive">
+          <AlertTriangle />
+          <AlertTitle><T>Auto-top-up failed &mdash; update your payment method to keep it active.</T></AlertTitle>
+        </Alert>
+      )}
+    </div>
   )
 }
