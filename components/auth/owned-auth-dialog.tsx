@@ -10,7 +10,7 @@ import { PhoneSignIn } from './phone-sign-in'
 /** The thin brand gradient across the top edge of the sign-in card, with a soft glow under it. */
 export function GradientTopLine() {
   return <>
-    <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 z-20 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary))_38%,#0BB8AF_68%,transparent)]" />
+    <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 z-20 h-px bg-[linear-gradient(90deg,transparent,hsl(var(--primary))_38%,hsl(var(--secondary))_68%,transparent)]" />
     <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 h-24 w-48 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
   </>
 }
