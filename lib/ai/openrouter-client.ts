@@ -67,6 +67,13 @@ const SITE_HEADERS = {
  * duplicating the number — single source of truth for the 120s chat budget.
  */
 export const AI_CHAT_TIMEOUT_MS = 120_000
+/**
+ * Overall budget for the main estimate generate/refine call (max_tokens 16384,
+ * often streamed): 120s cut off long generations. Streamed calls also carry a
+ * per-chunk inactivity timeout (openrouter-stream.ts). Every other chat call
+ * (vision, needs-details, translation) keeps AI_CHAT_TIMEOUT_MS.
+ */
+export const ESTIMATE_CALL_TIMEOUT_MS = 300_000
 const AI_TRANSCRIBE_TIMEOUT_MS = 300_000
 
 /** Fetch and validate the OpenRouter API key. Throws if not configured. */

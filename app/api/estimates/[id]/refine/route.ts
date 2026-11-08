@@ -361,7 +361,8 @@ export async function POST(
         .from('ai_cost_events')
         .select('real_cost_usd')
         .eq('attempt_id', attemptId)
-        .in('operation_type', ['estimate', 'vision', 'audio_minutes'])
+        // 'estimate_retry': a schema-repair re-call on the same attempt (recordAICost).
+        .in('operation_type', ['estimate', 'estimate_retry', 'vision', 'audio_minutes'])
       const rows = (data ?? []) as { real_cost_usd: number | null }[]
       const known = rows
         .map((r) => r.real_cost_usd)

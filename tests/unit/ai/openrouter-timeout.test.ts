@@ -36,7 +36,7 @@ vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
 import { OpenRouterAdapter } from '@/lib/ai/providers/openrouter'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { callWithFallback, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
-import { AI_CHAT_TIMEOUT_MS } from '@/lib/ai/openrouter-client'
+import { AI_CHAT_TIMEOUT_MS, ESTIMATE_CALL_TIMEOUT_MS } from '@/lib/ai/openrouter-client'
 import type { EstimateInput } from '@/lib/ai/types'
 
 const mockGetKey = getIntegrationKey as ReturnType<typeof vi.fn>
@@ -110,6 +110,18 @@ describe('OpenRouterAdapter.callTool — request timeout (AIREL-01)', () => {
     // Sanity: the exported constant is the documented 120s chat budget — this
     // guards against a future accidental duplication of the number.
     expect(AI_CHAT_TIMEOUT_MS).toBe(120_000)
+  })
+
+  it('1.6: the estimate call uses ESTIMATE_CALL_TIMEOUT_MS (300s), other chat calls keep 120s', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(makeResponse())
+
+    await new OpenRouterAdapter(MODEL).generateEstimate(makeInput())
+
+    expect(ESTIMATE_CALL_TIMEOUT_MS).toBe(300_000)
+    expect(timeoutSpy).toHaveBeenCalledWith(ESTIMATE_CALL_TIMEOUT_MS)
+    expect(timeoutSpy).not.toHaveBeenCalledWith(AI_CHAT_TIMEOUT_MS)
+    timeoutSpy.mockRestore()
   })
 
   it('an aborted fetch propagates as ProvidersUnavailableError (no fallback provider, no second fetch)', async () => {

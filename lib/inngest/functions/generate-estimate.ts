@@ -198,6 +198,7 @@ export const generateEstimateJob = inngest.createFunction(
           companyId,
           projectId,
           channel: traceChannel,
+          inputType,
           // Phase 110 (COST-01): thread the attempt id (Phase 91/92 lineage) into
           // the graph state so the generate node can build a non-LLM costContext
           // for OpenRouter cost attribution. Same id used as the Langfuse
@@ -316,6 +317,9 @@ export const generateEstimateJob = inngest.createFunction(
         // both chained into this generate event — an unfiltered read-back by
         // attempt_id alone summed those ALREADY-debited rows back into the
         // 'estimate' debit (prod ledger evidence: audio cost double-counted).
+        // 'estimate_retry' rows (schema-repair retry, auto-refine second pass,
+        // Inngest retry) are this same seam's spend that the partial unique index
+        // on (attempt_id,'estimate') would otherwise drop — sum both.
         // Scope strictly to THIS seam's own op — price_research (also shares
         // this attemptId when the graph runs price lookups) is metered by its
         // own separate debit in lib/estimate/price-research/orchestrator.ts
@@ -324,7 +328,7 @@ export const generateEstimateJob = inngest.createFunction(
           .from('ai_cost_events')
           .select('real_cost_usd')
           .eq('attempt_id', attemptId)
-          .eq('operation_type', 'estimate')
+          .in('operation_type', ['estimate', 'estimate_retry'])
         const rows = (data ?? []) as { real_cost_usd: number | null }[]
         if (rows.length > 0) {
           const known = rows
@@ -340,8 +344,13 @@ export const generateEstimateJob = inngest.createFunction(
 
     // Phase 92 (EVENT-02/D-03): resolve the new estimate id from the AI result
     // (trivially in scope — GenerateEstimateResult.estimateId; no extra query).
-    const estimateId =
-      (result as { estimateId?: string | null } | null)?.estimateId ?? null
+    // A run that ended in needs-details deleted its estimate (finalize returns
+    // needsDetails: true), so any id left in the result is stale: never journal it.
+    const needsDetails =
+      (result as { needsDetails?: boolean } | null)?.needsDetails === true
+    const estimateId = needsDetails
+      ? null
+      : ((result as { estimateId?: string | null } | null)?.estimateId ?? null)
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded generate_estimate event.
     // provider left null (Open-Question 2 — not trivially in scope here, nullable).
@@ -384,7 +393,7 @@ export const generateEstimateJob = inngest.createFunction(
     if (pushUserId && data.channel !== 'mcp') {
       await step.run('notify-push', async () =>
         sendEstimatePush({
-          kind: estimateId ? 'ready' : 'needs_details',
+          kind: needsDetails ? 'needs_details' : estimateId ? 'ready' : 'needs_details',
           userId: pushUserId,
           projectId,
           estimateId,

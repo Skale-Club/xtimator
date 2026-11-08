@@ -175,7 +175,8 @@ function makeSupabaseMock() {
           is: vi.fn().mockReturnThis(),
         }),
         update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
+          // chainable: the service demotes other versions with .eq().neq()
+          eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })),
         }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'id') {

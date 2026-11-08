@@ -41,6 +41,7 @@ export const autoRefineNode = async (
   reportGeneratePhase({
     attemptId: state.attemptId,
     phase: 'refining',
+    inputType: state.inputType,
     companyId: state.companyId,
     projectId: state.projectId,
     detail: { round: (state.refineAttempts ?? 0) + 1 },

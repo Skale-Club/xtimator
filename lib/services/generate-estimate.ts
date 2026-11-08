@@ -117,6 +117,8 @@ export interface GenerateEstimateOptions {
     attemptId?: string | null
     companyId?: string | null
     projectId?: string | null
+    /** Input type of the attempt; stamps the journal's phase rows. */
+    inputType?: 'recording' | 'photo' | 'manual_text'
   }
 }
 
@@ -180,6 +182,7 @@ export async function generateEstimateForProject(
       phase: name,
       companyId,
       projectId,
+      inputType: options.costContext?.inputType,
       detail,
     })
 
@@ -493,12 +496,18 @@ export async function generateEstimateForProject(
   // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
   // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
   // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
-  // SEED-057 E: only the server may label a price 'company_history'. A model
-  // that claims it in a GENERATE call is demoted before anything else runs.
+  // Only the server may assign 'price_book', 'researched' or 'company_history'.
+  // A model that claims any of them in a GENERATE call is demoted to
+  // 'ai_estimate' before anything else runs; anchoring re-tags real price-book
+  // matches as 'price_book', and history/research then act on what remains.
   const modelSections = aiEstimate.sections.map((section) => ({
     ...section,
     items: section.items.map((item) =>
-      item.price_source === 'company_history' ? { ...item, price_source: 'ai_estimate' as const } : item
+      item.price_source === 'price_book' ||
+      item.price_source === 'researched' ||
+      item.price_source === 'company_history'
+        ? { ...item, price_source: 'ai_estimate' as const }
+        : item
     ),
   }))
   const { sections: anchoredSections, anchoredCount, clampedCount } =
@@ -534,10 +543,9 @@ export async function generateEstimateForProject(
   // authoritative totals and the vagueness gate (assess) sees real numbers — the
   // originating "Couch cleaning 8seats → $0 → blocked as vague" fix. Region = the
   // project client's city+state; currency = the estimate currency; companyId is the
-  // param (NEVER LLM-derived). projectId seeds the metering idempotency key (Warning #1:
-  // the orchestrator builds ${attemptId ?? projectId ?? companyId}:... — no real
-  // attemptId is reachable at this call site, so the project-scoped seed is the best
-  // available per-generation token; it is retry-stable and finer than company-scoped).
+  // param (NEVER LLM-derived). The metering idempotency key is seeded by the
+  // generation's attemptId (retry-stable, from the trusted costContext); projectId is
+  // the fallback seed when no attempt context exists (a direct service call).
   // Defensive try/catch in addition to the never-throws contract: a thrown research
   // error degrades to the anchored (pre-research) sections, never an estimate failure.
   let researchedSections = guardedSections
@@ -569,7 +577,8 @@ export async function generateEstimateForProject(
       region: { city: client?.city ?? null, state: client?.state ?? null },
       currency: currencyCode,
       supabase, // reuse the service client
-      projectId, // best available per-generation metering seed (Warning #1)
+      projectId, // fallback metering seed when no attemptId
+      attemptId: options.costContext?.attemptId ?? undefined,
     })
     researchedSections = research.sections
     flaggedUnpriced = research.flaggedUnpriced
@@ -732,12 +741,10 @@ export async function generateEstimateForProject(
     .eq('is_current', true)
     .maybeSingle()
 
-  // Version management
-  await supabase
-    .from('estimates')
-    .update({ is_current: false })
-    .eq('project_id', projectId)
-
+  // Version management. The previous current version is NOT demoted here: the
+  // new row is inserted as non-current and only promoted once its sections and
+  // items are saved (see the swap below), so a failed save never leaves the
+  // project without a current estimate.
   const { data: existingEstimates } = await supabase
     .from('estimates')
     .select('version')
@@ -777,7 +784,8 @@ export async function generateEstimateForProject(
       company_id: companyId,
       currency_code: currencyCode,
       version: nextVersion,
-      is_current: true,
+      // Promoted to current only after sections + items are saved.
+      is_current: false,
       status: 'draft',
       workflow_status: 'draft',
       summary: aiEstimate.summary,
@@ -869,90 +877,111 @@ export async function generateEstimateForProject(
     }
   }
 
-  // Insert sections and items in exactly two round-trips (was 2×S sequential).
-  // 1) Bulk-insert every section, RETURNING ids in insertion order.
-  // 2) Bulk-insert every item across all sections in one call, mapping each item
-  //    to its section id by position. sort_order fields are preserved exactly:
-  //    sIdx for sections, iIdx for items within a section.
-  const sectionInsertRows = calculatedSections.map((section, sIdx) => ({
-    estimate_id: estimateId,
-    company_id: companyId,
-    title: section.title,
-    sort_order: sIdx,
-    subtotal: section.subtotal,
-  }))
-
-  let sectionIds: string[] = []
-  if (sectionInsertRows.length > 0) {
-    const { data: sectionRows, error: sectionsError } = await supabase
-      .from('estimate_sections')
-      .insert(sectionInsertRows)
-      .select('id')
-
-    // PostgREST returns the inserted rows in the SAME order as the payload for a
-    // single INSERT, so index i ↔ calculatedSections[i]. Guard the length so a
-    // partial/reordered result can never silently misattach items.
-    if (sectionsError || !sectionRows || sectionRows.length !== sectionInsertRows.length) {
-      throw new Error('Failed to save estimate section')
-    }
-    sectionIds = sectionRows.map((row) => row.id as string)
-  }
-
-  const itemInsertRows = calculatedSections.flatMap((section, sIdx) => {
-    const sectionId = sectionIds[sIdx]
-    return section.items.map((item, iIdx) => ({
-      section_id: sectionId,
+  // A failure anywhere in the child inserts must not leave a half-written
+  // estimate behind: delete the new row (sections/items cascade via their FKs)
+  // and rethrow the same error. The previous version is still current.
+  try {
+    // Insert sections and items in exactly two round-trips (was 2×S sequential).
+    // 1) Bulk-insert every section, RETURNING ids in insertion order.
+    // 2) Bulk-insert every item across all sections in one call, mapping each item
+    //    to its section id by position. sort_order fields are preserved exactly:
+    //    sIdx for sections, iIdx for items within a section.
+    const sectionInsertRows = calculatedSections.map((section, sIdx) => ({
+      estimate_id: estimateId,
       company_id: companyId,
-      description: item.description,
-      quantity: item.quantity,
-      unit: item.unit ?? null,
-      unit_price: item.unit_price,
-      total: item.total,
-      sort_order: iIdx,
-      price_source: item.price_source,
-      // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
-      // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
-      // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
-      taxable: item.taxable ?? true,
-      tax_category: item.tax_category ?? null,
-      // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
-      // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
-      discount: (item.discount as number | undefined) ?? 0,
-      // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
-      // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
-      // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
-      // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
-      cost: (item.cost as number | undefined) ?? null,
-      markup_pct: (item.markup_pct as number | undefined) ?? null,
-      // SEED-057: per-line AI metadata. Only present on the row when the model
-      // supplied it, so rows (and tests) for legacy outputs are unchanged.
-      // Every row carries the SAME keys: PostgREST unions the keys across a bulk insert and
-      // sends NULL for a row that lacks one, and `optional` is NOT NULL DEFAULT false.
-      confidence: item.confidence ?? null,
-      basis: item.basis ?? null,
-      optional: item.optional === true,
+      title: section.title,
+      sort_order: sIdx,
+      subtotal: section.subtotal,
     }))
-  })
 
-  if (itemInsertRows.length > 0) {
-    let { error: itemsError } = await supabase
-      .from('estimate_items')
-      .insert(itemInsertRows)
+    let sectionIds: string[] = []
+    if (sectionInsertRows.length > 0) {
+      const { data: sectionRows, error: sectionsError } = await supabase
+        .from('estimate_sections')
+        .insert(sectionInsertRows)
+        .select('id')
 
-    // Pre-migration deploy window: drop the SEED-057 columns and retry.
-    if (itemsError && isMissingColumnError(itemsError, ITEM_AI_COLUMNS)) {
-      const stripped = itemInsertRows.map((row) => {
-        const copy: Record<string, unknown> = { ...row }
-        for (const column of ITEM_AI_COLUMNS) delete copy[column]
-        return copy
-      })
-      ;({ error: itemsError } = await supabase.from('estimate_items').insert(stripped))
+      // PostgREST returns the inserted rows in the SAME order as the payload for a
+      // single INSERT, so index i ↔ calculatedSections[i]. Guard the length so a
+      // partial/reordered result can never silently misattach items.
+      if (sectionsError || !sectionRows || sectionRows.length !== sectionInsertRows.length) {
+        throw new Error('Failed to save estimate section')
+      }
+      sectionIds = sectionRows.map((row) => row.id as string)
     }
 
-    if (itemsError) {
-      throw new Error('Failed to save estimate items')
+    const itemInsertRows = calculatedSections.flatMap((section, sIdx) => {
+      const sectionId = sectionIds[sIdx]
+      return section.items.map((item, iIdx) => ({
+        section_id: sectionId,
+        company_id: companyId,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit ?? null,
+        unit_price: item.unit_price,
+        total: item.total,
+        sort_order: iIdx,
+        price_source: item.price_source,
+        // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
+        // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
+        // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
+        taxable: item.taxable ?? true,
+        tax_category: item.tax_category ?? null,
+        // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
+        // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
+        discount: (item.discount as number | undefined) ?? 0,
+        // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
+        // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
+        // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
+        // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
+        cost: (item.cost as number | undefined) ?? null,
+        markup_pct: (item.markup_pct as number | undefined) ?? null,
+        // SEED-057: per-line AI metadata. Only present on the row when the model
+        // supplied it, so rows (and tests) for legacy outputs are unchanged.
+        // Every row carries the SAME keys: PostgREST unions the keys across a bulk insert and
+        // sends NULL for a row that lacks one, and `optional` is NOT NULL DEFAULT false.
+        confidence: item.confidence ?? null,
+        basis: item.basis ?? null,
+        optional: item.optional === true,
+      }))
+    })
+
+    if (itemInsertRows.length > 0) {
+      let { error: itemsError } = await supabase
+        .from('estimate_items')
+        .insert(itemInsertRows)
+
+      // Pre-migration deploy window: drop the SEED-057 columns and retry.
+      if (itemsError && isMissingColumnError(itemsError, ITEM_AI_COLUMNS)) {
+        const stripped = itemInsertRows.map((row) => {
+          const copy: Record<string, unknown> = { ...row }
+          for (const column of ITEM_AI_COLUMNS) delete copy[column]
+          return copy
+        })
+        ;({ error: itemsError } = await supabase.from('estimate_items').insert(stripped))
+      }
+
+      if (itemsError) {
+        throw new Error('Failed to save estimate items')
+      }
     }
+  } catch (err) {
+    try {
+      await supabase.from('estimates').delete().eq('id', estimateId)
+    } catch (cleanupErr) {
+      console.error('[generate-estimate] cleanup of partial estimate failed:', cleanupErr)
+    }
+    throw err
   }
+
+  // Everything is saved: swap the current pointer. Demote the other versions
+  // first, then promote the new one (no unique index on is_current exists).
+  await supabase
+    .from('estimates')
+    .update({ is_current: false })
+    .eq('project_id', projectId)
+    .neq('id', estimateId)
+  await supabase.from('estimates').update({ is_current: true }).eq('id', estimateId)
 
   // Version carry-forward — copy the previous current version's attached
   // photos onto the new version (independent rows, own remove lifecycle).

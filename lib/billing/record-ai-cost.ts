@@ -40,6 +40,10 @@ export interface AICostInput {
     // see it. Deliberately absent from the chargeable-operation list, so it
     // can never be billed to a tenant.
     | 'chat'
+    // A repeat 'estimate' cost for the SAME attempt (schema-repair retry,
+    // auto-refine second pass, Inngest retry). Written by recordAICost itself on a
+    // 23505 collision; the 'estimate' read-back in the generate job sums both.
+    | 'estimate_retry'
   provider: 'openrouter' | 'openai' | 'anthropic' | 'gemini'
   realCostUsd: number | null // null = provider gave no cost (NEVER 0)
   companyId?: string | null
@@ -56,13 +60,15 @@ export interface AICostInput {
  */
 /** Postgres unique_violation — the Phase 167 partial unique index already has this row. */
 const PG_UNIQUE_VIOLATION = '23505'
+/** Postgres check_violation — 'estimate_retry' is not allowed yet (migration not applied). */
+const PG_CHECK_VIOLATION = '23514'
 
 export async function recordAICost(ev: AICostInput): Promise<void> {
   try {
     const svc = requireServiceClient()
-    const { error } = await svc.from('ai_cost_events').insert({
+    const row = {
       attempt_id: ev.attemptId,
-      operation_type: ev.operationType,
+      operation_type: ev.operationType as string,
       provider: ev.provider,
       real_cost_usd: ev.realCostUsd, // pass null THROUGH — never `?? 0`
       company_id: ev.companyId ?? null,
@@ -70,19 +76,35 @@ export async function recordAICost(ev: AICostInput): Promise<void> {
       estimate_id: ev.estimateId ?? null,
       model: ev.model ?? null,
       units: ev.units ?? null,
-    })
-    if (error) {
-      // Phase 167 (BILL-04): the PARTIAL unique index on (attempt_id,
-      // operation_type) — 'audio_minutes'/'estimate' only — rejects a genuine
-      // duplicate cost row (e.g. a retry re-running the SAME attempt+op) with
-      // 23505. That is the dedup guard doing its job, not a failure: swallow
-      // silently, same as recordUsage's (lib/quota.ts) 23505 discipline. Any
-      // OTHER error still warns (previously the return value here was
-      // discarded entirely, so no DB error was ever surfaced — fixed).
-      if ((error as { code?: string }).code !== PG_UNIQUE_VIOLATION) {
-        console.warn('[recordAICost] insert failed:', error)
-      }
     }
+    const { error } = await svc.from('ai_cost_events').insert(row)
+    if (!error) return
+    const code = (error as { code?: string }).code
+    if (code === PG_UNIQUE_VIOLATION) {
+      // Phase 167 (BILL-04): the PARTIAL unique index on (attempt_id,
+      // operation_type) — 'audio_minutes'/'estimate' only — rejects a second
+      // row for the same attempt+op. For 'audio_minutes' that is the dedup guard
+      // doing its job (swallow). For 'estimate' the second row is REAL spend (a
+      // schema-repair retry, auto-refine pass or Inngest retry), so keep it as
+      // 'estimate_retry', which the index does not cover.
+      if (ev.operationType !== 'estimate') return
+      const { error: retryError } = await svc
+        .from('ai_cost_events')
+        .insert({ ...row, operation_type: 'estimate_retry' })
+      if (retryError) {
+        if ((retryError as { code?: string }).code === PG_CHECK_VIOLATION) {
+          // Migration 20261108000003 not applied yet: degrade to the old behavior.
+          console.warn(
+            "[recordAICost] 'estimate_retry' not allowed by operation_type CHECK (migration not applied); retry cost dropped"
+          )
+        } else {
+          console.warn('[recordAICost] retry insert failed:', retryError)
+        }
+      }
+      return
+    }
+    // Any OTHER error warns (previously the return value was discarded entirely).
+    console.warn('[recordAICost] insert failed:', error)
   } catch (err) {
     // Best-effort: swallow — a cost-write failure must never break the pipeline.
     console.warn('[recordAICost] swallowed write failure:', err)

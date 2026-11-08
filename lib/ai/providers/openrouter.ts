@@ -24,9 +24,9 @@ import { InvalidEstimateOutputError, TruncatedOutputError } from '../with-fallba
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
-// AIREL-01: single source of truth for the 120s chat-completion budget — see
-// openrouter-client.ts's comment for the AbortSignal.timeout rationale.
-import { AI_CHAT_TIMEOUT_MS } from '../openrouter-client'
+// AIREL-01: the estimate call's overall budget (300s) lives in openrouter-client.ts,
+// next to the 120s chat budget — see its comment for the AbortSignal.timeout rationale.
+import { ESTIMATE_CALL_TIMEOUT_MS } from '../openrouter-client'
 import { draftProgressFromArguments, readChatCompletionStream } from './openrouter-stream'
 
 /** How often the partial tool-call JSON is re-scanned for draft progress. */
@@ -292,6 +292,9 @@ export class OpenRouterAdapter implements AIProvider {
       ...(args.onToolArguments ? { stream: true } : {}),
     }
 
+    // Streamed calls add a per-chunk inactivity timeout (readChatCompletionStream)
+    // that aborts this controller; combined with the overall timeout below.
+    const streamAbort = new AbortController()
     const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -306,7 +309,11 @@ export class OpenRouterAdapter implements AIProvider {
       // AIREL-01: the ONLY unbounded fetch on the primary generation path — a
       // hung socket previously never threw, so the failure was never surfaced and
       // the Inngest step stayed pinned indefinitely.
-      signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
+      // Bumped to ESTIMATE_CALL_TIMEOUT_MS: 120s cut off long streamed generations.
+      signal: AbortSignal.any([
+        AbortSignal.timeout(ESTIMATE_CALL_TIMEOUT_MS),
+        streamAbort.signal,
+      ]),
     })
 
     if (!res.ok) {
@@ -318,7 +325,9 @@ export class OpenRouterAdapter implements AIProvider {
 
     const json: OpenRouterChatResponse =
       args.onToolArguments && res.body
-        ? await readChatCompletionStream(res.body, args.onToolArguments)
+        ? await readChatCompletionStream(res.body, args.onToolArguments, {
+            onStall: () => streamAbort.abort(),
+          })
         : ((await res.json()) as OpenRouterChatResponse)
     if (json.error?.message) {
       throw new Error(`OpenRouter error: ${json.error.message}`)
@@ -336,9 +345,25 @@ export class OpenRouterAdapter implements AIProvider {
     // structured estimate" error) — and a truncation that lands on
     // byte-for-byte VALID JSON is ALSO typed as truncation here, so a silent
     // partial estimate can never parse through as if it were complete.
-    // (Known/accepted: the truncated primary call's usage.cost is not
-    // recorded here — consistent with the pre-existing malformed-JSON path;
-    // noted for Phase 167, no action in this plan.)
+    // Record the (real, paid-for) cost BEFORE any of the failure throws below, so
+    // a truncated / empty / malformed response is not silently lost. Exactly once
+    // per call: the success path reuses this same recording.
+    // AWAIT (not `void`): see the note on the original success-path recording —
+    // a floating promise can be dropped when the Inngest step suspends.
+    // SEED-057 C: plan_scope's spend rides on THIS row (one row per attempt + operation).
+    const draftCostUsd = json.usage?.cost ?? null
+    const realCostUsd =
+      draftCostUsd === null ? null : draftCostUsd + (args.costContext?.extraCostUsd ?? 0)
+    await recordAICost({
+      attemptId: args.costContext?.attemptId ?? randomUUID(),
+      operationType: 'estimate',
+      provider: 'openrouter',
+      model: this.model,
+      realCostUsd,
+      companyId: args.costContext?.companyId ?? null,
+      projectId: args.costContext?.projectId ?? null,
+    })
+
     if (choice?.finish_reason === 'length') {
       throw new TruncatedOutputError(operationName)
     }
@@ -351,31 +376,6 @@ export class OpenRouterAdapter implements AIProvider {
 
     try {
       const parsed = JSON.parse(argsJson) as Record<string, unknown>
-      // Phase 110 (COST-01): capture the real USD cost alongside the existing
-      // Langfuse token block. `usage.cost` is returned when we request
-      // `usage: { include: true }` — null when absent, NEVER coerced to 0.
-      // Correlation ids come ONLY from the trusted, non-LLM costContext (never
-      // from `parsed`/json.choices).
-      //
-      // AWAIT (not `void`): this runs inside an Inngest step. When the step
-      // resolves/suspends, the serverless invocation can be frozen and any
-      // floating promise dropped before its fetch/INSERT lands — which left
-      // ai_cost_events empty and broke credit debiting entirely. recordAICost
-      // is never-throw (internal try/catch), so awaiting it is safe and can
-      // never affect the estimate return.
-      // SEED-057 C: plan_scope's spend rides on THIS row (one row per attempt + operation).
-      const draftCostUsd = json.usage?.cost ?? null
-      const realCostUsd =
-        draftCostUsd === null ? null : draftCostUsd + (args.costContext?.extraCostUsd ?? 0)
-      await recordAICost({
-        attemptId: args.costContext?.attemptId ?? randomUUID(),
-        operationType: 'estimate',
-        provider: 'openrouter',
-        model: this.model,
-        realCostUsd,
-        companyId: args.costContext?.companyId ?? null,
-        projectId: args.costContext?.projectId ?? null,
-      })
       try {
         const gen = langfuseClient.generation({
           name: operationName,

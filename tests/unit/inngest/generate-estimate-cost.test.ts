@@ -94,11 +94,13 @@ vi.mock('@/instrumentation', () => ({
 
 type AiCostRow = { real_cost_usd: number | null }
 type EqCall = { col: string; value: unknown }
+type InCall = { col: string; values: unknown[] }
 
 const state: {
   aiCostRows: AiCostRow[]
   aiCostEqCalls: EqCall[]
-} = { aiCostRows: [], aiCostEqCalls: [] }
+  aiCostInCalls: InCall[]
+} = { aiCostRows: [], aiCostEqCalls: [], aiCostInCalls: [] }
 
 function makeSvc() {
   return {
@@ -118,6 +120,10 @@ function makeSvc() {
             const chain = {
               eq: (col: string, value: unknown) => {
                 state.aiCostEqCalls.push({ col, value })
+                return chain
+              },
+              in: (col: string, values: unknown[]) => {
+                state.aiCostInCalls.push({ col, values })
                 return chain
               },
               then: (
@@ -175,6 +181,7 @@ describe('260821: generate-estimate record-credit-debit read-back scopes to oper
     vi.clearAllMocks()
     state.aiCostRows = []
     state.aiCostEqCalls = []
+    state.aiCostInCalls = []
     mockGetEntitlementsForTier.mockResolvedValue({ maxEstimatesPerMonth: null })
     mockGraphInvoke.mockResolvedValue({ estimateId: 'est-1' })
   })
@@ -197,10 +204,20 @@ describe('260821: generate-estimate record-credit-debit read-back scopes to oper
         attemptId: 'shared-attempt-1',
       })
     )
-    expect(state.aiCostEqCalls).toEqual([
-      { col: 'attempt_id', value: 'shared-attempt-1' },
-      { col: 'operation_type', value: 'estimate' },
+    expect(state.aiCostEqCalls).toEqual([{ col: 'attempt_id', value: 'shared-attempt-1' }])
+    // 1.5: retry rows ('estimate_retry') are this seam's spend too — summed in.
+    expect(state.aiCostInCalls).toEqual([
+      { col: 'operation_type', values: ['estimate', 'estimate_retry'] },
     ])
+  })
+
+  it('sums the estimate and estimate_retry rows into one debit', async () => {
+    state.aiCostRows = [{ real_cost_usd: 0.02 }, { real_cost_usd: 0.03 }, { real_cost_usd: null }]
+    const fn = await loadHandler()
+    await fn.handler({ event: baseEvent({ attemptId: 'retry-attempt' }), step: makeReplayStep(new Map()) })
+    expect(mockRecordCreditDebit).toHaveBeenCalledWith(
+      expect.objectContaining({ operationType: 'estimate', realCostUsd: 0.05, attemptId: 'retry-attempt' })
+    )
   })
 
   it('excludes an audio_minutes/vision row sharing the attemptId — mock reflects operation_type-scoped rows only', async () => {
@@ -214,8 +231,11 @@ describe('260821: generate-estimate record-credit-debit read-back scopes to oper
 
     await fn.handler({ event: baseEvent({ attemptId: 'attempt-2' }), step })
 
-    const opFilter = state.aiCostEqCalls.find((c) => c.col === 'operation_type')
-    expect(opFilter).toEqual({ col: 'operation_type', value: 'estimate' })
+    expect(state.aiCostEqCalls.find((c) => c.col === 'operation_type')).toBeUndefined()
+    expect(state.aiCostInCalls.find((c) => c.col === 'operation_type')?.values).toEqual([
+      'estimate',
+      'estimate_retry',
+    ])
   })
 })
 
@@ -224,6 +244,7 @@ describe('260821: attemptId fallback is memoized inside generation-start (stable
     vi.clearAllMocks()
     state.aiCostRows = [{ real_cost_usd: 0.01 }]
     state.aiCostEqCalls = []
+    state.aiCostInCalls = []
     mockGetEntitlementsForTier.mockResolvedValue({ maxEstimatesPerMonth: null })
     mockGraphInvoke.mockResolvedValue({ estimateId: 'est-1' })
   })

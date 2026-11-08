@@ -35,6 +35,11 @@ export const EstimateState = Annotation.Root({
    * the OpenRouter adapter can attribute the captured real cost to this attempt.
    */
   attemptId: Annotation<string | undefined>(),
+  /**
+   * Input type of this generation attempt, for the journal's phase rows.
+   * Absent falls back to 'manual_text' in reportGeneratePhase.
+   */
+  inputType: Annotation<'recording' | 'photo' | 'manual_text' | undefined>(),
   /** Output of the generate node. */
   estimateId: Annotation<string | undefined>(),
   /** Output of the generate node; used by the adapter for reply copy language. */

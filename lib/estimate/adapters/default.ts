@@ -124,7 +124,10 @@ export function makeDefaultAdapter({ companyId, supabase }: {
 
         // Return needsDetails=true so it surfaces in the Inngest job output (SMART-04).
         // /api/jobs/[jobId] returns run.output as-is → MCP callers read output.needsDetails.
-        return { needsDetails: true }
+        // The estimate row was deleted by revertVagueEstimate above, so the state
+        // must not keep pointing at it: `undefined` clears the last-value channel
+        // (verified), and the job derives its succeeded row / push kind from this.
+        return { needsDetails: true, estimateId: undefined }
       }
       return {}
     },
