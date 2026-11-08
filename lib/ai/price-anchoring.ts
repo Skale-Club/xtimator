@@ -44,6 +44,8 @@
  */
 
 import type { EstimateSectionOutput } from './types'
+import { unitKey } from './units'
+import { usdToCurrencyApprox } from '@/lib/estimate/pricing/price-bands'
 
 /**
  * Documented sane per-unit USD ceiling. No legitimate single line-item unit price
@@ -122,6 +124,56 @@ export function isReorderedOrExtendedMatch(a: string, b: string): boolean {
   return !(aHasExtra && bHasExtra)
 }
 
+/** A price-book row as anchoring reads it. Only `name` and `unit_price` are required (today's shape). */
+export interface AnchorBookRow {
+  name: string
+  unit_price: number
+  /** The row's unit ('sq ft', 'each'...). Compared with the line's unit only when `compareUnits` is on. */
+  unit?: string | null
+  /** area_based / base_plus_addons rows keep unit_price 0 and price through the fields below. */
+  pricing_type?: 'fixed' | 'area_based' | 'base_plus_addons' | string | null
+  price_per_unit?: number | null
+  minimum_price?: number | null
+}
+
+export interface AnchorOptions {
+  /**
+   * ESTIMATOR_PRICE_BANDS: when both the line and the book row carry a unit and the canonical
+   * units differ, the row does not anchor the line ("per sq ft" must not take a "per job" price).
+   */
+  compareUnits?: boolean
+  /**
+   * ESTIMATOR_PRICE_BANDS: the estimate's currency. The $1M per-unit clamp is a USD figure; with
+   * this set it is converted with the approximate static table. Absent = the raw USD number.
+   */
+  currencyCode?: string
+}
+
+/** The per-unit clamp for `currencyCode` (approximate conversion; USD is unchanged). */
+export function unitPriceCeilingFor(currencyCode: string | null | undefined): number {
+  return usdToCurrencyApprox(UNIT_PRICE_CEILING, currencyCode)
+}
+
+/**
+ * The price a book row anchors with, or null when it must not anchor.
+ *
+ * A fixed row (or one with no pricing_type, today's shape) anchors with unit_price exactly as
+ * before, $0 included. area_based / base_plus_addons rows store unit_price 0 on purpose: anchoring
+ * them would turn a priced line into a $0 line. They fall through to price_per_unit, then
+ * minimum_price, and do not anchor when neither is a positive number.
+ */
+export function effectiveBookPrice(row: AnchorBookRow): number | null {
+  const type = row.pricing_type
+  if ((type === 'area_based' || type === 'base_plus_addons') && !(Number(row.unit_price) > 0)) {
+    const perUnit = Number(row.price_per_unit)
+    if (Number.isFinite(perUnit) && perUnit > 0) return perUnit
+    const minimum = Number(row.minimum_price)
+    if (Number.isFinite(minimum) && minimum > 0) return minimum
+    return null
+  }
+  return Number.isFinite(row.unit_price) ? row.unit_price : null
+}
+
 export interface AnchorResult {
   sections: EstimateSectionOutput[]
   anchoredCount: number
@@ -139,11 +191,12 @@ export interface AnchorResult {
  */
 export function anchorAndClampSections(
   sections: EstimateSectionOutput[],
-  priceBook: Array<{ name: string; unit_price: number }>
+  priceBook: AnchorBookRow[],
+  opts: AnchorOptions = {}
 ): AnchorResult {
   // Three lookup structures over the SAME companyId-scoped book, cheapest tier
   // first. Each row read is guarded so a malformed entry is skipped, never throws.
-  type BookEntry = { name: string; unit_price: number }
+  type BookEntry = AnchorBookRow
   const bookByName = new Map<string, BookEntry>() // tier 1: exact normalized name
   const bookByCompactName = new Map<string, BookEntry>() // tier 2: whitespace-insensitive
   const bookForFuzzy: Array<{ normalized: string; entry: BookEntry }> = [] // tier 3: reordered/extended
@@ -165,6 +218,8 @@ export function anchorAndClampSections(
   let anchoredCount = 0
   let fuzzyAnchoredCount = 0
   let clampedCount = 0
+  // USD unless the caller (flag on) passes a currency to convert the ceiling for.
+  const ceiling = opts.currencyCode ? unitPriceCeilingFor(opts.currencyCode) : UNIT_PRICE_CEILING
 
   const mappedSections = sections.map((section) => ({
     ...section,
@@ -193,21 +248,29 @@ export function anchorAndClampSections(
         hit = undefined
       }
 
+      // Units (flagged): a book row in a different unit than the line is not the same price.
+      if (hit && opts.compareUnits) {
+        const lineUnit = unitKey(item.unit)
+        const bookUnit = unitKey(hit.unit)
+        if (lineUnit && bookUnit && lineUnit !== bookUnit) hit = undefined
+      }
+      const anchorPrice = hit ? effectiveBookPrice(hit) : null
+
       // ANCHOR (takes precedence over clamp).
-      if (hit && Number.isFinite(hit.unit_price)) {
+      if (hit && anchorPrice !== null) {
         anchoredCount++
         if (isFuzzyHit) fuzzyAnchoredCount++
         return {
           ...item,
-          unit_price: hit.unit_price,
+          unit_price: anchorPrice,
           price_source: 'price_book' as const,
         }
       }
 
       // CLAMP — unmatched item beyond the sane ceiling. Zero/in-bounds kept as-is.
-      if (item.unit_price > UNIT_PRICE_CEILING) {
+      if (item.unit_price > ceiling) {
         clampedCount++
-        return { ...item, unit_price: UNIT_PRICE_CEILING }
+        return { ...item, unit_price: ceiling }
       }
 
       return item

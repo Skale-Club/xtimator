@@ -305,6 +305,30 @@ export async function analyzePhotoOR(
   model?: string,
   costContext?: CostContext
 ): Promise<string> {
+  return analyzePhotoImpl(base64, mimeType, model, costContext, undefined)
+}
+
+/**
+ * Haiku-first vision mode (Phase 4b): same prose analysis as `analyzePhotoOR`
+ * but with NO max_tokens bump on truncation (the first completion is trimmed at
+ * the last sentence boundary instead), so the prose rung is one call at most.
+ */
+export async function analyzePhotoSingleAttemptOR(
+  base64: string,
+  mimeType: string,
+  model?: string,
+  costContext?: CostContext
+): Promise<string> {
+  return analyzePhotoImpl(base64, mimeType, model, costContext, { noTruncationRetry: true })
+}
+
+async function analyzePhotoImpl(
+  base64: string,
+  mimeType: string,
+  model: string | undefined,
+  costContext: CostContext | undefined,
+  opts: { noTruncationRetry?: boolean } | undefined
+): Promise<string> {
   // OpenRouter vision only; a failure raises ProvidersUnavailableError.
   async function visionPrimary(): Promise<string> {
     const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
@@ -381,9 +405,13 @@ export async function analyzePhotoOR(
     // attempt is final (never once per attempt).
     let attempt = await completeVision(VISION_BASE_MAX_TOKENS)
     if (attempt.finishReason === 'length') {
-      attempt = await completeVision(VISION_RETRY_MAX_TOKENS)
-      if (attempt.finishReason === 'length') {
+      if (opts?.noTruncationRetry) {
         attempt = { ...attempt, content: trimToSentenceBoundary(attempt.content) }
+      } else {
+        attempt = await completeVision(VISION_RETRY_MAX_TOKENS)
+        if (attempt.finishReason === 'length') {
+          attempt = { ...attempt, content: trimToSentenceBoundary(attempt.content) }
+        }
       }
     }
     const result = attempt.content
@@ -514,10 +542,12 @@ export async function analyzePhotoStructuredOR(
   base64: string,
   mimeType: string,
   model?: string,
-  costContext?: CostContext
+  costContext?: CostContext,
+  /** Extra Langfuse generation metadata (Haiku-first vision: served_by / escalation). */
+  traceMetadata?: Record<string, unknown>
 ): Promise<PhotoExtraction> {
   try {
-    return await analyzePhotoStructuredCall(base64, mimeType, model, costContext)
+    return await analyzePhotoStructuredCall(base64, mimeType, model, costContext, traceMetadata)
   } catch (err) {
     // Phase 3 (3.10): same ops-alert path as callWithFallback (ai_provider_failed),
     // but the original (typed) error is rethrown untouched and nothing is retried:
@@ -549,7 +579,8 @@ async function analyzePhotoStructuredCall(
   base64: string,
   mimeType: string,
   model: string | undefined,
-  costContext: CostContext | undefined
+  costContext: CostContext | undefined,
+  traceMetadata?: Record<string, unknown>
 ): Promise<PhotoExtraction> {
   const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
   const visionModel = model ?? OR_DEFAULTS.chat
@@ -672,6 +703,7 @@ async function analyzePhotoStructuredCall(
       model: visionModel,
       input: { mimeType, prompt: PHOTO_EXTRACTION_PROMPT },
       startTime,
+      ...(traceMetadata ? { metadata: { served_by: visionModel, ...traceMetadata } } : {}),
     })
     gen.end({ output: result.overall_description.slice(0, 500), endTime: new Date() })
     await langfuseClient.flushAsync()

@@ -28,6 +28,7 @@ import { makeGenerateNode } from './nodes/generate'
 import { assessNode } from './nodes/assess'
 import { autoRefineNode } from './nodes/auto-refine'
 import { recoverDraftNode } from './nodes/recover-draft'
+import { makePatchRefineNode, type PersistPatch } from './nodes/patch-refine'
 import { checkGeneratedEdge, checkVagueAfterAssessEdge } from './nodes/decide'
 
 /**
@@ -42,7 +43,17 @@ function checkInputsEdge(state: EstimateStateType): string {
 
 export function buildEstimateGraph(
   adapter: ChannelAdapter,
-  { runner = passthroughRunner }: { runner?: StepRunner } = {}
+  {
+    runner = passthroughRunner,
+    persistPatch,
+  }: {
+    runner?: StepRunner
+    /**
+     * Phase 4d (ESTIMATOR_PATCH_REFINE, default off): the write path for an ACCEPTED section patch.
+     * Without it (the default) auto-refine always regenerates, whatever the flag says.
+     */
+    persistPatch?: PersistPatch
+  } = {}
 ) {
   const graph = new StateGraph(EstimateState)
     // Adapter edge nodes (channel-specific behavior is injected here).
@@ -54,6 +65,8 @@ export function buildEstimateGraph(
     .addNode('assess', assessNode)
     .addNode('autoRefine', autoRefineNode)
     .addNode('recoverDraft', recoverDraftNode)
+    // Phase 4d: only reachable when the flag is on AND a persistence hook was injected.
+    .addNode('patchRefine', makePatchRefineNode(runner, persistPatch ?? (async () => null)))
     // Topology.
     .addEdge(START, 'ingest')
     .addConditionalEdges('ingest', checkInputsEdge, ['generate', 'onError'])
@@ -62,8 +75,14 @@ export function buildEstimateGraph(
     // checkVagueAfterAssessEdge routes to autoRefine on first vague result,
     // then to finalize once refineAttempts >= 1. The BOTH targets MUST be
     // listed in the 3rd argument for LangGraph 1.3.6 reachability (Pitfall 1).
-    .addConditionalEdges('assess', checkVagueAfterAssessEdge, ['finalize', 'autoRefine', 'recoverDraft'])
+    .addConditionalEdges(
+      'assess',
+      (s) => checkVagueAfterAssessEdge(s, { patchAvailable: !!persistPatch }),
+      ['finalize', 'autoRefine', 'recoverDraft', 'patchRefine']
+    )
     .addEdge('autoRefine', 'generate')
+    // A patch never loops: accepted or kept, the (first or patched) draft is delivered.
+    .addEdge('patchRefine', 'finalize')
     // A draft that could not be restored (failure left in state) is a real error.
     .addConditionalEdges('recoverDraft', (s) => (s.estimateId && !s.failure ? 'finalize' : 'onError'), ['finalize', 'onError'])
     .addEdge('finalize', END)

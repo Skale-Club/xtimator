@@ -13,7 +13,15 @@ import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
-import { analyzePhotoOR, analyzePhotoStructuredOR } from '@/lib/ai/openrouter-client'
+import {
+  analyzePhotoOR,
+  analyzePhotoSingleAttemptOR,
+  analyzePhotoStructuredOR,
+  OR_DEFAULTS,
+} from '@/lib/ai/openrouter-client'
+import { resolveSlotModel } from '@/lib/ai/step-models'
+import { isHaikuModel } from '@/lib/ai/model-policy'
+import { extractPhotoHaikuFirst } from '@/lib/ai/vision-escalation'
 import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 import type { Json } from '@/types/database.types'
 import { recordUsage } from '@/lib/quota'
@@ -246,15 +254,26 @@ export const analyzePhotosJob = inngest.createFunction(
             // photo: it falls through to the proven prose ladder below,
             // exactly as today — only a prose failure (unchanged from
             // 168-01) counts against skip-and-continue.
+            // Phase 4b/4c: admin `vision` slot. Unset/invalid (the default) ->
+            // undefined -> OR_DEFAULTS.chat inside the client, exactly as before.
+            // A Haiku slot switches on the Haiku-first ladder (extractPhotoHaikuFirst);
+            // a Sonnet/Opus slot just replaces the model on today's ladder.
+            const visionModel = await resolveSlotModel('vision', undefined)
+            const haikuFirst = isHaikuModel(visionModel)
             let extraction: PhotoExtraction | undefined
             if (process.env.PHOTO_STRUCTURED_EXTRACTION !== 'off') {
               try {
-                extraction = await analyzePhotoStructuredOR(
-                  base64,
-                  mimeType,
-                  undefined,
-                  costContext
-                )
+                if (haikuFirst) {
+                  const r = await extractPhotoHaikuFirst(base64, mimeType, visionModel, costContext)
+                  extraction = r.extraction
+                } else {
+                  extraction = await analyzePhotoStructuredOR(
+                    base64,
+                    mimeType,
+                    visionModel,
+                    costContext
+                  )
+                }
               } catch (structuredErr) {
                 console.warn(
                   `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
@@ -287,7 +306,11 @@ export const analyzePhotosJob = inngest.createFunction(
               return { photoId: photo.id, description: extraction.overall_description }
             }
 
-            const description = await analyzePhotoOR(base64, mimeType, undefined, costContext)
+            // Haiku-first: the prose rung runs on the Sonnet chat model, once (no
+            // truncation retry). Otherwise unchanged (slot model or the default).
+            const description = haikuFirst
+              ? await analyzePhotoSingleAttemptOR(base64, mimeType, OR_DEFAULTS.chat, costContext)
+              : await analyzePhotoOR(base64, mimeType, visionModel, costContext)
             const { error: descErr } = await supabase
               .from('photos')
               .update({ ai_description: description })

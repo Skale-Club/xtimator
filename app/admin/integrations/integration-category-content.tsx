@@ -1,4 +1,5 @@
 import {
+  getAiModelSettings,
   getOpenRouterDefaultModel,
   getTranscriptionModel,
 } from '@/lib/platform-config'
@@ -9,6 +10,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { T } from '@/components/i18n/t'
 
 import { OpenRouterModelForm } from './openrouter-model-form'
+import { ModelSlotsForm } from './model-slots-form'
 import { TranscriptionModelSelector } from './transcription-model-selector'
 import { IntegrationCard } from './integration-card'
 import { TwilioFromPhoneForm } from './twilio-from-phone-form'
@@ -33,11 +35,12 @@ type IntegrationCategoryContentProps = {
 export async function IntegrationCategoryContent({
   category,
 }: IntegrationCategoryContentProps) {
-  const [initials, openRouterModel, transcriptionModel] =
+  const [initials, openRouterModel, transcriptionModel, aiSettings] =
     await Promise.all([
       loadCategoryInitials(category),
       category.showAISelector ? getOpenRouterDefaultModel() : Promise.resolve(null),
       category.showAISelector ? getTranscriptionModel() : Promise.resolve(null),
+      category.showAISelector ? getAiModelSettings() : Promise.resolve(null),
     ])
 
   let twilioFromPhone = ''
@@ -183,6 +186,10 @@ export async function IntegrationCategoryContent({
       {category.showAISelector && (
         <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
           <OpenRouterModelForm currentModel={openRouterModel} />
+          <ModelSlotsForm
+            models={aiSettings?.models ?? {}}
+            escalation={aiSettings?.escalation ?? null}
+          />
           <TranscriptionModelSelector current={transcriptionModel ?? 'openai/whisper-1'} />
         </div>
       )}

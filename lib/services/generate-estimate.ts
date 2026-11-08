@@ -47,6 +47,8 @@ import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/str
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { planScope } from '@/lib/ai/plan-scope'
 import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
+import { decideDraftEscalation } from '@/lib/ai/model-policy'
+import { getEscalationConfig } from '@/lib/ai/step-models'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -393,7 +395,19 @@ export async function generateEstimateForProject(
     })
   }
 
-  const provider = await getAIProviderWithFallback(companyId)
+  // Phase 4g: optional Opus escalation of the DRAFT call for large jobs. Disabled
+  // unless ai_config.metadata.escalation.enabled === true with an Opus model; with
+  // nothing configured the provider resolves exactly as before.
+  const escalationModel = await decideDraftModel({
+    plan: estimateInput.plan,
+    sourceChars: [...transcripts, ...prompts].reduce((n, t) => n + t.length, 0),
+    targetBudget: estimateInput.targetBudget,
+    companyId,
+    projectId: options.costContext?.projectId ?? null,
+  })
+  const provider = escalationModel
+    ? await getAIProviderWithFallback(companyId, { modelOverride: escalationModel })
+    : await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
   // SEED-057 C: the estimator is told to carry the plan's assumptions,
@@ -1013,5 +1027,55 @@ export async function generateEstimateForProject(
     openQuestions: [...(aiNotes.open_questions ?? [])]
       .sort((a, b) => IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact])
       .map((q) => q.question),
+  }
+}
+
+
+/**
+ * Phase 4g gate: returns the escalation (Opus) model for the draft call, or null
+ * to keep today's model resolution. Never throws; null when disabled/unreadable.
+ * Logs the decision (console.info + Langfuse generation metadata) whenever the
+ * feature is enabled, whether or not it escalates.
+ */
+async function decideDraftModel(args: {
+  plan: EstimateInput['plan']
+  sourceChars: number
+  targetBudget: number | null | undefined
+  companyId: string
+  projectId: string | null
+}): Promise<string | null> {
+  try {
+    const cfg = await getEscalationConfig()
+    if (!cfg) return null
+    const decision = decideDraftEscalation(cfg, {
+      plan: args.plan,
+      sourceChars: args.sourceChars,
+      targetBudget: args.targetBudget,
+    })
+    const meta = {
+      escalated: decision.escalate,
+      reason: decision.reason,
+      model: decision.escalate ? cfg.model : null,
+      hasPlan: Boolean(args.plan),
+      planSections: args.plan?.sections.length ?? null,
+      scopeConfidence: args.plan?.scope_confidence ?? null,
+      sourceChars: args.sourceChars,
+      companyId: args.companyId,
+      projectId: args.projectId,
+    }
+    console.info('[draft_escalation]', meta)
+    try {
+      const { langfuseClient } = await import('@/lib/observability/langfuse')
+      langfuseClient
+        .generation({ name: 'draft_model_decision', model: meta.model ?? undefined, input: meta, metadata: meta })
+        .end({ output: meta })
+      await langfuseClient.flushAsync()
+    } catch (err) {
+      console.warn('[draft_escalation] langfuse trace failed:', err)
+    }
+    return decision.escalate ? cfg.model : null
+  } catch (err) {
+    console.warn('[draft_escalation] decision failed (using default model):', err)
+    return null
   }
 }

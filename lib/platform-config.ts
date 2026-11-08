@@ -3,6 +3,12 @@ import { cache } from 'react'
 import { createServiceClient } from '@/lib/supabase/service'
 import { decrypt } from '@/lib/crypto/aes'
 import { invalidateBillingConfigCache } from '@/lib/billing/billing-config'
+import {
+  parseEscalationConfig,
+  parseModelSlots,
+  type EscalationConfig,
+  type ModelSlots,
+} from '@/lib/ai/model-policy'
 
 export type Branding = {
   appName: string
@@ -106,6 +112,7 @@ export interface WhatsAppPlatformConfig {
 }
 
 let whatsAppConfigCache: { value: WhatsAppPlatformConfig; fetchedAt: number } | null = null
+let aiModelSettingsCache: { value: AiModelSettings; fetchedAt: number } | null = null
 
 export const DEFAULT_LANDING_CONTENT: LandingContent = {
   heroHeadline: 'Professional estimates in seconds',
@@ -339,6 +346,7 @@ export function invalidatePlatformConfig(): void {
   brandingCache = null
   integrationCache.clear()
   whatsAppConfigCache = null
+  aiModelSettingsCache = null
   // Flush the 30s billing_config TTL so a Plan 02 admin save applies at runtime
   // without a deploy (BILLCFG-02 runtime-apply key link).
   invalidateBillingConfigCache()
@@ -480,16 +488,56 @@ export async function getTelegramConfig(): Promise<TelegramConfig> {
  * engine, so this is the default model for any company with no override set.
  */
 export async function getOpenRouterDefaultModel(): Promise<string | null> {
+  const { defaultModel } = await getAiModelSettings()
+  return defaultModel
+}
+
+/** Validated view of `platform_integrations.ai_config.metadata` for model routing. */
+export type AiModelSettings = {
+  /** Raw `openrouter_default_model` (callers still apply the chat-model policy). */
+  defaultModel: string | null
+  /** Per-step slots; only policy-valid entries are present. */
+  models: ModelSlots
+  /** Opus escalation for the draft call; null = disabled or invalid. */
+  escalation: EscalationConfig | null
+}
+
+const EMPTY_AI_MODEL_SETTINGS: AiModelSettings = { defaultModel: null, models: {}, escalation: null }
+
+/**
+ * Read `ai_config.metadata` (default model, `models` slots, `escalation`) with a
+ * 30 s in-memory cache, invalidated by `invalidatePlatformConfig()` (every admin
+ * save). Slots and escalation are validated at read time, so a hand-edited
+ * invalid value can never reach OpenRouter. A failed read is NOT cached and
+ * resolves to "nothing configured" (today's behavior).
+ */
+export async function getAiModelSettings(): Promise<AiModelSettings> {
+  const now = Date.now()
+  if (aiModelSettingsCache && now - aiModelSettingsCache.fetchedAt < TTL_MS) {
+    return aiModelSettingsCache.value
+  }
   const svc = createServiceClient()
-  if (!svc) return null
-  const { data } = await svc
-    .from('platform_integrations')
-    .select('metadata')
-    .eq('provider', 'ai_config')
-    .maybeSingle()
-  const model = (data?.metadata as { openrouter_default_model?: string } | null)
-    ?.openrouter_default_model
-  return model && model.trim() ? model : null
+  if (!svc) return EMPTY_AI_MODEL_SETTINGS
+  let meta: Record<string, unknown> | null
+  try {
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    meta = (data?.metadata as Record<string, unknown> | null) ?? null
+  } catch (err) {
+    console.warn('[platform-config] ai_config read failed; using defaults:', err)
+    return EMPTY_AI_MODEL_SETTINGS
+  }
+  const model = meta?.openrouter_default_model
+  const value: AiModelSettings = {
+    defaultModel: typeof model === 'string' && model.trim() ? model : null,
+    models: parseModelSlots(meta?.models),
+    escalation: parseEscalationConfig(meta?.escalation),
+  }
+  aiModelSettingsCache = { value, fetchedAt: now }
+  return value
 }
 
 /** Default speech-to-text model — an OpenRouter slug routed to OpenAI Whisper. */

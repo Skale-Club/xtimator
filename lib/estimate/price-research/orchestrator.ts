@@ -50,6 +50,7 @@ import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { normalizeServiceNameKey, normalizeRegion } from './normalize'
 import { conceptMapKey, priceConcept } from '@/lib/estimate/pricing/concept-key'
 import { unitKey } from '@/lib/ai/units'
+import { isPriceBandsEnabled, withinRatioBand } from '@/lib/estimate/pricing/price-bands'
 
 /**
  * Context supplied by the caller (generate-estimate.ts, in 108-04). Region/currency/
@@ -181,6 +182,17 @@ function unitCompatible(requested: string | undefined, returned: string | null |
 }
 
 /**
+ * A result quoted in a different currency than the estimate's is not usable (a BRL figure must
+ * not become a USD price). ALWAYS ON. A missing/blank currency is accepted, which keeps every
+ * adapter that does not return one working.
+ */
+export function currencyCompatible(estimateCurrency: string, returned: string | null | undefined): boolean {
+  const r = (returned ?? '').trim().toUpperCase()
+  if (!r) return true
+  return r === (estimateCurrency ?? '').trim().toUpperCase()
+}
+
+/**
  * Research the post-anchor `ai_estimate` items against the tenant cache + the gated
  * provider, evidence-gate the re-tag, meter each search, and never resolve to $0.
  * NEVER throws — any error returns the input sections + a best-effort flagged count.
@@ -274,9 +286,15 @@ export async function researchUnmatchedPrices(
       })
     )
 
+    // ESTIMATOR_PRICE_BANDS (default off): read once per call.
+    const bands = isPriceBandsEnabled()
+
     const misses: LineItemOutput[] = []
     for (const { item, cached } of cacheReads) {
       if (cached && isPriced(cached.unit_price)) {
+        // Flagged: a cached price outside 0.33x..3x of the model's own is rejected. No provider
+        // call follows (the same search would be cached again): the item keeps ai_estimate.
+        if (bands && !withinRatioBand(item.unit_price, cached.unit_price)) continue
         retag.set(item, { ...item, unit_price: cached.unit_price, price_source: 'researched' as const })
         cacheHits++ // telemetry: a free cache-hit re-tag
       } else {
@@ -295,7 +313,12 @@ export async function researchUnmatchedPrices(
         const mk = buildMemoKey(ctx.region, m.description, m.unit)
         if (memo.has(mk)) {
           const memoized = memo.get(mk) ?? null
-          if (memoized && isUsableCandidate(memoized) && typeof memoized.unit_price === 'number') {
+          if (
+            memoized &&
+            isUsableCandidate(memoized) &&
+            typeof memoized.unit_price === 'number' &&
+            (!bands || withinRatioBand(m.unit_price, memoized.unit_price))
+          ) {
             retag.set(m, { ...m, unit_price: memoized.unit_price, price_source: 'researched' as const })
             providerUsable++ // telemetry: memo HIT re-tag came from an evidence-gated provider result
           }
@@ -375,7 +398,8 @@ export async function researchUnmatchedPrices(
               const usable =
                 isUsableCandidate(result) &&
                 typeof result.unit_price === 'number' &&
-                unitCompatible(requested.unit, result.unit)
+                unitCompatible(requested.unit, result.unit) &&
+                currencyCompatible(ctx.currency, result.currency)
               // Memoize the outcome (a usable result, or null for a known miss) so a
               // duplicate (normName, region) later in THIS call is a free memo HIT.
               memo.set(mk, usable ? result : null)
@@ -385,6 +409,8 @@ export async function researchUnmatchedPrices(
               if (usable) {
                 for (const m of remaining) {
                   if (buildMemoKey(ctx.region, m.description, m.unit) === mk) {
+                    // Flagged: outside 0.33x..3x of THIS line's model price -> not re-tagged.
+                    if (bands && !withinRatioBand(m.unit_price, result.unit_price as number)) continue
                     // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).
                     if (!retag.has(m)) providerUsable++
                     retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })

@@ -46,6 +46,14 @@ export const painting: Playbook = {
     ['ceiling', 'ceilings'],
     ['prime', 'primer', 'priming'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'interior wall painting', match: ['paint', 'wall'], bands: { 'sq ft': [0.5, 6] } },
+    { concept: 'exterior painting', match: ['exterior'], bands: { 'sq ft': [0.8, 8] } },
+    { concept: 'trim and baseboard painting', match: ['trim', 'baseboard', 'crown'], bands: { 'linear ft': [0.75, 10] } },
+    { concept: 'painter labor', match: ['labor'], bands: { 'hour': [25, 130] } },
+  ],
   example: {
     scenario: 'Repaint walls, ceiling and trim of a 12 x 14 ft bedroom with 8 ft ceilings, one door and one window.',
     sections: [

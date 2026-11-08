@@ -6,7 +6,15 @@ import Anthropic from '@anthropic-ai/sdk'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { isAllowedChatModel, CHAT_MODEL_POLICY_MESSAGE } from '@/lib/ai/model-policy'
+import {
+  isAllowedChatModel,
+  CHAT_MODEL_POLICY_MESSAGE,
+  MODEL_SLOTS,
+  isAllowedSlotModel,
+  isOpusModel,
+  slotPolicyMessage,
+  type ModelSlot,
+} from '@/lib/ai/model-policy'
 import { encrypt } from '@/lib/crypto/aes'
 import {
   getIntegrationKey,
@@ -851,6 +859,136 @@ export async function setGlobalOpenRouterModel(
   })
 
   return { ok: true, message: `Default OpenRouter model set to ${trimmed}.` }
+}
+
+/** Read-modify-write helper for `ai_config.metadata` (keeps unrelated keys). */
+async function writeAiConfigMetadata(
+  userId: string,
+  mutate: (prev: Record<string, unknown>) => Record<string, unknown>
+): Promise<{ ok: true; prev: Record<string, unknown> } | { ok: false; message: string }> {
+  const svc = requireServiceClient()
+  let prevMeta: Record<string, unknown> = {}
+  try {
+    const { data: prev } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'ai_config')
+      .maybeSingle()
+    prevMeta = (prev?.metadata ?? {}) as Record<string, unknown>
+  } catch {
+    // non-fatal: overwrite with just the new keys
+  }
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'ai_config',
+      ciphertext: null,
+      iv: null,
+      auth_tag: null,
+      metadata: mutate(prevMeta),
+      updated_at: new Date().toISOString(),
+      updated_by: userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) return { ok: false, message: error.message }
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+  return { ok: true, prev: prevMeta }
+}
+
+/**
+ * Set (or clear, with an empty model) ONE per-step model slot in
+ * `ai_config.metadata.models` (Phase 4c). Per-slot policy: vision / plan / review
+ * accept Haiku, Sonnet or Opus; draft / research accept Sonnet or Opus. An empty
+ * model removes the slot, which restores today's default for that step.
+ */
+export async function setModelSlot(slot: string, model: string): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  if (!(MODEL_SLOTS as readonly string[]).includes(slot)) {
+    return { ok: false, message: 'Unknown model slot' }
+  }
+  const s = slot as ModelSlot
+  const trimmed = (model ?? '').trim()
+  if (trimmed && !/^[\w./:-]+$/.test(trimmed)) {
+    return { ok: false, message: 'Invalid model id format' }
+  }
+  if (trimmed && !isAllowedSlotModel(s, trimmed)) {
+    return { ok: false, message: slotPolicyMessage(s) }
+  }
+
+  const res = await writeAiConfigMetadata(ctx.userId, (prev) => {
+    const models = { ...((prev.models as Record<string, unknown> | undefined) ?? {}) }
+    if (trimmed) models[s] = trimmed
+    else delete models[s]
+    return { ...prev, models }
+  })
+  if (!res.ok) return res
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set_model_slot',
+    targetType: 'ai_config',
+    targetId: `models.${s}`,
+    metadata: {
+      slot: s,
+      model: trimmed || null,
+      previous: ((res.prev.models as Record<string, unknown> | undefined) ?? {})[s] ?? null,
+    },
+  })
+  return {
+    ok: true,
+    message: trimmed ? `The ${s} step now uses ${trimmed}.` : `The ${s} step is back to its default model.`,
+  }
+}
+
+export type EscalationInput = {
+  enabled: boolean
+  model: string
+  minTotalUsd?: number | null
+  minSections?: number | null
+  onLowScopeConfidence?: boolean
+}
+
+/**
+ * Persist `ai_config.metadata.escalation` (Phase 4g). Disabled by default; when
+ * enabled the model must be an Opus slug. Disabling keeps the thresholds so the
+ * owner can flip it back on.
+ */
+export async function setEscalationConfig(input: EscalationInput): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const model = (input.model ?? '').trim()
+  if (input.enabled && !isOpusModel(model)) {
+    return { ok: false, message: 'Escalation needs a Claude Opus model (e.g. anthropic/claude-opus-5).' }
+  }
+  if (model && !/^[\w./:-]+$/.test(model)) {
+    return { ok: false, message: 'Invalid model id format' }
+  }
+  const num = (v: number | null | undefined, int: boolean) =>
+    typeof v === 'number' && Number.isFinite(v) && v > 0 && (!int || Number.isInteger(v)) ? v : undefined
+  const escalation = {
+    enabled: input.enabled === true,
+    model,
+    ...(num(input.minTotalUsd, false) !== undefined ? { minTotalUsd: num(input.minTotalUsd, false) } : {}),
+    ...(num(input.minSections, true) !== undefined ? { minSections: num(input.minSections, true) } : {}),
+    onLowScopeConfidence: input.onLowScopeConfidence === true,
+  }
+
+  const res = await writeAiConfigMetadata(ctx.userId, (prev) => ({ ...prev, escalation }))
+  if (!res.ok) return res
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'ai_provider.set_escalation',
+    targetType: 'ai_config',
+    targetId: 'escalation',
+    metadata: { ...escalation, previous: res.prev.escalation ?? null },
+  })
+  return {
+    ok: true,
+    message: escalation.enabled ? 'Opus escalation enabled.' : 'Opus escalation disabled.',
+  }
 }
 
 /**

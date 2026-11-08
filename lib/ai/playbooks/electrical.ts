@@ -44,6 +44,15 @@ export const electrical: Playbook = {
     ['light', 'fixture', 'luminaire', 'lamp'],
     ['install', 'installation', 'replace', 'replacement', 'swap'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'outlet or switch install', match: ['outlet', 'switch', 'receptacle'], bands: { 'each': [30, 400] } },
+    { concept: 'light fixture install', match: ['light', 'fixture', 'fan'], bands: { 'each': [40, 900] } },
+    { concept: 'panel upgrade', match: ['panel'], bands: { 'each': [800, 6000], 'job': [800, 6000] } },
+    { concept: 'wire run', match: ['wire', 'romex', 'conduit'], bands: { 'linear ft': [1, 40] } },
+    { concept: 'electrician labor', match: ['labor', 'service call'], bands: { 'hour': [50, 250] } },
+  ],
   example: {
     scenario: 'Add two 20 A kitchen outlets on a new circuit and swap six bedroom outlets for tamper-resistant ones.',
     sections: [

@@ -53,6 +53,7 @@ export const makeGenerateNode =
         estimateId: result.estimateId,
         estimateLanguage: result.language,
         structureBand: result.structure?.band,
+        structureScore: result.structure?.score,
         structureHints: result.structure?.hints,
         openQuestions: result.openQuestions,
       }

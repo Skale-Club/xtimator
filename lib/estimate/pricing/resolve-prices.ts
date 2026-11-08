@@ -17,7 +17,13 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstimateSectionOutput } from '@/lib/ai/types'
-import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
+import { anchorAndClampSections, type AnchorBookRow } from '@/lib/ai/price-anchoring'
+import type { Playbook } from '@/lib/ai/playbooks/types'
+import {
+  ceilingInCurrency,
+  isPriceBandsEnabled,
+  priceOutsideBand,
+} from '@/lib/estimate/pricing/price-bands'
 import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
 import {
   applyCompanyHistory,
@@ -47,8 +53,12 @@ export interface ResolvePricesProgress {
 export interface ResolvePricesOptions {
   companyId: string // trusted, never LLM-derived
   currencyCode: string
-  /** Already company-scoped and currency-filtered by the caller. */
-  priceBookItems: Array<{ name: string; unit_price: number }>
+  /**
+   * Already company-scoped and currency-filtered by the caller. `unit`, `pricing_type`,
+   * `price_per_unit` and `minimum_price` are optional: when present they are passed to anchoring
+   * (area_based rows with unit_price 0 stop anchoring a $0 line; the unit check is flagged).
+   */
+  priceBookItems: AnchorBookRow[]
   region: { city: string | null; state: string | null }
   supabase: SupabaseClient
   attemptId?: string
@@ -59,6 +69,12 @@ export interface ResolvePricesOptions {
    * ceiling. Omit to skip the dedupe (refine does: it works on a partial line set).
    */
   totalCeiling?: number
+  /**
+   * ESTIMATOR_PRICE_BANDS (flagged): the trade playbook the estimate was drafted under. When it
+   * has `priceBands`, a model or researched price outside its band gets confidence 'low' (the
+   * price is never changed). Omit to skip the check.
+   */
+  playbook?: Pick<Playbook, 'priceBands'> | null
   /** Phase narration hook; called at pricing entry and again after research. */
   onProgress?: (progress: ResolvePricesProgress) => void
 }
@@ -106,9 +122,18 @@ export async function resolveLinePrices(
   let clampedCount = 0
   let historyAppliedCount = 0
   try {
+    const bands = isPriceBandsEnabled()
     const anchored = anchorAndClampSections(
       demoteModelPriceSources(sections),
-      opts.priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
+      opts.priceBookItems.map((p) => ({
+        name: p.name,
+        unit_price: p.unit_price,
+        unit: p.unit,
+        pricing_type: p.pricing_type,
+        price_per_unit: p.price_per_unit,
+        minimum_price: p.minimum_price,
+      })),
+      bands ? { compareUnits: true, currencyCode: opts.currencyCode } : {}
     )
     anchoredCount = anchored.anchoredCount
     clampedCount = anchored.clampedCount
@@ -172,6 +197,16 @@ export async function resolveLinePrices(
     console.warn('[generate-estimate] price research failed (non-fatal)', err)
   }
 
+  // ESTIMATOR_PRICE_BANDS: low confidence on lines whose model/researched price is outside the
+  // playbook band. Never changes a price.
+  if (opts.playbook?.priceBands?.length && isPriceBandsEnabled()) {
+    try {
+      researchedSections = markOutOfBandLines(researchedSections, opts.playbook, opts.currencyCode)
+    } catch (err) {
+      console.warn('[resolve-prices] playbook bands failed (non-fatal)', err)
+    }
+  }
+
   if (opts.totalCeiling === undefined) {
     return {
       sections: researchedSections,
@@ -186,8 +221,9 @@ export async function resolveLinePrices(
 
   // AIREL-04: collapse exact-duplicate lines (computedTotal 0: the over-ceiling verdict
   // is the caller's, against the real server grand total).
+  // `totalCeiling` is a USD figure; flagged, it is converted for a non-USD estimate (approximate).
   const consistency = checkEstimateConsistency(researchedSections, 0, {
-    totalCeiling: opts.totalCeiling,
+    totalCeiling: ceilingInCurrency(opts.totalCeiling, opts.currencyCode),
   })
   return {
     sections: consistency.sections as unknown as EstimateSectionOutput[],
@@ -198,4 +234,21 @@ export async function resolveLinePrices(
     researchTelemetry,
     consistencyFlags: consistency.flags,
   }
+}
+
+/**
+ * Set confidence 'low' on every model/researched line priced outside its playbook band. The price,
+ * price_source and every other field are untouched. Pure.
+ */
+export function markOutOfBandLines(
+  sections: EstimateSectionOutput[],
+  playbook: Pick<Playbook, 'priceBands'>,
+  currencyCode: string
+): EstimateSectionOutput[] {
+  return sections.map((section) => ({
+    ...section,
+    items: section.items.map((item) =>
+      priceOutsideBand(playbook, item, currencyCode) ? { ...item, confidence: 'low' as const } : item
+    ),
+  }))
 }

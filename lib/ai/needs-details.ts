@@ -28,6 +28,7 @@ import {
   type CostContext,
 } from '@/lib/ai/openrouter-client'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
+import { resolveSlotModel } from '@/lib/ai/step-models'
 
 export type NeedsDetailsReason = 'mic_test' | 'too_short' | 'missing_specifics'
 
@@ -74,6 +75,8 @@ export async function buildNeedsDetails(
 ): Promise<NeedsDetailsResult> {
   try {
     const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
+    // Slot `review` (admin) else Haiku, exactly as before.
+    const reviewModel = await resolveSlotModel('review', OR_DEFAULTS.fast)
     const langLabel = LANGUAGE_LABEL[language] ?? LANGUAGE_LABEL.en
     const trade = industryHint?.trim() || 'field service'
     const input = transcriptOrDescription.trim().slice(0, 4000)
@@ -102,7 +105,7 @@ export async function buildNeedsDetails(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: OR_DEFAULTS.fast,
+        model: reviewModel,
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
         // Request the real upstream USD cost in the response usage block.
@@ -130,7 +133,7 @@ export async function buildNeedsDetails(
       attemptId: costContext?.attemptId ?? randomUUID(),
       operationType: 'chat',
       provider: 'openrouter',
-      model: OR_DEFAULTS.fast,
+      model: reviewModel,
       realCostUsd: typeof json.usage?.cost === 'number' ? json.usage.cost : null,
       companyId: costContext?.companyId ?? null,
       projectId: costContext?.projectId ?? null,

@@ -25,10 +25,11 @@ import { randomUUID } from 'node:crypto'
 import { getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { resolveOpenRouterKey } from '@/lib/ai/openrouter-client'
 import { createServiceClient } from '@/lib/supabase/service'
-import { buildResearchSearchPrompt } from '../search-prompt'
+import { buildResearchSearchPrompt, buildResearchSystemPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
 import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { resolveSlotModel } from '@/lib/ai/step-models'
 import { isAllowedChatModel } from '@/lib/ai/model-policy'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
@@ -49,13 +50,6 @@ const MAX_SEARCH_RESULTS = 5
 const RESEARCH_TIMEOUT_MS = 300_000
 
 type ResearchEngine = 'exa' | 'native'
-
-const RESEARCH_SYSTEM =
-  'You are a market-price researcher. For each requested service, search the web ' +
-  "for the average US market unit price in the client's city/state and return a " +
-  'JSON object {results:[{name, unit_price, currency, unit, source_url, snippet}]}. Only ' +
-  'include a price when you have a real supporting source_url + snippet; omit ' +
-  'ungrounded guesses.'
 
 type UrlCitation = {
   type?: string
@@ -161,16 +155,19 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
       }
 
       try {
-        const configured = await getOpenRouterDefaultModel()
-        const model = isAllowedChatModel(configured) ? configured.trim() : FALLBACK_MODEL
+        // Slot `research` (admin, Sonnet/Opus) wins; else the platform default, else Sonnet.
+        const researchSlot = await resolveSlotModel('research', null)
+        const configured = researchSlot ? null : await getOpenRouterDefaultModel()
+        const model =
+          researchSlot ?? (isAllowedChatModel(configured) ? configured.trim() : FALLBACK_MODEL)
         const engine = await resolveEngine()
 
         const body = {
           model,
           max_tokens: 1500,
           messages: [
-            { role: 'system', content: RESEARCH_SYSTEM },
-            { role: 'user', content: buildResearchSearchPrompt(items, region) },
+            { role: 'system', content: buildResearchSystemPrompt(currency, region.state) },
+            { role: 'user', content: buildResearchSearchPrompt(items, region, currency) },
           ],
           // SEPARATE web-search call — no forced-tool selection, no estimate tool.
           tools: [

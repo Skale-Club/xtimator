@@ -5,7 +5,7 @@ import 'server-only'
  * SEED-057 Phase C, step 1 of two-step generation (flag ESTIMATOR_TWO_STEP,
  * default OFF): the `plan_scope` call. See lib/ai/scope-plan.ts for the contract.
  *
- * Model (decision E4): OR_DEFAULTS.fast (Haiku). The expensive
+ * Model (decision E4): the `plan` slot when set, else OR_DEFAULTS.fast (Haiku). The expensive
  * `create_estimate` call stays on the configured model; this one only reads and
  * organises, it prices nothing, so a small model is enough and cheap.
  *
@@ -19,6 +19,7 @@ import 'server-only'
  * block stays LAST in the system prompt.
  */
 import { getORKey, OPENROUTER_BASE, OR_DEFAULTS, AI_CHAT_TIMEOUT_MS } from '@/lib/ai/openrouter-client'
+import { resolveSlotModel } from '@/lib/ai/step-models'
 import { getByokOpenRouterKey } from '@/lib/billing/byok'
 import { buildUserContent, languageInstruction, playbookFor, securityPrompt } from './prompt-builder'
 import { ESTIMATE_V2_TEXT, ESTIMATE_V2_TOP_PROPERTIES } from './tool-schema-v2'
@@ -115,7 +116,8 @@ export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome>
     const companyId = input.costContext?.companyId ?? null
     const byok = companyId ? await getByokOpenRouterKey(companyId).catch(() => null) : null
     const apiKey = byok ?? (await getORKey())
-    const model = OR_DEFAULTS.fast
+    // Slot `plan` (admin) else Haiku, exactly as before.
+    const model = await resolveSlotModel('plan', OR_DEFAULTS.fast)
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
       headers: {

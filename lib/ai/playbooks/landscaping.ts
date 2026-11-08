@@ -47,6 +47,14 @@ export const landscaping: Playbook = {
     ['shrub', 'bush', 'shrubs'],
     ['sprinkler', 'irrigation'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'lawn mowing', match: ['mow', 'lawn'], bands: { 'sq ft': [0.01, 0.5], 'job': [25, 500] } },
+    { concept: 'sod installation', match: ['sod'], bands: { 'sq ft': [0.4, 3] } },
+    { concept: 'mulch or topsoil delivery and spread', match: ['mulch', 'topsoil'], bands: { 'cu yd': [25, 200] } },
+    { concept: 'landscape crew labor', match: ['labor', 'crew'], bands: { 'hour': [20, 120] } },
+  ],
   example: {
     scenario: 'Front bed refresh: remove old plants, new mulch, six shrubs, drip line.',
     sections: [
