@@ -129,9 +129,8 @@ export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome>
       body: JSON.stringify({
         model,
         max_tokens: PLAN_MAX_TOKENS,
-        temperature: 0.2,
         messages: [
-          { role: 'system', content: buildPlanSystemPrompt(input) },
+          { role: 'system', content: `${buildPlanSystemPrompt(input)}\n\nRespond only by calling the plan_scope tool.` },
           { role: 'user', content: buildUserContent(input) },
         ],
         tools: [
@@ -144,7 +143,11 @@ export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome>
             },
           },
         ],
-        tool_choice: { type: 'function', function: { name: 'plan_scope' } },
+        // Claude 5.5 models (Sonnet 5.5 / Haiku 5.5) reject a forced tool_choice
+        // ("type tool and any are not supported for this model", HTTP 400) and any
+        // non-default temperature. So: tool_choice 'auto' + an explicit instruction to
+        // call plan_scope; a reply without the tool call is handled by the guards below.
+        tool_choice: 'auto',
         usage: { include: true },
       }),
       signal: AbortSignal.timeout(Math.min(PLAN_TIMEOUT_MS, AI_CHAT_TIMEOUT_MS)),

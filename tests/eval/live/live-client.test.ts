@@ -35,7 +35,7 @@ describe('runLiveCase (stubbed network)', () => {
 
     const body = calls[0] as { model: string; messages: Array<{ role: string; content: string }>; tool_choice: unknown }
     expect(body.model).toBe(DEFAULT_ESTIMATE_MODEL)
-    expect(body.tool_choice).toEqual({ type: 'function', function: { name: 'create_estimate' } })
+    expect(body.tool_choice).toBe('auto')
     expect(body.messages[0].content).toContain('## Trade playbook: Painting')
     expect(body.messages[0].content.trimEnd().split('\n').pop()).toMatch(/untrusted data/)
     expect(body.messages[1].content).toContain('<transcript>')
@@ -49,7 +49,7 @@ describe('runLiveCase (stubbed network)', () => {
       sections: [{ title: 'Walls' }],
     }
     const { fetchImpl, calls } = stubFetch((body) =>
-      (body.tool_choice as { function: { name: string } }).function.name === 'plan_scope'
+      (body.tools as Array<{ function: { name: string } }>)[0].function.name === 'plan_scope'
         ? toolResponse('plan_scope', plan, 0.002)
         : toolResponse('create_estimate', painting.reference, 0.01),
     )
@@ -66,7 +66,7 @@ describe('runLiveCase (stubbed network)', () => {
 
   it('two-step mode falls back to one step when the plan call fails', async () => {
     const { fetchImpl, calls } = stubFetch((body) => {
-      if ((body.tool_choice as { function: { name: string } }).function.name === 'plan_scope') throw new Error('plan down')
+      if ((body.tools as Array<{ function: { name: string } }>)[0].function.name === 'plan_scope') throw new Error('plan down')
       return toolResponse('create_estimate', painting.reference)
     })
     const result = await runLiveCase(painting, { apiKey: 'test', fetchImpl, twoStep: true })

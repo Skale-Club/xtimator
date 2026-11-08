@@ -71,6 +71,11 @@ export function inputFor(c: GoldenCase): EstimateInput {
   }
 }
 
+/** Claude 5.5 rejects a forced tool_choice: ask for the tool in the prompt, as production does. */
+function withToolInstruction<T>(content: T, tool: string): T | string {
+  return typeof content === 'string' ? `${content}\n\nRespond only by calling the ${tool} tool.` : content
+}
+
 async function callTool(
   opts: LiveOptions,
   body: Record<string, unknown>,
@@ -113,13 +118,13 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
           {
             model: opts.planModel ?? DEFAULT_PLAN_MODEL,
             max_tokens: 3000,
-            temperature: 0.2,
+            // Mirrors production: Claude 5.5 rejects forced tool_choice and non-default temperature.
             messages: [
-              { role: 'system', content: buildPlanSystemPrompt(input) },
+              { role: 'system', content: `${buildPlanSystemPrompt(input)}\n\nRespond only by calling the plan_scope tool.` },
               { role: 'user', content: buildUserContent(input) },
             ],
             tools: [{ type: 'function', function: { name: 'plan_scope', description: 'Produce the scope plan.', parameters: planScopeToolSchema } }],
-            tool_choice: { type: 'function', function: { name: 'plan_scope' } },
+            tool_choice: 'auto',
           },
           'plan_scope',
         )
@@ -142,10 +147,9 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
       {
         model: opts.model ?? DEFAULT_ESTIMATE_MODEL,
         max_tokens: 16384,
-        temperature: 0.3,
         messages: [
           { role: 'system', content: buildSystemPrompt(input) },
-          { role: 'user', content: buildUserContent(input) },
+          { role: 'user', content: withToolInstruction(buildUserContent(input), 'create_estimate') },
         ],
         tools: [
           {
@@ -157,7 +161,7 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
             },
           },
         ],
-        tool_choice: { type: 'function', function: { name: 'create_estimate' } },
+        tool_choice: 'auto',
       },
       'create_estimate',
     )

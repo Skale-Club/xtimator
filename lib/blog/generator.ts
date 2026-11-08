@@ -146,7 +146,6 @@ async function callTextModel(
             { role: 'system', content: system },
             { role: 'user', content: prompt },
           ],
-          temperature: 0.7,
           // Ask for the real upstream USD cost so the ledger is not a guess.
           usage: { include: true },
         }),

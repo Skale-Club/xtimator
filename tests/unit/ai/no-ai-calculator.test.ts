@@ -29,8 +29,9 @@ describe('ENG-01: AI has no calculator tool and no server-trusted computed-total
     })
   }
 
-  it('the only tool_choice target is create_estimate', () => {
+  it('create_estimate is requested with tool_choice auto (Claude 5.5 rejects forced tool use)', () => {
     const openrouter = readFileSync('lib/ai/providers/openrouter.ts', 'utf8')
-    expect(openrouter).toMatch(/tool_choice:\s*\{\s*type:\s*'function',\s*function:\s*\{\s*name:\s*'create_estimate'/)
+    expect(openrouter).toMatch(/tool_choice:\s*'auto'/)
+    expect(openrouter).toMatch(/Respond only by calling the create_estimate tool\./)
   })
 })

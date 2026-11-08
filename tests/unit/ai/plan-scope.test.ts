@@ -79,7 +79,10 @@ describe('planScope', () => {
     const body = JSON.parse((init as { body: string }).body)
     expect(body.model).toBe('haiku-model')
     expect(body.max_tokens).toBeLessThanOrEqual(3_000)
-    expect(body.tool_choice).toEqual({ type: 'function', function: { name: 'plan_scope' } })
+    // Claude 5.5 rejects a forced tool_choice and a non-default temperature (HTTP 400).
+    expect(body.tool_choice).toBe('auto')
+    expect(body.temperature).toBeUndefined()
+    expect(body.messages[0].content).toMatch(/Respond only by calling the plan_scope tool\.$/)
     expect(body.tools[0].function.parameters).toEqual(JSON.parse(JSON.stringify(planScopeToolSchema)))
   })
 

@@ -58,7 +58,8 @@ describe('makeWhatsAppLLM', () => {
     expect(ctorArgs[0].configuration.baseURL).toBe('https://openrouter.ai/api/v1')
     expect(ctorArgs[0].apiKey).toBe('or-platform-key')
     expect(ctorArgs[0].model).toBe('anthropic/claude-sonnet-5.5')
-    expect(ctorArgs[0].temperature).toBe(0)
+    // Claude 5.5 rejects a non-default temperature (HTTP 400): none is set.
+    expect(ctorArgs[0].temperature).toBeUndefined()
     expect(mockGetIntegrationKey).not.toHaveBeenCalledWith('openai')
   })
 

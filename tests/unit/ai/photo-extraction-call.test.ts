@@ -156,13 +156,15 @@ describe('analyzePhotoStructuredOR (PEXT-01/03/05)', () => {
     expect(mockRecordAICost).not.toHaveBeenCalled()
   })
 
-  it('(f) request body: temperature 0.3, max_tokens 700, tools[0].function.parameters IS photoExtractionToolSchema()', async () => {
+  it('(f) request body: no temperature, tool_choice auto, max_tokens 700, tools[0].function.parameters IS photoExtractionToolSchema()', async () => {
     ;(global.fetch as MockFetch).mockResolvedValueOnce(mockToolCallResponse(VALID_EXTRACTION))
 
     await analyzePhotoStructuredOR('base64data', 'image/jpeg')
 
     const body = requestBody(0)
-    expect(body.temperature).toBe(0.3)
+    // Claude 5.5 rejects a non-default temperature and a forced tool_choice (HTTP 400).
+    expect(body.temperature).toBeUndefined()
+    expect(body.tool_choice).toBe('auto')
     expect(body.max_tokens).toBe(700)
     const tools = body.tools as Array<{ function: { parameters: unknown } }>
     expect(tools[0].function.parameters).toEqual(photoExtractionToolSchema())

@@ -330,13 +330,9 @@ export class OpenRouterAdapter implements AIProvider {
       // 2,900-4,400 output tokens, leaving little headroom before a silent
       // truncation. Raised to 8192, then 16384 (SEED-057: basis + assumptions grow the output), the ceiling for the single OpenRouter estimate call.
       max_tokens: 16384,
-      // AIREL-05: pinned for BOTH generate and refine (this one body covers
-      // both operations) to minimize run-to-run price/output variance — no
-      // temperature was set anywhere on the estimate paths before this.
-      temperature: 0.3,
       messages: [
         { role: 'system', content: systemMessageContent(args.system, args.systemCachePrefix) },
-        { role: 'user', content: args.user },
+        { role: 'user', content: `${args.user}\n\nRespond only by calling the create_estimate tool.` },
       ],
       tools: [
         {
@@ -348,10 +344,11 @@ export class OpenRouterAdapter implements AIProvider {
           },
         },
       ],
-      tool_choice: {
-        type: 'function',
-        function: { name: 'create_estimate' },
-      },
+      // Claude 5.5 models (Sonnet 5.5 / Haiku 5.5) reject a forced tool_choice
+      // ("type tool and any are not supported for this model", HTTP 400) and any
+      // non-default temperature. So: tool_choice 'auto' + an explicit instruction to
+      // call create_estimate; a reply without the tool call is handled by the guards below.
+      tool_choice: 'auto',
       // COST-01: ask OpenRouter to include the real upstream USD cost in the
       // response `usage` block. Without this, `usage.cost` is often absent and
       // credit debiting has nothing to charge against.

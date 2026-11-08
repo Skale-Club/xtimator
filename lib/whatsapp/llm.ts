@@ -34,7 +34,6 @@ export async function makeWhatsAppLLM(
   return new ChatOpenAI({
     apiKey,
     model,
-    temperature: 0,
     configuration: {
       baseURL: OPENROUTER_BASE,
       defaultHeaders: {

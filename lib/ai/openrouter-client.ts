@@ -589,9 +589,6 @@ async function analyzePhotoStructuredCall(
   const body = {
     model: visionModel,
     max_tokens: STRUCTURED_VISION_MAX_TOKENS,
-    // PEXT: pinned like the estimate paths (166-01/AIREL-05) — minimizes
-    // run-to-run variance for a call whose whole point is a consistent shape.
-    temperature: 0.3,
     messages: [
       {
         role: 'user',
@@ -600,7 +597,7 @@ async function analyzePhotoStructuredCall(
             type: 'image_url',
             image_url: { url: `data:${mimeType};base64,${base64}` },
           },
-          { type: 'text', text: PHOTO_EXTRACTION_PROMPT },
+          { type: 'text', text: `${PHOTO_EXTRACTION_PROMPT}\n\nRespond only by calling the extract_photo tool.` },
         ],
       },
     ],
@@ -615,7 +612,11 @@ async function analyzePhotoStructuredCall(
         },
       },
     ],
-    tool_choice: { type: 'function', function: { name: 'extract_photo' } },
+    // Claude 5.5 models (Sonnet 5.5 / Haiku 5.5) reject a forced tool_choice
+    // ("type tool and any are not supported for this model", HTTP 400) and any
+    // non-default temperature. So: tool_choice 'auto' + an explicit instruction to
+    // call extract_photo; a reply without the tool call is handled by the guards below.
+    tool_choice: 'auto',
     // COST-01: request the real upstream USD cost in the response usage block.
     usage: { include: true },
   }
