@@ -31,6 +31,7 @@ export interface EditorItem {
   // SEED-057: AI metadata for the owner's editor (never saved back, never client-facing).
   confidence?: 'low' | 'medium' | 'high' | null
   basis?: string | null
+  optional?: boolean
 }
 
 export interface EditorSection {
@@ -204,6 +205,10 @@ export interface RefinementPayload {
       discount?: number
       cost?: number | null
       markup_pct?: number | null
+      // Server-side refine may carry AI metadata through (kept by mergeRefinement).
+      confidence?: 'low' | 'medium' | 'high' | null
+      basis?: string | null
+      optional?: boolean
     }>
   }>
 }

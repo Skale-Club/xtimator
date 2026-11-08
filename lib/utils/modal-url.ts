@@ -43,3 +43,17 @@ export function closeModalParam(...extraKeys: string[]): void {
     for (const key of extraKeys) params.delete(key)
   }, 'replace')
 }
+
+/**
+ * Read a one-shot search param and remove it from the URL (replaceState, no
+ * history entry, no re-render of the page behind). Returns null when absent.
+ * Used for values that seed a modal once (e.g. the "Answer with AI" text) and
+ * must not stick to the URL or re-apply on a refresh.
+ */
+export function consumeSearchParam(key: string): string | null {
+  if (typeof window === 'undefined') return null
+  const value = new URL(window.location.href).searchParams.get(key)
+  if (value === null) return null
+  mutateUrl((params) => params.delete(key), 'replace')
+  return value
+}

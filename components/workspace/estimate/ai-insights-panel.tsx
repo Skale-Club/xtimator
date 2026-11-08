@@ -39,8 +39,17 @@ export function AiInsightsPanel({ meta, projectId }: { meta: AiMeta | null; proj
     return null
   }
 
+  // Seed the popup's text box with the open questions so the owner only types
+  // the answers: "Q: <question>\nA: " per question.
   const openEditWithAi = () =>
-    router.push(editEstimateHref(searchParams.toString(), projectId), { scroll: false })
+    router.push(
+      editEstimateHref(
+        searchParams.toString(),
+        projectId,
+        questions.map((q) => `Q: ${q.question}\nA: `).join('\n\n'),
+      ),
+      { scroll: false },
+    )
 
   return (
     <div className="space-y-2" data-testid="ai-insights-panel">

@@ -23,6 +23,12 @@ import { EstimateFloatingActions, type EstimateViewMode } from './estimate-float
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { AiInsightsPanel } from './ai-insights-panel'
 import { parseAiMeta } from '@/lib/estimate/ai-meta'
+import {
+  registerRefineEditor,
+  consumePendingRefinement,
+  type RefineApplyResult,
+} from '@/lib/estimate/refine-bridge'
+import type { RefinementPayload } from './use-estimate-reducer'
 import { AddBlockRow, blockPrefill, isTextBlock, type AddableBlock } from './add-block-row'
 import { IssuedInvoicesPanel } from './issued-invoices-panel'
 import { GenerateInvoiceDialog } from './generate-invoice-dialog'
@@ -496,6 +502,89 @@ export function EstimateEditor({
     handledKeepMineIdRef.current = keepMineRequestId
     void runSave({ force: true })
   }, [keepMineRequestId, runSave])
+
+  // "Edit with AI" bridge (lib/estimate/refine-bridge.ts). The popup that
+  // refines this estimate lives outside this tree, so it reaches the editor
+  // through a registered handle: flush unsaved edits BEFORE the server refines
+  // the persisted row, read live content for the review diff, and apply the
+  // reviewed payload (APPLY_REFINEMENT) followed by a save.
+  //
+  // Apply = dispatch + save. runSave reads stateRef, which only reflects the
+  // dispatch after the next render, so the save is requested through a counter
+  // and fired from an effect (same pattern as keepMineRequestId above).
+  const applyResolveRef = useRef<((r: RefineApplyResult) => void) | null>(null)
+  const [applySaveRequestId, setApplySaveRequestId] = useState(0)
+  const handledApplySaveIdRef = useRef(0)
+  const isContentReadOnlyRef = useRef(isContentReadOnly)
+  isContentReadOnlyRef.current = isContentReadOnly
+
+  const applyRefinement = useCallback(
+    (refined: RefinementPayload): Promise<RefineApplyResult> => {
+      if (isContentReadOnlyRef.current) return Promise.resolve('blocked')
+      return new Promise((resolve) => {
+        applyResolveRef.current = resolve
+        dispatch({ type: 'APPLY_REFINEMENT', refined })
+        setApplySaveRequestId((n) => n + 1)
+      })
+    },
+    [dispatch]
+  )
+
+  useEffect(() => {
+    if (applySaveRequestId === 0 || applySaveRequestId === handledApplySaveIdRef.current) return
+    handledApplySaveIdRef.current = applySaveRequestId
+    const resolve = applyResolveRef.current
+    applyResolveRef.current = null
+    void runSave().then((ok) => resolve?.(ok ? 'saved' : 'unsaved'))
+  }, [applySaveRequestId, runSave])
+
+  const flushForRefine = useCallback(async () => {
+    if (isContentReadOnlyRef.current || !stateRef.current.isDirty) return { ok: true as const }
+    const ok = await runSave()
+    return ok
+      ? { ok: true as const }
+      : { ok: false as const, error: t('Could not save your latest edits. Fix that first, then try again.') }
+  }, [runSave, t])
+
+  const refineHandlersRef = useRef({ flush: flushForRefine, apply: applyRefinement })
+  refineHandlersRef.current = { flush: flushForRefine, apply: applyRefinement }
+
+  useEffect(
+    () =>
+      registerRefineEditor({
+        estimateId: () => stateRef.current.id,
+        currencyCode: () => stateRef.current.currency_code,
+        getContent: () => {
+          const s = stateRef.current
+          return {
+            sections: s.sections,
+            summary: s.summary,
+            notes: s.notes,
+            timeline: s.timeline,
+            payment_terms: s.payment_terms,
+            warranty_terms: s.warranty_terms,
+          }
+        },
+        flush: () => refineHandlersRef.current.flush(),
+        apply: (refined) => refineHandlersRef.current.apply(refined),
+      }),
+    []
+  )
+
+  // Handoff: the popup was applied from a page with no editor mounted; it
+  // stored the reviewed payload and navigated here. Consume it once on mount.
+  useEffect(() => {
+    if (!estimate.is_current) return
+    const pending = consumePendingRefinement(estimate.id)
+    if (!pending) return
+    void refineHandlersRef.current.apply(pending).then((outcome) => {
+      if (outcome === 'saved') toast.success(t('AI changes applied'))
+      else if (outcome === 'blocked') {
+        toast.error(t('This estimate is locked, so it cannot be changed. Create a new version to keep editing.'))
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Phase 164 Plan 02 (TRUST-02, PRESENTATION CARVE-OUT) — the gear panel's
   // own write path. Live preview ALWAYS dispatches to the reducer (works
