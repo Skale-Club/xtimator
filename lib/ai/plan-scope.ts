@@ -94,6 +94,10 @@ export function buildPlanSystemPrompt(input: EstimateInput): string {
     '',
     languageInstruction(language),
     '',
+    // Claude 5.5 rejects a forced tool_choice, so the call asks for the tool here.
+    // Security stays the last block of the system prompt.
+    'Respond only by calling the plan_scope tool.',
+    '',
     securityPrompt(),
   ].join('\n')
 }
@@ -130,7 +134,7 @@ export async function planScope(input: EstimateInput): Promise<PlanScopeOutcome>
         model,
         max_tokens: PLAN_MAX_TOKENS,
         messages: [
-          { role: 'system', content: `${buildPlanSystemPrompt(input)}\n\nRespond only by calling the plan_scope tool.` },
+          { role: 'system', content: buildPlanSystemPrompt(input) },
           { role: 'user', content: buildUserContent(input) },
         ],
         tools: [

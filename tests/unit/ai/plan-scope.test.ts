@@ -82,7 +82,7 @@ describe('planScope', () => {
     // Claude 5.5 rejects a forced tool_choice and a non-default temperature (HTTP 400).
     expect(body.tool_choice).toBe('auto')
     expect(body.temperature).toBeUndefined()
-    expect(body.messages[0].content).toMatch(/Respond only by calling the plan_scope tool\.$/)
+    expect(body.messages[0].content).toContain('Respond only by calling the plan_scope tool.')
     expect(body.tools[0].function.parameters).toEqual(JSON.parse(JSON.stringify(planScopeToolSchema)))
   })
 

@@ -120,7 +120,7 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
             max_tokens: 3000,
             // Mirrors production: Claude 5.5 rejects forced tool_choice and non-default temperature.
             messages: [
-              { role: 'system', content: `${buildPlanSystemPrompt(input)}\n\nRespond only by calling the plan_scope tool.` },
+              { role: 'system', content: buildPlanSystemPrompt(input) },
               { role: 'user', content: buildUserContent(input) },
             ],
             tools: [{ type: 'function', function: { name: 'plan_scope', description: 'Produce the scope plan.', parameters: planScopeToolSchema } }],
