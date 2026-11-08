@@ -22,7 +22,7 @@
 -- admin dashboard reads everything through the service role as well.
 
 CREATE TABLE IF NOT EXISTS public.academy_lesson_progress (
-  user_id                uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id                uuid        NOT NULL REFERENCES public.xtimator_accounts(id) ON DELETE CASCADE,
   lesson_id              text        NOT NULL,
   company_id             uuid        REFERENCES public.companies(id) ON DELETE SET NULL,
   course_id              text        NOT NULL,
@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS academy_lesson_progress_last_seen_idx
 
 CREATE TABLE IF NOT EXISTS public.academy_events (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id     uuid        NOT NULL REFERENCES public.xtimator_accounts(id) ON DELETE CASCADE,
   company_id  uuid        REFERENCES public.companies(id) ON DELETE SET NULL,
   course_id   text        NOT NULL,
   lesson_id   text        NOT NULL,
