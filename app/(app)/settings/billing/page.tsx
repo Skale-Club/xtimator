@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { CreditCard, TrendingUp, AlertTriangle } from 'lucide-react'
+import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
@@ -14,15 +15,8 @@ import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card'
-import { buttonVariants } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
 import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
@@ -32,7 +26,8 @@ import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
 import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
 import { T } from '@/components/i18n/t'
-import { SettingsHeader } from '@/components/settings/settings-ui'
+import { LocalizedDate } from '@/components/i18n/localized-date'
+import { SettingsCard, SettingsHeader } from '@/components/settings/settings-ui'
 
 export const metadata = { title: 'Plan and billing | Settings' }
 
@@ -191,9 +186,6 @@ export default async function BillingPage() {
 
   const tierDisplay = TIER_DISPLAY[data.tier] ?? data.tier
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('en-US', { dateStyle: 'medium' })
-
   const isPaid = data.tier === 'pro' || data.tier === 'business'
 
   // CREDITFIX (audit finding #4): during Stripe's whole dunning window a
@@ -213,6 +205,42 @@ export default async function BillingPage() {
   // id actually being present.
   const hasStripeCustomer = !!data.stripeCustomerId
 
+  const isAnnual = data.stripeSubscriptionInterval === 'year'
+  const planPrice = isPaid && !isTwa
+    ? isAnnual && annualPrices.pro
+      ? { amount: formatUsd(annualPrices.pro), period: 'year' }
+      : { amount: formatUsd(monthlyPricesCents.pro), period: 'month' }
+    : null
+
+  // One status per plan, in priority order: a failing payment beats a
+  // scheduled cancellation, which beats a normal renewal.
+  // A Free plan has no subscription state to show (its name already says it).
+  const planStatus: { label: string; variant: 'success' | 'warning' | 'danger' } | null = !isPaid
+    ? null
+    : isPastDue
+      ? { label: 'Payment failed', variant: 'danger' }
+      : data.tierCancelledAt
+        ? { label: 'Cancels at period end', variant: 'warning' }
+        : { label: 'Active', variant: 'success' }
+
+  const usageStats: Array<{ label: string; value: string | number }> = [
+    { label: 'Estimates', value: data.estimatesThisMonth },
+    { label: 'Photos analyzed', value: data.photosThisMonth },
+    ...(data.entitlements.maxPhotosPerEstimate !== null
+      ? [{ label: 'Photo limit per estimate', value: data.entitlements.maxPhotosPerEstimate }]
+      : []),
+  ]
+
+  // The plan card's action: manage an existing subscription, or point a Free
+  // company at the Pro offer further down. Never a purchase control in the TWA.
+  const planAction = isTwa ? null : isPaid ? (
+    hasStripeCustomer ? <ManageSubscriptionButton isOwner={isOwner} /> : null
+  ) : (
+    <Button asChild variant="primary" size="sm">
+      <Link href="#choose-plan"><T>Subscribe to Pro</T></Link>
+    </Button>
+  )
+
   return (
     <div className="space-y-6">
       <Suspense fallback={null}>
@@ -220,219 +248,183 @@ export default async function BillingPage() {
       </Suspense>
       <SettingsHeader
         title={<T>Plan and billing</T>}
-        description={
-          isTwa ? (
-            <><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T>plan.</T></>
-          ) : (
-            <><T>You&rsquo;re on the</T>{' '} <strong className="text-foreground"><T text={tierDisplay} /></strong>{' '} <T text={`plan. Pro is ${formatUsd(monthlyPricesCents.pro)}/month for 1 company and 1 user, with every feature included.`} /></>
-          )
-        }
+        description={<T>Your plan, credits and payments.</T>}
       />
 
-      <div className="w-full space-y-6">
-        {isPastDue && (
-          <div
-            data-testid="past-due-banner"
-            className="flex flex-col gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-600 dark:text-red-400 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p className="text-sm">
+      {isPastDue && (
+        <div
+          data-testid="past-due-banner"
+          className="flex flex-col gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-600 dark:text-red-400 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="text-sm">
+              {isTwa ? (
+                <T>We couldn&rsquo;t charge your card. Manage your plan on xtimator.com from a web browser.</T>
+              ) : (
+                <T>We couldn&rsquo;t charge your card — update your payment method to keep your plan.</T>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Current plan: what you're on, its state, what it costs, and this
+          month's usage, with the one action that changes it. */}
+      <SettingsCard title={<T>Current plan</T>} action={planAction} bodyClassName="space-y-5">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-2xl font-semibold tracking-tight"><T text={tierDisplay} /></span>
+            {planStatus && <Badge variant={planStatus.variant}><T text={planStatus.label} /></Badge>}
+          </div>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            {planPrice && (
+              <span>
+                <span className="font-medium text-foreground [font-variant-numeric:tabular-nums]">{planPrice.amount}</span>
+                {' / '}<T text={planPrice.period} />
+              </span>
+            )}
+            {planPrice && (data.tierCancelledAt || data.tierRenewsAt) && <span aria-hidden>·</span>}
+            {isPaid && data.tierCancelledAt ? (
+              <span className="text-amber-600 dark:text-amber-400">
+                <T>Ends on</T> <LocalizedDate iso={data.tierCancelledAt} />
+              </span>
+            ) : (
+              isPaid && data.tierRenewsAt && (
+                <span>
+                  <T>Renews on</T> <LocalizedDate iso={data.tierRenewsAt} />
+                </span>
+              )
+            )}
+            {data.tier === 'free' && (
+              <span>
                 {isTwa ? (
-                  <T>We couldn&rsquo;t charge your card. Manage your plan on xtimator.com from a web browser.</T>
+                  <T>Free plan — your free credits never expire.</T>
                 ) : (
-                  <T>We couldn&rsquo;t charge your card — update your payment method to keep your plan.</T>
+                  <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
                 )}
-              </p>
-            </div>
-            {!isTwa && hasStripeCustomer && <ManageSubscriptionButton isOwner={isOwner} />}
-          </div>
-        )}
-
-        {/* Current plan + usage */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card variant="glass" className="p-6">
-            <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
-              <div className="flex items-start gap-3">
-                <CreditCard className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
-                <div>
-                  <CardTitle><T text={`${tierDisplay} Plan`} /></CardTitle>
-                  <CardDescription><T>Current subscription plan</T></CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 px-0 pt-4 text-sm">
-              {isPaid && data.tierCancelledAt ? (
-                <p className="text-amber-600 dark:text-amber-400">
-                  <T text={`Your plan ends on ${formatDate(data.tierCancelledAt)}`} />
-                </p>
-              ) : (
-                isPaid && data.tierRenewsAt && (
-                  <p className="text-muted-foreground">
-                    <span className="font-medium text-foreground"><T>Renews:</T></span>{' '}
-                    {formatDate(data.tierRenewsAt)}
-                  </p>
-                )
-              )}
-              {data.tier === 'free' && (
-                <p className="text-muted-foreground">
-                  {isTwa ? (
-                    <T>Free plan — your free credits never expire.</T>
-                  ) : (
-                    <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
-                  )}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card variant="glass" className="p-6">
-            <CardHeader className="border-b border-[var(--glass-border)] p-0 pb-4">
-              <div className="flex items-start gap-3">
-                <TrendingUp className="mt-0.5 h-5 w-5 text-[hsl(var(--primary))]" />
-                <div>
-                  <CardTitle><T>Usage this month</T></CardTitle>
-                  <CardDescription>
-                    <T>Counts reset at the start of each UTC calendar month.</T>
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 px-0 pt-4 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground"><T>Estimates</T></span>
-                <span className="whitespace-nowrap font-mono font-medium">
-                  {data.estimatesThisMonth}{' '}
-                  <span className="font-sans text-xs text-muted-foreground">
-                    <T>this month</T>
-                  </span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground"><T>Photos analyzed</T></span>
-                <span className="whitespace-nowrap text-right font-mono font-medium">
-                  {data.photosThisMonth}{' '}
-                  <span className="font-sans text-xs text-muted-foreground">
-                    <T>this month</T>
-                  </span>
-                </span>
-              </div>
-              {data.entitlements.maxPhotosPerEstimate !== null && (
-                <p className="text-xs text-muted-foreground">
-                  <T text={`Up to ${data.entitlements.maxPhotosPerEstimate} photos per estimate on your plan.`} />
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Credits (CREDITUI-01/02) — ADDITIVE to the count-based usage card above
-            (MIG-01 parallel run). Owner sees credits + history, never cost math. */}
-        {/* items-start: the history list can be long; the balance card keeps
-            its own height instead of stretching into an empty box. */}
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-          <CreditBalanceCard
-            percentUsed={percentUsed}
-            tier={data.tier}
-            balance={credits.balance}
-            lots={lots}
-            topupEligible={topupEligible}
-            hidePurchase={isTwa}
-          />
-          <CreditHistoryList rows={credits.history} />
-        </div>
-
-        {/* Top-up packs (CREDITUI-06) — Pro only (SEED-055 D5). Everyone else
-            sees one line asking them to subscribe first. */}
-        {isTwa ? (
-          <p
-            data-testid="twa-plan-note"
-            className="rounded-lg border border-[var(--glass-border)] p-4 text-sm text-muted-foreground"
-          >
-            <T>Manage your plan on xtimator.com from a web browser.</T>
+              </span>
+            )}
           </p>
-        ) : topupEligible ? (
-          <div id="topup-packs" className="space-y-4">
-            <h2 className="text-lg font-semibold"><T>Add credits</T></h2>
+          {!isTwa && isPaid && !hasStripeCustomer && (
             <p className="text-sm text-muted-foreground">
-              <T text={`Purchased credits expire ${cfg.topupExpiryMonths} months after purchase.`} />
+              <T>This plan was set by support — contact us to change it.</T>
             </p>
-            <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
-          </div>
-        ) : (
-          <div
-            id="topup-packs"
-            data-testid="topup-subscribe-prompt"
-            className="flex flex-col gap-3 rounded-lg border border-[var(--glass-border)] p-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <p className="text-sm text-muted-foreground">
-              <T>Subscribe to Pro to buy extra credits</T>
-            </p>
-            <a href="#choose-plan" className={cn(buttonVariants({ variant: 'primary' }), 'w-fit')}>
-              <T>Subscribe to Pro</T>
-            </a>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Auto top-up (CREDITUI-07) — gated behind the platform kill switch
-            (billing_config.autoTopupEnabled); omitted from the tree entirely,
-            not rendered-disabled, when the switch is off. */}
-        {!isTwa && cfg.autoTopupEnabled && topupEligible && (
-          <div className="space-y-4">
-            <AutoTopupCard
-              enabled={!!autoTopupCompany?.auto_topup_enabled}
-              packAmount={autoTopupPackAmount}
-              thresholdAmount={autoTopupThresholdAmount}
-              paymentMethodLabel={autoTopupPaymentMethodLabel}
-              lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
-              packs={cfg.topUpPacks}
-              currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}
-              currentPackIndex={autoTopupCompany?.auto_topup_pack_index ?? null}
+        <div className="space-y-2 border-t border-[var(--glass-border)] pt-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <T>This month</T>
+          </p>
+          <dl className="grid grid-cols-3 gap-2 sm:gap-3">
+            {usageStats.map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-3 py-3 sm:px-4"
+              >
+                <dt className="text-xs text-muted-foreground"><T text={stat.label} /></dt>
+                <dd className="mt-1 text-xl font-semibold [font-variant-numeric:tabular-nums]">{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-xs text-muted-foreground">
+            <T>Counts reset at the start of each UTC calendar month.</T>
+          </p>
+        </div>
+      </SettingsCard>
+
+      {/* Credits (CREDITUI-01/02): the balance by lot beside the ledger.
+          Owner sees credits + history, never cost math. The history list
+          scrolls inside its card, so on wide screens the balance card sets
+          the row height and the ledger fills it. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <CreditBalanceCard
+          percentUsed={percentUsed}
+          tier={data.tier}
+          balance={credits.balance}
+          lots={lots}
+          topupEligible={topupEligible}
+          hidePurchase={isTwa}
+        />
+        <CreditHistoryList rows={credits.history} className="flex flex-col" fillHeight />
+      </div>
+
+      {/* Top-up packs (CREDITUI-06) + auto top-up (CREDITUI-07) in one card:
+          Pro only (SEED-055 D5). Everyone else sees the subscribe prompt. */}
+      {isTwa ? (
+        <p
+          data-testid="twa-plan-note"
+          className="rounded-lg border border-[var(--glass-border)] p-4 text-sm text-muted-foreground"
+        >
+          <T>Manage your plan on xtimator.com from a web browser.</T>
+        </p>
+      ) : topupEligible ? (
+        <SettingsCard
+          id="topup-packs"
+          title={<T>Add credits</T>}
+          description={
+            <T
+              text="One-time packs. Purchased credits expire {months} months after purchase."
+              values={{ months: cfg.topupExpiryMonths }}
             />
-          </div>
-        )}
-
-        {/* Plan card: Pro only, monthly / annual toggle (SEED-055). */}
-        {!isTwa && (
-        <div id="choose-plan" className="space-y-4">
-          <h2 className="text-lg font-semibold"><T>Xtimator Pro</T></h2>
-          <TierCardsGrid
-            currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
-            currentInterval={data.stripeSubscriptionInterval ?? undefined}
-            isOwner={isOwner}
-            pendingCancel={!!data.tierCancelledAt}
-            annualPrices={annualPrices}
-            monthlyPricesCents={monthlyPricesCents}
-            featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
+          }
+          bodyClassName="space-y-6"
+        >
+          {!isOwner && (
+            <p className="text-sm text-muted-foreground">
+              <T>Only the company owner can manage billing.</T>
+            </p>
+          )}
+          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
+          {/* Auto top-up is gated behind the platform kill switch
+              (billing_config.autoTopupEnabled); omitted from the tree
+              entirely, not rendered-disabled, when the switch is off. */}
+          {cfg.autoTopupEnabled && (
+            <div className="border-t border-[var(--glass-border)] pt-5">
+              <AutoTopupCard
+                enabled={!!autoTopupCompany?.auto_topup_enabled}
+                packAmount={autoTopupPackAmount}
+                thresholdAmount={autoTopupThresholdAmount}
+                paymentMethodLabel={autoTopupPaymentMethodLabel}
+                lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
+                packs={cfg.topUpPacks}
+                currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}
+                currentPackIndex={autoTopupCompany?.auto_topup_pack_index ?? null}
+                isOwner={isOwner}
+              />
+            </div>
+          )}
+        </SettingsCard>
+      ) : (
+        <div id="topup-packs" data-testid="topup-subscribe-prompt">
+          <SettingsCard
+            title={<T>Add credits</T>}
+            description={<T>Subscribe to Pro to buy extra credits</T>}
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="#choose-plan"><T>Subscribe to Pro</T></Link>
+              </Button>
+            }
           />
         </div>
-        )}
+      )}
 
-        {/* Manage subscription (Stripe Customer Portal — Phase 70 CONNECT-04).
-            CREDITFIX (audit finding #6): create-portal-session requires
-            stripe_customer_id — an admin-set tier (both paid companies in
-            prod, per the audit) has none, so the button 400s forever. Gate
-            the action on hasStripeCustomer; explain instead when absent. */}
-        {!isTwa && isPaid && (
-          <Card variant="glass" className="p-6">
-            <CardHeader className="p-0">
-              <CardTitle><T>Manage subscription</T></CardTitle>
-              <CardDescription>
-                <T>Update payment method, view invoices, or cancel via the Stripe portal.</T>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 pt-4">
-              {hasStripeCustomer ? (
-                <ManageSubscriptionButton />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  <T>This plan was set by support — contact us to change it.</T>
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        </div>
+      {/* Plan offer: Pro only, monthly / annual toggle (SEED-055). */}
+      {!isTwa && (
+        <TierCardsGrid
+          id="choose-plan"
+          title={<T>Xtimator Pro</T>}
+          description={<T>1 company and 1 user, with every feature included.</T>}
+          currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
+          currentInterval={data.stripeSubscriptionInterval ?? undefined}
+          isOwner={isOwner}
+          pendingCancel={!!data.tierCancelledAt}
+          annualPrices={annualPrices}
+          monthlyPricesCents={monthlyPricesCents}
+          featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
+        />
+      )}
     </div>
   )
 }

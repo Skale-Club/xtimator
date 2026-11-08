@@ -1,8 +1,10 @@
+'use client'
+
 import { cn } from '@/lib/utils'
-import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { T } from '@/components/i18n/t'
+import { Check } from 'lucide-react'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export type Tier = 'free' | 'pro' | 'business'
 
@@ -23,16 +25,15 @@ interface TierCardProps {
   annualPrice?: string | null
   annualPerMonth?: string | null
   savePct?: number | null
+  /** Off when the surrounding card already names the only plan offered. */
+  showName?: boolean
 }
 
 /**
- * Phase 71-10 — Tier card with per-tier gradient escalation.
- *
- * - Free → <Card variant="glass"> outline CTA, no top accent
- * - Pro → <Card variant="stat"> (3px gradient-brand top edge), primary gradient CTA
- * - Business → <Card variant="glass"> + 3px gradient-premium top edge, premium tri-gradient CTA
- *
- * Status mapping matches UI-SPEC: "Most popular" pill renders as <Badge variant="brand">.
+ * One plan offer, laid out as a wide row: price and the call to action on the
+ * left, what is included on the right. It carries no card chrome of its own;
+ * TierCardsGrid frames it (title + Monthly/Annual toggle) like every other
+ * settings card.
  *
  * Phase 145 — Annual pricing display:
  * - showAnnual=true + annualPrice → shows annual total + per-month equivalent + save badge
@@ -55,74 +56,66 @@ export function TierCard({
   annualPrice,
   annualPerMonth,
   savePct,
+  showName = true,
 }: TierCardProps) {
-  const variant = tier === 'pro' ? 'stat' : 'glass'
+  const { t } = useTranslation()
   const buttonVariant =
     tier === 'free' ? 'outline' : tier === 'pro' ? 'primary' : 'premium'
 
   const displayAnnual = showAnnual && !!annualPrice
 
   return (
-    <Card
-      variant={variant}
-      className={cn(
-        'relative flex flex-col gap-5 p-6',
-        tier === 'business' &&
-          "overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-[3px] before:rounded-t-[var(--radius-lg)] before:bg-[image:var(--gradient-premium)] before:content-['']"
-      )}
+    <div
+      className={cn('grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:gap-10')}
       data-tier={tier}
     >
-      {popular && (
-        <Badge
-          variant="brand"
-          className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap"
-        >
-          <T text={popularLabel} />
-        </Badge>
-      )}
-      <CardHeader className="p-0">
-        <CardTitle className="text-xl"><T text={name} /></CardTitle>
-      </CardHeader>
-
-      <div className="flex flex-col gap-1">
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-3xl font-semibold tracking-tight">
-            {displayAnnual ? annualPrice : price}
-          </span>
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
-            / <T text={displayAnnual ? 'year' : period} />
-          </span>
+      <div className="flex flex-col gap-4">
+        {(showName || (popular && !current)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {showName && <h3 className="text-base font-semibold">{t(name)}</h3>}
+            {popular && !current && <Badge variant="brand">{t(popularLabel)}</Badge>}
+          </div>
+        )}
+        <div className="space-y-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-4xl font-semibold tracking-tight [font-variant-numeric:tabular-nums]">
+              {displayAnnual ? annualPrice : price}
+            </span>
+            <span className="whitespace-nowrap text-sm text-muted-foreground">
+              / {t(displayAnnual ? 'year' : period)}
+            </span>
+          </div>
+          {displayAnnual && (annualPerMonth || savePct != null) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {annualPerMonth && (
+                <span>
+                  {annualPerMonth} {t('/ mo · billed annually')}
+                </span>
+              )}
+              {savePct != null && (
+                <Badge variant="success">{t('Save {pct}%').replace('{pct}', String(savePct))}</Badge>
+              )}
+            </div>
+          )}
         </div>
-        {displayAnnual && annualPerMonth && (
-          <p className="text-xs text-muted-foreground">
-            {annualPerMonth} <T text="/ mo · billed annually" />
-          </p>
-        )}
-        {displayAnnual && savePct != null && (
-          <Badge variant="brand" className="self-start text-xs">
-            <T text={`Save ${savePct}%`} />
-          </Badge>
-        )}
+        <Button
+          variant={buttonVariant}
+          onClick={onSelect}
+          disabled={current || disabled}
+          className="mt-auto h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-tight"
+        >
+          {t(current ? currentLabel : ctaLabel)}
+        </Button>
       </div>
 
-      <ul className="flex-1 space-y-2 text-sm">
+      <ul className="grid content-start gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2">
-            <span aria-hidden className="mt-0.5 text-[hsl(var(--primary))]">
-              ✓
-            </span>
-            <span><T text={f} /></span>
+            <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--primary))]" />
+            <span>{t(f)}</span>
           </li>
         ))}
       </ul>
-      <Button
-        variant={buttonVariant}
-        onClick={onSelect}
-        disabled={current || disabled}
-        className="h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-tight"
-      >
-        <T text={current ? currentLabel : ctaLabel} />
-      </Button>
-    </Card>
+    </div>
   )
 }

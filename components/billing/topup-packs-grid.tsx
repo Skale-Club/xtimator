@@ -21,7 +21,7 @@ export function TopUpPacksGrid({
 }) {
   const recommendedIndex = packs.length >= 3 ? 1 : -1
   return (
-    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
+    <div className="grid w-full grid-cols-3 gap-2 pt-1 sm:gap-4">
       {packs.map((pack, i) => (
         <TopUpPackCard
           key={i}

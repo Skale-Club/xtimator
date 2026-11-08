@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { TierCard, type Tier } from './tier-card'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatUsd } from '@/lib/billing/format-usd'
+import { SettingsCard } from '@/components/settings/settings-ui'
 
 // Tier ranking — used to distinguish an upgrade ("Upgrade to Pro") from a
 // lateral/downward switch ("Switch to Pro") relative to the user's current tier.
@@ -49,6 +50,11 @@ interface TierCardsGridProps {
   // "Resume subscription" CTA (via the billing portal's cancel-reversal flow)
   // instead of a disabled "Current plan" dead end. Defaults to false.
   pendingCancel?: boolean
+  // Frame copy: the grid renders as a settings card whose header holds the
+  // Monthly / Annual toggle.
+  title?: ReactNode
+  description?: ReactNode
+  id?: string
 }
 
 /**
@@ -127,6 +133,9 @@ export function TierCardsGrid({
   currentInterval,
   isOwner = true,
   pendingCancel = false,
+  title,
+  description,
+  id,
 }: TierCardsGridProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
@@ -199,45 +208,40 @@ export function TierCardsGrid({
   const isPaidUser = normalized === 'pro' || normalized === 'business'
   const visibleTiers = TIERS.filter((tierItem) => VISIBLE_TIERS.includes(tierItem.tier))
 
+  const intervalToggle = (
+    <div
+      role="group"
+      aria-label={t('Billing interval')}
+      className="inline-flex rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-light)] p-0.5"
+    >
+      {(['month', 'year'] as const).map((interval) => (
+        <button
+          key={interval}
+          type="button"
+          aria-pressed={billingInterval === interval}
+          onClick={() => setBillingInterval(interval)}
+          className={cn(
+            'rounded-[calc(var(--radius-md)-2px)] px-3 py-1.5 text-sm font-medium transition-colors',
+            billingInterval === interval
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          {interval === 'month' ? t('Monthly') : t('Annual')}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
-    <div className="space-y-6">
+    <SettingsCard id={id} title={title ?? t('Plan')} description={description} action={intervalToggle} bodyClassName="space-y-4">
       {!isOwner && (
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t('Only the company owner can manage billing.')}
         </p>
       )}
 
-      {/* Monthly / Annual toggle */}
-      <div className="flex items-center justify-center gap-1">
-        <button
-          type="button"
-          aria-pressed={billingInterval === 'month'}
-          onClick={() => setBillingInterval('month')}
-          className={cn(
-            'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-            billingInterval === 'month'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {t('Monthly')}
-        </button>
-        <button
-          type="button"
-          aria-pressed={billingInterval === 'year'}
-          onClick={() => setBillingInterval('year')}
-          className={cn(
-            'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-            billingInterval === 'year'
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {t('Annual')}
-        </button>
-      </div>
-
-      <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-6">
+      <div className="space-y-8">
         {visibleTiers.map((tierItem) => {
           const annualDisplay = billingInterval === 'year' ? getAnnualDisplay(tierItem.tier) : null
           const monthlyPrice = getMonthlyPriceDisplay(tierItem.tier, tierItem.price ?? '$0')
@@ -293,7 +297,8 @@ export function TierCardsGrid({
               price={monthlyPrice}
               period={tierItem.period}
               features={features}
-              popular={tierItem.popular}
+              popular={visibleTiers.length > 1 && tierItem.popular}
+              showName={visibleTiers.length > 1}
               current={current}
               showAnnual={billingInterval === 'year'}
               annualPrice={annualDisplay?.annualPrice}
@@ -310,6 +315,6 @@ export function TierCardsGrid({
           )
         })}
       </div>
-    </div>
+    </SettingsCard>
   )
 }
