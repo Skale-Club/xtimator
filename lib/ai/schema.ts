@@ -133,6 +133,9 @@ export const estimateOutputSchema = z.object({
   exclusions: z.unknown().transform((v) => toTextList(v, 12, 300)).optional(),
   open_questions: z.unknown().transform(toOpenQuestions).optional(),
   scope_confidence: z.unknown().transform(toLevel).optional(),
+  // Notes about the source material itself (duplicated transcript, unclear audio).
+  // INTERNAL record only: stored in ai_meta.source_notes, never rendered anywhere.
+  source_notes: z.unknown().transform((v) => toTextList(v, 6, 300)).optional(),
   sections: z.array(sectionSchema),
 })
 

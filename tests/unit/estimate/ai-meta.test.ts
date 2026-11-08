@@ -52,6 +52,19 @@ describe('parseAiMeta', () => {
   })
 })
 
+describe('source_notes (internal record)', () => {
+  it('buildAiMeta stores it, parseAiMeta never returns it, so no surface can render it', () => {
+    const built = buildAiMeta({
+      assumptions: ['Standard 8 ft ceilings'],
+      source_notes: ['Transcript was duplicated; the scope was counted once.'],
+    })
+    expect(built?.source_notes).toEqual(['Transcript was duplicated; the scope was counted once.'])
+    const read = parseAiMeta(JSON.parse(JSON.stringify(built)))
+    expect(read?.assumptions).toEqual(['Standard 8 ft ceilings'])
+    expect(read).not.toHaveProperty('source_notes')
+  })
+})
+
 describe('isMissingColumnError', () => {
   it('recognises the PostgREST schema-cache miss and the Postgres undefined_column error', () => {
     expect(

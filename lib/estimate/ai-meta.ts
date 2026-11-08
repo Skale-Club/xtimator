@@ -33,16 +33,24 @@ export interface AiMeta {
   open_questions?: OpenQuestion[]
   scope_confidence?: AiLevel
   quality?: AiQuality
+  /**
+   * INTERNAL record: the model's notes about the source material itself (duplicated
+   * transcript, unclear audio). Written by buildAiMeta, deliberately NOT returned by
+   * parseAiMeta, so no surface (editor included) can render it. Read it in the database.
+   */
+  source_notes?: string[]
 }
 
 const LEVELS: readonly string[] = ['low', 'medium', 'high']
 
 /** The slice of AI output that persists, or null when the model said nothing. */
 export function buildAiMeta(
-  out: Pick<EstimateOutput, 'assumptions' | 'exclusions' | 'open_questions' | 'scope_confidence'>,
+  out: Pick<EstimateOutput, 'assumptions' | 'exclusions' | 'open_questions' | 'scope_confidence'> &
+    Partial<Pick<EstimateOutput, 'source_notes'>>,
   quality?: AiQuality | null,
 ): AiMeta | null {
   const meta: AiMeta = { v: 1 }
+  if (out.source_notes?.length) meta.source_notes = out.source_notes
   if (out.assumptions?.length) meta.assumptions = out.assumptions
   if (out.exclusions?.length) meta.exclusions = out.exclusions
   if (out.open_questions?.length) meta.open_questions = out.open_questions

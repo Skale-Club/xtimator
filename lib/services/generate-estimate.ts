@@ -399,6 +399,8 @@ export async function generateEstimateForProject(
     exclusions: aiEstimate.exclusions?.length ? aiEstimate.exclusions : plan?.exclusions,
     open_questions: aiEstimate.open_questions?.length ? aiEstimate.open_questions : plan?.open_questions,
     scope_confidence: aiEstimate.scope_confidence ?? plan?.scope_confidence,
+    // Internal record only (ai_meta.source_notes); parseAiMeta never returns it.
+    source_notes: aiEstimate.source_notes,
   }
 
   // Client suggestion — only when project has no linked client.

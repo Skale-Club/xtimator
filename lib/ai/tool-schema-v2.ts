@@ -15,7 +15,9 @@ const LEVELS = ['low', 'medium', 'high']
 
 export const ESTIMATE_V2_TEXT = {
   assumptions:
-    'Things you had to assume because the walkthrough did not say them, one short sentence each (e.g. "Assumes standard 8 ft ceilings"). Omit when there are none.',
+    'Things you had to assume about the JOB because the walkthrough did not say them, one short sentence each (e.g. "Assumes standard 8 ft ceilings"). Never about the recordings, transcripts or photos themselves (duplicated, cut off, unclear): those go in source_notes. Omit when there are none.',
+  source_notes:
+    'Internal notes about the source material itself, not about the job: a duplicated or repeated transcript, cut-off or unclear audio, contradictory recordings, an unreadable photo. Never shown to the business owner or the client. Omit when there are none.',
   exclusions:
     'Work or materials that are NOT included in this price, one short sentence each (e.g. "Permit fees are not included"). Omit when there are none.',
   open_questions:
@@ -65,6 +67,11 @@ export const ESTIMATE_V2_TOP_PROPERTIES = {
     type: 'string' as const,
     enum: LEVELS,
     description: ESTIMATE_V2_TEXT.scope_confidence,
+  },
+  source_notes: {
+    type: 'array' as const,
+    items: { type: 'string' as const },
+    description: ESTIMATE_V2_TEXT.source_notes,
   },
 }
 
