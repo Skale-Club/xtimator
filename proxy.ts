@@ -47,6 +47,10 @@ export function isPublicRoute(pathname: string): boolean {
   if (pathname === '/api/cron' || pathname.startsWith('/api/cron/')) {
     return true
   }
+  // Localhost-only dev sign-in (app/api/dev/login) - it guards itself too.
+  if (pathname === '/api/dev/login' && process.env.NODE_ENV === 'development') {
+    return true
+  }
   // Stripe (and other) webhooks verify authenticity via signature header — must
   // bypass session auth so Stripe's delivery reaches the handler without redirect.
   if (pathname.startsWith('/api/webhooks/')) {
