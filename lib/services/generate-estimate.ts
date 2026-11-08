@@ -6,8 +6,7 @@ import { serializePhotoContext } from '@/lib/estimate/photo-context'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
-import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
-import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
+import { resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import {
   round2,
@@ -47,11 +46,6 @@ import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { planScope } from '@/lib/ai/plan-scope'
-import {
-  applyCompanyHistory,
-  historyCandidateKeys,
-  loadCompanyHistory,
-} from '@/lib/estimate/pricing/company-history'
 import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
@@ -493,125 +487,30 @@ export async function generateEstimateForProject(
     )
   )
 
-  // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
-  // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
-  // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
-  // Only the server may assign 'price_book', 'researched' or 'company_history'.
-  // A model that claims any of them in a GENERATE call is demoted to
-  // 'ai_estimate' before anything else runs; anchoring re-tags real price-book
-  // matches as 'price_book', and history/research then act on what remains.
-  const modelSections = aiEstimate.sections.map((section) => ({
-    ...section,
-    items: section.items.map((item) =>
-      item.price_source === 'price_book' ||
-      item.price_source === 'researched' ||
-      item.price_source === 'company_history'
-        ? { ...item, price_source: 'ai_estimate' as const }
-        : item
-    ),
-  }))
-  const { sections: anchoredSections, anchoredCount, clampedCount } =
-    anchorAndClampSections(
-      modelSections,
-      priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
-    )
-
-  // SEED-057 E3: the company's own median on ACCEPTED estimates (last 10, per
-  // concept + unit) beats web research and the model's estimate, and loses only to
-  // the price book. Runs after anchoring and before research; research then sees
-  // only the items still tagged 'ai_estimate'. Best-effort: no history (or a
-  // database that has no price_observations yet) changes nothing.
-  const history = await loadCompanyHistory(
-    supabase,
+  // GUARD-02 / SEED-057 E3 / RPRICE / AIREL-04: the shared price pipeline
+  // (lib/estimate/pricing/resolve-prices.ts): demote model-claimed server labels,
+  // anchor + clamp to the price book, company history, web research, then collapse
+  // exact duplicates BEFORE totals so duplicates never inflate the persisted total.
+  // Never throws; research is metered from the trusted attemptId (projectId is the
+  // fallback seed for a direct service call). Region = the project client's city+state.
+  const {
+    sections: dedupedSections,
+    anchoredCount,
+    clampedCount,
+    flaggedUnpriced,
+    researchTelemetry,
+    consistencyFlags: preComputeFlags,
+  } = await resolveLinePrices(aiEstimate.sections, {
     companyId, // param, never LLM-derived
     currencyCode,
-    historyCandidateKeys(anchoredSections)
-  )
-  const { sections: guardedSections, applied: historyAppliedCount } = applyCompanyHistory(
-    anchoredSections,
-    history
-  )
-  if (historyAppliedCount > 0) {
-    console.info('[company_history]', { companyId, applied: historyAppliedCount })
-  }
-
-  // RPRICE-01/03 + RFALL-01 (THE PAYOFF): research the items anchoring left as
-  // 'ai_estimate' (price_book + owner-edited items are NEVER touched). The
-  // orchestrator is channel-neutral and NEVER-THROWS — a research failure must never
-  // break generation (mirrors the anchoring non-fatal contract). This runs BEFORE the
-  // server totals + persistence so researched regional prices flow into the
-  // authoritative totals and the vagueness gate (assess) sees real numbers — the
-  // originating "Couch cleaning 8seats → $0 → blocked as vague" fix. Region = the
-  // project client's city+state; currency = the estimate currency; companyId is the
-  // param (NEVER LLM-derived). The metering idempotency key is seeded by the
-  // generation's attemptId (retry-stable, from the trusted costContext); projectId is
-  // the fallback seed when no attempt context exists (a direct service call).
-  // Defensive try/catch in addition to the never-throws contract: a thrown research
-  // error degrades to the anchored (pre-research) sections, never an estimate failure.
-  let researchedSections = guardedSections
-  let flaggedUnpriced = 0
-  // WI-1 (HARDEN-OBS-01): attempted-vs-usable research telemetry for the quality signal.
-  // Undefined until the research call sets it; on a research failure it stays undefined and
-  // buildEstimateQualitySignal treats absent research as "no data ⇒ no alarm" (graceful fallback).
-  let researchTelemetry:
-    | { candidates: number; cacheHits: number; providerUsable: number; missed: number }
-    | undefined
-  // Phase narration: the candidate set is exactly what the orchestrator will
-  // work on (post-anchor items still tagged 'ai_estimate'), computed the same
-  // way it computes it, so "researching N items" is the real N, not a guess.
-  const researchCandidates = guardedSections.reduce(
-    (n, section) =>
-      n + section.items.filter((item) => item.price_source === 'ai_estimate').length,
-    0
-  )
-  const guardedItemCount = guardedSections.reduce((n, s) => n + s.items.length, 0)
-  phase('pricing', {
-    candidates: researchCandidates,
-    itemCount: guardedItemCount,
-    sectionCount: guardedSections.length,
-  })
-
-  try {
-    const research = await researchUnmatchedPrices(guardedSections, {
-      companyId, // param — NEVER LLM-derived
-      region: { city: client?.city ?? null, state: client?.state ?? null },
-      currency: currencyCode,
-      supabase, // reuse the service client
-      projectId, // fallback metering seed when no attemptId
-      attemptId: options.costContext?.attemptId ?? undefined,
-    })
-    researchedSections = research.sections
-    flaggedUnpriced = research.flaggedUnpriced
-    researchTelemetry = research.telemetry
-    // Exit report: what the research pass actually resolved. The orchestrator
-    // issues ONE batched provider lookup for the whole miss set, so there is no
-    // honest per-item progression to stream mid-flight. This is the real
-    // resolved count, reported the moment it exists.
-    if (researchTelemetry) {
-      phase('pricing', {
-        candidates: researchTelemetry.candidates,
-        researched: researchTelemetry.cacheHits + researchTelemetry.providerUsable,
-        itemCount: guardedItemCount,
-        sectionCount: guardedSections.length,
-      })
-    }
-  } catch (err) {
-    // Non-fatal: keep the anchored sections; generation must still complete.
-    console.warn('[generate-estimate] price research failed (non-fatal)', err)
-  }
-
-  // AIREL-04 (audit C4): collapse exact-duplicate lines BEFORE totals are computed —
-  // duplicates must never inflate the persisted total. Runs on the anchored+
-  // researched sections (price_book/researched prices are already resolved by this
-  // point). `computedTotal` is irrelevant to THIS call (0, so overCeiling is always
-  // false here) — the real over-ceiling verdict is evaluated below once the actual
-  // server grand total is known; only `.sections` and the duplicate/qty-0 flags are
-  // consumed here. Never-throw (consistency module discipline) — a check failure
-  // degrades to the pre-dedupe sections, never an estimate failure.
-  const consistencyPreCompute = checkEstimateConsistency(researchedSections, 0, {
+    priceBookItems: priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price })),
+    region: { city: client?.city ?? null, state: client?.state ?? null },
+    supabase,
+    projectId,
+    attemptId: options.costContext?.attemptId ?? undefined,
     totalCeiling: estimateTotalCeiling,
+    onProgress: (detail) => phase('pricing', detail),
   })
-  const dedupedSections = consistencyPreCompute.sections
 
   // GUARD-03 totals. TAX-03: when companies.tax_config is present the engine computes tax
   // PER-CATEGORY (Σ taxable_base_per_category × rate_category); when it is null/absent this is
@@ -666,7 +565,7 @@ export async function generateEstimateForProject(
   // Merged with the duplicate/qty-0 flags from the pre-compute pass so
   // `consistencyFlags` carries every AIREL-04 signal for this generation.
   const overCeiling = safeGrandTotal > estimateTotalCeiling
-  const consistencyFlags: ConsistencyFlag[] = [...consistencyPreCompute.flags]
+  const consistencyFlags: ConsistencyFlag[] = [...preComputeFlags]
   if (overCeiling) {
     consistencyFlags.push({
       kind: 'total_over_ceiling',
