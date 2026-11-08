@@ -60,9 +60,13 @@ export function resolveProjectStatusForSections(
   grandTotal: number,
   currencyCode: string | null | undefined
 ) {
-  return resolveProjectStatusAfterEstimate({
-    flaggedUnpriced: countUnpricedLines(sections),
-    grandTotal,
-    ceilingLocal: ceilingInCurrency(resolveEstimateTotalCeiling(), currencyCode),
-  })
+  const ceilingLocal = ceilingInCurrency(resolveEstimateTotalCeiling(), currencyCode)
+  return {
+    ...resolveProjectStatusAfterEstimate({
+      flaggedUnpriced: countUnpricedLines(sections),
+      grandTotal,
+      ceilingLocal,
+    }),
+    ceilingLocal,
+  }
 }

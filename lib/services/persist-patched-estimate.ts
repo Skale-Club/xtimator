@@ -145,10 +145,24 @@ export const persistPatchedEstimate: PersistPatch = async ({
     // awaiting_details). Generation counts unpriced lines from price research; the patch path has
     // no research outcome, so it counts lines without a positive unit_price instead. Best-effort.
     try {
-      const { status } = resolveProjectStatusForSections(patched.sections, estimateRow.total, currencyCode)
+      const { status, overCeiling, ceilingLocal } = resolveProjectStatusForSections(
+        patched.sections,
+        estimateRow.total,
+        currencyCode
+      )
       await supabase.from('projects').update({ total: estimateRow.total, status }).eq('id', projectId)
+      // Same activity row generation writes, so the owner sees why the project needs review.
+      if (overCeiling) {
+        await supabase.from('estimate_activity').insert({
+          project_id: projectId,
+          company_id: companyId,
+          estimate_id: estimateId,
+          event_type: 'estimate_over_ceiling_flagged',
+          metadata: { total: estimateRow.total, ceiling: ceilingLocal },
+        })
+      }
     } catch (err) {
-      console.warn('[persist-patched-estimate] project total update failed (non-fatal):', err)
+      console.warn('[persist-patched-estimate] project total/status update failed (non-fatal):', err)
     }
 
     return { estimateId }
