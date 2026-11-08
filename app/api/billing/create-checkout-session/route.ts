@@ -200,6 +200,8 @@ export async function POST(request: NextRequest) {
   const session = await stripe.checkout.sessions.create(
     {
       mode: 'subscription',
+      // Launch promos / partner codes; the codes themselves are created in the Stripe Dashboard.
+      allow_promotion_codes: true,
       line_items: [{ price: priceId, quantity: 1 }],
       // Always a persisted Stripe Customer — never an orphan created ad hoc by
       // Checkout (TOPUP/CREDITUI parity fix; see lib/billing/stripe-customer.ts).

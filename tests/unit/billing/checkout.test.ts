@@ -124,6 +124,8 @@ describe('POST /api/billing/create-checkout-session', () => {
     // The success_url passed to Stripe resolves via getCanonicalBaseUrl() —
     // a real https origin pointing at the billing settings page (FIX-3).
     const call = sessionCreate.mock.calls[0][0]
+    // Promotion codes are accepted on the subscription Checkout page.
+    expect(call.allow_promotion_codes).toBe(true)
     expect(call.success_url).toMatch(/^https:\/\//)
     expect(call.success_url).toContain('/settings/billing')
     // Never touched the portal for a fresh subscriber.
