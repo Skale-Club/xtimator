@@ -116,6 +116,22 @@ export async function getCurrentEstimateId(projectId: string): Promise<string | 
   return (data as { id?: string } | null)?.id ?? null
 }
 
+/** Like getCurrentEstimateId, but THROWS on a read error instead of returning
+ * null. "Edit with AI" uses it to choose refine (an estimate exists) vs generate
+ * (none exists): a failed read must never be mistaken for "no estimate", or the
+ * popup would regenerate the estimate from scratch. */
+export async function getCurrentEstimateIdOrThrow(projectId: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('is_current', true)
+    .maybeSingle()
+  if (error) throw new Error(`Could not read the current estimate: ${error.message}`)
+  return (data as { id?: string } | null)?.id ?? null
+}
+
 /** Abort-aware sleep — rejects with a DOMException named 'AbortError' on
  * signal abort, matching pollJob's (hooks/use-job-status.ts) convention. */
 function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {

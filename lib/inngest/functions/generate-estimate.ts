@@ -12,6 +12,7 @@ import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
+import { persistPatchedEstimate } from '@/lib/services/persist-patched-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage, notifyQuotaThresholds } from '@/lib/quota'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
@@ -42,13 +43,47 @@ async function loadOwnerUserId(companyId: string): Promise<string | null> {
   }
 }
 
+/**
+ * onFailure helper: the attempt id the run ACTUALLY used. When the producer sent
+ * `attemptId` it is authoritative. Otherwise the memoized `generation-start` step
+ * minted a random id and wrote the `generate_estimate/started` pipeline_events row
+ * for this project; read the newest such row (runs are serialized per project by
+ * the concurrency key) at or after the triggering event's timestamp. A fresh random
+ * id is the last resort only (lookup failed / no row), never the first choice.
+ */
+export async function resolveFailureAttemptId(
+  payload: Pick<EstimateGeneratePayload, 'attemptId' | 'companyId' | 'projectId'>,
+  eventTsMs?: number,
+): Promise<string> {
+  if (payload.attemptId) return payload.attemptId
+  try {
+    const svc = requireServiceClient()
+    let q = svc
+      .from('pipeline_events')
+      .select('attempt_id')
+      .eq('company_id', payload.companyId)
+      .eq('project_id', payload.projectId)
+      .eq('step', 'generate_estimate')
+      .eq('status', 'started')
+    if (typeof eventTsMs === 'number' && Number.isFinite(eventTsMs)) {
+      q = q.gte('created_at', new Date(eventTsMs).toISOString())
+    }
+    const { data } = await q.order('created_at', { ascending: false }).limit(1)
+    const found = (data as { attempt_id?: string | null }[] | null)?.[0]?.attempt_id
+    if (found) return found
+  } catch {
+    // fall through to the last-resort random id
+  }
+  return randomUUID()
+}
+
 export const generateEstimateJob = inngest.createFunction(
   {
     id: 'generate-estimate',
-    idempotency: 'event.data.requestId',
+    idempotency: 'event.data.companyId + "-" + event.data.projectId + "-" + event.data.requestId',
     retries: 2,
     // Pre-launch audit fix (M-2): serialize generation runs PER PROJECT. The
-    // idempotency key above only dedupes the SAME requestId (a retry of one
+    // idempotency key above (company + project + requestId) only dedupes the SAME request (a retry of one
     // attempt) — it does nothing for two genuinely different attempts fired
     // close together (a double-click, or two channels racing: web + chat/MCP,
     // each minting its own requestId). The version-bump/is_current flip inside
@@ -63,16 +98,19 @@ export const generateEstimateJob = inngest.createFunction(
     triggers: [{ event: EVENT_ESTIMATE_GENERATE }],
     // Phase 77 NOTIF-04: on final retry exhaustion fire ai_job.failed.
     onFailure: async ({ event, error }) => {
-      const payload = (event as { data?: { event?: { data?: EstimateGeneratePayload } } })
-        .data?.event?.data
+      const original = (event as { data?: { event?: { data?: EstimateGeneratePayload; ts?: number } } })
+        .data?.event
+      const payload = original?.data
       if (!payload) return
       const denied = await assertCompanyWritable(payload.companyId)
       if (denied) return
       const userId = await loadOwnerUserId(payload.companyId)
 
+      const failureAttemptId = await resolveFailureAttemptId(payload, original?.ts)
+
       // Phase 92 (EVENT-02/D-05): terminal failed generate_estimate event.
       void recordPipelineEvent({
-        attemptId: payload.attemptId ?? randomUUID(),
+        attemptId: failureAttemptId,
         inputType: payload.inputType ?? 'manual_text',
         step: 'generate_estimate',
         status: 'failed',
@@ -111,7 +149,7 @@ export const generateEstimateJob = inngest.createFunction(
           userId: payload.notifyUserId ?? payload.createdByUserId,
           projectId: payload.projectId,
           estimateId: null,
-          attemptId: payload.attemptId ?? payload.requestId,
+          attemptId: failureAttemptId,
         })
       }
 
@@ -179,7 +217,9 @@ export const generateEstimateJob = inngest.createFunction(
     const result = await step.run('orchestrate-estimate', async () => {
       const supabase = requireServiceClient()
       const adapter = makeDefaultAdapter({ companyId, supabase })
-      const graph = buildEstimateGraph(adapter)
+      // Phase 4d: the write path for an accepted section patch. Only reached when
+      // ESTIMATOR_PATCH_REFINE is on (the graph ignores the hook otherwise).
+      const graph = buildEstimateGraph(adapter, { persistPatch: persistPatchedEstimate })
 
       // OBS-01: unified Langfuse trace per estimate run.
       // channel from payload (mcp) or fallback to 'web' for UI path.
@@ -198,6 +238,7 @@ export const generateEstimateJob = inngest.createFunction(
           companyId,
           projectId,
           channel: traceChannel,
+          inputType,
           // Phase 110 (COST-01): thread the attempt id (Phase 91/92 lineage) into
           // the graph state so the generate node can build a non-LLM costContext
           // for OpenRouter cost attribution. Same id used as the Langfuse
@@ -316,6 +357,9 @@ export const generateEstimateJob = inngest.createFunction(
         // both chained into this generate event — an unfiltered read-back by
         // attempt_id alone summed those ALREADY-debited rows back into the
         // 'estimate' debit (prod ledger evidence: audio cost double-counted).
+        // 'estimate_retry' rows (schema-repair retry, auto-refine second pass,
+        // Inngest retry) are this same seam's spend that the partial unique index
+        // on (attempt_id,'estimate') would otherwise drop — sum both.
         // Scope strictly to THIS seam's own op — price_research (also shares
         // this attemptId when the graph runs price lookups) is metered by its
         // own separate debit in lib/estimate/price-research/orchestrator.ts
@@ -324,7 +368,7 @@ export const generateEstimateJob = inngest.createFunction(
           .from('ai_cost_events')
           .select('real_cost_usd')
           .eq('attempt_id', attemptId)
-          .eq('operation_type', 'estimate')
+          .in('operation_type', ['estimate', 'estimate_retry'])
         const rows = (data ?? []) as { real_cost_usd: number | null }[]
         if (rows.length > 0) {
           const known = rows
@@ -340,8 +384,13 @@ export const generateEstimateJob = inngest.createFunction(
 
     // Phase 92 (EVENT-02/D-03): resolve the new estimate id from the AI result
     // (trivially in scope — GenerateEstimateResult.estimateId; no extra query).
-    const estimateId =
-      (result as { estimateId?: string | null } | null)?.estimateId ?? null
+    // A run that ended in needs-details deleted its estimate (finalize returns
+    // needsDetails: true), so any id left in the result is stale: never journal it.
+    const needsDetails =
+      (result as { needsDetails?: boolean } | null)?.needsDetails === true
+    const estimateId = needsDetails
+      ? null
+      : ((result as { estimateId?: string | null } | null)?.estimateId ?? null)
 
     // Phase 92 (EVENT-02/D-03): terminal succeeded generate_estimate event.
     // provider left null (Open-Question 2 — not trivially in scope here, nullable).
@@ -384,7 +433,7 @@ export const generateEstimateJob = inngest.createFunction(
     if (pushUserId && data.channel !== 'mcp') {
       await step.run('notify-push', async () =>
         sendEstimatePush({
-          kind: estimateId ? 'ready' : 'needs_details',
+          kind: needsDetails ? 'needs_details' : estimateId ? 'ready' : 'needs_details',
           userId: pushUserId,
           projectId,
           estimateId,

@@ -237,7 +237,9 @@ export async function createTextRecording(
 // not (yet) probe the actual audio file to derive a ground-truth duration,
 // which would need an audio-parsing dependency this codebase doesn't carry
 // today. Tracked as a follow-up if the range check proves insufficient.
-const MAX_RECORDING_DURATION_SECONDS = 15 * 60 // 900s — client hard-caps at 10 min; generous slack for encoding variance
+// Absolute sanity ceiling for a declared duration (1h). The real per-estimate cap is the
+// tier's maxAudioMinutesPerEstimate (free 2 / pro 15 / business 30), enforced below.
+const MAX_RECORDING_DURATION_SECONDS_ABSOLUTE = 60 * 60
 
 export async function createRecording(
   projectId: string,
@@ -283,7 +285,7 @@ export async function createRecording(
     })
     return { error: 'Invalid recording path.' }
   }
-  if (!(durationSeconds > 0) || durationSeconds > MAX_RECORDING_DURATION_SECONDS) {
+  if (!(durationSeconds > 0) || durationSeconds > MAX_RECORDING_DURATION_SECONDS_ABSOLUTE) {
     // 260707-grq (TODAY'S PRODUCTION KILLER): a stale client duration=0 hits this
     // branch — now visible in /admin/events instead of silently killing the pipeline.
     void recordPipelineEvent({
@@ -411,7 +413,7 @@ export async function createRecording(
  * Callers should poll `GET /api/jobs/{jobId}` to discover completion. The
  * canonical dispatch surface is the NEW `POST /api/transcribe` route; this
  * server action is kept as a thin wrapper for backwards compatibility with
- * the existing `components/capture/capture-recorder.tsx` + `components/workspace/ai-input-group/ai-voice-dialog.tsx`
+ * the existing `components/capture/capture-recorder.tsx`
  * call sites (Plan 67-05 will rewire those to the route + polling hook).
  *
  * Implements: INNGEST-03.

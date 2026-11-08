@@ -48,6 +48,15 @@ interface StreamChunk {
   usage?: AssembledChatResponse['usage']
 }
 
+/** No chunk (not even an SSE keep-alive comment) for this long means the stream is dead. */
+export const STREAM_INACTIVITY_TIMEOUT_MS = 60_000
+
+export interface ReadStreamOptions {
+  /** Called when no chunk arrived for `inactivityMs`; should abort the fetch. */
+  onStall?: () => void
+  inactivityMs?: number
+}
+
 /**
  * Consumes the SSE body and returns the assembled response. `onToolArguments`
  * receives the FULL argument text accumulated so far for the first tool call,
@@ -56,7 +65,8 @@ interface StreamChunk {
  */
 export async function readChatCompletionStream(
   body: ReadableStream<Uint8Array>,
-  onToolArguments?: (argumentsSoFar: string) => void
+  onToolArguments?: (argumentsSoFar: string) => void,
+  options: ReadStreamOptions = {}
 ): Promise<AssembledChatResponse> {
   const decoder = new TextDecoder()
   const reader = body.getReader()
@@ -107,16 +117,46 @@ export async function readChatCompletionStream(
     handleData(line.slice(5).trimStart())
   }
 
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    let newline = buffer.indexOf('\n')
-    while (newline !== -1) {
-      handleLine(buffer.slice(0, newline))
-      buffer = buffer.slice(newline + 1)
-      newline = buffer.indexOf('\n')
+  // Inactivity timer, reset on every chunk. On a stall it aborts the fetch (via
+  // onStall) and rejects the pending read with a TimeoutError, the same error name
+  // AbortSignal.timeout raises, so it surfaces like today's timeouts.
+  const inactivityMs = options.inactivityMs ?? STREAM_INACTIVITY_TIMEOUT_MS
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let rejectStall: ((e: unknown) => void) | undefined
+  const stallPromise = new Promise<never>((_, reject) => {
+    rejectStall = reject
+  })
+  stallPromise.catch(() => {}) // never an unhandled rejection
+  const arm = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      try {
+        options.onStall?.()
+      } catch {
+        // aborting is best-effort
+      }
+      rejectStall?.(
+        new DOMException(`The stream was inactive for ${inactivityMs}ms`, 'TimeoutError')
+      )
+    }, inactivityMs)
+  }
+
+  try {
+    arm()
+    for (;;) {
+      const { value, done } = await Promise.race([reader.read(), stallPromise])
+      if (done) break
+      arm()
+      buffer += decoder.decode(value, { stream: true })
+      let newline = buffer.indexOf('\n')
+      while (newline !== -1) {
+        handleLine(buffer.slice(0, newline))
+        buffer = buffer.slice(newline + 1)
+        newline = buffer.indexOf('\n')
+      }
     }
+  } finally {
+    clearTimeout(timer)
   }
   buffer += decoder.decode()
   if (buffer) handleLine(buffer)

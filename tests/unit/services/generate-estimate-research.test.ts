@@ -87,6 +87,8 @@ function researchedTo180(sections: EstimateSectionOutput[]): EstimateSectionOutp
  * (estimates.insert) and the projects.status update so the tests can assert the totals
  * carried the researched price and the status routing.
  */
+let companyTaxRate = 0
+
 function makeSupabaseMock() {
   const captured: {
     estimateInsert?: Record<string, unknown>
@@ -147,7 +149,7 @@ function makeSupabaseMock() {
               data: {
                 industry: 'cleaning',
                 currency_code: 'USD',
-                default_tax_rate: 0,
+                default_tax_rate: companyTaxRate,
                 default_payment_terms: 'Net 30',
                 default_warranty_terms: '1 year',
                 name: 'Test Co',
@@ -175,7 +177,8 @@ function makeSupabaseMock() {
           is: vi.fn().mockReturnThis(),
         }),
         update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
+          // chainable: the service demotes other versions with .eq().neq()
+          eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })),
         }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'id') {
@@ -372,6 +375,43 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
   // duplicate collapse (before totals), qty-0-with-price flagging, and a
   // configurable over-ceiling verdict that routes through the SAME non-destructive
   // RFALL-01 awaiting_details seam exercised by Test 4a above.
+
+  it('discrepancy metric prices the AI side with the server totals engine (taxable=false honored)', async () => {
+    companyTaxRate = 0.1
+    try {
+      generateEstimateMock.mockResolvedValue({
+        ...AI_OUTPUT,
+        sections: [
+          {
+            title: 'Work',
+            items: [
+              { description: 'Taxable line', quantity: 1, unit_price: 100, price_source: 'ai_estimate' },
+              { description: 'Exempt line', quantity: 1, unit_price: 100, taxable: false, price_source: 'ai_estimate' },
+            ],
+          },
+        ],
+      })
+      researchMock.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+        sections,
+        flaggedUnpriced: 0,
+      }))
+      const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+      const { fromMock } = makeSupabaseMock()
+      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+
+      await generateEstimateForProject('company-1', 'project-1')
+
+      const call = infoSpy.mock.calls.find((c) => c[0] === '[totals_discrepancy]')
+      const d = call![1] as { delta_pct: number | null; server_grand: number; ai_grand: number }
+      // 200 subtotal + 10% tax on the 100 taxable base only = 210 (a naive subtotal*(1+rate) = 220).
+      expect(d.server_grand).toBe(210)
+      expect(d.ai_grand).toBe(210)
+      expect(d.delta_pct).toBe(0)
+      infoSpy.mockRestore()
+    } finally {
+      companyTaxRate = 0
+    }
+  })
 
   it('AIREL-04 Test A — exact-duplicate lines cannot inflate the persisted total (two identical $500 lines -> one)', async () => {
     generateEstimateMock.mockResolvedValue({

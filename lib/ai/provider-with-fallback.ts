@@ -15,7 +15,7 @@
  */
 import type { AIProvider } from './provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from './types'
-import { getAIProvider } from '@/lib/ai'
+import { getAIProvider, type GetAIProviderOptions } from '@/lib/ai'
 import { callWithFallback, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
 
 /**
@@ -59,8 +59,12 @@ async function withSchemaRetry(
  * raises `ProvidersUnavailableError` (no fallback). `getAIProvider` (model
  * selection) is left untouched.
  */
-export async function getAIProviderWithFallback(companyId?: string): Promise<AIProvider> {
-  const primary = await getAIProvider(companyId)
+export async function getAIProviderWithFallback(
+  companyId?: string,
+  opts?: GetAIProviderOptions
+): Promise<AIProvider> {
+  // Pass `opts` only when given so existing one-argument callers/mocks see the same call.
+  const primary = opts ? await getAIProvider(companyId, opts) : await getAIProvider(companyId)
 
   return {
     async generateEstimate(input: EstimateInput): Promise<EstimateOutput> {

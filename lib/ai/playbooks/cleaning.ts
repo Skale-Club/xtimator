@@ -46,6 +46,13 @@ export const cleaning: Playbook = {
     ['bathroom', 'restroom', 'washroom', 'bath'],
     ['clean', 'cleaning', 'wash', 'washing'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'house cleaning by area', match: ['clean'], bands: { 'sq ft': [0.05, 1.5] } },
+    { concept: 'hourly cleaning labor', match: ['clean', 'labor', 'maid'], bands: { 'hour': [20, 120] } },
+    { concept: 'deep clean or move-out, per job', match: ['deep clean', 'move-out', 'move out'], bands: { 'job': [100, 1500] } },
+  ],
   example: {
     scenario: 'Move-out clean of a 2 bedroom, 1 bath apartment, oven and fridge included.',
     sections: [

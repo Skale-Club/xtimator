@@ -17,6 +17,8 @@ export interface HarnessOptions {
   itemInsertErrors?: Array<{ code?: string; message: string } | null>
   /** Rows served by the price_observations read (company history). */
   priceObservations?: Array<Record<string, unknown>>
+  /** Rows served by the company_price_book read (default: an empty book). */
+  priceBook?: Array<Record<string, unknown>>
   /** Make the price_observations read fail (table does not exist yet). */
   priceObservationsError?: { code?: string; message: string } | null
 }
@@ -78,7 +80,9 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
       chain.select = vi.fn(() => chain)
       chain.eq = vi.fn(() => chain)
       chain.is = vi.fn(() => chain)
-      chain.order = vi.fn().mockResolvedValue({ data: [], error: null })
+      chain.order = vi.fn(() => chain)
+      // getPriceBookItems pages with range() (Phase 4a)
+      chain.range = vi.fn().mockResolvedValue({ data: opts.priceBook ?? [], error: null })
       return chain
     }
     if (table === 'clients') {
@@ -97,7 +101,7 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
     if (table === 'estimates') {
       return {
         delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis() }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })) }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'id') {
             return {

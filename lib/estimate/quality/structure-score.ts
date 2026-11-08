@@ -22,6 +22,7 @@
 import type { Playbook } from '@/lib/ai/playbooks'
 import { CANONICAL_UNITS, isMetricUnit, normalizeUnit } from '@/lib/ai/units'
 import type { QualityBand } from '@/lib/estimate/ai-meta'
+import { isPriceBandsEnabled, priceOutsideBand } from '@/lib/estimate/pricing/price-bands'
 
 export const REFINE_BELOW = 50
 export const REVIEW_BELOW = 70
@@ -38,6 +39,7 @@ export type FindingCode =
   | 'missing_summary'
   | 'too_many_questions'
   | 'off_vocabulary'
+  | 'price_out_of_band'
 
 export interface StructureFinding {
   code: FindingCode
@@ -55,6 +57,8 @@ export interface StructureItem {
   unit?: string | null
   unit_price: number
   basis?: string | null
+  /** Who priced the line; the playbook price band only judges 'ai_estimate' / 'researched' / unknown. */
+  price_source?: string | null
 }
 
 export interface StructureSection {
@@ -76,6 +80,11 @@ export interface StructureInput {
   hasMeasurements?: boolean
   /** Estimate language. The English-only checks (units, vocabulary, mandatory lines) skip other languages. */
   language?: 'en' | 'pt' | 'es'
+  /**
+   * The estimate's currency, for the playbook price bands (ESTIMATOR_PRICE_BANDS, default off),
+   * which are written in USD. Absent = USD.
+   */
+  currencyCode?: string
 }
 
 export interface StructureResult {
@@ -103,6 +112,7 @@ const MESSAGES: Record<Lang, {
   miscHeavy: (pct: number) => string
   noSummary: string
   tooManyQuestions: (n: number) => string
+  priceBand: (n: number, names: string) => string
 }> = {
   en: {
     thin: (n) => `Only ${n} line${n === 1 ? '' : 's'} for a job of this size.`,
@@ -115,6 +125,7 @@ const MESSAGES: Record<Lang, {
     miscHeavy: (pct) => `${pct}% of the total sits in "misc / other" lines.`,
     noSummary: 'No scope summary.',
     tooManyQuestions: (n) => `${n} open questions: too many to be useful.`,
+    priceBand: (n, names) => `${n} line${n > 1 ? 's' : ''} priced outside the usual range for this trade: ${names}.`,
   },
   pt: {
     thin: (n) => `Só ${n} ${n === 1 ? 'linha' : 'linhas'} para um serviço deste tamanho.`,
@@ -127,6 +138,7 @@ const MESSAGES: Record<Lang, {
     miscHeavy: (pct) => `${pct}% do total está em linhas "diversos / outros".`,
     noSummary: 'Sem resumo do escopo.',
     tooManyQuestions: (n) => `${n} perguntas em aberto: demais para serem úteis.`,
+    priceBand: (n, names) => `${n} ${n > 1 ? 'linhas com preço fora da faixa usual' : 'linha com preço fora da faixa usual'} deste serviço: ${names}.`,
   },
   es: {
     thin: (n) => `Solo ${n} ${n === 1 ? 'línea' : 'líneas'} para un trabajo de este tamaño.`,
@@ -139,6 +151,7 @@ const MESSAGES: Record<Lang, {
     miscHeavy: (pct) => `${pct}% del total está en líneas "varios / otros".`,
     noSummary: 'Sin resumen del alcance.',
     tooManyQuestions: (n) => `${n} preguntas abiertas: demasiadas para ser útiles.`,
+    priceBand: (n, names) => `${n} ${n > 1 ? 'líneas con precio fuera del rango habitual' : 'línea con precio fuera del rango habitual'} de este oficio: ${names}.`,
   },
 }
 
@@ -331,6 +344,20 @@ export function scoreStructure(input: StructureInput): StructureResult {
       message: M.tooManyQuestions(input.openQuestions ?? 0),
       hint: 'Keep only the 5 open questions that move the price the most.',
     })
+  }
+
+  // Playbook price bands (ESTIMATOR_PRICE_BANDS, default off): a model/researched price outside the
+  // trade's usual range is a finding for the owner. The price is NEVER changed here.
+  if (isPriceBandsEnabled() && input.playbook.priceBands?.length) {
+    const out = items.filter((i) => priceOutsideBand(input.playbook, i, input.currencyCode ?? 'USD') !== null)
+    if (out.length > 0) {
+      add({
+        code: 'price_out_of_band',
+        penalty: Math.min(12, out.length * 4),
+        message: M.priceBand(out.length, quote(out)),
+        hint: `Check the unit price of ${quote(out)}: it is outside the usual range for this trade. Correct it, or keep it and say why in the basis.`,
+      })
+    }
   }
 
   // Section titles outside the playbook's vocabulary (English only; minor).

@@ -9,6 +9,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 export async function POST(request: Request) {
   // 1. Auth check + rate limit
   let userId: string
+  let companyId: string | null = null
   try {
     const supabase = await createClient()
     const { data: claimsData } = await supabase.auth.getClaims()
@@ -16,10 +17,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
     userId = claimsData.claims.sub
+    companyId = (await getActiveCompanyId()) ?? null
     const blocked = await demoGuardResponse({
       userId,
       email: (claimsData.claims.email as string | undefined) ?? null,
-      companyId: await getActiveCompanyId(),
+      companyId,
     })
     if (blocked) return blocked
   } catch {
@@ -72,7 +74,9 @@ export async function POST(request: Request) {
   // 4. AI translate missing strings via OpenRouter
   if (missing.length > 0) {
     try {
-      const aiMap = await translateTextsOR(missing, targetLanguage)
+      // Phase 3: pass the caller's company so the cost row is attributable and a
+      // BYOK company's own key is used (no attempt id: a one-off call).
+      const aiMap = await translateTextsOR(missing, targetLanguage, undefined, { companyId })
 
       // 5. Save to DB (ON CONFLICT DO NOTHING via ignoreDuplicates)
       const rows = missing

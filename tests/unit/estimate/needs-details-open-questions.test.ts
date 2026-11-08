@@ -45,12 +45,27 @@ describe('default adapter finalize: needs-details source', () => {
     } as unknown as EstimateStateType)
 
     expect(out).toEqual({ needsDetails: true })
+    // 1.2: the deleted estimate's id must be CLEARED from state (an explicit
+    // `undefined` clears the last-value channel), not merely left unmentioned.
+    expect(out).toHaveProperty('estimateId', undefined)
     expect(buildNeedsDetailsMock).not.toHaveBeenCalled()
     const row = updates.find((u) => 'needs_details' in u)!
     expect(row.needs_details).toMatchObject({
       reason: 'missing_specifics',
       questions: ['How many rooms?', 'What is the ceiling height?', 'Is there a garage?', 'Interior or exterior?'],
     })
+  })
+
+  it('clears the deleted estimate id from graph state on the final-vague path', async () => {
+    const { client } = makeSupabase()
+    const out = await makeDefaultAdapter({ companyId: 'c', supabase: client }).finalize({
+      ...base,
+      estimateId: 'deleted-est',
+      openQuestions: ['q?'],
+    } as unknown as EstimateStateType)
+    expect(Object.prototype.hasOwnProperty.call(out, 'estimateId')).toBe(true)
+    expect(out.estimateId).toBeUndefined()
+    expect(out.needsDetails).toBe(true)
   })
 
   it('falls back to the classification call when the estimator raised none', async () => {

@@ -117,11 +117,13 @@ const mockNotify = notify as ReturnType<typeof vi.fn>
 const mockNotifyOps = notifyOps as ReturnType<typeof vi.fn>
 
 describe('INNGEST-02 + INNGEST-06: generateEstimateJob function config', () => {
-  it('is created with id "generate-estimate" and idempotency: "event.data.requestId"', async () => {
+  it('is created with id "generate-estimate" and idempotency scoped to company + project + requestId', async () => {
     const { generateEstimateJob } = await import('@/lib/inngest/functions/generate-estimate')
     const fn = generateEstimateJob as unknown as FnInternals
     expect(fn.opts.id).toBe('generate-estimate')
-    expect(fn.opts.idempotency).toBe('event.data.requestId')
+    expect(fn.opts.idempotency).toBe(
+      'event.data.companyId + "-" + event.data.projectId + "-" + event.data.requestId',
+    )
     expect(fn.opts.retries).toBe(2)
   })
 

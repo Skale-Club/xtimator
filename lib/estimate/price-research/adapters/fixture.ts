@@ -71,20 +71,14 @@ function missFor(name: string, currency: string): PriceResearchResult {
 /**
  * Build a deterministic PriceResearchProvider over a golden fixtures map.
  *
- * `opts.now` is the injectable fixed clock (ms). It is captured here but, because
- * the current `PriceResearchResult` carries no time field, it is not yet written
- * into a result — its purpose is to GUARANTEE that any future time-dependent field
- * reads the injected clock rather than the wall clock, preserving determinism.
+ * `opts.now` is accepted for API compatibility but unused: the current
+ * `PriceResearchResult` carries no time field. A future time-dependent field must
+ * read this clock, never the wall clock.
  */
 export function makeFixtureProvider(
   fixtures: PriceResearchFixtures,
-  opts?: { now?: number }
+  _opts?: { now?: number }
 ): PriceResearchProvider {
-  // Fixed clock — read from opts, NEVER the wall clock. Reserved for any future
-  // time-dependent field so two lookups with the same `now` stay byte-identical.
-  const now = opts?.now ?? FIXTURE_FIXED_NOW
-  void now
-
   return {
     async lookup(
       items: { name: string }[],

@@ -10,6 +10,8 @@ export type AuditAction =
   | 'ai_provider.set'
   | 'ai_provider.set_model'
   | 'ai_provider.set_transcription_model'
+  | 'ai_provider.set_model_slot'
+  | 'ai_provider.set_escalation'
   | 'company.set_model_override'
   | 'company.set_demo_quota'
   | 'company.byok_enabled'

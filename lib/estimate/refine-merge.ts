@@ -60,18 +60,30 @@ export interface MergeCurrentContent {
   warranty_terms?: string | null
 }
 
-type RefinedItem = RefinementPayload['sections'][number]['items'][number]
+/**
+ * A refined line as the refine route returns it. RefinementPayload (owned by the
+ * reducer) predates the per-line AI metadata, so it is widened here: the route now
+ * echoes confidence / basis / optional per line (SEED-057) and the merge carries them.
+ */
+type RefinedItem = RefinementPayload['sections'][number]['items'][number] & {
+  confidence?: 'low' | 'medium' | 'high' | null
+  basis?: string | null
+  optional?: boolean
+}
+
+/** A current editor row, which may carry the SEED-057 `optional` flag the EditorItem type omits. */
+type CurrentItem = EditorItem & { optional?: boolean }
 
 // ---------------------------------------------------------------------------
 // Normalization + similarity helpers
 // ---------------------------------------------------------------------------
 
-function normalizeText(s: string | null | undefined): string {
+export function normalizeText(s: string | null | undefined): string {
   return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 /** Info 6 / test (j): compare at cent precision — avoids fp noise (200.00000001). */
-function priceEquals(a: number, b: number): boolean {
+export function priceEquals(a: number, b: number): boolean {
   return Math.round(a * 100) === Math.round(b * 100)
 }
 
@@ -102,6 +114,37 @@ function tokenSimilarity(a: string, b: string): number {
  *  unrelated line (test k) does not. */
 const SIMILARITY_THRESHOLD = 0.25
 
+/**
+ * Which refined lines are UNCHANGED from the current lines of the same section:
+ * same normalized description, same quantity, same unit price (cent precision).
+ * Each current line can vouch for one refined line (duplicates do not double-claim).
+ * Returns, per refined line, the index of its matching current line or -1. The refine
+ * node uses this so an unchanged line is never re-priced (an owner's manual price
+ * edit survives); the merge below classifies with the very same normalization.
+ */
+export function matchUnchangedLines(
+  currentItems: Array<{ description: string; quantity: number; unit_price: number }>,
+  refinedItems: Array<{ description: string; quantity: number; unit_price: number }>
+): number[] {
+  const claimed = new Set<number>()
+  return refinedItems.map((r) => {
+    const normDesc = normalizeText(r.description)
+    for (let ci = 0; ci < currentItems.length; ci++) {
+      if (claimed.has(ci)) continue
+      const c = currentItems[ci]
+      if (
+        normalizeText(c.description) === normDesc &&
+        c.quantity === r.quantity &&
+        priceEquals(c.unit_price, r.unit_price)
+      ) {
+        claimed.add(ci)
+        return ci
+      }
+    }
+    return -1
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Item-level merge for ONE matched section
 // ---------------------------------------------------------------------------
@@ -110,9 +153,20 @@ function buildMergedItem(
   id: string,
   r: RefinedItem,
   sortOrder: number,
-  isManuallyEdited: boolean
+  isManuallyEdited: boolean,
+  // The current row this line was matched to (undefined for a new line) and
+  // whether the line is untouched. Unchanged lines keep the current AI metadata;
+  // changed/new lines take the refined value (a changed line whose refined value
+  // is absent keeps the current one rather than losing it).
+  current?: CurrentItem,
+  unchanged = false
 ): EditorItem {
-  return {
+  const pick = <T,>(refined: T | null | undefined, cur: T | null | undefined): T | null =>
+    unchanged ? (cur ?? null) : (refined ?? cur ?? null)
+  const optional = unchanged
+    ? current?.optional
+    : (r.optional ?? current?.optional)
+  const item: CurrentItem = {
     id,
     description: r.description,
     quantity: r.quantity,
@@ -120,7 +174,10 @@ function buildMergedItem(
     unit_price: r.unit_price,
     total: Math.round(r.quantity * r.unit_price * 100) / 100 - (r.discount ?? 0),
     sort_order: sortOrder,
-    price_source: r.price_source,
+    // An untouched line keeps its current price_source (null on an owner-edited
+    // price): the route sends owner-edited rows to the model as 'ai_estimate', so
+    // taking the refined value here would relabel the owner's own price.
+    price_source: unchanged && current ? current.price_source : r.price_source,
     isManuallyEdited,
     // v4.11 advanced pricing — same no-op-default cast pattern the pre-existing
     // APPLY_REFINEMENT used (refined value ?? default); preserved verbatim.
@@ -129,7 +186,11 @@ function buildMergedItem(
     discount: r.discount ?? 0,
     cost: r.cost ?? null,
     markup_pct: r.markup_pct ?? null,
+    confidence: pick(r.confidence, current?.confidence),
+    basis: pick(r.basis, current?.basis),
+    ...(optional !== undefined ? { optional } : {}),
   }
+  return item
 }
 
 function mergeSectionItems(
@@ -201,7 +262,8 @@ function mergeSectionItems(
       // silently un-pin a manual price it didn't touch. Only a genuine price
       // delta resets the manual-override flag.
       const isManuallyEdited = priceChanged ? false : (cur.isManuallyEdited ?? false)
-      items.push(buildMergedItem(cur.id, r, items.length, isManuallyEdited))
+      const unchanged = !(priceChanged || qtyChanged || descChanged)
+      items.push(buildMergedItem(cur.id, r, items.length, isManuallyEdited, cur, unchanged))
     } else {
       added.push({ description: r.description, unit_price: r.unit_price })
       items.push(buildMergedItem('temp-' + crypto.randomUUID(), r, items.length, false))

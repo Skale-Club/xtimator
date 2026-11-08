@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeRefinement, type MergeCurrentContent } from '@/lib/estimate/refine-merge'
+import { mergeRefinement, matchUnchangedLines, type MergeCurrentContent } from '@/lib/estimate/refine-merge'
 import type { EditorItem, EditorSection, RefinementPayload } from '@/components/workspace/estimate/use-estimate-reducer'
 
 // Phase 170 Plan 01 (REFINE-01/02) — closes audit § G2/G3.
@@ -464,6 +464,43 @@ describe('mergeRefinement — (j) isManuallyEdited on merge', () => {
     const { mergedSections } = mergeRefinement(current, refined)
     expect(mergedSections[0].items[0].isManuallyEdited).toBe(false)
   })
+
+  it('keeps the current price_source (null on an owner-edited price) on an untouched line', () => {
+    // The refine route sends owner-edited rows (price_source null) to the model as
+    // 'ai_estimate'; an untouched line must not come back relabelled.
+    const current = buildCurrent({
+      sections: [
+        buildSection({
+          items: [
+            buildItem({ id: 'o1', description: 'Owner priced line', unit_price: 420, price_source: null, isManuallyEdited: true }),
+          ],
+        }),
+      ],
+    })
+    const refined = buildRefined({
+      sections: [
+        { title: 'General', items: [buildRefinedItem({ description: 'Owner priced line', unit_price: 420, price_source: 'ai_estimate' })] },
+      ],
+    })
+
+    const { mergedSections } = mergeRefinement(current, refined)
+    expect(mergedSections[0].items[0].price_source).toBeNull()
+    expect(mergedSections[0].items[0].isManuallyEdited).toBe(true)
+  })
+
+  it('takes the refined price_source on a changed line', () => {
+    const current = buildCurrent({
+      sections: [buildSection({ items: [buildItem({ id: 'o2', description: 'Owner priced line', unit_price: 420, price_source: null })] })],
+    })
+    const refined = buildRefined({
+      sections: [
+        { title: 'General', items: [buildRefinedItem({ description: 'Owner priced line', unit_price: 480, price_source: 'price_book' })] },
+      ],
+    })
+
+    const { mergedSections } = mergeRefinement(current, refined)
+    expect(mergedSections[0].items[0].price_source).toBe('price_book')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -513,5 +550,62 @@ describe('mergeRefinement — determinism', () => {
 
     expect(run1.diff.changed).toEqual(run2.diff.changed)
     expect(run1.mergedSections[0].items[0].id).toBe(run2.mergedSections[0].items[0].id)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Per-line AI metadata survives refine (confidence / basis / optional)
+// ---------------------------------------------------------------------------
+
+describe('mergeRefinement — AI metadata (confidence/basis/optional)', () => {
+  type Meta = { confidence?: 'low' | 'medium' | 'high' | null; basis?: string | null; optional?: boolean }
+  const withMeta = (item: RefinedItem, meta: Meta): RefinedItem => ({ ...item, ...meta }) as RefinedItem
+
+  it('keeps the CURRENT metadata on an unchanged line', () => {
+    const current = buildCurrent({
+      sections: [buildSection({ items: [buildItem({ confidence: 'high', basis: 'from walkthrough', optional: true } as Partial<EditorItem>)] })],
+    })
+    const refined = buildRefined({
+      sections: [{ title: 'General', items: [withMeta(buildRefinedItem(), { confidence: 'low', basis: 'model drift', optional: false })] }],
+    })
+    const item = mergeRefinement(current, refined).mergedSections[0].items[0] as EditorItem & { optional?: boolean }
+    expect(item.confidence).toBe('high')
+    expect(item.basis).toBe('from walkthrough')
+    expect(item.optional).toBe(true)
+  })
+
+  it('takes the REFINED metadata on a changed line, and on a new line', () => {
+    const current = buildCurrent({
+      sections: [buildSection({ items: [buildItem({ confidence: 'high', basis: 'old' } as Partial<EditorItem>)] })],
+    })
+    const refined = buildRefined({
+      sections: [
+        {
+          title: 'General',
+          items: [
+            withMeta(buildRefinedItem({ unit_price: 300 }), { confidence: 'medium', basis: 'new basis', optional: true }),
+            withMeta(buildRefinedItem({ description: 'Install ceiling fan', unit_price: 150 }), { confidence: 'low', basis: 'guess' }),
+          ],
+        },
+      ],
+    })
+    const [changed, added] = mergeRefinement(current, refined).mergedSections[0].items as Array<EditorItem & { optional?: boolean }>
+    expect(changed).toMatchObject({ confidence: 'medium', basis: 'new basis', optional: true })
+    expect(added).toMatchObject({ confidence: 'low', basis: 'guess' })
+  })
+})
+
+describe('matchUnchangedLines', () => {
+  it('matches on normalized description + quantity + unit_price, one claim per current line', () => {
+    const cur = [
+      { description: 'Paint  Walls', quantity: 2, unit_price: 10 },
+      { description: 'Trim', quantity: 1, unit_price: 5 },
+    ]
+    const ref = [
+      { description: 'paint walls', quantity: 2, unit_price: 10.001 },
+      { description: 'paint walls', quantity: 2, unit_price: 10 },
+      { description: 'Trim', quantity: 1, unit_price: 6 },
+    ]
+    expect(matchUnchangedLines(cur, ref)).toEqual([0, -1, -1])
   })
 })

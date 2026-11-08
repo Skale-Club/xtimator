@@ -35,6 +35,8 @@ type GenerationStart = {
   startTime?: Date
   /** Legacy v3-style token usage; mapped to v5 `usageDetails`. */
   usage?: { input?: number; output?: number }
+  /** Free-form observation metadata (model routing decisions, cache usage). */
+  metadata?: Record<string, unknown>
 }
 
 type GenerationEnd = {
@@ -47,7 +49,7 @@ export const langfuseClient = {
    * Start a generation observation. Returns a handle whose `end()` records the
    * output and closes the span — mirroring the legacy v3 generation API.
    */
-  generation({ name, model, input, startTime, usage }: GenerationStart) {
+  generation({ name, model, input, startTime, usage, metadata }: GenerationStart) {
     // Map v3 { input, output } token counts → v5 usageDetails (numbers only).
     const usageDetails: Record<string, number> = {}
     if (typeof usage?.input === 'number') usageDetails.input = usage.input
@@ -58,6 +60,7 @@ export const langfuseClient = {
       {
         model,
         input,
+        ...(metadata ? { metadata } : {}),
         ...(Object.keys(usageDetails).length > 0 ? { usageDetails } : {}),
       },
       { asType: 'generation', ...(startTime ? { startTime } : {}) },

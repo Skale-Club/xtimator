@@ -43,6 +43,14 @@ export const plumbing: Playbook = {
     ['install', 'installation', 'replace', 'replacement', 'swap'],
     ['water heater', 'hot water tank'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'fixture install (toilet, faucet)', match: ['toilet', 'faucet', 'sink'], bands: { 'each': [60, 1500] } },
+    { concept: 'water heater swap', match: ['water heater'], bands: { 'each': [400, 5000] } },
+    { concept: 'pipe run', match: ['pipe', 'repipe'], bands: { 'linear ft': [3, 60] } },
+    { concept: 'plumber labor', match: ['labor', 'service call', 'diagnostic'], bands: { 'hour': [50, 250] } },
+  ],
   example: {
     scenario: 'Replace a 40 gallon gas water heater and one leaking kitchen faucet.',
     sections: [

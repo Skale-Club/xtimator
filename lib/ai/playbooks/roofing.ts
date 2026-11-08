@@ -45,6 +45,14 @@ export const roofing: Playbook = {
     ['underlayment', 'felt', 'synthetic underlayment'],
     ['gutter', 'gutters'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'shingle roof, installed', match: ['shingle', 're-roof', 'reroof', 'roof replacement'], bands: { 'sq ft': [2.5, 18] } },
+    { concept: 'tear-off and disposal', match: ['tear-off', 'tear off'], bands: { 'sq ft': [0.5, 5] } },
+    { concept: 'ridge, drip edge, valley or flashing', match: ['ridge', 'drip edge', 'valley', 'flashing'], bands: { 'linear ft': [2, 40] } },
+    { concept: 'roofer labor', match: ['labor'], bands: { 'hour': [30, 150] } },
+  ],
   example: {
     scenario: 'Re-roof a 2,000 sq ft footprint, 6/12 pitch, one layer of asphalt shingles.',
     sections: [

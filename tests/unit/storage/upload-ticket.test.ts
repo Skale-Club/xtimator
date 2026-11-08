@@ -127,9 +127,8 @@ describe('deriveUploadKey', () => {
 
   it('matches the literal shape production call sites build today', async () => {
     // Verified 2026-08-06 against components/capture/capture-recorder.tsx,
-    // components/projects/inline-audio-recorder.tsx, and
-    // components/workspace/ai-input-group/use-ai-input-submit.ts — all three
-    // build `${companyId}/${projectId}/${recordingId}.${ext}` identically.
+    // components/projects/inline-audio-recorder.tsx
+    // (use-ai-input-submit.ts was removed) — both build `${companyId}/${projectId}/${recordingId}.${ext}` identically.
     const { deriveUploadKey } = await import('@/lib/storage/upload-ticket')
     const productionShape = `${COMPANY_ID}/${PROJECT_ID}/${FIXED_ID}.webm`
     const key = deriveUploadKey({

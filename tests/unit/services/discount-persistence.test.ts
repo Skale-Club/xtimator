@@ -21,6 +21,12 @@ const SRC = readFileSync(
   'utf8'
 )
 
+// The items insert now lives in the shared write path used by generation and the patch hook.
+const PERSIST_SRC = readFileSync(
+  join(process.cwd(), 'lib/services/persist-estimate-version.ts'),
+  'utf8'
+)
+
 describe('DISC-01/DISC-02: engine persists discount from computed values (not hardcoded 0)', () => {
   it('threads discountAmount out of computeEstimateTotals', () => {
     const callIdx = SRC.indexOf('computeEstimateTotals(')
@@ -35,7 +41,7 @@ describe('DISC-01/DISC-02: engine persists discount from computed values (not ha
   })
 
   it('persists the per-item line discount on estimate_items', () => {
-    expect(SRC).toContain('discount: (item.discount')
+    expect(PERSIST_SRC).toContain('discount: (item.discount')
   })
 
   it('no longer persists the hardcoded discount_amount: 0 stub', () => {

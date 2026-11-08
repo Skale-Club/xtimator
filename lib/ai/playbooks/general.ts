@@ -41,6 +41,12 @@ export const general: Playbook = {
     ['install', 'installation', 'installed', 'replace', 'replacement'],
     ['remove', 'removal', 'demo', 'demolition', 'tear out'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'skilled labor, hourly', match: ['labor', 'hourly', 'service call'], bands: { 'hour': [20, 250] } },
+    { concept: 'crew day rate', match: ['crew', 'day rate'], bands: { 'day': [200, 3000] } },
+  ],
   example: {
     scenario: 'Install a 6 ft section of fence and a gate.',
     sections: [

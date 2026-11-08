@@ -686,7 +686,13 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       process.cwd(),
       'lib/affiliates/attribution-server.ts',
     )
+    // Phase 3 (3.5): whisper-cost.ts reads whisperUsdPerMinute (the runtime
+    // transcription rate) from getBillingConfig via a dynamic import — the
+    // billing-config value that replaces the hard-coded constant (constant kept
+    // only as the last-resort fallback). Read-only, measure-only consumer.
+    const WHISPER_COST_PATH = resolve(process.cwd(), 'lib/billing/whisper-cost.ts')
     const ALLOWLIST = new Set([
+      WHISPER_COST_PATH,
       MODULE_PATH,
       CREDIT_LEDGER_PATH,
       STRIPE_WEBHOOK_PATH,

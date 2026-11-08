@@ -56,7 +56,12 @@ describe('generateEstimateForProject - company knowledge (SEED-057 E5)', () => {
     expect(retrieveMock).toHaveBeenCalledOnce()
     const [query, ctx] = retrieveMock.mock.calls[0]
     expect(query).toContain('Repaint the living room walls.')
-    expect(ctx).toEqual({ industries: ['painting', 'drywall'], companyId: 'company-1', k: 5 })
+    expect(ctx).toEqual({
+      industries: ['painting', 'drywall'],
+      companyId: 'company-1',
+      k: 5,
+      signal: expect.any(AbortSignal),
+    })
 
     const input = generateEstimateMock.mock.calls[0][0] as { knowledge?: unknown }
     expect(input.knowledge).toEqual([{ title: 'Minimum charge', body: 'Our minimum is $150.' }])

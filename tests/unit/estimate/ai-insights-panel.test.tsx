@@ -81,7 +81,14 @@ describe('AiInsightsPanel', () => {
   it('Answer with AI opens the Edit with AI popup for this project', () => {
     render(<AiInsightsPanel meta={full} projectId="p1" />)
     fireEvent.click(screen.getByTestId('ai-answer-questions'))
-    expect(pushMock).toHaveBeenCalledWith(editEstimateHref('tab=estimate', 'p1'), { scroll: false })
+    expect(pushMock).toHaveBeenCalledWith(
+      editEstimateHref(
+        'tab=estimate',
+        'p1',
+        'Q: Is the closet included?\nA: \n\nQ: Any HOA rules?\nA: ',
+      ),
+      { scroll: false },
+    )
   })
 
   it('shows the banner alone when there are no notes', () => {

@@ -33,6 +33,7 @@ vi.mock('@/lib/observability/ops-alert', () => ({ notifyOps: vi.fn() }))
 
 import { OpenRouterAdapter } from '@/lib/ai/providers/openrouter'
 import { getIntegrationKey } from '@/lib/platform-config'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { callWithFallback, TruncatedOutputError, ProvidersUnavailableError } from '@/lib/ai/with-fallback'
 import type { EstimateInput } from '@/lib/ai/types'
 
@@ -126,6 +127,36 @@ describe('OpenRouterAdapter — finish_reason truncation (AIREL-02)', () => {
     await expect(adapter.generateEstimate(makeInput())).rejects.toBeInstanceOf(
       TruncatedOutputError
     )
+  })
+
+  it('1.5: records the call cost BEFORE throwing on truncation / missing tool call / malformed JSON, exactly once', async () => {
+    const withUsage = (r: { ok: boolean; json: () => Promise<Record<string, unknown>> }) => ({
+      ok: true,
+      json: async () => ({ ...(await r.json()), usage: { cost: 0.07 } }),
+    })
+    const cases: Array<ReturnType<typeof makeResponse>> = [
+      makeResponse('length', TRUNCATED_INVALID_ARGS),
+      makeResponse('stop'),
+      makeResponse('stop', TRUNCATED_INVALID_ARGS),
+    ]
+    for (const c of cases) {
+      vi.mocked(recordAICost).mockClear()
+      ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(withUsage(c))
+      await expect(new OpenRouterAdapter(MODEL).generateEstimate(makeInput())).rejects.toThrow()
+      expect(recordAICost).toHaveBeenCalledTimes(1)
+      expect(recordAICost).toHaveBeenCalledWith(
+        expect.objectContaining({ operationType: 'estimate', realCostUsd: 0.07 })
+      )
+    }
+  })
+
+  it('1.5: records exactly once on the success path', async () => {
+    vi.mocked(recordAICost).mockClear()
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeResponse('tool_calls', VALID_TOOL_ARGS)
+    )
+    await new OpenRouterAdapter(MODEL).generateEstimate(makeInput())
+    expect(recordAICost).toHaveBeenCalledTimes(1)
   })
 
   it('(c) finish_reason=tool_calls + valid JSON -> parses normally (no truncation)', async () => {

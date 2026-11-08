@@ -33,11 +33,20 @@ export function newProjectHref(currentSearch?: string, clientId?: string): strin
   return `?${params.toString()}`
 }
 
+/** Optional, edit mode only: text the popup seeds into its text box once on open
+ * (read and removed from the URL by the wizard). Used by "Answer with AI". */
+export const NEW_PROJECT_PREFILL_PARAM = 'refinePrefill'
+
 /** Build the href that opens the SAME popup in edit mode for an existing project. */
-export function editEstimateHref(currentSearch: string | undefined, projectId: string): string {
+export function editEstimateHref(
+  currentSearch: string | undefined,
+  projectId: string,
+  prefill?: string,
+): string {
   const params = new URLSearchParams(currentSearch ?? '')
   params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
   params.set(NEW_PROJECT_EDIT_PARAM, projectId)
+  if (prefill) params.set(NEW_PROJECT_PREFILL_PARAM, prefill)
   return `?${params.toString()}`
 }
 
@@ -53,7 +62,7 @@ function NewProjectDialogInner() {
 
   function onClose() {
     // History API → closes instantly without re-rendering the page behind it.
-    closeModalParam(NEW_PROJECT_EDIT_PARAM)
+    closeModalParam(NEW_PROJECT_EDIT_PARAM, NEW_PROJECT_PREFILL_PARAM)
   }
 
   return (
@@ -87,7 +96,11 @@ function NewProjectDialogInner() {
               </button>
             </div>
             <DialogDescription className="sr-only">
-              <T>Record audio, type, or upload photos to generate an estimate.</T>
+              {editProjectId ? (
+                <T>Record audio, type, or upload photos to update the current estimate.</T>
+              ) : (
+                <T>Record audio, type, or upload photos to generate an estimate.</T>
+              )}
             </DialogDescription>
           </DialogHeader>
 

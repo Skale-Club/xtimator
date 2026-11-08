@@ -8,6 +8,7 @@
  * index.ts; the adapter supplies the terminal behavior (onError / finalize).
  */
 import type { EstimateStateType } from '../state'
+import { isPatchRefineEnabled } from '../patch-refine'
 
 /**
  * After generate: a failure (or a missing estimateId) routes to the adapter's
@@ -17,14 +18,6 @@ export function checkGeneratedEdge(state: EstimateStateType): string {
   if (!state.failure && state.estimateId) return 'assess'
   // SEED-057 D: a failed TARGETED refine pass falls back to the first draft.
   return state.previousEstimateId ? 'recoverDraft' : 'onError'
-}
-
-/**
- * After assess: a vague estimate routes to the adapter's "ask for details" /
- * refine finalize; a usable estimate routes to the confirm finalize.
- */
-export function checkVagueEdge(state: EstimateStateType): string {
-  return state.isVague ? 'finalizeAsk' : 'finalizeConfirm'
 }
 
 /**
@@ -51,17 +44,35 @@ const AUTO_REFINE_MAX_ATTEMPTS = (() => {
  * The adapter's finalize branches internally on state.isVague to produce the
  * channel-appropriate needs_details outcome when the cap is reached.
  */
-export function checkVagueAfterAssessEdge(state: EstimateStateType): string {
+export function checkVagueAfterAssessEdge(
+  state: EstimateStateType,
+  opts: { patchAvailable?: boolean } = {}
+): string {
   // SEED-057 D: a targeted pass that came back VAGUE must not leave the project without a
   // current estimate (finalize would delete it and flip to awaiting_details): fall back to
   // the first draft, which was good enough to deliver.
   if (state.isVague && state.previousEstimateId) return 'recoverDraft'
+  // Bug fix (always on): a full regenerate that scores WORSE than the first draft must not replace
+  // it. Only when both scores are known, and only a strictly lower one: equal keeps today's behavior.
+  if (
+    !state.isVague &&
+    state.previousEstimateId &&
+    typeof state.previousStructureScore === 'number' &&
+    typeof state.structureScore === 'number' &&
+    state.structureScore < state.previousStructureScore
+  ) {
+    return 'recoverDraft'
+  }
   const canRefine = (state.refineAttempts ?? 0) < AUTO_REFINE_MAX_ATTEMPTS
   if (!state.isVague) {
     // SEED-057 D: a usable but poorly structured draft (score < 50) gets the same
     // single refine pass, driven by its specific findings. 50-69 is delivered
     // with a banner; the $0 rule above stays the hard floor.
-    if (state.structureBand === 'refine' && canRefine) return 'autoRefine'
+    if (state.structureBand === 'refine' && canRefine) {
+      // Phase 4d (ESTIMATOR_PATCH_REFINE, default off): patch the draft instead of regenerating it,
+      // but only when a persistence hook was injected into the graph. Never for the $0 case.
+      return opts.patchAvailable && isPatchRefineEnabled() ? 'patchRefine' : 'autoRefine'
+    }
     return 'finalize'
   }
   if (canRefine) return 'autoRefine'

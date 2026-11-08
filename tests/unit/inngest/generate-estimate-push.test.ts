@@ -86,6 +86,7 @@ function makeSvc() {
       if (table === 'ai_cost_events') {
         const chain = {
           eq: () => chain,
+          in: () => chain,
           then: (resolve: (v: { data: unknown[] }) => unknown) => Promise.resolve({ data: [{ real_cost_usd: 0 }] }).then(resolve),
         }
         return { select: () => chain }
@@ -148,6 +149,40 @@ describe('generate-estimate push (260928)', () => {
     const fn = await load()
     await fn.handler({ event: event({ notifyUserId: 'user-7' }), step: makeReplayStep(new Map()) })
     expect(mockSendEstimatePush).toHaveBeenCalledWith(expect.objectContaining({ kind: 'needs_details', estimateId: null }))
+  })
+
+  it('pushes "needs details" and journals no id when the run ended needs-details, even if state still carries an id', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'deleted-est', needsDetails: true })
+    const fn = await load()
+    await fn.handler({ event: event({ notifyUserId: 'user-7' }), step: makeReplayStep(new Map()) })
+    expect(mockSendEstimatePush).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'needs_details', estimateId: null })
+    )
+    const succeeded = mockRecordPipelineEvent.mock.calls
+      .map((c) => c[0] as { step: string; status: string; estimateId: string | null })
+      .filter((e) => e.status === 'succeeded')
+    expect(succeeded.length).toBeGreaterThan(0)
+    for (const e of succeeded) expect(e.estimateId).toBeNull()
+  })
+
+  it('threads inputType into the graph input', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
+    const fn = await load()
+    await fn.handler({ event: event({ inputType: 'audio' }), step: makeReplayStep(new Map()) })
+    expect(mockGraphInvoke.mock.calls[0][0]).toMatchObject({ inputType: 'audio' })
+    mockGraphInvoke.mockClear()
+    await fn.handler({ event: event(), step: makeReplayStep(new Map()) })
+    expect(mockGraphInvoke.mock.calls[0][0]).toMatchObject({ inputType: 'manual_text' })
+  })
+
+  it('passes the patch-refine persistence hook into the graph (Phase 4d)', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
+    const { buildEstimateGraph } = await import('@/lib/estimate/graph')
+    const { persistPatchedEstimate } = await import('@/lib/services/persist-patched-estimate')
+    vi.mocked(buildEstimateGraph).mockClear()
+    const fn = await load()
+    await fn.handler({ event: event(), step: makeReplayStep(new Map()) })
+    expect(vi.mocked(buildEstimateGraph).mock.calls[0][1]).toEqual({ persistPatch: persistPatchedEstimate })
   })
 
   it('never pushes twice when Inngest replays the handler', async () => {

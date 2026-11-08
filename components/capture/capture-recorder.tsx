@@ -43,6 +43,19 @@ import {
 import { isPlaceholderName } from '@/lib/constants/project'
 import { canOfferPushNow, enableBrowserPush } from '@/lib/notifications/push-client'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
+import { useRefineFlow } from '@/components/capture/use-refine-flow'
+import { RefineReview } from '@/components/capture/refine-review'
+import { REFINE_MAX_PHOTOS } from '@/lib/capture/refine-client'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { CaptureMode } from '@/components/projects/estimate-creation-popup'
 
@@ -104,9 +117,10 @@ function readDraft(key: string | undefined): string {
 // incoming, return how many to take and whether the incoming set overflowed.
 export function clampToPhotoLimit(
   currentCount: number,
-  incoming: number
+  incoming: number,
+  max: number = MAX_PHOTOS
 ): { take: number; overflowed: boolean } {
-  const remaining = Math.max(0, MAX_PHOTOS - currentCount)
+  const remaining = Math.max(0, max - currentCount)
   const take = Math.min(remaining, incoming)
   return { take, overflowed: incoming > remaining }
 }
@@ -153,6 +167,7 @@ interface PhotoItem {
   status: PhotoItemStatus
   previewUrl: string         // object URL for instant thumbnail
   photo?: Photo              // present once status === 'done'
+  blob?: Blob                // refine mode: the compressed image, sent with the refine request (never uploaded)
 }
 
 type Stage = 'idle' | 'saving' | 'transcribing' | 'analyzing' | 'generating' | 'done'
@@ -241,6 +256,19 @@ interface CaptureRecorderProps {
    * bypassing AI generation. Only passed in new-project mode (not edit mode).
    */
   onStartBlank?: () => Promise<void>
+  /**
+   * Edit-with-AI REFINE mode. When set (the project already has a current
+   * estimate) the typed text / voice note / photos are sent to
+   * POST /api/estimates/[id]/refine, reviewed, then applied to that estimate.
+   * Nothing is written to `recordings` and generate-estimate is never called
+   * (except the explicit "Regenerate from scratch" action). When omitted the
+   * recorder generates a new estimate exactly as before.
+   */
+  refineEstimateId?: string
+  /** Refine mode: close the popup (after Apply into a mounted editor, or Discard). */
+  onRefineDone?: () => void
+  /** Text seeded into the description box once (e.g. "Answer with AI"). */
+  initialText?: string
 }
 
 export function CaptureRecorder({
@@ -265,6 +293,9 @@ export function CaptureRecorder({
   draftKey,
   restorePhotos = false,
   onStartBlank,
+  refineEstimateId,
+  onRefineDone,
+  initialText,
 }: CaptureRecorderProps) {
   const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
@@ -300,6 +331,18 @@ export function CaptureRecorder({
   // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
   // the popup restores the text the user typed before closing it.
   const [descriptionText, setDescriptionText] = useState(() => readDraft(draftKey))
+  const refineMode = !!refineEstimateId
+  const refineModeRef = useRef(refineMode)
+  refineModeRef.current = refineMode
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
+
+  // Seed the box once with `initialText` (appended below any saved draft).
+  const appliedInitialTextRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!initialText || appliedInitialTextRef.current === initialText) return
+    appliedInitialTextRef.current = initialText
+    setDescriptionText((prev) => (prev.trim() ? `${prev}\n\n${initialText}` : initialText))
+  }, [initialText])
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>([])
   // Per-photo items (uploading | done | error) drive the thumbnail strip.
   // `uploadedPhotos` stays the pipeline source of truth (only 'done' photos).
@@ -462,6 +505,8 @@ export function CaptureRecorder({
   // upload / Discard" card instead of silently losing the recording. Stale
   // entries (>24h) are cleaned up silently rather than offered for resume.
   useEffect(() => {
+    // Refine mode never persists or resumes a recording (its resume would generate).
+    if (refineModeRef.current) return
     let cancelled = false
     void getPendingCapture(pendingCaptureKey).then((stored) => {
       if (cancelled || !stored) return
@@ -878,7 +923,26 @@ export function CaptureRecorder({
   }, [])
 
   // Multi-modal helpers
-  const hasAnyInput = !!audioBlob || descriptionText.trim().length > 0 || uploadedPhotos.length > 0
+  const refinePhotoCount = photoItems.filter((i) => i.status === 'done' && i.blob).length
+  const hasAnyInput =
+    !!audioBlob ||
+    descriptionText.trim().length > 0 ||
+    (refineMode ? refinePhotoCount > 0 : uploadedPhotos.length > 0)
+
+  const refine = useRefineFlow({
+    estimateId: refineEstimateId ?? '',
+    projectId,
+    onDone: () => onRefineDone?.(),
+    // The instruction was applied: the saved draft text has served its purpose.
+    onApplied: () => {
+      if (typeof window === 'undefined' || !draftKey) return
+      try {
+        localStorage.removeItem(draftStorageKey(draftKey))
+      } catch {
+        /* best-effort */
+      }
+    },
+  })
 
   // Handle photo file selection. Each accepted file gets an immediate
   // 'uploading' thumbnail placeholder that flips to 'done' (with its Photo) or
@@ -895,8 +959,18 @@ export function CaptureRecorder({
 
     // Cap math against the current item count (uploading + done + error).
     const currentCount = photoItemsRef.current.length
-    const { take, overflowed } = clampToPhotoLimit(currentCount, images.length)
-    if (overflowed) toast.info(t('You can add up to 16 photos.'))
+    const { take, overflowed } = clampToPhotoLimit(
+      currentCount,
+      images.length,
+      refineModeRef.current ? REFINE_MAX_PHOTOS : MAX_PHOTOS
+    )
+    if (overflowed) {
+      toast.info(
+        refineModeRef.current
+          ? t('You can add up to 5 photos when editing with AI.')
+          : t('You can add up to 16 photos.')
+      )
+    }
     if (take <= 0) {
       if (photoInputRef.current) photoInputRef.current.value = ''
       return
@@ -928,6 +1002,13 @@ export function CaptureRecorder({
       }
       const photoId = crypto.randomUUID()
       const previewUrl = URL.createObjectURL(blob)
+
+      // Refine mode: the photo travels WITH the refine request. It is not
+      // uploaded as a project photo (no storage object, no photos row).
+      if (refineModeRef.current) {
+        setPhotoItems(prev => [...prev, { id: photoId, status: 'done', previewUrl, blob }])
+        return
+      }
 
       // Show the placeholder immediately (before awaiting upload).
       setPhotoItems(prev => [...prev, { id: photoId, status: 'uploading', previewUrl }])
@@ -1102,8 +1183,10 @@ export function CaptureRecorder({
     void deletePendingCapture(pendingCaptureKey)
   }, [pendingCaptureKey])
 
-  // Unified generation handler (text-only, audio, or photos-only)
-  const handleGenerate = useCallback(async () => {
+  // Unified generation handler (text-only, audio, or photos-only). `photos` is
+  // the uploaded photo set to generate from (the closure's `uploadedPhotos`,
+  // or the freshly uploaded set when "Regenerate from scratch" runs from refine mode).
+  const handleGenerateWith = useCallback(async (photos: Photo[]) => {
     abortControllerRef.current = new AbortController()
     setFailedAt(undefined)
     setErrorMessage(undefined)
@@ -1119,7 +1202,7 @@ export function CaptureRecorder({
     // REC-03/REC-04: mint the attempt lineage ONCE on first Generate; reused on Retry.
     ensureAttempt()
 
-    if (descriptionText.trim() && !audioBlob && uploadedPhotos.length === 0) {
+    if (descriptionText.trim() && !audioBlob && photos.length === 0) {
       // Text-only path: ONE dispatch (createTextRecording's autoGenerateEstimate
       // chain — Plan 01) then watch the DB. No separate job to race — the
       // dispatch either succeeded (jobId returned) or returned { error }.
@@ -1150,7 +1233,7 @@ export function CaptureRecorder({
     } else if (audioBlob) {
       // Audio path (existing) — audio blob triggers runPipeline
       runPipeline(audioBlob)
-    } else if (uploadedPhotos.length > 0) {
+    } else if (photos.length > 0) {
       // Photos-only path: dispatch photo analysis (autoGenerateEstimate chain —
       // Plan 01) then watch the journal. 260707-lyq (P4 Wave 2): the old
       // pollJob(analyzeJobId) race is REMOVED — stage progression (analyzing →
@@ -1188,7 +1271,37 @@ export function CaptureRecorder({
         failAt('analyzing', (err as Error).message ?? t('Estimate generation failed'))
       }
     }
-  }, [descriptionText, audioBlob, uploadedPhotos, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, watchOutcome, ensureStepMedians, failAt, handleEstimateOutcome])
+  }, [descriptionText, audioBlob, projectId, runPipeline, estimateLanguage, t, ensureAttempt, captureOutcomeBaseline, watchOutcome, ensureStepMedians, failAt, handleEstimateOutcome])
+
+  const handleGenerate = useCallback(() => handleGenerateWith(uploadedPhotos), [handleGenerateWith, uploadedPhotos])
+
+  // Refine mode submit: the typed text, voice take and photos go to the refine
+  // preview route; the review step shows the result before anything is applied.
+  const handleRefineSubmit = useCallback(async () => {
+    const photos = photoItemsRef.current.filter((i) => i.blob).map((i) => i.blob as Blob)
+    await refine.submit({ instruction: descriptionText, audio: audioBlob, photos })
+  }, [refine, descriptionText, audioBlob])
+
+  // Explicit, confirmed escape hatch: today's generate behavior (full
+  // regeneration, new version). Local refine photos are uploaded first, since
+  // the generate path reads project photos from storage.
+  const handleRegenerateConfirmed = useCallback(async () => {
+    setConfirmRegenerate(false)
+    const pending = photoItemsRef.current.filter((i) => i.blob && !i.photo)
+    const uploaded: Photo[] = [...uploadedPhotosRef.current]
+    for (const [index, item] of pending.entries()) {
+      const fd = new FormData()
+      fd.set('file', item.blob as Blob, `${item.id}.jpg`)
+      const result = await uploadProjectPhotoWithRetry(projectId, fd, uploaded.length + index)
+      if ('error' in result) {
+        toast.error(t('Failed to upload photo'))
+        return
+      }
+      uploaded.push(result.data as Photo)
+    }
+    setUploadedPhotos(uploaded)
+    await handleGenerateWith(uploaded)
+  }, [projectId, handleGenerateWith, t])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -1227,6 +1340,16 @@ export function CaptureRecorder({
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
+        // Refine mode: keep the take for the "Preview changes" submit. No IDB
+        // persist (its resume path generates) and no pipeline dispatch.
+        if (refineModeRef.current) {
+          if (blob.size === 0 || elapsedMsRef.current < MIN_RECORDING_MS) {
+            toast.error(t('Recording too short — please record at least a few seconds describing the job.'))
+            return
+          }
+          setAudioBlob(blob)
+          return
+        }
         setAudioBlob(blob)
         // CAPT-03: initiate the IndexedDB persist BEFORE starting the upload
         // below — a finished recording now survives a crash/close during the
@@ -1343,6 +1466,9 @@ export function CaptureRecorder({
   const activeMode: CaptureMode =
     mode ?? (audioBlob ? 'audio' : uploadedPhotos.length > 0 ? 'photos' : 'text')
 
+  const refineBusy = refine.phase === 'saving' || refine.phase === 'refining'
+  const refineReviewing = refineMode && !!refine.review && (refine.phase === 'review' || refine.phase === 'applying')
+
   const isPopup = variant === 'popup'
   const rootClassName = isPopup
     ? 'flex flex-col min-h-0'
@@ -1367,8 +1493,28 @@ export function CaptureRecorder({
       )}
 
       {/* Body */}
-      {showRecorderUI ? (
+      {showRecorderUI && refineReviewing && refine.review ? (
+        <RefineReview
+          diff={refine.review.diff}
+          currencyCode={refine.review.currencyCode}
+          applying={refine.phase === 'applying'}
+          onApply={() => void refine.apply()}
+          onDiscard={refine.discard}
+        />
+      ) : showRecorderUI && refineMode && refineBusy ? (
+        <div className="flex flex-1 min-h-[260px] flex-col items-center justify-center gap-3 p-6" data-testid="refine-busy">
+          <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
+          <p className="text-sm text-muted-foreground">
+            {refine.phase === 'saving' ? t('Saving your latest edits...') : t('Working out the changes...')}
+          </p>
+        </div>
+      ) : showRecorderUI ? (
         <>
+          {refineMode && (
+            <p className="px-4 pt-3 text-xs text-muted-foreground" data-testid="refine-mode-hint">
+              {t('This will update the current estimate. You review the changes before they are applied.')}
+            </p>
+          )}
           {/* CAPT-03: an unsent recording found on mount (crash, tab close,
               popup reopen) for this project/flow — Resume re-runs the
               pipeline with the reconstructed blob; Discard drops it from IDB. */}
@@ -1409,7 +1555,11 @@ export function CaptureRecorder({
             photoInputRef={photoInputRef}
             onPhotoFileChange={handlePhotoFileChange}
             hasAnyInput={hasAnyInput}
-            onGenerate={handleGenerate}
+            onGenerate={refineMode ? handleRefineSubmit : handleGenerate}
+            refineMode={refineMode}
+            hasAudio={!!audioBlob}
+            onClearAudio={() => setAudioBlob(null)}
+            onRegenerate={() => setConfirmRegenerate(true)}
             // Language selector
             estimateLanguage={estimateLanguage}
             setEstimateLanguage={setEstimateLanguage}
@@ -1522,6 +1672,24 @@ export function CaptureRecorder({
           </div>
         </div>
       )}
+      {refineMode && (
+        <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
+          <AlertDialogContent data-testid="regenerate-confirm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Regenerate from scratch?')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('This builds a brand new estimate version from what you entered here, instead of changing the current one. The current version stays in the history.')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="regenerate-cancel">{t('Cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void handleRegenerateConfirmed()} data-testid="regenerate-confirm-btn">
+                {t('Regenerate')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   )
 }
@@ -1550,6 +1718,11 @@ interface RecorderBodyProps {
   onPhotoFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>
   hasAnyInput: boolean
   onGenerate: () => Promise<void>
+  // Refine mode (Edit with AI on an existing estimate)
+  refineMode?: boolean
+  hasAudio?: boolean
+  onClearAudio?: () => void
+  onRegenerate?: () => void
   // Language selector props
   estimateLanguage: EstimateLanguage
   setEstimateLanguage: (lang: EstimateLanguage) => void
@@ -1560,7 +1733,7 @@ interface RecorderBodyProps {
   onStartBlank?: () => Promise<void>
 }
 
-function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorClass, progress, onToggle, onPause, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
+function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorClass, progress, onToggle, onPause, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, refineMode = false, hasAudio = false, onClearAudio, onRegenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
   const { t } = useTranslation()
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
@@ -1578,6 +1751,35 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
              className="flex-1 w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
              data-testid="capture-description"
            />
+           {refineMode && !isRecording && (
+             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+               {hasAudio && (
+                 <span
+                   className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-primary"
+                   data-testid="refine-voice-chip"
+                 >
+                   {t('Voice note ready')}
+                   <button
+                     type="button"
+                     onClick={onClearAudio}
+                     aria-label={t('Remove voice note')}
+                     className="opacity-70 hover:opacity-100"
+                   >
+                     <X className="h-3 w-3" />
+                   </button>
+                 </span>
+               )}
+               <button
+                 type="button"
+                 onClick={onRegenerate}
+                 disabled={!hasAnyInput}
+                 className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50 disabled:no-underline"
+                 data-testid="regenerate-from-scratch-btn"
+               >
+                 {t('Regenerate from scratch')}
+               </button>
+             </div>
+           )}
            {onStartBlank && !descriptionText.trim() && !isRecording && (
              <div className="mt-4 flex justify-center pb-8">
                <button
@@ -1735,9 +1937,9 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
                className="rounded-full h-12 px-5 font-medium shrink-0 bg-primary/90 hover:bg-primary transition-colors text-sm"
                onClick={onGenerate}
                disabled={!hasAnyInput || isRecording}
-               data-testid="generate-estimate-btn"
+               data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
             >
-               <span className="mr-1">{t('Generate')}</span>
+               <span className="mr-1">{refineMode ? t('Preview changes') : t('Generate')}</span>
                <Sparkles className="h-4 w-4" />
             </Button>
 
@@ -1828,9 +2030,9 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             disabled={!hasAnyInput}
             className="w-full"
             size="lg"
-            data-testid="generate-estimate-btn"
+            data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
           >
-            {t('Generate Estimate')}
+            {refineMode ? t('Preview changes') : t('Generate Estimate')}
           </Button>
         </div>
       )}

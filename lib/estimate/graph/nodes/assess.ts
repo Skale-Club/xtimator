@@ -23,6 +23,7 @@ export const assessNode = async (
   reportGeneratePhase({
     attemptId: state.attemptId,
     phase: 'reviewing',
+    inputType: state.inputType,
     companyId: state.companyId,
     projectId: state.projectId,
   })

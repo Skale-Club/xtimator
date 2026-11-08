@@ -50,6 +50,18 @@ export async function POST(request: Request) {
     const blocked = await demoGuardResponse()
     if (blocked) return blocked
 
+    // Body — parsed and validated BEFORE the rate limits so a malformed request
+    // (no projectId) never consumes the user's hourly/daily estimate allowance.
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body.projectId !== 'string' || body.projectId.length === 0) {
+      throw new XtimatorError(
+        'bad_request',
+        'estimates',
+        'projectId is required'
+      )
+    }
+    const projectId = body.projectId as string
+
     // Rate limits (synchronous, Upstash Redis — typically <100ms)
     const userId = claims.sub
     const hourly = await rateLimit('userEstimatePerHour', userId)
@@ -94,12 +106,25 @@ export async function POST(request: Request) {
       companyRow.tier !== 'pro' &&
       companyRow.tier !== 'business'
     ) {
-      const { count } = await svc
+      // The quota counts distinct PROJECTS that have an estimate, not estimate
+      // versions (a regenerate/refine of one project adds a version, not a new
+      // estimate). Regenerating a project that already has an estimate therefore
+      // never consumes extra demo quota.
+      const { data: estimateRows } = await svc
         .from('estimates')
-        .select('id', { count: 'exact', head: true })
+        .select('project_id')
         .eq('company_id', companyId)
+        .limit(1000)
+      const projectsWithEstimate = new Set(
+        ((estimateRows ?? []) as { project_id: string | null }[])
+          .map((r) => r.project_id)
+          .filter((id): id is string => !!id),
+      )
 
-      if ((count ?? 0) >= companyRow.demo_estimate_quota) {
+      if (
+        projectsWithEstimate.size >= companyRow.demo_estimate_quota &&
+        !projectsWithEstimate.has(projectId)
+      ) {
         return NextResponse.json(
           { error: 'plan_limit_reached', upgradeUrl: '/settings/billing' },
           { status: 402 }
@@ -144,16 +169,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Body
-    const body = await request.json().catch(() => null)
-    if (!body?.projectId) {
-      throw new XtimatorError(
-        'bad_request',
-        'estimates',
-        'projectId is required'
-      )
-    }
-    const projectId = body.projectId as string
     // Optional language override from the UI language selector (EN-first cascade
     // runs inside generateEstimateForProject when undefined).
     const language = isSupportedLanguage(body.language) ? body.language : undefined

@@ -46,6 +46,15 @@ export const remodel: Playbook = {
     ['cabinet', 'cabinets', 'cabinetry'],
     ['install', 'installation', 'installed', 'replace'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'tile installation', match: ['tile'], bands: { 'sq ft': [4, 40] } },
+    { concept: 'flooring installation', match: ['flooring', 'laminate', 'hardwood', 'vinyl plank'], bands: { 'sq ft': [2, 25] } },
+    { concept: 'drywall install and finish', match: ['drywall'], bands: { 'sq ft': [1.5, 12] } },
+    { concept: 'cabinet install', match: ['cabinet'], bands: { 'linear ft': [60, 1200] } },
+    { concept: 'carpenter or crew labor', match: ['labor', 'carpenter'], bands: { 'hour': [30, 150] } },
+  ],
   example: {
     scenario: 'Remodel a 5 x 8 ft bathroom: new tile floor, vanity and toilet.',
     sections: [

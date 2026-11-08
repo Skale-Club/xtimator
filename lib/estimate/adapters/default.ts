@@ -1,16 +1,16 @@
 /**
  * lib/estimate/adapters/default.ts
  *
- * Phase 94 stub — minimal placeholder; real web/MCP behavior wired in Phase 95
- * (CHAN-02/03/04). This is a type-correct, WhatsApp-free ChannelAdapter so the
- * shared graph can be composed for web/MCP today without any channel side-effects.
+ * Web/MCP ChannelAdapter for the shared estimate graph. A type-correct,
+ * WhatsApp-free adapter: no channel side-effects beyond the vague-estimate
+ * recourse state (awaiting_details / needs_details).
  *
  * Design (D-02): web/MCP transcripts + photo descriptions are already persisted
  * upstream (the decoupled ingestion path), so the graph enters effectively at
  * `generate`. Hence:
- *   - ingest:   passthrough guard — returns {} (Phase 95 wires the real "has
- *               usable input" guard against the already-ingested recordings).
- *   - finalize: no-op — returns {} (the HTTP/poll layer surfaces the estimate).
+ *   - ingest:   passthrough guard — returns {} (inputs are already ingested upstream).
+ *   - finalize: no-op on success (the HTTP/poll layer surfaces the estimate); on a
+ *               final-vague outcome it reverts the $0 estimate and asks for details.
  *   - onError:  re-throws so Inngest retry + onFailure fires (D-02).
  *
  * This module imports NOTHING from lib/whatsapp/* — the WhatsApp adapter is the
@@ -38,17 +38,19 @@ export function makeDefaultAdapter({ companyId, supabase }: {
   return {
     channel: 'web',
 
-    // Passthrough — web/MCP inputs are already ingested upstream (Phase 95).
+    // Passthrough — web/MCP inputs are already ingested upstream.
     async ingest(_state: EstimateStateType): Promise<Partial<EstimateStateType>> {
       return {}
     },
 
     // Handles the vague-after-refine path (Phase 96, D-06).
     async finalize(state: EstimateStateType): Promise<Partial<EstimateStateType>> {
-      // Only act on the final-vague path: autoRefine already ran once (refineAttempts >= 1)
-      // and the estimate is still vague. Success path (isVague=false) is a no-op —
+      // Act on ANY final-vague outcome. The graph only reaches finalize while still vague
+      // once the auto-refine cap is exhausted (checkVagueAfterAssessEdge), and that cap may
+      // be 0 (AUTO_REFINE_MAX_ATTEMPTS=0 -> refineAttempts stays 0): a $0 estimate must
+      // never be delivered as completed. Success path (isVague=false) is a no-op —
       // the HTTP/poll layer surfaces the estimate via job output.
-      if (state.isVague && (state.refineAttempts ?? 0) >= 1) {
+      if (state.isVague) {
         // Best-effort revert of the $0 estimate + reset project to draft.
         try {
           await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
@@ -102,7 +104,11 @@ export function makeDefaultAdapter({ companyId, supabase }: {
           const needsDetails =
             raised.length > 0
               ? { reason: 'missing_specifics' as const, questions: raised }
-              : await buildNeedsDetails(inputSummary, language, industryHint)
+              : await buildNeedsDetails(inputSummary, language, industryHint, {
+                  attemptId: state.attemptId ?? null,
+                  companyId,
+                  projectId: state.projectId,
+                })
 
           await supabase
             .from('projects')
@@ -124,7 +130,10 @@ export function makeDefaultAdapter({ companyId, supabase }: {
 
         // Return needsDetails=true so it surfaces in the Inngest job output (SMART-04).
         // /api/jobs/[jobId] returns run.output as-is → MCP callers read output.needsDetails.
-        return { needsDetails: true }
+        // The estimate row was deleted by revertVagueEstimate above, so the state
+        // must not keep pointing at it: `undefined` clears the last-value channel
+        // (verified), and the job derives its succeeded row / push kind from this.
+        return { needsDetails: true, estimateId: undefined }
       }
       return {}
     },

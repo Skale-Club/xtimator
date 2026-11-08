@@ -41,6 +41,7 @@ export const autoRefineNode = async (
   reportGeneratePhase({
     attemptId: state.attemptId,
     phase: 'refining',
+    inputType: state.inputType,
     companyId: state.companyId,
     projectId: state.projectId,
     detail: { round: (state.refineAttempts ?? 0) + 1 },
@@ -72,6 +73,9 @@ export const autoRefineNode = async (
       refineAttempts: (state.refineAttempts ?? 0) + 1,
       // Kept so a failing second pass can fall back to this draft (recover-draft.ts).
       previousEstimateId: state.estimateId,
+      // Kept so a second pass that scores WORSE is discarded for this draft (decide.ts).
+      previousStructureScore: state.structureScore,
+      structureScore: undefined,
       previousProjectStatus,
       estimateId: undefined,
       isVague: undefined,

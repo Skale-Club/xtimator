@@ -77,6 +77,8 @@ export const recoverDraftNode = async (
       isVague: false,
       structureBand: undefined,
       structureHints: undefined,
+      structureScore: undefined,
+      previousStructureScore: undefined,
       previousEstimateId: undefined,
     }
   } catch (err) {

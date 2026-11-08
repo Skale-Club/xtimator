@@ -14,6 +14,8 @@ vi.mock('@/lib/knowledge/retrieve', () => ({
   retrieve: (...args: unknown[]) => retrieveMock(...args),
 }))
 
+vi.mock('@/lib/billing/record-ai-cost', () => ({ recordAICost: vi.fn(async () => undefined) }))
+
 vi.mock('@/lib/ai/openrouter-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/ai/openrouter-client')>(
     '@/lib/ai/openrouter-client'
@@ -21,6 +23,7 @@ vi.mock('@/lib/ai/openrouter-client', async () => {
   return {
     ...actual,
     getORKey: vi.fn(async () => 'test-key'),
+    resolveOpenRouterKey: vi.fn(async () => ({ apiKey: 'test-key', byok: false })),
   }
 })
 

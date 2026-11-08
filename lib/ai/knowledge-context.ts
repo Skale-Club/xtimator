@@ -68,15 +68,21 @@ export async function loadKnowledgeContext(args: {
   if (!args.query.trim()) return []
   if (!(await hasAnyKnowledge(args.companyId))) return []
   let timer: ReturnType<typeof setTimeout> | undefined
+  // The budget below must CANCEL the embedding fetch, not merely stop waiting for it.
+  const controller = new AbortController()
   try {
     const passages = await Promise.race([
       retrieve(args.query, {
         industries: args.industries,
         companyId: args.companyId,
         k: KNOWLEDGE_MAX_ENTRIES,
+        signal: controller.signal,
       }),
       new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), args.timeoutMs ?? KNOWLEDGE_TIMEOUT_MS)
+        timer = setTimeout(() => {
+          controller.abort()
+          resolve(null)
+        }, args.timeoutMs ?? KNOWLEDGE_TIMEOUT_MS)
       }),
     ])
     if (!passages) return []

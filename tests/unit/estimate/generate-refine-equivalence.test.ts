@@ -39,6 +39,13 @@ vi.mock('@/lib/ai/prompt-builder', async (importActual) => {
       buildSystemPromptSpy(...args)
       return actual.buildSystemPrompt(...args)
     },
+    // Phase 4a: the OpenRouter adapter calls buildSystemPromptParts (the same
+    // single builder; buildSystemPrompt is its .prompt). Spy it too, so the
+    // criterion stays "one shared prompt source", whichever entry point is used.
+    buildSystemPromptParts: (...args: Parameters<typeof actual.buildSystemPromptParts>) => {
+      buildSystemPromptSpy(...args)
+      return actual.buildSystemPromptParts(...args)
+    },
     // buildRefineUserContent lands in Wave 1; passthrough to actual if/when present.
     buildRefineUserContent: (
       actual as unknown as { buildRefineUserContent?: (...a: unknown[]) => string }

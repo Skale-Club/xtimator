@@ -39,10 +39,10 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 
 ### Constraints
 
-- **Tech Stack**: Next.js 14+ (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, Zustand or React Context, react-hook-form + zod
-- **Database**: Supabase PostgreSQL with RLS on all tables; schema defined in spec (8 tables)
-- **AI**: Anthropic Claude (OpenRouter slug `anthropic/claude-sonnet-5.5`, set in `OR_DEFAULTS.chat`) for estimate generation and photo analysis
-- **Audio transcription**: OpenAI Whisper API (server-side)
+- **Tech Stack**: Next.js 16 (App Router) + React 19, TypeScript strict, Tailwind CSS, shadcn/ui, Zustand or React Context, react-hook-form + zod
+- **Database**: PostgreSQL with RLS on all tables. **Production = PostgreSQL on Coolify** (cutover 2026-11-06, SEED-059); **Supabase = development database only**. Never point a production task at Supabase, and never run ad-hoc writes against production
+- **AI**: every AI call goes through OpenRouter, with no provider fallback (since 2026-11-07, commit ad8100b). Models are pinned in `lib/ai/openrouter-client.ts` (`OR_DEFAULTS`): `anthropic/claude-sonnet-5.5` for estimates, photos and research (`chat`), `anthropic/claude-haiku-5.5` for cheap helpers (`fast`); allowed models are enforced in `lib/ai/model-policy.ts`
+- **Audio transcription**: `openai/whisper-1` through OpenRouter (server-side)
 - **PDF**: @react-pdf/renderer or puppeteer (server-side generation)
 - **Mobile**: Audio recording and camera capture must work on iOS Safari and Android Chrome
 - **Security**: Service role key never exposed to browser; all AI calls server-side via API routes
@@ -51,7 +51,7 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 
 **NEVER commit secrets, API keys, or signing secrets to git — including in markdown, comments, examples, or planning docs (`.planning/`, seeds, summaries).**
 
-- All secrets go in `.env.local` (gitignored) for local dev, or in Vercel env vars for staging/prod
+- Local dev secrets go in `.env.local` (gitignored). Production runs on Coolify (see Deployment below), not Vercel: runtime env vars are set on the Coolify application, and AI/provider API keys live in the admin panel (`platform_integrations`, encrypted), never in env vars (the env fallback is dev-only)
 - Documenting setup? Use placeholders like `whsec_<your-secret>` or `sk_live_<your-key>`
 - Pre-commit hook (`gitleaks`) blocks commits containing patterns matching: `whsec_*`, `sk_(test|live)_*`, `rk_(test|live)_*`, `sb_secret_*`, `sk-ant-*`, `sk-proj-*`, `re_*`
 - After cloning, install hooks once: `bash scripts/install-git-hooks.sh`
@@ -61,7 +61,8 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 
 - Next.js 16 (App Router) + React 19, TypeScript strict
 - Tailwind CSS v4 + shadcn/ui; react-hook-form + zod for forms
-- Supabase (PostgreSQL + Auth, RLS on every table); migrations live in `supabase/migrations/` and are applied by hand (`npm run db:migrate`), never by the deploy
+- PostgreSQL with RLS on every table: production on Coolify, development on Supabase. Auth is moving from Supabase Auth to an owned phone-first identity (see the Journal's Current State); check the code before assuming either
+- Migrations live in `supabase/migrations/` and are applied by hand, never by the deploy, **on both databases** before the push that depends on them: `npm run db:migrate` (`scripts/apply-migrations.mjs` uses `MIGRATION_DATABASE_URL`, then `POSTGRES_URL_NON_POOLING`, then `DATABASE_URL` from `.env.local`, so by default the Supabase dev database), then again with `MIGRATION_DATABASE_URL` pointing at the Coolify production database
 - Inngest for background jobs (`app/api/inngest`), Resend (email), Twilio (SMS/WhatsApp), Stripe (billing)
 - @react-pdf/renderer for PDFs (`components/pdf/`, `lib/pdf/`)
 - Tests: vitest (`tests/unit`, `tests/eval`), Playwright (`tests/e2e`); see `package.json` scripts for dev/test commands

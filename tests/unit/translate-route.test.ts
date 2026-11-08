@@ -139,7 +139,7 @@ describe('/api/translate — I18N-05, I18N-08', () => {
 
     // OpenRouter translator invoked with the missing strings + target language.
     expect(translateTextsOR).toHaveBeenCalledOnce()
-    expect(translateTextsOR).toHaveBeenCalledWith(['Rare string'], 'pt')
+    expect(translateTextsOR).toHaveBeenCalledWith(['Rare string'], 'pt', undefined, { companyId: 'company-1' })
 
     // Result cached via upsert with ON CONFLICT DO NOTHING.
     expect(upsertMock).toHaveBeenCalledWith(

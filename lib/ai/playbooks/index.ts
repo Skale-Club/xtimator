@@ -20,7 +20,7 @@ import { remodel } from './remodel'
 import { general } from './general'
 import type { Playbook, PlaybookId } from './types'
 
-export type { Playbook, PlaybookId, MandatoryLine } from './types'
+export type { Playbook, PlaybookId, MandatoryLine, PriceBand } from './types'
 
 export const PLAYBOOKS: Record<PlaybookId, Playbook> = {
   cleaning,

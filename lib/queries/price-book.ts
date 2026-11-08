@@ -46,21 +46,39 @@ export interface PriceBookItem {
   area_sizes: AreaSize[] | null
 }
 
+/**
+ * PostgREST caps a response at its `max-rows` setting (often 1000), silently, so a
+ * larger book used to be truncated with no error. Page through with range() until a
+ * short page comes back. The order (name, then id) is total, so pages never overlap
+ * or skip a row.
+ */
+export const PRICE_BOOK_PAGE_SIZE = 1000
+const PRICE_BOOK_MAX_PAGES = 100
+
 export async function getPriceBookItems(
   supabase: SupabaseClient,
   companyId: string
 ): Promise<PriceBookItem[]> {
-  const { data } = await supabase
-    .from('company_price_book')
-    .select(`
+  const rows: any[] = []
+  for (let page = 0; page < PRICE_BOOK_MAX_PAGES; page++) {
+    const from = page * PRICE_BOOK_PAGE_SIZE
+    const { data } = await supabase
+      .from('company_price_book')
+      .select(`
       id, company_id, currency_code, folder_id, name, unit, unit_price, notes, created_at, image_url, image_position,
       pricing_type, base_price, price_per_unit, minimum_price, area_sizes,
       price_book_folders ( name )
     `)
-    .eq('company_id', companyId)
-    .is('deleted_at', null)
-    .order('name')
-  return ((data ?? []) as any[]).map((row) => ({
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('name')
+      .order('id')
+      .range(from, from + PRICE_BOOK_PAGE_SIZE - 1)
+    const batch = (data ?? []) as any[]
+    rows.push(...batch)
+    if (batch.length < PRICE_BOOK_PAGE_SIZE) break
+  }
+  return rows.map((row) => ({
     ...row,
     folder_name: (row.price_book_folders as { name: string } | null)?.name ?? null,
     price_book_folders: undefined,

@@ -11,6 +11,7 @@
  * the identical root cause.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { visionCostAttemptId } from '@/lib/inngest/functions/analyze-photos'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -125,6 +126,7 @@ function makeSvc() {
           select: () => {
             const chain = {
               eq: (..._args: unknown[]) => chain,
+              in: (..._args: unknown[]) => chain,
               then: (
                 resolve: (v: { data: Array<{ real_cost_usd: number | null }> }) => unknown,
                 reject?: (e: unknown) => unknown
@@ -293,7 +295,7 @@ describe('PEXT-01/03/05: analyze-photos structured extraction ladder', () => {
       expect.any(String),
       expect.any(String),
       undefined,
-      expect.objectContaining({ attemptId: 'attempt-1', companyId: 'company-9', projectId: 'project-9' })
+      expect.objectContaining({ attemptId: visionCostAttemptId('attempt-1', 'req-1', 'photo-0'), companyId: 'company-9', projectId: 'project-9' })
     )
   })
 })

@@ -46,6 +46,8 @@ export interface RetrieveCtx {
   companyId: string | null
   /** Top-k passages to return. Defaults to 5. */
   k?: number
+  /** Optional cancellation: aborts the in-flight embedding fetch (time-budgeted callers). */
+  signal?: AbortSignal
 }
 
 export interface KnowledgeProvider {

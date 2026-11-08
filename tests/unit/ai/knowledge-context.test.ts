@@ -30,7 +30,12 @@ describe('loadKnowledgeContext (SEED-057 E5)', () => {
   it('asks for the top five and scopes by the trusted company and industries', async () => {
     retrieveMock.mockResolvedValue([passage(1), passage(2)])
     const out = await loadKnowledgeContext({ companyId: 'c1', industries: ['painting'], query: 'repaint the room' })
-    expect(retrieveMock).toHaveBeenCalledWith('repaint the room', { industries: ['painting'], companyId: 'c1', k: 5 })
+    expect(retrieveMock).toHaveBeenCalledWith('repaint the room', {
+      industries: ['painting'],
+      companyId: 'c1',
+      k: 5,
+      signal: expect.any(AbortSignal),
+    })
     expect(out).toEqual([
       { title: 'Title 1', body: 'Body 1' },
       { title: 'Title 2', body: 'Body 2' },
@@ -87,6 +92,16 @@ describe('loadKnowledgeContext (SEED-057 E5)', () => {
     const out = await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q', timeoutMs: 25 })
     expect(out).toEqual([])
     expect(Date.now() - started).toBeLessThan(2_000)
+    // The budget cancels the in-flight retrieval/embedding fetch, it does not just stop waiting.
+    const ctx = retrieveMock.mock.calls[0][1] as { signal: AbortSignal }
+    expect(ctx.signal.aborted).toBe(true)
+  })
+
+  it('does not abort the retrieval when it finishes inside the budget', async () => {
+    retrieveMock.mockResolvedValue([passage(1)])
+    await loadKnowledgeContext({ companyId: 'c1', industries: [], query: 'q' })
+    const ctx = retrieveMock.mock.calls[0][1] as { signal: AbortSignal }
+    expect(ctx.signal.aborted).toBe(false)
   })
 })
 

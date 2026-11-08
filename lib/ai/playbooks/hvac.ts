@@ -45,6 +45,13 @@ export const hvac: Playbook = {
     ['install', 'installation', 'replace', 'replacement', 'swap'],
     ['duct', 'ductwork', 'ducting'],
   ],
+  // DRAFT — owner review required (plan D7). First-draft USD sanity bands for ESTIMATOR_PRICE_BANDS
+  // (default off); wide on purpose: they flag the implausible, not the merely cheap or dear.
+  priceBands: [
+    { concept: 'AC or furnace replacement', match: ['condenser', 'furnace', 'air handler', 'heat pump', 'air conditioner'], bands: { 'each': [1500, 20000], 'job': [1500, 20000] } },
+    { concept: 'duct work', match: ['duct'], bands: { 'linear ft': [8, 120] } },
+    { concept: 'HVAC technician labor', match: ['labor', 'service call', 'diagnostic', 'tune'], bands: { 'hour': [60, 250] } },
+  ],
   example: {
     scenario: 'Replace a 3 ton split AC system (condenser and coil) on an existing furnace.',
     sections: [

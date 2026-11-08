@@ -28,6 +28,21 @@ export interface MandatoryLine {
   match: string[]
 }
 
+/**
+ * Phase 4e (ESTIMATOR_PRICE_BANDS, default off): a plausible USD unit-price range for ONE kind of
+ * task. A model or researched price outside it sets the line's confidence to 'low' and adds a
+ * structure-score finding; it never changes the price. The numbers in each trade file are a FIRST
+ * DRAFT written by the agent and need owner review (plan D7).
+ */
+export interface PriceBand {
+  /** Short label, for the owner and for tests: "interior wall painting". */
+  concept: string
+  /** Lowercase substrings; any one inside an item description selects this band. */
+  match: string[]
+  /** USD [min, max] per canonical unit ('sq ft', 'each', 'hour', 'linear ft', 'cu yd', 'day', 'job'). */
+  bands: Record<string, [min: number, max: number]>
+}
+
 export interface ExampleItem {
   description: string
   quantity: number
@@ -68,6 +83,11 @@ export interface Playbook {
    * (company history, price research): every word in a group maps to the first.
    */
   synonyms: string[][]
+  /**
+   * Optional sanity bands per task concept (USD). Only read when ESTIMATOR_PRICE_BANDS is on.
+   * Absent = no band check for this trade.
+   */
+  priceBands?: PriceBand[]
   /** One compact worked example (5-8 items) showing the structure contract. */
   example: {
     scenario: string

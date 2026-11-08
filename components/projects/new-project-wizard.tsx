@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { getCurrentEstimateIdOrThrow } from '@/lib/estimate/poll-outcome'
+import { consumeSearchParam } from '@/lib/utils/modal-url'
 
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { createBlankEstimate } from '@/lib/actions/estimate'
@@ -12,6 +14,10 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+
+// Kept in sync with NEW_PROJECT_PREFILL_PARAM (new-project-dialog.tsx); not
+// imported from there because the dialog imports this wizard.
+const PREFILL_PARAM = 'refinePrefill'
 
 // Lazy-loaded: the CaptureRecorder bundle (~1.5k LOC + the MediaRecorder
 // pipeline) is heavy and this wizard is mounted on every authenticated page.
@@ -84,6 +90,16 @@ export function NewProjectWizard({
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const createdRef = useRef(false)
+  // Edit mode: the project's current estimate. When set the popup REFINES it
+  // (preview + apply); when null the popup keeps the generate behavior.
+  const [currentEstimateId, setCurrentEstimateId] = useState<string | null>(null)
+  // "Answer with AI" seeds the text box once; the param is removed from the URL.
+  const [prefill, setPrefill] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (!editProjectId) return
+    const value = consumeSearchParam(PREFILL_PARAM)
+    if (value) setPrefill(value)
+  }, [editProjectId])
 
   useEffect(() => {
     if (createdRef.current) return
@@ -96,6 +112,15 @@ export function NewProjectWizard({
         const fetched = await getProjectMinimalAction(editProjectId)
         if ('error' in fetched) {
           toast.error(fetched.error)
+          setIsCreating(false)
+          return
+        }
+        // OrThrow: a failed read must stop here, never fall through to the
+        // generate path (Edit with AI never regenerates an existing estimate).
+        try {
+          setCurrentEstimateId(await getCurrentEstimateIdOrThrow(editProjectId))
+        } catch {
+          toast.error(t('Could not load the current estimate. Please try again.'))
           setIsCreating(false)
           return
         }
@@ -177,6 +202,10 @@ export function NewProjectWizard({
       restorePhotos={!editProjectId}
       // Only offered in new-project mode — doesn't make sense when editing.
       onStartBlank={!editProjectId ? handleStartBlank : undefined}
+      // Edit mode with an existing estimate: refine it instead of regenerating.
+      refineEstimateId={editProjectId ? (currentEstimateId ?? undefined) : undefined}
+      onRefineDone={onComplete}
+      initialText={prefill}
     />
   )
 }

@@ -19,11 +19,13 @@ const { getORKey } = vi.hoisted(() => ({
   getORKey: vi.fn(async () => 'sk-test-or-placeholder'),
 }))
 
+vi.mock('@/lib/billing/record-ai-cost', () => ({ recordAICost: vi.fn(async () => undefined) }))
+
 vi.mock('@/lib/ai/openrouter-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/ai/openrouter-client')>(
     '@/lib/ai/openrouter-client'
   )
-  return { ...actual, getORKey }
+  return { ...actual, getORKey, resolveOpenRouterKey: vi.fn(async () => ({ apiKey: await getORKey(), byok: false })) }
 })
 
 import { embed } from '@/lib/knowledge/embed'
@@ -52,6 +54,16 @@ describe('KMOD-01: embed(text) via OpenRouter /embeddings', () => {
     const out = await embed('hello')
     expect(out).toHaveLength(1536)
     expect(out).toEqual(v)
+  })
+
+  it('passes the caller AbortSignal to the fetch so a time budget can cancel it', async () => {
+    const controller = new AbortController()
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      okResponse({ data: [{ embedding: vec1536() }] })
+    )
+    await embed('hello', undefined, { signal: controller.signal })
+    const init = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as { signal?: AbortSignal }
+    expect(init.signal).toBe(controller.signal)
   })
 
   it('throws on a non-1536-length embedding (bad shape)', async () => {

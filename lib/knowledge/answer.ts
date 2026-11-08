@@ -15,7 +15,9 @@ import 'server-only'
  */
 import { retrieve } from './retrieve'
 import { buildKnowledgePrompt } from './prompt'
-import { getORKey, OPENROUTER_BASE, OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { randomUUID } from 'node:crypto'
+import { resolveOpenRouterKey, OPENROUTER_BASE, OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 import type { RetrieveCtx } from './provider'
 
 export type AnswerCtx = RetrieveCtx & { language?: 'en' | 'pt' | 'es' }
@@ -26,7 +28,7 @@ export async function answer(question: string, ctx: AnswerCtx): Promise<string> 
   try {
     const passages = await retrieve(question, ctx)
     const { system, user } = buildKnowledgePrompt(passages, question, ctx.language ?? 'en')
-    const apiKey = await getORKey()
+    const { apiKey } = await resolveOpenRouterKey(ctx.companyId)
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -38,6 +40,7 @@ export async function answer(question: string, ctx: AnswerCtx): Promise<string> 
       body: JSON.stringify({
         model: OR_DEFAULTS.chat,
         max_tokens: 600,
+        usage: { include: true },
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },
@@ -57,6 +60,16 @@ export async function answer(question: string, ctx: AnswerCtx): Promise<string> 
       console.warn('[knowledge] answer chat error:', json.error.message)
       return FALLBACK
     }
+    // Phase 3 (3.8): record the answer call (MEASURE-ONLY 'chat': no knowledge
+    // operation type exists and no migration is allowed; never debited).
+    await recordAICost({
+      attemptId: randomUUID(),
+      operationType: 'chat',
+      provider: 'openrouter',
+      model: OR_DEFAULTS.chat,
+      realCostUsd: typeof json.usage?.cost === 'number' ? json.usage.cost : null,
+      companyId: ctx.companyId ?? null,
+    })
     const content = json.choices?.[0]?.message?.content?.trim()
     return content && content.length > 0 ? content : FALLBACK
   } catch (err) {

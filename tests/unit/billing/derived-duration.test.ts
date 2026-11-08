@@ -188,6 +188,7 @@ const downloadMock = vi.fn(async () =>
     : { data: { size: svcConfig.blobSize } as unknown as Blob, error: null }
 )
 const updateEqMock = vi.fn().mockResolvedValue({ error: null })
+const updatePayloads: Array<Record<string, unknown>> = []
 
 function makeSvc() {
   return {
@@ -195,8 +196,19 @@ function makeSvc() {
       if (table === 'recordings') {
         return {
           select: () => ({ eq: () => ({ single: async () => ({ data: svcConfig.identRow }) }) }),
-          update: () => ({ eq: updateEqMock }),
+          update: (payload: Record<string, unknown>) => {
+            updatePayloads.push(payload)
+            return { eq: updateEqMock }
+          },
         }
+      }
+      if (table === 'ai_cost_events') {
+        const chain: Record<string, unknown> = {}
+        chain.select = () => chain
+        chain.eq = () => chain
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve({ data: [{ real_cost_usd: 0.06 }] }).then(resolve)
+        return chain
       }
       return { insert: async () => ({ error: null }) }
     },
@@ -217,6 +229,7 @@ describe('BILL-02/06: transcribe-audio job wires deriveAudioMinutes + the entitl
     mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
     downloadMock.mockClear()
     updateEqMock.mockClear().mockResolvedValue({ error: null })
+    updatePayloads.length = 0
     svcConfig.identRow = {
       company_id: 'company-1',
       project_id: 'project-1',
@@ -252,12 +265,12 @@ describe('BILL-02/06: transcribe-audio job wires deriveAudioMinutes + the entitl
     })
 
     expect(mockTranscribeAudioOR).toHaveBeenCalledOnce()
-    expect(mockRecordAICost).toHaveBeenCalledOnce()
-    const costCall = mockRecordAICost.mock.calls[0][0] as { units: number; realCostUsd: number }
-    // Previously: declared 1s -> ~0.017 min -> debit ~= round(0.006 * 0.017) = 0 credits.
-    // Now: byte-derived ~10 min -> a real, non-trivial cost.
-    expect(costCall.units).toBeGreaterThan(9)
-    expect(costCall.realCostUsd).toBeGreaterThan(0.05)
+    // Phase 3 (3.4): the job no longer computes/records its own minutes x rate
+    // row (transcribeAudioOR records the real cost). The byte-derived duration
+    // still drives the entitlement cap and the corrected duration_seconds saved.
+    expect(mockRecordAICost).not.toHaveBeenCalled()
+    const saved = updatePayloads.find((u) => 'duration_seconds' in u) as { duration_seconds: number }
+    expect(saved.duration_seconds).toBeGreaterThan(9 * 60)
     expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
   })
 

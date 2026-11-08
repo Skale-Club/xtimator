@@ -2,12 +2,10 @@
 //
 // SEED-057 Phase A: the output contract v2 additions to the create_estimate tool.
 //
-// The JSON-schema flavoured adapters (openrouter, anthropic) spread these
-// property objects straight into their tool definitions; the Gemini adapter
-// mirrors the SAME keys with its Type.* flavour and reuses ESTIMATE_V2_TEXT for
-// the descriptions. tests/unit/ai/tool-schema-fields.test.ts locks the key sets
-// across all three adapters, so a field added here but forgotten there fails
-// the build.
+// The OpenRouter adapter (the only one since 2026-11-07; the direct Anthropic
+// and Gemini adapters were deleted) spreads these property objects straight
+// into its tool definition. tests/unit/ai/tool-schema-fields.test.ts locks the
+// key sets, so a field added here but forgotten there fails the build.
 //
 // Everything is optional: the zod gate (lib/ai/schema.ts) turns a missing or
 // malformed value into `undefined`, never into a rejected generation.

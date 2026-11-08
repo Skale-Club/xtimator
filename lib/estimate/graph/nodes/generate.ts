@@ -14,6 +14,7 @@
  */
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
 import { ProvidersUnavailableError, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
+import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { FailureReason } from '@/lib/estimate/failure'
 import type { EstimateStateType } from '../state'
 import type { StepRunner } from '../types'
@@ -29,13 +30,18 @@ export const makeGenerateNode =
         attemptId: state.attemptId ?? null,
         companyId: state.companyId,
         projectId: state.projectId,
+        inputType: state.inputType,
       }
+      // The UI language selector (route/job -> state.estimateLanguage) is the
+      // explicit override of the service's language cascade; undefined keeps it.
+      const language = state.estimateLanguage as EstimateLanguage | undefined
       const opts =
         state.channel === 'whatsapp'
-          ? { channel: 'whatsapp' as const, prompts: state.prompts, qualityHints: state.qualityHints, costContext }
+          ? { channel: 'whatsapp' as const, prompts: state.prompts, qualityHints: state.qualityHints, language, costContext }
           : {
               prompts: state.prompts,
               qualityHints: state.qualityHints,
+              language,
               // origin/dev: stamp "Prepared by" on web/MCP-triggered estimates.
               createdByUserId: state.createdByUserId,
               costContext,
@@ -47,6 +53,7 @@ export const makeGenerateNode =
         estimateId: result.estimateId,
         estimateLanguage: result.language,
         structureBand: result.structure?.band,
+        structureScore: result.structure?.score,
         structureHints: result.structure?.hints,
         openQuestions: result.openQuestions,
       }

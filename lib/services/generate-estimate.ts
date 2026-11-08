@@ -6,8 +6,7 @@ import { serializePhotoContext } from '@/lib/estimate/photo-context'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
-import { anchorAndClampSections } from '@/lib/ai/price-anchoring'
-import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
+import { resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import {
   round2,
@@ -33,7 +32,7 @@ import {
 } from '@/lib/i18n/resolve-estimate-language'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
-import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
+import { persistEstimateVersion } from '@/lib/services/persist-estimate-version'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import {
   computeValidUntil,
@@ -42,17 +41,15 @@ import {
   initialSectionVisibility,
   resolveDocumentBlocks,
 } from '@/lib/estimate/document-blocks'
-import { buildAiMeta, isMissingColumnError, type QualityBand } from '@/lib/estimate/ai-meta'
+import { buildAiMeta, type QualityBand } from '@/lib/estimate/ai-meta'
+import { ceilingInCurrency } from '@/lib/estimate/pricing/price-bands'
 import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
 import { planScope } from '@/lib/ai/plan-scope'
-import {
-  applyCompanyHistory,
-  historyCandidateKeys,
-  loadCompanyHistory,
-} from '@/lib/estimate/pricing/company-history'
 import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
+import { decideDraftEscalation } from '@/lib/ai/model-policy'
+import { getEscalationConfig } from '@/lib/ai/step-models'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
 import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
 
@@ -117,11 +114,10 @@ export interface GenerateEstimateOptions {
     attemptId?: string | null
     companyId?: string | null
     projectId?: string | null
+    /** Input type of the attempt; stamps the journal's phase rows. */
+    inputType?: 'recording' | 'photo' | 'manual_text'
   }
 }
-
-/** estimate_items columns added by SEED-057 (see the estimator-intelligence migration). */
-const ITEM_AI_COLUMNS = ['confidence', 'basis', 'optional'] as const
 
 const IMPACT_RANK = { low: 0, medium: 1, high: 2 } as const
 
@@ -180,6 +176,7 @@ export async function generateEstimateForProject(
       phase: name,
       companyId,
       projectId,
+      inputType: options.costContext?.inputType,
       detail,
     })
 
@@ -396,7 +393,19 @@ export async function generateEstimateForProject(
     })
   }
 
-  const provider = await getAIProviderWithFallback(companyId)
+  // Phase 4g: optional Opus escalation of the DRAFT call for large jobs. Disabled
+  // unless ai_config.metadata.escalation.enabled === true with an Opus model; with
+  // nothing configured the provider resolves exactly as before.
+  const escalationModel = await decideDraftModel({
+    plan: estimateInput.plan,
+    sourceChars: [...transcripts, ...prompts].reduce((n, t) => n + t.length, 0),
+    targetBudget: estimateInput.targetBudget,
+    companyId,
+    projectId: options.costContext?.projectId ?? null,
+  })
+  const provider = escalationModel
+    ? await getAIProviderWithFallback(companyId, { modelOverride: escalationModel })
+    : await getAIProviderWithFallback(companyId)
   const aiEstimate = await provider.generateEstimate(estimateInput)
 
   // SEED-057 C: the estimator is told to carry the plan's assumptions,
@@ -462,147 +471,65 @@ export async function generateEstimateForProject(
   // AIREL-04: resolved once, reused by both the aiProposedSubtotal dedupe below and
   // the over-ceiling verdict evaluated after totals are computed.
   const estimateTotalCeiling = resolveEstimateTotalCeiling()
+  // The ceiling is a USD figure. This is the value in the estimate's currency for the service's
+  // OWN comparisons below (flag-aware: unchanged with ESTIMATOR_PRICE_BANDS off or a USD estimate).
+  // resolveLinePrices takes the raw USD value and converts it internally, so it is never passed
+  // this one (that would convert twice).
+  const estimateTotalCeilingLocal = ceilingInCurrency(estimateTotalCeiling, currencyCode)
 
-  // GUARD-03 snapshot: capture the naive subtotal the AI's OWN numbers imply
+  // GUARD-03 snapshot: capture the sections the AI's OWN numbers imply
   // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
-  // metric below; the AI total itself is never persisted as authoritative.
+  // metric below (which prices them with the SAME computeEstimateTotals the server
+  // total uses: tax_config, taxable=false lines, line discounts, cost+markup); the
+  // AI total itself is never persisted as authoritative.
   //
   // AIREL-04 / Opus Warning C (metric coherence): dedupe the AI's OWN raw
   // sections FIRST (same exact-duplicate-collapse rule the server applies to the
   // anchored/researched sections below) before summing. Without this, a
-  // hallucinated repeated line would inflate aiProposedSubtotal but NOT the
+  // hallucinated repeated line would inflate the AI-implied total but NOT the
   // (deduped) server total, producing an artificial totals_discrepancy delta
   // that has nothing to do with anchoring/research — dedupe would otherwise fire
   // unexplained Sentry anomalies. `computedTotal` is irrelevant to this call (0,
   // so overCeiling is always false here) — only the deduped `.sections` are used;
   // the real over-ceiling verdict is evaluated later against the server grand total.
-  const aiProposedSubtotal = round2(
-    checkEstimateConsistency(aiEstimate.sections, 0, {
-      totalCeiling: estimateTotalCeiling,
-    }).sections.reduce(
-      (sum, section) =>
-        sum +
-        section.items.reduce(
-          (s, item) => s + item.quantity * item.unit_price,
-          0
-        ),
-      0
-    )
-  )
+  const aiProposedSections = checkEstimateConsistency(aiEstimate.sections, 0, {
+    totalCeiling: estimateTotalCeilingLocal,
+  }).sections
 
-  // GUARD-02: anchor matched items to the (companyId-scoped, currency-filtered)
-  // price book and clamp out-of-bounds ai_estimate prices. Pass ONLY mapped
-  // { name, unit_price } so the pure helper stays tenant-safe. Non-fatal.
-  // SEED-057 E: only the server may label a price 'company_history'. A model
-  // that claims it in a GENERATE call is demoted before anything else runs.
-  const modelSections = aiEstimate.sections.map((section) => ({
-    ...section,
-    items: section.items.map((item) =>
-      item.price_source === 'company_history' ? { ...item, price_source: 'ai_estimate' as const } : item
-    ),
-  }))
-  const { sections: anchoredSections, anchoredCount, clampedCount } =
-    anchorAndClampSections(
-      modelSections,
-      priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price }))
-    )
-
-  // SEED-057 E3: the company's own median on ACCEPTED estimates (last 10, per
-  // concept + unit) beats web research and the model's estimate, and loses only to
-  // the price book. Runs after anchoring and before research; research then sees
-  // only the items still tagged 'ai_estimate'. Best-effort: no history (or a
-  // database that has no price_observations yet) changes nothing.
-  const history = await loadCompanyHistory(
-    supabase,
+  // GUARD-02 / SEED-057 E3 / RPRICE / AIREL-04: the shared price pipeline
+  // (lib/estimate/pricing/resolve-prices.ts): demote model-claimed server labels,
+  // anchor + clamp to the price book, company history, web research, then collapse
+  // exact duplicates BEFORE totals so duplicates never inflate the persisted total.
+  // Never throws; research is metered from the trusted attemptId (projectId is the
+  // fallback seed for a direct service call). Region = the project client's city+state.
+  const {
+    sections: dedupedSections,
+    anchoredCount,
+    clampedCount,
+    flaggedUnpriced,
+    researchTelemetry,
+    consistencyFlags: preComputeFlags,
+  } = await resolveLinePrices(aiEstimate.sections, {
     companyId, // param, never LLM-derived
     currencyCode,
-    historyCandidateKeys(anchoredSections)
-  )
-  const { sections: guardedSections, applied: historyAppliedCount } = applyCompanyHistory(
-    anchoredSections,
-    history
-  )
-  if (historyAppliedCount > 0) {
-    console.info('[company_history]', { companyId, applied: historyAppliedCount })
-  }
-
-  // RPRICE-01/03 + RFALL-01 (THE PAYOFF): research the items anchoring left as
-  // 'ai_estimate' (price_book + owner-edited items are NEVER touched). The
-  // orchestrator is channel-neutral and NEVER-THROWS — a research failure must never
-  // break generation (mirrors the anchoring non-fatal contract). This runs BEFORE the
-  // server totals + persistence so researched regional prices flow into the
-  // authoritative totals and the vagueness gate (assess) sees real numbers — the
-  // originating "Couch cleaning 8seats → $0 → blocked as vague" fix. Region = the
-  // project client's city+state; currency = the estimate currency; companyId is the
-  // param (NEVER LLM-derived). projectId seeds the metering idempotency key (Warning #1:
-  // the orchestrator builds ${attemptId ?? projectId ?? companyId}:... — no real
-  // attemptId is reachable at this call site, so the project-scoped seed is the best
-  // available per-generation token; it is retry-stable and finer than company-scoped).
-  // Defensive try/catch in addition to the never-throws contract: a thrown research
-  // error degrades to the anchored (pre-research) sections, never an estimate failure.
-  let researchedSections = guardedSections
-  let flaggedUnpriced = 0
-  // WI-1 (HARDEN-OBS-01): attempted-vs-usable research telemetry for the quality signal.
-  // Undefined until the research call sets it; on a research failure it stays undefined and
-  // buildEstimateQualitySignal treats absent research as "no data ⇒ no alarm" (graceful fallback).
-  let researchTelemetry:
-    | { candidates: number; cacheHits: number; providerUsable: number; missed: number }
-    | undefined
-  // Phase narration: the candidate set is exactly what the orchestrator will
-  // work on (post-anchor items still tagged 'ai_estimate'), computed the same
-  // way it computes it, so "researching N items" is the real N, not a guess.
-  const researchCandidates = guardedSections.reduce(
-    (n, section) =>
-      n + section.items.filter((item) => item.price_source === 'ai_estimate').length,
-    0
-  )
-  const guardedItemCount = guardedSections.reduce((n, s) => n + s.items.length, 0)
-  phase('pricing', {
-    candidates: researchCandidates,
-    itemCount: guardedItemCount,
-    sectionCount: guardedSections.length,
+    // Extra price-book fields: an area_based / base_plus_addons row priced 0 must not anchor a
+    // $0 line, and (flagged by ESTIMATOR_PRICE_BANDS) units are compared.
+    priceBookItems: priceBookItems.map((p) => ({
+      name: p.name,
+      unit_price: p.unit_price,
+      unit: p.unit,
+      pricing_type: p.pricing_type,
+      price_per_unit: p.price_per_unit,
+      minimum_price: p.minimum_price,
+    })),
+    region: { city: client?.city ?? null, state: client?.state ?? null },
+    supabase,
+    projectId,
+    attemptId: options.costContext?.attemptId ?? undefined,
+    totalCeiling: estimateTotalCeiling, // USD; resolveLinePrices converts it itself
+    playbook: playbookFor(estimateInput),
+    onProgress: (detail) => phase('pricing', detail),
   })
-
-  try {
-    const research = await researchUnmatchedPrices(guardedSections, {
-      companyId, // param — NEVER LLM-derived
-      region: { city: client?.city ?? null, state: client?.state ?? null },
-      currency: currencyCode,
-      supabase, // reuse the service client
-      projectId, // best available per-generation metering seed (Warning #1)
-    })
-    researchedSections = research.sections
-    flaggedUnpriced = research.flaggedUnpriced
-    researchTelemetry = research.telemetry
-    // Exit report: what the research pass actually resolved. The orchestrator
-    // issues ONE batched provider lookup for the whole miss set, so there is no
-    // honest per-item progression to stream mid-flight. This is the real
-    // resolved count, reported the moment it exists.
-    if (researchTelemetry) {
-      phase('pricing', {
-        candidates: researchTelemetry.candidates,
-        researched: researchTelemetry.cacheHits + researchTelemetry.providerUsable,
-        itemCount: guardedItemCount,
-        sectionCount: guardedSections.length,
-      })
-    }
-  } catch (err) {
-    // Non-fatal: keep the anchored sections; generation must still complete.
-    console.warn('[generate-estimate] price research failed (non-fatal)', err)
-  }
-
-  // AIREL-04 (audit C4): collapse exact-duplicate lines BEFORE totals are computed —
-  // duplicates must never inflate the persisted total. Runs on the anchored+
-  // researched sections (price_book/researched prices are already resolved by this
-  // point). `computedTotal` is irrelevant to THIS call (0, so overCeiling is always
-  // false here) — the real over-ceiling verdict is evaluated below once the actual
-  // server grand total is known; only `.sections` and the duplicate/qty-0 flags are
-  // consumed here. Never-throw (consistency module discipline) — a check failure
-  // degrades to the pre-dedupe sections, never an estimate failure.
-  const consistencyPreCompute = checkEstimateConsistency(researchedSections, 0, {
-    totalCeiling: estimateTotalCeiling,
-  })
-  const dedupedSections = consistencyPreCompute.sections
 
   // GUARD-03 totals. TAX-03: when companies.tax_config is present the engine computes tax
   // PER-CATEGORY (Σ taxable_base_per_category × rate_category); when it is null/absent this is
@@ -619,7 +546,6 @@ export async function generateEstimateForProject(
     taxAmount,
     grandTotal,
     discountAmount,
-    deposit,
     balanceDue,
   } = computeEstimateTotals(dedupedSections, { taxRate, taxConfig, currencyCode })
 
@@ -632,9 +558,7 @@ export async function generateEstimateForProject(
   const safeDiscountAmount = assertFinitePositive(discountAmount)
   // DEP-01: same finite, >= 0 persistence guard. assertFinitePositive floors negatives to 0 — a deposit
   // exceeding the total persists balance_due 0 (never a negative). At generation deposit is 0 here, so
-  // balanceDue === grandTotal (byte-identical). deposit is the destructured GUARD-03 value; void it to
-  // keep the LOCKED return contract explicit while deposit_value persists null at generation (no input).
-  void deposit
+  // balanceDue === grandTotal (byte-identical). deposit_value persists null at generation (no input).
   const safeBalanceDue = assertFinitePositive(balanceDue)
 
   // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
@@ -656,13 +580,13 @@ export async function generateEstimateForProject(
   // than re-invoking the module a second time) since dedupe already ran above.
   // Merged with the duplicate/qty-0 flags from the pre-compute pass so
   // `consistencyFlags` carries every AIREL-04 signal for this generation.
-  const overCeiling = safeGrandTotal > estimateTotalCeiling
-  const consistencyFlags: ConsistencyFlag[] = [...consistencyPreCompute.flags]
+  const overCeiling = safeGrandTotal > estimateTotalCeilingLocal
+  const consistencyFlags: ConsistencyFlag[] = [...preComputeFlags]
   if (overCeiling) {
     consistencyFlags.push({
       kind: 'total_over_ceiling',
       total: safeGrandTotal,
-      ceiling: estimateTotalCeiling,
+      ceiling: estimateTotalCeilingLocal,
     })
   }
 
@@ -678,7 +602,14 @@ export async function generateEstimateForProject(
   let qualitySignal: ReturnType<typeof buildEstimateQualitySignal> | null = null
   let qualityDiscrepancy: ReturnType<typeof computeTotalsDiscrepancy> | null = null
   try {
-    const aiProposedGrand = round2(aiProposedSubtotal * (1 + taxRate))
+    // Like-with-like: the AI-implied grand total goes through the SAME totals engine (and the
+    // same tax_config / currency) as the server total, on the AI's pre-anchoring prices, so
+    // the metric only moves when anchoring/research/clamping changed a price.
+    const aiProposedGrand = computeEstimateTotals(aiProposedSections, {
+      taxRate,
+      taxConfig,
+      currencyCode,
+    }).grandTotal
     const discrepancy = computeTotalsDiscrepancy({
       serverGrand: safeGrandTotal,
       aiGrand: aiProposedGrand,
@@ -732,12 +663,10 @@ export async function generateEstimateForProject(
     .eq('is_current', true)
     .maybeSingle()
 
-  // Version management
-  await supabase
-    .from('estimates')
-    .update({ is_current: false })
-    .eq('project_id', projectId)
-
+  // Version management. The previous current version is NOT demoted here: the
+  // new row is inserted as non-current and only promoted once its sections and
+  // items are saved (see the swap below), so a failed save never leaves the
+  // project without a current estimate.
   const { data: existingEstimates } = await supabase
     .from('estimates')
     .select('version')
@@ -763,6 +692,7 @@ export async function generateEstimateForProject(
     openQuestions: aiNotes.open_questions?.length ?? 0,
     hasMeasurements: mentionsMeasurements(sourceText),
     language,
+    currencyCode,
   })
   const aiMeta = buildAiMeta(
     aiNotes,
@@ -777,7 +707,8 @@ export async function generateEstimateForProject(
       company_id: companyId,
       currency_code: currencyCode,
       version: nextVersion,
-      is_current: true,
+      // Promoted to current only after sections + items are saved.
+      is_current: false,
       status: 'draft',
       workflow_status: 'draft',
       summary: aiEstimate.summary,
@@ -816,149 +747,50 @@ export async function generateEstimateForProject(
       created_by_user_id: options.createdByUserId ?? null,
   }
 
-  let { data: estimate, error: estimateError } = await supabase
-    .from('estimates')
-    .insert(aiMeta ? { ...estimateRow, ai_meta: aiMeta } : estimateRow)
-    .select('id')
-    .single()
+  // The shared write path (lib/services/persist-estimate-version.ts): insert non-current, save
+  // sections + items, cleanup on failure, then the safe is_current swap and photo carry-forward.
+  const estimateId = await persistEstimateVersion(supabase, {
+    companyId,
+    projectId,
+    estimateRow,
+    aiMeta,
+    calculatedSections,
+    previousCurrentId: (previousCurrent?.id as string | undefined) ?? null,
+    onInserted: (insertedId) => {
+      // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
+      // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
+      // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
+      // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
+      // reportEstimateQuality NEVER throws, so observability can never break generation.
+      if (qualitySignal && qualityDiscrepancy) {
+        reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
+          companyId,
+          estimateId: insertedId,
+        })
+      }
 
-  if (estimateError && aiMeta && isMissingColumnError(estimateError, ['ai_meta'])) {
-    ;({ data: estimate, error: estimateError } = await supabase
-      .from('estimates')
-      .insert(estimateRow)
-      .select('id')
-      .single())
-  }
-
-  if (estimateError || !estimate) {
-    throw new Error('Failed to save estimate')
-  }
-
-  const estimateId = estimate.id as string
-
-  // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
-  // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
-  // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
-  // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
-  // reportEstimateQuality NEVER throws, so observability can never break generation.
-  if (qualitySignal && qualityDiscrepancy) {
-    reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
-      companyId,
-      estimateId,
-    })
-  }
-
-  // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
-  // over-ceiling) in the SAME best-effort, never-throw observability channel as
-  // the totals_discrepancy signal above. Additive — does not touch
-  // quality-signal.ts's locked EstimateQualitySignal shape.
-  if (consistencyFlags.length > 0) {
-    try {
-      console.info('[estimate_consistency]', {
-        companyId,
-        estimateId,
-        flags: consistencyFlags,
-      })
-      Sentry.captureMessage('[estimate-quality] consistency flag', {
-        level: 'warning',
-        tags: { company_id: companyId, estimate_id: estimateId },
-        extra: { flags: consistencyFlags },
-      })
-    } catch {
-      // Observability must never break generation.
-    }
-  }
-
-  // Insert sections and items in exactly two round-trips (was 2×S sequential).
-  // 1) Bulk-insert every section, RETURNING ids in insertion order.
-  // 2) Bulk-insert every item across all sections in one call, mapping each item
-  //    to its section id by position. sort_order fields are preserved exactly:
-  //    sIdx for sections, iIdx for items within a section.
-  const sectionInsertRows = calculatedSections.map((section, sIdx) => ({
-    estimate_id: estimateId,
-    company_id: companyId,
-    title: section.title,
-    sort_order: sIdx,
-    subtotal: section.subtotal,
-  }))
-
-  let sectionIds: string[] = []
-  if (sectionInsertRows.length > 0) {
-    const { data: sectionRows, error: sectionsError } = await supabase
-      .from('estimate_sections')
-      .insert(sectionInsertRows)
-      .select('id')
-
-    // PostgREST returns the inserted rows in the SAME order as the payload for a
-    // single INSERT, so index i ↔ calculatedSections[i]. Guard the length so a
-    // partial/reordered result can never silently misattach items.
-    if (sectionsError || !sectionRows || sectionRows.length !== sectionInsertRows.length) {
-      throw new Error('Failed to save estimate section')
-    }
-    sectionIds = sectionRows.map((row) => row.id as string)
-  }
-
-  const itemInsertRows = calculatedSections.flatMap((section, sIdx) => {
-    const sectionId = sectionIds[sIdx]
-    return section.items.map((item, iIdx) => ({
-      section_id: sectionId,
-      company_id: companyId,
-      description: item.description,
-      quantity: item.quantity,
-      unit: item.unit ?? null,
-      unit_price: item.unit_price,
-      total: item.total,
-      sort_order: iIdx,
-      price_source: item.price_source,
-      // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
-      // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
-      // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
-      taxable: item.taxable ?? true,
-      tax_category: item.tax_category ?? null,
-      // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
-      // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
-      discount: (item.discount as number | undefined) ?? 0,
-      // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
-      // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
-      // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
-      // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
-      cost: (item.cost as number | undefined) ?? null,
-      markup_pct: (item.markup_pct as number | undefined) ?? null,
-      // SEED-057: per-line AI metadata. Only present on the row when the model
-      // supplied it, so rows (and tests) for legacy outputs are unchanged.
-      // Every row carries the SAME keys: PostgREST unions the keys across a bulk insert and
-      // sends NULL for a row that lacks one, and `optional` is NOT NULL DEFAULT false.
-      confidence: item.confidence ?? null,
-      basis: item.basis ?? null,
-      optional: item.optional === true,
-    }))
+      // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
+      // over-ceiling) in the SAME best-effort, never-throw observability channel as
+      // the totals_discrepancy signal above. Additive — does not touch
+      // quality-signal.ts's locked EstimateQualitySignal shape.
+      if (consistencyFlags.length > 0) {
+        try {
+          console.info('[estimate_consistency]', {
+            companyId,
+            estimateId: insertedId,
+            flags: consistencyFlags,
+          })
+          Sentry.captureMessage('[estimate-quality] consistency flag', {
+            level: 'warning',
+            tags: { company_id: companyId, estimate_id: insertedId },
+            extra: { flags: consistencyFlags },
+          })
+        } catch {
+          // Observability must never break generation.
+        }
+      }
+    },
   })
-
-  if (itemInsertRows.length > 0) {
-    let { error: itemsError } = await supabase
-      .from('estimate_items')
-      .insert(itemInsertRows)
-
-    // Pre-migration deploy window: drop the SEED-057 columns and retry.
-    if (itemsError && isMissingColumnError(itemsError, ITEM_AI_COLUMNS)) {
-      const stripped = itemInsertRows.map((row) => {
-        const copy: Record<string, unknown> = { ...row }
-        for (const column of ITEM_AI_COLUMNS) delete copy[column]
-        return copy
-      })
-      ;({ error: itemsError } = await supabase.from('estimate_items').insert(stripped))
-    }
-
-    if (itemsError) {
-      throw new Error('Failed to save estimate items')
-    }
-  }
-
-  // Version carry-forward — copy the previous current version's attached
-  // photos onto the new version (independent rows, own remove lifecycle).
-  if (previousCurrent?.id) {
-    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
-  }
 
   // Update project status. RFALL-01: when research flagged an unpriced item AND the
   // estimate still carries real value (total>0), surface it via the EXISTING
@@ -1059,7 +891,7 @@ export async function generateEstimateForProject(
       company_id: companyId,
       estimate_id: estimateId,
       event_type: 'estimate_over_ceiling_flagged',
-      metadata: { total: safeGrandTotal, ceiling: estimateTotalCeiling },
+      metadata: { total: safeGrandTotal, ceiling: estimateTotalCeilingLocal },
     })
   }
 
@@ -1089,5 +921,55 @@ export async function generateEstimateForProject(
     openQuestions: [...(aiNotes.open_questions ?? [])]
       .sort((a, b) => IMPACT_RANK[b.impact] - IMPACT_RANK[a.impact])
       .map((q) => q.question),
+  }
+}
+
+
+/**
+ * Phase 4g gate: returns the escalation (Opus) model for the draft call, or null
+ * to keep today's model resolution. Never throws; null when disabled/unreadable.
+ * Logs the decision (console.info + Langfuse generation metadata) whenever the
+ * feature is enabled, whether or not it escalates.
+ */
+async function decideDraftModel(args: {
+  plan: EstimateInput['plan']
+  sourceChars: number
+  targetBudget: number | null | undefined
+  companyId: string
+  projectId: string | null
+}): Promise<string | null> {
+  try {
+    const cfg = await getEscalationConfig()
+    if (!cfg) return null
+    const decision = decideDraftEscalation(cfg, {
+      plan: args.plan,
+      sourceChars: args.sourceChars,
+      targetBudget: args.targetBudget,
+    })
+    const meta = {
+      escalated: decision.escalate,
+      reason: decision.reason,
+      model: decision.escalate ? cfg.model : null,
+      hasPlan: Boolean(args.plan),
+      planSections: args.plan?.sections.length ?? null,
+      scopeConfidence: args.plan?.scope_confidence ?? null,
+      sourceChars: args.sourceChars,
+      companyId: args.companyId,
+      projectId: args.projectId,
+    }
+    console.info('[draft_escalation]', meta)
+    try {
+      const { langfuseClient } = await import('@/lib/observability/langfuse')
+      langfuseClient
+        .generation({ name: 'draft_model_decision', model: meta.model ?? undefined, input: meta, metadata: meta })
+        .end({ output: meta })
+      await langfuseClient.flushAsync()
+    } catch (err) {
+      console.warn('[draft_escalation] langfuse trace failed:', err)
+    }
+    return decision.escalate ? cfg.model : null
+  } catch (err) {
+    console.warn('[draft_escalation] decision failed (using default model):', err)
+    return null
   }
 }

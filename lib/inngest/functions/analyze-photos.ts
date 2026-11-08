@@ -8,11 +8,20 @@
  *   - INNGEST-06 (idempotent via event.data.requestId)
  */
 import { randomUUID } from 'node:crypto'
+import { deterministicUuid } from '@/lib/ids/deterministic-uuid'
 import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
-import { analyzePhotoOR, analyzePhotoStructuredOR } from '@/lib/ai/openrouter-client'
+import {
+  analyzePhotoOR,
+  analyzePhotoSingleAttemptOR,
+  analyzePhotoStructuredOR,
+  OR_DEFAULTS,
+} from '@/lib/ai/openrouter-client'
+import { resolveSlotModel } from '@/lib/ai/step-models'
+import { isHaikuModel } from '@/lib/ai/model-policy'
+import { extractPhotoHaikuFirst } from '@/lib/ai/vision-escalation'
 import type { PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 import type { Json } from '@/types/database.types'
 import { recordUsage } from '@/lib/quota'
@@ -62,6 +71,17 @@ function getMimeType(storagePath: string): ImageMediaType {
     default:
       return 'image/jpeg'
   }
+}
+
+/**
+ * Cost-event attempt id for ONE photo in ONE run. The debit read-back sums only
+ * the ids of photos that succeeded, so a failed photo is never charged and a
+ * second analyze run under the same client attemptId is isolated from the first.
+ * ai_cost_events.attempt_id is UUID NOT NULL, so the composite key is mapped to a
+ * deterministic UUID (same inputs, same id on every Inngest retry).
+ */
+export function visionCostAttemptId(attemptId: string, requestId: string, photoId: string): string {
+  return deterministicUuid(`${attemptId}:vision:${requestId}:${photoId}`)
 }
 
 export const analyzePhotosJob = inngest.createFunction(
@@ -210,13 +230,19 @@ export const analyzePhotosJob = inngest.createFunction(
             const base64 = Buffer.from(arrayBuffer).toString('base64')
             const mimeType = getMimeType(photo.storage_path)
 
-            // Phase 167 (BILL-03, audit D4): thread the job's costContext so
-            // each vision cost row carries the JOB's attemptId + real
-            // company/project ids — without this the row got a random
-            // attemptId + null ids and the record-credit-debit read-back
-            // below (`.eq('attempt_id', attemptId)`) matched zero rows,
-            // permanently recording a null cost for photo_batch debits.
-            const costContext = { attemptId, companyId, projectId }
+            // Phase 167 (BILL-03, audit D4): thread a costContext so each vision
+            // cost row carries real company/project ids instead of a random
+            // attemptId + null ids.
+            // Phase 3 (3.2): the attemptId is PER PHOTO AND PER RUN
+            // (visionCostAttemptId), so the debit below can sum exactly the
+            // cost of photos whose analysis succeeded in THIS run — a photo
+            // that ultimately failed (or whose update did not persist) never
+            // contributes, and a second run in the same attempt is isolated.
+            const costContext = {
+              attemptId: visionCostAttemptId(attemptId, requestId, photo.id),
+              companyId,
+              projectId,
+            }
 
             // Phase 171 (PEXT-01/03): structured extraction ladder —
             // structured(OpenRouter) -> prose (analyzePhotoOR, also OpenRouter;
@@ -228,15 +254,26 @@ export const analyzePhotosJob = inngest.createFunction(
             // photo: it falls through to the proven prose ladder below,
             // exactly as today — only a prose failure (unchanged from
             // 168-01) counts against skip-and-continue.
+            // Phase 4b/4c: admin `vision` slot. Unset/invalid (the default) ->
+            // undefined -> OR_DEFAULTS.chat inside the client, exactly as before.
+            // A Haiku slot switches on the Haiku-first ladder (extractPhotoHaikuFirst);
+            // a Sonnet/Opus slot just replaces the model on today's ladder.
+            const visionModel = await resolveSlotModel('vision', undefined)
+            const haikuFirst = isHaikuModel(visionModel)
             let extraction: PhotoExtraction | undefined
             if (process.env.PHOTO_STRUCTURED_EXTRACTION !== 'off') {
               try {
-                extraction = await analyzePhotoStructuredOR(
-                  base64,
-                  mimeType,
-                  undefined,
-                  costContext
-                )
+                if (haikuFirst) {
+                  const r = await extractPhotoHaikuFirst(base64, mimeType, visionModel, costContext)
+                  extraction = r.extraction
+                } else {
+                  extraction = await analyzePhotoStructuredOR(
+                    base64,
+                    mimeType,
+                    visionModel,
+                    costContext
+                  )
+                }
               } catch (structuredErr) {
                 console.warn(
                   `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
@@ -253,21 +290,34 @@ export const analyzePhotosJob = inngest.createFunction(
               // value (string/number/array/object/null fields only) but its
               // optional `access_notes?: string | null` needs the cast to
               // satisfy the generated column type.
-              await supabase
+              const { error: updErr } = await supabase
                 .from('photos')
                 .update({
                   ai_extraction: extraction as unknown as Json,
                   ai_description: extraction.overall_description,
                 })
                 .eq('id', photo.id)
+              // Phase 3 (3.2): a failed persist means the photo is NOT analyzed
+              // (ai_description stays null -> it is re-analyzed on a later
+              // dispatch) and is never charged.
+              if (updErr) {
+                throw new Error(`Failed to save analysis for photo ${photo.id}: ${updErr.message}`)
+              }
               return { photoId: photo.id, description: extraction.overall_description }
             }
 
-            const description = await analyzePhotoOR(base64, mimeType, undefined, costContext)
-            await supabase
+            // Haiku-first: the prose rung runs on the Sonnet chat model, once (no
+            // truncation retry). Otherwise unchanged (slot model or the default).
+            const description = haikuFirst
+              ? await analyzePhotoSingleAttemptOR(base64, mimeType, OR_DEFAULTS.chat, costContext)
+              : await analyzePhotoOR(base64, mimeType, visionModel, costContext)
+            const { error: descErr } = await supabase
               .from('photos')
               .update({ ai_description: description })
               .eq('id', photo.id)
+            if (descErr) {
+              throw new Error(`Failed to save analysis for photo ${photo.id}: ${descErr.message}`)
+            }
             return { photoId: photo.id, description }
           })
         )
@@ -301,6 +351,63 @@ export const analyzePhotosJob = inngest.createFunction(
     }
 
     const descriptions = succeeded
+
+    // Step 3: record usage + credit debit — ONLY when at least one photo
+    // succeeded (Phase 168 PHOTO-03). Phase 3 (3.4): this runs BEFORE the
+    // chained generate dispatch below, so a dispatch that exhausts its retries
+    // can never leave the vision spend un-debited. `units` is the SUCCEEDED
+    // count, never `photos.length`.
+    if (succeeded.length > 0) {
+      await step.run('record-usage', async () => {
+        const supabase = requireServiceClient()
+        await recordUsage(
+          supabase,
+          companyId,
+          'photo_analyzed',
+          succeeded.length,
+          requestId
+        )
+      })
+
+      // Phase 112 (CREDIT-02): credit debit in its own retry-isolated step
+      // (recordCreditDebit is never-throw). Phase 3 (3.2/3.3): the read-back
+      // sums only the 'vision' rows of photos that SUCCEEDED in this run (their
+      // per-photo/per-run cost attempt ids), and the debit key carries the run's
+      // requestId — unique per dispatch, stable across Inngest retries of the
+      // same run — so a second analyze run in the same attempt is debited too.
+      // Bounded read-back: up to 3x150ms ONLY on the cost-miss path. All-null
+      // costs -> realCostUsd: null (recordCreditDebit no-ops; null vs guessed 0).
+      const costAttemptIds = succeeded.map((s) =>
+        visionCostAttemptId(attemptId, requestId, s.photoId)
+      )
+      await step.run('record-credit-debit', async () => {
+        const svc = requireServiceClient()
+        let realCostUsd: number | null = null
+        for (let i = 0; i < 3; i++) {
+          const { data } = await svc
+            .from('ai_cost_events')
+            .select('real_cost_usd')
+            .in('attempt_id', costAttemptIds)
+            .eq('operation_type', 'vision')
+          const rows = (data ?? []) as { real_cost_usd: number | null }[]
+          if (rows.length > 0) {
+            const known = rows
+              .map((r) => r.real_cost_usd)
+              .filter((c): c is number => c != null)
+            realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+            break
+          }
+          await new Promise((r) => setTimeout(r, 150))
+        }
+        await recordCreditDebit({
+          companyId,
+          operationType: 'photo_batch',
+          realCostUsd,
+          attemptId,
+          runKey: requestId,
+        })
+      })
+    }
 
     // 260707-hhp (P1): when the client requested fire-and-forget mode, chain
     // directly into estimate generation now that descriptions are persisted —
@@ -339,8 +446,7 @@ export const analyzePhotosJob = inngest.createFunction(
             requestId: reqId,
             language: data.estimateLanguage,
             // 260821 (billing double-debit fix): forward the RESOLVED attemptId
-            // (the one this job's own vision cost rows were written under, and
-            // the id record-credit-debit below reads back by) — not the
+            // (the lineage id; vision cost rows use derived per-photo ids) — not the
             // possibly-undefined data.attemptId, which would break attemptId
             // lineage into the chained generate event whenever the producer
             // omitted it.
@@ -351,64 +457,6 @@ export const analyzePhotosJob = inngest.createFunction(
             notifyUserId: data.notifyUserId,
           },
         })
-      })
-    }
-
-    // Step 3: record usage + credit debit — ONLY when at least one photo
-    // succeeded (Phase 168 PHOTO-03: audit flagged partial batches going
-    // unmetered under the old all-or-nothing throw; the flip side is a
-    // fully-empty re-dispatch — nothing left to analyze — must NOT record a
-    // zero-unit usage event or an unattributed debit). `units` is the
-    // SUCCEEDED count, never `photos.length` — a failed photo is never
-    // charged.
-    if (succeeded.length > 0) {
-      await step.run('record-usage', async () => {
-        const supabase = requireServiceClient()
-        await recordUsage(
-          supabase,
-          companyId,
-          'photo_analyzed',
-          succeeded.length,
-          requestId
-        )
-      })
-
-      // Phase 112 (CREDIT-02): fire the credit debit AFTER record-usage, in its own
-      // retry-isolated step. recordCreditDebit is never-throw, so a ledger failure
-      // never breaks analysis; enforcement is OFF, so this RECORDS but never blocks.
-      // The per-photo vision cost was captured deep at the provider seam (void
-      // recordAICost — RESEARCH Pitfall 6), so read it BACK from ai_cost_events by
-      // attemptId and SUM all rows — the per-photo `vision` sub-calls roll up into the
-      // single `photo_batch` debit (Open Question 2). Bounded read-back: up to 3×150ms
-      // (~450ms worst case) ONLY on the cost-miss path — fine for a background step.
-      // All-null costs → realCostUsd: null (recordCreditDebit no-ops; null vs guessed 0).
-      await step.run('record-credit-debit', async () => {
-        const svc = requireServiceClient()
-        let realCostUsd: number | null = null
-        for (let i = 0; i < 3; i++) {
-          // 260821 (billing double-debit fix): this attemptId is shared with
-          // the chained generate-estimate run (and, when this job's payload
-          // came from the SAME capture attempt, with transcribe-audio too) —
-          // an unfiltered read-back by attempt_id alone risks summing an
-          // 'estimate' (or 'audio_minutes') row that belongs to a DIFFERENT
-          // seam's already-recorded debit into this 'photo_batch' debit.
-          // Scope strictly to this seam's own op.
-          const { data } = await svc
-            .from('ai_cost_events')
-            .select('real_cost_usd')
-            .eq('attempt_id', attemptId)
-            .eq('operation_type', 'vision')
-          const rows = (data ?? []) as { real_cost_usd: number | null }[]
-          if (rows.length > 0) {
-            const known = rows
-              .map((r) => r.real_cost_usd)
-              .filter((c): c is number => c != null)
-            realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-            break
-          }
-          await new Promise((r) => setTimeout(r, 150))
-        }
-        await recordCreditDebit({ companyId, operationType: 'photo_batch', realCostUsd, attemptId })
       })
     }
 

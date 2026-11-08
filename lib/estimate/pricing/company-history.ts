@@ -37,7 +37,8 @@ export const HISTORY_MIN_SAMPLES = 2
 /**
  * A history price only replaces the model's when it is in the same ballpark (0.33x to 3x): a
  * concept key can still collide across genuinely different jobs, and a 10x gap is more likely
- * a collision than a bargain. No model price (0) leaves nothing to compare, so history wins.
+ * a collision than a bargain. A line with no model price (0) is skipped (a free line stays free;
+ * the unpriced ladder owns real $0 gaps).
  */
 export const HISTORY_MIN_RATIO = 0.33
 export const HISTORY_MAX_RATIO = 3

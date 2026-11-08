@@ -330,13 +330,12 @@ describe('browser credential gate — client import-graph closure (UPLOAD-01)', 
     CLIENT_ENTRY_FILES.map((f) => [repoPath(f), computeClosure(f)]),
   )
 
-  it('discovers at least the three known browser upload entry points as \'use client\'', () => {
+  it('discovers at least the known browser upload entry points as \'use client\'', () => {
     const ids = [...closures.keys()]
     expect(ids).toEqual(
       expect.arrayContaining([
         'components/capture/capture-recorder.tsx',
         'components/projects/inline-audio-recorder.tsx',
-        'components/workspace/ai-input-group/use-ai-input-submit.ts',
         'components/workspace/photos/photo-card.tsx',
       ]),
     )
@@ -385,11 +384,10 @@ describe('browser credential gate — client import-graph closure (UPLOAD-01)', 
     expect(violations, violations.join('\n')).toEqual([])
   })
 
-  it('positive control: lib/storage/browser-upload.ts IS reached by all three migrated upload call sites', () => {
+  it('positive control: lib/storage/browser-upload.ts IS reached by both migrated upload call sites', () => {
     const callSites = [
       'components/capture/capture-recorder.tsx',
       'components/projects/inline-audio-recorder.tsx',
-      'components/workspace/ai-input-group/use-ai-input-submit.ts',
     ]
     for (const site of callSites) {
       const closure = closures.get(site)

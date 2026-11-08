@@ -55,6 +55,32 @@ function extFromMime(type: string): string {
   }
 }
 
+/**
+ * Debit the credits for the AI calls THIS attempt made (Claude/Gemini refine call,
+ * vision for photos, Whisper for audio). Reads back the cost rows the attemptId
+ * produced and debits once. recordCreditDebit never throws; the whole block is also
+ * try/catched so a read-back failure can never change the response.
+ */
+async function debitRefineAttempt(companyId: string, attemptId: string): Promise<void> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('ai_cost_events')
+      .select('real_cost_usd')
+      .eq('attempt_id', attemptId)
+      // 'estimate_retry': a schema-repair re-call on the same attempt (recordAICost).
+      .in('operation_type', ['estimate', 'estimate_retry', 'vision', 'audio_minutes'])
+    const rows = (data ?? []) as { real_cost_usd: number | null }[]
+    const known = rows
+      .map((r) => r.real_cost_usd)
+      .filter((c): c is number => c != null)
+    const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+    await recordCreditDebit({ companyId, operationType: 'estimate', realCostUsd, attemptId })
+  } catch (err) {
+    console.warn('[refine] credit-debit read-back failed (non-fatal):', err)
+  }
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -261,10 +287,29 @@ export async function POST(
     const instruction = parts.join('\n\n').trim()
 
     if (!instruction) {
+      // Audio / photos already ran paid Whisper / Vision calls under this attemptId:
+      // that spend is real even though no refine call follows, so it is debited.
+      // Text-only input made no paid call.
+      if (audioFile || photoFiles.length > 0) await debitRefineAttempt(companyId, attemptId)
       return NextResponse.json(
         { error: 'No usable instruction could be extracted from the input.' },
         { status: 422 }
       )
+    }
+
+    // Activity log — a refine was requested (best-effort, never fails the request).
+    // The refine NEVER writes a recordings row: the instruction is a preview input,
+    // not a job-site capture.
+    try {
+      await supabase.from('estimate_activity').insert({
+        project_id: estimate.project_id,
+        company_id: companyId,
+        estimate_id: estimateId,
+        event_type: 'refine_requested',
+        metadata: { instruction: instruction.slice(0, 500), attempt_id: attemptId },
+      })
+    } catch (err) {
+      console.warn('[refine] refine_requested activity failed (non-fatal):', err)
     }
 
     // -------------------------------------------------------------------------
@@ -299,6 +344,11 @@ export async function POST(
           discount: (item as { discount?: number }).discount ?? 0,
           cost: (item as { cost?: number | null }).cost ?? null,
           markup_pct: (item as { markup_pct?: number | null }).markup_pct ?? null,
+          // SEED-057 per-line AI metadata: carried so refine (and the merge that
+          // follows) never drops it from lines the instruction does not touch.
+          ...(item.confidence ? { confidence: item.confidence } : {}),
+          ...(item.basis ? { basis: item.basis } : {}),
+          ...(item.optional === true ? { optional: true } : {}),
         })),
       })) as EstimateSectionOutput[],
     }
@@ -321,56 +371,34 @@ export async function POST(
       // (lib/estimate/graph/nodes/refine.ts) can build the SAME costContext
       // for its own OpenRouter/Gemini call.
       attemptId,
+      // The estimate's own language drives the refine prompt (not the company default).
+      estimateId,
+      estimateLanguage: estimate.language,
     })
 
-    // Activity log — refinement requested. Persistence (if any) happens via the
+    // Activity log — refinement proposed. Persistence (if any) happens via the
     // editor when the user clicks Save Draft.
-    await supabase.from('estimate_activity').insert({
-      project_id: estimate.project_id,
-      company_id: companyId,
-      estimate_id: estimateId,
-      event_type: 'estimate_refine_proposed',
-      metadata: {
-        instruction,
-        has_audio: !!audioFile,
-        photo_count: photoFiles.length,
-      },
-    })
-
-    // -------------------------------------------------------------------------
-    // Fix (refine credit attribution) — HIGH: refine ran Whisper + Vision +
-    // Claude/Gemini above (checkCredits gated it but nothing ever debited),
-    // so a company's real spend on refine never left the ledger. Mirrors
-    // lib/inngest/functions/generate-estimate.ts's record-credit-debit step:
-    // read back the rows THIS attemptId produced, sum only the operation
-    // types refine's own calls use (estimate = Claude/Gemini refine call,
-    // vision = photo analysis, audio_minutes = Whisper), and debit once. Runs
-    // ONLY after a successful refine (mirrors "record usage/debit ONLY on AI
-    // success" -- a failed refine's partial ingestion spend is not billed
-    // here, same as generate). No retry/sleep needed: every recordAICost call
-    // on this synchronous request path is AWAITED by its caller (not a
-    // fire-and-forget void), so by the time graph.invoke resolves every cost
-    // row for this attemptId has already committed -- unlike the Inngest job,
-    // there is no step-suspension gap to poll for. recordCreditDebit never
-    // throws; the whole block is ALSO try/catched so a read-back failure can
-    // never change the response.
-    // -------------------------------------------------------------------------
     try {
-      const svc = requireServiceClient()
-      const { data } = await svc
-        .from('ai_cost_events')
-        .select('real_cost_usd')
-        .eq('attempt_id', attemptId)
-        .in('operation_type', ['estimate', 'vision', 'audio_minutes'])
-      const rows = (data ?? []) as { real_cost_usd: number | null }[]
-      const known = rows
-        .map((r) => r.real_cost_usd)
-        .filter((c): c is number => c != null)
-      const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-      await recordCreditDebit({ companyId, operationType: 'estimate', realCostUsd, attemptId })
+      await supabase.from('estimate_activity').insert({
+        project_id: estimate.project_id,
+        company_id: companyId,
+        estimate_id: estimateId,
+        event_type: 'estimate_refine_proposed',
+        metadata: {
+          instruction,
+          has_audio: !!audioFile,
+          photo_count: photoFiles.length,
+        },
+      })
     } catch (err) {
-      console.warn('[refine] credit-debit read-back failed (non-fatal):', err)
+      console.warn('[refine] estimate_refine_proposed activity failed (non-fatal):', err)
     }
+
+    // Fix (refine credit attribution): debit the real spend of this attempt, ONLY after
+    // a successful refine (a failed refine's partial spend is not billed, as in generate).
+    // Every recordAICost call on this synchronous path is awaited, so every cost row for
+    // the attemptId has committed by now.
+    await debitRefineAttempt(companyId, attemptId)
 
     return NextResponse.json({
       success: true,

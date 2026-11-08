@@ -224,3 +224,42 @@ describe('OpenRouterAdapter streaming', () => {
     ).rejects.toBeInstanceOf(TruncatedOutputError)
   })
 })
+
+describe('readChatCompletionStream — inactivity timeout (1.6)', () => {
+  it('aborts a stalled stream after 60s without a chunk and surfaces a TimeoutError', async () => {
+    vi.useFakeTimers()
+    try {
+      const { readChatCompletionStream, STREAM_INACTIVITY_TIMEOUT_MS } = await import(
+        '@/lib/ai/providers/openrouter-stream'
+      )
+      expect(STREAM_INACTIVITY_TIMEOUT_MS).toBe(60_000)
+      const enc = new TextEncoder()
+      let ctrl!: ReadableStreamDefaultController<Uint8Array>
+      const body = new ReadableStream<Uint8Array>({
+        start(c) {
+          ctrl = c
+        },
+      })
+      const onStall = vi.fn()
+      const p = readChatCompletionStream(body, undefined, { onStall })
+      const settled = p.then(
+        () => 'ok',
+        (e: unknown) => e
+      )
+
+      // A chunk at 50s resets the timer, so 50s + 50s is still alive.
+      await vi.advanceTimersByTimeAsync(50_000)
+      ctrl.enqueue(enc.encode(': keep-alive\n'))
+      await vi.advanceTimersByTimeAsync(50_000)
+      expect(onStall).not.toHaveBeenCalled()
+
+      // No further chunk: 60s after the last one the stream is aborted.
+      await vi.advanceTimersByTimeAsync(10_001)
+      expect(onStall).toHaveBeenCalledTimes(1)
+      const err = (await settled) as { name: string }
+      expect(err.name).toBe('TimeoutError')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

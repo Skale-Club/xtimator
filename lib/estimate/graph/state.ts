@@ -35,6 +35,11 @@ export const EstimateState = Annotation.Root({
    * the OpenRouter adapter can attribute the captured real cost to this attempt.
    */
   attemptId: Annotation<string | undefined>(),
+  /**
+   * Input type of this generation attempt, for the journal's phase rows.
+   * Absent falls back to 'manual_text' in reportGeneratePhase.
+   */
+  inputType: Annotation<'recording' | 'photo' | 'manual_text' | undefined>(),
   /** Output of the generate node. */
   estimateId: Annotation<string | undefined>(),
   /** Output of the generate node; used by the adapter for reply copy language. */
@@ -61,6 +66,12 @@ export const EstimateState = Annotation.Root({
    * state so assess needs no database read of the new ai_meta column.
    */
   structureBand: Annotation<'refine' | 'review' | 'ok' | undefined>(),
+  /** Structure score (0-100) of the estimate the generate node just saved; feeds the 'keep the better draft' rule. */
+  structureScore: Annotation<number | undefined>(),
+  /** The structure score of the first draft, kept while a second pass runs (see auto-refine / decide). */
+  previousStructureScore: Annotation<number | undefined>(),
+  /** Phase 4d (ESTIMATOR_PATCH_REFINE): what the section-patch pass did. Informational. */
+  patchOutcome: Annotation<'accepted' | 'rejected' | undefined>(),
   /** SEED-057 D: the specific problems behind the score, as instructions for the targeted refine. */
   structureHints: Annotation<string[] | undefined>(),
   /** SEED-057 D: guidance for the second attempt (trusted; rendered as a system-prompt section). */

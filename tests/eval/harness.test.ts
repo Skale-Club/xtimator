@@ -184,7 +184,9 @@ function makeSupabaseMock() {
       pbChain.select = vi.fn(() => pbChain)
       pbChain.eq = vi.fn(() => pbChain)
       pbChain.is = vi.fn(() => pbChain)
-      pbChain.order = vi.fn().mockResolvedValue({ data: [], error: null })
+      pbChain.order = vi.fn(() => pbChain)
+      // getPriceBookItems pages with range() (Phase 4a)
+      pbChain.range = vi.fn().mockResolvedValue({ data: [], error: null })
       return pbChain
     }
 
@@ -205,7 +207,8 @@ function makeSupabaseMock() {
         }),
         // version reset (update is_current=false)
         update: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ error: null }),
+          // chainable: the service demotes other versions with .eq().neq()
+          eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })),
         }),
         select: vi.fn().mockImplementation((cols: string) => {
           // assess node re-read: nested total + items
