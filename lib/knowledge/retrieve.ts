@@ -22,7 +22,7 @@ import type { Passage, RetrieveCtx } from './provider'
 
 export async function retrieve(question: string, ctx: RetrieveCtx): Promise<Passage[]> {
   try {
-    const embedding = await embed(question)
+    const embedding = await embed(question, { companyId: ctx.companyId })
     const svc = requireServiceClient()
     const { data, error } = await svc.rpc('match_knowledge_entries', {
       query_embedding: embedding,

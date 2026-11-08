@@ -42,10 +42,9 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
-import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
-import { computeWhisperCostUsd, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
+import { deriveAudioMinutes } from '@/lib/billing/whisper-cost'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import {
   EVENT_TRANSCRIBE_AUDIO,
@@ -271,7 +270,15 @@ export const transcribeAudioJob = inngest.createFunction(
 
       // BILL-05/D5: transcribeAudioOR now surfaces which provider actually
       // served the call — no more hardcoding 'openrouter' downstream.
-      const { text, servedBy } = await transcribeAudioOR(fileData, ext, sttModel)
+      // Phase 3 (3.4): costContext makes transcribeAudioOR record the REAL
+      // provider cost itself under THIS attemptId (operation 'audio_minutes'),
+      // so the job no longer writes its own minutes x rate estimate and the
+      // debit step below reads the real row back.
+      const { text, servedBy } = await transcribeAudioOR(fileData, ext, sttModel, {
+        attemptId,
+        companyId: ident.companyId,
+        projectId: ident.projectId,
+      })
       return {
         transcript: text,
         servedBy,
@@ -298,6 +305,45 @@ export const transcribeAudioJob = inngest.createFunction(
           .update(update)
           .eq('id', recordingId)
         if (error) throw new Error(`Failed to save transcript: ${error.message}`)
+      })
+    }
+
+    // Phase 3 (3.4): credit debit for the transcription runs BEFORE the chained
+    // generate dispatch, so a dispatch that exhausts its retries can never leave
+    // the audio spend un-debited. Skipped on a short-circuited retry (the
+    // original run already paid and debited) and when the tenant is unknown.
+    // The cost row is the REAL one transcribeAudioOR recorded under this
+    // attemptId (costContext above); the read-back is scoped to 'audio_minutes'
+    // because the attemptId is shared with photos/generate of the same capture.
+    // Bounded read-back (3 x 150ms) covers a not-yet-committed row; an absent
+    // or all-null row stays null (recordCreditDebit then no-ops: never guess 0).
+    if (!transcription.shortCircuited && ident.companyId) {
+      const debitCompanyId = ident.companyId
+      await step.run('record-credit-debit', async () => {
+        const svc = requireServiceClient()
+        let realCostUsd: number | null = null
+        for (let i = 0; i < 3; i++) {
+          const { data } = await svc
+            .from('ai_cost_events')
+            .select('real_cost_usd')
+            .eq('attempt_id', attemptId)
+            .eq('operation_type', 'audio_minutes')
+          const rows = (data ?? []) as { real_cost_usd: number | null }[]
+          if (rows.length > 0) {
+            const known = rows
+              .map((r) => r.real_cost_usd)
+              .filter((c): c is number => c != null)
+            realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+            break
+          }
+          await new Promise((r) => setTimeout(r, 150))
+        }
+        await recordCreditDebit({
+          companyId: debitCompanyId,
+          operationType: 'audio_minutes',
+          realCostUsd,
+          attemptId,
+        })
       })
     }
 
@@ -341,7 +387,7 @@ export const transcribeAudioJob = inngest.createFunction(
             requestId: reqId,
             language: data.estimateLanguage,
             // 260821 (billing double-debit fix): forward the RESOLVED attemptId
-            // (the one this job's own audio_minutes cost row was written under)
+            // (the one this job's own audio_minutes cost row was written under and debited by)
             // — not the possibly-undefined data.attemptId, which would break
             // attemptId lineage into the chained generate event whenever the
             // producer omitted it.
@@ -371,51 +417,6 @@ export const transcribeAudioJob = inngest.createFunction(
       provider,
       durationMs: Date.now() - t0,
     })
-
-    // Phase 110 (COST-02) / Phase 167 (BILL-02/04/05): record the COMPUTED
-    // Whisper/STT cost from the SERVER-DERIVED duration — GUARDED on
-    // !shortCircuited. A short-circuited retry already paid for (and logged)
-    // this transcription on its original run; re-running this step would
-    // double-count real cost (audit D3's "platform pays N×" finding) even
-    // though the customer's debit stays correct via the idempotent RPC.
-    if (!transcription.shortCircuited) {
-      const derivedMinutes = transcription.derivedMinutes
-      const whisperCost = computeWhisperCostUsd(
-        derivedMinutes != null ? derivedMinutes * 60 : null
-      )
-      // D7 (quick-260705-2gp): the cost insert is memoized as its own Inngest step
-      // so a retry of a LATER step can never double-insert an ai_cost_events row.
-      // Phase 167 (BILL-04): recordAICost also swallows a 23505 duplicate as
-      // success now that (attempt_id, operation_type) is uniquely indexed.
-      await step.run('record-ai-cost', async () => {
-        await recordAICost({
-          attemptId,
-          operationType: 'audio_minutes',
-          provider: provider ?? 'openrouter',
-          model: sttModel,
-          realCostUsd: whisperCost,
-          companyId: ident.companyId,
-          projectId: ident.projectId,
-          units: derivedMinutes != null && derivedMinutes > 0 ? derivedMinutes : null,
-        })
-      })
-
-      // Phase 112 (CREDIT-02): credit debit for the transcription, retry-isolated
-      // and never-throw. Anchored AFTER save-transcript + recordAICost so it only
-      // fires on a fresh (non-short-circuited) transcription success. Skipped
-      // when companyId is unknown (no tenant → no debit).
-      if (ident.companyId) {
-        const debitCompanyId = ident.companyId
-        await step.run('record-credit-debit', async () => {
-          await recordCreditDebit({
-            companyId: debitCompanyId,
-            operationType: 'audio_minutes',
-            realCostUsd: whisperCost,
-            attemptId,
-          })
-        })
-      }
-    }
 
     // Phase 77 NOTIF-04: opt-in success notification.
     try {

@@ -15,7 +15,9 @@ import { randomUUID } from 'node:crypto'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
-import { computeWhisperCostUsd, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
+import { computeWhisperCostUsdFromConfig, deriveAudioMinutes } from '@/lib/billing/whisper-cost'
+import { getByokOpenRouterKey } from '@/lib/billing/byok'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { TruncatedOutputError } from '@/lib/ai/with-fallback'
 import { photoExtractionSchema, photoExtractionToolSchema, type PhotoExtraction } from '@/lib/ai/photo-extraction-schema'
 
@@ -83,6 +85,23 @@ export async function getORKey(): Promise<string> {
   return key
 }
 
+/**
+ * Phase 3 (D3): the single OpenRouter key resolver. A BYOK company's own key is
+ * used on EVERY AI call made on its behalf; everything else (no company, BYOK
+ * off, missing/broken company key) uses the platform key. Never throws for a
+ * broken company key (getByokOpenRouterKey logs + reports to Sentry and returns
+ * null); only throws when the PLATFORM key is not configured, like getORKey.
+ */
+export async function resolveOpenRouterKey(
+  companyId?: string | null
+): Promise<{ apiKey: string; byok: boolean }> {
+  if (companyId) {
+    const byokKey = await getByokOpenRouterKey(companyId).catch(() => null)
+    if (byokKey) return { apiKey: byokKey, byok: true }
+  }
+  return { apiKey: await getORKey(), byok: false }
+}
+
 // ---------------------------------------------------------------------------
 // Audio transcription
 // ---------------------------------------------------------------------------
@@ -120,9 +139,13 @@ export async function transcribeAudioOR(
   // OpenRouter needs a vendor-prefixed slug.
   const orModel = model.includes('/') ? model : `openai/${model}`
 
+  // Real usage reported by OpenRouter's transcription response, when present.
+  let usageCostUsd: number | null = null
+  let usageSeconds: number | null = null
+
   // PRIMARY — OpenRouter transcription (base64 JSON body, NOT multipart).
   async function openrouterPrimary(): Promise<string> {
-    const apiKey = await getORKey()
+    const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
     const startTime = new Date()
     const base64 = Buffer.from(await audioBlob.arrayBuffer()).toString('base64')
 
@@ -148,10 +171,15 @@ export async function transcribeAudioOR(
     const json = (await res.json()) as {
       text?: string
       error?: { message?: string }
+      usage?: { cost?: number | null; seconds?: number | null }
     }
     if (json.error?.message) {
       throw new Error(`OpenRouter transcription error: ${json.error.message}`)
     }
+    const c = json.usage?.cost
+    usageCostUsd = typeof c === 'number' && Number.isFinite(c) && c > 0 ? c : null
+    const sec = json.usage?.seconds
+    usageSeconds = typeof sec === 'number' && Number.isFinite(sec) && sec > 0 ? sec : null
     const transcript = (json.text ?? '').trim()
     await traceTranscription(orModel, ext, transcript, startTime)
     return transcript
@@ -189,15 +217,21 @@ export async function transcribeAudioOR(
   // rely on this row already being committed.
   if (costContext) {
     const derived = deriveAudioMinutes({ declaredSeconds: null, blobBytes: audioBlob.size })
+    // Cost precedence (Phase 3, 3.5): provider-reported usage cost, then
+    // minutes x billing_config.whisperUsdPerMinute, then the module constant
+    // (the latter two inside computeWhisperCostUsdFromConfig). Duration prefers
+    // the provider-reported seconds over the byte-derived estimate.
+    const minutes = usageSeconds != null ? usageSeconds / 60 : derived.minutes
+    const realCostUsd = usageCostUsd ?? (await computeWhisperCostUsdFromConfig(minutes * 60))
     await recordAICost({
       attemptId: costContext.attemptId ?? randomUUID(),
       operationType: 'audio_minutes',
       provider: 'openrouter',
       model: orModel,
-      realCostUsd: computeWhisperCostUsd(derived.minutes * 60),
+      realCostUsd,
       companyId: costContext.companyId ?? null,
       projectId: costContext.projectId ?? null,
-      units: derived.minutes > 0 ? derived.minutes : null,
+      units: minutes > 0 ? minutes : null,
     })
   }
 
@@ -273,7 +307,7 @@ export async function analyzePhotoOR(
 ): Promise<string> {
   // OpenRouter vision only; a failure raises ProvidersUnavailableError.
   async function visionPrimary(): Promise<string> {
-    const apiKey = await getORKey()
+    const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
     const visionModel = model ?? OR_DEFAULTS.chat
     const startTime = new Date()
 
@@ -482,7 +516,42 @@ export async function analyzePhotoStructuredOR(
   model?: string,
   costContext?: CostContext
 ): Promise<PhotoExtraction> {
-  const apiKey = await getORKey()
+  try {
+    return await analyzePhotoStructuredCall(base64, mimeType, model, costContext)
+  } catch (err) {
+    // Phase 3 (3.10): same ops-alert path as callWithFallback (ai_provider_failed),
+    // but the original (typed) error is rethrown untouched and nothing is retried:
+    // the worker's structured -> prose ladder stays the retry.
+    reportStructuredVisionFailure(err)
+    throw err
+  }
+}
+
+/** Never-throw ops alert mirroring with-fallback's reportProviderFailure. */
+function reportStructuredVisionFailure(err: unknown): void {
+  try {
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    const billingOrAuth = /402|insufficient credits|401|user not found|not configured/i.test(message)
+    void notifyOps({
+      kind: 'ai_provider_failed',
+      title: "OpenRouter call failed for 'analyze_photo_structured'",
+      message,
+      severity: billingOrAuth ? 'error' : 'warning',
+      dedupeKey: `ai_provider_failed:analyze_photo_structured${billingOrAuth ? ':billing' : ''}`,
+      suppressWindowSec: 900,
+    })
+  } catch {
+    // notifyOps is itself never-throw; belt-and-suspenders.
+  }
+}
+
+async function analyzePhotoStructuredCall(
+  base64: string,
+  mimeType: string,
+  model: string | undefined,
+  costContext: CostContext | undefined
+): Promise<PhotoExtraction> {
+  const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
   const visionModel = model ?? OR_DEFAULTS.chat
   const startTime = new Date()
 
@@ -627,7 +696,7 @@ export async function translateTextsOR(
   model = OR_DEFAULTS.fast,
   costContext?: CostContext
 ): Promise<Record<string, string>> {
-  const apiKey = await getORKey()
+  const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
   const startTime = new Date()
   const langLabel =
     targetLanguage === 'pt' ? 'Brazilian Portuguese (PT-BR)' : 'Latin American Spanish (ES)'

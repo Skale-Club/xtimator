@@ -6,17 +6,17 @@ import 'server-only'
  * resolves its model the SAME way `getAIProvider` (lib/ai/index.ts) does — over
  * the `ai_config` slot — so an admin model change applies to chat with no code
  * change. The model is wrapped as an AI-SDK `LanguageModelV3` via the dedicated
- * `@openrouter/ai-sdk-provider` (createOpenRouter), keyed by the encrypted
- * `getIntegrationKey('openrouter')` (env fallback) — NEVER `process.env`
+ * `@openrouter/ai-sdk-provider` (createOpenRouter), keyed by the company's BYOK key
+ * or else the encrypted platform key (`getIntegrationKey('openrouter')`, env fallback) — NEVER `process.env`
  * directly (Pitfall 5).
  *
  * `lib/chat/` is the CHANNEL ADAPTER (not `lib/agent-tools/`, which stays
  * channel-neutral); it MAY import the neutral barrel + platform config.
  */
 import { createOpenRouter, type LanguageModelV3 } from '@openrouter/ai-sdk-provider'
-import { getIntegrationKey, getOpenRouterDefaultModel } from '@/lib/platform-config'
+import { getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
+import { OR_DEFAULTS, resolveOpenRouterKey } from '@/lib/ai/openrouter-client'
 import { isAllowedChatModel } from '@/lib/ai/model-policy'
 
 /** App-attribution headers — mirrors SITE_HEADERS in lib/ai/openrouter-client.ts. */
@@ -67,8 +67,9 @@ export async function resolveChatModel(
 ): Promise<LanguageModelV3> {
   if (deps?.modelOverride) return deps.modelOverride
 
-  const apiKey = await getIntegrationKey('openrouter')
-  if (!apiKey) throw new Error('OpenRouter API key not configured')
+  // Phase 3 (D3): a BYOK company's own key (else the platform key). Throws
+  // 'OpenRouter API key not configured' when neither is available.
+  const { apiKey } = await resolveOpenRouterKey(companyId)
 
   const modelId = await resolveChatModelId(companyId)
   const openrouter = createOpenRouter({ apiKey, headers: SITE_HEADERS })

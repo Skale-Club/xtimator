@@ -19,12 +19,15 @@
  * `{ reason: 'missing_specifics', questions: [] }` so the vague/awaiting_details
  * flow itself can never break because of this enrichment call.
  */
+import { randomUUID } from 'node:crypto'
 import {
-  getORKey,
+  resolveOpenRouterKey,
   OR_DEFAULTS,
   OPENROUTER_BASE,
   AI_CHAT_TIMEOUT_MS,
+  type CostContext,
 } from '@/lib/ai/openrouter-client'
+import { recordAICost } from '@/lib/billing/record-ai-cost'
 
 export type NeedsDetailsReason = 'mic_test' | 'too_short' | 'missing_specifics'
 
@@ -64,10 +67,13 @@ const LANGUAGE_LABEL: Record<'en' | 'pt' | 'es', string> = {
 export async function buildNeedsDetails(
   transcriptOrDescription: string,
   language: 'en' | 'pt' | 'es',
-  industryHint?: string | null
+  industryHint?: string | null,
+  // Phase 3: optional/additive. Resolves the company's BYOK key (D3) and makes
+  // the call's cost attributable. Absent -> platform key, cost row unattributed.
+  costContext?: CostContext
 ): Promise<NeedsDetailsResult> {
   try {
-    const apiKey = await getORKey()
+    const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
     const langLabel = LANGUAGE_LABEL[language] ?? LANGUAGE_LABEL.en
     const trade = industryHint?.trim() || 'field service'
     const input = transcriptOrDescription.trim().slice(0, 4000)
@@ -99,6 +105,8 @@ export async function buildNeedsDetails(
         model: OR_DEFAULTS.fast,
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }],
+        // Request the real upstream USD cost in the response usage block.
+        usage: { include: true },
       }),
       // AIREL-01: this call is best-effort/never-throw (see the outer try/catch
       // below) — an abort degrades to SAFE_FALLBACK exactly like any other
@@ -111,8 +119,22 @@ export async function buildNeedsDetails(
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string | null } }>
       error?: { message?: string }
+      usage?: { cost?: number }
     }
     if (json.error?.message) return { ...SAFE_FALLBACK }
+
+    // Phase 3 (3.8): this call used to record nothing. No dedicated operation
+    // type exists (and no migration is allowed), so it is recorded as 'chat' —
+    // measure-only, never debited. recordAICost never throws.
+    await recordAICost({
+      attemptId: costContext?.attemptId ?? randomUUID(),
+      operationType: 'chat',
+      provider: 'openrouter',
+      model: OR_DEFAULTS.fast,
+      realCostUsd: typeof json.usage?.cost === 'number' ? json.usage.cost : null,
+      companyId: costContext?.companyId ?? null,
+      projectId: costContext?.projectId ?? null,
+    })
 
     const raw = json.choices?.[0]?.message?.content ?? ''
     const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()

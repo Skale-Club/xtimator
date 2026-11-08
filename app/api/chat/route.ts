@@ -188,10 +188,13 @@ export async function POST(req: Request) {
   //     over its steps (a tool loop makes several model calls). A provider that
   //     reports nothing records null, never a guessed 0 - and a null cost is
   //     never debited. The SAME per-turn attemptId keys the cost event and the
-  //     debit, so a replay cannot charge twice. Fire-and-forget: awaiting would
-  //     delay the stream; both helpers are never-throw.
+  //     debit, so a replay cannot charge twice. The result only settles once
+  //     the stream is consumed, so this runs in the stream's own onFinish
+  //     (awaited by the stream before it closes, unlike the old floating
+  //     promise that a serverless runtime could drop). Never-throw: a failed
+  //     capture must not break the already-streamed response.
   const attemptId = crypto.randomUUID()
-  void (async () => {
+  const captureTurnCost = async () => {
     try {
       const realCostUsd = await readTurnCostUsd(result)
       await recordAICost({
@@ -208,7 +211,7 @@ export async function POST(req: Request) {
     } catch (err) {
       console.warn('[chat] cost capture / debit skipped:', err instanceof Error ? err.message : err)
     }
-  })()
+  }
 
   // 6. Stream back, persisting the NEW tail in onFinish (Pitfall 3 — never
   //    mid-stream). A persistence hiccup must NEVER break the already-streamed
@@ -220,6 +223,7 @@ export async function POST(req: Request) {
     // SAME id — votes/edit/regenerate keyed client-side survive a reload.
     generateMessageId: () => crypto.randomUUID(),
     onFinish: async ({ messages: full }) => {
+      await captureTurnCost()
       try {
         // Resolve the conversation: create one when the client did not supply an id.
         let convId = conversationId

@@ -19,11 +19,13 @@ const { getORKey } = vi.hoisted(() => ({
   getORKey: vi.fn(async () => 'sk-test-or-placeholder'),
 }))
 
+vi.mock('@/lib/billing/record-ai-cost', () => ({ recordAICost: vi.fn(async () => undefined) }))
+
 vi.mock('@/lib/ai/openrouter-client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/ai/openrouter-client')>(
     '@/lib/ai/openrouter-client'
   )
-  return { ...actual, getORKey }
+  return { ...actual, getORKey, resolveOpenRouterKey: vi.fn(async () => ({ apiKey: await getORKey(), byok: false })) }
 })
 
 import { embed } from '@/lib/knowledge/embed'

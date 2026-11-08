@@ -56,6 +56,7 @@ let billingConfig: {
   markup: number
   creditUnitUsd: number
   enforcementEnabled: boolean
+  meteredOperations?: Record<string, boolean>
 } = { markup: 4.5, creditUnitUsd: 0.01, enforcementEnabled: false }
 
 vi.mock('@/lib/billing/billing-config', () => ({
@@ -227,6 +228,57 @@ describe('CREDIT-06: debitIdemKey', () => {
   it("builds `${attemptId}:debit:${op}`", () => {
     expect(debitIdemKey('a1', 'estimate')).toBe('a1:debit:estimate')
     expect(debitIdemKey('xyz', 'photo_batch')).toBe('xyz:debit:photo_batch')
+  })
+
+  it('appends an optional run key so two runs under one attempt get distinct keys', () => {
+    expect(debitIdemKey('a1', 'photo_batch', 'reqA')).toBe('a1:debit:photo_batch:reqA')
+    expect(debitIdemKey('a1', 'photo_batch', 'reqA')).not.toBe(debitIdemKey('a1', 'photo_batch', 'reqB'))
+  })
+
+  it('recordCreditDebit uses the run key in the RPC idempotency key', async () => {
+    await recordCreditDebit({
+      companyId: COMPANY,
+      operationType: 'photo_batch',
+      realCostUsd: 0.02,
+      attemptId: 'a1',
+      runKey: 'reqA',
+    })
+    expect(captured.rpcCalls[0].params.p_idempotency_key).toBe('a1:debit:photo_batch:reqA')
+    expect(captured.rpcCalls[0].params.p_ref_id).toBe('a1')
+  })
+})
+
+// =============================================================================
+// Phase 3 (3.9) — meteredOperations gating
+// =============================================================================
+describe('3.9: billing_config.meteredOperations gating', () => {
+  const debit = (op: 'estimate' | 'chat') =>
+    recordCreditDebit({ companyId: COMPANY, operationType: op, realCostUsd: 0.02, attemptId: 'a1' })
+
+  it('an op explicitly switched off is NOT debited', async () => {
+    billingConfig = { ...billingConfig, meteredOperations: { estimate: false, photo_batch: true } }
+    await debit('estimate')
+    expect(captured.rpcCalls).toHaveLength(0)
+  })
+
+  it('an op switched on is debited', async () => {
+    billingConfig = { ...billingConfig, meteredOperations: { estimate: true } }
+    await debit('estimate')
+    expect(captured.rpcCalls).toHaveLength(1)
+  })
+
+  it('an op NOT listed in a configured map stays metered (stored map replaces defaults; never silently stop debiting)', async () => {
+    billingConfig = { ...billingConfig, meteredOperations: { estimate: true } }
+    await debit('chat')
+    expect(captured.rpcCalls).toHaveLength(1)
+  })
+
+  it('empty/absent map = everything metered', async () => {
+    billingConfig = { ...billingConfig, meteredOperations: {} }
+    await debit('estimate')
+    billingConfig = { markup: 4.5, creditUnitUsd: 0.01, enforcementEnabled: false }
+    await debit('estimate')
+    expect(captured.rpcCalls).toHaveLength(2)
   })
 })
 

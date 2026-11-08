@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { deterministicUuid } from '@/lib/ids/deterministic-uuid'
 
 /**
  * Fix (price-research cost attribution) — HIGH: prod carries 374
@@ -305,5 +306,77 @@ describe('Fix (price-research cost attribution): orchestrator debit read-back', 
       operationType: 'price_research',
       realCostUsd: null,
     })
+  })
+})
+
+describe('Phase 3 (3.6): price_research attempt id is retry-stable and debits once per run', () => {
+  beforeEach(() => {
+    vi.mocked(isUsableCandidate).mockReturnValue(true)
+    let reads = 0
+    supabaseFrom.mockImplementation((table: string) => {
+      if (table !== 'ai_cost_events') return { select: () => ({ eq: () => ({}) }) }
+      const chain: Record<string, unknown> = {}
+      chain.select = () => chain
+      chain.eq = () => chain
+      ;(chain as { then: PromiseLike<unknown>['then'] }).then = (resolve) => {
+        reads++
+        ;(supabaseFrom as unknown as { reads: number }).reads = reads
+        return Promise.resolve({ data: [{ real_cost_usd: 0.04 }] }).then(resolve as never)
+      }
+      return chain
+    })
+  })
+
+  const twoItems = () => [
+    section('Work', [
+      item({ description: 'Drywall repair', unit_price: 0, price_source: 'ai_estimate' }),
+      item({ description: 'Paint walls', unit_price: 0, price_source: 'ai_estimate' }),
+    ]),
+  ]
+
+  it('the same generation attemptId yields the SAME research attempt id on a retry', async () => {
+    const lookup = vi.fn().mockResolvedValue([usable('Drywall repair', 175)])
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([{ lookup }] as never)
+
+    await researchUnmatchedPrices(twoItems(), ctx({ attemptId: 'gen-1' }))
+    await researchUnmatchedPrices(twoItems(), ctx({ attemptId: 'gen-1' }))
+
+    const ids = lookup.mock.calls.map((c) => (c[3] as { attemptId: string }).attemptId)
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).toBe(ids[1])
+    expect(mockRecordCreditDebit.mock.calls.map((c) => (c[0] as { attemptId: string }).attemptId)).toEqual(ids)
+  })
+
+  it('debits ONCE (one read-back) even when several results map back', async () => {
+    const lookup = vi
+      .fn()
+      .mockResolvedValue([usable('Drywall repair', 175), usable('Paint walls', 90)])
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([{ lookup }] as never)
+    ;(supabaseFrom as unknown as { reads: number }).reads = 0
+
+    await researchUnmatchedPrices(twoItems(), ctx({ attemptId: 'gen-2' }))
+
+    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
+    expect((supabaseFrom as unknown as { reads: number }).reads).toBe(1)
+  })
+
+  it('debits when the lookup was recorded but NO result maps back by name', async () => {
+    const lookup = vi.fn().mockResolvedValue([usable('Totally different name', 10)])
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([{ lookup }] as never)
+
+    await researchUnmatchedPrices(twoItems(), ctx({ attemptId: 'gen-3' }))
+
+    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
+    expect(mockRecordCreditDebit.mock.calls[0][0]).toMatchObject({
+      operationType: 'price_research',
+      realCostUsd: 0.04,
+      attemptId: deterministicUuid('gen-3:price_research'),
+    })
+  })
+
+  it('no provider lookup (all cache hits / no chain) -> no debit', async () => {
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([] as never)
+    await researchUnmatchedPrices(twoItems(), ctx({ attemptId: 'gen-4' }))
+    expect(mockRecordCreditDebit).not.toHaveBeenCalled()
   })
 })

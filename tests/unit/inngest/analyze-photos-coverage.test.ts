@@ -130,6 +130,7 @@ function makeSvc() {
           select: () => {
             const chain = {
               eq: (..._args: unknown[]) => chain,
+              in: (..._args: unknown[]) => chain,
               then: (
                 resolve: (v: { data: typeof state.aiCostRows }) => unknown,
                 reject?: (e: unknown) => unknown

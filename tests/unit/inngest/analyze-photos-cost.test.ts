@@ -11,6 +11,9 @@
  * the identical root cause.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { visionCostAttemptId } from '@/lib/inngest/functions/analyze-photos'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -102,10 +105,12 @@ const state: {
   photos: PhotoRow[]
   aiCostRows: Array<{ real_cost_usd: number | null }>
   aiCostEqCalls: Array<{ col: string; value: unknown }>
+  failUpdateFor: string[]
 } = {
   photos: [],
   aiCostRows: [],
   aiCostEqCalls: [],
+  failUpdateFor: [],
 }
 
 function makeSvc() {
@@ -132,7 +137,9 @@ function makeSvc() {
             return chain
           },
           update: () => ({
-            eq: async () => ({ error: null }),
+            eq: async (_c: string, id: string) => ({
+              error: state.failUpdateFor.includes(id) ? { message: 'db down' } : null,
+            }),
           }),
         }
       }
@@ -142,6 +149,10 @@ function makeSvc() {
             const chain = {
               eq: (col: string, value: unknown) => {
                 state.aiCostEqCalls.push({ col, value })
+                return chain
+              },
+              in: (col: string, value: unknown) => {
+                state.aiCostEqCalls.push({ col: `in:${col}`, value })
                 return chain
               },
               then: (
@@ -218,11 +229,12 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     state.photos = []
     state.aiCostRows = []
     state.aiCostEqCalls = []
+    state.failUpdateFor = []
     mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
     global.fetch = vi.fn() as unknown as typeof fetch
   })
 
-  it('recordAICost receives the JOB attemptId + real company/project ids for every photo — not a random uuid / null', async () => {
+  it('recordAICost receives the derived per-photo UUID (from the job attemptId) + real company/project ids for every photo — not a random uuid / null', async () => {
     state.photos = makePhotos(3)
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockVisionResponse('a description', 0.002)
@@ -231,16 +243,18 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     await invokeJob({ companyId: 'company-42', projectId: 'project-99', attemptId: 'attempt-777' })
 
     expect(mockRecordAICost).toHaveBeenCalledTimes(3)
-    for (const call of mockRecordAICost.mock.calls) {
+    for (const [i, call] of mockRecordAICost.mock.calls.entries()) {
       expect(call[0]).toEqual(
         expect.objectContaining({
-          attemptId: 'attempt-777',
+          // Phase 3 (3.2): per-photo + per-run cost attempt id.
+          attemptId: visionCostAttemptId('attempt-777', 'req-1', `photo-${i}`),
           companyId: 'company-42',
           projectId: 'project-99',
           operationType: 'vision',
           realCostUsd: 0.002,
         })
       )
+      expect((call[0] as { attemptId: string }).attemptId).toMatch(UUID_RE)
     }
   })
 
@@ -264,7 +278,7 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     expect(arg.attemptId).not.toBe('')
   })
 
-  it('N photos in one batch share ONE attemptId across N `vision` rows (no per-photo collision)', async () => {
+  it('N photos in one batch get N distinct per-photo cost attempt ids, all `vision` rows', async () => {
     state.photos = makePhotos(4)
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       mockVisionResponse('a description', 0.001)
@@ -276,7 +290,11 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     const calls = mockRecordAICost.mock.calls.map(
       (c) => c[0] as { attemptId: string; operationType: string }
     )
-    expect(calls.every((c) => c.attemptId === 'batch-attempt-shared')).toBe(true)
+    expect(calls.every((c) => UUID_RE.test(c.attemptId))).toBe(true)
+    expect(new Set(calls.map((c) => c.attemptId))).toEqual(
+      new Set([0, 1, 2, 3].map((i) => visionCostAttemptId('batch-attempt-shared', 'req-1', `photo-${i}`)))
+    )
+    expect(new Set(calls.map((c) => c.attemptId)).size).toBe(4)
     expect(calls.every((c) => c.operationType === 'vision')).toBe(true)
   })
 
@@ -298,14 +316,20 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
         operationType: 'photo_batch',
         realCostUsd: 2, // 0.5 + 1.5 — no longer permanently null
         attemptId: 'attempt-batch-2',
+        // Phase 3 (3.3): per-run debit key discriminator.
+        runKey: 'req-1',
       })
     )
-    // The read-back queries by the SAME attemptId the vision calls used, AND
-    // (260821 billing double-debit fix) scopes strictly to operation_type
-    // 'vision' — never summing an 'estimate'/'audio_minutes' row that shares
-    // this attemptId from a different, already-debited seam.
+    // The read-back queries ONLY the per-photo cost attempt ids of photos that
+    // succeeded, scoped strictly to operation_type 'vision'.
     expect(state.aiCostEqCalls).toEqual([
-      { col: 'attempt_id', value: 'attempt-batch-2' },
+      {
+        col: 'in:attempt_id',
+        value: [
+          visionCostAttemptId('attempt-batch-2', 'req-1', 'photo-0'),
+          visionCostAttemptId('attempt-batch-2', 'req-1', 'photo-1'),
+        ],
+      },
       { col: 'operation_type', value: 'vision' },
     ])
   })
@@ -322,6 +346,83 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     expect(mockRecordCreditDebit).toHaveBeenCalledWith(
       expect.objectContaining({ operationType: 'photo_batch', realCostUsd: null })
     )
+  })
+})
+
+describe('Phase 3: photo cost integrity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.photos = []
+    state.aiCostRows = [{ real_cost_usd: 0.5 }]
+    state.aiCostEqCalls = []
+    state.failUpdateFor = []
+    mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
+    global.fetch = vi.fn() as unknown as typeof fetch
+  })
+
+  it('3.2: a photo whose update fails is failed and its cost is NOT part of the debit read-back', async () => {
+    state.photos = makePhotos(2)
+    state.failUpdateFor = ['photo-1']
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockVisionResponse('d', 0.5))
+    const { analyzePhotosJob } = await import('@/lib/inngest/functions/analyze-photos')
+    const out = (await (analyzePhotosJob as unknown as {
+      handler: (a: { event: unknown; step: typeof fakeStep }) => Promise<{ results: Array<{ photoId: string }> }>
+    }).handler({
+      event: { data: { companyId: 'c', projectId: 'p', requestId: 'req-1', attemptId: 'att' } },
+      step: fakeStep,
+    })) as { results: Array<{ photoId: string }> }
+    expect(out.results.map((r) => r.photoId)).toEqual(['photo-0'])
+    const inCall = state.aiCostEqCalls.find((c) => c.col === 'in:attempt_id')
+    expect(inCall?.value).toEqual([visionCostAttemptId('att', 'req-1', 'photo-0')])
+  })
+
+  it('3.3: the debit carries the run requestId so a second run in the same attempt is a distinct debit', async () => {
+    state.photos = makePhotos(1)
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockVisionResponse('d', 0.5))
+    const { analyzePhotosJob } = await import('@/lib/inngest/functions/analyze-photos')
+    const run = (requestId: string) =>
+      (analyzePhotosJob as unknown as {
+        handler: (a: { event: unknown; step: typeof fakeStep }) => Promise<unknown>
+      }).handler({
+        event: { data: { companyId: 'c', projectId: 'p', requestId, attemptId: 'same-attempt' } },
+        step: fakeStep,
+      })
+    await run('req-A')
+    await run('req-B')
+    const keys = mockRecordCreditDebit.mock.calls.map((c) => (c[0] as { runKey: string }).runKey)
+    expect(keys).toEqual(['req-A', 'req-B'])
+  })
+
+  it('3.4: record-usage and record-credit-debit run BEFORE dispatch-generate-estimate; a failing dispatch leaves the debit recorded', async () => {
+    state.photos = makePhotos(1)
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockVisionResponse('d', 0.5))
+    const ids: string[] = []
+    const step = {
+      run: async (id: string, fn: () => unknown) => {
+        ids.push(id)
+        return fn()
+      },
+    }
+    mockInngestSend.mockRejectedValueOnce(new Error('send failed'))
+    const { analyzePhotosJob } = await import('@/lib/inngest/functions/analyze-photos')
+    await expect(
+      (analyzePhotosJob as unknown as {
+        handler: (a: { event: unknown; step: typeof step }) => Promise<unknown>
+      }).handler({
+        event: {
+          data: {
+            companyId: 'c',
+            projectId: 'p',
+            requestId: 'r',
+            attemptId: 'a',
+            autoGenerateEstimate: true,
+          },
+        },
+        step,
+      })
+    ).rejects.toThrow('send failed')
+    expect(ids.slice(-3)).toEqual(['record-usage', 'record-credit-debit', 'dispatch-generate-estimate'])
+    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
   })
 })
 

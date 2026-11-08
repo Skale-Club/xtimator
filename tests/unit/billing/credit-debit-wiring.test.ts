@@ -90,16 +90,25 @@ describe('debit fires AFTER the existing usage seam (per-file string-index order
     expect(debit).toBeGreaterThan(usage)
   })
 
-  it('transcribe-audio: anchored on save-transcript + recordAICost (it has NO recordUsage seam)', () => {
+  it('transcribe-audio: debit after save-transcript and BEFORE the generate dispatch (it has NO recordUsage seam)', () => {
     const src = read(TRANSCRIBE_AUDIO)
     // transcribe-audio has no recordUsage token — anchor its ordering on its real seam.
     expect(src).not.toContain('recordUsage')
+    // Phase 3 (3.4): the job no longer writes its own computed cost row.
+    expect(src).not.toContain('recordAICost(')
     const save = src.indexOf("step.run('save-transcript'")
-    const cost = src.indexOf('recordAICost(')
     const debit = src.indexOf("step.run('record-credit-debit'")
+    const dispatch = src.indexOf("step.run('dispatch-generate-estimate'")
     expect(save).toBeGreaterThanOrEqual(0)
-    expect(cost).toBeGreaterThanOrEqual(0)
     expect(debit).toBeGreaterThan(save)
-    expect(debit).toBeGreaterThan(cost)
+    expect(dispatch).toBeGreaterThan(debit)
+  })
+
+  it('analyze-photos: usage + debit BEFORE the generate dispatch', () => {
+    const src = read(ANALYZE_PHOTOS)
+    const debit = src.indexOf("step.run('record-credit-debit'")
+    const dispatch = src.indexOf("step.run('dispatch-generate-estimate'")
+    expect(debit).toBeGreaterThanOrEqual(0)
+    expect(dispatch).toBeGreaterThan(debit)
   })
 })

@@ -17,11 +17,35 @@ export const WHISPER_USD_PER_MINUTE = Number(
  * the mean (null vs 0 discipline).
  */
 export function computeWhisperCostUsd(
-  durationSeconds: number | null | undefined
+  durationSeconds: number | null | undefined,
+  usdPerMinute: number = WHISPER_USD_PER_MINUTE
 ): number | null {
   const s = typeof durationSeconds === 'number' ? durationSeconds : 0
   if (!(s > 0)) return null
-  return (s / 60) * WHISPER_USD_PER_MINUTE
+  return (s / 60) * usdPerMinute
+}
+
+/**
+ * Phase 3 (3.5): the runtime rate. billing_config.whisperUsdPerMinute (admin
+ * tunable, read-only here) wins; the module constant is the last resort when
+ * the config is unreadable or invalid. Never throws.
+ */
+export async function resolveWhisperUsdPerMinute(): Promise<number> {
+  try {
+    const { getBillingConfig } = await import('@/lib/billing/billing-config')
+    const rate = (await getBillingConfig()).whisperUsdPerMinute
+    if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) return rate
+  } catch {
+    /* fall through to the constant */
+  }
+  return WHISPER_USD_PER_MINUTE
+}
+
+/** Cost for `durationSeconds` at the runtime rate (billing_config → constant). */
+export async function computeWhisperCostUsdFromConfig(
+  durationSeconds: number | null | undefined
+): Promise<number | null> {
+  return computeWhisperCostUsd(durationSeconds, await resolveWhisperUsdPerMinute())
 }
 
 /**

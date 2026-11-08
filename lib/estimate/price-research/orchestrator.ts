@@ -39,6 +39,7 @@ import 'server-only'
  *   DB-schema-neutral and reuses the existing recourse path with zero new state.
  */
 import { randomUUID } from 'node:crypto'
+import { deterministicUuid } from '@/lib/ids/deterministic-uuid'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getPriceResearchProviderChain, isUsableCandidate } from './provider'
@@ -194,7 +195,17 @@ export async function researchUnmatchedPrices(
     // below as costContext so each adapter's recordAICost row is correlated
     // with THIS research pass, not accidentally aliased onto the generation's
     // own Claude-call cost row. Also the key the debit read-back below uses.
-    const priceResearchAttemptId = randomUUID()
+    // Phase 3 (3.6): derived from the generation's attemptId (NOT random) so a
+    // retry of the same generation resolves to the SAME research attempt and its
+    // debit (`${id}:debit:price_research`) is idempotent. Without a generation
+    // attemptId there is nothing stable to key on, so fall back to a fresh id.
+    // ai_cost_events.attempt_id is UUID NOT NULL: the derived key is mapped to a
+    // deterministic UUID instead of being stored as a composite string.
+    const priceResearchAttemptId = ctx.attemptId
+      ? deterministicUuid(`${ctx.attemptId}:price_research`)
+      : randomUUID()
+    // True once any provider lookup was attempted: gates the single debit below.
+    let lookedUp = false
 
     // Candidate set: items still tagged 'ai_estimate' after anchoring. price_book +
     // owner-edited (price_source null) items are out of scope (RPRICE-03 precedence).
@@ -322,6 +333,7 @@ export async function researchUnmatchedPrices(
             const lookupItems = Array.from(repByKey.values())
 
             let results: import('./provider').PriceResearchResult[] = []
+            lookedUp = true
             try {
               results = await provider.lookup(
                 lookupItems.map((m) => ({ name: m.description, ...(m.unit ? { unit: m.unit } : {}) })),
@@ -355,50 +367,6 @@ export async function researchUnmatchedPrices(
               // fallback re-search of a still-missing key IS a real second search.
               try {
                 await recordUsage(ctx.supabase, ctx.companyId, 'price_researched', 1, buildIdemKey(ctx, result.name))
-              } catch {
-                // Metering is best-effort; a ledger error must not drop the price.
-              }
-
-              // Fix (price-research cost attribution) / Phase 112 (CREDIT-02):
-              // inline credit debit for price_research. This call lives INSIDE
-              // the per-result loop, so it fires once per result — BUT
-              // recordCreditDebit is idempotent on
-              // `${priceResearchAttemptId}:debit:price_research`, so every
-              // per-result call after the first is a no-op (check-then-insert
-              // / 23505 swallow, Plan 03). Intended cardinality: exactly ONE
-              // price_research debit per orchestrator call; the loop
-              // repetition collapses to it.
-              //
-              // Keyed on priceResearchAttemptId (THIS research pass's own id,
-              // generated above) -- NOT ctx.attemptId (the generation's own
-              // attemptId, which the 'estimate' op already owns; reading it
-              // back here previously summed the GENERATION's Claude-call cost
-              // INTO the price_research debit whenever ctx.attemptId happened
-              // to be set). Filtered to operation_type 'price_research' so
-              // only the adapters' own recordAICost rows are summed. A SINGLE
-              // read (no retry/sleep): every recordAICost call the adapters
-              // make is AWAITED before `provider.lookup(...)` above resolves,
-              // so by the time this loop runs the row is already committed --
-              // a miss here means no row, not a not-yet-committed one.
-              // Wrapped in try/catch to mirror the best-effort metering
-              // contract above.
-              try {
-                const { data } = await ctx.supabase
-                  .from('ai_cost_events')
-                  .select('real_cost_usd')
-                  .eq('attempt_id', priceResearchAttemptId)
-                  .eq('operation_type', 'price_research')
-                const rows = (data ?? []) as { real_cost_usd: number | null }[]
-                const known = rows
-                  .map((r) => r.real_cost_usd)
-                  .filter((c): c is number => c != null)
-                const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-                await recordCreditDebit({
-                  companyId: ctx.companyId,
-                  operationType: 'price_research',
-                  realCostUsd,
-                  attemptId: priceResearchAttemptId,
-                })
               } catch {
                 // Metering is best-effort; a ledger error must not drop the price.
               }
@@ -440,6 +408,41 @@ export async function researchUnmatchedPrices(
             remaining = remaining.filter((m) => !retag.has(m))
           }
         }
+      }
+    }
+
+    // --- Credit debit for price_research: ONCE per orchestrator run ---
+    // Phase 3 (3.6): previously this read-back + debit ran inside the per-result
+    // loop (N identical reads) and only for results that mapped back by name, so
+    // a recorded lookup with no name-matched result was never debited. Now it
+    // fires exactly once, whenever a provider lookup was attempted, whether or
+    // not any result mapped back. Keyed on priceResearchAttemptId (derived from
+    // the generation's attemptId, so retry-stable) and filtered to
+    // operation_type 'price_research' so only the adapters' own recordAICost
+    // rows are summed (never the generation's 'estimate' row). A SINGLE read
+    // (no retry/sleep): every adapter recordAICost is AWAITED before
+    // provider.lookup resolves. No rows / all-null -> realCostUsd null ->
+    // recordCreditDebit no-ops. Best-effort: a ledger error never drops a price.
+    if (lookedUp) {
+      try {
+        const { data } = await ctx.supabase
+          .from('ai_cost_events')
+          .select('real_cost_usd')
+          .eq('attempt_id', priceResearchAttemptId)
+          .eq('operation_type', 'price_research')
+        const rows = (data ?? []) as { real_cost_usd: number | null }[]
+        const known = rows
+          .map((r) => r.real_cost_usd)
+          .filter((c): c is number => c != null)
+        const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+        await recordCreditDebit({
+          companyId: ctx.companyId,
+          operationType: 'price_research',
+          realCostUsd,
+          attemptId: priceResearchAttemptId,
+        })
+      } catch {
+        // Metering is best-effort.
       }
     }
 

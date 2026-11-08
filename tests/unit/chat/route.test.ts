@@ -267,6 +267,33 @@ describe('POST /api/chat', () => {
     expect(arg.attemptId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('Phase 3 (3.7): the cost record and the debit are AWAITED before the stream closes (no floating promise)', async () => {
+    resolveChatModelMock.mockResolvedValue(makeMockModel(0.02) as never)
+    let debitSettled = false
+    recordCreditDebitMock.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 30))
+      debitSettled = true
+      return undefined
+    })
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+    await new Response(res.body).text()
+
+    // No waitFor: the body only closes after onFinish awaited the slow debit.
+    expect(debitSettled).toBe(true)
+    expect(recordCreditDebitMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('Phase 3 (3.7): a throwing debit never breaks the streamed response', async () => {
+    recordCreditDebitMock.mockRejectedValueOnce(new Error('ledger down'))
+
+    const res = await POST(chatRequest({ messages: [userMessage] }))
+    const body = await new Response(res.body).text()
+
+    expect(res.status).toBe(200)
+    expect(body).toContain('Done.')
+  })
+
   it('allows a pro-tier company to stream (200)', async () => {
     requireServiceClientMock.mockReturnValue(
       makeServiceClientMock({ industries: ['plumbing'], default_estimate_language: 'en', tier: 'pro' }) as never,

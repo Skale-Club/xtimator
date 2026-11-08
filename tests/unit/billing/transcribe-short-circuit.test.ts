@@ -94,6 +94,8 @@ type IdentRow = {
 const svcConfig: {
   identRow: IdentRow
   blobSize: number
+  /** Real audio_minutes rows the debit read-back finds (recorded by transcribeAudioOR). */
+  aiCostRows: Array<{ real_cost_usd: number | null }>
   /** BILL-04: configurable per-test outcome for the ai_cost_events insert (recordAICost dedup tests). */
   aiCostInsertError: { code?: string; message: string } | null
 } = {
@@ -105,6 +107,7 @@ const svcConfig: {
     companies: { user_id: 'user-1', tier: 'business' },
   },
   blobSize: 500_000,
+  aiCostRows: [{ real_cost_usd: 0.012 }],
   aiCostInsertError: null,
 }
 
@@ -125,7 +128,17 @@ function makeSvc() {
         }
       }
       if (table === 'ai_cost_events') {
-        return { insert: aiCostInsertMock }
+        return {
+          insert: aiCostInsertMock,
+          select: () => {
+            const chain = {
+              eq: () => chain,
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+                Promise.resolve({ data: svcConfig.aiCostRows }).then(resolve, reject),
+            }
+            return chain
+          },
+        }
       }
       return { insert: async () => ({ error: null }) }
     },
@@ -213,8 +226,24 @@ describe('BILL-05: transcribe-audio retry short-circuit', () => {
     expect(downloadMock).toHaveBeenCalledOnce()
     expect(mockTranscribeAudioOR).toHaveBeenCalledOnce()
     expect(updateEqMock).toHaveBeenCalledOnce()
-    expect(mockRecordAICost).toHaveBeenCalledOnce()
+    // Phase 3 (3.4): the job no longer writes its own computed audio_minutes
+    // row — transcribeAudioOR records the REAL cost via costContext, and the
+    // debit step reads that row back.
+    expect(mockRecordAICost).not.toHaveBeenCalled()
+    expect(mockTranscribeAudioOR).toHaveBeenCalledWith(
+      expect.anything(),
+      'webm',
+      'whisper-1',
+      { attemptId: 'attempt-1', companyId: 'company-1', projectId: 'project-1' }
+    )
     expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
+    expect(mockRecordCreditDebit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: 'audio_minutes',
+        realCostUsd: 0.012,
+        attemptId: 'attempt-1',
+      })
+    )
   })
 
   it('an empty-string transcript (falsy) does NOT short-circuit (treated as "no transcript yet")', async () => {
@@ -246,18 +275,81 @@ describe('BILL-05/D5: provider attribution reflects servedBy, not a hardcoded va
     svcConfig.blobSize = 500_000
   })
 
-  it("servedBy 'primary' -> both record provider 'openrouter'", async () => {
+  it("servedBy 'primary' -> the pipeline event records provider 'openrouter'", async () => {
     mockTranscribeAudioOR.mockResolvedValue({ text: 'via openrouter primary', servedBy: 'primary' })
 
     await invokeJob()
-
-    const costCall = mockRecordAICost.mock.calls[0][0] as { provider: string }
-    expect(costCall.provider).toBe('openrouter')
 
     const succeededCall = mockRecordPipelineEvent.mock.calls.find(
       (c) => (c[0] as { status?: string }).status === 'succeeded'
     )?.[0] as { provider?: string } | undefined
     expect(succeededCall?.provider).toBe('openrouter')
+  })
+})
+
+describe('Phase 3 (3.4): transcribe cost + debit run BEFORE the generate dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTranscriptionModel.mockResolvedValue('whisper-1')
+    mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
+    mockGetEntitlementsForTier.mockResolvedValue({ maxAudioMinutesPerEstimate: 30 })
+    updateEqMock.mockClear().mockResolvedValue({ error: null })
+    svcConfig.identRow = {
+      company_id: 'company-1',
+      project_id: 'project-1',
+      duration_seconds: 60,
+      transcript: null,
+      companies: { user_id: 'user-1', tier: 'business' },
+    }
+    svcConfig.aiCostRows = [{ real_cost_usd: 0.012 }]
+    mockTranscribeAudioOR.mockResolvedValue({ text: 'fresh', servedBy: 'primary' })
+  })
+
+  it('steps run in order whisper -> save -> debit -> dispatch', async () => {
+    const order: string[] = []
+    mockRecordCreditDebit.mockImplementationOnce(async () => {
+      order.push('debit')
+    })
+    mockInngestSend.mockImplementationOnce(async () => {
+      order.push('dispatch')
+      return { ids: ['x'] }
+    })
+    const { transcribeAudioJob } = await import('@/lib/inngest/functions/transcribe-audio')
+    const ids: string[] = []
+    const step = {
+      run: async (id: string, fn: () => unknown) => {
+        ids.push(id)
+        return fn()
+      },
+    }
+    await (transcribeAudioJob as unknown as {
+      handler: (a: { event: unknown; step: typeof step }) => Promise<unknown>
+    }).handler({
+      event: {
+        data: {
+          recordingId: 'rec-1',
+          storagePath: 'company-1/rec.webm',
+          companyId: 'company-1',
+          attemptId: 'attempt-1',
+          requestId: 'req-1',
+          autoGenerateEstimate: true,
+        },
+      },
+      step,
+    })
+    expect(ids).toEqual([
+      'whisper-transcribe',
+      'save-transcript',
+      'record-credit-debit',
+      'dispatch-generate-estimate',
+    ])
+    expect(order).toEqual(['debit', 'dispatch'])
+  })
+
+  it('a dispatch that throws still leaves the debit recorded', async () => {
+    mockInngestSend.mockRejectedValueOnce(new Error('send failed'))
+    await expect(invokeJob({ autoGenerateEstimate: true })).rejects.toThrow('send failed')
+    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
   })
 })
 

@@ -102,7 +102,11 @@ export function makeDefaultAdapter({ companyId, supabase }: {
           const needsDetails =
             raised.length > 0
               ? { reason: 'missing_specifics' as const, questions: raised }
-              : await buildNeedsDetails(inputSummary, language, industryHint)
+              : await buildNeedsDetails(inputSummary, language, industryHint, {
+                  attemptId: state.attemptId ?? null,
+                  companyId,
+                  projectId: state.projectId,
+                })
 
           await supabase
             .from('projects')

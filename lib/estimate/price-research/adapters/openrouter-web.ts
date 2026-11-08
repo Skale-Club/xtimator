@@ -22,7 +22,8 @@ import 'server-only'
  * Channel-neutral (ENGINE-01): imports no channel package.
  */
 import { randomUUID } from 'node:crypto'
-import { getIntegrationKey, getOpenRouterDefaultModel } from '@/lib/platform-config'
+import { getOpenRouterDefaultModel } from '@/lib/platform-config'
+import { resolveOpenRouterKey } from '@/lib/ai/openrouter-client'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildResearchSearchPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
@@ -150,8 +151,14 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
     ): Promise<PriceResearchResult[]> {
       if (items.length === 0) return []
 
-      const apiKey = await getIntegrationKey('openrouter')
-      if (!apiKey) return items.map((i) => missFor(i, currency))
+      // Phase 3 (D3): a BYOK company's own OpenRouter key runs its research
+      // too; no company context (or a missing key) -> platform key / miss.
+      let apiKey: string
+      try {
+        apiKey = (await resolveOpenRouterKey(costContext?.companyId)).apiKey
+      } catch {
+        return items.map((i) => missFor(i, currency))
+      }
 
       try {
         const configured = await getOpenRouterDefaultModel()

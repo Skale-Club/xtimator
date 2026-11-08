@@ -63,8 +63,8 @@ export type DebitOperationType =
   | 'chat'
 
 /** Idempotency key for a debit: `${attemptId}:debit:${op}` (retry-stable per attempt+op). */
-export function debitIdemKey(attemptId: string, op: string): string {
-  return `${attemptId}:debit:${op}`
+export function debitIdemKey(attemptId: string, op: string, runKey?: string): string {
+  return runKey ? `${attemptId}:debit:${op}:${runKey}` : `${attemptId}:debit:${op}`
 }
 
 /**
@@ -101,6 +101,13 @@ export async function recordCreditDebit(input: {
   operationType: DebitOperationType
   realCostUsd: number | null
   attemptId: string
+  /**
+   * Optional per-run discriminator for ops that can legitimately run more than
+   * once under the SAME attemptId (e.g. a second photo analysis in one capture
+   * attempt). Stable across Inngest retries of one run (pass the event's
+   * requestId), unique across runs. Absent = the per-attempt key (unchanged).
+   */
+  runKey?: string
 }): Promise<void> {
   try {
     // null cost → no debit (NEVER guess; null-vs-0 discipline from Phase 110).
@@ -115,7 +122,15 @@ export async function recordCreditDebit(input: {
     const credits = Math.round((input.realCostUsd * cfg.markup) / cfg.creditUnitUsd)
     if (credits <= 0) return
 
-    const key = debitIdemKey(input.attemptId, input.operationType)
+    // Phase 3 (3.9): honour billing_config.meteredOperations. An op explicitly
+    // switched OFF (=== false) is absorbed, not debited. An op that is simply
+    // not listed stays metered: the stored map REPLACES the defaults wholesale
+    // (shallow merge in getBillingConfig), so a row saved before an op existed
+    // (e.g. 'chat') would otherwise silently stop debiting in production.
+    // Empty/absent map = everything metered (previous behavior).
+    if (cfg.meteredOperations?.[input.operationType] === false) return
+
+    const key = debitIdemKey(input.attemptId, input.operationType, input.runKey)
 
     // Atomic RPC (SEED-055 Phase B): locks the company row, drains the credit
     // lots (monthly -> signup -> the rest by soonest expiry; any shortfall goes
