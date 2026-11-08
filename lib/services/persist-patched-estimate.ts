@@ -18,6 +18,7 @@ import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import type { PersistPatch } from '@/lib/estimate/graph/nodes/patch-refine'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { persistEstimateVersion } from '@/lib/services/persist-estimate-version'
+import { resolveProjectStatusForSections } from '@/lib/estimate/project-status'
 
 type BaseRow = {
   currency_code: string | null
@@ -139,9 +140,13 @@ export const persistPatchedEstimate: PersistPatch = async ({
       previousCurrentId: baseEstimateId,
     })
 
-    // Keep the project total in step with the (now current) estimate. Best-effort.
+    // Keep the project total and status in step with the (now current) estimate. The status uses
+    // the same decision as generation (an unpriced line or a total over the ceiling ->
+    // awaiting_details). Generation counts unpriced lines from price research; the patch path has
+    // no research outcome, so it counts lines without a positive unit_price instead. Best-effort.
     try {
-      await supabase.from('projects').update({ total: estimateRow.total }).eq('id', projectId)
+      const { status } = resolveProjectStatusForSections(patched.sections, estimateRow.total, currencyCode)
+      await supabase.from('projects').update({ total: estimateRow.total, status }).eq('id', projectId)
     } catch (err) {
       console.warn('[persist-patched-estimate] project total update failed (non-fatal):', err)
     }

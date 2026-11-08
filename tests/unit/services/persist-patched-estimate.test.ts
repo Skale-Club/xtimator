@@ -169,7 +169,7 @@ describe('persistPatchedEstimate', () => {
     const demote = db.log.find((l) => l.op === 'update' && (l.payload as Record<string, unknown>).is_current === false)!
     expect(demote.filters).toContainEqual(['neq', 'id', 'est-new'])
     expect(copyPhotos).toHaveBeenCalledWith(expect.anything(), 'est-base', 'est-new', 'company-1')
-    expect(db.log).toContainEqual({ table: 'projects', op: 'update', payload: { total: 160 } })
+    expect(db.log).toContainEqual({ table: 'projects', op: 'update', payload: { total: 160, status: 'estimate_ready' } })
   })
 
   it('a failed items insert deletes the new row, returns null and never touches is_current', async () => {
@@ -191,5 +191,33 @@ describe('persistPatchedEstimate', () => {
     const db = makeDb({ base: null })
     expect(await persistPatchedEstimate(args())).toBeNull()
     expect(db.inserts).toHaveLength(0)
+  })
+
+  it('sets the project to awaiting_details when a patched line has no price (same rule as generation)', async () => {
+    const db = makeDb()
+    const unpriced: EstimateSectionOutput[] = [
+      {
+        title: 'Walls',
+        items: [
+          { description: 'Paint walls', quantity: 10, unit: 'sq ft', unit_price: 10, price_source: 'ai_estimate' },
+          { description: 'Custom trim', quantity: 1, unit: 'job', unit_price: 0, price_source: 'ai_estimate' },
+        ],
+      },
+    ]
+    await persistPatchedEstimate({ ...args(), patched: { summary: 'S', sections: unpriced } })
+    const upd = db.log.find((l) => l.table === 'projects' && l.op === 'update')!
+    expect(upd.payload).toMatchObject({ status: 'awaiting_details' })
+  })
+
+  it('sets the project to awaiting_details when the patched total exceeds the value cap', async () => {
+    const db = makeDb()
+    vi.stubEnv('ESTIMATE_TOTAL_CEILING_USD', '100')
+    try {
+      await persistPatchedEstimate(args()) // total 160 > 100
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    const upd = db.log.find((l) => l.table === 'projects' && l.op === 'update')!
+    expect(upd.payload).toMatchObject({ total: 160, status: 'awaiting_details' })
   })
 })

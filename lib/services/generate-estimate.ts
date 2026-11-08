@@ -43,6 +43,7 @@ import {
 } from '@/lib/estimate/document-blocks'
 import { buildAiMeta, type QualityBand } from '@/lib/estimate/ai-meta'
 import { ceilingInCurrency } from '@/lib/estimate/pricing/price-bands'
+import { resolveEstimateTotalCeiling, resolveProjectStatusAfterEstimate } from '@/lib/estimate/project-status'
 import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
@@ -127,25 +128,6 @@ function normalizeClientNameForMatch(name: string): string {
     .trim()
     .replace(/[.,]/g, '')
     .replace(/\s+/g, ' ')
-}
-
-/**
- * AIREL-04 (audit C4) — absurdity ceiling on the computed grand total. Resolved
- * HERE (not inside the pure consistency module), mirroring the
- * resolveQualityThresholds env-at-the-boundary pattern (quality-signal.ts:116-121).
- *
- * The default MUST sit ABOVE the existing $1M PER-UNIT price-anchoring clamp
- * (UNIT_PRICE_CEILING, lib/ai/price-anchoring.ts:53) — a lower value would make the
- * two guardrails internally inconsistent — and real construction/remodel jobs
- * routinely exceed $250k. This is an ABSURDITY ceiling tuned to catch
- * hallucinations only, not a business-realistic cap. `ESTIMATE_TOTAL_CEILING_USD`
- * lets ops tune it without a deploy-time code change; a malformed/non-positive
- * value falls back to the default (never throws).
- */
-const DEFAULT_ESTIMATE_TOTAL_CEILING_USD = 2_000_000
-function resolveEstimateTotalCeiling(): number {
-  const raw = Number(process.env.ESTIMATE_TOTAL_CEILING_USD)
-  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_ESTIMATE_TOTAL_CEILING_USD
 }
 
 /**
@@ -808,10 +790,12 @@ export async function generateEstimateForProject(
   // vague path stays untouched) and NEVER deleted. flag > block (adaptive-first):
   // a false positive on a legitimate large job must never destroy the estimate —
   // it just asks the owner to review before proceeding.
-  const projectStatus =
-    (flaggedUnpriced > 0 && safeGrandTotal > 0) || overCeiling
-      ? 'awaiting_details'
-      : 'estimate_ready'
+  // The rule lives in lib/estimate/project-status.ts, shared with the patch-refine path.
+  const projectStatus = resolveProjectStatusAfterEstimate({
+    flaggedUnpriced,
+    grandTotal: safeGrandTotal,
+    ceilingLocal: estimateTotalCeilingLocal,
+  }).status
 
   // QUICK-mv1-01 — zero side effects on discard: rename + project_type + mismatch
   // logging moved from the pre-persist position (formerly here, before the AI
