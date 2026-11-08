@@ -1,6 +1,6 @@
 import { type NextRequest } from 'next/server'
 import type Stripe from 'stripe'
-import { getStripeClient, readPeriodEnd, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
+import { getStripeClient, readPeriodEnd, resolvePendingCancelAt, SEAT_ITEM_METADATA_KIND } from '@/lib/billing/stripe-client'
 import {
   connectEventRequiresCompanyResolution,
   handleConnectEvent,
@@ -930,10 +930,10 @@ async function handlePlatformEvent(
       // 2026-04-22.dahlia, not on the Subscription itself — see readPeriodEnd.
       const renewsAt = readPeriodEnd(subscription)
 
-      // Pending-cancel tracking: cancel_at is set when cancel_at_period_end is true.
-      const cancelledAt = subscription.cancel_at_period_end
-        ? new Date((subscription.cancel_at as number) * 1000).toISOString()
-        : null
+      // Pending-cancel tracking: newer API versions schedule cancellation via
+      // cancel_at (cancel_at_period_end stays false); legacy ones set
+      // cancel_at_period_end. See resolvePendingCancelAt.
+      const cancelledAt = resolvePendingCancelAt(subscription)
 
       // Resolve the company BEFORE the update (for the CRM sync id below).
       const { data: c } = await svc

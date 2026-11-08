@@ -22,6 +22,20 @@ vi.mock('@/lib/billing/stripe-client', () => ({
     setupIntents: { retrieve: mockSetupIntentRetrieve },
     customers: { update: mockCustomersUpdate },
   }),
+  // Mirror of the real resolvePendingCancelAt (cancel_at wins; legacy
+  // cancel_at_period_end falls back to the plan item's period end).
+  resolvePendingCancelAt: (sub: { cancel_at?: number | null; cancel_at_period_end?: boolean; items?: { data?: Array<{ current_period_end?: number; metadata?: { kind?: string } }> } }) => {
+    if (typeof sub.cancel_at === 'number' && Number.isFinite(sub.cancel_at)) {
+      return new Date(sub.cancel_at * 1000).toISOString()
+    }
+    if (sub.cancel_at_period_end === true) {
+      const items = sub.items?.data ?? []
+      const planItem = items.find((it) => it?.metadata?.kind !== 'seat') ?? items[0]
+      const pe = planItem?.current_period_end
+      return typeof pe === 'number' && Number.isFinite(pe) ? new Date(pe * 1000).toISOString() : null
+    }
+    return null
+  },
   // Fix 1: route.ts now imports readPeriodEnd from this module — mirror the
   // real implementation (find the PLAN item, read its current_period_end)
   // rather than leaving it undefined, which would throw on every call site.
@@ -472,6 +486,76 @@ describe('POST /api/webhooks/stripe — customer.subscription.updated (B)', () =
         tier_cancelled_at: new Date(cancelAt * 1000).toISOString(),
       })
     )
+  })
+
+  it('dahlia: cancel_at set with cancel_at_period_end false marks the pending cancellation', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+    const cancelAt = 1796752621
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_dahlia_cancel',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_dahlia_cancel',
+          status: 'active',
+          cancel_at_period_end: false,
+          cancel_at: cancelAt,
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' }, current_period_end: cancelAt, metadata: {} }] },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ tier_cancelled_at: new Date(cancelAt * 1000).toISOString() })
+    )
+  })
+
+  it('cancel_at_period_end true without cancel_at falls back to the period end', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+    const periodEnd = 1900000000
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_period_fallback',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_period_fallback',
+          cancel_at_period_end: true,
+          cancel_at: null,
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' }, current_period_end: periodEnd, metadata: {} }] },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ tier_cancelled_at: new Date(periodEnd * 1000).toISOString() })
+    )
+  })
+
+  it('resume (cancel_at null, cancel_at_period_end false) clears tier_cancelled_at', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: { id: 'company-upd' } })
+
+    mockConstructEvent.mockReturnValue({
+      id: 'evt_sub_updated_resume',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_resume',
+          cancel_at_period_end: false,
+          cancel_at: null,
+          items: { data: [{ id: 'si_1', price: { id: 'price_pro_test' }, current_period_end: 1900000000, metadata: {} }] },
+        },
+      },
+    })
+
+    await POST(makeRequest())
+
+    expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({ tier_cancelled_at: null }))
   })
 
   it('does NOT overwrite tier when the price id is unknown', async () => {

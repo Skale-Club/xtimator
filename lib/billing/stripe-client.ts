@@ -53,6 +53,26 @@ export function readPeriodEnd(sub: Stripe.Subscription): string | null {
 }
 
 /**
+ * Resolve the pending-cancellation marker (`tier_cancelled_at`) for a
+ * subscription. Newer Stripe API versions (e.g. 2026-06-24.dahlia) schedule a
+ * Customer Portal cancellation via `cancel_at` with `cancel_at_period_end:
+ * false`; legacy versions set `cancel_at_period_end: true` (usually alongside
+ * `cancel_at`). Either signals a pending cancel. Returns the ISO end date, or
+ * null when no cancellation is pending (including after the customer resumes,
+ * when Stripe sends `cancel_at: null` and `cancel_at_period_end: false`).
+ * Never produces an Invalid Date: `cancel_at_period_end` without `cancel_at`
+ * falls back to the plan item's period end.
+ */
+export function resolvePendingCancelAt(sub: Stripe.Subscription): string | null {
+  const cancelAt = (sub as unknown as { cancel_at?: number | null }).cancel_at
+  if (typeof cancelAt === 'number' && Number.isFinite(cancelAt)) {
+    return new Date(cancelAt * 1000).toISOString()
+  }
+  if (sub.cancel_at_period_end === true) return readPeriodEnd(sub)
+  return null
+}
+
+/**
  * Find-or-create the metadata-tagged seat Product (auto-provisioned, reused
  * across syncs). Subscription-item `price_data` requires a `product` ID (unlike
  * Checkout's inline `product_data`), so we provision ONE tagged product the

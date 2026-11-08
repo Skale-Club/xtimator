@@ -34,6 +34,20 @@ vi.mock('@/lib/billing/stripe-client', () => ({
     subscriptions: { retrieve: mockSubscriptionsRetrieve },
   }),
   SEAT_ITEM_METADATA_KIND: 'seat',
+  // Mirror of the real resolvePendingCancelAt (cancel_at wins; legacy
+  // cancel_at_period_end falls back to the plan item's period end).
+  resolvePendingCancelAt: (sub: { cancel_at?: number | null; cancel_at_period_end?: boolean; items?: { data?: Array<{ current_period_end?: number; metadata?: { kind?: string } }> } }) => {
+    if (typeof sub.cancel_at === 'number' && Number.isFinite(sub.cancel_at)) {
+      return new Date(sub.cancel_at * 1000).toISOString()
+    }
+    if (sub.cancel_at_period_end === true) {
+      const items = sub.items?.data ?? []
+      const planItem = items.find((it) => it?.metadata?.kind !== 'seat') ?? items[0]
+      const pe = planItem?.current_period_end
+      return typeof pe === 'number' && Number.isFinite(pe) ? new Date(pe * 1000).toISOString() : null
+    }
+    return null
+  },
   // Fix 1: route.ts now imports readPeriodEnd from this module — mirror the
   // real implementation (find the PLAN item, read its current_period_end)
   // rather than leaving it undefined, which would throw on every call site.
