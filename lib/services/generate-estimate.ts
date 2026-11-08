@@ -32,7 +32,7 @@ import {
 } from '@/lib/i18n/resolve-estimate-language'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { getWhatsAppSystemPrompt } from '@/lib/platform-config'
-import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
+import { persistEstimateVersion } from '@/lib/services/persist-estimate-version'
 import { generatePublicSlugToken } from '@/lib/estimate/public-url'
 import {
   computeValidUntil,
@@ -41,7 +41,8 @@ import {
   initialSectionVisibility,
   resolveDocumentBlocks,
 } from '@/lib/estimate/document-blocks'
-import { buildAiMeta, isMissingColumnError, type QualityBand } from '@/lib/estimate/ai-meta'
+import { buildAiMeta, type QualityBand } from '@/lib/estimate/ai-meta'
+import { ceilingInCurrency } from '@/lib/estimate/pricing/price-bands'
 import { playbookFor } from '@/lib/ai/prompt-builder'
 import { mentionsMeasurements, scoreStructure } from '@/lib/estimate/quality/structure-score'
 import { buildKnowledgeQuery, loadKnowledgeContext } from '@/lib/ai/knowledge-context'
@@ -117,9 +118,6 @@ export interface GenerateEstimateOptions {
     inputType?: 'recording' | 'photo' | 'manual_text'
   }
 }
-
-/** estimate_items columns added by SEED-057 (see the estimator-intelligence migration). */
-const ITEM_AI_COLUMNS = ['confidence', 'basis', 'optional'] as const
 
 const IMPACT_RANK = { low: 0, medium: 1, high: 2 } as const
 
@@ -473,6 +471,11 @@ export async function generateEstimateForProject(
   // AIREL-04: resolved once, reused by both the aiProposedSubtotal dedupe below and
   // the over-ceiling verdict evaluated after totals are computed.
   const estimateTotalCeiling = resolveEstimateTotalCeiling()
+  // The ceiling is a USD figure. This is the value in the estimate's currency for the service's
+  // OWN comparisons below (flag-aware: unchanged with ESTIMATOR_PRICE_BANDS off or a USD estimate).
+  // resolveLinePrices takes the raw USD value and converts it internally, so it is never passed
+  // this one (that would convert twice).
+  const estimateTotalCeilingLocal = ceilingInCurrency(estimateTotalCeiling, currencyCode)
 
   // GUARD-03 snapshot: capture the sections the AI's OWN numbers imply
   // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
@@ -490,7 +493,7 @@ export async function generateEstimateForProject(
   // so overCeiling is always false here) — only the deduped `.sections` are used;
   // the real over-ceiling verdict is evaluated later against the server grand total.
   const aiProposedSections = checkEstimateConsistency(aiEstimate.sections, 0, {
-    totalCeiling: estimateTotalCeiling,
+    totalCeiling: estimateTotalCeilingLocal,
   }).sections
 
   // GUARD-02 / SEED-057 E3 / RPRICE / AIREL-04: the shared price pipeline
@@ -509,12 +512,22 @@ export async function generateEstimateForProject(
   } = await resolveLinePrices(aiEstimate.sections, {
     companyId, // param, never LLM-derived
     currencyCode,
-    priceBookItems: priceBookItems.map((p) => ({ name: p.name, unit_price: p.unit_price })),
+    // Extra price-book fields: an area_based / base_plus_addons row priced 0 must not anchor a
+    // $0 line, and (flagged by ESTIMATOR_PRICE_BANDS) units are compared.
+    priceBookItems: priceBookItems.map((p) => ({
+      name: p.name,
+      unit_price: p.unit_price,
+      unit: p.unit,
+      pricing_type: p.pricing_type,
+      price_per_unit: p.price_per_unit,
+      minimum_price: p.minimum_price,
+    })),
     region: { city: client?.city ?? null, state: client?.state ?? null },
     supabase,
     projectId,
     attemptId: options.costContext?.attemptId ?? undefined,
-    totalCeiling: estimateTotalCeiling,
+    totalCeiling: estimateTotalCeiling, // USD; resolveLinePrices converts it itself
+    playbook: playbookFor(estimateInput),
     onProgress: (detail) => phase('pricing', detail),
   })
 
@@ -567,13 +580,13 @@ export async function generateEstimateForProject(
   // than re-invoking the module a second time) since dedupe already ran above.
   // Merged with the duplicate/qty-0 flags from the pre-compute pass so
   // `consistencyFlags` carries every AIREL-04 signal for this generation.
-  const overCeiling = safeGrandTotal > estimateTotalCeiling
+  const overCeiling = safeGrandTotal > estimateTotalCeilingLocal
   const consistencyFlags: ConsistencyFlag[] = [...preComputeFlags]
   if (overCeiling) {
     consistencyFlags.push({
       kind: 'total_over_ceiling',
       total: safeGrandTotal,
-      ceiling: estimateTotalCeiling,
+      ceiling: estimateTotalCeilingLocal,
     })
   }
 
@@ -679,6 +692,7 @@ export async function generateEstimateForProject(
     openQuestions: aiNotes.open_questions?.length ?? 0,
     hasMeasurements: mentionsMeasurements(sourceText),
     language,
+    currencyCode,
   })
   const aiMeta = buildAiMeta(
     aiNotes,
@@ -733,170 +747,50 @@ export async function generateEstimateForProject(
       created_by_user_id: options.createdByUserId ?? null,
   }
 
-  let { data: estimate, error: estimateError } = await supabase
-    .from('estimates')
-    .insert(aiMeta ? { ...estimateRow, ai_meta: aiMeta } : estimateRow)
-    .select('id')
-    .single()
-
-  if (estimateError && aiMeta && isMissingColumnError(estimateError, ['ai_meta'])) {
-    ;({ data: estimate, error: estimateError } = await supabase
-      .from('estimates')
-      .insert(estimateRow)
-      .select('id')
-      .single())
-  }
-
-  if (estimateError || !estimate) {
-    throw new Error('Failed to save estimate')
-  }
-
-  const estimateId = estimate.id as string
-
-  // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
-  // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
-  // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
-  // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
-  // reportEstimateQuality NEVER throws, so observability can never break generation.
-  if (qualitySignal && qualityDiscrepancy) {
-    reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
-      companyId,
-      estimateId,
-    })
-  }
-
-  // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
-  // over-ceiling) in the SAME best-effort, never-throw observability channel as
-  // the totals_discrepancy signal above. Additive — does not touch
-  // quality-signal.ts's locked EstimateQualitySignal shape.
-  if (consistencyFlags.length > 0) {
-    try {
-      console.info('[estimate_consistency]', {
-        companyId,
-        estimateId,
-        flags: consistencyFlags,
-      })
-      Sentry.captureMessage('[estimate-quality] consistency flag', {
-        level: 'warning',
-        tags: { company_id: companyId, estimate_id: estimateId },
-        extra: { flags: consistencyFlags },
-      })
-    } catch {
-      // Observability must never break generation.
-    }
-  }
-
-  // A failure anywhere in the child inserts must not leave a half-written
-  // estimate behind: delete the new row (sections/items cascade via their FKs)
-  // and rethrow the same error. The previous version is still current.
-  try {
-    // Insert sections and items in exactly two round-trips (was 2×S sequential).
-    // 1) Bulk-insert every section, RETURNING ids in insertion order.
-    // 2) Bulk-insert every item across all sections in one call, mapping each item
-    //    to its section id by position. sort_order fields are preserved exactly:
-    //    sIdx for sections, iIdx for items within a section.
-    const sectionInsertRows = calculatedSections.map((section, sIdx) => ({
-      estimate_id: estimateId,
-      company_id: companyId,
-      title: section.title,
-      sort_order: sIdx,
-      subtotal: section.subtotal,
-    }))
-
-    let sectionIds: string[] = []
-    if (sectionInsertRows.length > 0) {
-      const { data: sectionRows, error: sectionsError } = await supabase
-        .from('estimate_sections')
-        .insert(sectionInsertRows)
-        .select('id')
-
-      // PostgREST returns the inserted rows in the SAME order as the payload for a
-      // single INSERT, so index i ↔ calculatedSections[i]. Guard the length so a
-      // partial/reordered result can never silently misattach items.
-      if (sectionsError || !sectionRows || sectionRows.length !== sectionInsertRows.length) {
-        throw new Error('Failed to save estimate section')
-      }
-      sectionIds = sectionRows.map((row) => row.id as string)
-    }
-
-    const itemInsertRows = calculatedSections.flatMap((section, sIdx) => {
-      const sectionId = sectionIds[sIdx]
-      return section.items.map((item, iIdx) => ({
-        section_id: sectionId,
-        company_id: companyId,
-        description: item.description,
-        quantity: item.quantity,
-        unit: item.unit ?? null,
-        unit_price: item.unit_price,
-        total: item.total,
-        sort_order: iIdx,
-        price_source: item.price_source,
-        // TAX-03: persist the AI's per-item classification into the dormant Phase 129 columns.
-        // These survive AI → anchoring → research → compute via the `...item` spreads. Defaults
-        // (taxable=true, tax_category=null) keep retrocompat rows byte-identical.
-        taxable: item.taxable ?? true,
-        tax_category: item.tax_category ?? null,
-        // DISC-01: persist the per-item line discount (AI INPUT, amount) — survives AI → anchoring →
-        // research → compute via the ...item spreads. Default 0 keeps retrocompat rows byte-identical.
-        discount: (item.discount as number | undefined) ?? 0,
-        // MARK-01: persist the AI's cost + markup_pct (inputs) so the price book / editor can show how
-        // the unit_price was derived. Survive AI → anchoring → research → compute via the ...item spreads.
-        // null when absent (byte-identical retrocompat — the Phase-129 columns are nullable). The
-        // persisted unit_price above already carries the server-resolved price from compute-totals (Task 2).
-        cost: (item.cost as number | undefined) ?? null,
-        markup_pct: (item.markup_pct as number | undefined) ?? null,
-        // SEED-057: per-line AI metadata. Only present on the row when the model
-        // supplied it, so rows (and tests) for legacy outputs are unchanged.
-        // Every row carries the SAME keys: PostgREST unions the keys across a bulk insert and
-        // sends NULL for a row that lacks one, and `optional` is NOT NULL DEFAULT false.
-        confidence: item.confidence ?? null,
-        basis: item.basis ?? null,
-        optional: item.optional === true,
-      }))
-    })
-
-    if (itemInsertRows.length > 0) {
-      let { error: itemsError } = await supabase
-        .from('estimate_items')
-        .insert(itemInsertRows)
-
-      // Pre-migration deploy window: drop the SEED-057 columns and retry.
-      if (itemsError && isMissingColumnError(itemsError, ITEM_AI_COLUMNS)) {
-        const stripped = itemInsertRows.map((row) => {
-          const copy: Record<string, unknown> = { ...row }
-          for (const column of ITEM_AI_COLUMNS) delete copy[column]
-          return copy
+  // The shared write path (lib/services/persist-estimate-version.ts): insert non-current, save
+  // sections + items, cleanup on failure, then the safe is_current swap and photo carry-forward.
+  const estimateId = await persistEstimateVersion(supabase, {
+    companyId,
+    projectId,
+    estimateRow,
+    aiMeta,
+    calculatedSections,
+    previousCurrentId: (previousCurrent?.id as string | undefined) ?? null,
+    onInserted: (insertedId) => {
+      // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
+      // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
+      // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
+      // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
+      // reportEstimateQuality NEVER throws, so observability can never break generation.
+      if (qualitySignal && qualityDiscrepancy) {
+        reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
+          companyId,
+          estimateId: insertedId,
         })
-        ;({ error: itemsError } = await supabase.from('estimate_items').insert(stripped))
       }
 
-      if (itemsError) {
-        throw new Error('Failed to save estimate items')
+      // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
+      // over-ceiling) in the SAME best-effort, never-throw observability channel as
+      // the totals_discrepancy signal above. Additive — does not touch
+      // quality-signal.ts's locked EstimateQualitySignal shape.
+      if (consistencyFlags.length > 0) {
+        try {
+          console.info('[estimate_consistency]', {
+            companyId,
+            estimateId: insertedId,
+            flags: consistencyFlags,
+          })
+          Sentry.captureMessage('[estimate-quality] consistency flag', {
+            level: 'warning',
+            tags: { company_id: companyId, estimate_id: insertedId },
+            extra: { flags: consistencyFlags },
+          })
+        } catch {
+          // Observability must never break generation.
+        }
       }
-    }
-  } catch (err) {
-    try {
-      await supabase.from('estimates').delete().eq('id', estimateId)
-    } catch (cleanupErr) {
-      console.error('[generate-estimate] cleanup of partial estimate failed:', cleanupErr)
-    }
-    throw err
-  }
-
-  // Everything is saved: swap the current pointer. Demote the other versions
-  // first, then promote the new one (no unique index on is_current exists).
-  await supabase
-    .from('estimates')
-    .update({ is_current: false })
-    .eq('project_id', projectId)
-    .neq('id', estimateId)
-  await supabase.from('estimates').update({ is_current: true }).eq('id', estimateId)
-
-  // Version carry-forward — copy the previous current version's attached
-  // photos onto the new version (independent rows, own remove lifecycle).
-  if (previousCurrent?.id) {
-    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
-  }
+    },
+  })
 
   // Update project status. RFALL-01: when research flagged an unpriced item AND the
   // estimate still carries real value (total>0), surface it via the EXISTING
@@ -997,7 +891,7 @@ export async function generateEstimateForProject(
       company_id: companyId,
       estimate_id: estimateId,
       event_type: 'estimate_over_ceiling_flagged',
-      metadata: { total: safeGrandTotal, ceiling: estimateTotalCeiling },
+      metadata: { total: safeGrandTotal, ceiling: estimateTotalCeilingLocal },
     })
   }
 

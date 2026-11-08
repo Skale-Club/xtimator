@@ -27,6 +27,8 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { normalizeCurrencyCode } from '@/lib/money/currency'
 import { ProvidersUnavailableError, InvalidEstimateOutputError } from '@/lib/ai/with-fallback'
 import type { EstimateOutput, EstimateSectionOutput } from '@/lib/ai/types'
+import { resolvePlaybook } from '@/lib/ai/playbooks'
+import type { AnchorBookRow } from '@/lib/ai/price-anchoring'
 import { resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
 import { matchUnchangedLines, normalizeText } from '@/lib/estimate/refine-merge'
 import type { FailureReason } from '@/lib/estimate/failure'
@@ -78,6 +80,9 @@ export const makeRefineNode =
           unit: string | null
           unit_price: number
           currency_code?: string | null
+          pricing_type?: string | null
+          price_per_unit?: number | null
+          minimum_price?: number | null
         }> = []
         try {
           priceBookItems = (await getPriceBookItems(svc, state.companyId))
@@ -88,6 +93,11 @@ export const makeRefineNode =
               unit: i.unit,
               unit_price: i.unit_price,
               currency_code: i.currency_code,
+              // Pricing fields so an area_based / base_plus_addons row priced 0 does not anchor
+              // a $0 line, and (flagged) units are compared.
+              pricing_type: i.pricing_type,
+              price_per_unit: i.price_per_unit,
+              minimum_price: i.minimum_price,
             }))
         } catch {
           // no price book = no injection (same as generate's empty-array path)
@@ -125,6 +135,7 @@ export const makeRefineNode =
           attemptId: state.attemptId,
           currencyCode,
           priceBookItems,
+          industry,
           svc,
         })
       })
@@ -164,7 +175,9 @@ async function applyRefineGuardrails(args: {
   projectId: string
   attemptId: string | undefined
   currencyCode: string
-  priceBookItems: Array<{ name: string; unit_price: number }>
+  priceBookItems: AnchorBookRow[]
+  /** Company industry, for the playbook (flagged price bands). */
+  industry?: string | null
   svc: ReturnType<typeof requireServiceClient>
 }): Promise<EstimateOutput> {
   try {
@@ -194,18 +207,28 @@ async function applyRefineGuardrails(args: {
 
     // Region from the project's client (best-effort).
     let region: { city: string | null; state: string | null } = { city: null, state: null }
+    let projectType: string | null = null
     try {
       const { data: project } = await args.svc
         .from('projects')
-        .select('client:clients(city, state)')
+        .select('project_type, client:clients(city, state)')
         .eq('id', args.projectId)
         .single()
       const client = (project as { client?: { city?: string | null; state?: string | null } | null } | null)
         ?.client
+      projectType = (project as { project_type?: string | null } | null)?.project_type ?? null
       region = { city: client?.city ?? null, state: client?.state ?? null }
     } catch {
       // no region = unregioned research, same as a client-less generate
     }
+
+    // Playbook for the flagged price-band check (ESTIMATOR_PRICE_BANDS): resolved from the
+    // existing estimate's text plus the company industry and project type, like generation does.
+    const playbook = resolvePlaybook({
+      industry: args.industry ?? null,
+      projectType,
+      text: existing.sections.flatMap((s) => s.items.map((i) => i.description)).join('\n'),
+    })
 
     const resolved = await resolveLinePrices(toResolve, {
       companyId: args.companyId,
@@ -215,6 +238,7 @@ async function applyRefineGuardrails(args: {
       supabase: args.svc,
       attemptId: args.attemptId,
       projectId: args.projectId,
+      playbook,
       // No dedupe: this is a partial line set.
     })
 

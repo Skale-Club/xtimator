@@ -21,7 +21,7 @@ type Props = {
 
 const HAIKU = 'anthropic/claude-haiku-5.5'
 const SONNET = 'anthropic/claude-sonnet-5.5'
-const OPUS = 'anthropic/claude-opus-5'
+const OPUS = 'anthropic/claude-opus-5.5'
 
 // Slot list, label, hint and allowed options. Mirrors lib/ai/model-policy.ts
 // (vision/plan/review accept Haiku; draft/research do not). The server action

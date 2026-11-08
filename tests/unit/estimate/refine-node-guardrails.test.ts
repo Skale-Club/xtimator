@@ -106,6 +106,21 @@ describe('refine node price guardrails', () => {
     expect(opts.totalCeiling).toBeUndefined()
   })
 
+  it('passes the price-book pricing fields and the trade playbook to the pipeline', async () => {
+    mockRefineEstimate.mockResolvedValue({
+      ...existing,
+      sections: [{ title: 'Walls', items: [item({ description: 'Ceiling paint', unit_price: 1, quantity: 50 })] }],
+    })
+    await makeRefineNode(runner)(state as never)
+    const opts = mockResolve.mock.calls[0][1] as { priceBookItems: Array<Record<string, unknown>>; playbook: unknown }
+    // getPriceBookItems mock rows carry no pricing fields: they come through as absent, and the
+    // keys exist so a real area_based row would reach anchoring.
+    expect(opts.priceBookItems[0]).toHaveProperty('pricing_type')
+    expect(opts.priceBookItems[0]).toHaveProperty('price_per_unit')
+    expect(opts.priceBookItems[0]).toHaveProperty('minimum_price')
+    expect(opts.playbook).toBeTruthy()
+  })
+
   it('does not call the pipeline when every line is unchanged', async () => {
     mockRefineEstimate.mockResolvedValue({ ...existing, summary: 'Better summary' })
     const out = (await makeRefineNode(runner)(state as never)) as { refined: typeof existing }

@@ -17,6 +17,8 @@ export interface HarnessOptions {
   itemInsertErrors?: Array<{ code?: string; message: string } | null>
   /** Rows served by the price_observations read (company history). */
   priceObservations?: Array<Record<string, unknown>>
+  /** Rows served by the company_price_book read (default: an empty book). */
+  priceBook?: Array<Record<string, unknown>>
   /** Make the price_observations read fail (table does not exist yet). */
   priceObservationsError?: { code?: string; message: string } | null
 }
@@ -80,7 +82,7 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
       chain.is = vi.fn(() => chain)
       chain.order = vi.fn(() => chain)
       // getPriceBookItems pages with range() (Phase 4a)
-      chain.range = vi.fn().mockResolvedValue({ data: [], error: null })
+      chain.range = vi.fn().mockResolvedValue({ data: opts.priceBook ?? [], error: null })
       return chain
     }
     if (table === 'clients') {

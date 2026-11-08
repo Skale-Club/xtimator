@@ -175,6 +175,16 @@ describe('generate-estimate push (260928)', () => {
     expect(mockGraphInvoke.mock.calls[0][0]).toMatchObject({ inputType: 'manual_text' })
   })
 
+  it('passes the patch-refine persistence hook into the graph (Phase 4d)', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
+    const { buildEstimateGraph } = await import('@/lib/estimate/graph')
+    const { persistPatchedEstimate } = await import('@/lib/services/persist-patched-estimate')
+    vi.mocked(buildEstimateGraph).mockClear()
+    const fn = await load()
+    await fn.handler({ event: event(), step: makeReplayStep(new Map()) })
+    expect(vi.mocked(buildEstimateGraph).mock.calls[0][1]).toEqual({ persistPatch: persistPatchedEstimate })
+  })
+
   it('never pushes twice when Inngest replays the handler', async () => {
     mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
     const fn = await load()

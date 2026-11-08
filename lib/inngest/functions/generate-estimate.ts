@@ -12,6 +12,7 @@ import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import { buildEstimateGraph } from '@/lib/estimate/graph'
+import { persistPatchedEstimate } from '@/lib/services/persist-patched-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage, notifyQuotaThresholds } from '@/lib/quota'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
@@ -216,7 +217,9 @@ export const generateEstimateJob = inngest.createFunction(
     const result = await step.run('orchestrate-estimate', async () => {
       const supabase = requireServiceClient()
       const adapter = makeDefaultAdapter({ companyId, supabase })
-      const graph = buildEstimateGraph(adapter)
+      // Phase 4d: the write path for an accepted section patch. Only reached when
+      // ESTIMATOR_PATCH_REFINE is on (the graph ignores the hook otherwise).
+      const graph = buildEstimateGraph(adapter, { persistPatch: persistPatchedEstimate })
 
       // OBS-01: unified Langfuse trace per estimate run.
       // channel from payload (mcp) or fallback to 'web' for UI path.
