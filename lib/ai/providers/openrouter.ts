@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import type { AIProvider } from '../provider.interface'
 import type { EstimateInput, EstimateOutput, RefineEstimateInput } from '../types'
 import { getIntegrationKey } from '@/lib/platform-config'
-import { buildSystemPrompt, buildUserContent, buildRefineUserContent } from '../prompt-builder'
+import { buildSystemPromptParts, buildUserContent, buildRefineUserContent } from '../prompt-builder'
 import { normalizeOutput, appendRetryHint } from '../normalize'
 import { shapeEstimateToolSchema, type EstimateToolFlags } from '../tool-schema'
 import {
@@ -36,7 +36,7 @@ const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 
 // AIREL-03: exported so the parity test (tests/unit/ai/tool-schema-fields.test.ts)
 // can statically import this object and lock its shape against drift from the
-// zod schema (lib/ai/schema.ts) and the Gemini tool schema (gemini.ts).
+// zod schema (lib/ai/schema.ts).
 export const estimateToolSchema = {
   type: 'object' as const,
   required: ['summary', 'sections', 'suggested_project_name', 'detected_trade'],
@@ -87,11 +87,9 @@ export const estimateToolSchema = {
                   description:
                     "'price_book' if this price came from the company's price book entry. 'ai_estimate' if you estimated it from market rates.",
                 },
-                // AIREL-03: the four pricing fields the LIVE OpenRouter schema
-                // was missing — gemini.ts:144-154 and the zod schema.ts:31-43
-                // both already carry them (only the Gemini fallback / refine
-                // path could ask for per-category tax + cost/markup). All
-                // OPTIONAL (see required[] below — deliberately NOT added
+                // AIREL-03: the four pricing fields the OpenRouter schema was
+                // missing — the zod schema (lib/ai/schema.ts) already carried
+                // them. All OPTIONAL (see required[] below — deliberately NOT added
                 // there) and classification-only: the AI labels/suggests, the
                 // server always computes the trusted numbers (ENG-01 — no AI
                 // calculator).
@@ -157,6 +155,61 @@ type OpenRouterChatResponse = {
     // response (OpenRouter credits are 1:1 USD). No request flag needed.
     cost?: number
     cost_details?: { upstream_inference_cost?: number | null }
+    // Phase 4a: prompt-cache accounting. OpenRouter normalises Anthropic's cache
+    // counters into prompt_tokens_details; the raw Anthropic names are read too
+    // in case they are forwarded. Observability only, never billing.
+    prompt_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number }
+    cache_read_input_tokens?: number
+    cache_creation_input_tokens?: number
+  }
+}
+
+type SystemTextPart = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }
+
+/**
+ * Phase 4a: the system message content. Without a cache prefix it is the plain
+ * string (unchanged). With one it is the documented OpenRouter/Anthropic shape
+ * for prompt caching: an array of `{ type: 'text', text, cache_control }` parts,
+ * with `cache_control: { type: 'ephemeral' }` on exactly ONE part, the last
+ * static one. Everything after it (the dynamic sections) is a second, uncached part.
+ */
+export function systemMessageContent(
+  system: string,
+  cachePrefix: string | null | undefined
+): string | SystemTextPart[] {
+  if (!cachePrefix || !system.startsWith(cachePrefix)) return system
+  const rest = system.slice(cachePrefix.length).replace(/^\n\n/, '')
+  const parts: SystemTextPart[] = [
+    { type: 'text', text: cachePrefix, cache_control: { type: 'ephemeral' } },
+  ]
+  if (rest) parts.push({ type: 'text', text: rest })
+  return parts
+}
+
+/** Text the refine price-book subset is chosen from: the instruction + current line descriptions. */
+function refineSourceText(input: RefineEstimateInput): string {
+  const lines = (input.existingEstimate.sections ?? []).flatMap((s) =>
+    (s.items ?? []).map((i) => i.description)
+  )
+  return [input.instruction, ...lines].join('\n')
+}
+
+/** Langfuse generation metadata for prompt-cache usage; empty when nothing to report. */
+export function cacheMetadata(
+  usage: OpenRouterChatResponse['usage'],
+  cacheRequested: boolean
+): { metadata?: Record<string, unknown> } {
+  const cachedTokens =
+    usage?.prompt_tokens_details?.cached_tokens ?? usage?.cache_read_input_tokens
+  const cacheWriteTokens =
+    usage?.prompt_tokens_details?.cache_write_tokens ?? usage?.cache_creation_input_tokens
+  if (!cacheRequested && cachedTokens === undefined && cacheWriteTokens === undefined) return {}
+  return {
+    metadata: {
+      promptCacheRequested: cacheRequested,
+      ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
+    },
   }
 }
 
@@ -189,8 +242,10 @@ export class OpenRouterAdapter implements AIProvider {
           onDraftProgress(draftProgressFromArguments(argumentsSoFar))
         }
       : undefined
+    const systemParts = buildSystemPromptParts(input)
     const raw = await this.callTool({
-      system: buildSystemPrompt(input),
+      system: systemParts.prompt,
+      systemCachePrefix: systemParts.staticPrefix,
       user,
       operationName: 'generate_estimate',
       costContext: input.costContext,
@@ -207,7 +262,12 @@ export class OpenRouterAdapter implements AIProvider {
     // prompt. Gains the language, price-book, Additional-Instructions, Security,
     // and sanitizeField blocks for free; the instruction is escaped + tagged.
     const refineInput = toRefineEstimateInput(input)
-    const system = buildSystemPrompt(refineInput, { mode: 'refine' })
+    // Phase 4a: refine's input carries no transcripts, so the instruction and the
+    // current estimate's lines are the text the price-book subset is picked from.
+    const systemParts = buildSystemPromptParts(refineInput, {
+      mode: 'refine',
+      sourceText: refineSourceText(input),
+    })
     const user = appendRetryHint(
       buildRefineUserContent(refineInput, input.existingEstimate, input.instruction),
       input.retryHint
@@ -218,7 +278,8 @@ export class OpenRouterAdapter implements AIProvider {
     // state so this call's real cost is attributed to the requesting company's
     // own attemptId instead of a random id + null companyId.
     const raw = await this.callTool({
-      system,
+      system: systemParts.prompt,
+      systemCachePrefix: systemParts.staticPrefix,
       user,
       operationName: 'refine_estimate',
       costContext: input.costContext,
@@ -231,6 +292,12 @@ export class OpenRouterAdapter implements AIProvider {
 
   private async callTool(args: {
     system: string
+    /**
+     * Phase 4a (ESTIMATOR_PROMPT_CACHE): the static, input-independent prefix of
+     * `system`. When set, the system message is sent as content parts with
+     * cache_control on the prefix part. null/absent = plain string, as before.
+     */
+    systemCachePrefix?: string | null
     user: string
     operationName?: string
     // Phase 110 (COST-01): non-LLM correlation context for cost capture. Absent
@@ -261,14 +328,14 @@ export class OpenRouterAdapter implements AIProvider {
       model: this.model,
       // AIREL-02: 4096 was tight — a rich 40-50-item estimate needs roughly
       // 2,900-4,400 output tokens, leaving little headroom before a silent
-      // truncation. Raised to 8192, then 16384 (SEED-057: basis + assumptions grow the output), symmetric with Gemini's maxOutputTokens.
+      // truncation. Raised to 8192, then 16384 (SEED-057: basis + assumptions grow the output), the ceiling for the single OpenRouter estimate call.
       max_tokens: 16384,
       // AIREL-05: pinned for BOTH generate and refine (this one body covers
       // both operations) to minimize run-to-run price/output variance — no
       // temperature was set anywhere on the estimate paths before this.
       temperature: 0.3,
       messages: [
-        { role: 'system', content: args.system },
+        { role: 'system', content: systemMessageContent(args.system, args.systemCachePrefix) },
         { role: 'user', content: args.user },
       ],
       tools: [
@@ -386,6 +453,7 @@ export class OpenRouterAdapter implements AIProvider {
             input: json.usage?.prompt_tokens,
             output: json.usage?.completion_tokens,
           },
+          ...cacheMetadata(json.usage, Boolean(args.systemCachePrefix)),
         })
         gen.end({ output: parsed, endTime: new Date() })
         await langfuseClient.flushAsync()

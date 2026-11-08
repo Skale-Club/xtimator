@@ -20,14 +20,6 @@ export function checkGeneratedEdge(state: EstimateStateType): string {
 }
 
 /**
- * After assess: a vague estimate routes to the adapter's "ask for details" /
- * refine finalize; a usable estimate routes to the confirm finalize.
- */
-export function checkVagueEdge(state: EstimateStateType): string {
-  return state.isVague ? 'finalizeAsk' : 'finalizeConfirm'
-}
-
-/**
  * HARD-06 (Phase 102): configurable auto-refine cap. Read once at module load,
  * mirroring the SESSION_TTL_MINUTES tuning-constant pattern. Defaults to 1 —
  * byte-identical to the prior hard-coded `(state.refineAttempts ?? 0) < 1`. An

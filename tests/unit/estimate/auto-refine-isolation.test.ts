@@ -190,6 +190,31 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
   })
 
   /**
+   * AUTO_REFINE_MAX_ATTEMPTS=0: no auto-refine ever ran (refineAttempts 0/undefined),
+   * yet a final vague outcome must still revert the $0 estimate and ask for details.
+   */
+  it.each([0, undefined])(
+    'finalize treats a final-vague outcome as needsDetails even when refineAttempts is %s',
+    async (refineAttempts) => {
+      const { makeDefaultAdapter } = await import('@/lib/estimate/adapters/default')
+      const adapter = makeDefaultAdapter({
+        companyId: 'company-1',
+        supabase: makeSupabaseMock() as never,
+      })
+      const result = await adapter.finalize({
+        companyId: 'company-1',
+        projectId: 'project-1',
+        channel: 'web' as const,
+        estimateId: 'est-1',
+        isVague: true,
+        refineAttempts,
+      } as never)
+      expect(result.needsDetails).toBe(true)
+      expect(result.estimateId).toBeUndefined()
+    },
+  )
+
+  /**
    * Test C — QA-02 source anchor: auto-refine.ts reads state.companyId (not a
    * parameter overrideable by the LLM).
    */

@@ -146,4 +146,80 @@ describe('generate-estimate route — quota enforcement (dispatcher contract)', 
     // recordUsage runs inside the Inngest function (see tests/unit/inngest/generate-estimate-job.test.ts)
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
+
+  // Phase 5: body validated BEFORE the hourly/daily rate limits are consumed.
+  it('rejects a body without projectId (400) without consuming the rate limits', async () => {
+    const { rateLimit } = await import('@/lib/ratelimit')
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
+    mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(400)
+    expect(vi.mocked(rateLimit)).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  // Phase 5: the demo estimate quota counts distinct projects, not versions.
+  function demoServiceClient(estimateRows: { project_id: string }[]) {
+    return {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'companies') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { demo_estimate_quota: 3, tier: 'free' },
+                  error: null,
+                }),
+              }),
+            }),
+          }
+        }
+        // estimates: select('project_id').eq(...).limit(...)
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: estimateRows, error: null }),
+            }),
+          }),
+        }
+      }),
+    }
+  }
+
+  it('demo quota: many versions of ONE project do not hit the 3-estimate wall', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
+    mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
+    vi.mocked(requireServiceClient).mockReturnValue(
+      demoServiceClient([
+        { project_id: 'proj-1' },
+        { project_id: 'proj-1' },
+        { project_id: 'proj-1' },
+        { project_id: 'proj-1' },
+      ]) as never,
+    )
+
+    const res = await POST(makeRequest('proj-2'))
+
+    expect(res.status).toBe(202)
+  })
+
+  it('demo quota: blocks a NEW project once 3 distinct projects have an estimate', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
+    mockCheckQuota.mockResolvedValue({ allowed: true, remaining: 5 })
+    vi.mocked(requireServiceClient).mockReturnValue(
+      demoServiceClient([
+        { project_id: 'proj-a' },
+        { project_id: 'proj-b' },
+        { project_id: 'proj-c' },
+      ]) as never,
+    )
+
+    const blocked = await POST(makeRequest('proj-new'))
+    expect(blocked.status).toBe(402)
+
+    const regenerate = await POST(makeRequest('proj-a'))
+    expect(regenerate.status).toBe(202)
+  })
 })

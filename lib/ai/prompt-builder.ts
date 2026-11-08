@@ -2,6 +2,7 @@
 import type { EstimateInput, EstimateOutput } from './types'
 import { formatMoney, normalizeCurrencyCode } from '@/lib/money/currency'
 import { resolvePlaybook } from './playbooks'
+import { selectRelevantPriceBook } from './price-book-select'
 import {
   KNOWLEDGE_INSTRUCTION_PROMPT,
   SCOPE_PLAN_INSTRUCTION_PROMPT,
@@ -104,6 +105,46 @@ export function playbookFor(input: EstimateInput) {
 }
 
 /**
+ * Phase 4a flag: ESTIMATOR_PRICE_BOOK_MAX (positive integer). Absent, empty or
+ * invalid = OFF: the prompt carries the whole price book, as before. When set,
+ * the prompt carries only the relevant subset (lib/ai/price-book-select.ts);
+ * server-side anchoring is unaffected and still sees the full book.
+ */
+export function priceBookPromptMax(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.ESTIMATOR_PRICE_BOOK_MAX?.trim()
+  if (!raw || !/^\d+$/.test(raw)) return null
+  const n = Number(raw)
+  return Number.isSafeInteger(n) && n > 0 ? n : null
+}
+
+/**
+ * Phase 4a flag: ESTIMATOR_PROMPT_CACHE (1 / true / on). OFF = today's section
+ * order and a plain-string system message. ON = all static, input-independent
+ * sections first and the dynamic ones last, so the provider can mark the static
+ * prefix as cacheable.
+ */
+export function promptCacheEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.ESTIMATOR_PROMPT_CACHE?.trim().toLowerCase()
+  return raw === '1' || raw === 'true' || raw === 'on'
+}
+
+export interface SystemPromptParts {
+  /** The full system prompt (what buildSystemPrompt returns). */
+  prompt: string
+  /**
+   * Cache flag on: the leading, input-independent part of `prompt` (a strict
+   * prefix of it). null when the flag is off.
+   */
+  staticPrefix: string | null
+}
+
+interface PromptSection {
+  text: string
+  /** Static = does not depend on the job's source material or price book. */
+  static: boolean
+}
+
+/**
  * HARD-02 / UNIFY-02 — single prompt source of truth for BOTH generate and refine.
  *
  * `opts.mode` swaps ONLY the opening role/task paragraph; the `## Language`,
@@ -116,15 +157,28 @@ export function playbookFor(input: EstimateInput) {
  * them), so generate output is no longer byte-identical to the pre-seam prompt.
  * Refine mode is unchanged. The Language block lists only the fields that
  * apply in both modes; timeline / notes apply only when present.
+ *
+ * Phase 4a: with ESTIMATOR_PRICE_BOOK_MAX and ESTIMATOR_PROMPT_CACHE both unset
+ * the output is byte-identical to the pre-4a prompt (tests/unit/ai/prompt-flags).
+ * `opts.sourceText` adds to the text used to pick the price-book subset (refine
+ * passes the instruction and the current estimate's lines, since its input
+ * carries no transcripts).
  */
 export function buildSystemPrompt(
   input: EstimateInput,
-  opts?: { mode?: 'generate' | 'refine' }
+  opts?: { mode?: 'generate' | 'refine'; sourceText?: string }
 ): string {
+  return buildSystemPromptParts(input, opts).prompt
+}
+
+export function buildSystemPromptParts(
+  input: EstimateInput,
+  opts?: { mode?: 'generate' | 'refine'; sourceText?: string }
+): SystemPromptParts {
   const mode = opts?.mode ?? 'generate'
   const currencyCode = normalizeCurrencyCode(input.currencyCode)
   // ONLY the opening role/task paragraph differs by mode.
-  let prompt =
+  const opening =
     mode === 'refine'
       ? `You are a professional estimator. Update the existing estimate to reflect the user's refinement instruction. Modify, add, or remove sections/items as needed to reflect the request; keep everything else unchanged. Return the COMPLETE estimate: ALL sections and ALL items, with unchanged ones verbatim (same description, quantity, unit and unit_price). Never alter the unit_price of a line the instruction does not concern. Use ${currencyCode} for all numeric prices and return monetary values as plain numbers only, without currency symbols or formatted strings. Preserve the price_source tagging: use "price_book" for items from the price book and "ai_estimate" for items estimated from market rates.`
       : `You are a professional estimator. The company primarily works in ${input.industry ?? 'general services'}, but ALWAYS estimate the work that is actually requested — if the request belongs to a different trade, price it faithfully for that trade at realistic US market rates. Create a detailed, itemized estimate based on the job site information provided. Be thorough but realistic with pricing for the US market. Break the work into logical sections that follow the trade playbook below. Each line item needs a clear description, quantity, unit, and unit price (see Estimate structure).
@@ -133,23 +187,46 @@ Use ${currencyCode} for all numeric prices. Return monetary values as plain numb
 
 Also generate a short, professional project name in 2-5 words derived from the work scope and the client name. Examples: "Smith Bathroom Remodel", "Garcia Driveway Repaving". Return it as suggested_project_name. Also return detected_trade: the trade/category of the requested work itself (e.g. cleaning, electrical, plumbing, landscaping), inferred from the request content — independent of the company's primary trade.`
 
+  const cache = promptCacheEnabled()
+  const sections: PromptSection[] = []
+  const add = (text: string, isStatic: boolean) => sections.push({ text, static: isStatic })
+
+  add(opening, true)
+
   // Phase 52 (SEED-016): language instruction
   const language: 'en' | 'pt' | 'es' = input.language ?? 'en'
-  prompt += `\n\n## Language\n${LANGUAGE_INSTRUCTIONS[language]}`
+  add(`## Language\n${LANGUAGE_INSTRUCTIONS[language]}`, true)
 
   if (input.priceBookItems.length > 0) {
-    prompt += `\n\n## Your Company Price Book\nWhen a work item closely matches an entry below, use that exact unit_price and set price_source to "price_book". For all other items, estimate from US market rates and set price_source to "ai_estimate".\n\n`
-    prompt += input.priceBookItems
+    const max = priceBookPromptMax()
+    let book = input.priceBookItems
+    let subsetNote = ''
+    if (max !== null && book.length > max) {
+      const sourceText = [
+        ...input.transcripts,
+        ...input.photoDescriptions,
+        ...(input.prompts ?? []),
+        ...(opts?.sourceText ? [opts.sourceText] : []),
+      ].join('\n')
+      book = selectRelevantPriceBook(book, { sourceText, playbook: playbookFor(input), max })
+      subsetNote =
+        `Note: this list is the relevant subset of the company price book (${book.length} of ${input.priceBookItems.length} entries), selected for this job.` +
+        (book.length === 0 ? ' No entry matched; estimate everything from US market rates.' : '') +
+        '\n'
+    }
+    let text = `## Your Company Price Book\nWhen a work item closely matches an entry below, use that exact unit_price and set price_source to "price_book". For all other items, estimate from US market rates and set price_source to "ai_estimate".\n${subsetNote}\n`
+    text += book
       .map(item => `- ${item.folder_name ?? 'Uncategorized'} | ${item.name} | ${formatMoney(item.unit_price, item.currency_code ?? currencyCode)}/${item.unit ?? 'each'}`)
       .join('\n')
+    add(text, false)
   } else {
-    prompt += `\n\nFor each line item, set price_source to "ai_estimate" (no company price book configured).`
+    add(`For each line item, set price_source to "ai_estimate" (no company price book configured).`, false)
   }
 
   // SEED-056 Phase C: generate mode only. Refine keeps the full schema and the
   // owner's instruction decides, so it gets no such paragraph.
   if (mode === 'generate') {
-    prompt += `\n\n${documentBlocksPrompt(input.aiBlocks)}`
+    add(documentBlocksPrompt(input.aiBlocks), false)
   }
 
   // SEED-057: the structure contract applies to every mode (a refined estimate
@@ -157,38 +234,46 @@ Also generate a short, professional project name in 2-5 words derived from the w
   // with its worked example is generate-only: refine already has the estimate's
   // own shape in front of it, and re-sending an example would only invite the
   // model to restructure what the owner asked it to leave alone.
-  prompt += `\n\n${STRUCTURE_CONTRACT_PROMPT}`
+  add(STRUCTURE_CONTRACT_PROMPT, true)
   if (mode === 'generate') {
-    prompt += `\n\n${playbookPrompt(playbookFor(input))}`
+    add(playbookPrompt(playbookFor(input)), false)
     if (input.knowledge && input.knowledge.length > 0) {
-      prompt += `\n\n${KNOWLEDGE_INSTRUCTION_PROMPT}`
+      add(KNOWLEDGE_INSTRUCTION_PROMPT, false)
     }
     if (input.plan) {
-      prompt += `\n\n${SCOPE_PLAN_INSTRUCTION_PROMPT}`
+      add(SCOPE_PLAN_INSTRUCTION_PROMPT, false)
     }
     // Trusted quality-gate guidance for a second attempt; always before Security.
     const quality = qualityNotesPrompt(input.qualityHints, sanitizeField)
-    if (quality) prompt += `\n\n${quality}`
+    if (quality) add(quality, false)
   }
 
   // TAX-02 — per-item labor/materials classification instruction. CLASSIFICATION
   // ONLY: the model labels each line; the server computes all tax deterministically
   // (ENG-01 fence — the AI has no calculator). Inserted before Security so the
   // Security block remains the LAST appended section.
-  prompt += `\n\n## Tax Classification\nFor each line item, set tax_category to "labor" for labor/service work, "materials" for physical goods or supplies, or "other" otherwise. This is a CLASSIFICATION ONLY — never compute, add, or estimate any tax amount; the system computes all tax deterministically.`
+  add(`## Tax Classification\nFor each line item, set tax_category to "labor" for labor/service work, "materials" for physical goods or supplies, or "other" otherwise. This is a CLASSIFICATION ONLY — never compute, add, or estimate any tax amount; the system computes all tax deterministically.`, true)
 
   // Admin-configured WhatsApp-only addendum (trusted text — no XML escaping).
   // Inserted before Security so the Security block remains the LAST section.
   if (input.extraInstructions?.trim()) {
-    prompt += `\n\n## Additional Instructions\n${input.extraInstructions.trim()}`
+    add(`## Additional Instructions\n${input.extraInstructions.trim()}`, false)
   }
 
   // Security Review S06: the user message is untrusted job-site data, never
   // instructions. One shared string for both modes (UNIFY-02), and always the
-  // LAST section appended.
-  prompt += `\n\n${securityPrompt()}`
+  // LAST section appended (cache flag off). With the cache flag on, it closes
+  // the static prefix instead, so the dynamic sections follow it.
+  add(securityPrompt(), true)
 
-  return prompt
+  if (!cache) {
+    return { prompt: sections.map((s) => s.text).join('\n\n'), staticPrefix: null }
+  }
+  // Stable partition: static sections keep their relative order, and so do the
+  // dynamic ones. Each section's text is unchanged.
+  const staticPrefix = sections.filter((s) => s.static).map((s) => s.text).join('\n\n')
+  const dynamic = sections.filter((s) => !s.static).map((s) => s.text)
+  return { prompt: [staticPrefix, ...dynamic].join('\n\n'), staticPrefix }
 }
 
 /**

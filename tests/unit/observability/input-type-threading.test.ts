@@ -17,7 +17,6 @@ function read(rel: string): string {
 
 const PHOTOS_INPUT = 'components/projects/photos-input.tsx'
 const TEXT_DESCRIBE = 'components/projects/text-describe.tsx'
-const AI_INPUT_SUBMIT = 'components/workspace/ai-input-group/use-ai-input-submit.ts'
 const CAPTURE_RECORDER = 'components/capture/capture-recorder.tsx'
 const EVENTS = 'lib/inngest/events.ts'
 
@@ -34,13 +33,6 @@ describe('EVENT-03: attemptId + inputType threading', () => {
     expect(src).toMatch(/crypto\.randomUUID\(\)/)
     expect(src).toMatch(/attemptId/)
     expect(src).toContain("'manual_text'")
-  })
-
-  it('use-ai-input-submit mints an attemptId and threads attemptId + inputType', () => {
-    const src = read(AI_INPUT_SUBMIT)
-    expect(src).toMatch(/crypto\.randomUUID\(\)/)
-    expect(src).toMatch(/attemptId/)
-    expect(src).toMatch(/inputType/)
   })
 
   it('capture-recorder tags its dispatch with inputType:recording', () => {

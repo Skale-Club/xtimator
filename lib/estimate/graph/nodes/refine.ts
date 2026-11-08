@@ -96,7 +96,7 @@ export const makeRefineNode =
         // Fix (refine credit attribution): the SAME non-LLM costContext shape
         // generate.ts's node builds from state — attemptId/companyId/projectId
         // are trusted, never LLM-derived. Threading this through
-        // RefineEstimateInput.costContext lets the OpenRouter/Gemini adapter
+        // RefineEstimateInput.costContext lets the OpenRouter adapter
         // attribute the refine call's real cost to THIS request instead of a
         // random attemptId + null companyId.
         const costContext = {

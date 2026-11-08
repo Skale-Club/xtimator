@@ -2,7 +2,8 @@
 //
 // SEED-056 Phase C: ONE place that decides which document-block fields the
 // create_estimate tool exposes to the model, shared by every adapter
-// (openrouter / anthropic / gemini) so they cannot drift apart.
+// (OpenRouter is the only adapter since 2026-11-07; the direct Anthropic and
+// Gemini adapters were deleted) so any future adapter cannot drift apart.
 //
 //  - generate mode: the model does NOT author payment_terms / warranty_terms
 //    (the company's own text is attached server-side). timeline and notes are
@@ -31,8 +32,8 @@ export function omittedEstimateFields(flags: EstimateToolFlags): string[] {
 }
 
 /**
- * Returns a copy of a tool parameter schema (JSON-schema style, or Gemini's
- * Type.* flavour: both keep field definitions under `properties`) without the
+ * Returns a copy of a tool parameter schema (JSON-schema style; field
+ * definitions live under `properties`) without the
  * fields the model must not author. The input is never mutated, so the shared
  * full schema constant stays intact.
  */

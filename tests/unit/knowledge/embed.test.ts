@@ -56,6 +56,16 @@ describe('KMOD-01: embed(text) via OpenRouter /embeddings', () => {
     expect(out).toEqual(v)
   })
 
+  it('passes the caller AbortSignal to the fetch so a time budget can cancel it', async () => {
+    const controller = new AbortController()
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      okResponse({ data: [{ embedding: vec1536() }] })
+    )
+    await embed('hello', undefined, { signal: controller.signal })
+    const init = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as { signal?: AbortSignal }
+    expect(init.signal).toBe(controller.signal)
+  })
+
   it('throws on a non-1536-length embedding (bad shape)', async () => {
     ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       okResponse({ data: [{ embedding: [0.1, 0.2, 0.3] }] })

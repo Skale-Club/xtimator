@@ -4,17 +4,17 @@
  * UNIFY-01 — the single, channel-neutral "raw media -> text" ingestion path.
  *
  * Given raw inputs (audio Blobs, base64 photos, free-form texts) this returns
- * { transcripts, photoDescriptions, texts } over the fallback-wrapped primitives
- * `transcribeAudioOR` / `analyzePhotoOR` (which, post-Phase-99, already carry the
- * OpenRouter->Gemini provider fallback). One place owns "raw media -> text", with
- * one fallback + one per-item error policy, reused by refine + WhatsApp + (at the
+ * { transcripts, photoDescriptions, texts } over the OpenRouter primitives
+ * `transcribeAudioOR` / `analyzePhotoOR` (OpenRouter is the only provider; the
+ * direct Anthropic and Gemini adapters were deleted 2026-11-07). One place owns
+ * "raw media -> text", with one per-item error policy, reused by refine + WhatsApp + (at the
  * assembly level) web/MCP.
  *
  * Per-item failure policy: a SINGLE failed media item is caught and SKIPPED — the
  * aggregate result still resolves with the remaining items. This mirrors today's
  * refine per-photo try/catch and the WhatsApp processMessage ok:false outcome.
  * The per-item try/catch here is ONLY for skip-not-throw; it is NOT a provider
- * fallback layer (the primitives already carry that — do NOT double-wrap).
+ * provider-retry layer (the primitives own their own error mapping — do NOT double-wrap).
  *
  * This module is channel-neutral: it imports NOTHING from lib/whatsapp/*, so it
  * stays safe under the graph-neutrality invariant when consumed by neutral code.
@@ -49,8 +49,7 @@ export interface MultimodalIngestResult {
 /**
  * Channel-neutral raw-media -> text. NEVER throws on a single-item failure — a
  * failed item is skipped; the aggregate result still returns. Uses the
- * fallback-wrapped primitives so OpenRouter->Gemini fallback applies uniformly
- * (Phase 99). Does NOT add a second fallback layer.
+ * OpenRouter primitives (the only provider). Does NOT add a provider-retry layer.
  */
 export async function ingestMultimodal(
   input: MultimodalRawInput

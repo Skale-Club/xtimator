@@ -58,8 +58,8 @@ export type DebitOperationType =
   | 'photo_batch'
   | 'audio_minutes'
   | 'price_research'
-  // SEED-055 Phase D wires the chat assistant to a per-turn debit; the ledger
-  // CHECK already accepts it (20261106000001). No caller yet.
+  // SEED-055 Phase D: the chat assistant debits per turn (app/api/chat/route.ts);
+  // the ledger CHECK accepts it (20261106000001).
   | 'chat'
 
 /** Idempotency key for a debit: `${attemptId}:debit:${op}` (retry-stable per attempt+op). */

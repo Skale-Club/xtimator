@@ -40,6 +40,7 @@ const insertSpy = vi.fn().mockImplementation((row: unknown) => ({
 }))
 
 let existingPhotoCount = 0
+let companyTier = 'business'
 
 function makeSupabaseMock() {
   insertSpy.mockClear()
@@ -54,6 +55,15 @@ function makeSupabaseMock() {
           select: vi.fn().mockImplementation(() => ({
             eq: vi.fn().mockResolvedValue({ count: existingPhotoCount, error: null }),
           })),
+        }
+      }
+      if (table === 'companies') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { tier: companyTier }, error: null }),
+            }),
+          }),
         }
       }
       if (table === 'projects') {
@@ -78,6 +88,7 @@ describe('createPhoto — storagePath / per-project cap guards (A-3)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     existingPhotoCount = 0
+    companyTier = 'business'
     mockGetActiveCompanyId.mockResolvedValue('company-1')
     mockCreateClient.mockResolvedValue(makeSupabaseMock() as never)
   })
@@ -106,5 +117,34 @@ describe('createPhoto — storagePath / per-project cap guards (A-3)', () => {
     const result = await createPhoto('project-1', 'company-1/photos/pic.jpg', 49)
     expect(result.error).toBeUndefined()
     expect(insertSpy).toHaveBeenCalledOnce()
+  })
+
+  it('enforces the tier maxPhotosPerEstimate below the outer cap (free = 20)', async () => {
+    companyTier = 'free'
+    existingPhotoCount = 20
+    const result = await createPhoto('project-1', 'company-1/photos/pic.jpg', 20)
+    expect(result.error).toMatch(/free plan allows up to 20/i)
+    expect(insertSpy).not.toHaveBeenCalled()
+  })
+
+  it('accepts the 20th photo on the free tier', async () => {
+    companyTier = 'free'
+    existingPhotoCount = 19
+    const result = await createPhoto('project-1', 'company-1/photos/pic.jpg', 19)
+    expect(result.error).toBeUndefined()
+    expect(insertSpy).toHaveBeenCalledOnce()
+  })
+
+  it('does not block when the tier lookup throws (outer cap only)', async () => {
+    mockCreateClient.mockResolvedValue({
+      ...(makeSupabaseMock() as object),
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'companies') throw new Error('boom')
+        return (makeSupabaseMock() as { from: (t: string) => unknown }).from(table)
+      }),
+    } as never)
+    existingPhotoCount = 30
+    const result = await createPhoto('project-1', 'company-1/photos/pic.jpg', 30)
+    expect(result.error).toBeUndefined()
   })
 })

@@ -30,7 +30,8 @@ import 'server-only'
  *
  * The FLAGGED-UNPRICED MECHANISM (Claude's discretion, per CONTEXT + Task 1):
  *   We do NOT invent a new `price_source` enum value (the DB CHECK is
- *   price_book|ai_estimate|researched only — Phase 105). Instead, a $0-resolved item
+ *   price_book|ai_estimate|researched|company_history — see
+ *   20261108000001_estimator_intelligence.sql). Instead, a $0-resolved item
  *   KEEPS its `ai_estimate` tag and its (possibly non-zero) model unit_price, and the
  *   only signal threaded out is the `flaggedUnpriced` COUNT in `ResearchOutcome`. The
  *   integration sets `awaiting_details` when `flaggedUnpriced > 0 AND total > 0`,

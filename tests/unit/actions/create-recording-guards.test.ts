@@ -45,6 +45,8 @@ const insertSpy = vi.fn().mockImplementation((row: unknown) => {
   }
 })
 
+let companyTier: string | undefined
+
 function makeSupabaseMock() {
   insertSpy.mockClear()
   return {
@@ -56,7 +58,7 @@ function makeSupabaseMock() {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { id: 'company-1' }, error: null }),
+              single: vi.fn().mockResolvedValue({ data: { id: 'company-1', tier: companyTier }, error: null }),
             }),
           }),
         }
@@ -83,6 +85,7 @@ function makeSupabaseMock() {
 describe('createRecording — storagePath / duration guards (A-2 / B10)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    companyTier = undefined
     mockGetActiveCompanyId.mockResolvedValue('company-1')
     mockCreateClient.mockResolvedValue(makeSupabaseMock() as never)
   })
@@ -120,6 +123,20 @@ describe('createRecording — storagePath / duration guards (A-2 / B10)', () => 
   it('rejects a duration far beyond the client hard-cap (abusive claim)', async () => {
     const result = await createRecording('project-1', 'company-1/project-1/rec.webm', 999_999)
     expect(result.error).toBeDefined()
+    expect(insertSpy).not.toHaveBeenCalled()
+  })
+
+  it('lets a business-tier company save a 25-minute recording (tier cap, not a fixed 900s)', async () => {
+    companyTier = 'business'
+    const result = await createRecording('project-1', 'company-1/project-1/rec.webm', 25 * 60)
+    expect(result.error).toBeUndefined()
+    expect(insertSpy).toHaveBeenCalledOnce()
+  })
+
+  it('still rejects a 25-minute recording on the pro tier (15 min cap)', async () => {
+    companyTier = 'pro'
+    const result = await createRecording('project-1', 'company-1/project-1/rec.webm', 25 * 60)
+    expect(result.error).toMatch(/too long/i)
     expect(insertSpy).not.toHaveBeenCalled()
   })
 })

@@ -42,13 +42,47 @@ async function loadOwnerUserId(companyId: string): Promise<string | null> {
   }
 }
 
+/**
+ * onFailure helper: the attempt id the run ACTUALLY used. When the producer sent
+ * `attemptId` it is authoritative. Otherwise the memoized `generation-start` step
+ * minted a random id and wrote the `generate_estimate/started` pipeline_events row
+ * for this project; read the newest such row (runs are serialized per project by
+ * the concurrency key) at or after the triggering event's timestamp. A fresh random
+ * id is the last resort only (lookup failed / no row), never the first choice.
+ */
+export async function resolveFailureAttemptId(
+  payload: Pick<EstimateGeneratePayload, 'attemptId' | 'companyId' | 'projectId'>,
+  eventTsMs?: number,
+): Promise<string> {
+  if (payload.attemptId) return payload.attemptId
+  try {
+    const svc = requireServiceClient()
+    let q = svc
+      .from('pipeline_events')
+      .select('attempt_id')
+      .eq('company_id', payload.companyId)
+      .eq('project_id', payload.projectId)
+      .eq('step', 'generate_estimate')
+      .eq('status', 'started')
+    if (typeof eventTsMs === 'number' && Number.isFinite(eventTsMs)) {
+      q = q.gte('created_at', new Date(eventTsMs).toISOString())
+    }
+    const { data } = await q.order('created_at', { ascending: false }).limit(1)
+    const found = (data as { attempt_id?: string | null }[] | null)?.[0]?.attempt_id
+    if (found) return found
+  } catch {
+    // fall through to the last-resort random id
+  }
+  return randomUUID()
+}
+
 export const generateEstimateJob = inngest.createFunction(
   {
     id: 'generate-estimate',
-    idempotency: 'event.data.requestId',
+    idempotency: 'event.data.companyId + "-" + event.data.projectId + "-" + event.data.requestId',
     retries: 2,
     // Pre-launch audit fix (M-2): serialize generation runs PER PROJECT. The
-    // idempotency key above only dedupes the SAME requestId (a retry of one
+    // idempotency key above (company + project + requestId) only dedupes the SAME request (a retry of one
     // attempt) — it does nothing for two genuinely different attempts fired
     // close together (a double-click, or two channels racing: web + chat/MCP,
     // each minting its own requestId). The version-bump/is_current flip inside
@@ -63,16 +97,19 @@ export const generateEstimateJob = inngest.createFunction(
     triggers: [{ event: EVENT_ESTIMATE_GENERATE }],
     // Phase 77 NOTIF-04: on final retry exhaustion fire ai_job.failed.
     onFailure: async ({ event, error }) => {
-      const payload = (event as { data?: { event?: { data?: EstimateGeneratePayload } } })
-        .data?.event?.data
+      const original = (event as { data?: { event?: { data?: EstimateGeneratePayload; ts?: number } } })
+        .data?.event
+      const payload = original?.data
       if (!payload) return
       const denied = await assertCompanyWritable(payload.companyId)
       if (denied) return
       const userId = await loadOwnerUserId(payload.companyId)
 
+      const failureAttemptId = await resolveFailureAttemptId(payload, original?.ts)
+
       // Phase 92 (EVENT-02/D-05): terminal failed generate_estimate event.
       void recordPipelineEvent({
-        attemptId: payload.attemptId ?? randomUUID(),
+        attemptId: failureAttemptId,
         inputType: payload.inputType ?? 'manual_text',
         step: 'generate_estimate',
         status: 'failed',
@@ -111,7 +148,7 @@ export const generateEstimateJob = inngest.createFunction(
           userId: payload.notifyUserId ?? payload.createdByUserId,
           projectId: payload.projectId,
           estimateId: null,
-          attemptId: payload.attemptId ?? payload.requestId,
+          attemptId: failureAttemptId,
         })
       }
 

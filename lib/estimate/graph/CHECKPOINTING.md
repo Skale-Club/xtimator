@@ -7,7 +7,7 @@
 
 The whole estimate graph runs inside ONE Inngest `step.run` (`orchestrate-estimate`).
 **Inngest is the sole durability layer** for the graph — it owns retries, idempotency
-(via `event.data.batchKey` / `requestId`), and `onFailure`. **No LangGraph checkpointer**
+(idempotency on `requestId`, scoped by company and project), and `onFailure`. **No LangGraph checkpointer**
 (`MemorySaver` / `PostgresSaver` / `SqliteSaver`) is added. The graph is built with a plain
 `graph.compile()` that takes **no saver / checkpointer argument**.
 
@@ -27,7 +27,7 @@ The whole estimate graph runs inside ONE Inngest `step.run` (`orchestrate-estima
 ## Cost trade-off (accepted)
 
 A retry **after** a successful AI generate re-runs the whole graph and **re-charges the AI
-call**. Today this is bounded by `retries: 1` on the `whatsapp-process` Inngest function plus
+call**. Today this is bounded by `retries: 1` on the `whatsapp-process` Inngest function and `retries: 2` on `generate-estimate`, plus
 the never-throw → terminal-reply discipline (a failure becomes a `failure?` state channel that
 the adapter `onError` turns into exactly one reply, never a thrown crash). The re-charge cost is
 accepted at this granularity for v4.3.

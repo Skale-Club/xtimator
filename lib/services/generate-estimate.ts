@@ -460,32 +460,24 @@ export async function generateEstimateForProject(
   // the over-ceiling verdict evaluated after totals are computed.
   const estimateTotalCeiling = resolveEstimateTotalCeiling()
 
-  // GUARD-03 snapshot: capture the naive subtotal the AI's OWN numbers imply
+  // GUARD-03 snapshot: capture the sections the AI's OWN numbers imply
   // BEFORE anchoring/clamping mutates any unit_price. Used for the discrepancy
-  // metric below; the AI total itself is never persisted as authoritative.
+  // metric below (which prices them with the SAME computeEstimateTotals the server
+  // total uses: tax_config, taxable=false lines, line discounts, cost+markup); the
+  // AI total itself is never persisted as authoritative.
   //
   // AIREL-04 / Opus Warning C (metric coherence): dedupe the AI's OWN raw
   // sections FIRST (same exact-duplicate-collapse rule the server applies to the
   // anchored/researched sections below) before summing. Without this, a
-  // hallucinated repeated line would inflate aiProposedSubtotal but NOT the
+  // hallucinated repeated line would inflate the AI-implied total but NOT the
   // (deduped) server total, producing an artificial totals_discrepancy delta
   // that has nothing to do with anchoring/research — dedupe would otherwise fire
   // unexplained Sentry anomalies. `computedTotal` is irrelevant to this call (0,
   // so overCeiling is always false here) — only the deduped `.sections` are used;
   // the real over-ceiling verdict is evaluated later against the server grand total.
-  const aiProposedSubtotal = round2(
-    checkEstimateConsistency(aiEstimate.sections, 0, {
-      totalCeiling: estimateTotalCeiling,
-    }).sections.reduce(
-      (sum, section) =>
-        sum +
-        section.items.reduce(
-          (s, item) => s + item.quantity * item.unit_price,
-          0
-        ),
-      0
-    )
-  )
+  const aiProposedSections = checkEstimateConsistency(aiEstimate.sections, 0, {
+    totalCeiling: estimateTotalCeiling,
+  }).sections
 
   // GUARD-02 / SEED-057 E3 / RPRICE / AIREL-04: the shared price pipeline
   // (lib/estimate/pricing/resolve-prices.ts): demote model-claimed server labels,
@@ -527,7 +519,6 @@ export async function generateEstimateForProject(
     taxAmount,
     grandTotal,
     discountAmount,
-    deposit,
     balanceDue,
   } = computeEstimateTotals(dedupedSections, { taxRate, taxConfig, currencyCode })
 
@@ -540,9 +531,7 @@ export async function generateEstimateForProject(
   const safeDiscountAmount = assertFinitePositive(discountAmount)
   // DEP-01: same finite, >= 0 persistence guard. assertFinitePositive floors negatives to 0 — a deposit
   // exceeding the total persists balance_due 0 (never a negative). At generation deposit is 0 here, so
-  // balanceDue === grandTotal (byte-identical). deposit is the destructured GUARD-03 value; void it to
-  // keep the LOCKED return contract explicit while deposit_value persists null at generation (no input).
-  void deposit
+  // balanceDue === grandTotal (byte-identical). deposit_value persists null at generation (no input).
   const safeBalanceDue = assertFinitePositive(balanceDue)
 
   // Log-only invariant guard (never blocks persistence): grand == subtotal + tax
@@ -586,7 +575,14 @@ export async function generateEstimateForProject(
   let qualitySignal: ReturnType<typeof buildEstimateQualitySignal> | null = null
   let qualityDiscrepancy: ReturnType<typeof computeTotalsDiscrepancy> | null = null
   try {
-    const aiProposedGrand = round2(aiProposedSubtotal * (1 + taxRate))
+    // Like-with-like: the AI-implied grand total goes through the SAME totals engine (and the
+    // same tax_config / currency) as the server total, on the AI's pre-anchoring prices, so
+    // the metric only moves when anchoring/research/clamping changed a price.
+    const aiProposedGrand = computeEstimateTotals(aiProposedSections, {
+      taxRate,
+      taxConfig,
+      currencyCode,
+    }).grandTotal
     const discrepancy = computeTotalsDiscrepancy({
       serverGrand: safeGrandTotal,
       aiGrand: aiProposedGrand,

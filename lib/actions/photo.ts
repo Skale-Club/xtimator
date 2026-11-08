@@ -8,6 +8,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
 import { billingEditDenied } from '@/lib/billing/access-guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
+import { getEntitlementsForTier } from '@/lib/entitlements-server'
 
 // Security-hardening S3 (audit finding B / fix-pack F2, finding #9) — SAME
 // error message addPhotoToEstimate/removePhotoFromEstimate's guard
@@ -45,7 +46,26 @@ async function getAuthContext() {
 // analysis (that job now also caps itself at MAX_PHOTOS_PER_JOB=20 — see
 // lib/inngest/functions/analyze-photos.ts — but capping creation too avoids
 // unbounded row/storage growth from the same abuse path).
+//
+// This is the OUTER bound; the tier's maxPhotosPerEstimate (lib/entitlements.ts,
+// editable in billing_config) is enforced below it and can only lower the cap.
 const MAX_PHOTOS_PER_PROJECT = 50
+
+async function getTierPhotoCap(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string,
+): Promise<{ tier: string; max: number } | null> {
+  try {
+    const { data } = await supabase.from('companies').select('tier').eq('id', companyId).single()
+    const tier = (data as { tier?: string } | null)?.tier ?? 'free'
+    const entitlements = await getEntitlementsForTier(tier)
+    const max = entitlements.maxPhotosPerEstimate
+    if (!Number.isFinite(max) || max < 0) return null
+    return { tier, max }
+  } catch {
+    return null
+  }
+}
 
 export async function createPhoto(
   projectId: string,
@@ -66,6 +86,16 @@ export async function createPhoto(
     .eq('project_id', projectId)
   if ((existingCount ?? 0) >= MAX_PHOTOS_PER_PROJECT) {
     return { error: `This project already has the maximum of ${MAX_PHOTOS_PER_PROJECT} photos.` }
+  }
+
+  // Tier entitlement: maxPhotosPerEstimate (free/pro 20, business 50 by default).
+  // Best-effort lookup: if the tier cannot be read, only the hardcoded outer
+  // bound above applies (never block a photo because of a lookup failure).
+  const tierCap = await getTierPhotoCap(supabase, company.id)
+  if (tierCap !== null && (existingCount ?? 0) >= tierCap.max) {
+    return {
+      error: `Your ${tierCap.tier} plan allows up to ${tierCap.max} photos per estimate. Remove a photo or upgrade to add more.`,
+    }
   }
 
   const { data: photo, error: insertError } = await supabase

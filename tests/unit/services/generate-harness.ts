@@ -78,7 +78,9 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
       chain.select = vi.fn(() => chain)
       chain.eq = vi.fn(() => chain)
       chain.is = vi.fn(() => chain)
-      chain.order = vi.fn().mockResolvedValue({ data: [], error: null })
+      chain.order = vi.fn(() => chain)
+      // getPriceBookItems pages with range() (Phase 4a)
+      chain.range = vi.fn().mockResolvedValue({ data: [], error: null })
       return chain
     }
     if (table === 'clients') {

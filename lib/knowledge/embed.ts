@@ -48,7 +48,11 @@ async function recordEmbeddingCost(
 const costOf = (u: { cost?: number } | undefined): number | null =>
   typeof u?.cost === 'number' && Number.isFinite(u.cost) ? u.cost : null
 
-export async function embed(text: string, costContext?: CostContext): Promise<number[]> {
+export async function embed(
+  text: string,
+  costContext?: CostContext,
+  opts?: { signal?: AbortSignal }
+): Promise<number[]> {
   const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
   const res = await fetch(`${OPENROUTER_BASE}/embeddings`, {
     method: 'POST',
@@ -59,6 +63,8 @@ export async function embed(text: string, costContext?: CostContext): Promise<nu
       'X-Title': 'Xtimator',
     },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: text, usage: { include: true } }),
+    // A caller with a time budget (knowledge-context.ts: 4 s) cancels the request for real.
+    signal: opts?.signal,
   })
   if (!res.ok) {
     const err = await res.text().catch(() => 'unknown')
