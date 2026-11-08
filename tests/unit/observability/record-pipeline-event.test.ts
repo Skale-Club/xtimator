@@ -104,6 +104,21 @@ describe('EVENT-01/02/03: recordPipelineEvent', () => {
     warnSpy.mockRestore()
   })
 
+  it('warns when the insert resolves with a database error (supabase-js does not throw)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const svc = makeServiceMock()
+    ;(svc.from('pipeline_events').insert as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: null,
+      error: { code: '23514', message: 'check violation' },
+    })
+    mockRequireServiceClient.mockReturnValue(svc)
+
+    await expect(recordPipelineEvent(baseInput)).resolves.toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith('[recordPipelineEvent] insert failed:', expect.objectContaining({ code: '23514' }))
+
+    warnSpy.mockRestore()
+  })
+
   it('increments retry_count from the prior count for this attempt_id+step (D-09)', async () => {
     const svc = makeServiceMock({ priorCount: 2 })
     mockRequireServiceClient.mockReturnValue(svc)

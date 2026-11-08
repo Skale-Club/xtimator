@@ -60,7 +60,9 @@ export async function recordPipelineEvent(ev: PipelineEventInput): Promise<void>
   try {
     const svc = requireServiceClient()
     const retryCount = await computeRetryCount(svc, ev)
-    await svc.from('pipeline_events').insert({
+    // supabase-js does not throw on a database error, it returns it: read it, or a
+    // rejected row disappears with no trace (pipeline_events went silent this way).
+    const { error } = await svc.from('pipeline_events').insert({
       attempt_id: ev.attemptId,
       input_type: ev.inputType,
       step: ev.step,
@@ -76,6 +78,7 @@ export async function recordPipelineEvent(ev: PipelineEventInput): Promise<void>
       retry_count: retryCount,
       metadata: ev.metadata ?? null,
     })
+    if (error) console.warn('[recordPipelineEvent] insert failed:', error)
   } catch (err) {
     // D-06: swallow — a logging failure must never break the pipeline.
     console.warn('[recordPipelineEvent] swallowed write failure:', err)
