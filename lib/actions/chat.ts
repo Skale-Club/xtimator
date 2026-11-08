@@ -14,8 +14,9 @@
  * resolve the ACTIVE company via getActiveCompanyId() (the trusted tenant, NEVER
  * from the argument).
  *
- * CHATMETER-01: adds NO credit code. normalizeInput → ingestMultimodal already
- * accounts for transcription/vision per v4.7; re-accounting here would double-charge.
+ * CHATMETER-01: adds NO credit code. The active company rides in the costContext so
+ * ingestMultimodal records the transcription/vision cost (measure-only: recordAICost
+ * never debits). Without it no ai_cost_events row was written at all.
  * NEVER throws (mirrors normalizeInput).
  */
 import { normalizeInput } from '@/lib/agent-tools'
@@ -66,7 +67,7 @@ export async function normalizeChatInput(
   if (arg.kind === 'audio') {
     const bytes = Buffer.from(arg.base64, 'base64')
     const blob = new Blob([bytes])
-    const r = await normalizeInput({ kind: 'audio', blob, ext: arg.ext })
+    const r = await normalizeInput({ kind: 'audio', blob, ext: arg.ext }, { companyId })
     return { ok: r.ok, text: r.text, reason: r.reason }
   }
 
@@ -75,7 +76,7 @@ export async function normalizeChatInput(
     base64: arg.base64,
     mimeType: arg.mimeType,
     caption: arg.caption,
-  })
+  }, { companyId })
   return { ok: r.ok, text: r.text, reason: r.reason }
 }
 

@@ -66,12 +66,16 @@ describe('normalizeChatInput (CHATUI-03)', () => {
       mimeType: 'image/jpeg',
       caption: 'living room',
     })
-    expect(normalizeInputMock).toHaveBeenCalledWith({
-      kind: 'photo',
-      base64: 'BASE64',
-      mimeType: 'image/jpeg',
-      caption: 'living room',
-    })
+    expect(normalizeInputMock).toHaveBeenCalledWith(
+      {
+        kind: 'photo',
+        base64: 'BASE64',
+        mimeType: 'image/jpeg',
+        caption: 'living room',
+      },
+      // The active company rides along so the vision cost is recorded.
+      { companyId: 'company-1' }
+    )
     expect(r).toEqual({ ok: true, text: 'a red wall', reason: undefined })
   })
 
@@ -83,6 +87,7 @@ describe('normalizeChatInput (CHATUI-03)', () => {
     expect(arg.kind).toBe('audio')
     expect(arg.ext).toBe('webm')
     expect(arg.blob).toBeInstanceOf(Blob)
+    expect(normalizeInputMock.mock.calls[0][1]).toEqual({ companyId: 'company-1' })
     expect(r).toEqual({ ok: true, text: 'hello there', reason: undefined })
   })
 
