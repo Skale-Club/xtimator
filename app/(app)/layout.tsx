@@ -17,6 +17,7 @@ import { PaywallBanner } from '@/components/billing/paywall-banner'
 import { getPaywallContext } from '@/lib/billing/access-guard'
 import { DemoBanner } from '@/components/demo/demo-banner'
 import { isDemoCompany } from '@/lib/demo/config'
+import { academyEntryPointVisible } from '@/lib/academy/access'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
 import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
@@ -181,7 +182,7 @@ export default async function AppShellLayout({
   const isDemo = isDemoCompany(activeCompanyId)
 
   const supabase = await createClient()
-  const [branding, adminRow, billingRow, memberships, { data: userData }, grantedThisCycle, paywall] =
+  const [branding, adminRow, billingRow, memberships, { data: userData }, grantedThisCycle, paywall, academyAvailable] =
     await Promise.all([
       brandingPromise, // already in flight
       requireServiceClient()
@@ -210,6 +211,9 @@ export default async function AppShellLayout({
       // SEED-055 Phase D: credits-are-the-only-wall state. Inert (active) while
       // enforcement is OFF; fails open on a read error.
       getPaywallContext(activeCompanyId),
+      // Academy entry point: true only when a published course is visible for this
+      // app (cached ~5 min, never throws, always false for the demo).
+      academyEntryPointVisible(isDemo),
     ])
   const isAdmin = !!adminRow.data
 
@@ -243,6 +247,7 @@ export default async function AppShellLayout({
             isDemo={isDemo}
             isAdmin={isAdmin}
             user={{ email: navUser.email, name: company.owner_name ?? null }}
+            academyAvailable={academyAvailable}
           />
           <div className="flex flex-1 flex-col overflow-hidden">
             <Topbar
@@ -259,6 +264,7 @@ export default async function AppShellLayout({
               activeCompanyId={activeCompanyId}
               isAdmin={isAdmin}
               userName={company.owner_name ?? null}
+              academyAvailable={academyAvailable}
             />
             {isDemo && <DemoBanner />}
             {paywall.state !== 'active' && (

@@ -22,6 +22,7 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { invalidateStripeDisplayPricesCache } from '@/lib/billing/stripe-display-prices'
 import { EMAIL_FROM_ADDRESS } from '@/lib/email/sender'
 import { sendTelegramMessage } from '@/lib/telegram/client'
+import { invalidateAcademyCache } from '@/lib/academy/catalog'
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -66,6 +67,7 @@ export async function saveIntegrationKey(input: {
   }
 
   invalidatePlatformConfig()
+  if (parsed.data.provider === 'notion') invalidateAcademyCache()
   revalidatePath('/admin/integrations')
 
   const last4 = parsed.data.apiKey.slice(-4)
@@ -98,6 +100,7 @@ export async function deleteIntegrationKey(input: {
     return { ok: false, message: error.message }
   }
   invalidatePlatformConfig()
+  if (input.provider === 'notion') invalidateAcademyCache()
   revalidatePath('/admin/integrations')
 
   void logAdminAction({
@@ -287,6 +290,24 @@ async function runTestIntegrationKey(
       return {
         ok: true,
         message: `Configured. Base URL ${config.baseUrl} set; key ends …${config.apiKey.slice(-4)}.`,
+      }
+    }
+
+    if (input.provider === 'notion') {
+      const res = await fetch('https://api.notion.com/v1/users/me', {
+        headers: { Authorization: `Bearer ${key}`, 'Notion-Version': '2026-03-11' },
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        return {
+          ok: false,
+          message: `Notion rejected the token (${res.status}). ${body.slice(0, 200)}`.trim(),
+        }
+      }
+      const json = (await res.json()) as { name?: string; bot?: { workspace_name?: string } }
+      return {
+        ok: true,
+        message: `Verified. Integration "${json.name ?? 'unknown'}" in workspace "${json.bot?.workspace_name ?? 'unknown'}".`,
       }
     }
 
@@ -536,6 +557,73 @@ export async function saveTelegramChatId(chatId: string): Promise<ActionResult> 
     targetType: 'integration',
     targetId: 'telegram_chat_id',
     metadata: { chat_id: trimmed },
+  })
+
+  return { ok: true }
+}
+
+/** Notion database ids: 32 hex chars, with or without dashes (what Notion URLs contain). */
+const NOTION_DB_ID_RE = /^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Save the Academy Notion database ids into platform_integrations.notion
+ * metadata ({ courses_db, lessons_db }) alongside the encrypted token
+ * (preserved), mirroring saveTelegramChatId. Empty clears a field; the Academy
+ * then goes dormant (hidden) via getAcademyNotionConfig().
+ */
+export async function saveNotionAcademyConfig(input: {
+  coursesDb: string
+  lessonsDb: string
+}): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const coursesDb = input.coursesDb.trim()
+  const lessonsDb = input.lessonsDb.trim()
+  for (const [label, value] of [
+    ['Courses database id', coursesDb],
+    ['Lessons database id', lessonsDb],
+  ] as const) {
+    if (value && !NOTION_DB_ID_RE.test(value)) {
+      return { ok: false, message: `${label} must be a 32-character Notion database id.` }
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'notion')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'notion',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: {
+        ...((existing?.metadata as object) ?? {}),
+        courses_db: coursesDb,
+        lessons_db: lessonsDb,
+      },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  invalidateAcademyCache()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'notion_academy_databases',
+    metadata: { courses_db: coursesDb, lessons_db: lessonsDb },
   })
 
   return { ok: true }

@@ -6,11 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   startTransition,
   type Dispatch,
   type SetStateAction,
 } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { onTranslationsLoaded } from './translation-events'
 
 export type Language = 'en' | 'pt' | 'es'
@@ -61,12 +63,39 @@ const TranslationSetPendingContext = createContext<Dispatch<SetStateAction<numbe
   () => {}
 )
 
+/** Cookie the server-rendered Academy reads: localStorage is invisible to the server. */
+const UI_LANG_COOKIE = 'academy_ui_lang'
+
+function readUiLangCookie(): string | null {
+  const m = document.cookie.match(new RegExp(`(?:^|; )${UI_LANG_COOKIE}=([^;]*)`))
+  return m ? m[1] : null
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
   const [language, setLanguageState] = useState<Language>('en')
   const [pendingCount, setPendingCount] = useState(0)
   const [translationsVersion, setTranslationsVersion] = useState(0)
 
   useEffect(() => onTranslationsLoaded(() => setTranslationsVersion((v) => v + 1)), [])
+
+  // Mirror the interface language into a cookie so the server-rendered Academy
+  // follows it; refresh the page when it changes while the Academy is open.
+  const mirrorUiLanguage = useCallback(
+    (lang: Language) => {
+      try {
+        if (readUiLangCookie() === lang) return
+        document.cookie = `${UI_LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`
+        if (pathnameRef.current?.startsWith('/academy')) router.refresh()
+      } catch {
+        // cookies unavailable: the Academy falls back to English
+      }
+    },
+    [router]
+  )
 
   useEffect(() => {
     // Runs on client only — reads localStorage after hydration (SSR-safe)
@@ -74,14 +103,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     if (stored === 'pt' || stored === 'es') {
       setLanguageState(stored)
     }
-  }, [])
+    mirrorUiLanguage(stored === 'pt' || stored === 'es' ? stored : 'en')
+  }, [mirrorUiLanguage])
 
-  const setLanguage = useCallback((lang: Language) => {
-    localStorage.setItem('language', lang)
-    startTransition(() => {
-      setLanguageState(lang)
-    })
-  }, [])
+  const setLanguage = useCallback(
+    (lang: Language) => {
+      localStorage.setItem('language', lang)
+      mirrorUiLanguage(lang)
+      startTransition(() => {
+        setLanguageState(lang)
+      })
+    },
+    [mirrorUiLanguage]
+  )
 
   // Memoized so the context value identity only changes when `language` changes
   // or a translation batch lands — not on unrelated parent re-renders (e.g. a

@@ -32,7 +32,7 @@ const cspReportOnly = [
   // page that boots Replay (XTIMATOR-E); would hard-break Replay once CSP flips
   // from report-only to enforcing. Event ingestion itself is same-origin via
   // the /monitoring tunnelRoute, so connect-src 'self' already covers it.
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://browser.sentry-cdn.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com https://browser.sentry-cdn.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://apis.google.com https://www.youtube.com",
   "style-src 'self' 'unsafe-inline'",
   // *.googleusercontent.com — Google account avatars (lh3/lh4/lh5.googleusercontent.com)
   // surfaced after Google OAuth sign-in. Was missing → 35+ CSP img-src reports (XTIMATOR-B).
@@ -66,7 +66,7 @@ const cspReportOnly = [
   "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.googleusercontent.com",
   "font-src 'self'",
   `connect-src 'self' https://*.supabase.co wss://*.supabase.co${dataApiConnectSrc} https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.stripe.com https://api.inngest.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.google.com/recaptcha/`,
-  "frame-src https://js.stripe.com https://challenges.cloudflare.com https://www.google.com/recaptcha/ https://*.firebaseapp.com",
+  "frame-src https://js.stripe.com https://challenges.cloudflare.com https://www.google.com/recaptcha/ https://*.firebaseapp.com https://www.youtube-nocookie.com",
   "media-src 'self' blob: https://*.supabase.co",
   "worker-src 'self' blob:",
   "base-uri 'self'",

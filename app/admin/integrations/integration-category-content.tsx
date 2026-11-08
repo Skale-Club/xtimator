@@ -18,6 +18,7 @@ import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { TelegramChatIdForm } from './telegram-chat-id-form'
+import { NotionAcademyForm } from './notion-academy-form'
 import { PlatformEventTogglesForm } from './platform-event-toggles-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
 import { DEFAULT_BILLING_CONFIG, getBillingConfig } from '@/lib/billing/billing-config'
@@ -101,6 +102,20 @@ export async function IntegrationCategoryContent({
       .eq('provider', 'telegram')
       .maybeSingle()
     telegramChatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
+  }
+
+  let notionCoursesDb = ''
+  let notionLessonsDb = ''
+  if (category.showNotionAcademyConfig) {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'notion')
+      .maybeSingle()
+    const meta = (data?.metadata as { courses_db?: string; lessons_db?: string } | null) ?? {}
+    notionCoursesDb = meta.courses_db ?? ''
+    notionLessonsDb = meta.lessons_db ?? ''
   }
 
   const platformEventToggles = category.showPlatformEventToggles
@@ -188,6 +203,10 @@ export async function IntegrationCategoryContent({
 
       {category.showTelegramConfig && (
         <TelegramChatIdForm current={telegramChatId} />
+      )}
+
+      {category.showNotionAcademyConfig && (
+        <NotionAcademyForm currentCoursesDb={notionCoursesDb} currentLessonsDb={notionLessonsDb} />
       )}
 
       {category.showPlatformEventToggles && (

@@ -24,6 +24,7 @@ interface TopbarProps {
 const TITLE_MAP: Record<string, string> = {
   '/projects/new':       'New Xtimate',
   '/notifications':      'Notifications',
+  '/academy':            'Academy',
 }
 
 // Top-level pages reached from the bottom bar render their own heading on the
@@ -37,6 +38,7 @@ function usePageTitle(pathname: string): string {
   if (TITLE_MAP[pathname]) return TITLE_MAP[pathname]
   if (pathname.startsWith('/projects/')) return 'Project'
   if (pathname.startsWith('/clients/'))  return 'Client'
+  if (pathname.startsWith('/academy/'))  return 'Academy'
   if (pathname.startsWith('/admin'))     return 'Admin'
   return ''
 }

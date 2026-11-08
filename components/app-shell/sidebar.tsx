@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { ChevronLeft, ChevronRight, Settings, Trash2, LogOut, HelpCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, Trash2, LogOut, HelpCircle, GraduationCap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
@@ -46,6 +46,12 @@ interface SidebarProps {
   /** Platform admin — shows the "Add new company" button in CompanySelector. */
   isAdmin?: boolean
   user?: { email: string; name?: string | null }
+  /**
+   * At least one Academy course is visible (computed server-side in the app
+   * layout, cached ~5 min, always false for demo). Adds "Academy" to the
+   * account menu; when false nothing is rendered.
+   */
+  academyAvailable?: boolean
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed_desktop'
@@ -78,7 +84,7 @@ const TOUR_TARGET: Record<string, string> = {
   '/price-book':   'price-book',
 }
 
-export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user }: SidebarProps) {
+export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user, academyAvailable }: SidebarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
@@ -127,6 +133,13 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user 
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>
+      {academyAvailable && !isDemo && (
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/academy" className="flex items-center gap-2">
+            <GraduationCap className="h-4 w-4" />{t('Academy')}
+          </Link>
+        </DropdownMenuItem>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="cursor-pointer gap-2 text-red-400 focus:text-red-400"

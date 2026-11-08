@@ -89,6 +89,10 @@ export type IntegrationProvider =
   // groups) stored in metadata.chat_id. Dormant until BOTH are present:
   // getTelegramConfig() returns null unless the token and chat_id both resolve.
   | 'telegram'
+  // Notion — Academy course content. Integration token stored encrypted via the
+  // same platform_integrations path; the Courses / Lessons database ids are
+  // non-secret and live in metadata.courses_db / metadata.lessons_db.
+  | 'notion'
 
 const TTL_MS = 30_000
 
@@ -275,7 +279,9 @@ export async function getIntegrationKey(
     const candidates =
       provider === 'stripe'
         ? ['STRIPE_SECRET_KEY', 'STRIPE_API_KEY']
-        : [`${provider.toUpperCase()}_API_KEY`]
+        : provider === 'notion'
+          ? ['NOTION_TOKEN', 'NOTION_API_KEY']
+          : [`${provider.toUpperCase()}_API_KEY`]
 
     for (const name of candidates) {
       const envKey = process.env[name]
@@ -608,4 +614,47 @@ export async function getWhatsAppSystemPrompt(): Promise<string | null> {
     .maybeSingle()
   const fromDb = (data?.metadata as { system_prompt?: string } | null)?.system_prompt
   return fromDb && fromDb.trim() ? fromDb.trim() : null
+}
+
+export type AcademyNotionConfig = {
+  token: string
+  coursesDbId: string
+  lessonsDbId: string
+} | null
+
+/**
+ * Read the Notion credentials that feed the Academy: the encrypted integration
+ * token (via getIntegrationKey; DEV-ONLY env fallback NOTION_TOKEN) plus the
+ * Courses and Lessons database ids from platform_integrations.notion metadata
+ * (DEV-ONLY env fallback NOTION_ACADEMY_COURSES_DB / NOTION_ACADEMY_LESSONS_DB).
+ *
+ * Dormant-by-default: returns null unless the token and BOTH ids resolve, so
+ * the Academy stays hidden until an operator configures it in
+ * /admin/integrations/notion.
+ */
+export async function getAcademyNotionConfig(): Promise<AcademyNotionConfig> {
+  const token = await getIntegrationKey('notion')
+  if (!token) return null
+
+  let coursesDbId = ''
+  let lessonsDbId = ''
+  const svc = createServiceClient()
+  if (svc) {
+    const { data } = await svc
+      .from('platform_integrations')
+      .select('metadata')
+      .eq('provider', 'notion')
+      .maybeSingle()
+    const meta = (data?.metadata as { courses_db?: string; lessons_db?: string } | null) ?? {}
+    coursesDbId = meta.courses_db?.trim() ?? ''
+    lessonsDbId = meta.lessons_db?.trim() ?? ''
+  }
+  // Dev-only fallback, same convention as the other providers.
+  if (process.env.NODE_ENV !== 'production') {
+    coursesDbId ||= process.env.NOTION_ACADEMY_COURSES_DB?.trim() ?? ''
+    lessonsDbId ||= process.env.NOTION_ACADEMY_LESSONS_DB?.trim() ?? ''
+  }
+  if (!coursesDbId || !lessonsDbId) return null
+
+  return { token, coursesDbId, lessonsDbId }
 }

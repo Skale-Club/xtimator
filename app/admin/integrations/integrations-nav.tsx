@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Contact,
   Receipt,
+  GraduationCap,
   Settings2,
   type LucideIcon,
 } from 'lucide-react'
@@ -30,6 +31,7 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   sms: MessageSquare,
   crm: Contact,
   billing: Receipt,
+  notion: GraduationCap,
 }
 
 /**

@@ -49,6 +49,8 @@ export type Category = {
   showTelegramConfig?: boolean
   /** Platform Alerts category renders the per-event Telegram toggle matrix below. */
   showPlatformEventToggles?: boolean
+  /** Academy category renders the Courses / Lessons Notion database id fields below the cards. */
+  showNotionAcademyConfig?: boolean
 }
 
 export const CATEGORIES: ReadonlyArray<Category> = [
@@ -201,6 +203,22 @@ export const CATEGORIES: ReadonlyArray<Category> = [
         title: 'Telegram',
         description:
           'Bot token from @BotFather. Set the chat_id below (message the bot, then read it from https://api.telegram.org/bot<token>/getUpdates). Alerts stay off until both are set.',
+      },
+    ],
+  },
+  {
+    slug: 'notion',
+    title: 'Academy (Notion)',
+    navLabel: 'Academy',
+    description:
+      'In-app courses are authored in Notion and rendered with the app design. Add the Notion integration token, then the Courses and Lessons database ids. The Academy menu entry stays hidden until at least one course is published for this app.',
+    showNotionAcademyConfig: true,
+    providers: [
+      {
+        id: 'notion' as IntegrationProvider,
+        title: 'Notion',
+        description:
+          'Internal integration token (ntn_… or secret_…) from notion.so/profile/integrations. Share both Academy databases with the integration.',
       },
     ],
   },

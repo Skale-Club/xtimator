@@ -11,6 +11,7 @@ import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context
 
 const PAGE_TITLES: Record<string, string> = {
   '/projects/new': 'New Xtimate',
+  '/academy': 'Academy',
 }
 
 const PAGE_OWNS_TITLE = new Set(['/dashboard', '/projects', '/clients', '/price-book'])
@@ -36,6 +37,8 @@ interface MobileHeaderProps {
   activeCompanyId?: string
   isAdmin?: boolean
   userName?: string | null
+  /** At least one Academy course is visible (server-computed). */
+  academyAvailable?: boolean
 }
 
 export function MobileHeader({
@@ -46,6 +49,7 @@ export function MobileHeader({
   activeCompanyId = '',
   isAdmin,
   userName = null,
+  academyAvailable,
 }: MobileHeaderProps) {
   const pathname = usePathname()
   const title = getTitleFromPathname(pathname)
@@ -125,6 +129,7 @@ export function MobileHeader({
             isAdmin={isAdmin}
             userName={userName}
             isDemo={isDemo}
+            academyAvailable={academyAvailable}
           />
         )}
       </div>

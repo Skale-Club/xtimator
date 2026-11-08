@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Settings, Trash2, LogOut, HelpCircle } from 'lucide-react'
+import { Settings, Trash2, LogOut, HelpCircle, GraduationCap } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenuItem,
@@ -28,6 +28,8 @@ interface MobileAccountMenuProps {
   userName: string | null
   /** Read-only public demo session — hides Settings + Trash (matches desktop). */
   isDemo?: boolean
+  /** At least one Academy course is visible (server-computed); adds "Academy" below App Tour. */
+  academyAvailable?: boolean
 }
 
 /**
@@ -48,6 +50,7 @@ export function MobileAccountMenu({
   isAdmin,
   userName,
   isDemo,
+  academyAvailable,
 }: MobileAccountMenuProps) {
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
@@ -100,6 +103,13 @@ export function MobileAccountMenu({
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>
+      {academyAvailable && !isDemo && (
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/academy" className="flex items-center gap-2">
+            <GraduationCap className="h-4 w-4" />{t('Academy')}
+          </Link>
+        </DropdownMenuItem>
+      )}
       <DropdownMenuSeparator />
       <DropdownMenuItem
         className="cursor-pointer gap-2 text-red-400 focus:text-red-400"
