@@ -102,7 +102,7 @@ function getStatus(err: unknown): number | undefined {
 }
 
 async function postTicketOnce(
-  args: Omit<UploadViaTicketArgs, 'blob'> & { key?: string },
+  args: Omit<UploadViaTicketArgs, 'blob'> & { key?: string; size?: number },
   signal: AbortSignal | undefined,
 ): Promise<UploadTicket> {
   const res = await fetch(TICKET_ROUTE, {
@@ -113,6 +113,8 @@ async function postTicketOnce(
       projectId: args.projectId,
       contentType: args.contentType,
       ...(args.key !== undefined ? { key: args.key } : {}),
+      // Declared size lets the server refuse an oversize upload before minting.
+      ...(args.size !== undefined ? { size: args.size } : {}),
     }),
     signal,
   })
@@ -148,7 +150,7 @@ async function postTicketOnce(
  * Exported for tests and for a caller that needs the key before moving bytes.
  */
 export async function requestUploadTicket(
-  args: Omit<UploadViaTicketArgs, 'blob'> & { key?: string },
+  args: Omit<UploadViaTicketArgs, 'blob'> & { key?: string; size?: number },
   opts?: UploadViaTicketOptions,
 ): Promise<UploadTicket> {
   const { attempts = DEFAULT_ATTEMPTS, baseDelayMs = DEFAULT_BASE_DELAY_MS, signal } = opts ?? {}
@@ -273,7 +275,7 @@ export async function uploadViaTicket(
   opts?: UploadViaTicketOptions,
 ): Promise<{ path: string }> {
   const ticket = await requestUploadTicket(
-    { bucket: args.bucket, projectId: args.projectId, contentType: args.contentType },
+    { bucket: args.bucket, projectId: args.projectId, contentType: args.contentType, size: args.blob.size },
     opts,
   )
 

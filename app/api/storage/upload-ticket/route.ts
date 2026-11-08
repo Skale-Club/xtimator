@@ -9,6 +9,7 @@ import {
   mintUploadTicket,
   type UploadTicketBucket,
 } from '@/lib/storage/upload-ticket'
+import { maxUploadBytes } from '@/lib/storage/upload-limits'
 
 /**
  * Phase 189 Plan 02 — UPLOAD-02: `POST /api/storage/upload-ticket`.
@@ -85,11 +86,12 @@ export async function POST(request: Request) {
     return jsonNoStore({ error: 'Invalid request body' }, 400)
   }
 
-  const { bucket, projectId, contentType, key } = body as {
+  const { bucket, projectId, contentType, key, size } = body as {
     bucket?: unknown
     projectId?: unknown
     contentType?: unknown
     key?: unknown
+    size?: unknown
   }
 
   if (!isUploadTicketBucket(bucket)) {
@@ -110,6 +112,18 @@ export async function POST(request: Request) {
   // (reject-never-repair), so it is passed through unchanged.
   if (key !== undefined && typeof key !== 'string') {
     return jsonNoStore({ error: 'key must be a string' }, 400)
+  }
+
+  // Declared byte size (optional: installed PWAs that predate this field keep working).
+  // Present -> must be a non-negative integer within the bucket's limit, else 413.
+  if (size !== undefined) {
+    if (typeof size !== 'number' || !Number.isInteger(size) || size < 0) {
+      return jsonNoStore({ error: 'size must be a non-negative integer' }, 400)
+    }
+    const limit = maxUploadBytes(bucket)
+    if (limit !== null && size > limit) {
+      return jsonNoStore({ error: 'File too large' }, 413)
+    }
   }
 
   // Gate 2: auth.

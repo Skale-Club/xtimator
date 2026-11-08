@@ -219,6 +219,32 @@ describe('POST /api/storage/upload-ticket', () => {
     expect(mockMintUploadTicket).not.toHaveBeenCalled()
   })
 
+  it('declared size over the audio limit -> 413, no auth work and mint not called', async () => {
+    const res = await POST(makeRequest(validBody({ size: 100 * 1024 * 1024 + 1 })))
+    expect(res.status).toBe(413)
+    expect(mockMintUploadTicket).not.toHaveBeenCalled()
+    expect(mockCreateClient).not.toHaveBeenCalled()
+  })
+
+  it('invalid size (negative / fractional / string) -> 400', async () => {
+    for (const size of [-1, 1.5, '10']) {
+      const res = await POST(makeRequest(validBody({ size })))
+      expect(res.status).toBe(400)
+    }
+    expect(mockMintUploadTicket).not.toHaveBeenCalled()
+  })
+
+  it('size within the limit, or absent (older PWAs), is accepted', async () => {
+    for (const body of [validBody({ size: 5_000_000 }), validBody()]) {
+      mockCreateClient.mockResolvedValue(makeSupabaseMock({ projectRow: { id: PROJECT_ID } }).client as never)
+      mockGetActiveCompanyId.mockResolvedValue(COMPANY_ID)
+      mockDemoGuardResponse.mockResolvedValue(null)
+      mockMintUploadTicket.mockResolvedValue(SAMPLE_TICKET as never)
+      const res = await POST(makeRequest(body))
+      expect(res.status).toBe(200)
+    }
+  })
+
   it('missing/non-JSON body -> 400, mint not called', async () => {
     const req = new Request('http://localhost/api/storage/upload-ticket', {
       method: 'POST',
