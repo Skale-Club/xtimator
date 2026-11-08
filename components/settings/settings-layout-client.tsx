@@ -8,10 +8,10 @@ import { SettingsNav, SettingsNavStrip } from './settings-nav'
  *
  * - md+: a fixed-width grouped rail on the left, sticky so it stays put while
  *   the page scrolls (its containing block is the min-h-full container in
- *   app/(app)/settings/layout.tsx, which grows with the content). Its height
- *   leaves out main's md:pb-6 too (4rem top bar + 1.5rem): that padding sits
- *   outside the containing block, so a full-height rail got nudged up 24px at
- *   the very end of the scroll.
+ *   app/(app)/settings/layout.tsx, which grows with the content). It is the
+ *   full height under the 4rem top bar: that container cancels main's md:pb-6
+ *   with md:-mb-6, so the rail's border reaches the bottom of the screen and
+ *   the rail is not nudged up at the end of the scroll.
  * - Below md: no rail. A single row of pills, pinned under the top bar, so the
  *   page keeps the whole phone width.
  *
@@ -25,7 +25,7 @@ export function SettingsLayoutClient({ children, isDemo }: { children: ReactNode
         <SettingsNavStrip isDemo={isDemo} />
       </div>
 
-      <aside className="sticky top-0 hidden h-[calc(100dvh-5.5rem)] w-56 shrink-0 self-start overflow-y-auto scrollbar-none border-r border-border px-3 py-8 md:block">
+      <aside className="sticky top-0 hidden h-[calc(100dvh-4rem)] w-56 shrink-0 self-start overflow-y-auto scrollbar-none border-r border-border px-3 py-8 md:block">
         <SettingsNav isDemo={isDemo} />
       </aside>
 

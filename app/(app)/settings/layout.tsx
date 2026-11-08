@@ -17,8 +17,11 @@ export default async function SettingsLayout({ children }: { children: React.Rea
   // min-h-full, not h-full: with a fixed height the container ended at one
   // screen, so the sticky rail's containing block ended there too and the rail
   // scrolled away with the page. Growing with the content keeps it pinned.
+  // md:-mb-6 cancels main's md:pb-6 so the rail (and its right border) runs
+  // all the way to the bottom of the screen instead of stopping 24px short;
+  // the content column keeps its own bottom padding.
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col md:-mb-6">
       <SettingsLayoutClient isDemo={isDemo}>{children}</SettingsLayoutClient>
     </div>
   )
