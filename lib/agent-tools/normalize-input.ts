@@ -15,6 +15,7 @@
  * second transcribe/analyze path. NEVER throws.
  */
 import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
+import type { CostContext } from '@/lib/ai/openrouter-client'
 
 export type NormalizeKind = 'text' | 'audio' | 'photo' | 'unknown'
 
@@ -30,7 +31,11 @@ export type NormalizeInput =
   | { kind: 'audio'; blob: Blob; ext: string }
   | { kind: 'photo'; base64: string; mimeType: string; caption?: string }
 
-export async function normalizeInput(input: NormalizeInput): Promise<NormalizeResult> {
+export async function normalizeInput(
+  input: NormalizeInput,
+  // Optional cost attribution (tenant ids) threaded to the Whisper/vision primitives; absent = unchanged.
+  costContext?: CostContext
+): Promise<NormalizeResult> {
   // --- text ---------------------------------------------------------------
   if (input.kind === 'text') {
     return { text: input.body, kind: 'text', ok: true }
@@ -41,6 +46,7 @@ export async function normalizeInput(input: NormalizeInput): Promise<NormalizeRe
     try {
       const { transcripts } = await ingestMultimodal({
         audio: [{ blob: input.blob, ext: input.ext }],
+        ...(costContext ? { costContext } : {}),
       })
       const text = transcripts[0]
       if (!text) return { text: '', kind: 'audio', ok: false, reason: 'empty_transcript' }
@@ -57,6 +63,7 @@ export async function normalizeInput(input: NormalizeInput): Promise<NormalizeRe
   try {
     const { photoDescriptions } = await ingestMultimodal({
       photos: [{ base64: input.base64, mimeType: input.mimeType }],
+      ...(costContext ? { costContext } : {}),
     })
     const description = photoDescriptions[0] ?? ''
     const caption = input.caption?.trim()

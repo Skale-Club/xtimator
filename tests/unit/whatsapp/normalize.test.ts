@@ -65,6 +65,20 @@ describe('normalizeMessage', () => {
     expect(result).toEqual({ text: 'transcribed text', kind: 'audio', ok: true })
   })
 
+  it('Test 2a: audio transcription is attributed to the tenant (costContext carries companyId)', async () => {
+    mockDownload.mockResolvedValue(Buffer.from('audio-bytes'))
+    mockTranscribe.mockResolvedValue({ text: 'hi', servedBy: 'primary' })
+    const msg: WhatsAppMessage = {
+      id: 'm2a',
+      from: '1555',
+      timestamp: '1',
+      type: 'audio',
+      audio: { id: 'media-a2', mime_type: 'audio/ogg' },
+    }
+    await normalizeMessage(msg, 'company-1', supabase)
+    expect(mockTranscribe.mock.calls[0][3]).toEqual({ companyId: 'company-1' })
+  })
+
   it('Test 2b: audio with codec param strips the codec before splitting', async () => {
     mockDownload.mockResolvedValue(Buffer.from('audio-bytes'))
     mockTranscribe.mockResolvedValue({ text: 'hi', servedBy: 'primary' })

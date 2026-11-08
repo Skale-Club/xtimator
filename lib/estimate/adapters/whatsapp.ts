@@ -211,7 +211,8 @@ export function makeWhatsAppAdapter({
           // ingestMultimodal swallows a single item failure and returns
           // transcripts: [], so transcribeAudioBuffer surfaces '' and the
           // empty-transcript guard below preserves today's ok:false outcome.
-          transcript = await transcribeAudioBuffer(audioBuffer, { mimeType, ext })
+          // companyId/projectId attribute the 'audio_minutes' cost row (previously none was recorded).
+          transcript = await transcribeAudioBuffer(audioBuffer, { mimeType, ext }, { companyId, projectId })
         } catch (err) {
           console.error('[WhatsApp] audio transcription failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'transcription_failed' }] }

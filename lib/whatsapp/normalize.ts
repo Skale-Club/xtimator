@@ -34,7 +34,7 @@ export type { NormalizeKind, NormalizeResult }
 
 export async function normalizeMessage(
   msg: WhatsAppMessage,
-  _companyId: string,
+  companyId: string,
   // supabase reserved for future enrichment (e.g. media re-download); kept in the
   // signature so callers don't churn when that lands.
   _supabase: SupabaseClient
@@ -57,11 +57,14 @@ export async function normalizeMessage(
       return { text: '', kind: 'audio', ok: false, reason: 'download_failed' }
     }
 
-    return normalizeInput({
-      kind: 'audio',
-      blob: new Blob([new Uint8Array(buf)], { type: mimeType }),
-      ext,
-    })
+    return normalizeInput(
+      {
+        kind: 'audio',
+        blob: new Blob([new Uint8Array(buf)], { type: mimeType }),
+        ext,
+      },
+      { companyId }
+    )
   }
 
   // --- image --------------------------------------------------------------
@@ -76,12 +79,15 @@ export async function normalizeMessage(
       return { text: '', kind: 'photo', ok: false, reason: 'download_failed' }
     }
 
-    return normalizeInput({
-      kind: 'photo',
-      base64: buf.toString('base64'),
-      mimeType,
-      caption: msg.image.caption?.trim(),
-    })
+    return normalizeInput(
+      {
+        kind: 'photo',
+        base64: buf.toString('base64'),
+        mimeType,
+        caption: msg.image.caption?.trim(),
+      },
+      { companyId }
+    )
   }
 
   // --- anything else (document/video/sticker/reaction/unknown) ------------

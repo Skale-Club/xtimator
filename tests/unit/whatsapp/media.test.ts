@@ -77,6 +77,15 @@ describe('transcribeAudioBuffer', () => {
     expect(text).toBe('transcribed text')
   })
 
+  it('threads the tenant costContext to the transcriber so the audio_minutes cost is attributed', async () => {
+    mockTranscribe.mockResolvedValue({ text: 'hello', servedBy: 'primary' })
+    await transcribeAudioBuffer(Buffer.from('a'), deriveAudioFormat('audio/ogg'), {
+      companyId: 'company-1',
+      projectId: 'project-1',
+    })
+    expect(mockTranscribe.mock.calls[0][3]).toEqual({ companyId: 'company-1', projectId: 'project-1' })
+  })
+
   it('returns "" when ingestMultimodal skips the item (empty result)', async () => {
     // ingestMultimodal only pushes truthy transcripts, so an empty string is skipped.
     mockTranscribe.mockResolvedValue({ text: '', servedBy: 'primary' })

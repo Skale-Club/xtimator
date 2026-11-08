@@ -30,6 +30,7 @@
  * the belt-and-suspenders transcription_failed / unknown_error reasons unchanged.)
  */
 import { ingestMultimodal } from '@/lib/estimate/ingest/multimodal'
+import type { CostContext } from '@/lib/ai/openrouter-client'
 
 export interface WhatsAppMediaFormat {
   /** MIME type with any codec parameter stripped (e.g. "audio/ogg"). */
@@ -69,12 +70,17 @@ export function deriveImageFormat(mimeTypeRaw?: string): WhatsAppMediaFormat {
  */
 export async function transcribeAudioBuffer(
   buffer: Buffer,
-  format: WhatsAppMediaFormat
+  format: WhatsAppMediaFormat,
+  // Without a costContext transcribeAudioOR records NO ai_cost_events row and resolves the
+  // platform key. Callers that know the tenant pass { companyId, projectId? } so the
+  // 'audio_minutes' cost is attributed and the company's BYOK key is honored.
+  costContext?: CostContext
 ): Promise<string> {
   const { transcripts } = await ingestMultimodal({
     audio: [
       { blob: new Blob([new Uint8Array(buffer)], { type: format.mimeType }), ext: format.ext },
     ],
+    ...(costContext ? { costContext } : {}),
   })
   return transcripts[0] ?? ''
 }
