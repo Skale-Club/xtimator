@@ -18,7 +18,8 @@ interface TopbarProps {
   }
   userId: string
   isAdmin?: boolean
-  percentUsed?: number
+  /** Company credit state; the chip always renders when present (bar if percentUsed is a number, balance otherwise). */
+  credits?: { percentUsed: number | null; balance: number }
 }
 
 const TITLE_MAP: Record<string, string> = {
@@ -43,7 +44,7 @@ function usePageTitle(pathname: string): string {
   return ''
 }
 
-export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
+export function Topbar({ company, userId, isAdmin, credits }: TopbarProps) {
   const pathname = usePathname()
   const { t } = useTranslation()
   const router = useRouter()
@@ -128,7 +129,7 @@ export function Topbar({ company, userId, isAdmin, percentUsed }: TopbarProps) {
             <LanguageToggle onOpenChange={setLanguageMenuOpen} />
           </span>
         </ContextualTooltip>
-        {typeof percentUsed === 'number' && <CreditChip percentUsed={percentUsed} />}
+        {credits && <CreditChip percentUsed={credits.percentUsed} balance={credits.balance} />}
         <NotificationBell companyId={company.id} userId={userId} />
         <ThemeToggle />
       </div>

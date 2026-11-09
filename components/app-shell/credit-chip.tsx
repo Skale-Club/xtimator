@@ -30,17 +30,24 @@ import { formatCredits } from '@/lib/billing/format-usd'
 export function CreditChip({
   percentUsed,
   balance,
+  compact = false,
 }: {
   percentUsed: number | null
   balance?: number
+  /** Mobile header variant: tighter padding, narrower bar, number hidden below `sm`. */
+  compact?: boolean
 }) {
   const { t } = useTranslation()
+  const linkClass = cn(
+    'inline-flex h-9 items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+    compact ? 'px-1.5 sm:px-2.5' : 'px-2.5',
+  )
 
   if (percentUsed === null) {
     return (
       <Link
         href="/settings/billing"
-        className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        className={linkClass}
         title={t('Credits')}
         aria-label={t('Credits')}
       >
@@ -54,16 +61,18 @@ export function CreditChip({
   return (
     <Link
       href="/settings/billing"
-      className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+      className={linkClass}
       title={t('Usage')}
       aria-label={t('Usage')}
     >
       <Coins className="h-4 w-4 shrink-0" />
       <Progress
         value={percentUsed}
-        className={cn('h-1.5 w-10 sm:w-14', usageBandClass(percentUsed))}
+        className={cn(compact ? 'h-1.5 w-8 sm:w-14' : 'h-1.5 w-10 sm:w-14', usageBandClass(percentUsed))}
       />
-      <span className="font-mono font-medium tabular-nums">{percentUsed}%</span>
+      <span className={cn('font-mono font-medium tabular-nums', compact && 'hidden sm:inline')}>
+        {percentUsed}%
+      </span>
       <span className="hidden text-xs lg:inline">{t('used')}</span>
     </Link>
   )

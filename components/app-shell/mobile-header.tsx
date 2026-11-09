@@ -6,6 +6,7 @@ import { Bell } from 'lucide-react'
 import { AppIcon } from '@/components/ui/app-icon'
 import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
+import { CreditChip } from '@/components/app-shell/credit-chip'
 import { MobileAccountMenu } from '@/components/app-shell/mobile-account-menu'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
 
@@ -39,6 +40,8 @@ interface MobileHeaderProps {
   userName?: string | null
   /** At least one Academy course is visible (server-computed). */
   academyAvailable?: boolean
+  /** Company credit state; chip renders whenever present. */
+  credits?: { percentUsed: number | null; balance: number }
 }
 
 export function MobileHeader({
@@ -50,6 +53,7 @@ export function MobileHeader({
   isAdmin,
   userName = null,
   academyAvailable,
+  credits,
 }: MobileHeaderProps) {
   const pathname = usePathname()
   const title = getTitleFromPathname(pathname)
@@ -113,6 +117,9 @@ export function MobileHeader({
       {/* Right: same actions as desktop topbar */}
       <div className="flex items-center gap-1 shrink-0 ml-2">
         <LanguageToggle />
+        {credits && (
+          <CreditChip percentUsed={credits.percentUsed} balance={credits.balance} compact />
+        )}
         <Link
           href="/notifications"
           aria-label="Notifications"

@@ -94,9 +94,7 @@ export default async function AppShellLayout({
       // full grant this cycle no longer renders a false high percentage, and
       // a mid-cycle top-up no longer clamps to a permanent 0%. When nothing
       // was granted this cycle, percentUsed is null (no valid denominator) —
-      // Topbar only renders CreditChip for a `number`, so `?? undefined`
-      // degrades to "no chip" rather than a misleading bar (Topbar itself is
-      // out of this fix's scope).
+      // Topbar/MobileHeader still render the chip and fall back to the balance.
       const supportBalance = supportCompany.credit_balance ?? 0
       const supportPercentUsed =
         supportGrantedThisCycle === 0
@@ -124,7 +122,7 @@ export default async function AppShellLayout({
                   company={supportCompany}
                   userId={supportSession.adminUserId}
                   isAdmin={true}
-                  percentUsed={supportPercentUsed ?? undefined}
+                  credits={{ percentUsed: supportPercentUsed, balance: supportBalance }}
                 />
                 <MobileHeader
                   branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
@@ -134,6 +132,7 @@ export default async function AppShellLayout({
                   activeCompanyId={supportCompany.id}
                   isAdmin={true}
                   userName={supportCompany.owner_name ?? null}
+                  credits={{ percentUsed: supportPercentUsed, balance: supportBalance }}
                 />
                 <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
                 <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
@@ -219,9 +218,7 @@ export default async function AppShellLayout({
 
   const balance = billingRow.data?.credit_balance ?? 0
   // When nothing has been granted this cycle, there's no valid denominator —
-  // percentUsed is null (Topbar only renders CreditChip for a `number`, so
-  // `?? undefined` below degrades to "no chip" rather than a misleading bar;
-  // Topbar itself is out of this fix's scope).
+  // percentUsed is null and the chip falls back to showing the balance.
   const percentUsed =
     grantedThisCycle === 0
       ? null
@@ -254,7 +251,7 @@ export default async function AppShellLayout({
               company={company}
               userId={claims.sub as string}
               isAdmin={isAdmin}
-              percentUsed={percentUsed ?? undefined}
+              credits={{ percentUsed, balance }}
             />
             <MobileHeader
               branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
@@ -265,6 +262,7 @@ export default async function AppShellLayout({
               isAdmin={isAdmin}
               userName={company.owner_name ?? null}
               academyAvailable={academyAvailable}
+              credits={{ percentUsed, balance }}
             />
             {isDemo && <DemoBanner />}
             {paywall.state !== 'active' && (
