@@ -27,7 +27,13 @@ import { resolveOpenRouterKey } from '@/lib/ai/openrouter-client'
 import { createServiceClient } from '@/lib/supabase/service'
 import { buildResearchSearchPrompt, buildResearchSystemPrompt } from '../search-prompt'
 import { priceResearchPayloadSchema } from '../schema'
-import type { PriceResearchProvider, PriceResearchResult, Region, ResearchCostContext } from '../provider'
+import type {
+  LookupDiagnostics,
+  PriceResearchProvider,
+  PriceResearchResult,
+  Region,
+  ResearchCostContext,
+} from '../provider'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
 import { resolveSlotModel } from '@/lib/ai/step-models'
 import { isAllowedChatModel } from '@/lib/ai/model-policy'
@@ -111,6 +117,28 @@ function extractJsonObject(content: string): unknown | null {
   return null
 }
 
+/** Loose comparison key for a name: lowercase, punctuation/spacing collapsed. */
+function looseNameKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Normalized form of a URL for citation matching: lowercased host without a leading `www.`
+ * plus the pathname without trailing slashes. Protocol, query and fragment are ignored. An
+ * unparseable (or non-http) URL yields null and never matches.
+ */
+function normalizeCitationUrl(raw: string): string | null {
+  try {
+    const u = new URL(raw.trim())
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    const host = u.host.toLowerCase().replace(/^www\./, '')
+    if (!host) return null
+    return `${host}${u.pathname.replace(/\/+$/, '')}`
+  } catch {
+    return null
+  }
+}
+
 async function resolveEngine(): Promise<ResearchEngine> {
   try {
     const svc = createServiceClient()
@@ -144,6 +172,30 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
       costContext?: ResearchCostContext
     ): Promise<PriceResearchResult[]> {
       if (items.length === 0) return []
+
+      // Diagnostics: reported once on every exit path after the HTTP request was attempted.
+      const diag: LookupDiagnostics = {
+        requested: items.length,
+        httpOk: false,
+        parsed: false,
+        returned: 0,
+        matched: 0,
+        matchedLoosely: 0,
+        citations: 0,
+        cited: 0,
+        citedLoosely: 0,
+      }
+      let attempted = false
+      let reported = false
+      const report = () => {
+        if (reported) return
+        reported = true
+        try {
+          costContext?.onUsage?.({ diagnostics: { ...diag } })
+        } catch {
+          // observability only
+        }
+      }
 
       // Phase 3 (D3): a BYOK company's own OpenRouter key runs its research
       // too; no company context (or a missing key) -> platform key / miss.
@@ -182,6 +234,7 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
           usage: { include: true },
         }
 
+        attempted = true
         const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -197,10 +250,17 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
           signal: AbortSignal.timeout(RESEARCH_TIMEOUT_MS),
         })
 
-        if (!res.ok) return items.map((i) => missFor(i, currency))
+        if (!res.ok) {
+          report()
+          return items.map((i) => missFor(i, currency))
+        }
 
         const json = (await res.json()) as OpenRouterResearchResponse
-        if (json.error?.message) return items.map((i) => missFor(i, currency))
+        if (json.error?.message) {
+          report()
+          return items.map((i) => missFor(i, currency))
+        }
+        diag.httpOk = true
 
         // Fix (price-research cost attribution): this batched web-search call
         // spent real money regardless of how many (if any) of its items pass
@@ -229,7 +289,10 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
 
         const message = json.choices?.[0]?.message
         const content = message?.content
-        if (typeof content !== 'string') return items.map((i) => missFor(i, currency))
+        if (typeof content !== 'string') {
+          report()
+          return items.map((i) => missFor(i, currency))
+        }
 
         // Index the real citations returned by the search tool: url -> snippet.
         // D4 (quick-260705-2gp): shape-tolerant — accepts BOTH the documented
@@ -238,20 +301,27 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
         // dropped over its shape: every dropped citation nulls a source_url and
         // sends the result into the evidence gate's 100%-rejection mode.
         const citationByUrl = new Map<string, string>()
+        // Same citations keyed by normalized URL (host without www + path), first one wins.
+        const citationByNormUrl = new Map<string, string>()
         for (const a of message?.annotations ?? []) {
           // Skip ONLY when a type is present AND differs — an absent type stays
           // tolerated (matches the previous indexer's behavior).
           if (a?.type != null && a.type !== 'url_citation') continue
           const url = a?.url_citation?.url ?? a?.url
           if (typeof url === 'string' && url.trim().length > 0) {
-            citationByUrl.set(url, a?.url_citation?.content ?? a?.content ?? '')
+            const snippet = a?.url_citation?.content ?? a?.content ?? ''
+            citationByUrl.set(url, snippet)
+            const norm = normalizeCitationUrl(url)
+            if (norm && !citationByNormUrl.has(norm)) citationByNormUrl.set(norm, snippet)
           }
         }
+        diag.citations = citationByUrl.size
 
         // Parse the model JSON — tolerant of prose-wrapped / fenced ```json replies
         // (web-search models routinely return a preamble + fenced block + a note).
         const parsedUnknown = extractJsonObject(content)
         if (parsedUnknown == null) {
+          report()
           return items.map((i) => missFor(i, currency))
         }
 
@@ -268,7 +338,12 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
         }
 
         const parsed = priceResearchPayloadSchema.safeParse(parsedUnknown)
-        if (!parsed.success) return items.map((i) => missFor(i, currency))
+        if (!parsed.success) {
+          report()
+          return items.map((i) => missFor(i, currency))
+        }
+        diag.parsed = true
+        diag.returned = parsed.data.results.length
 
         // D4 telemetry (quick-260705-2gp): the model answered but ZERO citations
         // were indexed → every source_url below gets nulled and isUsableCandidate
@@ -289,24 +364,78 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
         // a self-asserted source_url is only trusted when it matches a real
         // url_citation annotation; otherwise null out source_url + snippet so
         // isUsableCandidate rejects it.
-        const byName = new Map<string, PriceResearchResult>()
-        for (const r of parsed.data.results) {
+        // Evidence gate for one result, reporting whether the citation matched loosely.
+        const gate = (r: (typeof parsed.data.results)[number], name: string) => {
           const claimedUrl = r.source_url
-          const cited = claimedUrl != null && citationByUrl.has(claimedUrl)
-          byName.set(r.name, {
-            name: r.name,
+          let snippet: string | undefined
+          let loose = false
+          if (claimedUrl != null) {
+            if (citationByUrl.has(claimedUrl)) {
+              snippet = citationByUrl.get(claimedUrl)
+            } else {
+              const norm = normalizeCitationUrl(claimedUrl)
+              if (norm && citationByNormUrl.has(norm)) {
+                snippet = citationByNormUrl.get(norm)
+                loose = true
+              }
+            }
+          }
+          const cited = claimedUrl != null && snippet !== undefined
+          const result: PriceResearchResult = {
+            name,
             unit_price: r.unit_price,
             currency: r.currency,
             source_url: cited ? claimedUrl : null,
-            snippet: cited ? citationByUrl.get(claimedUrl!) || r.snippet : null,
+            snippet: cited ? snippet || r.snippet : null,
             confidence: r.confidence ?? null,
             unit: r.unit ?? null,
-          })
+          }
+          return { result, cited, loose }
         }
 
-        const out = items.map(
-          (i) => byName.get(i.name) ?? missFor(i, currency)
-        )
+        // Name re-association: exact name first; else a loose key (lowercase, punctuation
+        // collapsed) that belongs to exactly one requested item AND exactly one result not
+        // already matched exactly. The returned name is always the REQUESTED name.
+        const results = parsed.data.results
+        const byExactName = new Map<string, (typeof results)[number]>()
+        for (const r of results) byExactName.set(r.name, r)
+        const exactlyMatched = new Set(items.filter((i) => byExactName.has(i.name)).map((i) => byExactName.get(i.name)))
+        const itemsByLoose = new Map<string, number>()
+        for (const i of items) {
+          const k = looseNameKey(i.name)
+          itemsByLoose.set(k, (itemsByLoose.get(k) ?? 0) + 1)
+        }
+        const freeResultsByLoose = new Map<string, Array<(typeof results)[number]>>()
+        for (const r of results) {
+          if (exactlyMatched.has(r)) continue
+          const k = looseNameKey(r.name)
+          const list = freeResultsByLoose.get(k) ?? []
+          list.push(r)
+          freeResultsByLoose.set(k, list)
+        }
+
+        const out = items.map((i) => {
+          let r = byExactName.get(i.name)
+          let looseName = false
+          if (!r) {
+            const k = looseNameKey(i.name)
+            const free = freeResultsByLoose.get(k)
+            if (k && itemsByLoose.get(k) === 1 && free?.length === 1) {
+              r = free[0]
+              looseName = true
+            }
+          }
+          if (!r) return missFor(i, currency)
+          const { result, cited, loose } = gate(r, i.name)
+          diag.matched++
+          if (looseName) diag.matchedLoosely++
+          if (cited) {
+            diag.cited++
+            if (loose) diag.citedLoosely++
+          }
+          return result
+        })
+        report()
 
         // Best-effort observability — non-blocking, mirrors openrouter.ts.
         try {
@@ -328,6 +457,7 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
         return out
       } catch {
         // Never throw — research failures degrade to misses (non-fatal contract).
+        if (attempted) report()
         return items.map((i) => missFor(i, currency))
       }
     },

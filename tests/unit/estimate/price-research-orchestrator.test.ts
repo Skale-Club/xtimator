@@ -36,6 +36,7 @@ import {
 import { get as cacheGet, put as cachePut } from '@/lib/estimate/price-research/cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { conceptKey } from '@/lib/estimate/pricing/concept-key'
+import { unitKey } from '@/lib/ai/units'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 
 // A minimal stand-in for the service-role client — the orchestrator only PASSES it
@@ -568,5 +569,147 @@ describe('researchUnmatchedPrices — gated provider fallback ordering (Phase 10
     expect(out.sections[0].items[0].price_source).toBe('ai_estimate')
     expect(out.sections[0].items[0].unit_price).toBe(0)
     expect(out.flaggedUnpriced).toBe(1)
+  })
+})
+
+const WORDS = ['Drywall patching','Fence staining','Roof shingle replacement','Carpet cleaning','Toilet installation','Gutter repair','Window caulking','Door hanging','Concrete sealing','Lawn mowing','Hedge trimming','Faucet replacement','Light fixture mounting','Baseboard painting','Ceiling texturing','Mulch spreading','Pressure washing','Furnace tuneup','Outlet wiring','Water heater flushing','Siding cleaning','Garage floor coating','Sprinkler adjustment','Patio sweeping','Closet shelving']
+
+describe('researchUnmatchedPrices — diagnostics', () => {
+  const lookupDiag = {
+    requested: 4,
+    httpOk: true,
+    parsed: true,
+    returned: 4,
+    matched: 4,
+    matchedLoosely: 1,
+    citations: 2,
+    cited: 2,
+    citedLoosely: 0,
+  }
+
+  function primeProvider(results: unknown[]) {
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    const lookup = vi.fn(async (_items: unknown, _region: unknown, _cur: unknown, cc?: { onUsage?: (u: unknown) => void }) => {
+      cc?.onUsage?.({ searches: 1, diagnostics: lookupDiag })
+      return results
+    })
+    mockChain({ lookup })
+    vi.mocked(isUsableCandidate).mockImplementation((r) => typeof r.source_url === 'string' && r.source_url.length > 0)
+    vi.mocked(recordUsage).mockResolvedValue(undefined)
+    vi.mocked(cachePut).mockResolvedValue(undefined)
+    return lookup
+  }
+
+  it('counts one miss reason per unused result and records the rejected web prices', async () => {
+    const sections = [
+      section('Work', [
+        item({ description: 'Drywall repair', unit_price: 100, price_source: 'ai_estimate' }),
+        item({ description: 'Fence painting', unit_price: 40, price_source: 'ai_estimate' }),
+        item({ description: 'Tile installation', unit_price: 10, unit: 'sq ft', price_source: 'ai_estimate' }),
+        item({ description: 'Deck staining', unit_price: 20, price_source: 'ai_estimate' }),
+        item({ description: 'Pipe repair', unit_price: 100, price_source: 'ai_estimate' }),
+      ]),
+    ]
+    primeProvider([
+      { name: 'Drywall repair', unit_price: null, currency: 'USD', source_url: null, snippet: null },
+      { name: 'Fence painting', unit_price: 80, currency: 'USD', source_url: null, snippet: null },
+      { name: 'Tile installation', unit_price: 12, currency: 'USD', source_url: 'https://e.test/t', snippet: 's', unit: 'each' },
+      { name: 'Deck staining', unit_price: 25, currency: 'BRL', source_url: 'https://e.test/d', snippet: 's' },
+      usable('Pipe repair', 150),
+    ])
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(out.telemetry).toMatchObject({ candidates: 5, providerUsable: 1, missed: 4 })
+    expect(out.diagnostics?.lookups).toEqual([lookupDiag])
+    expect(out.diagnostics?.misses).toEqual({ no_price: 1, uncited: 1, unit: 1, currency: 1 })
+    expect(out.diagnostics?.rejected).toEqual([
+      { key: conceptKey('Fence painting'), unit: '', ai: 40, web: 80, reason: 'uncited' },
+      { key: conceptKey('Tile installation'), unit: unitKey('sq ft'), ai: 10, web: 12, reason: 'unit' },
+      { key: conceptKey('Deck staining'), unit: '', ai: 20, web: 25, reason: 'currency' },
+    ])
+    // diagnostics is a sibling of telemetry, never inside it
+    expect(out.telemetry).not.toHaveProperty('misses')
+  })
+
+  it('counts a usable result skipped by the ratio band', async () => {
+    const prev = process.env.ESTIMATOR_PRICE_BANDS
+    process.env.ESTIMATOR_PRICE_BANDS = '1'
+    try {
+      const sections = [section('Work', [item({ description: 'Drywall repair', unit_price: 100, price_source: 'ai_estimate' })])]
+      primeProvider([usable('Drywall repair', 1000)])
+
+      const out = await researchUnmatchedPrices(sections, ctx())
+
+      expect(out.sections[0].items[0].price_source).toBe('ai_estimate')
+      expect(out.diagnostics?.misses).toEqual({ band: 1 })
+      expect(out.diagnostics?.rejected).toEqual([
+        { key: conceptKey('Drywall repair'), unit: '', ai: 100, web: 1000, reason: 'band' },
+      ])
+    } finally {
+      if (prev === undefined) delete process.env.ESTIMATOR_PRICE_BANDS
+      else process.env.ESTIMATOR_PRICE_BANDS = prev
+    }
+  })
+
+  it('counts items skipped because the quota denied the lookup, and items dropped by the cap', async () => {
+    const many = [...WORDS, 'Gutter cleaning', 'Window washing'].map((w) =>
+      item({ description: w, unit_price: 50, price_source: 'ai_estimate' })
+    )
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: false, remaining: 0 })
+
+    const out = await researchUnmatchedPrices([section('Work', many)], ctx())
+
+    expect(out.diagnostics?.lookups).toEqual([])
+    expect(out.diagnostics?.misses).toEqual({ over_cap: 2, quota: 25 })
+    expect(out.diagnostics?.rejected).toEqual([])
+  })
+
+  it('caps the recorded lookups at 5 and the rejected prices at 30', async () => {
+    const sections = [
+      section(
+        'Work',
+        WORDS.map((w) => item({ description: w, unit_price: 10, price_source: 'ai_estimate' }))
+      ),
+    ]
+    const results = sections[0].items.map((it) => ({
+      name: it.description,
+      unit_price: 20,
+      currency: 'USD',
+      source_url: null,
+      snippet: null,
+    }))
+    const lookup = primeProvider(results)
+    lookup.mockImplementation(async (_i: unknown, _r: unknown, _c: unknown, cc?: { onUsage?: (u: unknown) => void }) => {
+      for (let n = 0; n < 8; n++) cc?.onUsage?.({ diagnostics: lookupDiag })
+      return results
+    })
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(out.diagnostics?.lookups).toHaveLength(5)
+    expect(out.diagnostics?.misses).toEqual({ uncited: 25 })
+    expect(out.diagnostics?.rejected).toHaveLength(25)
+  })
+
+  it('omits diagnostics when no lookup ran and nothing was counted', async () => {
+    // no candidates at all
+    const none = await researchUnmatchedPrices(
+      [section('Work', [item({ description: 'Book item', unit_price: 200, price_source: 'price_book' })])],
+      ctx()
+    )
+    expect(none.diagnostics).toBeUndefined()
+
+    // unconfigured chain: candidates exist but no provider is attempted
+    vi.mocked(cacheGet).mockResolvedValue(null)
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([])
+    const unconfigured = await researchUnmatchedPrices(
+      [section('Work', [item({ description: 'Mystery task', unit_price: 0, price_source: 'ai_estimate' })])],
+      ctx()
+    )
+    expect(unconfigured.diagnostics).toBeUndefined()
   })
 })

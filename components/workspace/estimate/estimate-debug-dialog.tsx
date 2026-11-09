@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type ReactNode } from 'react'
+import { Fragment, useMemo, type ReactNode } from 'react'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { parseAiMeta, parseAiMetaInternal } from '@/lib/estimate/ai-meta'
@@ -52,6 +52,7 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
   const hasRecord = estimate.ai_meta != null
   const research = internal?.pricing?.research
   const changes = internal?.pricing?.changes ?? []
+  const diagnostics = internal?.pricing?.diagnostics
   const hasNotes =
     !!meta &&
     ((meta.assumptions?.length ?? 0) > 0 ||
@@ -145,6 +146,84 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
                     </>
                   )}
                 </dl>
+              )}
+              {diagnostics && diagnostics.lookups.length > 0 && (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-left" data-testid="debug-pricing-lookups">
+                    <thead className="text-muted-foreground">
+                      <tr>
+                        <th className="pr-2 font-medium">{t('Lookup')}</th>
+                        <th className="pr-2 font-medium">http</th>
+                        <th className="pr-2 font-medium">parsed</th>
+                        <th className="pr-2 text-right font-medium">asked</th>
+                        <th className="pr-2 text-right font-medium">returned</th>
+                        <th className="pr-2 text-right font-medium">matched</th>
+                        <th className="pr-2 text-right font-medium">cites</th>
+                        <th className="text-right font-medium">cited</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {diagnostics.lookups.map((l, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="py-0.5 pr-2">{i + 1}</td>
+                          <td className="pr-2">{l.httpOk ? 'ok' : 'fail'}</td>
+                          <td className="pr-2">{l.parsed ? 'yes' : 'no'}</td>
+                          <td className="pr-2 text-right">{l.requested}</td>
+                          <td className="pr-2 text-right">{l.returned}</td>
+                          <td className="pr-2 text-right">
+                            {l.matched}
+                            {l.matchedLoosely > 0 ? ` (${l.matchedLoosely} loose)` : ''}
+                          </td>
+                          <td className="pr-2 text-right">{l.citations}</td>
+                          <td className="text-right">
+                            {l.cited}
+                            {l.citedLoosely > 0 ? ` (${l.citedLoosely} loose)` : ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {diagnostics && Object.keys(diagnostics.misses).length > 0 && (
+                <dl
+                  className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono"
+                  data-testid="debug-pricing-misses"
+                >
+                  {Object.entries(diagnostics.misses).map(([reason, count]) => (
+                    <Fragment key={reason}>
+                      <dt className="text-muted-foreground">{reason}</dt>
+                      <dd>{count}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              )}
+              {diagnostics && diagnostics.rejected.length > 0 && (
+                <div className="mt-2 overflow-x-auto">
+                  <p className="text-muted-foreground">{t('Rejected web prices')}</p>
+                  <table className="w-full text-left" data-testid="debug-pricing-rejected">
+                    <thead className="text-muted-foreground">
+                      <tr>
+                        <th className="pr-2 font-medium">{t('Key')}</th>
+                        <th className="pr-2 font-medium">{t('Unit')}</th>
+                        <th className="pr-2 text-right font-medium">{t('AI price')}</th>
+                        <th className="pr-2 text-right font-medium">{t('Web price')}</th>
+                        <th className="font-medium">{t('Reason')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-mono">
+                      {diagnostics.rejected.map((r, i) => (
+                        <tr key={`${r.key}-${i}`} className="border-t">
+                          <td className="break-all py-0.5 pr-2">{r.key}</td>
+                          <td className="pr-2">{r.unit}</td>
+                          <td className="pr-2 text-right">{r.ai}</td>
+                          <td className="pr-2 text-right">{r.web}</td>
+                          <td>{r.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {changes.length > 0 && (
                 <div className="mt-2 overflow-x-auto">

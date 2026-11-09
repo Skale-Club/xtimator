@@ -150,6 +150,23 @@ describe('resolveLinePrices precedence', () => {
     ])
   })
 
+  it('passes the research diagnostics through on both return paths, and leaves them undefined without research', async () => {
+    const diagnostics = { lookups: [], misses: { uncited: 2 }, rejected: [] }
+    mockResearch.mockImplementation(async (sections: EstimateSectionOutput[]) => ({
+      sections,
+      flaggedUnpriced: 0,
+      diagnostics,
+    }))
+    const noCeiling = await resolveLinePrices(secs(line({})), baseOpts)
+    expect(noCeiling.researchDiagnostics).toEqual(diagnostics)
+    const withCeiling = await resolveLinePrices(secs(line({})), { ...baseOpts, totalCeiling: 2_000_000 })
+    expect(withCeiling.researchDiagnostics).toEqual(diagnostics)
+
+    mockResearch.mockRejectedValue(new Error('provider down'))
+    const failed = await resolveLinePrices(secs(line({})), baseOpts)
+    expect(failed.researchDiagnostics).toBeUndefined()
+  })
+
   it('collapses exact duplicates only when totalCeiling is supplied', async () => {
     const dup = secs(line({}), line({}))
     const skipped = await resolveLinePrices(dup, baseOpts)

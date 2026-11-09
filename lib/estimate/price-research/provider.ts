@@ -65,7 +65,32 @@ export interface ResearchCostContext {
    * OPTIONAL usage callback: adapters report what a lookup consumed (e.g. the number of
    * web-search requests) so the caller can record it. Best-effort; adapters never throw from it.
    */
-  onUsage?: (usage: { searches?: number | null }) => void
+  onUsage?: (usage: { searches?: number | null; diagnostics?: LookupDiagnostics }) => void
+}
+
+/**
+ * Per-lookup explanation of what the model reply yielded (observability only). Reported by the
+ * adapter on every exit path after the HTTP request was attempted.
+ */
+export interface LookupDiagnostics {
+  /** Items asked for. */
+  requested: number
+  /** HTTP status was ok and the body had no `error`. */
+  httpOk: boolean
+  /** The reply parsed into a valid results payload. */
+  parsed: boolean
+  /** Results in the parsed payload. */
+  returned: number
+  /** Requested items that got a result (exact or loose name). */
+  matched: number
+  /** Of `matched`, those associated by the loose name key. */
+  matchedLoosely: number
+  /** Distinct url_citation annotations indexed. */
+  citations: number
+  /** Matched results whose source survived the evidence gate. */
+  cited: number
+  /** Of `cited`, those matched on the normalized URL rather than exactly. */
+  citedLoosely: number
 }
 
 export interface PriceResearchProvider {

@@ -15,6 +15,8 @@
 import type { EstimateOutput } from '@/lib/ai/types'
 import type { OpenQuestion } from '@/lib/ai/schema'
 import type { PriceChange } from '@/lib/estimate/pricing/resolve-prices'
+import type { ResearchDiagnostics } from '@/lib/estimate/price-research/orchestrator'
+import type { LookupDiagnostics } from '@/lib/estimate/price-research/provider'
 
 export type AiLevel = 'low' | 'medium' | 'high'
 
@@ -33,6 +35,8 @@ export interface AiQuality {
 export interface AiPricingRecord {
   research?: { candidates: number; cacheHits: number; providerUsable: number; missed: number; searches?: number }
   changes?: PriceChange[]
+  /** Why research results were dropped (lookup counters, miss reasons, rejected web prices). */
+  diagnostics?: ResearchDiagnostics
 }
 
 export interface AiMeta {
@@ -72,7 +76,7 @@ export function buildAiMeta(
   if (out.open_questions?.length) meta.open_questions = out.open_questions
   if (out.scope_confidence) meta.scope_confidence = out.scope_confidence
   if (quality) meta.quality = quality
-  if (pricing && (pricing.research || pricing.changes?.length)) meta.pricing = pricing
+  if (pricing && (pricing.research || pricing.changes?.length || pricing.diagnostics)) meta.pricing = pricing
   return Object.keys(meta).length > 1 ? meta : null
 }
 
@@ -123,6 +127,76 @@ function finiteNumber(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
 }
 
+const MISS_REASONS = ['no_price', 'uncited', 'unit', 'currency', 'band', 'over_cap', 'quota'] as const
+const LOOKUP_NUMBER_FIELDS = [
+  'requested',
+  'returned',
+  'matched',
+  'matchedLoosely',
+  'citations',
+  'cited',
+  'citedLoosely',
+] as const
+
+/** Tolerant reader for the research diagnostics record; wrong types are dropped. Never throws. */
+function parseDiagnostics(v: unknown): ResearchDiagnostics | undefined {
+  try {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+    const o = v as Record<string, unknown>
+
+    const lookups: LookupDiagnostics[] = []
+    if (Array.isArray(o.lookups)) {
+      for (const l of o.lookups) {
+        if (!l || typeof l !== 'object' || Array.isArray(l)) continue
+        const lo = l as Record<string, unknown>
+        const entry: LookupDiagnostics = {
+          requested: 0,
+          httpOk: lo.httpOk === true,
+          parsed: lo.parsed === true,
+          returned: 0,
+          matched: 0,
+          matchedLoosely: 0,
+          citations: 0,
+          cited: 0,
+          citedLoosely: 0,
+        }
+        for (const f of LOOKUP_NUMBER_FIELDS) entry[f] = finiteNumber(lo[f]) ?? 0
+        lookups.push(entry)
+      }
+    }
+
+    const misses: ResearchDiagnostics['misses'] = {}
+    if (o.misses && typeof o.misses === 'object' && !Array.isArray(o.misses)) {
+      const mo = o.misses as Record<string, unknown>
+      for (const reason of MISS_REASONS) {
+        const n = finiteNumber(mo[reason])
+        if (n !== undefined && n > 0) misses[reason] = n
+      }
+    }
+
+    const rejected: ResearchDiagnostics['rejected'] = []
+    if (Array.isArray(o.rejected)) {
+      for (const r of o.rejected) {
+        if (!r || typeof r !== 'object' || Array.isArray(r)) continue
+        const ro = r as Record<string, unknown>
+        if (typeof ro.key !== 'string' || !ro.key) continue
+        rejected.push({
+          key: ro.key,
+          unit: typeof ro.unit === 'string' ? ro.unit : '',
+          ai: finiteNumber(ro.ai) ?? 0,
+          web: finiteNumber(ro.web) ?? 0,
+          reason: typeof ro.reason === 'string' ? ro.reason : '',
+        })
+      }
+    }
+
+    if (lookups.length === 0 && Object.keys(misses).length === 0 && rejected.length === 0) return undefined
+    return { lookups, misses, rejected }
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Tolerant reader for the INTERNAL slice of ai_meta (source notes and pricing record).
  * Used ONLY by the platform-admin estimate debug dialog. Never throws; null when the
@@ -171,7 +245,9 @@ export function parseAiMetaInternal(
       }
       if (changes.length > 0) pricing.changes = changes
     }
-    if (pricing.research || pricing.changes) out.pricing = pricing
+    const diagnostics = parseDiagnostics(po.diagnostics)
+    if (diagnostics) pricing.diagnostics = diagnostics
+    if (pricing.research || pricing.changes || pricing.diagnostics) out.pricing = pricing
   }
 
   return Object.keys(out).length > 0 ? out : null

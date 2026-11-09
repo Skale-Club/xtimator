@@ -434,3 +434,234 @@ describe('makeOpenRouterWebProvider — degraded paths (never throws)', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Tolerant name re-association, tolerant citation match, diagnostics
+// ---------------------------------------------------------------------------
+
+type Usage = {
+  searches?: number | null
+  diagnostics?: import('@/lib/estimate/price-research/provider').LookupDiagnostics
+}
+
+function resultJson(rows: Array<Record<string, unknown>>) {
+  return JSON.stringify({ results: rows })
+}
+
+function citation(url: string, content = 'Cited page says $150.') {
+  return { type: 'url_citation', url_citation: { url, title: 't', content } }
+}
+
+async function lookupWith(items: { name: string }[], content: string, annotations: unknown[] = []) {
+  vi.stubGlobal('fetch', vi.fn(async () => orResponse(content, annotations) as unknown as Response))
+  const usages: Usage[] = []
+  const out = await makeOpenRouterWebProvider().lookup(items, region, 'USD', {
+    onUsage: (u) => usages.push(u),
+  })
+  return { out, diag: usages.find((u) => u.diagnostics)?.diagnostics }
+}
+
+describe('makeOpenRouterWebProvider — loose name re-association', () => {
+  const row = (name: string) => ({
+    name,
+    unit_price: 150,
+    currency: 'USD',
+    source_url: 'https://example.com/p',
+    snippet: 's',
+  })
+
+  it('accepts a loose name match and returns it under the REQUESTED name', async () => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      resultJson([row('drywall  Repair!')]),
+      [citation('https://example.com/p')]
+    )
+    expect(out).toHaveLength(1)
+    expect(out[0].name).toBe('Drywall repair')
+    expect(out[0].unit_price).toBe(150)
+    expect(diag).toMatchObject({ requested: 1, returned: 1, matched: 1, matchedLoosely: 1, cited: 1 })
+  })
+
+  it('does not accept an ambiguous loose match (two results share the loose key)', async () => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      resultJson([row('drywall repair.'), row('Drywall-repair')]),
+      [citation('https://example.com/p')]
+    )
+    expect(out[0].unit_price).toBeNull()
+    expect(diag).toMatchObject({ returned: 2, matched: 0, matchedLoosely: 0 })
+  })
+
+  it('does not accept a loose match when two requested items share the loose key', async () => {
+    const { out } = await lookupWith(
+      [{ name: 'Drywall repair' }, { name: 'drywall-repair' }],
+      resultJson([row('DRYWALL REPAIR!!')]),
+      [citation('https://example.com/p')]
+    )
+    expect(out.every((r) => r.unit_price === null)).toBe(true)
+  })
+
+  it('prefers the exact name and leaves an exactly-matched result out of loose matching', async () => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      resultJson([row('Drywall repair'), row('drywall repair.')]),
+      [citation('https://example.com/p')]
+    )
+    expect(out[0].unit_price).toBe(150)
+    expect(diag).toMatchObject({ matched: 1, matchedLoosely: 0 })
+  })
+})
+
+describe('makeOpenRouterWebProvider — tolerant citation match', () => {
+  const lookupUrl = async (claimed: string, cited: string) => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      resultJson([
+        { name: 'Drywall repair', unit_price: 150, currency: 'USD', source_url: claimed, snippet: 'self' },
+      ]),
+      [citation(cited, 'Real cited content $150')]
+    )
+    return { r: out[0], diag }
+  }
+
+  it('still accepts an exact-URL citation (not counted as loose)', async () => {
+    const { r, diag } = await lookupUrl('https://example.com/a/b', 'https://example.com/a/b')
+    expect(r.source_url).toBe('https://example.com/a/b')
+    expect(r.snippet).toBe('Real cited content $150')
+    expect(diag).toMatchObject({ cited: 1, citedLoosely: 0 })
+  })
+
+  it.each([
+    ['http protocol', 'http://example.com/a/b', 'https://example.com/a/b'],
+    ['www prefix', 'https://www.example.com/a/b', 'https://example.com/a/b'],
+    ['cited www prefix', 'https://example.com/a/b', 'https://www.example.com/a/b'],
+    ['query string', 'https://example.com/a/b?utm_source=x', 'https://example.com/a/b'],
+    ['fragment', 'https://example.com/a/b#price', 'https://example.com/a/b'],
+    ['trailing slash', 'https://example.com/a/b/', 'https://example.com/a/b'],
+    ['host case', 'https://EXAMPLE.com/a/b', 'https://example.com/a/b'],
+  ])('accepts the same host+path with a different %s', async (_label, claimed, cited) => {
+    const { r, diag } = await lookupUrl(claimed, cited)
+    expect(r.source_url).toBe(claimed)
+    // The snippet comes from the MATCHED citation, not the model's self-asserted one.
+    expect(r.snippet).toBe('Real cited content $150')
+    expect(isUsableCandidate(r)).toBe(true)
+    expect(diag).toMatchObject({ cited: 1, citedLoosely: 1 })
+  })
+
+  it.each([
+    ['different host', 'https://other.com/a/b', 'https://example.com/a/b'],
+    ['different subdomain', 'https://blog.example.com/a/b', 'https://example.com/a/b'],
+    ['different path', 'https://example.com/a/c', 'https://example.com/a/b'],
+    ['deeper path', 'https://example.com/a/b/c', 'https://example.com/a/b'],
+    ['unparseable claimed url', 'not a url', 'https://example.com/a/b'],
+  ])('rejects a %s', async (_label, claimed, cited) => {
+    const { r, diag } = await lookupUrl(claimed, cited)
+    expect(r.source_url).toBeNull()
+    expect(r.snippet).toBeNull()
+    expect(isUsableCandidate(r)).toBe(false)
+    expect(diag).toMatchObject({ matched: 1, cited: 0, citedLoosely: 0 })
+  })
+
+  it('nulls source and snippet when there is no citation at all (unchanged guarantee)', async () => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      resultJson([
+        { name: 'Drywall repair', unit_price: 150, currency: 'USD', source_url: 'https://example.com/a', snippet: 'self' },
+      ]),
+      []
+    )
+    expect(out[0].source_url).toBeNull()
+    expect(out[0].snippet).toBeNull()
+    expect(diag).toMatchObject({ citations: 0, cited: 0 })
+  })
+})
+
+describe('makeOpenRouterWebProvider — diagnostics', () => {
+  const collect = async (response: () => unknown) => {
+    vi.stubGlobal('fetch', vi.fn(async () => response() as Response))
+    const usages: Usage[] = []
+    const out = await makeOpenRouterWebProvider().lookup([{ name: 'Drywall repair' }], region, 'USD', {
+      onUsage: (u) => usages.push(u),
+    })
+    return { out, diags: usages.filter((u) => u.diagnostics).map((u) => u.diagnostics!) }
+  }
+
+  it('reports once on an HTTP failure', async () => {
+    const { out, diags } = await collect(() => ({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+      text: async () => '',
+    }))
+    expect(out[0].unit_price).toBeNull()
+    expect(diags).toEqual([
+      {
+        requested: 1,
+        httpOk: false,
+        parsed: false,
+        returned: 0,
+        matched: 0,
+        matchedLoosely: 0,
+        citations: 0,
+        cited: 0,
+        citedLoosely: 0,
+      },
+    ])
+  })
+
+  it('reports once on an unparseable reply, with the citations it saw', async () => {
+    const { diags } = await collect(() => orResponse('not json {{{', [citation('https://example.com/p')]))
+    expect(diags).toHaveLength(1)
+    expect(diags[0]).toMatchObject({ httpOk: true, parsed: false, returned: 0, citations: 1 })
+  })
+
+  it('reports once on a schema failure', async () => {
+    const { diags } = await collect(() => orResponse(JSON.stringify({ results: 'nope' }), []))
+    expect(diags).toHaveLength(1)
+    expect(diags[0]).toMatchObject({ httpOk: true, parsed: false })
+  })
+
+  it('reports once on success and keeps the searches report', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          orResponse(
+            resultJson([
+              { name: 'Drywall repair', unit_price: 150, currency: 'USD', source_url: 'https://example.com/p', snippet: 's' },
+            ]),
+            [citation('https://example.com/p')]
+          ) as unknown as Response
+      )
+    )
+    const usages: Usage[] = []
+    await makeOpenRouterWebProvider().lookup([{ name: 'Drywall repair' }], region, 'USD', {
+      onUsage: (u) => usages.push(u),
+    })
+    expect(usages.some((u) => u.searches === 1)).toBe(true)
+    const diags = usages.filter((u) => u.diagnostics).map((u) => u.diagnostics)
+    expect(diags).toEqual([
+      {
+        requested: 1,
+        httpOk: true,
+        parsed: true,
+        returned: 1,
+        matched: 1,
+        matchedLoosely: 0,
+        citations: 1,
+        cited: 1,
+        citedLoosely: 0,
+      },
+    ])
+  })
+
+  it('never throws when onUsage throws', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => orResponse('x', []) as unknown as Response))
+    const out = await makeOpenRouterWebProvider().lookup([{ name: 'Drywall repair' }], region, 'USD', {
+      onUsage: () => {
+        throw new Error('boom')
+      },
+    })
+    expect(out).toHaveLength(1)
+  })
+})

@@ -492,6 +492,7 @@ export async function generateEstimateForProject(
     clampedCount,
     flaggedUnpriced,
     researchTelemetry,
+    researchDiagnostics,
     priceChanges,
     consistencyFlags: preComputeFlags,
   } = await resolveLinePrices(aiEstimate.sections, {
@@ -686,10 +687,11 @@ export async function generateEstimateForProject(
   // must never fail a generation.
   const lineChanges = priceChanges ?? []
   const pricingRecord =
-    researchTelemetry || lineChanges.length
+    researchTelemetry || lineChanges.length || researchDiagnostics
       ? {
           ...(researchTelemetry ? { research: researchTelemetry } : {}),
           ...(lineChanges.length ? { changes: lineChanges } : {}),
+          ...(researchDiagnostics ? { diagnostics: researchDiagnostics } : {}),
         }
       : undefined
   const aiMeta = buildAiMeta(

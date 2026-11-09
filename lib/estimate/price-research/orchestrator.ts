@@ -43,12 +43,12 @@ import { randomUUID } from 'node:crypto'
 import { deterministicUuid } from '@/lib/ids/deterministic-uuid'
 import type { EstimateSectionOutput, LineItemOutput } from '@/lib/ai/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getPriceResearchProviderChain, isUsableCandidate } from './provider'
+import { getPriceResearchProviderChain, isUsableCandidate, type LookupDiagnostics } from './provider'
 import { get as cacheGet, put as cachePut } from './cache'
 import { checkQuota, recordUsage } from '@/lib/quota'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { normalizeServiceNameKey, normalizeRegion } from './normalize'
-import { conceptMapKey, priceConcept } from '@/lib/estimate/pricing/concept-key'
+import { conceptKey, conceptMapKey, priceConcept } from '@/lib/estimate/pricing/concept-key'
 import { unitKey } from '@/lib/ai/units'
 import { isPriceBandsEnabled, withinRatioBand } from '@/lib/estimate/pricing/price-bands'
 
@@ -78,6 +78,19 @@ export interface ResearchContext {
   projectId?: string
 }
 
+/** Why a researched price was not used (observability only). */
+export type ResearchMissReason = 'no_price' | 'uncited' | 'unit' | 'currency' | 'band' | 'over_cap' | 'quota'
+
+/** Internal explanation of the research pass: provider lookups, miss reasons, rejected web prices. */
+export interface ResearchDiagnostics {
+  lookups: LookupDiagnostics[]
+  misses: Partial<Record<ResearchMissReason, number>>
+  rejected: Array<{ key: string; unit: string; ai: number; web: number; reason: string }>
+}
+
+const MAX_DIAGNOSTIC_LOOKUPS = 5
+const MAX_DIAGNOSTIC_REJECTED = 30
+
 export interface ResearchOutcome {
   sections: EstimateSectionOutput[]
   /**
@@ -105,6 +118,11 @@ export interface ResearchOutcome {
     /** Web-search requests the provider reported; present only when at least one number was reported. */
     searches?: number
   }
+  /**
+   * Best-effort explanation of every dropped research result. A sibling of `telemetry` (not
+   * inside it). Present only when a lookup was attempted or any miss was counted.
+   */
+  diagnostics?: ResearchDiagnostics
 }
 
 /**
@@ -243,6 +261,31 @@ export async function researchUnmatchedPrices(
     // Web-search requests reported by the adapters (observability only).
     let searches = 0
     let searchesReported = false
+    // Diagnostics (observability only; never influence the re-tag logic).
+    const lookupDiagnostics: LookupDiagnostics[] = []
+    const missCounts: ResearchDiagnostics['misses'] = {}
+    const rejectedPrices: ResearchDiagnostics['rejected'] = []
+    const countMiss = (reason: ResearchMissReason, n = 1) => {
+      missCounts[reason] = (missCounts[reason] ?? 0) + n
+    }
+    const noteRejected = (
+      item: { description: string; price_key?: string; unit?: string; unit_price: number },
+      web: number,
+      reason: string
+    ) => {
+      try {
+        if (rejectedPrices.length >= MAX_DIAGNOSTIC_REJECTED) return
+        rejectedPrices.push({
+          key: conceptKey(priceSubject(item)),
+          unit: unitKey(item.unit),
+          ai: item.unit_price,
+          web,
+          reason,
+        })
+      } catch {
+        // observability only
+      }
+    }
 
     // Candidate set: items still tagged 'ai_estimate' after anchoring. price_book +
     // owner-edited (price_source null) items are out of scope (RPRICE-03 precedence).
@@ -269,6 +312,7 @@ export async function researchUnmatchedPrices(
     const researchTargets = candidates.slice(0, MAX_RESEARCH_ITEMS_PER_ESTIMATE)
     const droppedCount = candidates.length - researchTargets.length
     if (droppedCount > 0) {
+      countMiss('over_cap', droppedCount)
       console.warn(
         `[price-research] cap hit: researching ${researchTargets.length}/${candidates.length} items ` +
           `(MAX_RESEARCH_ITEMS_PER_ESTIMATE=${MAX_RESEARCH_ITEMS_PER_ESTIMATE}); ${droppedCount} dropped to ai_estimate`
@@ -399,6 +443,9 @@ export async function researchUnmatchedPrices(
                       searches += n
                       searchesReported = true
                     }
+                    if (usage?.diagnostics && lookupDiagnostics.length < MAX_DIAGNOSTIC_LOOKUPS) {
+                      lookupDiagnostics.push(usage.diagnostics)
+                    }
                   },
                 }
               )
@@ -426,11 +473,27 @@ export async function researchUnmatchedPrices(
                 // Metering is best-effort; a ledger error must not drop the price.
               }
 
+              const evidenced = isUsableCandidate(result)
               const usable =
-                isUsableCandidate(result) &&
+                evidenced &&
                 typeof result.unit_price === 'number' &&
                 unitCompatible(requested.unit, result.unit) &&
                 currencyCompatible(ctx.currency, result.currency)
+              if (!usable) {
+                // Diagnostics: one reason per dropped result.
+                const web = result.unit_price
+                if (typeof web !== 'number' || !Number.isFinite(web) || web <= 0) {
+                  countMiss('no_price')
+                } else {
+                  const reason: ResearchMissReason = !evidenced
+                    ? 'uncited'
+                    : !unitCompatible(requested.unit, result.unit)
+                      ? 'unit'
+                      : 'currency'
+                  countMiss(reason)
+                  noteRejected(requested, web, reason)
+                }
+              }
               // Memoize the outcome (a usable result, or null for a known miss) so a
               // duplicate (normName, region) later in THIS call is a free memo HIT.
               memo.set(mk, usable ? result : null)
@@ -441,7 +504,11 @@ export async function researchUnmatchedPrices(
                 for (const m of remaining) {
                   if (buildMemoKey(ctx.region, priceSubject(m), m.unit) === mk) {
                     // Flagged: outside 0.33x..3x of THIS line's model price -> not re-tagged.
-                    if (bands && !withinRatioBand(m.unit_price, result.unit_price as number)) continue
+                    if (bands && !withinRatioBand(m.unit_price, result.unit_price as number)) {
+                      countMiss('band')
+                      noteRejected(m, result.unit_price as number, 'band')
+                      continue
+                    }
                     // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).
                     if (!retag.has(m)) providerUsable++
                     retag.set(m, { ...m, unit_price: result.unit_price as number, price_source: 'researched' as const })
@@ -465,6 +532,8 @@ export async function researchUnmatchedPrices(
             // (the gated fallback). An item already re-tagged 'researched' is resolved.
             remaining = remaining.filter((m) => !retag.has(m))
           }
+        } else {
+          countMiss('quota', stillMissing.length)
         }
       }
     }
@@ -526,7 +595,16 @@ export async function researchUnmatchedPrices(
       missed: Math.max(0, candidates.length - cacheHits - providerUsable),
       ...(searchesReported ? { searches } : {}),
     }
-    return { sections: rewritten, flaggedUnpriced: countFlaggedUnpriced(rewritten), telemetry }
+    let diagnostics: ResearchDiagnostics | undefined
+    if (lookupDiagnostics.length > 0 || Object.keys(missCounts).length > 0) {
+      diagnostics = { lookups: lookupDiagnostics, misses: missCounts, rejected: rejectedPrices }
+    }
+    return {
+      sections: rewritten,
+      flaggedUnpriced: countFlaggedUnpriced(rewritten),
+      telemetry,
+      ...(diagnostics ? { diagnostics } : {}),
+    }
   } catch {
     // NEVER-THROWS: return the original sections + a best-effort flagged count.
     try {

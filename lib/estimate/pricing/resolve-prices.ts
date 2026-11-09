@@ -24,7 +24,10 @@ import {
   isPriceBandsEnabled,
   priceOutsideBand,
 } from '@/lib/estimate/pricing/price-bands'
-import { researchUnmatchedPrices } from '@/lib/estimate/price-research/orchestrator'
+import {
+  researchUnmatchedPrices,
+  type ResearchOutcome,
+} from '@/lib/estimate/price-research/orchestrator'
 import {
   applyCompanyHistory,
   historyCandidateKeys,
@@ -138,6 +141,8 @@ export interface ResolvePricesResult {
   flaggedUnpriced: number
   /** Undefined until research ran; stays undefined on a research failure ("no data, no alarm"). */
   researchTelemetry: ResearchTelemetry | undefined
+  /** Internal explanation of dropped research results; absent when no lookup ran or research failed. */
+  researchDiagnostics?: ResearchOutcome['diagnostics']
   /** Duplicate / qty-0 flags from the dedupe pass (empty when dedupe is skipped). */
   consistencyFlags: ConsistencyFlag[]
   /** Internal record of the lines whose final price was not the AI's own (capped). */
@@ -211,6 +216,7 @@ export async function resolveLinePrices(
   let researchedSections = guardedSections
   let flaggedUnpriced = 0
   let researchTelemetry: ResearchTelemetry | undefined
+  let researchDiagnostics: ResearchOutcome['diagnostics']
 
   const candidates = countCandidates(guardedSections)
   const itemCount = guardedSections.reduce((n, s) => n + s.items.length, 0)
@@ -233,6 +239,7 @@ export async function resolveLinePrices(
     researchedSections = research.sections
     flaggedUnpriced = research.flaggedUnpriced
     researchTelemetry = research.telemetry
+    researchDiagnostics = research.diagnostics
     if (researchTelemetry) {
       try {
         opts.onProgress?.({
@@ -271,6 +278,7 @@ export async function resolveLinePrices(
       historyAppliedCount,
       flaggedUnpriced,
       researchTelemetry,
+      researchDiagnostics,
       consistencyFlags: [],
       priceChanges,
     }
@@ -289,6 +297,7 @@ export async function resolveLinePrices(
     historyAppliedCount,
     flaggedUnpriced,
     researchTelemetry,
+    researchDiagnostics,
     consistencyFlags: consistency.flags,
     priceChanges,
   }

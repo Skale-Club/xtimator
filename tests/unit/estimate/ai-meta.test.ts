@@ -144,3 +144,65 @@ describe('parseAiMetaInternal (platform-admin debug dialog only)', () => {
     expect(parseAiMetaInternal({ pricing: { changes: 'nope', research: null } })).toBeNull()
   })
 })
+
+describe('pricing diagnostics (internal record)', () => {
+  const diagnostics = {
+    lookups: [
+      {
+        requested: 14,
+        httpOk: true,
+        parsed: true,
+        returned: 12,
+        matched: 11,
+        matchedLoosely: 3,
+        citations: 6,
+        cited: 5,
+        citedLoosely: 2,
+      },
+    ],
+    misses: { no_price: 2, uncited: 6, unit: 1 },
+    rejected: [{ key: 'drywall repair', unit: 'each', ai: 100, web: 900, reason: 'band' }],
+  }
+
+  it('buildAiMeta stores a record that only holds diagnostics, and it round-trips', () => {
+    const built = buildAiMeta({}, null, { diagnostics })
+    expect(built?.pricing).toEqual({ diagnostics })
+    expect(parseAiMetaInternal(JSON.parse(JSON.stringify(built)))).toEqual({ pricing: { diagnostics } })
+    expect(parseAiMeta(JSON.parse(JSON.stringify(built)))).toBeNull()
+  })
+
+  it('drops wrong types instead of throwing', () => {
+    const read = parseAiMetaInternal({
+      pricing: {
+        diagnostics: {
+          lookups: [{ requested: 'x', httpOk: 'yes', returned: 3 }, 'junk', null],
+          misses: { uncited: 4, unit: 'many', bogus: 9, band: -1 },
+          rejected: [{ key: 'a', unit: 5, ai: 'x', web: 2, reason: 7 }, { unit: 'each' }, 'junk'],
+        },
+      },
+    })
+    expect(read?.pricing?.diagnostics).toEqual({
+      lookups: [
+        {
+          requested: 0,
+          httpOk: false,
+          parsed: false,
+          returned: 3,
+          matched: 0,
+          matchedLoosely: 0,
+          citations: 0,
+          cited: 0,
+          citedLoosely: 0,
+        },
+      ],
+      misses: { uncited: 4 },
+      rejected: [{ key: 'a', unit: '', ai: 0, web: 2, reason: '' }],
+    })
+  })
+
+  it('ignores an empty or malformed diagnostics value', () => {
+    for (const d of [null, 'x', 7, [], {}, { lookups: 'no', misses: 'no', rejected: 'no' }]) {
+      expect(parseAiMetaInternal({ pricing: { diagnostics: d } })).toBeNull()
+    }
+  })
+})
