@@ -4,11 +4,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Mic, Camera, Sparkles, Send } from 'lucide-react'
+import { Mic, Camera, Sparkles, Send, ArrowRight } from 'lucide-react'
+import { GradientTopLine } from '@/components/auth/owned-auth-dialog'
 import { useTourContext } from './tour-provider'
 import { useTour } from './use-tour'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -38,6 +38,13 @@ export function WelcomeModal() {
     setShowWelcome(false)
   }
 
+  const steps = [
+    { Icon: Mic, text: t('Record a job site walkthrough') },
+    { Icon: Camera, text: t('Add photos of the scope') },
+    { Icon: Sparkles, text: t('AI generates a complete estimate') },
+    { Icon: Send, text: t('Send as PDF or shareable link') },
+  ]
+
   return (
     <Dialog
       open={showWelcome}
@@ -54,55 +61,54 @@ export function WelcomeModal() {
         }
       }}
     >
-      <DialogContent className="glass-strong max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-center">
+      <DialogContent className="w-[92%] max-w-[420px] gap-0 overflow-hidden rounded-2xl p-6 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:p-7">
+        <GradientTopLine />
+
+        <div className="relative flex flex-col items-center text-center">
+          <div className="gradient-brand flex size-12 items-center justify-center rounded-2xl text-white shadow-[0_10px_30px_hsl(var(--primary)/0.35)]">
+            <Sparkles className="size-6" aria-hidden />
+          </div>
+          <DialogTitle className="mt-4 text-2xl font-semibold tracking-tight">
             {t('Welcome to Xtimator!')}
           </DialogTitle>
-          <DialogDescription className="text-center">
+          <DialogDescription className="mt-1.5 text-sm text-muted-foreground">
             {t("You're set up. Here's how the magic works:")}
           </DialogDescription>
-        </DialogHeader>
-        <ul className="space-y-3 mt-2">
-          {[
-            { Icon: Mic,      text: t('Record a job site walkthrough') },
-            { Icon: Camera,   text: t('Add photos of the scope') },
-            { Icon: Sparkles, text: t('AI generates a complete estimate') },
-            { Icon: Send,     text: t('Send as PDF or shareable link') },
-          ].map(({ Icon, text }) => (
-            <li key={text} className="flex items-center gap-3 text-sm">
-              <Icon className="h-4 w-4 text-primary shrink-0" />
-              <span>{text}</span>
+        </div>
+
+        <ol className="relative mt-6 space-y-1">
+          {steps.map(({ Icon, text }, index) => (
+            <li key={text} className="relative flex items-center gap-3.5 py-2">
+              {index < steps.length - 1 && (
+                <span aria-hidden className="absolute left-[19px] top-[44px] h-[calc(100%-32px)] w-px bg-border" />
+              )}
+              <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-primary">
+                <Icon className="size-[18px]" aria-hidden />
+              </span>
+              <span className="flex min-w-0 flex-col text-left">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {t('Step')} {index + 1}
+                </span>
+                <span className="text-sm font-medium leading-snug">{text}</span>
+              </span>
             </li>
           ))}
-        </ul>
-        <p className="text-center text-sm font-medium mt-2">
-          {t('Ready to create your first estimate?')}
-        </p>
-        <div className="flex gap-3 mt-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={handleShowMeAround}
-          >
-            {t('Show me around')}
-          </Button>
+        </ol>
+
+        <div className="mt-6 flex flex-col gap-2">
           {isReviewModeRef.current ? (
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handleClose}
-            >
+            <Button variant="outline" className="min-h-11 w-full" onClick={handleClose}>
               {t('Close')}
             </Button>
           ) : (
-            <Button
-              className="flex-1 gradient-brand text-white"
-              onClick={handleStartEstimating}
-            >
-              {t('Start estimating')} →
+            <Button className="gradient-brand min-h-11 w-full text-white" onClick={handleStartEstimating}>
+              {t('Start estimating')}
+              <ArrowRight className="ml-1.5 size-4" aria-hidden />
             </Button>
           )}
+          <Button variant="ghost" className="min-h-11 w-full text-muted-foreground hover:text-foreground" onClick={handleShowMeAround}>
+            {t('Show me around')}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
