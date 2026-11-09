@@ -6,6 +6,8 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getInvoicesByEstimateId } from '@/lib/queries/invoice'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
+import { stripOwnerOnlyEstimate } from '@/lib/estimate/ai-meta'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
@@ -103,14 +105,19 @@ async function ProjectTabs({
     .eq('id', project.company_id)
     .single()
 
-  const [activity, stats, recordings, photos, allVersions, { data: company }] = await Promise.all([
+  const [activity, stats, recordings, photos, allVersionsRaw, { data: company }, viewerIsPlatformAdmin] = await Promise.all([
     activityPromise,
     statsPromise,
     recordingsPromise,
     photosPromise,
     allVersionsPromise,
     companyPromise,
+    isPlatformAdmin(),
   ])
+
+  // ai_meta (assumptions, open questions, pricing record) is the platform-admin debug
+  // tool's data: it never reaches a non-admin browser. Decided here, on the server.
+  const allVersions = viewerIsPlatformAdmin ? allVersionsRaw : allVersionsRaw.map(stripOwnerOnlyEstimate)
 
   const companyName = (company?.name as string) ?? ''
   const ownerName = (company?.owner_name as string | null) ?? ''
@@ -181,7 +188,9 @@ async function ProjectTabs({
   }
 
   // Fetch current estimate for workspace tabs that need it
-  const currentEstimate = await getCurrentEstimate(supabase, project.id)
+  const currentEstimateRaw = await getCurrentEstimate(supabase, project.id)
+  const currentEstimate =
+    currentEstimateRaw && !viewerIsPlatformAdmin ? stripOwnerOnlyEstimate(currentEstimateRaw) : currentEstimateRaw
 
   // TRUST-01 v2 (security-hardening S1) — this page builds documentCompany from
   // its own companies query above, bypassing getEstimateWithContext's frozen-
@@ -238,6 +247,7 @@ async function ProjectTabs({
       photos={photos}
       currentEstimate={currentEstimate}
       allVersions={allVersions}
+      isPlatformAdmin={viewerIsPlatformAdmin}
       issuedInvoices={issuedInvoices}
       paymentsEnabled={canIssueInvoice}
       companyName={companyName}

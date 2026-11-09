@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildAiMeta, isMissingColumnError, parseAiMeta } from '@/lib/estimate/ai-meta'
+import { buildAiMeta, isMissingColumnError, parseAiMeta, parseAiMetaInternal } from '@/lib/estimate/ai-meta'
 
 describe('buildAiMeta', () => {
   it('returns null when the model said nothing', () => {
@@ -96,5 +96,51 @@ describe('isMissingColumnError', () => {
     expect(isMissingColumnError({ code: '23505', message: 'duplicate key value' }, ['ai_meta'])).toBe(false)
     expect(isMissingColumnError({ code: 'PGRST204', message: "Could not find the 'other' column" }, ['ai_meta'])).toBe(false)
     expect(isMissingColumnError(null, ['ai_meta'])).toBe(false)
+  })
+})
+
+describe('parseAiMetaInternal (platform-admin debug dialog only)', () => {
+  const stored = {
+    v: 1,
+    assumptions: ['Standard 8 ft ceilings'],
+    source_notes: ['The transcript repeats itself.', '  ', 7],
+    pricing: {
+      research: { candidates: 4, cacheHits: 1, providerUsable: 2, missed: 1, searches: 3 },
+      changes: [
+        { key: 'drywall repair', unit: 'each', ai: 100, final: 140, source: 'researched' },
+        { unit: 'ea', ai: 1, final: 2, source: 'x' },
+        'junk',
+      ],
+    },
+  }
+
+  it('reads source notes and the pricing record from a valid value', () => {
+    expect(parseAiMetaInternal(stored)).toEqual({
+      source_notes: ['The transcript repeats itself.'],
+      pricing: {
+        research: { candidates: 4, cacheHits: 1, providerUsable: 2, missed: 1, searches: 3 },
+        changes: [{ key: 'drywall repair', unit: 'each', ai: 100, final: 140, source: 'researched' }],
+      },
+    })
+  })
+
+  it('does not change what parseAiMeta returns', () => {
+    const read = parseAiMeta(stored)
+    expect(read).toEqual({ v: 1, assumptions: ['Standard 8 ft ceilings'] })
+    expect(read).not.toHaveProperty('source_notes')
+    expect(read).not.toHaveProperty('pricing')
+  })
+
+  it('returns null for missing, empty or garbage values and never throws', () => {
+    for (const raw of [null, undefined, 'x', 7, [], {}, { v: 1, assumptions: ['a'] }, { source_notes: 'no', pricing: 'no' }]) {
+      expect(parseAiMetaInternal(raw)).toBeNull()
+    }
+  })
+
+  it('tolerates a partial pricing record', () => {
+    expect(parseAiMetaInternal({ pricing: { research: { candidates: 2 } } })).toEqual({
+      pricing: { research: { candidates: 2, cacheHits: 0, providerUsable: 0, missed: 0 } },
+    })
+    expect(parseAiMetaInternal({ pricing: { changes: 'nope', research: null } })).toBeNull()
   })
 })

@@ -1,12 +1,14 @@
 // lib/estimate/ai-meta.ts
 //
-// SEED-057: the owner-facing, AI-produced context stored in estimates.ai_meta.
+// SEED-057: the AI-produced context stored in estimates.ai_meta.
 //
 //   assumptions / exclusions / open_questions / scope_confidence   (Phase A)
 //   quality: structure score + the findings behind it              (Phase D)
 //
-// OWNER-FACING ONLY. Nothing in here may reach a client surface (share page,
-// PDF, WhatsApp, plain-text message); the editor panel is its only reader.
+// PLATFORM-ADMIN ONLY (debug tool). Nothing in here may reach a client surface
+// (share page, PDF, WhatsApp, plain-text message) or a non-admin browser: the
+// project page strips ai_meta for everyone but platform admins, and the estimate
+// debug dialog is its only reader.
 //
 // Pure helpers, no I/O. `parseAiMeta` is tolerant: it is fed whatever JSONB a
 // row holds (including rows written by a future version) and never throws.
@@ -43,13 +45,13 @@ export interface AiMeta {
   /**
    * INTERNAL record: the model's notes about the source material itself (duplicated
    * transcript, unclear audio). Written by buildAiMeta, deliberately NOT returned by
-   * parseAiMeta, so no surface (editor included) can render it. Read it in the database.
+   * parseAiMeta; only parseAiMetaInternal (the platform-admin debug dialog) reads it.
    */
   source_notes?: string[]
   /**
    * INTERNAL record: price research telemetry and the AI-vs-final price of changed lines.
-   * Written by buildAiMeta, deliberately NOT returned by parseAiMeta, so no surface (editor
-   * included) can render it. Read it in the database.
+   * Written by buildAiMeta, deliberately NOT returned by parseAiMeta; only
+   * parseAiMetaInternal (the platform-admin debug dialog) reads it.
    */
   pricing?: AiPricingRecord
 }
@@ -117,6 +119,64 @@ export function parseAiMeta(raw: unknown): AiMeta | null {
   return Object.keys(meta).length > 1 ? meta : null
 }
 
+function finiteNumber(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
+/**
+ * Tolerant reader for the INTERNAL slice of ai_meta (source notes and pricing record).
+ * Used ONLY by the platform-admin estimate debug dialog. Never throws; null when the
+ * value holds neither.
+ */
+export function parseAiMetaInternal(
+  raw: unknown,
+): { source_notes?: string[]; pricing?: AiPricingRecord } | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const r = raw as Record<string, unknown>
+  const out: { source_notes?: string[]; pricing?: AiPricingRecord } = {}
+
+  const notes = strings(r.source_notes)
+  if (notes) out.source_notes = notes
+
+  const p = r.pricing
+  if (p && typeof p === 'object' && !Array.isArray(p)) {
+    const po = p as Record<string, unknown>
+    const pricing: AiPricingRecord = {}
+    const rs = po.research
+    if (rs && typeof rs === 'object' && !Array.isArray(rs)) {
+      const ro = rs as Record<string, unknown>
+      const research: NonNullable<AiPricingRecord['research']> = {
+        candidates: finiteNumber(ro.candidates) ?? 0,
+        cacheHits: finiteNumber(ro.cacheHits) ?? 0,
+        providerUsable: finiteNumber(ro.providerUsable) ?? 0,
+        missed: finiteNumber(ro.missed) ?? 0,
+      }
+      const searches = finiteNumber(ro.searches)
+      if (searches !== undefined) research.searches = searches
+      pricing.research = research
+    }
+    if (Array.isArray(po.changes)) {
+      const changes: PriceChange[] = []
+      for (const c of po.changes) {
+        if (!c || typeof c !== 'object') continue
+        const o = c as Record<string, unknown>
+        if (typeof o.key !== 'string' || !o.key) continue
+        changes.push({
+          key: o.key,
+          unit: typeof o.unit === 'string' ? o.unit : '',
+          ai: finiteNumber(o.ai) ?? 0,
+          final: finiteNumber(o.final) ?? 0,
+          source: typeof o.source === 'string' ? o.source : '',
+        } as PriceChange)
+      }
+      if (changes.length > 0) pricing.changes = changes
+    }
+    if (pricing.research || pricing.changes) out.pricing = pricing
+  }
+
+  return Object.keys(out).length > 0 ? out : null
+}
+
 /**
  * True when a PostgREST / Postgres error says one of `columns` does not exist
  * yet (the migration has not been applied). Used to retry a write WITHOUT the
@@ -140,8 +200,9 @@ export function isMissingColumnError(
 // ---------------------------------------------------------------------------
 // Owner-only data must never reach a client surface.
 //
-// estimates.ai_meta and the per-line confidence / basis / optional columns are
-// for the OWNER's editor only. The public share loaders read whole rows
+// estimates.ai_meta is for platform admins (the debug dialog) only; the per-line
+// confidence / basis / optional columns are for the OWNER's editor only. The
+// project page strips ai_meta for non-admins. The public share loaders read whole rows
 // (select '*') and hand them to a client component, so they strip these fields
 // at the source, before the row is spread into anything that is serialised to
 // the browser. Everything else (PDF, WhatsApp, the plain-text message) reads

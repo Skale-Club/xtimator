@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
+import { isPlatformAdmin } from '@/lib/auth/platform-admin'
+import { stripOwnerOnlyEstimate } from '@/lib/estimate/ai-meta'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -845,7 +847,8 @@ export async function getEstimateByIdAction(
   const estimate = await getEstimateById(supabase, estimateId)
   if (!estimate) return { error: 'Estimate not found' }
 
-  return { data: estimate }
+  // ai_meta is the platform-admin debug tool's data; never hand it to a non-admin browser.
+  return { data: (await isPlatformAdmin()) ? estimate : stripOwnerOnlyEstimate(estimate) }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 
-// SEED-057 Phase G: the owner-facing AI panel, the "AI needs review" banner and
+// SEED-057 Phase G: the AI notes shown in the platform-admin debug dialog and
 // the per-line confidence dot.
 
 const pushMock = vi.fn()
@@ -14,7 +14,7 @@ vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (s: string) => s, language: 'en' }),
 }))
 
-import { AiInsightsPanel } from '@/components/workspace/estimate/ai-insights-panel'
+import { AiInsightsSections } from '@/components/workspace/estimate/ai-insights-panel'
 import { ConfidenceDot, isConfidenceLevel } from '@/components/workspace/estimate/confidence-dot'
 import { editEstimateHref } from '@/components/projects/new-project-dialog'
 import type { AiMeta } from '@/lib/estimate/ai-meta'
@@ -31,70 +31,49 @@ const full: AiMeta = {
   quality: { score: 60, band: 'review', findings: ['No cleanup line.', 'Give "Paint walls" a unit.'] },
 }
 
-describe('AiInsightsPanel', () => {
+describe('AiInsightsSections (platform-admin debug dialog content)', () => {
   beforeEach(() => pushMock.mockReset())
 
-  it('renders nothing without meta, or with nothing to say', () => {
-    const { container, rerender } = render(<AiInsightsPanel meta={null} projectId="p1" />)
+  it('renders nothing without meta, or with nothing to list', () => {
+    const { container, rerender } = render(<AiInsightsSections meta={null} projectId="p1" />)
     expect(container).toBeEmptyDOMElement()
-    rerender(<AiInsightsPanel meta={{ v: 1, quality: { score: 90, band: 'ok', findings: [] } }} projectId="p1" />)
+    rerender(<AiInsightsSections meta={{ v: 1, quality: { score: 90, band: 'ok', findings: [] } }} projectId="p1" />)
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('shows the AI needs review banner with the findings when the band is review', () => {
-    render(<AiInsightsPanel meta={full} projectId="p1" />)
-    const banner = screen.getByTestId('ai-needs-review')
-    expect(banner).toHaveTextContent('AI needs review')
-    expect(banner).toHaveTextContent('No cleanup line.')
-    expect(banner).toHaveTextContent('Give "Paint walls" a unit.')
-  })
-
-  it('the banner also covers a refine-band draft that was delivered after the one refine pass', () => {
-    render(<AiInsightsPanel meta={{ v: 1, quality: { score: 30, band: 'refine', findings: ['Only 1 line for a job of this size.'] } }} projectId="p1" />)
-    expect(screen.getByTestId('ai-needs-review')).toHaveTextContent('Only 1 line')
-  })
-
-  it('no banner when the draft was fine, but assumptions still show', () => {
-    render(<AiInsightsPanel meta={{ ...full, quality: { score: 92, band: 'ok', findings: [] } }} projectId="p1" />)
+  it('does not render the owner-facing review banner or the owner caption any more', () => {
+    render(<AiInsightsSections meta={full} projectId="p1" />)
     expect(screen.queryByTestId('ai-needs-review')).toBeNull()
-    expect(screen.getByTestId('ai-assumptions')).toHaveTextContent('Assumes 8 ft ceilings')
+    expect(screen.queryByText('Only you see this')).toBeNull()
   })
 
-  it('lists assumptions, exclusions and open questions with their impact, marked as private to the owner', () => {
-    render(<AiInsightsPanel meta={full} projectId="p1" />)
+  it('lists assumptions, exclusions and open questions with their impact', () => {
+    render(<AiInsightsSections meta={full} projectId="p1" />)
     expect(screen.getByTestId('ai-assumptions')).toHaveTextContent('Assumes 8 ft ceilings')
     expect(screen.getByTestId('ai-exclusions')).toHaveTextContent('Furniture moving')
     const questions = screen.getByTestId('ai-open-questions')
     expect(questions).toHaveTextContent('Is the closet included?')
     expect(questions).toHaveTextContent('High impact')
     expect(questions).toHaveTextContent('Low impact')
-    expect(screen.getByTestId('ai-notes')).toHaveTextContent('Only you see this')
   })
 
-  it('the details are open when there are questions, collapsed when there are none', () => {
-    const { rerender } = render(<AiInsightsPanel meta={full} projectId="p1" />)
-    expect(screen.getByTestId('ai-notes')).toHaveAttribute('open')
-    rerender(<AiInsightsPanel meta={{ v: 1, assumptions: ['x'] }} projectId="p1" />)
-    expect(screen.getByTestId('ai-notes')).not.toHaveAttribute('open')
-  })
-
-  it('Answer with AI opens the Edit with AI popup for this project', () => {
-    render(<AiInsightsPanel meta={full} projectId="p1" />)
+  it('Answer with AI closes the host, then opens the Edit with AI popup for this project', () => {
+    const onNavigate = vi.fn()
+    render(<AiInsightsSections meta={full} projectId="p1" onNavigate={onNavigate} />)
     fireEvent.click(screen.getByTestId('ai-answer-questions'))
+    expect(onNavigate).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith(
       editEstimateHref(
         'tab=estimate',
         'p1',
-        'Q: Is the closet included?\nA: \n\nQ: Any HOA rules?\nA: ',
+        'Q: Is the closet included?
+A: 
+
+Q: Any HOA rules?
+A: ',
       ),
       { scroll: false },
     )
-  })
-
-  it('shows the banner alone when there are no notes', () => {
-    render(<AiInsightsPanel meta={{ v: 1, quality: { score: 55, band: 'review', findings: ['No scope summary.'] } }} projectId="p1" />)
-    expect(screen.getByTestId('ai-needs-review')).toBeInTheDocument()
-    expect(screen.queryByTestId('ai-notes')).toBeNull()
   })
 })
 

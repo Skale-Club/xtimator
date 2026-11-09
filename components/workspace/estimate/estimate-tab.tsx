@@ -96,6 +96,8 @@ interface EstimateTabProps {
    * defaults to showing the buttons.
    */
   whatsappEnabled?: boolean
+  /** Server-resolved platform-admin flag, forwarded to the editor (estimate debug tool). */
+  isPlatformAdmin?: boolean
 }
 
 export function EstimateTab({
@@ -124,6 +126,7 @@ export function EstimateTab({
   smsDeliveryEnabled,
   companySlug,
   whatsappEnabled,
+  isPlatformAdmin = false,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
   const router = useRouter()
@@ -329,6 +332,7 @@ export function EstimateTab({
           onSend={() => setSendOpen(true)}
           estimateTemplateId={estimateTemplateId}
           preparedBy={preparedBy}
+          isPlatformAdmin={isPlatformAdmin}
         />
         <SendHubDialog
           open={sendOpen}

@@ -208,3 +208,31 @@ describe('client-facing sources never reference owner-only AI data', () => {
     }
   })
 })
+
+// ---------------------------------------------------------------------------
+// ai_meta is platform-admin-only inside the app too: it is stripped on the server
+// before it can reach a non-admin browser.
+// ---------------------------------------------------------------------------
+
+describe('ai_meta never reaches a non-admin browser from the project page', () => {
+  it('the project page strips ai_meta from the current estimate and every version unless the viewer is a platform admin', () => {
+    const source = readFileSync(join(ROOT, 'app/(app)/projects/[id]/page.tsx'), 'utf8')
+    expect(source).toContain("from '@/lib/auth/platform-admin'")
+    expect(source).toContain('isPlatformAdmin()')
+    expect(source).toContain('stripOwnerOnlyEstimate(currentEstimateRaw)')
+    expect(source).toContain('allVersionsRaw.map(stripOwnerOnlyEstimate)')
+    expect(source).toContain('isPlatformAdmin={viewerIsPlatformAdmin}')
+  })
+
+  it('the version-switch server action strips ai_meta for non-admins too', () => {
+    const source = readFileSync(join(ROOT, 'lib/actions/estimate.ts'), 'utf8')
+    expect(source).toContain('(await isPlatformAdmin()) ? estimate : stripOwnerOnlyEstimate(estimate)')
+  })
+
+  it('the admin flag is decided on the server only', () => {
+    const helper = readFileSync(join(ROOT, 'lib/auth/platform-admin.ts'), 'utf8')
+    expect(helper).toContain("import 'server-only'")
+    expect(helper).toContain('getAdminContext')
+  })
+})
+

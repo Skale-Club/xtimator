@@ -42,6 +42,8 @@ interface OverviewTabProps {
   /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability, forwarded to
    * the Send hub via EstimateTab. */
   whatsappEnabled?: boolean
+  /** Server-resolved platform-admin flag, forwarded to the editor (estimate debug tool). */
+  isPlatformAdmin?: boolean
   /** Opens the Photos dialog (floating-bar affordance). */
   onOpenPhotos?: () => void
 }
@@ -77,6 +79,7 @@ export function OverviewTab({
   preparedBy,
   smsDeliveryEnabled,
   whatsappEnabled,
+  isPlatformAdmin = false,
   onOpenPhotos,
 }: OverviewTabProps) {
   const router = useRouter()
@@ -164,6 +167,7 @@ export function OverviewTab({
         preparedBy={preparedBy}
         smsDeliveryEnabled={smsDeliveryEnabled}
         whatsappEnabled={whatsappEnabled}
+        isPlatformAdmin={isPlatformAdmin}
       />
 
     </div>

@@ -4,10 +4,11 @@ import { EstimateEditor } from '@/components/workspace/estimate/estimate-editor'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
 
-// SEED-057 Phase G: the editor shows the AI panel (assumptions, open questions,
-// "AI needs review") when the estimate carries ai_meta, and nothing otherwise.
-// The panel sits OUTSIDE the document stage, so neither the editable document
-// nor the page-view preview is ever handed its content.
+// SEED-057 Phase G: the AI notes (assumptions, open questions, review verdict) are
+// no longer shown in the editor page flow. They live in the platform-admin-only
+// debug dialog, reached from the floating bar. The editor wires that trigger only
+// when the server-resolved `isPlatformAdmin` flag is true, and neither the editable
+// document nor the page-view preview is ever handed the AI notes.
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -48,8 +49,12 @@ vi.mock('@/components/workspace/estimate/paginated-preview', () => ({
 vi.mock('@/components/workspace/estimate/use-paginated-preview', () => ({
   usePaginatedPreview: () => ({ pages: null }),
 }))
+const floatingProps = vi.fn()
 vi.mock('@/components/workspace/estimate/estimate-floating-actions', () => ({
-  EstimateFloatingActions: () => null,
+  EstimateFloatingActions: (props: { onOpenDebug?: () => void }) => {
+    floatingProps(props)
+    return null
+  },
 }))
 vi.mock('@/components/workspace/estimate/presentation-settings-panel', () => ({
   PresentationSettingsPanel: () => null,
@@ -65,6 +70,7 @@ beforeEach(() => {
   mockSetSlot.mockReset()
   documentProps.mockReset()
   previewProps.mockReset()
+  floatingProps.mockReset()
 })
 
 const AI_META = {
@@ -118,7 +124,7 @@ function buildEstimate(over: Record<string, unknown> = {}): EstimateWithSections
   } as unknown as EstimateWithSections
 }
 
-function renderEditor(estimate: EstimateWithSections) {
+function renderEditor(estimate: EstimateWithSections, isPlatformAdmin?: boolean) {
   const company: DocumentCompany = {
     name: 'Acme Co',
     owner_name: null,
@@ -152,37 +158,49 @@ function renderEditor(estimate: EstimateWithSections) {
       projectType={null}
       client={null}
       priceBookItems={[]}
+      isPlatformAdmin={isPlatformAdmin}
     />
   )
 }
 
 describe('EstimateEditor - AI insights (SEED-057 G)', () => {
-  it('shows the panel and the review banner when the estimate carries ai_meta', () => {
+  it('never renders the inline AI panel or the review banner, for admins or not', () => {
+    renderEditor(buildEstimate({ ai_meta: AI_META }), true)
+    expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
+    expect(screen.queryByTestId('ai-needs-review')).toBeNull()
+    expect(screen.queryByText('What the AI assumed')).toBeNull()
+    expect(screen.queryByTestId('ai-open-questions')).toBeNull()
+  })
+
+  it('wires no debug trigger for a non-admin (default), even when ai_meta is present', () => {
     renderEditor(buildEstimate({ ai_meta: AI_META }))
-    expect(screen.getByTestId('ai-insights-panel')).toBeTruthy()
-    expect(screen.getByTestId('ai-needs-review').textContent).toContain('No cleanup line.')
+    const props = floatingProps.mock.calls[floatingProps.mock.calls.length - 1][0] as { onOpenDebug?: () => void }
+    expect(props.onOpenDebug).toBeUndefined()
+    renderEditor(buildEstimate({ ai_meta: AI_META }), false)
+    const again = floatingProps.mock.calls[floatingProps.mock.calls.length - 1][0] as { onOpenDebug?: () => void }
+    expect(again.onOpenDebug).toBeUndefined()
+  })
+
+  it('wires the debug trigger for a platform admin and opens the debug sheet with the AI record', () => {
+    renderEditor(buildEstimate({ ai_meta: AI_META }), true)
+    const props = floatingProps.mock.calls[floatingProps.mock.calls.length - 1][0] as { onOpenDebug?: () => void }
+    expect(typeof props.onOpenDebug).toBe('function')
+    expect(screen.queryByTestId('estimate-debug-dialog')).toBeNull()
+    act(() => props.onOpenDebug?.())
+    expect(screen.getByTestId('estimate-debug-dialog')).toBeTruthy()
+    expect(screen.getByTestId('debug-quality').textContent).toContain('No cleanup line.')
     expect(screen.getByTestId('ai-open-questions').textContent).toContain('Is the closet included?')
   })
 
-  it('shows nothing for an estimate without ai_meta (every legacy estimate)', () => {
-    renderEditor(buildEstimate())
-    expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
-  })
-
-  it('shows nothing for garbage ai_meta, never throwing', () => {
-    renderEditor(buildEstimate({ ai_meta: 'not an object' }))
-    expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
-    renderEditor(buildEstimate({ ai_meta: { assumptions: 7 } }))
-    expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
-  })
-
-  it('shows nothing on a superseded (non-current) version', () => {
-    renderEditor(buildEstimate({ ai_meta: AI_META, is_current: false }))
-    expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
+  it('the debug sheet says so when an admin opens an estimate without an AI record', () => {
+    renderEditor(buildEstimate(), true)
+    const props = floatingProps.mock.calls[floatingProps.mock.calls.length - 1][0] as { onOpenDebug?: () => void }
+    act(() => props.onOpenDebug?.())
+    expect(screen.getByTestId('debug-no-record').textContent).toContain('No AI record for this estimate.')
   })
 
   it('never hands the document or the page-view preview any of the AI notes', () => {
-    renderEditor(buildEstimate({ ai_meta: AI_META }))
+    renderEditor(buildEstimate({ ai_meta: AI_META }), true)
     expect(JSON.stringify(documentProps.mock.calls)).not.toContain('Assumes 8 ft ceilings')
     expect(JSON.stringify(documentProps.mock.calls)).not.toContain('Is the closet included?')
     expect(JSON.stringify(documentProps.mock.calls)).not.toContain('ai_meta')

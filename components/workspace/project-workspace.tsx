@@ -53,6 +53,8 @@ interface ProjectWorkspaceProps {
   /** Phase 163 (SENDHUB) — server-resolved WhatsApp availability (tier ∧ active
    * account), threaded to the Send hub so WhatsApp actions hide when unavailable. */
   whatsappEnabled?: boolean
+  /** Server-resolved platform-admin flag; gates the estimate debug tool. */
+  isPlatformAdmin?: boolean
   priceBookItems: PriceBookItem[]
   defaultTab?: WorkspaceTab
 }
@@ -63,6 +65,7 @@ export function ProjectWorkspace({
   ownerName, companyBrandColor, company, companyDefaults, estimateTemplate,
   estimateTemplateId, preparedBy, smsDeliveryEnabled = false,
   whatsappEnabled,
+  isPlatformAdmin = false,
   priceBookItems,
   defaultTab = 'overview',
 }: ProjectWorkspaceProps) {
@@ -155,6 +158,7 @@ export function ProjectWorkspace({
             preparedBy={preparedBy}
             smsDeliveryEnabled={smsDeliveryEnabled}
             whatsappEnabled={whatsappEnabled}
+            isPlatformAdmin={isPlatformAdmin}
             onOpenPhotos={() => setPhotosOpen(true)}
           />
         )}

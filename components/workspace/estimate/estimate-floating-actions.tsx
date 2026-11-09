@@ -1,7 +1,7 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
-import { Share2, Camera, Settings, ChevronDown, ChevronUp } from 'lucide-react'
+import { Share2, Camera, Settings, Bug, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
@@ -20,6 +20,8 @@ interface EstimateFloatingActionsProps {
    *  also hosts the Link-Client affordance). When omitted the gear button is
    *  not rendered (backward-compat). */
   onOpenSettings?: () => void
+  /** Platform-admin only: opens the estimate debug sheet. When omitted no debug button is rendered. */
+  onOpenDebug?: () => void
   /** Controls drawn first in the pill, before a divider (the page view's zoom). */
   leading?: ReactNode
   /** The gear button, so the settings popover can open from it. */
@@ -127,6 +129,7 @@ export function EstimateFloatingActions({
   onSend,
   onOpenPhotos,
   onOpenSettings,
+  onOpenDebug,
   leading,
   settingsButtonRef,
   responseControl,
@@ -160,6 +163,19 @@ export function EstimateFloatingActions({
           className="shrink-0 rounded-full text-foreground"
         >
           <Settings className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onOpenDebug && (
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={onOpenDebug}
+          aria-label="Estimate debug"
+          title="Estimate debug"
+          data-testid="estimate-debug-trigger"
+          className="h-8 w-8 shrink-0 rounded-full text-muted-foreground"
+        >
+          <Bug className="h-3.5 w-3.5" />
         </Button>
       )}
       {onOpenPhotos && (

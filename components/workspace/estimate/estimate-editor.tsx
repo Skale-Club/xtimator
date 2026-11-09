@@ -21,8 +21,7 @@ import type { Photo } from '@/lib/queries/photo'
 import { useEstimateReducer, type EstimateEditorState } from './use-estimate-reducer'
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
-import { AiInsightsPanel } from './ai-insights-panel'
-import { parseAiMeta } from '@/lib/estimate/ai-meta'
+import { EstimateDebugDialog } from './estimate-debug-dialog'
 import {
   registerRefineEditor,
   consumePendingRefinement,
@@ -226,6 +225,12 @@ interface EstimateEditorProps {
   priceBookItems: PriceBookItem[]
   /** Opens the send dialog. Auto-saves first if there are unsaved changes. */
   onSend?: () => void
+  /**
+   * Server-resolved platform-admin flag (never derived on the client). When true the
+   * floating bar shows the discreet "Estimate debug" button; ai_meta is only present
+   * on the estimate for admins.
+   */
+  isPlatformAdmin?: boolean
 }
 
 export function EstimateEditor({
@@ -247,11 +252,12 @@ export function EstimateEditor({
   onOpenPhotos,
   priceBookItems,
   onSend,
+  isPlatformAdmin = false,
 }: EstimateEditorProps) {
   const router = useRouter()
   const { t } = useTranslation()
-  // SEED-057 Phase G: the AI's assumptions / open questions / review verdict (owner-only).
-  const aiMeta = useMemo(() => parseAiMeta(estimate.ai_meta), [estimate.ai_meta])
+  // Platform-admin debug sheet (AI record of this estimate). Closed by default.
+  const [debugOpen, setDebugOpen] = useState(false)
   const [state, dispatch] = useEstimateReducer(estimate)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -874,6 +880,7 @@ export function EstimateEditor({
       status={slotSaveStatus}
       onSend={handleSend}
       onOpenPhotos={onOpenPhotos}
+      onOpenDebug={isPlatformAdmin ? () => setDebugOpen(true) : undefined}
       onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen((open) => !open)}
       settingsButtonRef={settingsGearRef}
       leading={leading}
@@ -945,11 +952,6 @@ export function EstimateEditor({
           </Button>
         </div>
       )}
-
-      {/* SEED-057 Phase G: what the AI assumed and could not decide, plus the "AI needs
-          review" banner. Owner-only and OUTSIDE the document stage, so it is never part of
-          the page view, the share page, a PDF or a message. */}
-      {isCurrent && aiMeta && <AiInsightsPanel meta={aiMeta} projectId={projectId} />}
 
       {/* Same --doc-stage backdrop as the public share page, so the white paper
           reads as lifted in light mode too. In dark mode the app background
@@ -1056,6 +1058,17 @@ export function EstimateEditor({
           Link Client moved into the gear panel below. A wide pill overflowed the
           preview horizontally and made the whole document rock side to side. */}
       {viewMode !== 'page' && floatingActions()}
+
+      {/* Platform-admin only; outside the document stage, so never part of the page view,
+          the share page, a PDF or a message. */}
+      {isPlatformAdmin && (
+        <EstimateDebugDialog
+          open={debugOpen}
+          onOpenChange={setDebugOpen}
+          estimate={estimate}
+          projectId={projectId}
+        />
+      )}
 
       {/* Phase 162-04 (DOCUX-01) — the ONE presentation-settings write path.
           Phase 164 Plan 02 (TRUST-02 carve-out): the gear panel's OWN gate is
