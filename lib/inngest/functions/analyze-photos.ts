@@ -55,7 +55,7 @@ async function loadOwnerUserId(companyId: string): Promise<string | null> {
 // concurrency stays bounded regardless of how many are queued in one job —
 // see INNGEST GUARDRAIL (2) at the chunk loop below. The per-PROJECT ceiling
 // lives at creation time instead (lib/actions/photo.ts's MAX_PHOTOS_PER_PROJECT).
-const VISION_CHUNK_SIZE = 10
+export const VISION_CHUNK_SIZE = 10
 
 type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
@@ -82,6 +82,131 @@ function getMimeType(storagePath: string): ImageMediaType {
  */
 export function visionCostAttemptId(attemptId: string, requestId: string, photoId: string): string {
   return deterministicUuid(`${attemptId}:vision:${requestId}:${photoId}`)
+}
+
+/**
+ * Per-photo vision work (download -> structured extraction ladder -> prose
+ * fallback -> persist). Shared by the analyze-photos job (one step.run per
+ * photo) and the generate-estimate safety-net step (lib/estimate/photos/
+ * analyze-pending-photos.ts). It MUST NOT call step.run itself.
+ */
+export async function analyzePhotoById(args: {
+  photo: { id: string; storage_path: string }
+  companyId: string
+  projectId: string
+  attemptId: string
+  requestId: string
+}): Promise<{ photoId: string; description: string }> {
+  const { photo, companyId, projectId, attemptId, requestId } = args
+  const supabase = requireServiceClient()
+
+  // Phase 188 (PROV-01/PROV-02): serverStorage() honors the
+  // server-wide provider selection instead of a hardcoded raw
+  // supabase.storage.from(...) call — this call site predates
+  // Phase 188 and was missed by Plans 01-03 (a genuine
+  // STORAGE-03 escape hatch found by Plan 04's census gate).
+  let fileData: Blob
+  try {
+    fileData = await serverStorage(supabase).download('photos', photo.storage_path)
+  } catch (dlErr) {
+    throw new Error(
+      `Failed to download photo ${photo.id}: ${dlErr instanceof Error ? dlErr.message : 'no data'}`
+    )
+  }
+
+  const arrayBuffer = await fileData.arrayBuffer()
+  const base64 = Buffer.from(arrayBuffer).toString('base64')
+  const mimeType = getMimeType(photo.storage_path)
+
+  // Phase 167 (BILL-03, audit D4): thread a costContext so each vision
+  // cost row carries real company/project ids instead of a random
+  // attemptId + null ids.
+  // Phase 3 (3.2): the attemptId is PER PHOTO AND PER RUN
+  // (visionCostAttemptId), so the debit below can sum exactly the
+  // cost of photos whose analysis succeeded in THIS run — a photo
+  // that ultimately failed (or whose update did not persist) never
+  // contributes, and a second run in the same attempt is isolated.
+  const costContext = {
+    attemptId: visionCostAttemptId(attemptId, requestId, photo.id),
+    companyId,
+    projectId,
+  }
+
+  // Phase 171 (PEXT-01/03): structured extraction ladder —
+  // structured(OpenRouter) -> prose (analyzePhotoOR, also OpenRouter;
+  // the terminal rung). Owner rule: OpenRouter only, never Gemini. ON by default; PHOTO_STRUCTURED_EXTRACTION=off skips
+  // it entirely so the per-photo behavior is byte-identical to the
+  // pre-171 prose pipeline. Read once per photo — env is stable
+  // across an Inngest replay, so this stays deterministic/replay-
+  // safe. A structured failure NEVER fails the
+  // photo: it falls through to the proven prose ladder below,
+  // exactly as today — only a prose failure (unchanged from
+  // 168-01) counts against skip-and-continue.
+  // Phase 4b/4c: admin `vision` slot. Unset/invalid (the default) ->
+  // undefined -> OR_DEFAULTS.chat inside the client, exactly as before.
+  // A Haiku slot switches on the Haiku-first ladder (extractPhotoHaikuFirst);
+  // a Sonnet/Opus slot just replaces the model on today's ladder.
+  const visionModel = await resolveSlotModel('vision', undefined)
+  const haikuFirst = isHaikuModel(visionModel)
+  let extraction: PhotoExtraction | undefined
+  if (process.env.PHOTO_STRUCTURED_EXTRACTION !== 'off') {
+    try {
+      if (haikuFirst) {
+        const r = await extractPhotoHaikuFirst(base64, mimeType, visionModel, costContext)
+        extraction = r.extraction
+      } else {
+        extraction = await analyzePhotoStructuredOR(
+          base64,
+          mimeType,
+          visionModel,
+          costContext
+        )
+      }
+    } catch (structuredErr) {
+      console.warn(
+        `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
+        structuredErr instanceof Error ? structuredErr.message : String(structuredErr)
+      )
+    }
+  }
+
+  if (extraction) {
+    // Phase 171 (PEXT-01): persist both columns in ONE update —
+    // ai_description = overall_description so every existing
+    // consumer (share, PDF, prompt fallback) renders unchanged.
+    // `as unknown as Json`: PhotoExtraction is structurally a Json
+    // value (string/number/array/object/null fields only) but its
+    // optional `access_notes?: string | null` needs the cast to
+    // satisfy the generated column type.
+    const { error: updErr } = await supabase
+      .from('photos')
+      .update({
+        ai_extraction: extraction as unknown as Json,
+        ai_description: extraction.overall_description,
+      })
+      .eq('id', photo.id)
+    // Phase 3 (3.2): a failed persist means the photo is NOT analyzed
+    // (ai_description stays null -> it is re-analyzed on a later
+    // dispatch) and is never charged.
+    if (updErr) {
+      throw new Error(`Failed to save analysis for photo ${photo.id}: ${updErr.message}`)
+    }
+    return { photoId: photo.id, description: extraction.overall_description }
+  }
+
+  // Haiku-first: the prose rung runs on the Sonnet chat model, once (no
+  // truncation retry). Otherwise unchanged (slot model or the default).
+  const description = haikuFirst
+    ? await analyzePhotoSingleAttemptOR(base64, mimeType, OR_DEFAULTS.chat, costContext)
+    : await analyzePhotoOR(base64, mimeType, visionModel, costContext)
+  const { error: descErr } = await supabase
+    .from('photos')
+    .update({ ai_description: description })
+    .eq('id', photo.id)
+  if (descErr) {
+    throw new Error(`Failed to save analysis for photo ${photo.id}: ${descErr.message}`)
+  }
+  return { photoId: photo.id, description }
 }
 
 export const analyzePhotosJob = inngest.createFunction(
@@ -209,117 +334,9 @@ export const analyzePhotosJob = inngest.createFunction(
       const chunk = photos.slice(i, i + VISION_CHUNK_SIZE)
       const settled = await Promise.allSettled(
         chunk.map((photo) =>
-          step.run(`vision-${photo.id}`, async () => {
-            const supabase = requireServiceClient()
-
-            // Phase 188 (PROV-01/PROV-02): serverStorage() honors the
-            // server-wide provider selection instead of a hardcoded raw
-            // supabase.storage.from(...) call — this call site predates
-            // Phase 188 and was missed by Plans 01-03 (a genuine
-            // STORAGE-03 escape hatch found by Plan 04's census gate).
-            let fileData: Blob
-            try {
-              fileData = await serverStorage(supabase).download('photos', photo.storage_path)
-            } catch (dlErr) {
-              throw new Error(
-                `Failed to download photo ${photo.id}: ${dlErr instanceof Error ? dlErr.message : 'no data'}`
-              )
-            }
-
-            const arrayBuffer = await fileData.arrayBuffer()
-            const base64 = Buffer.from(arrayBuffer).toString('base64')
-            const mimeType = getMimeType(photo.storage_path)
-
-            // Phase 167 (BILL-03, audit D4): thread a costContext so each vision
-            // cost row carries real company/project ids instead of a random
-            // attemptId + null ids.
-            // Phase 3 (3.2): the attemptId is PER PHOTO AND PER RUN
-            // (visionCostAttemptId), so the debit below can sum exactly the
-            // cost of photos whose analysis succeeded in THIS run — a photo
-            // that ultimately failed (or whose update did not persist) never
-            // contributes, and a second run in the same attempt is isolated.
-            const costContext = {
-              attemptId: visionCostAttemptId(attemptId, requestId, photo.id),
-              companyId,
-              projectId,
-            }
-
-            // Phase 171 (PEXT-01/03): structured extraction ladder —
-            // structured(OpenRouter) -> prose (analyzePhotoOR, also OpenRouter;
-            // the terminal rung). Owner rule: OpenRouter only, never Gemini. ON by default; PHOTO_STRUCTURED_EXTRACTION=off skips
-            // it entirely so the per-photo behavior is byte-identical to the
-            // pre-171 prose pipeline. Read once per photo — env is stable
-            // across an Inngest replay, so this stays deterministic/replay-
-            // safe. A structured failure NEVER fails the
-            // photo: it falls through to the proven prose ladder below,
-            // exactly as today — only a prose failure (unchanged from
-            // 168-01) counts against skip-and-continue.
-            // Phase 4b/4c: admin `vision` slot. Unset/invalid (the default) ->
-            // undefined -> OR_DEFAULTS.chat inside the client, exactly as before.
-            // A Haiku slot switches on the Haiku-first ladder (extractPhotoHaikuFirst);
-            // a Sonnet/Opus slot just replaces the model on today's ladder.
-            const visionModel = await resolveSlotModel('vision', undefined)
-            const haikuFirst = isHaikuModel(visionModel)
-            let extraction: PhotoExtraction | undefined
-            if (process.env.PHOTO_STRUCTURED_EXTRACTION !== 'off') {
-              try {
-                if (haikuFirst) {
-                  const r = await extractPhotoHaikuFirst(base64, mimeType, visionModel, costContext)
-                  extraction = r.extraction
-                } else {
-                  extraction = await analyzePhotoStructuredOR(
-                    base64,
-                    mimeType,
-                    visionModel,
-                    costContext
-                  )
-                }
-              } catch (structuredErr) {
-                console.warn(
-                  `[analyze-photos] structured-OR extraction failed for photo ${photo.id}:`,
-                  structuredErr instanceof Error ? structuredErr.message : String(structuredErr)
-                )
-              }
-            }
-
-            if (extraction) {
-              // Phase 171 (PEXT-01): persist both columns in ONE update —
-              // ai_description = overall_description so every existing
-              // consumer (share, PDF, prompt fallback) renders unchanged.
-              // `as unknown as Json`: PhotoExtraction is structurally a Json
-              // value (string/number/array/object/null fields only) but its
-              // optional `access_notes?: string | null` needs the cast to
-              // satisfy the generated column type.
-              const { error: updErr } = await supabase
-                .from('photos')
-                .update({
-                  ai_extraction: extraction as unknown as Json,
-                  ai_description: extraction.overall_description,
-                })
-                .eq('id', photo.id)
-              // Phase 3 (3.2): a failed persist means the photo is NOT analyzed
-              // (ai_description stays null -> it is re-analyzed on a later
-              // dispatch) and is never charged.
-              if (updErr) {
-                throw new Error(`Failed to save analysis for photo ${photo.id}: ${updErr.message}`)
-              }
-              return { photoId: photo.id, description: extraction.overall_description }
-            }
-
-            // Haiku-first: the prose rung runs on the Sonnet chat model, once (no
-            // truncation retry). Otherwise unchanged (slot model or the default).
-            const description = haikuFirst
-              ? await analyzePhotoSingleAttemptOR(base64, mimeType, OR_DEFAULTS.chat, costContext)
-              : await analyzePhotoOR(base64, mimeType, visionModel, costContext)
-            const { error: descErr } = await supabase
-              .from('photos')
-              .update({ ai_description: description })
-              .eq('id', photo.id)
-            if (descErr) {
-              throw new Error(`Failed to save analysis for photo ${photo.id}: ${descErr.message}`)
-            }
-            return { photoId: photo.id, description }
-          })
+          step.run(`vision-${photo.id}`, () =>
+            analyzePhotoById({ photo, companyId, projectId, attemptId, requestId })
+          )
         )
       )
       settled.forEach((result, idx) => {

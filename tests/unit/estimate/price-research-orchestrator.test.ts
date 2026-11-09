@@ -206,7 +206,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
 
     expect(out.sections[0].items[0].price_source).toBe('researched')
     expect(out.sections[0].items[0].unit_price).toBe(180)
-    expect(getPriceResearchProviderChain).not.toHaveBeenCalled() // never resolved on a pure hit
+    expect(getPriceResearchProviderChain).toHaveBeenCalledTimes(1) // resolved once, up front; a pure hit makes no lookup
     expect(lookup).not.toHaveBeenCalled()
     expect(checkQuota).not.toHaveBeenCalled() // no misses → no quota check
     expect(recordUsage).not.toHaveBeenCalled() // HIT consumes no allowance
@@ -283,7 +283,7 @@ describe('researchUnmatchedPrices — composition (Task 2)', () => {
 
     const out = await researchUnmatchedPrices(sections, ctx())
 
-    expect(getPriceResearchProviderChain).not.toHaveBeenCalled()
+    expect(getPriceResearchProviderChain).toHaveBeenCalledTimes(1) // resolved once, up front
     expect(lookup).not.toHaveBeenCalled()
     expect(recordUsage).not.toHaveBeenCalled()
     expect(out.sections[0].items[0].price_source).toBe('ai_estimate') // kept
@@ -553,6 +553,32 @@ describe('researchUnmatchedPrices — gated provider fallback ordering (Phase 10
     expect(out.flaggedUnpriced).toBe(1)
   })
 
+  it('Test 18b (research switched off): empty chain + a cached price → the line keeps ai_estimate, the cache is never read', async () => {
+    const sections = [
+      section('Work', [item({ description: 'Couch cleaning 8 seats', unit_price: 90, price_source: 'ai_estimate' })]),
+    ]
+    vi.mocked(cacheGet).mockResolvedValue({
+      unit_price: 180,
+      currency: 'USD',
+      source: 'exa',
+      confidence: 0.9,
+      expires_at: new Date(Date.now() + 1000).toISOString(),
+    })
+    vi.mocked(checkQuota).mockResolvedValue({ allowed: true, remaining: 50 })
+    vi.mocked(getPriceResearchProviderChain).mockResolvedValue([])
+
+    const out = await researchUnmatchedPrices(sections, ctx())
+
+    expect(cacheGet).not.toHaveBeenCalled()
+    expect(checkQuota).not.toHaveBeenCalled()
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(cachePut).not.toHaveBeenCalled()
+    expect(out.sections[0].items[0].price_source).toBe('ai_estimate')
+    expect(out.sections[0].items[0].unit_price).toBe(90)
+    expect(out.telemetry).toEqual({ candidates: 1, cacheHits: 0, providerUsable: 0, missed: 1 })
+    expect(out.diagnostics).toBeUndefined()
+  })
+
   it('Test 18 (chain empty / unconfigured): no provider touched, byte-identical sections', async () => {
     const sections = [
       section('Work', [item({ description: 'Mystery task', unit_price: 0, price_source: 'ai_estimate' })]),
@@ -659,6 +685,7 @@ describe('researchUnmatchedPrices — diagnostics', () => {
     )
     vi.mocked(cacheGet).mockResolvedValue(null)
     vi.mocked(checkQuota).mockResolvedValue({ allowed: false, remaining: 0 })
+    mockChain({ lookup: vi.fn() })
 
     const out = await researchUnmatchedPrices([section('Work', many)], ctx())
 

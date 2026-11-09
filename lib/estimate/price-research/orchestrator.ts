@@ -315,6 +315,25 @@ export async function researchUnmatchedPrices(
       }
     }
 
+    // Resolve the provider chain ONCE. When no research provider is active (the
+    // admin switched web price research off, or nothing is configured) the persisted
+    // cache is NOT used either: cached web prices must not keep re-pricing lines once
+    // research is off. Return the input untouched with no cache read, quota check,
+    // provider call or debit.
+    const chain = await getPriceResearchProviderChain()
+    if (chain.length === 0) {
+      return {
+        sections,
+        flaggedUnpriced: countFlaggedUnpriced(sections),
+        telemetry: {
+          candidates: candidates.length,
+          cacheHits: 0,
+          providerUsable: 0,
+          missed: candidates.length,
+        },
+      }
+    }
+
     // --- Cost-control CAP (Phase 109): research at most MAX_RESEARCH_ITEMS_PER_ESTIMATE
     // items. The over-cap remainder is left untouched — those items KEEP their non-zero
     // ai_estimate price (the model already priced them; they are never $0'd here) and
@@ -413,9 +432,7 @@ export async function researchUnmatchedPrices(
         if (quota.allowed) {
           // ORDERED provider chain: OpenRouter-web only (no direct-Anthropic
           // fallback; owner rule). An empty chain (unconfigured) is a safe
-          // no-op — misses keep ai_estimate.
-          const chain = await getPriceResearchProviderChain()
-
+          // no-op — misses keep ai_estimate. (Chain resolved once, above.)
           // The shrinking miss set fed to each provider in turn. The fallback is
           // attempted only for items the primary left WITHOUT usable evidence (or that
           // it errored on), before they degrade to ai_estimate.

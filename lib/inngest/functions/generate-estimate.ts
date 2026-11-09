@@ -210,6 +210,32 @@ export const generateEstimateJob = inngest.createFunction(
       return { t0: Date.now(), ownerUserId: ownerId, attemptId: id }
     })
 
+    // Safety net: photos only reach the estimate once they have an
+    // ai_description. The photos-only capture path analyzes them in the
+    // analyze-photos job, but audio + photos, text + photos and WhatsApp never
+    // dispatch it, so analyze whatever is still pending HERE, before the graph
+    // reads the photos. A no-op when nothing is pending; never throws (the
+    // helper swallows its own errors and the catch below is a second belt), so a
+    // vision failure degrades to generating without that photo. Memoized, so a
+    // retry of a later step never re-analyzes (and already-described photos are
+    // skipped anyway). Vision cost rows stay operation_type 'vision' and are
+    // debited as 'photo_batch' inside the helper; they are NOT part of the
+    // 'estimate' debit read-back below.
+    await step.run('analyze-pending-photos', async () => {
+      try {
+        const { analyzePendingPhotos } = await import(
+          '@/lib/estimate/photos/analyze-pending-photos'
+        )
+        return await analyzePendingPhotos({ companyId, projectId, attemptId, requestId })
+      } catch (err) {
+        console.warn(
+          '[generate-estimate] analyze-pending-photos skipped:',
+          err instanceof Error ? err.message : String(err)
+        )
+        return { pending: 0, analyzed: 0, failed: 0 }
+      }
+    })
+
     // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
     // mirroring lib/inngest/functions/whatsapp-process.ts). A retry of step 2 will NOT re-run
     // the graph. The web/MCP adapter ingest + finalize are passthroughs; onError re-throws

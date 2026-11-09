@@ -1202,9 +1202,13 @@ export function CaptureRecorder({
     // REC-03/REC-04: mint the attempt lineage ONCE on first Generate; reused on Retry.
     ensureAttempt()
 
-    if (descriptionText.trim() && !audioBlob && photos.length === 0) {
-      // Text-only path: ONE dispatch (createTextRecording's autoGenerateEstimate
-      // chain — Plan 01) then watch the DB. No separate job to race — the
+    if (descriptionText.trim() && !audioBlob) {
+      // Text path (with or without photos): ONE dispatch (createTextRecording's
+      // autoGenerateEstimate chain — Plan 01) then watch the DB. When photos are
+      // attached they are NOT sent through /api/analyze-photos here: that route
+      // would never save the typed text. The generate-estimate job analyzes any
+      // photo still lacking a description before it reads them (server-side
+      // safety net), so text + photos produce one estimate built from both. No separate job to race — the
       // dispatch either succeeded (jobId returned) or returned { error }.
       setStage('saving')
       await captureOutcomeBaseline()
