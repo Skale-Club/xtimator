@@ -46,16 +46,20 @@ describe('durable onboarding drafts', () => {
  })
  it('saves the current step under the authenticated account with ordered writes and a completion lock', async () => {
   expect(await saveOnboardingDraft(payload)).toEqual({savedAt:saved.last_activity_at,revision:1})
-  const q=mocks.chains[0]
+  const q=mocks.chains[1]
   expect(q.eq).toHaveBeenCalledWith('user_id',user);expect(q.eq).toHaveBeenCalledWith('id',id)
+  expect(q.eq).toHaveBeenCalledWith('revision',1)
   expect(q.is).toHaveBeenCalledWith('completed_at',null)
-  expect(q.or).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^and\(or\(completion_started_at.*or\(client_id/))
+  // Production's PostgREST rejects the nested or() in an UPDATE (XTIMATOR-18): plain filters only.
+  expect(mocks.chains.every(c=>c.or.mock.calls.length===0)).toBe(true)
   expect(q.update.mock.calls[0][0].values).not.toHaveProperty('phone')
  })
  it('ignores delayed writes after completion and duplicate sequences', async () => {
   for(const current of [{...saved,completed_at:'2026-11-06T17:00:00Z'},{...saved,client_id:payload.clientId,client_sequence:5}]) {
-   mocks.results=[{data:null,error:null},{data:current,error:null}]
+   mocks.results=[{data:current,error:null}]
    expect(await saveOnboardingDraft(payload)).toEqual({savedAt:saved.last_activity_at,revision:1})
+   expect(mocks.chains).toHaveLength(1)
+   mocks.chains=[]
   }
  })
  it('returns a retryable error on database failure', async () => {
@@ -76,20 +80,21 @@ describe('durable onboarding drafts', () => {
   expect(mocks.createCompany).toHaveBeenCalledWith(expect.objectContaining({companyName:payload.values.companyName}),{mode:'first'})
  })
  it('keeps an unsuccessful completion resumable and uses account contacts', async () => {
-  mocks.results=[{data:saved,error:null},{data:{id},error:null},{data:null,error:null}]
+  mocks.results=[{data:saved,error:null},{data:saved,error:null},{data:{id},error:null},{data:null,error:null}]
   expect(await completeOnboarding({...payload,values:{...payload.values,phone:'+10000000000',email:'forged@example.com'}})).toEqual({error:'Please try again.'})
   expect(mocks.createCompany).toHaveBeenCalledWith(expect.objectContaining({phone:'+16175550142',email:'verified@example.com',city:'Greater Boston',address:'',state:'',zip:''}),{mode:'first'})
-  expect(mocks.chains[2].update).toHaveBeenCalledWith({completion_started_at:null})
+  expect(mocks.chains[2].eq).toHaveBeenCalledWith('revision',1)
+  expect(mocks.chains[3].update).toHaveBeenCalledWith({completion_started_at:null})
  })
  it('marks a successful onboarding completed before rethrowing the dashboard redirect', async () => {
   const redirect=Object.assign(new Error('redirect'),{digest:'NEXT_REDIRECT;replace;/dashboard;303;'})
   mocks.createCompany.mockRejectedValue(redirect)
-  mocks.results=[{data:saved,error:null},{data:{id},error:null},{data:null,error:null}]
+  mocks.results=[{data:saved,error:null},{data:saved,error:null},{data:{id},error:null},{data:null,error:null}]
   await expect(completeOnboarding(payload)).rejects.toBe(redirect)
-  expect(mocks.chains[2].update).toHaveBeenCalledWith({completed_at:expect.any(String),completed_company_id:'company-created'})
+  expect(mocks.chains[3].update).toHaveBeenCalledWith({completed_at:expect.any(String),completed_company_id:'company-created'})
  })
  it('refuses double completion while another submit owns the lease', async () => {
-  mocks.results=[{data:saved,error:null},{data:null,error:null}]
+  mocks.results=[{data:saved,error:null},{data:saved,error:null},{data:null,error:null}]
   expect(await completeOnboarding(payload)).toHaveProperty('error');expect(mocks.createCompany).not.toHaveBeenCalled()
  })
 })

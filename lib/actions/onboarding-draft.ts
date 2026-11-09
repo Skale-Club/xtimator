@@ -29,7 +29,9 @@ async function context() {
   return { supabase, claims, userId: claims.sub as string }
 }
 
-export async function saveOnboardingDraft(input: unknown) {
+type DraftSaveResult = { savedAt: string; revision: number; error?: undefined } | { error: string; savedAt?: undefined; revision?: undefined }
+
+export async function saveOnboardingDraft(input: unknown): Promise<DraftSaveResult> {
   try {
     const body = saveDraftSchema.safeParse(input)
     if (!body.success) {
@@ -41,25 +43,38 @@ export async function saveOnboardingDraft(input: unknown) {
       reportDraftFailure('foreign_logo', body.data.values.logoUrl)
       return { error: 'Could not save your draft. Please try again.' }
     }
+    // Read, decide here, then write with plain equality filters. The previous
+    // single UPDATE carried a nested or() (and(or(..),or(..))) that production's
+    // PostgREST 12 turned into SQL Postgres rejected with 42703 on an existing
+    // column (Sentry XTIMATOR-18), so every autosave failed.
+    const current = await supabase.from('onboarding_drafts')
+      .select('last_activity_at,revision,client_id,client_sequence,completion_started_at,completed_at')
+      .eq('id', body.data.id).eq('user_id', userId).eq('mode', body.data.mode).maybeSingle()
+    if (current.error || !current.data) {
+      reportDraftFailure(current.error ? 'read_failed' : 'draft_missing', current.error ? `${current.error.code ?? ''} ${current.error.message}` : `id=${body.data.id}`)
+      return { error: 'Could not save your draft. Please try again.' }
+    }
+    const row = current.data
+    const accepted = (r: { last_activity_at: unknown; revision: unknown }) => ({ savedAt: r.last_activity_at as string, revision: r.revision as number })
+    // A delayed write after completion, or an older sequence from this tab, is already covered.
+    if (row.completed_at || (row.client_id === body.data.clientId && Number(row.client_sequence) >= body.data.sequence)) return accepted(row)
+    // A completion holds the draft for five minutes; never overwrite it mid-completion.
+    if (row.completion_started_at && Date.parse(row.completion_started_at as string) > Date.now() - 300_000) {
+      return { error: 'Could not save your draft. Please try again.' }
+    }
     const { data, error } = await supabase.from('onboarding_drafts')
       .update({ step: body.data.step, values: body.data.values, schema_version: 3,
         client_id: body.data.clientId, client_sequence: body.data.sequence, completion_started_at: null })
       .eq('id', body.data.id).eq('user_id', userId).eq('mode', body.data.mode)
-      .is('completed_at', null)
-      .or(`and(or(completion_started_at.is.null,completion_started_at.lt."${new Date(Date.now() - 300_000).toISOString()}"),or(client_id.is.null,client_id.neq.${body.data.clientId},client_sequence.lt.${body.data.sequence}))`)
+      .eq('revision', row.revision).is('completed_at', null)
       .select('last_activity_at,revision').maybeSingle()
-    if (!error && !data) {
-      const current = await supabase.from('onboarding_drafts').select('last_activity_at,revision,client_id,client_sequence,completed_at')
-        .eq('id', body.data.id).eq('user_id', userId).eq('mode', body.data.mode).maybeSingle()
-      if (!current.error && current.data && (current.data.completed_at || (current.data.client_id === body.data.clientId && Number(current.data.client_sequence) >= body.data.sequence))) {
-        return { savedAt: current.data.last_activity_at as string, revision: current.data.revision as number }
-      }
-    }
-    if (error || !data) {
-      reportDraftFailure(error ? 'update_failed' : 'no_row_matched', error ? `${error.code ?? ''} ${error.message}` : `step=${body.data.step} seq=${body.data.sequence}`)
+    if (error) {
+      reportDraftFailure('update_failed', `${error.code ?? ''} ${error.message}`)
       return { error: 'Could not save your draft. Please try again.' }
     }
-    return { savedAt: data.last_activity_at as string, revision: data.revision as number }
+    // No row means another write bumped the revision first; the next change saves again.
+    if (!data) return { error: 'Could not save your draft. Please try again.' }
+    return accepted(data)
   } catch (error) {
     captureBackgroundError('onboarding.autosave')(error)
     return { error: 'Could not save your draft. Please try again.' }
@@ -93,10 +108,12 @@ export async function completeOnboarding(input: unknown) {
   // request. A failed draft write (already reported to Sentry) must not lock a
   // new owner out of finishing setup, so completion goes on without the lease.
   const saved = await saveOnboardingDraft(body.data)
-  if (!saved.error) {
+  if (saved.revision !== undefined) {
+    // The save above just cleared completion_started_at and returned the new
+    // revision; claiming exactly that revision is the double-submit lock.
     const lease = await supabase.from('onboarding_drafts').update({ completion_started_at: new Date().toISOString() })
-      .eq('id', body.data.id).eq('user_id', userId).is('completed_at', null)
-      .or(`completion_started_at.is.null,completion_started_at.lt."${new Date(Date.now() - 300_000).toISOString()}"`)
+      .eq('id', body.data.id).eq('user_id', userId).eq('revision', saved.revision)
+      .is('completed_at', null).is('completion_started_at', null)
       .select('id').maybeSingle()
     if (lease.error || !lease.data) return { error: 'Setup is already being completed. Please try again shortly.' }
   }

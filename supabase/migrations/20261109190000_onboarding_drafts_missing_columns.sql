@@ -1,7 +1,9 @@
--- Production's onboarding_drafts was created from an earlier draft of
--- 20261106153000_onboarding_drafts.sql and lacks completion_started_at, so every
--- autosave failed with 42703 (Sentry XTIMATOR-18). Additive and idempotent:
--- adds whatever the current code reads or writes and is missing, touches no data.
+-- Written while chasing Sentry XTIMATOR-18 ("column completion_started_at does
+-- not exist" on every onboarding autosave). On 2026-11-09 it turned out every
+-- column already existed in production (attnum 12, applied there as a no-op);
+-- the real cause was a nested or() filter the production PostgREST mis-compiles,
+-- fixed in lib/actions/onboarding-draft.ts. Kept because it is idempotent and
+-- recorded in the ledger of both databases.
 ALTER TABLE public.onboarding_drafts ADD COLUMN IF NOT EXISTS schema_version integer NOT NULL DEFAULT 3;
 ALTER TABLE public.onboarding_drafts ADD COLUMN IF NOT EXISTS client_id uuid;
 ALTER TABLE public.onboarding_drafts ADD COLUMN IF NOT EXISTS client_sequence bigint NOT NULL DEFAULT 0;
