@@ -66,11 +66,7 @@ describe('AiInsightsSections (platform-admin debug dialog content)', () => {
       editEstimateHref(
         'tab=estimate',
         'p1',
-        'Q: Is the closet included?
-A: 
-
-Q: Any HOA rules?
-A: ',
+        'Q: Is the closet included?\nA: \n\nQ: Any HOA rules?\nA: ',
       ),
       { scroll: false },
     )
