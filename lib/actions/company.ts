@@ -455,8 +455,19 @@ export async function createOrUpdateCompany(
     void notifyOps({
       kind: 'tenant_signup',
       title: 'New tenant signup',
-      message: `${row.name} (${newCompany.id}) - industries: ${resolvedIndustries.join(', ') || 'none'}`,
+      message: '',
       severity: 'warning',
+      icon: '🎉',
+      fields: [
+        ['Company', row.name],
+        ['Industries', resolvedIndustries.join(', ') || 'none'],
+        ['Owner', row.owner_name],
+        ['Phone', row.phone],
+        ['Email', row.email],
+        ['Location', [row.city, row.state].filter(Boolean).join(', ')],
+        ['Language', row.default_estimate_language ?? 'en'],
+        ['Company ID', newCompany.id],
+      ],
     })
 
     // Billing v2: one-time signup credit grant — the free tier's allowance.

@@ -90,6 +90,17 @@ describe('formatOpsMessage', () => {
     expect(out).toContain('a &lt; b &amp; c &gt; d')
     expect(out).toContain('&lt;script&gt;')
   })
+
+  it('renders an icon override and one labelled line per non-empty field, escaped', () => {
+    const out = formatOpsMessage({
+      kind: 'tenant_signup',
+      title: 'New tenant signup',
+      message: '',
+      icon: '🎉',
+      fields: [['Company', 'Smith & Sons'], ['Phone', null], ['Email', '  '], ['Company ID', 'abc']],
+    })
+    expect(out).toBe('🎉 <b>New tenant signup</b>\n\n<b>Company:</b> Smith &amp; Sons\n<b>Company ID:</b> abc')
+  })
 })
 
 describe('notifyOps', () => {

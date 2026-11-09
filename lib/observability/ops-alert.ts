@@ -28,6 +28,10 @@ export type OpsAlert = {
   severity?: 'warning' | 'error'
   dedupeKey?: string
   suppressWindowSec?: number
+  /** Overrides the severity emoji, e.g. a neutral icon for a non-problem event like a signup. */
+  icon?: string
+  /** Labelled facts rendered one per line under the message; empty values are skipped. */
+  fields?: Array<[label: string, value: string | null | undefined]>
 }
 
 /**
@@ -37,10 +41,17 @@ export type OpsAlert = {
  * parse_mode: 'HTML' requires to avoid a malformed-entity send failure.
  */
 export function formatOpsMessage(alert: OpsAlert): string {
-  const emoji = alert.severity === 'error' ? '🔴' : '⚠️'
+  const emoji = alert.icon ?? (alert.severity === 'error' ? '🔴' : '⚠️')
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `${emoji} <b>${esc(alert.title)}</b>\n${esc(alert.message)}`
+  const lines = [`${emoji} <b>${esc(alert.title)}</b>`]
+  if (alert.message) lines.push(esc(alert.message))
+  const fields = (alert.fields ?? []).filter(([, value]) => value != null && String(value).trim() !== '')
+  if (fields.length > 0) {
+    lines.push('')
+    for (const [label, value] of fields) lines.push(`<b>${esc(label)}:</b> ${esc(String(value))}`)
+  }
+  return lines.join('\n')
 }
 
 export async function notifyOps(alert: OpsAlert): Promise<void> {
