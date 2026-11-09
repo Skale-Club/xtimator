@@ -85,7 +85,15 @@ export type ResearchMissReason = 'no_price' | 'uncited' | 'unit' | 'currency' | 
 export interface ResearchDiagnostics {
   lookups: LookupDiagnostics[]
   misses: Partial<Record<ResearchMissReason, number>>
-  rejected: Array<{ key: string; unit: string; ai: number; web: number; reason: string }>
+  rejected: Array<{
+    key: string
+    unit: string
+    ai: number
+    web: number
+    reason: string
+    /** The unit the web result was quoted in. */
+    webUnit?: string | null
+  }>
 }
 
 const MAX_DIAGNOSTIC_LOOKUPS = 5
@@ -271,7 +279,8 @@ export async function researchUnmatchedPrices(
     const noteRejected = (
       item: { description: string; price_key?: string; unit?: string; unit_price: number },
       web: number,
-      reason: string
+      reason: string,
+      webUnit?: string | null
     ) => {
       try {
         if (rejectedPrices.length >= MAX_DIAGNOSTIC_REJECTED) return
@@ -281,6 +290,7 @@ export async function researchUnmatchedPrices(
           ai: item.unit_price,
           web,
           reason,
+          ...(typeof webUnit === 'string' ? { webUnit } : {}),
         })
       } catch {
         // observability only
@@ -491,7 +501,7 @@ export async function researchUnmatchedPrices(
                       ? 'unit'
                       : 'currency'
                   countMiss(reason)
-                  noteRejected(requested, web, reason)
+                  noteRejected(requested, web, reason, result.unit)
                 }
               }
               // Memoize the outcome (a usable result, or null for a known miss) so a
@@ -506,7 +516,7 @@ export async function researchUnmatchedPrices(
                     // Flagged: outside 0.33x..3x of THIS line's model price -> not re-tagged.
                     if (bands && !withinRatioBand(m.unit_price, result.unit_price as number)) {
                       countMiss('band')
-                      noteRejected(m, result.unit_price as number, 'band')
+                      noteRejected(m, result.unit_price as number, 'band', result.unit)
                       continue
                     }
                     // telemetry: count each NEWLY re-tagged item once (skip an already-tagged one).

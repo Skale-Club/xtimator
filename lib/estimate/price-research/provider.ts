@@ -91,6 +91,16 @@ export interface LookupDiagnostics {
   cited: number
   /** Of `cited`, those matched on the normalized URL rather than exactly. */
   citedLoosely: number
+  /** choices[0].finish_reason of the research reply ('length' means it was cut off). */
+  finishReason?: string | null
+  /** Length of the reply text in characters. */
+  contentChars?: number
+  /** usage.completion_tokens. */
+  completionTokens?: number | null
+  /** usage.completion_tokens_details.reasoning_tokens. */
+  reasoningTokens?: number | null
+  /** Complete result objects recovered from a truncated reply. */
+  salvaged?: number
 }
 
 export interface PriceResearchProvider {

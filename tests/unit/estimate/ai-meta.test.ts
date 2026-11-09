@@ -158,10 +158,15 @@ describe('pricing diagnostics (internal record)', () => {
         citations: 6,
         cited: 5,
         citedLoosely: 2,
+        finishReason: 'length',
+        contentChars: 4200,
+        completionTokens: 1500,
+        reasoningTokens: null,
+        salvaged: 3,
       },
     ],
     misses: { no_price: 2, uncited: 6, unit: 1 },
-    rejected: [{ key: 'drywall repair', unit: 'each', ai: 100, web: 900, reason: 'band' }],
+    rejected: [{ key: 'drywall repair', unit: 'each', ai: 100, web: 900, reason: 'band', webUnit: 'sq ft' }],
   }
 
   it('buildAiMeta stores a record that only holds diagnostics, and it round-trips', () => {
@@ -198,6 +203,25 @@ describe('pricing diagnostics (internal record)', () => {
       misses: { uncited: 4 },
       rejected: [{ key: 'a', unit: '', ai: 0, web: 2, reason: '' }],
     })
+  })
+
+  it('drops wrong-typed reply fields and webUnit', () => {
+    const read = parseAiMetaInternal({
+      pricing: {
+        diagnostics: {
+          lookups: [{ finishReason: 5, contentChars: 'x', completionTokens: '9', reasoningTokens: 7, salvaged: null }],
+          misses: {},
+          rejected: [{ key: 'a', webUnit: 3 }],
+        },
+      },
+    })
+    const lookup = read?.pricing?.diagnostics?.lookups[0]
+    expect(lookup).not.toHaveProperty('finishReason')
+    expect(lookup).not.toHaveProperty('contentChars')
+    expect(lookup).not.toHaveProperty('completionTokens')
+    expect(lookup).not.toHaveProperty('salvaged')
+    expect(lookup?.reasoningTokens).toBe(7)
+    expect(read?.pricing?.diagnostics?.rejected[0]).not.toHaveProperty('webUnit')
   })
 
   it('ignores an empty or malformed diagnostics value', () => {

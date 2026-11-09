@@ -160,6 +160,7 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
                         <th className="pr-2 text-right font-medium">matched</th>
                         <th className="pr-2 text-right font-medium">cites</th>
                         <th className="text-right font-medium">cited</th>
+                        <th className="pl-2 font-medium">reply</th>
                       </tr>
                     </thead>
                     <tbody className="font-mono">
@@ -178,6 +179,17 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
                           <td className="text-right">
                             {l.cited}
                             {l.citedLoosely > 0 ? ` (${l.citedLoosely} loose)` : ''}
+                          </td>
+                          <td className="pl-2 text-muted-foreground" data-testid="debug-pricing-reply">
+                            {[
+                              l.finishReason ? `finish ${l.finishReason}` : null,
+                              l.contentChars != null ? `${l.contentChars} chars` : null,
+                              l.completionTokens != null ? `${l.completionTokens} tok` : null,
+                              l.reasoningTokens != null ? `${l.reasoningTokens} reasoning` : null,
+                              l.salvaged ? `${l.salvaged} salvaged` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </td>
                         </tr>
                       ))}
@@ -208,6 +220,7 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
                         <th className="pr-2 font-medium">{t('Unit')}</th>
                         <th className="pr-2 text-right font-medium">{t('AI price')}</th>
                         <th className="pr-2 text-right font-medium">{t('Web price')}</th>
+                        <th className="pr-2 font-medium">{t('Web unit')}</th>
                         <th className="font-medium">{t('Reason')}</th>
                       </tr>
                     </thead>
@@ -218,6 +231,7 @@ export function EstimateDebugDialog({ open, onOpenChange, estimate, projectId }:
                           <td className="pr-2">{r.unit}</td>
                           <td className="pr-2 text-right">{r.ai}</td>
                           <td className="pr-2 text-right">{r.web}</td>
+                          <td className="pr-2">{r.webUnit ?? ''}</td>
                           <td>{r.reason}</td>
                         </tr>
                       ))}

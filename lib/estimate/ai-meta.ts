@@ -161,6 +161,17 @@ function parseDiagnostics(v: unknown): ResearchDiagnostics | undefined {
           citedLoosely: 0,
         }
         for (const f of LOOKUP_NUMBER_FIELDS) entry[f] = finiteNumber(lo[f]) ?? 0
+        if (typeof lo.finishReason === 'string' || lo.finishReason === null) entry.finishReason = lo.finishReason
+        const contentChars = finiteNumber(lo.contentChars)
+        if (contentChars !== undefined) entry.contentChars = contentChars
+        if (typeof lo.completionTokens === 'number' || lo.completionTokens === null) {
+          entry.completionTokens = finiteNumber(lo.completionTokens) ?? null
+        }
+        if (typeof lo.reasoningTokens === 'number' || lo.reasoningTokens === null) {
+          entry.reasoningTokens = finiteNumber(lo.reasoningTokens) ?? null
+        }
+        const salvaged = finiteNumber(lo.salvaged)
+        if (salvaged !== undefined) entry.salvaged = salvaged
         lookups.push(entry)
       }
     }
@@ -186,6 +197,7 @@ function parseDiagnostics(v: unknown): ResearchDiagnostics | undefined {
           ai: finiteNumber(ro.ai) ?? 0,
           web: finiteNumber(ro.web) ?? 0,
           reason: typeof ro.reason === 'string' ? ro.reason : '',
+          ...(typeof ro.webUnit === 'string' || ro.webUnit === null ? { webUnit: ro.webUnit } : {}),
         })
       }
     }

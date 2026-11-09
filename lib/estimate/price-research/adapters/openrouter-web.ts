@@ -55,6 +55,11 @@ const MAX_SEARCH_RESULTS = 5
 // beyond AI_CHAT_TIMEOUT_MS.
 const RESEARCH_TIMEOUT_MS = 300_000
 
+// Output budget for the research reply. The model spends output tokens on reasoning and
+// narration around the web search, then writes one JSON object per requested item; 1500
+// truncated the reply mid-JSON for nearly every real estimate (finish_reason 'length').
+const RESEARCH_MAX_TOKENS = 8000
+
 type ResearchEngine = 'exa' | 'native'
 
 type UrlCitation = {
@@ -68,6 +73,7 @@ type UrlCitation = {
 
 type OpenRouterResearchResponse = {
   choices?: Array<{
+    finish_reason?: string | null
     message?: {
       content?: string | null
       annotations?: UrlCitation[]
@@ -76,6 +82,8 @@ type OpenRouterResearchResponse = {
   error?: { message?: string }
   usage?: {
     server_tool_use?: { web_search_requests?: number }
+    completion_tokens?: number | null
+    completion_tokens_details?: { reasoning_tokens?: number | null } | null
     // Fix (price-research cost attribution): real upstream USD cost, returned
     // when the request carries `usage: { include: true }` — same shape as
     // lib/ai/providers/openrouter.ts's chat-completion usage block.
@@ -115,6 +123,55 @@ function extractJsonObject(content: string): unknown | null {
     }
   }
   return null
+}
+
+/**
+ * Recover the complete result objects from a reply cut off mid-JSON. Finds the `"results"` key
+ * and its opening `[`, then scans with a string- and escape-aware brace matcher and keeps every
+ * top-level `{...}` that closes and parses. Never throws; returns [] when nothing is recoverable.
+ */
+export function salvageResults(content: string): unknown[] {
+  try {
+    const key = content.search(/"results"\s*:\s*\[/)
+    if (key === -1) return []
+    const start = content.indexOf('[', key)
+    const out: unknown[] = []
+    let depth = 0
+    let inString = false
+    let escaped = false
+    let objStart = -1
+    for (let i = start + 1; i < content.length; i++) {
+      const ch = content[i]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (ch === '\\') escaped = true
+        else if (ch === '"') inString = false
+        continue
+      }
+      if (ch === '"') {
+        inString = true
+      } else if (ch === '{') {
+        if (depth === 0) objStart = i
+        depth++
+      } else if (ch === '}') {
+        if (depth === 0) continue
+        depth--
+        if (depth === 0 && objStart !== -1) {
+          try {
+            out.push(JSON.parse(content.slice(objStart, i + 1)))
+          } catch {
+            // skip an unparseable object
+          }
+          objStart = -1
+        }
+      } else if (ch === ']' && depth === 0) {
+        break
+      }
+    }
+    return out
+  } catch {
+    return []
+  }
 }
 
 /** Loose comparison key for a name: lowercase, punctuation/spacing collapsed. */
@@ -216,7 +273,7 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
 
         const body = {
           model,
-          max_tokens: 1500,
+          max_tokens: RESEARCH_MAX_TOKENS,
           messages: [
             { role: 'system', content: buildResearchSystemPrompt(currency, region.state) },
             { role: 'user', content: buildResearchSearchPrompt(items, region, currency) },
@@ -261,6 +318,18 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
           return items.map((i) => missFor(i, currency))
         }
         diag.httpOk = true
+        try {
+          const fr = json.choices?.[0]?.finish_reason
+          diag.finishReason = typeof fr === 'string' ? fr : null
+          const c0 = json.choices?.[0]?.message?.content
+          diag.contentChars = typeof c0 === 'string' ? c0.length : 0
+          const ct = json.usage?.completion_tokens
+          diag.completionTokens = typeof ct === 'number' ? ct : null
+          const rt = json.usage?.completion_tokens_details?.reasoning_tokens
+          diag.reasoningTokens = typeof rt === 'number' ? rt : null
+        } catch {
+          // observability only
+        }
 
         // Fix (price-research cost attribution): this batched web-search call
         // spent real money regardless of how many (if any) of its items pass
@@ -319,7 +388,15 @@ export function makeOpenRouterWebProvider(): PriceResearchProvider {
 
         // Parse the model JSON — tolerant of prose-wrapped / fenced ```json replies
         // (web-search models routinely return a preamble + fenced block + a note).
-        const parsedUnknown = extractJsonObject(content)
+        let parsedUnknown = extractJsonObject(content)
+        if (parsedUnknown == null) {
+          // A reply cut off mid-JSON: keep the result objects that closed completely.
+          const salvaged = salvageResults(content)
+          if (salvaged.length > 0) {
+            parsedUnknown = { results: salvaged }
+            diag.salvaged = salvaged.length
+          }
+        }
         if (parsedUnknown == null) {
           report()
           return items.map((i) => missFor(i, currency))

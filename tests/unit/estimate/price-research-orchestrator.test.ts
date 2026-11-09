@@ -626,7 +626,7 @@ describe('researchUnmatchedPrices — diagnostics', () => {
     expect(out.diagnostics?.misses).toEqual({ no_price: 1, uncited: 1, unit: 1, currency: 1 })
     expect(out.diagnostics?.rejected).toEqual([
       { key: conceptKey('Fence painting'), unit: '', ai: 40, web: 80, reason: 'uncited' },
-      { key: conceptKey('Tile installation'), unit: unitKey('sq ft'), ai: 10, web: 12, reason: 'unit' },
+      { key: conceptKey('Tile installation'), unit: unitKey('sq ft'), ai: 10, web: 12, reason: 'unit', webUnit: 'each' },
       { key: conceptKey('Deck staining'), unit: '', ai: 20, web: 25, reason: 'currency' },
     ])
     // diagnostics is a sibling of telemetry, never inside it

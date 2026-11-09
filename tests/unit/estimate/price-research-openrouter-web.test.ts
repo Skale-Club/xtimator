@@ -32,7 +32,7 @@ vi.mock('@/lib/supabase/service', () => ({
   createServiceClient,
 }))
 
-import { makeOpenRouterWebProvider } from '@/lib/estimate/price-research/adapters/openrouter-web'
+import { makeOpenRouterWebProvider, salvageResults } from '@/lib/estimate/price-research/adapters/openrouter-web'
 import { isUsableCandidate } from '@/lib/estimate/price-research/provider'
 
 /**
@@ -53,20 +53,25 @@ function mockEngineRow(metadata: Record<string, unknown> | null) {
 }
 
 /** Build an OpenRouter chat response carrying model JSON + optional annotations. */
-function orResponse(content: string, annotations: unknown[] = []) {
+function orResponse(
+  content: string,
+  annotations: unknown[] = [],
+  extra: { finish_reason?: string; usage?: Record<string, unknown> } = {}
+) {
   return {
     ok: true,
     status: 200,
     json: async () => ({
       choices: [
         {
+          ...(extra.finish_reason ? { finish_reason: extra.finish_reason } : {}),
           message: {
             content,
             annotations,
           },
         },
       ],
-      usage: { server_tool_use: { web_search_requests: 1 } },
+      usage: { server_tool_use: { web_search_requests: 1 }, ...(extra.usage ?? {}) },
     }),
     text: async () => '',
   }
@@ -651,8 +656,42 @@ describe('makeOpenRouterWebProvider — diagnostics', () => {
         citations: 1,
         cited: 1,
         citedLoosely: 0,
+        finishReason: null,
+        contentChars: resultJson([
+          { name: 'Drywall repair', unit_price: 150, currency: 'USD', source_url: 'https://example.com/p', snippet: 's' },
+        ]).length,
+        completionTokens: null,
+        reasoningTokens: null,
       },
     ])
+  })
+
+  it('reports finish reason, reply size and token counts', async () => {
+    const content = resultJson([
+      { name: 'Drywall repair', unit_price: 150, currency: 'USD', source_url: 'https://example.com/p', snippet: 's' },
+    ])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          orResponse(content, [citation('https://example.com/p')], {
+            finish_reason: 'stop',
+            usage: { completion_tokens: 321, completion_tokens_details: { reasoning_tokens: 120 } },
+          }) as unknown as Response
+      )
+    )
+    const usages: Usage[] = []
+    await makeOpenRouterWebProvider().lookup([{ name: 'Drywall repair' }], region, 'USD', {
+      onUsage: (u) => usages.push(u),
+    })
+    const d = usages.find((u) => u.diagnostics)?.diagnostics
+    expect(d).toMatchObject({
+      finishReason: 'stop',
+      contentChars: content.length,
+      completionTokens: 321,
+      reasoningTokens: 120,
+    })
+    expect(d?.salvaged).toBeUndefined()
   })
 
   it('never throws when onUsage throws', async () => {
@@ -663,5 +702,64 @@ describe('makeOpenRouterWebProvider — diagnostics', () => {
       },
     })
     expect(out).toHaveLength(1)
+  })
+})
+
+describe('makeOpenRouterWebProvider — truncated reply salvage', () => {
+  const full = (name: string, url = 'https://example.com/p') =>
+    JSON.stringify({ name, unit_price: 150, currency: 'USD', source_url: url, snippet: 's' })
+
+  it('uses the complete objects of a reply cut mid-JSON and reports how many', async () => {
+    const content =
+      'Let me search. {"results":[' + full('Drywall repair') + ',' + full('Paint walls') + ',{"name":"Third item","unit_pr'
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }, { name: 'Paint walls' }, { name: 'Third item' }],
+      content,
+      [citation('https://example.com/p')]
+    )
+    expect(out[0].unit_price).toBe(150)
+    expect(out[1].unit_price).toBe(150)
+    expect(out[2].unit_price).toBeNull()
+    expect(diag).toMatchObject({ parsed: true, returned: 2, matched: 2, cited: 2, salvaged: 2 })
+  })
+
+  it('still applies the evidence gate to salvaged results', async () => {
+    const content = '{"results":[' + full('Drywall repair', 'https://invented.example/x') + ',{"name":"Pa'
+    const { out, diag } = await lookupWith([{ name: 'Drywall repair' }], content, [
+      citation('https://example.com/p'),
+    ])
+    expect(out[0].unit_price).toBe(150)
+    expect(out[0].source_url).toBeNull()
+    expect(out[0].snippet).toBeNull()
+    expect(isUsableCandidate(out[0])).toBe(false)
+    expect(diag).toMatchObject({ salvaged: 1, cited: 0 })
+  })
+
+  it('degrades to misses when no object is complete', async () => {
+    const { out, diag } = await lookupWith(
+      [{ name: 'Drywall repair' }],
+      '{"results":[{"name":"Drywall repair","unit_pr',
+      [citation('https://example.com/p')]
+    )
+    expect(out[0].unit_price).toBeNull()
+    expect(diag).toMatchObject({ httpOk: true, parsed: false })
+    expect(diag?.salvaged).toBeUndefined()
+  })
+
+  describe('salvageResults', () => {
+    it('ignores braces inside strings and escaped quotes', () => {
+      const content =
+        '{"results":[{"name":"a } { b","snippet":"say \\"hi}\\" {"},{"name":"c","unit_price":1},{"name":"cut'
+      expect(salvageResults(content)).toEqual([
+        { name: 'a } { b', snippet: 'say "hi}" {' },
+        { name: 'c', unit_price: 1 },
+      ])
+    })
+
+    it('returns [] without a results array and skips unparseable objects', () => {
+      expect(salvageResults('no json here')).toEqual([])
+      expect(salvageResults('{"other":[{"a":1}]}')).toEqual([])
+      expect(salvageResults('{"results":[{bad json},{"ok":1}')).toEqual([{ ok: 1 }])
+    })
   })
 })
