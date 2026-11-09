@@ -123,9 +123,11 @@ describe('analyzePendingPhotos', () => {
     const r = await run()
     expect(r).toEqual({ pending: 2, analyzed: 1, failed: 1 })
     expect(mockRecordUsage).toHaveBeenCalledTimes(1)
-    expect(mockRecordUsage.mock.calls[0][3]).toBe('req-1:gen-photos')
+    // recordUsage(svc, companyId, kind, quantity, idempotencyKey)
     expect(mockRecordUsage.mock.calls[0][2]).toBe('photo_analyzed')
-    expect(mockRecordUsage.mock.calls[0][3]).not.toBe('req-1') // never collides with the estimate's key
+    expect(mockRecordUsage.mock.calls[0][3]).toBe(1)
+    expect(mockRecordUsage.mock.calls[0][4]).toBe('req-1:gen-photos')
+    expect(mockRecordUsage.mock.calls[0][4]).not.toBe('req-1') // never collides with the estimate's key
   })
 
   it('all photos failing returns without usage or debit and without throwing', async () => {
@@ -195,7 +197,8 @@ describe('capture-recorder text + photos routing', () => {
     // ...and still dispatches the auto-generate chain.
     const branch = src.slice(src.indexOf('if (descriptionText.trim() && !audioBlob) {'))
     expect(branch.indexOf('autoGenerateEstimate: true')).toBeGreaterThan(-1)
-    expect(branch.indexOf('autoGenerateEstimate: true')).toBeLessThan(branch.indexOf('/api/analyze-photos'))
+    // ...before the photos-only branch's fetch (comments may mention the route by name).
+    expect(branch.indexOf('autoGenerateEstimate: true')).toBeLessThan(branch.indexOf("fetch('/api/analyze-photos'"))
   })
 
   it('keeps the photos-only branch (no text, no audio) on /api/analyze-photos', () => {
