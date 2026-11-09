@@ -39,7 +39,7 @@ export async function runNotificationCleanup(
     .delete()
     .lt('created_at', sixtyDaysAgo)
     .eq('pinned', false)
-    .or(`expires_at.is.null,expires_at.lt.${nowIso}`)
+    .or(`expires_at.is.null,expires_at.lt."${nowIso}"`)
     .select('id')
 
   if (error) {

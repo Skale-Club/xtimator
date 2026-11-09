@@ -13,6 +13,13 @@ import { serverStorage } from '@/lib/storage/server'
 import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 
+// A failed draft save returns a generic message to the user and throws nothing,
+// so without this report the cause never reaches Sentry or the logs.
+function reportDraftFailure(reason: string, detail: string) {
+  console.warn(`[onboarding.autosave] ${reason}: ${detail}`)
+  captureBackgroundError('onboarding.autosave')(new Error(`onboarding draft save failed (${reason}): ${detail}`))
+}
+
 async function context() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
@@ -25,15 +32,21 @@ async function context() {
 export async function saveOnboardingDraft(input: unknown) {
   try {
     const body = saveDraftSchema.safeParse(input)
-    if (!body.success) return { error: 'Could not save your draft. Please try again.' }
+    if (!body.success) {
+      reportDraftFailure('invalid_payload', body.error.issues.map(i => `${i.path.join('.')}: ${i.code}`).join('; '))
+      return { error: 'Could not save your draft. Please try again.' }
+    }
     const { supabase, userId } = await context()
-    if (!ownsDraftLogo(body.data.values.logoUrl, userId, body.data.id)) return { error: 'Could not save your draft. Please try again.' }
+    if (!ownsDraftLogo(body.data.values.logoUrl, userId, body.data.id)) {
+      reportDraftFailure('foreign_logo', body.data.values.logoUrl)
+      return { error: 'Could not save your draft. Please try again.' }
+    }
     const { data, error } = await supabase.from('onboarding_drafts')
       .update({ step: body.data.step, values: body.data.values, schema_version: 3,
         client_id: body.data.clientId, client_sequence: body.data.sequence, completion_started_at: null })
       .eq('id', body.data.id).eq('user_id', userId).eq('mode', body.data.mode)
       .is('completed_at', null)
-      .or(`and(or(completion_started_at.is.null,completion_started_at.lt.${new Date(Date.now() - 300_000).toISOString()}),or(client_id.is.null,client_id.neq.${body.data.clientId},client_sequence.lt.${body.data.sequence}))`)
+      .or(`and(or(completion_started_at.is.null,completion_started_at.lt."${new Date(Date.now() - 300_000).toISOString()}"),or(client_id.is.null,client_id.neq.${body.data.clientId},client_sequence.lt.${body.data.sequence}))`)
       .select('last_activity_at,revision').maybeSingle()
     if (!error && !data) {
       const current = await supabase.from('onboarding_drafts').select('last_activity_at,revision,client_id,client_sequence,completed_at')
@@ -42,7 +55,10 @@ export async function saveOnboardingDraft(input: unknown) {
         return { savedAt: current.data.last_activity_at as string, revision: current.data.revision as number }
       }
     }
-    if (error || !data) return { error: 'Could not save your draft. Please try again.' }
+    if (error || !data) {
+      reportDraftFailure(error ? 'update_failed' : 'no_row_matched', error ? `${error.code ?? ''} ${error.message}` : `step=${body.data.step} seq=${body.data.sequence}`)
+      return { error: 'Could not save your draft. Please try again.' }
+    }
     return { savedAt: data.last_activity_at as string, revision: data.revision as number }
   } catch (error) {
     captureBackgroundError('onboarding.autosave')(error)
@@ -73,13 +89,17 @@ export async function completeOnboarding(input: unknown) {
   const body = saveDraftSchema.safeParse(input)
   if (!body.success || body.data.values.companyName.trim().length < 2) return { error: 'Company name must be at least 2 characters' }
   const { supabase, claims, userId } = await context()
+  // The draft only carries progress; every value the company needs is in this
+  // request. A failed draft write (already reported to Sentry) must not lock a
+  // new owner out of finishing setup, so completion goes on without the lease.
   const saved = await saveOnboardingDraft(body.data)
-  if (saved.error) return saved
-  const lease = await supabase.from('onboarding_drafts').update({ completion_started_at: new Date().toISOString() })
-    .eq('id', body.data.id).eq('user_id', userId).is('completed_at', null)
-    .or(`completion_started_at.is.null,completion_started_at.lt.${new Date(Date.now() - 300_000).toISOString()}`)
-    .select('id').maybeSingle()
-  if (lease.error || !lease.data) return { error: 'Setup is already being completed. Please try again shortly.' }
+  if (!saved.error) {
+    const lease = await supabase.from('onboarding_drafts').update({ completion_started_at: new Date().toISOString() })
+      .eq('id', body.data.id).eq('user_id', userId).is('completed_at', null)
+      .or(`completion_started_at.is.null,completion_started_at.lt."${new Date(Date.now() - 300_000).toISOString()}"`)
+      .select('id').maybeSingle()
+    if (lease.error || !lease.data) return { error: 'Setup is already being completed. Please try again shortly.' }
+  }
   const release = async () => { await supabase.from('onboarding_drafts').update({ completion_started_at: null }).eq('id', body.data.id).eq('user_id', userId).is('completed_at', null) }
   try {
     const result = await createOrUpdateCompany({

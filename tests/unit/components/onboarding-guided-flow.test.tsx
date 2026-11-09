@@ -92,13 +92,11 @@ describe('language-first guided onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm logo and start' }))
     expect(complete).toHaveBeenCalledOnce()
   })
-  it('shows draft syncing errors with a retry action', () => {
-    function ErrorSurvey() {const state = useSurveyState(INITIAL); return <SurveyShell appName="Xtimator" logoUrl={null} state={state} isSubmitting={false} onComplete={vi.fn()} draftStatus="error" onRetrySave={retry} />}
-    const retry=vi.fn()
+  it('keeps draft syncing silent: no status line or retry action is shown to the owner', () => {
+    function ErrorSurvey() {const state = useSurveyState(INITIAL); return <SurveyShell appName="Xtimator" logoUrl={null} state={state} isSubmitting={false} onComplete={vi.fn()} draftStatus="error" onRetrySave={vi.fn()} />}
     render(<ErrorSurvey />)
-    expect(screen.getByRole('status').textContent).toContain('Your progress is safe')
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(retry).toHaveBeenCalledOnce()
+    expect(screen.queryByText(/Your progress is safe|Draft saved|Saving draft/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 })
 

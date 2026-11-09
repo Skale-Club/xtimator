@@ -111,7 +111,7 @@ async function acquireLock(svc: ServiceClient, now: Date): Promise<boolean> {
     .from('blog_settings')
     .update({ lock_acquired_at: now.toISOString(), updated_at: now.toISOString() })
     .eq('id', 1)
-    .or(`lock_acquired_at.is.null,lock_acquired_at.lt.${staleBefore}`)
+    .or(`lock_acquired_at.is.null,lock_acquired_at.lt."${staleBefore}"`)
     .select('id')
   return Array.isArray(data) && data.length > 0
 }

@@ -37,8 +37,8 @@ export function SurveyShell({
   isSubmitting,
   onComplete,
   completionDisabled = false,
-  draftStatus,
-  onRetrySave,
+  // draftStatus / onRetrySave stay in the props for callers, but draft syncing is
+  // deliberately silent: the owner never sees save status (autosave keeps running).
   logoUploadStatus,
   onRetryLogo,
 }: SurveyShellProps) {
@@ -204,6 +204,18 @@ export function SurveyShell({
                     </Button>
                     <div className="flex gap-2">
                       {isLast ? (
+                        <>
+                        {!logoPreview && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onComplete}
+                            disabled={isSubmitting || completionDisabled}
+                            className="min-h-11 px-3 min-[360px]:px-4"
+                          >
+                            {t('Skip')}
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant="primary"
@@ -216,6 +228,7 @@ export function SurveyShell({
                           ) : null}
                           {t(isSubmitting ? 'Saving...' : logoPreview ? 'Confirm logo and start' : 'Start using Xtimator')}
                         </Button>
+                        </>
                       ) : (
                         <>
                           {!currentStep.required && currentStep.key !== 'language' && (
@@ -242,10 +255,6 @@ export function SurveyShell({
                       )}
                     </div>
                     </div>
-                    {draftStatus ? <p role="status" className="mt-2 text-center text-xs text-muted-foreground">
-                      {t(draftStatus === 'saved' ? 'Draft saved' : draftStatus === 'saving' ? 'Saving draft...' : 'Your progress is safe. Please try again.')}
-                      {draftStatus === 'error' && onRetrySave ? <button type="button" onClick={onRetrySave} className="ml-2 min-h-8 text-primary underline">{t('Retry')}</button> : null}
-                    </p> : null}
                   </footer>
                 </>
               )}

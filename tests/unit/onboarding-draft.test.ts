@@ -70,9 +70,10 @@ describe('durable onboarding drafts', () => {
   expect(await saveOnboardingDraft({...payload,values:{...payload.values,logoUrl:'https://external.test/logo.png'}})).toHaveProperty('error')
   expect(mocks.from).not.toHaveBeenCalled()
  })
- it('does not create a company when final save fails', async () => {
+ it('still creates the company when the final draft save fails (the draft only carries progress)', async () => {
   mocks.results=[{data:null,error:{message:'offline'}}]
-  expect(await completeOnboarding(payload)).toHaveProperty('error');expect(mocks.createCompany).not.toHaveBeenCalled()
+  await completeOnboarding(payload)
+  expect(mocks.createCompany).toHaveBeenCalledWith(expect.objectContaining({companyName:payload.values.companyName}),{mode:'first'})
  })
  it('keeps an unsuccessful completion resumable and uses account contacts', async () => {
   mocks.results=[{data:saved,error:null},{data:{id},error:null},{data:null,error:null}]
