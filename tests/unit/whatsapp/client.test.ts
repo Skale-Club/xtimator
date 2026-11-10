@@ -152,3 +152,48 @@ describe('sendTypingIndicator', () => {
     await expect(sendTypingIndicator('wamid.XYZ')).resolves.toBeUndefined()
   })
 })
+
+describe('downloadWhatsAppMedia size guard (Phase 4)', () => {
+  beforeEach(() => fetchMock.mockReset())
+
+  const meta = (file_size: number, mime_type: string) =>
+    new Response(JSON.stringify({ url: 'https://cdn.example.com/f', file_size, mime_type }), { status: 200 })
+
+  it('rejects an audio over 16 MB from the metadata alone: the binary is never downloaded', async () => {
+    fetchMock.mockResolvedValueOnce(meta(16 * 1024 * 1024 + 1, 'audio/ogg'))
+    await expect(downloadWhatsAppMedia('big-audio')).rejects.toMatchObject({
+      name: 'MediaTooLargeError',
+      kind: 'audio',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1) // only the metadata lookup
+  })
+
+  it('rejects an image over 10 MB without downloading', async () => {
+    fetchMock.mockResolvedValueOnce(meta(10 * 1024 * 1024 + 1, 'image/jpeg'))
+    await expect(downloadWhatsAppMedia('big-image')).rejects.toMatchObject({ kind: 'image' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('downloads files at or under the limit, and files with no declared size', async () => {
+    fetchMock
+      .mockResolvedValueOnce(meta(10 * 1024 * 1024, 'image/jpeg'))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1]).buffer, { status: 200 }))
+    await downloadWhatsAppMedia('ok-image')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    fetchMock.mockReset()
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ url: 'https://cdn.example.com/f' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1]).buffer, { status: 200 }))
+    await downloadWhatsAppMedia('no-size')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('an explicit maxBytes overrides the per-kind default', async () => {
+    fetchMock.mockResolvedValueOnce(meta(2000, 'audio/ogg'))
+    await expect(downloadWhatsAppMedia('x', { maxBytes: 1000 })).rejects.toMatchObject({
+      name: 'MediaTooLargeError',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

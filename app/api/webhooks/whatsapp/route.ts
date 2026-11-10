@@ -5,30 +5,16 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
-import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
+import { logInboundMessage } from '@/lib/whatsapp/conversations'
+import { inboxFieldsFor } from '@/lib/whatsapp/inbox-fields'
 import type { WhatsAppMessage, WhatsAppPayload, WhatsAppValue } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 import { findActiveWhatsAppSender, type WhatsAppSenderMatch } from '@/lib/whatsapp/account-registry'
 import { ensureWhatsAppSenderForUser, findOwnerCandidateByVerifiedPhone } from '@/lib/whatsapp/sender-link'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { unknownSenderReplyText } from '@/lib/whatsapp/unknown-sender-reply'
+import { classifyInboundMessage } from '@/lib/whatsapp/message-policy'
 import { applyWhatsAppStatuses } from '@/lib/billing/messaging-cost'
-
-// Map a Meta inbound message to the inbox log's (type, body) pair.
-function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
-  switch (message.type) {
-    case 'text':
-      return { msgType: 'text', body: message.text?.body ?? null }
-    case 'audio':
-      return { msgType: 'audio', body: null }
-    case 'image':
-      return { msgType: 'image', body: message.image?.caption ?? null }
-    case 'document':
-      return { msgType: 'document', body: null }
-    default:
-      return { msgType: 'text', body: null }
-  }
-}
 
 /**
  * Detect a `message_template_status_update` change in the webhook payload
@@ -398,6 +384,12 @@ async function processOneMessage(
       console.info('[WhatsApp] client message logged only; not routed to the agent', {
         fromLast4: fromPhone.slice(-4),
       })
+      return
+    }
+
+    // Phase 4: stickers/reactions (and system events) are logged above but never answered,
+    // never sent to the AI and never cost a message. Same policy as the router/batch paths.
+    if (classifyInboundMessage(message).action === 'ignore') {
       return
     }
 

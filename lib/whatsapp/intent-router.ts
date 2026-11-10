@@ -31,7 +31,14 @@ import {
 } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
-import { normalizeMessage } from '@/lib/whatsapp/normalize'
+import { normalizeMessage, type NormalizeResult } from '@/lib/whatsapp/normalize'
+import {
+  classifyInboundMessage,
+  policyReplyText,
+  tooLargeReplyKey,
+  type PolicyReplyKey,
+} from '@/lib/whatsapp/message-policy'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { runConfirmationAgent } from '@/lib/whatsapp/agent'
 import { actionCancel, type Session } from '@/lib/whatsapp/confirm-actions'
@@ -461,16 +468,36 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
 async function routeInbound(input: RouteInput, meter: WhatsAppCostMeter): Promise<void> {
   const { companyId, ownerPhone, fromPhone, message, session, supabase } = input
 
-  // 1. Normalize (audio→transcript, photo→analysis, text→as-is). Never throws.
-  const normalized = await normalizeMessage(message, companyId, supabase)
+  // 0. Per-type policy (lib/whatsapp/message-policy.ts) — identical to the batch and
+  // awaiting-details paths. Stickers/reactions: no reply, no AI, no cost. Video,
+  // documents and unknown types: one short localized reply.
+  const decision = classifyInboundMessage(message)
+  if (decision.action === 'ignore') {
+    console.info('[WhatsApp] inbound message ignored by policy', { reason: decision.reason })
+    return
+  }
+  const replyPolicy = async (key: PolicyReplyKey): Promise<void> => {
+    const language = await resolveOwnerLanguage(supabase, companyId)
+    await sendOwnerReply(input, policyReplyText(key, language))
+  }
+  if (decision.action === 'reply_unsupported' && decision.reply) {
+    await replyPolicy(decision.reply)
+    return
+  }
+
+  // 1. Normalize (audio→transcript, photo→analysis, text/location/contact/button→as-is). Never throws.
+  const normalized: NormalizeResult = await normalizeMessage(message, companyId, supabase)
   if (!normalized.ok || !normalized.text) {
-    const body =
-      normalized.kind === 'audio'
-        ? "Sorry, I couldn't read your audio. Please describe the job in a text message."
-        : normalized.kind === 'photo'
-          ? "Sorry, I couldn't read your photo. Please describe the job in a text message."
-          : 'Sorry, I can only process text, audio, or photo messages. Please describe the job in a text message.'
-    await sendOwnerReply(input, body)
+    const kind = normalized.kind === 'audio' ? 'audio' : normalized.kind === 'photo' ? 'image' : null
+    const key: PolicyReplyKey =
+      normalized.reason === 'too_large' && kind
+        ? tooLargeReplyKey(kind)
+        : normalized.kind === 'audio'
+          ? 'audio_unreadable'
+          : normalized.kind === 'photo'
+            ? 'photo_unreadable'
+            : 'unknown_unsupported'
+    await replyPolicy(key)
     return
   }
 

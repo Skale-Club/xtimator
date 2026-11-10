@@ -17,14 +17,60 @@ export interface WhatsAppImageMessage {
 
 export type WhatsAppMessageType = WhatsAppTextMessage | WhatsAppAudioMessage | WhatsAppImageMessage
 
+/** Meta `location` message body. */
+export interface WhatsAppLocation {
+  latitude: number
+  longitude: number
+  name?: string
+  address?: string
+}
+
+/** One entry of a Meta `contacts` (shared contact card) message. */
+export interface WhatsAppSharedContact {
+  name?: { formatted_name?: string; first_name?: string; last_name?: string }
+  phones?: Array<{ phone?: string; wa_id?: string; type?: string }>
+}
+
+/** Meta `interactive` reply (tap on a reply button or a list row). */
+export interface WhatsAppInteractiveReply {
+  type?: 'button_reply' | 'list_reply' | string
+  button_reply?: { id?: string; title?: string }
+  list_reply?: { id?: string; title?: string; description?: string }
+}
+
 export interface WhatsAppMessage {
   id: string        // wamid.*
   from: string      // E.164 without leading +
   timestamp: string
-  type: 'text' | 'audio' | 'image' | 'document' | 'video' | 'sticker' | 'reaction' | 'button' | 'unknown'
+  type:
+    | 'text'
+    | 'audio'
+    | 'image'
+    | 'document'
+    | 'video'
+    | 'sticker'
+    | 'reaction'
+    | 'button'
+    | 'location'
+    | 'contacts'
+    | 'interactive'
+    | 'system'
+    | 'request_welcome'
+    | 'unsupported'
+    | 'unknown'
   text?: { body: string }
-  audio?: { id: string; mime_type: string }
+  /** `voice` is true for a recorded voice note (vs. an attached audio file). */
+  audio?: { id: string; mime_type: string; voice?: boolean }
   image?: { id: string; mime_type: string; caption?: string }
+  document?: { id?: string; mime_type?: string; filename?: string; caption?: string }
+  video?: { id?: string; mime_type?: string; caption?: string }
+  sticker?: { id?: string; mime_type?: string; animated?: boolean }
+  reaction?: { message_id?: string; emoji?: string }
+  /** Legacy quick-reply button tap (template buttons). */
+  button?: { text?: string; payload?: string }
+  location?: WhatsAppLocation
+  contacts?: WhatsAppSharedContact[]
+  interactive?: WhatsAppInteractiveReply
 }
 
 export interface WhatsAppValue {

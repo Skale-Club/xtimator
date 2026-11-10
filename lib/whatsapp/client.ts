@@ -6,6 +6,7 @@
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
 import { sanitizeWhatsAppParam } from '@/lib/notifications/template-engine'
 import { isWhatsAppOutboundBlocked, logOutboundBlocked } from '@/lib/whatsapp/outbound-guard'
+import { MediaTooLargeError, isOverMediaLimit, mediaKindFromMime } from '@/lib/whatsapp/message-policy'
 import {
   marketFromPhone,
   recordMessagingEvent,
@@ -215,20 +216,38 @@ export async function sendTypingIndicator(messageId: string): Promise<void> {
 
 /**
  * Download a media file from WhatsApp Cloud API.
- * Two-step: (1) resolve media URL via mediaId, (2) download binary.
+ * Two-step: (1) resolve media URL + metadata via mediaId, (2) download binary.
+ *
+ * Size guard: step 1 returns Meta's `file_size` and `mime_type`. When the file is over
+ * the limit for its kind (audio/image, see message-policy.ts, or an explicit
+ * `opts.maxBytes`) a MediaTooLargeError is thrown BEFORE step 2, so nothing is downloaded.
  */
-export async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer> {
+export async function downloadWhatsAppMedia(
+  mediaId: string,
+  opts: { maxBytes?: number } = {}
+): Promise<Buffer> {
   const { accessToken: token } = await getWhatsAppPlatformConfig()
   if (!token) throw new Error('[WhatsApp] Missing platform config: access token not set')
 
-  // Step 1: resolve download URL
+  // Step 1: resolve download URL (+ size/mime metadata)
   const urlRes = await fetch(`${GRAPH_BASE}/${mediaId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!urlRes.ok) {
     throw new Error(`[WhatsApp] media URL lookup failed ${urlRes.status}`)
   }
-  const { url } = (await urlRes.json()) as { url: string }
+  const meta = (await urlRes.json()) as { url: string; file_size?: number | string; mime_type?: string }
+  const url = meta.url
+
+  const kind = mediaKindFromMime(meta.mime_type)
+  const declared = Number(meta.file_size)
+  if (Number.isFinite(declared) && declared > 0) {
+    if (typeof opts.maxBytes === 'number') {
+      if (declared > opts.maxBytes) throw new MediaTooLargeError(kind ?? 'image', declared)
+    } else if (kind && isOverMediaLimit(kind, declared)) {
+      throw new MediaTooLargeError(kind, declared)
+    }
+  }
 
   // Step 2: download binary — Authorization header required by Meta
   const mediaRes = await fetch(url, {

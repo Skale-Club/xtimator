@@ -318,6 +318,78 @@ describe('POST /api/webhooks/whatsapp', () => {
     })
   })
 
+  it('Phase 4: a sticker / reaction from an owner is logged to the inbox but never processed', async () => {
+    mockVerify.mockReturnValue(true)
+    mockFindSender.mockResolvedValue({
+      companyId: 'company-7',
+      userId: 'user-owner',
+      phoneE164: '+15551234567',
+    })
+    mockServiceClient.mockReturnValue({
+      from: makeOwnerResolvedFromMock('company-7'),
+    } as unknown as ReturnType<typeof requireServiceClient>)
+
+    const payload = JSON.stringify({
+      entry: [{
+        changes: [{
+          value: {
+            contacts: [{ profile: { name: 'Owner' }, wa_id: '15551234567' }],
+            messages: [
+              { id: 'wamid.st1', from: '15551234567', type: 'sticker', sticker: { id: 's' } },
+              { id: 'wamid.re1', from: '15551234567', type: 'reaction', reaction: { message_id: 'x', emoji: 'ok' } },
+            ],
+          },
+        }],
+      }],
+    })
+    const res = await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', payload))
+    expect(res.status).toBe(200)
+
+    await vi.waitFor(() => {
+      expect(mockLogInbound).toHaveBeenCalledTimes(2)
+    })
+    expect(mockLogInbound).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ msgType: 'text', body: '[sticker]', waMessageId: 'wamid.st1' })
+    )
+    await new Promise((r) => setTimeout(r, 10))
+    expect(mockProcessInbound).not.toHaveBeenCalled()
+  })
+
+  it('Phase 4: location, contacts and an interactive reply from an owner are logged readably and processed', async () => {
+    mockVerify.mockReturnValue(true)
+    mockFindSender.mockResolvedValue({
+      companyId: 'company-7',
+      userId: 'user-owner',
+      phoneE164: '+15551234567',
+    })
+    mockServiceClient.mockReturnValue({
+      from: makeOwnerResolvedFromMock('company-7'),
+    } as unknown as ReturnType<typeof requireServiceClient>)
+
+    const payload = JSON.stringify({
+      entry: [{
+        changes: [{
+          value: {
+            contacts: [{ profile: { name: 'Owner' }, wa_id: '15551234567' }],
+            messages: [
+              { id: 'wamid.lo1', from: '15551234567', type: 'location', location: { latitude: 1, longitude: 2, name: 'Site' } },
+              { id: 'wamid.co1', from: '15551234567', type: 'contacts', contacts: [{ name: { formatted_name: 'John' } }] },
+              { id: 'wamid.in1', from: '15551234567', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'c', title: 'Confirm' } } },
+            ],
+          },
+        }],
+      }],
+    })
+    await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', payload))
+
+    await vi.waitFor(() => {
+      expect(mockProcessInbound).toHaveBeenCalledTimes(3)
+    })
+    const bodies = mockLogInbound.mock.calls.map((c) => (c[1] as { body: string }).body)
+    expect(bodies).toEqual(['[location] Site (1,2)', '[contact] John', 'Confirm'])
+  })
+
   it('does NOT fire the welcome when the message is a duplicate (dedup short-circuits)', async () => {
     mockVerify.mockReturnValue(true)
     mockFindSender.mockResolvedValue({

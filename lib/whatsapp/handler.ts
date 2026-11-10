@@ -42,6 +42,64 @@ import {
   debounceWait,
 } from '@/lib/whatsapp/buffer'
 import { resolvePendingByChannelRef } from '@/lib/notifications/agentic-send-confirm'
+import {
+  classifyInboundMessage,
+  policyReplyText,
+  type PolicyReplyKey,
+} from '@/lib/whatsapp/message-policy'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
+
+// -------------------------------------------------------------------------
+// Per-type policy screen for the batch and awaiting-details paths — the twin of the
+// check at the top of the single-message router (lib/whatsapp/message-policy.ts is
+// the one decision for all three). Stickers/reactions are dropped silently; video,
+// documents and unknown types are dropped and answered ONCE (one short localized
+// reply per distinct reason, however many such messages the batch holds). Everything
+// else (text, audio, image, location, contacts, interactive replies) is kept.
+// Never throws: a failed reply must not lose the rest of the batch.
+// -------------------------------------------------------------------------
+async function screenBatchByPolicy(
+  messages: WhatsAppMessage[],
+  supabase: SupabaseClient,
+  companyId: string,
+  ownerPhone: string
+): Promise<WhatsAppMessage[]> {
+  const kept: WhatsAppMessage[] = []
+  const replies: PolicyReplyKey[] = []
+  for (const m of messages) {
+    const d = classifyInboundMessage(m)
+    if (d.action === 'ignore') continue
+    if (d.action === 'reply_unsupported') {
+      if (d.reply && !replies.includes(d.reply)) replies.push(d.reply)
+      continue
+    }
+    kept.push(m)
+  }
+  if (replies.length > 0) {
+    try {
+      const language = await resolveOwnerLanguage(supabase, companyId)
+      for (const key of replies) {
+        const body = policyReplyText(key, language)
+        const wamid = await sendWhatsAppMessage(
+          ownerPhone,
+          { type: 'text', text: { body } },
+          { companyId, purpose: 'bot_reply', billable: true }
+        )
+        logOutboundMessage(supabase, {
+          companyId,
+          contactPhone: ownerPhone,
+          body,
+          msgType: 'text',
+          waMessageId: wamid,
+          status: 'sent',
+        }).catch(() => undefined)
+      }
+    } catch (err) {
+      console.error('[WhatsApp] policy reply failed', err)
+    }
+  }
+  return kept
+}
 
 // -------------------------------------------------------------------------
 // Entry point — webhook route calls this fire-and-forget.
@@ -113,6 +171,7 @@ export async function processInboundWithDebounce(
         existingSession as { draft_project_id: string | null },
         companyId,
         ownerPhone,
+        supabase,
       )
     }
     await debounceWait()
@@ -135,6 +194,7 @@ export async function processInboundWithDebounce(
       freshSession,
       companyId,
       ownerPhone,
+      supabase,
     )
   }
 
@@ -235,6 +295,7 @@ export async function processInboundMessage(
         existingSession as { draft_project_id: string | null },
         companyId,
         ownerPhone,
+        supabase,
       )
     }
     await debounceWait()
@@ -257,6 +318,7 @@ export async function processInboundMessage(
       freshSession,
       companyId,
       ownerPhone,
+      supabase,
     )
   }
 
@@ -318,9 +380,13 @@ async function dispatchToExistingProject(
   session: { draft_project_id: string | null },
   companyId: string,
   ownerPhone: string,
+  supabase: SupabaseClient,
 ): Promise<void> {
   if (!messages.length || !session.draft_project_id) return
-  const lastMessageId = messages[messages.length - 1].id
+  const allMessages = messages
+  const kept = await screenBatchByPolicy(allMessages, supabase, companyId, ownerPhone)
+  if (!kept.length) return
+  const lastMessageId = allMessages[allMessages.length - 1].id
   const batchKey = `wa-batch-${lastMessageId}`
   const { inngest } = await import('@/lib/inngest/client')
   const { EVENT_WHATSAPP_PROCESS } = await import('@/lib/inngest/events')
@@ -331,7 +397,7 @@ async function dispatchToExistingProject(
       companyId,
       projectId: session.draft_project_id, // SAME project — accumulate context
       ownerPhone,
-      messages,
+      messages: kept,
       batchKey,
     },
   })
@@ -361,6 +427,11 @@ export async function processInboundMessages(
 ): Promise<void> {
   if (messages.length === 0) return
   const ownerPhone = `+${fromPhone}`
+
+  // Phase 4: per-type policy (drops stickers/reactions, answers video/documents/unknown once).
+  const allInbound = messages
+  messages = await screenBatchByPolicy(allInbound, supabase, companyId, ownerPhone)
+  if (messages.length === 0) return
 
   // QUOTA-05: Check WhatsApp entitlement BEFORE any project draft / dispatch.
   // Free tier rejection happens here so we never create orphan drafts.

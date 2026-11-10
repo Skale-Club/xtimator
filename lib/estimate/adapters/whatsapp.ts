@@ -42,6 +42,11 @@
 import { Annotation, StateGraph, Send, START, END } from '@langchain/langgraph'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
+import {
+  MediaTooLargeError,
+  classifyInboundMessage,
+  isTextBearing,
+} from '@/lib/whatsapp/message-policy'
 import { requireServiceClient } from '@/lib/supabase/service'
 import {
   buildAskDetailsMessage,
@@ -161,19 +166,24 @@ export function makeWhatsAppAdapter({
     const msgId = msg.id
 
     try {
-      if (msg.type === 'text' && msg.text?.body) {
+      // Same per-type policy as the single-message router (lib/whatsapp/message-policy.ts).
+      // Text-bearing decisions (text, interactive/button reply, location, shared contact)
+      // become a text recordings row: location → "Job location: ...", contact → "Client: ...".
+      const decision = classifyInboundMessage(msg)
+
+      if (isTextBearing(decision) && decision.text) {
         const svc = requireServiceClient()
         await svc.from('recordings').insert({
           project_id: projectId,
           company_id: companyId,
           storage_path: null,
-          transcript: msg.text.body,
+          transcript: decision.text,
           duration_seconds: null,
         })
         return { mediaResults: [{ msgId, ok: true }] }
       }
 
-      if (msg.type === 'audio' && msg.audio?.id) {
+      if (decision.action === 'process_audio' && msg.audio?.id) {
         // MIME/codec/extension derivation (codec-param strip + mp4 → m4a remap)
         // is shared with the intent-router path via lib/whatsapp/media.ts.
         const { mimeType, ext } = deriveAudioFormat(msg.audio.mime_type)
@@ -182,6 +192,9 @@ export function makeWhatsAppAdapter({
         try {
           audioBuffer = await downloadWhatsAppMedia(msg.audio.id)
         } catch (err) {
+          if (err instanceof MediaTooLargeError) {
+            return { mediaResults: [{ msgId, ok: false, reason: 'too_large' }] }
+          }
           console.error('[WhatsApp] audio download failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'download_failed' }] }
         }
@@ -242,11 +255,14 @@ export function makeWhatsAppAdapter({
         return { mediaResults: [{ msgId, ok: true }] }
       }
 
-      if (msg.type === 'image' && msg.image?.id) {
+      if (decision.action === 'process_image' && msg.image?.id) {
         let imageBuffer: Buffer
         try {
           imageBuffer = await downloadWhatsAppMedia(msg.image.id)
         } catch (err) {
+          if (err instanceof MediaTooLargeError) {
+            return { mediaResults: [{ msgId, ok: false, reason: 'too_large' }] }
+          }
           console.error('[WhatsApp] image download failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'download_failed' }] }
         }
@@ -291,8 +307,11 @@ export function makeWhatsAppAdapter({
         return { mediaResults: [{ msgId, ok: true }] }
       }
 
-      // Unknown message type — no-op (same as current behaviour)
-      return { mediaResults: [{ msgId, ok: true }] }
+      // Stickers/reactions: nothing to ingest and NOT usable input (no row, no reply).
+      if (decision.action === 'ignore') return { mediaResults: [] }
+      // Video / documents / unknown types are never processed. The handler already
+      // answered the owner once (localized) before dispatch; here they just count as dropped.
+      return { mediaResults: [{ msgId, ok: false, reason: `unsupported_${decision.reason}` }] }
     } catch (err) {
       // T-mq2-01: never re-throw — return ok:false so parallel branches continue
       console.error('[WhatsApp] processMessage unexpected error:', err)

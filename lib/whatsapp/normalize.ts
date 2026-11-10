@@ -24,6 +24,11 @@ import { deriveAudioFormat, deriveImageFormat } from '@/lib/whatsapp/media'
 import { debitWhatsAppMedia, waAttemptId } from '@/lib/whatsapp/credits'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
+  MediaTooLargeError,
+  classifyInboundMessage,
+  isTextBearing,
+} from '@/lib/whatsapp/message-policy'
+import {
   normalizeInput,
   type NormalizeKind,
   type NormalizeResult,
@@ -40,13 +45,18 @@ export async function normalizeMessage(
   // signature so callers don't churn when that lands.
   _supabase: SupabaseClient
 ): Promise<NormalizeResult> {
-  // --- text ---------------------------------------------------------------
-  if (msg.type === 'text' && msg.text?.body) {
-    return normalizeInput({ kind: 'text', body: msg.text.body })
+  // The shared per-type policy (lib/whatsapp/message-policy.ts) decides what each
+  // type is. Text-bearing decisions (text, interactive/button reply, location,
+  // shared contact) are plain text for the agent.
+  const decision = classifyInboundMessage(msg)
+
+  // --- text-bearing ---------------------------------------------------------
+  if (isTextBearing(decision) && decision.text) {
+    return normalizeInput({ kind: 'text', body: decision.text })
   }
 
   // --- audio --------------------------------------------------------------
-  if (msg.type === 'audio' && msg.audio?.id) {
+  if (decision.action === 'process_audio' && msg.audio?.id) {
     // Codec-param strip + mp4 → m4a remap is shared with the CREATE-graph adapter.
     const { mimeType, ext } = deriveAudioFormat(msg.audio.mime_type)
 
@@ -54,6 +64,9 @@ export async function normalizeMessage(
     try {
       buf = await downloadWhatsAppMedia(msg.audio.id)
     } catch (err) {
+      if (err instanceof MediaTooLargeError) {
+        return { text: '', kind: 'audio', ok: false, reason: 'too_large' }
+      }
       console.error('[normalize] audio download failed:', err)
       return { text: '', kind: 'audio', ok: false, reason: 'download_failed' }
     }
@@ -74,13 +87,16 @@ export async function normalizeMessage(
   }
 
   // --- image --------------------------------------------------------------
-  if (msg.type === 'image' && msg.image?.id) {
+  if (decision.action === 'process_image' && msg.image?.id) {
     const { mimeType } = deriveImageFormat(msg.image.mime_type)
 
     let buf: Buffer
     try {
       buf = await downloadWhatsAppMedia(msg.image.id)
     } catch (err) {
+      if (err instanceof MediaTooLargeError) {
+        return { text: '', kind: 'photo', ok: false, reason: 'too_large' }
+      }
       console.error('[normalize] image download failed:', err)
       return { text: '', kind: 'photo', ok: false, reason: 'download_failed' }
     }
@@ -99,5 +115,7 @@ export async function normalizeMessage(
   }
 
   // --- anything else (document/video/sticker/reaction/unknown) ------------
+  // The router consults the policy first (ignore / localized reply); this is the
+  // defensive fallthrough for direct callers.
   return { text: '', kind: 'unknown', ok: false, reason: 'unsupported_type' }
 }

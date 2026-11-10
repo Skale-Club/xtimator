@@ -212,3 +212,78 @@ describe('normalizeMessage', () => {
     expect(result.reason).toBe('unsupported_type')
   })
 })
+
+describe('normalizeMessage - Phase 4 message types (shared policy)', () => {
+  const base = { id: 'mp', from: '1555', timestamp: '1' }
+
+  it('interactive button reply is the owner text', async () => {
+    const result = await normalizeMessage(
+      {
+        ...base,
+        type: 'interactive',
+        interactive: { type: 'button_reply', button_reply: { id: 'c', title: 'Confirm' } },
+      },
+      'company-1',
+      supabase
+    )
+    expect(result).toEqual({ text: 'Confirm', kind: 'text', ok: true })
+  })
+
+  it('legacy quick-reply button text is the owner text', async () => {
+    const result = await normalizeMessage({ ...base, type: 'button', button: { text: 'Cancel' } }, 'c', supabase)
+    expect(result).toEqual({ text: 'Cancel', kind: 'text', ok: true })
+  })
+
+  it('location becomes "Job location" context text', async () => {
+    const result = await normalizeMessage(
+      { ...base, type: 'location', location: { latitude: 28.5, longitude: -81.3, name: 'Site', address: '1 Main St' } },
+      'c',
+      supabase
+    )
+    expect(result.ok).toBe(true)
+    expect(result.text).toBe('Job location: Site, 1 Main St (28.5,-81.3)')
+  })
+
+  it('shared contact becomes "Client" context text', async () => {
+    const result = await normalizeMessage(
+      {
+        ...base,
+        type: 'contacts',
+        contacts: [{ name: { formatted_name: 'John Smith' }, phones: [{ wa_id: '15552223333' }] }],
+      },
+      'c',
+      supabase
+    )
+    expect(result.text).toBe('Client: John Smith, +15552223333')
+  })
+
+  it('video and document are not processed', async () => {
+    for (const type of ['video', 'document'] as const) {
+      const result = await normalizeMessage({ ...base, type }, 'c', supabase)
+      expect(result).toMatchObject({ ok: false, reason: 'unsupported_type' })
+    }
+    expect(mockDownload).not.toHaveBeenCalled()
+  })
+
+  it('an over-limit audio/photo returns reason too_large (no transcription / vision)', async () => {
+    const { MediaTooLargeError } = await import('@/lib/whatsapp/message-policy')
+    mockDownload.mockRejectedValueOnce(new MediaTooLargeError('audio', 20_000_000))
+    const audio = await normalizeMessage(
+      { ...base, type: 'audio', audio: { id: 'big', mime_type: 'audio/ogg' } },
+      'c',
+      supabase
+    )
+    expect(audio).toEqual({ text: '', kind: 'audio', ok: false, reason: 'too_large' })
+
+    mockDownload.mockRejectedValueOnce(new MediaTooLargeError('image', 20_000_000))
+    const photo = await normalizeMessage(
+      { ...base, type: 'image', image: { id: 'big', mime_type: 'image/jpeg' } },
+      'c',
+      supabase
+    )
+    expect(photo).toEqual({ text: '', kind: 'photo', ok: false, reason: 'too_large' })
+    expect(mockTranscribe).not.toHaveBeenCalled()
+    expect(mockAnalyzePhoto).not.toHaveBeenCalled()
+    expect(mockDebitMedia).not.toHaveBeenCalled()
+  })
+})

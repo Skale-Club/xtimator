@@ -20,10 +20,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { getWhatsAppWelcomeConfig } from '@/lib/platform-config'
-import {
-  resolveEstimateLanguage,
-  type EstimateLanguage,
-} from '@/lib/i18n/resolve-estimate-language'
+import { type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 
 type WelcomeCopy = {
   intro: string
@@ -104,18 +102,7 @@ export async function resolveWelcomeLanguage(
   serviceClient: SupabaseClient,
   companyId: string
 ): Promise<EstimateLanguage> {
-  try {
-    const { data } = await serviceClient
-      .from('companies')
-      .select('default_estimate_language')
-      .eq('id', companyId)
-      .single()
-    return resolveEstimateLanguage({
-      companyDefault: (data?.default_estimate_language as EstimateLanguage | null) ?? null,
-    })
-  } catch {
-    return 'en'
-  }
+  return resolveOwnerLanguage(serviceClient, companyId)
 }
 
 /**
