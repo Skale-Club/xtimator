@@ -67,7 +67,9 @@ export async function POST(request: NextRequest) {
 
   if (!event) {
     console.warn('[Stripe] Webhook signature verification failed:', lastErrorMessage)
-    return new Response(`Webhook error: ${lastErrorMessage}`, { status: 400 })
+    // Generic body: the SDK's reason stays in the server log, never echoed to
+    // an unauthenticated caller.
+    return new Response('Invalid signature', { status: 400 })
   }
 
   // Step 3: read-only trusted-company resolution after signature verification.

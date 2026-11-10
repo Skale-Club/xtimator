@@ -60,3 +60,14 @@ describe('lib/sms/verify-webhook — verifyTwilioSignature() (CUST-03)', () => {
     expect(verifyTwilioSignature(url, outOfOrder, expectedSignature, authToken)).toBe(true)
   })
 })
+
+describe('verifyTwilioSignature fails closed without a token', () => {
+  it('rejects a signature computed with an empty auth token', async () => {
+    const { createHmac } = await import('node:crypto')
+    const url = 'https://xtimator.com/api/webhooks/twilio'
+    const params = { Body: 'STOP', From: '+15551234567' }
+    const signing = url + Object.keys(params).sort().map((k) => k + params[k as keyof typeof params]).join('')
+    const forged = createHmac('sha1', '').update(signing).digest('base64')
+    expect(verifyTwilioSignature(url, params, forged, '')).toBe(false)
+  })
+})

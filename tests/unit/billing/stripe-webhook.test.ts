@@ -154,6 +154,15 @@ describe('POST /api/webhooks/stripe — signature verification (STRIPE-02)', () 
     expect(res.status).toBe(400)
   })
 
+  it('does not echo the SDK verification reason to the caller', async () => {
+    mockConstructEvent.mockImplementation(() => {
+      throw new Error('No signatures found matching the expected signature for payload')
+    })
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(400)
+    expect(await res.text()).toBe('Invalid signature')
+  })
+
   it('accepts requests with valid Stripe signature', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_ok',

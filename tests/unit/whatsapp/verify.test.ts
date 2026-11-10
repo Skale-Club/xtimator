@@ -36,3 +36,10 @@ describe('verifyWebhookSignature', () => {
     expect(verifyWebhookSignature(body, 'sha256=abc', secret)).toBe(false)
   })
 })
+
+describe('verifyWebhookSignature fails closed without a secret', () => {
+  it('rejects a signature computed with an empty key when no secret is configured', () => {
+    const payload = '{"object":"whatsapp_business_account"}'
+    expect(verifyWebhookSignature(payload, makeSignature(payload, ''), '')).toBe(false)
+  })
+})

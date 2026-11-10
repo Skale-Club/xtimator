@@ -23,6 +23,8 @@ export function verifyTwilioSignature(
   signature: string | null,
   authToken: string,
 ): boolean {
+  // Fail closed without a token: an HMAC with an empty key is computable by anyone.
+  if (!authToken) return false
   if (!signature) return false
 
   const signingString =

@@ -13,6 +13,9 @@ export function verifyWebhookSignature(
   signature: string | null,
   appSecret: string
 ): boolean {
+  // Fail closed without a secret: an HMAC with an empty key is computable by
+  // anyone, so an unset META_WHATSAPP_APP_SECRET must reject everything.
+  if (!appSecret) return false
   if (!signature?.startsWith('sha256=')) return false
   const expected = createHmac('sha256', appSecret).update(rawBody).digest('hex')
   const received = signature.slice('sha256='.length)
