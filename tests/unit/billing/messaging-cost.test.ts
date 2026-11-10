@@ -310,10 +310,10 @@ describe('recordSmsSent / recordEmailSent', () => {
       units: 3,
       status: 'sent',
     })
-    expect(row.cost_usd as number).toBeCloseTo(0.0249, 6)
+    expect(row.cost_usd as number).toBeCloseTo(0.039, 6)
   })
 
-  it('estimates segments from the body when Twilio reports none (Brazil = 0.05 per segment)', async () => {
+  it('estimates segments from the body when Twilio reports none (Brazil = 0.06 per segment)', async () => {
     await recordSmsSent({
       to: '+5511999990000',
       body: 'a'.repeat(200),
@@ -323,7 +323,7 @@ describe('recordSmsSent / recordEmailSent', () => {
     const row = db.tables.messaging_cost_events[0]
     expect(row.units).toBe(2)
     expect(row.market).toBe('BR')
-    expect(row.cost_usd as number).toBeCloseTo(0.1, 6)
+    expect(row.cost_usd as number).toBeCloseTo(0.12, 6)
   })
 
   it('records login/OTP-style sends as non-billable', async () => {
