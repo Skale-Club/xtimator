@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock fetch globally
 const fetchMock = vi.fn()
@@ -35,6 +35,54 @@ describe('sendWhatsAppMessage', () => {
     expect(url).toMatch(/graph\.facebook\.com\/v\d+\.\d+\/phone-123\/messages/)
     expect(opts.method).toBe('POST')
     expect(opts.headers.Authorization).toBe('Bearer test-token')
+  })
+})
+
+describe('development outbound kill switch', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('does not call fetch for sendWhatsAppMessage when NODE_ENV=development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    await expect(
+      sendWhatsAppMessage('+15551234567', { type: 'text', text: { body: 'Hello' } })
+    ).resolves.toBeUndefined()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not call fetch for read receipts or typing indicators in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    await markMessageAsRead('wamid.XYZ')
+    await sendTypingIndicator('wamid.XYZ')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sends for real in development when WHATSAPP_ALLOW_DEV_SEND=true', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('WHATSAPP_ALLOW_DEV_SEND', 'true')
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendWhatsAppMessage('+15551234567', { type: 'text', text: { body: 'Hello' } })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('sends normally under the default test environment', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }))
+    await sendWhatsAppMessage('+15551234567', { type: 'text', text: { body: 'Hello' } })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('does not block media downloads in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ url: 'https://cdn.example.com/f' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1]).buffer, { status: 200 }))
+    await downloadWhatsAppMedia('media-id-abc')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 

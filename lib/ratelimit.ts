@@ -22,6 +22,8 @@ export type LimitName =
   | 'userEstimatePerDay'
   | 'whatsappPerHour'
   | 'whatsappPerDay'
+  // Unknown-sender "create an account" reply: at most once per phone per 24h.
+  | 'whatsappUnknownSenderReply'
   | 'photoAnalysisPerMinute'
   | 'translatePerMinute'
   // Security Review S05 — close rate-limit gaps on AI/external-cost routes.
@@ -70,6 +72,7 @@ export const limits: Record<LimitName, LimitConfig> = {
   // Per WhatsApp number
   whatsappPerHour: { max: 20, window: 3600 },
   whatsappPerDay: { max: 50, window: 86400 },
+  whatsappUnknownSenderReply: { max: 1, window: 86400 },
 
   // Expensive endpoints
   photoAnalysisPerMinute: { max: 10, window: 60 },

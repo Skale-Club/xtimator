@@ -1251,13 +1251,13 @@ describe('Phase 180 mutation-boundary census', () => {
     )
     expectCallBefore(
       'app/api/webhooks/whatsapp/route.ts',
-      'handleInboundMessage',
+      'processOneMessage',
       'assertCompanyWritable',
       'rateLimit',
     )
     expectCallBefore(
       'app/api/webhooks/whatsapp/route.ts',
-      'handleInboundMessage',
+      'processOneMessage',
       'assertCompanyWritable',
       'insert',
     )

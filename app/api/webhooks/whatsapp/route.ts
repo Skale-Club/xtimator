@@ -6,10 +6,11 @@ import { processInboundWithDebounce } from '@/lib/whatsapp/handler'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
-import type { WhatsAppMessage, WhatsAppPayload } from '@/lib/whatsapp/types'
+import type { WhatsAppMessage, WhatsAppPayload, WhatsAppValue } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
 import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { unknownSenderReplyText } from '@/lib/whatsapp/unknown-sender-reply'
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
@@ -151,15 +152,52 @@ export async function POST(request: NextRequest) {
 }
 
 // ------------------------------------------------------------------
-// handleInboundMessage: deduplication + routing stub
-// Phase 42 will add full message processing logic here.
+// handleInboundMessage: walks every entry[] / changes[] / messages[] in the
+// payload (Meta may batch several messages in one delivery) and processes them
+// sequentially so dedup and debounce behave exactly as for a single message.
+// One failing message never stops the others.
 // ------------------------------------------------------------------
 async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
-  try {
-    const value = payload?.entry?.[0]?.changes?.[0]?.value
-    const message = value?.messages?.[0]
-    if (!message) return
+  for (const entry of payload?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      const value = change?.value
+      for (const message of value?.messages ?? []) {
+        try {
+          await processOneMessage(message, value)
+        } catch (err) {
+          // Never let errors propagate — after() runs post-response, uncaught errors are silent
+          console.error('[WhatsApp] handleInboundMessage error:', err)
+        }
+      }
+    }
+  }
+}
 
+// Unknown sender (no company resolved): one short localized signup pointer,
+// at most once per phone per 24h so spammers cannot trigger paid replies.
+// Kept out of processOneMessage so its no-tenant limiter call never precedes
+// the company guard there (mutation-boundary sweep invariant).
+async function replyToUnknownSender(fromPhone: string): Promise<void> {
+  const replyWindow = await rateLimit('whatsappUnknownSenderReply', fromPhone)
+  if (!replyWindow.allowed) {
+    console.info('[WhatsApp] unknown sender reply suppressed (already sent in 24h)', {
+      fromLast4: fromPhone.slice(-4),
+    })
+    return
+  }
+  await sendWhatsAppMessage(`+${fromPhone}`, {
+    type: 'text',
+    text: { body: unknownSenderReplyText(fromPhone) },
+  }).catch((sendErr) => {
+    console.error('[WhatsApp] unknown sender reply failed:', sendErr)
+  })
+}
+
+async function processOneMessage(
+  message: WhatsAppMessage,
+  value: WhatsAppValue | undefined
+): Promise<void> {
+  {
     const messageId = message.id  // wamid.* — deduplication key (WA-03)
     const fromPhone = message.from // E.164 without leading +
     console.info('[WhatsApp] inbound message received', {
@@ -220,14 +258,7 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       console.warn('[WhatsApp] unknown inbound sender; no company resolved', {
         fromLast4: fromPhone.slice(-4),
       })
-      await sendWhatsAppMessage(`+${fromPhone}`, {
-        type: 'text',
-        text: {
-          body: "I couldn't find an Xtimator account for this phone number. Please contact your administrator to have this number provisioned for WhatsApp routing.",
-        },
-      }).catch((sendErr) => {
-        console.error('[WhatsApp] unknown sender reply failed:', sendErr)
-      })
+      await replyToUnknownSender(fromPhone)
       return
     }
     const demoBlocked = await assertCompanyWritable(resolvedCompanyId)
@@ -298,6 +329,18 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       }
     }
 
+    // PRODUCT RULE: only the business owner/team talks to the bot. A phone that
+    // resolved through Route 2 (conversation history) or Route 3 (clients table)
+    // is an end client of the business. The message is already logged above so it
+    // shows in the owner's inbox, but it must NEVER reach the owner AI agent and
+    // its tools, and the bot never replies to the client.
+    if (!resolvedViaOwner) {
+      console.info('[WhatsApp] client message logged only; not routed to the agent', {
+        fromLast4: fromPhone.slice(-4),
+      })
+      return
+    }
+
     // Phase 42 + Phase 48: routes through debounce buffer when no session exists
     await processInboundWithDebounce(
       message,
@@ -305,8 +348,5 @@ async function handleInboundMessage(payload: WhatsAppPayload): Promise<void> {
       fromPhone,
       supabase
     )
-  } catch (err) {
-    // Never let errors propagate — after() runs post-response, uncaught errors are silent
-    console.error('[WhatsApp] handleInboundMessage error:', err)
   }
 }

@@ -5,6 +5,7 @@
 
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
 import { sanitizeWhatsAppParam } from '@/lib/notifications/template-engine'
+import { isWhatsAppOutboundBlocked, logOutboundBlocked } from '@/lib/whatsapp/outbound-guard'
 
 const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
@@ -13,6 +14,10 @@ const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_V
  * body should be a partial Messages API object (type + content fields).
  */
 export async function sendWhatsAppMessage(to: string, body: object): Promise<void> {
+  if (isWhatsAppOutboundBlocked()) {
+    logOutboundBlocked((body as { type?: string }).type ?? 'message', to)
+    return
+  }
   const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   if (!token || !phoneNumberId) throw new Error('[WhatsApp] Missing platform config: access token or phone number ID not set')
   const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
@@ -95,6 +100,10 @@ export async function sendWhatsAppTemplate(
  * Meta docs: https://developers.facebook.com/docs/whatsapp/cloud-api/guides/mark-message-as-read
  */
 export async function markMessageAsRead(messageId: string): Promise<void> {
+  if (isWhatsAppOutboundBlocked()) {
+    logOutboundBlocked('read_receipt')
+    return
+  }
   const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   try {
     const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
@@ -125,6 +134,10 @@ export async function markMessageAsRead(messageId: string): Promise<void> {
  * Fire-and-forget — failures swallowed.
  */
 export async function sendTypingIndicator(messageId: string): Promise<void> {
+  if (isWhatsAppOutboundBlocked()) {
+    logOutboundBlocked('typing_indicator')
+    return
+  }
   const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   try {
     const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
