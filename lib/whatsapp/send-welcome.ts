@@ -123,12 +123,18 @@ export async function welcomeOnFirstContact(
   if (!claimed) return false
   try {
     const body = buildWelcomeMessage(await resolveWelcomeLanguage(serviceClient, companyId))
-    await sendWhatsAppMessage(toPhone, { type: 'text', text: { body } })
+    // Onboarding welcome: a PLATFORM cost, recorded but never billed to the customer.
+    const wamid = await sendWhatsAppMessage(
+      toPhone,
+      { type: 'text', text: { body } },
+      { companyId, purpose: 'welcome', billable: false }
+    )
     logOutboundMessage(serviceClient, {
       companyId,
       contactPhone: toPhone,
       body,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
     return true

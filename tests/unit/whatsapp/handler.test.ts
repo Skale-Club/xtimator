@@ -311,7 +311,8 @@ describe('processInboundMessage (handler.ts — dispatch-only after Plan 67-04)'
           text: expect.objectContaining({
             body: expect.stringContaining('/settings/billing'),
           }),
-        })
+        }),
+        expect.objectContaining({ purpose: 'bot_reply', billable: true })
       )
     })
   })

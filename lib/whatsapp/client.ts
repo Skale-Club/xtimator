@@ -6,17 +6,37 @@
 import { getWhatsAppPlatformConfig } from '@/lib/platform-config'
 import { sanitizeWhatsAppParam } from '@/lib/notifications/template-engine'
 import { isWhatsAppOutboundBlocked, logOutboundBlocked } from '@/lib/whatsapp/outbound-guard'
+import {
+  marketFromPhone,
+  recordMessagingEvent,
+  resolveBillable,
+  type MessagingMeta,
+} from '@/lib/billing/messaging-events'
 
 const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
 /**
  * Send a WhatsApp message to a recipient phone number (E.164).
  * body should be a partial Messages API object (type + content fields).
+ *
+ * Returns the Meta message id (wamid) when Meta reports one, else null (also null
+ * when the development kill switch blocks the send). After a successful send a
+ * `messaging_cost_events` row is recorded (status 'sent', cost unknown until Meta's
+ * delivered webhook prices it) with the attribution in `meta`: who pays
+ * (`companyId`), why (`purpose`) and whether it is passed to the customer's credits
+ * (`billable`; platform purposes such as the welcome sequence are never billable).
+ * Recording is best-effort and never throws into the send path. A caller that
+ * passes no `meta` is recorded as 'unclassified' and non-billable, so a missed call
+ * site costs us visibility, never a wrong charge.
  */
-export async function sendWhatsAppMessage(to: string, body: object): Promise<void> {
+export async function sendWhatsAppMessage(
+  to: string,
+  body: object,
+  meta?: MessagingMeta
+): Promise<string | null> {
   if (isWhatsAppOutboundBlocked()) {
     logOutboundBlocked((body as { type?: string }).type ?? 'message', to)
-    return
+    return null
   }
   const { accessToken: token, phoneNumberId } = await getWhatsAppPlatformConfig()
   if (!token || !phoneNumberId) throw new Error('[WhatsApp] Missing platform config: access token or phone number ID not set')
@@ -31,6 +51,33 @@ export async function sendWhatsAppMessage(to: string, body: object): Promise<voi
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`[WhatsApp] sendMessage failed ${res.status}: ${text}`)
+  }
+  const wamid = await readWamid(res)
+  if (wamid) {
+    const attribution: MessagingMeta = meta ?? { companyId: null, purpose: 'unclassified', billable: false }
+    // Awaited so a serverless runtime does not drop it, but it can never throw.
+    await recordMessagingEvent({
+      companyId: attribution.companyId ?? null,
+      channel: 'whatsapp',
+      provider: 'meta',
+      providerMessageId: wamid,
+      purpose: attribution.purpose,
+      billable: resolveBillable(attribution),
+      market: marketFromPhone(to),
+      status: 'sent',
+    })
+  }
+  return wamid
+}
+
+/** Meta's send response: { messages: [{ id }] }. Anything else (or a non-JSON body) -> null. */
+async function readWamid(res: Response): Promise<string | null> {
+  try {
+    const json = (await res.json()) as { messages?: Array<{ id?: string }> }
+    const id = json?.messages?.[0]?.id
+    return typeof id === 'string' && id.length > 0 ? id : null
+  } catch {
+    return null
   }
 }
 
@@ -64,8 +111,9 @@ export async function sendWhatsAppTemplate(
     languageCode: string
     bodyVariables?: string[]
     headerVariables?: string[]
-  }
-): Promise<void> {
+  },
+  meta?: MessagingMeta
+): Promise<string | null> {
   const headerVariables = opts.headerVariables?.map(sanitizeWhatsAppParam)
   const bodyVariables = opts.bodyVariables?.map(sanitizeWhatsAppParam)
 
@@ -83,14 +131,18 @@ export async function sendWhatsAppTemplate(
     })
   }
 
-  await sendWhatsAppMessage(to, {
-    type: 'template',
-    template: {
-      name: opts.name,
-      language: { code: opts.languageCode },
-      ...(components.length > 0 ? { components } : {}),
+  return sendWhatsAppMessage(
+    to,
+    {
+      type: 'template',
+      template: {
+        name: opts.name,
+        language: { code: opts.languageCode },
+        ...(components.length > 0 ? { components } : {}),
+      },
     },
-  })
+    meta
+  )
 }
 
 /**

@@ -11,6 +11,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { unknownSenderReplyText } from '@/lib/whatsapp/unknown-sender-reply'
+import { applyWhatsAppStatuses } from '@/lib/billing/messaging-cost'
 
 // Map a Meta inbound message to the inbox log's (type, body) pair.
 function inboxFieldsFor(message: WhatsAppMessage): { msgType: WaMsgType; body: string | null } {
@@ -63,6 +64,17 @@ function findTemplateStatusChange(payload: WhatsAppPayload): {
   return null
 }
 
+/** Every statuses[] entry across all entry[] / changes[] of the payload. */
+function collectStatuses(payload: WhatsAppPayload): NonNullable<WhatsAppValue['statuses']> {
+  const out: NonNullable<WhatsAppValue['statuses']> = []
+  for (const entry of payload?.entry ?? []) {
+    for (const change of entry?.changes ?? []) {
+      for (const st of change?.value?.statuses ?? []) out.push(st)
+    }
+  }
+  return out
+}
+
 // ------------------------------------------------------------------
 // GET: Meta webhook challenge verification (WA-02)
 // Meta sends: hub.mode=subscribe, hub.verify_token, hub.challenge
@@ -110,10 +122,20 @@ export async function POST(request: NextRequest) {
   // Step 3: parse after verification
   const payload = JSON.parse(rawBody) as WhatsAppPayload
 
-  // Step 4: status webhooks — early exit, no DB work needed (Pitfall 6)
-  const isStatusUpdate = payload?.entry?.[0]?.changes?.[0]?.value?.statuses
-  if (isStatusUpdate) {
-    console.info('[WhatsApp] status webhook ignored')
+  // Step 4: status webhooks (sent / delivered / read / failed) — early exit, never
+  // reaches the inbound path (Pitfall 6). Phase 2b: they now carry what we need to
+  // price the message (Meta bills per DELIVERED message) and to move the inbox
+  // delivery tick, so they are applied in after() — the response stays instant and
+  // the handler is idempotent (a repeated webhook changes nothing twice).
+  const statuses = collectStatuses(payload)
+  if (statuses.length > 0) {
+    after(async () => {
+      try {
+        await applyWhatsAppStatuses(statuses)
+      } catch (err) {
+        console.error('[WhatsApp] status webhook handling error:', err)
+      }
+    })
     return new Response('OK', { status: 200 })
   }
 
@@ -185,10 +207,15 @@ async function replyToUnknownSender(fromPhone: string): Promise<void> {
     })
     return
   }
-  await sendWhatsAppMessage(`+${fromPhone}`, {
-    type: 'text',
-    text: { body: unknownSenderReplyText(fromPhone) },
-  }).catch((sendErr) => {
+  // Platform cost (no tenant): recorded, never billed.
+  await sendWhatsAppMessage(
+    `+${fromPhone}`,
+    {
+      type: 'text',
+      text: { body: unknownSenderReplyText(fromPhone) },
+    },
+    { companyId: null, purpose: 'unknown_sender', billable: false }
+  ).catch((sendErr) => {
     console.error('[WhatsApp] unknown sender reply failed:', sendErr)
   })
 }

@@ -161,14 +161,18 @@ export async function actionSend(
           supabase,
           clientName,
         )
-        await sendWhatsAppMessage(clientPhone, {
-          type: 'document',
-          document: {
-            link: signedUrl,
-            filename,
-            caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+        await sendWhatsAppMessage(
+          clientPhone,
+          {
+            type: 'document',
+            document: {
+              link: signedUrl,
+              filename,
+              caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+            },
           },
-        })
+          { companyId, purpose: 'estimate_delivery', billable: true }
+        )
         pdfDelivered = true
         deliveredToClient = true
         logOutboundMessage(supabase, {
@@ -186,7 +190,7 @@ export async function actionSend(
       if (!pdfDelivered) {
         const body = buildShareLinkMessage(shareUrl, clientName)
         try {
-          await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } })
+          await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } }, { companyId, purpose: 'estimate_delivery', billable: true })
           deliveredToClient = true
           logOutboundMessage(supabase, {
             companyId,
@@ -215,7 +219,7 @@ export async function actionSend(
             )
           : buildShareLinkMessage(shareUrl, clientName)
       try {
-        await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } })
+        await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } }, { companyId, purpose: 'estimate_delivery', billable: true })
         deliveredToClient = true
         logOutboundMessage(supabase, {
           companyId,

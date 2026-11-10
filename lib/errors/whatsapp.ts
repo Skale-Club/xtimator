@@ -74,13 +74,19 @@ export async function handleWhatsAppError(
   }
 
   try {
-    await sendWhatsAppMessage(toPhone, { type: 'text', text: { body } })
+    // Error replies to the owner count as bot replies (billable when a company is known).
+    const wamid = await sendWhatsAppMessage(
+      toPhone,
+      { type: 'text', text: { body } },
+      { companyId: opts?.companyId ?? null, purpose: 'bot_reply', billable: true }
+    )
     if (opts?.svc && opts.companyId) {
       logOutboundMessage(opts.svc, {
         companyId: opts.companyId,
         contactPhone: toPhone,
         body,
         msgType: 'text',
+        waMessageId: wamid,
         status: 'sent',
       }).catch(() => undefined)
     }

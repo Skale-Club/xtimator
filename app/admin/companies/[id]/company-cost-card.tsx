@@ -1,4 +1,4 @@
-import type { CompanyCostOverview } from '@/lib/queries/admin-company-cost'
+import type { CompanyCostOverview, MessagingCostSummaryRow } from '@/lib/queries/admin-company-cost'
 import { T } from '@/components/i18n/t'
 
 /**
@@ -12,7 +12,14 @@ import { T } from '@/components/i18n/t'
  * requireAdmin() call. Never import this component from any tenant-facing
  * route.
  */
-export function CompanyCostCard({ overview }: { overview: CompanyCostOverview }) {
+export function CompanyCostCard({
+  overview,
+  messaging = [],
+}: {
+  overview: CompanyCostOverview
+  /** Phase 2b: WhatsApp/SMS/email cost by channel, last 30 days (internal debug). */
+  messaging?: MessagingCostSummaryRow[]
+}) {
   const { creditBalance, totalRealCostUsd, markup, perOperation } = overview
   const fmtUsd = (usd: number) => `$${usd.toFixed(4)}`
 
@@ -82,6 +89,42 @@ export function CompanyCostCard({ overview }: { overview: CompanyCostOverview })
                   <td className="py-1.5 pr-3 text-right">{fmtUsd(s.meanUsd)}</td>
                   <td className="py-1.5 pr-3 text-right">{fmtUsd(s.medianUsd)}</td>
                   <td className="py-1.5 text-right">{fmtUsd(s.p90Usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {messaging.length > 0 && (
+        <div className="overflow-x-auto mt-4" data-testid="messaging-cost-summary">
+          <h3 className="text-sm font-medium mb-1">
+            <T>Messaging cost, last 30 days</T>
+          </h3>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-left text-muted-foreground">
+                <th className="py-1.5 pr-3 font-medium">
+                  <T>Channel</T>
+                </th>
+                <th className="py-1.5 pr-3 font-medium text-right">
+                  <T>Messages</T>
+                </th>
+                <th className="py-1.5 pr-3 font-medium text-right">
+                  <T>Real cost</T>
+                </th>
+                <th className="py-1.5 font-medium text-right">
+                  <T>Billed to customer</T>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {messaging.map((m) => (
+                <tr key={m.channel} className="border-b border-border/50">
+                  <td className="py-1.5 pr-3 font-sans">{m.channel}</td>
+                  <td className="py-1.5 pr-3 text-right">{m.count}</td>
+                  <td className="py-1.5 pr-3 text-right">{fmtUsd(m.usd)}</td>
+                  <td className="py-1.5 text-right">{fmtUsd(m.billableUsd)}</td>
                 </tr>
               ))}
             </tbody>

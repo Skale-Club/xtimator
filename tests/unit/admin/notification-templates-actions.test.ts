@@ -248,7 +248,12 @@ describe('sendTestNotification', () => {
     })
 
     expect(result.ok).toBe(true)
-    expect(sendSms).toHaveBeenCalledWith('+15551234567', 'Jane Doe opened estimate EST-1042 & co.')
+    expect(sendSms).toHaveBeenCalledWith(
+      '+15551234567',
+      'Jane Doe opened estimate EST-1042 & co.',
+      // admin test sends are a platform cost: recorded, never billed
+      { companyId: null, purpose: 'ops', billable: false },
+    )
   })
 
   it('target=sms propagates a provider failure as {ok:false, message} without throwing', async () => {

@@ -32,7 +32,15 @@ export interface WhatsAppValue {
   metadata: { display_phone_number: string; phone_number_id: string }
   contacts?: Array<{ profile: { name: string }; wa_id: string }>
   messages?: WhatsAppMessage[]
-  statuses?: Array<{ id: string; status: string; timestamp: string; recipient_id: string }>
+  statuses?: Array<{
+    id: string
+    status: string
+    timestamp: string
+    recipient_id: string
+    /** Phase 2b: Meta's pricing block (per-message billing category / billable flag). */
+    pricing?: { billable?: boolean; pricing_model?: string; category?: string; type?: string }
+    errors?: Array<{ code?: number; title?: string; message?: string }>
+  }>
 }
 
 export interface WhatsAppChange {

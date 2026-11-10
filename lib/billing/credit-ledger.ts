@@ -61,6 +61,9 @@ export type DebitOperationType =
   // SEED-055 Phase D: the chat assistant debits per turn (app/api/chat/route.ts);
   // the ledger CHECK accepts it (20261106000001).
   | 'chat'
+  // Phase 2b: WhatsApp / SMS / email sent on the customer's behalf, debited as ONE
+  // aggregated line per company per run (lib/inngest/functions/debit-messaging-costs.ts).
+  | 'messaging'
 
 /** Idempotency key for a debit: `${attemptId}:debit:${op}` (retry-stable per attempt+op). */
 export function debitIdemKey(attemptId: string, op: string, runKey?: string): string {
@@ -96,7 +99,7 @@ async function isByokCompany(
   }
 }
 
-export async function recordCreditDebit(input: {
+export type DebitInput = {
   companyId: string
   operationType: DebitOperationType
   realCostUsd: number | null
@@ -108,19 +111,39 @@ export async function recordCreditDebit(input: {
    * requestId), unique across runs. Absent = the per-attempt key (unchanged).
    */
   runKey?: string
-}): Promise<void> {
-  try {
+}
+
+/** What a debit attempt did. 'debited' and 'already_applied' both mean the ledger holds the row. */
+export type DebitOutcome =
+  | 'debited'
+  | 'already_applied'
+  | 'no_cost'
+  | 'byok'
+  | 'below_minimum'
+  | 'not_metered'
+
+/**
+ * Core of recordCreditDebit. THROWS on an RPC failure (the public wrappers
+ * swallow it); returns what happened otherwise so a caller that must know
+ * (the messaging debit job) can tell "debited" from "rounded to zero".
+ * `ignoreByok`: messaging is not AI, so a BYOK company (own OpenRouter key)
+ * still pays for the WhatsApp/SMS/email we send for it.
+ */
+async function executeCreditDebit(
+  input: DebitInput,
+  opts: { ignoreByok?: boolean } = {}
+): Promise<DebitOutcome> {
     // null cost → no debit (NEVER guess; null-vs-0 discipline from Phase 110).
-    if (input.realCostUsd == null) return
+    if (input.realCostUsd == null) return 'no_cost'
 
     const svc = requireServiceClient()
 
     // Billing v2 (BYOK): the op ran on the company's OWN key — nothing to debit.
-    if (await isByokCompany(svc, input.companyId)) return
+    if (!opts.ignoreByok && (await isByokCompany(svc, input.companyId))) return 'byok'
 
     const cfg = await getBillingConfig()
     const credits = Math.round((input.realCostUsd * cfg.markup) / cfg.creditUnitUsd)
-    if (credits <= 0) return
+    if (credits <= 0) return 'below_minimum'
 
     // Phase 3 (3.9): honour billing_config.meteredOperations. An op explicitly
     // switched OFF (=== false) is absorbed, not debited. An op that is simply
@@ -128,7 +151,7 @@ export async function recordCreditDebit(input: {
     // (shallow merge in getBillingConfig), so a row saved before an op existed
     // (e.g. 'chat') would otherwise silently stop debiting in production.
     // Empty/absent map = everything metered (previous behavior).
-    if (cfg.meteredOperations?.[input.operationType] === false) return
+    if (cfg.meteredOperations?.[input.operationType] === false) return 'not_metered'
 
     const key = debitIdemKey(input.attemptId, input.operationType, input.runKey)
 
@@ -154,7 +177,7 @@ export async function recordCreditDebit(input: {
     const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
       | { balance_after: number; applied: boolean }
       | undefined
-    if (!result?.applied) return // idempotent no-op — already recorded by a concurrent/retried call
+    if (!result?.applied) return 'already_applied' // idempotent no-op — already recorded by a concurrent/retried call
     const balanceAfter = result.balance_after
     const current = previous
 
@@ -177,10 +200,47 @@ export async function recordCreditDebit(input: {
       companyId: input.companyId,
       newBalance: balanceAfter,
     })
+    return 'debited'
+}
+
+export async function recordCreditDebit(input: DebitInput): Promise<void> {
+  try {
+    await executeCreditDebit(input)
   } catch (err) {
     // Best-effort: a ledger-write failure must NEVER break generation.
     console.warn('[recordCreditDebit] swallowed write failure:', err)
     notifyCreditLedgerWriteFailed(input.companyId, 'recordCreditDebit', err)
+  }
+}
+
+/**
+ * Phase 2b: debit the aggregated messaging cost of ONE batch. Same formula as
+ * recordCreditDebit (round(realCostUsd x markup / creditUnitUsd), rounded once
+ * over the whole batch) but (a) BYOK does NOT skip it - messaging is not AI -
+ * and (b) it reports the outcome. Idempotent on `messaging:<companyId>:<batchId>`
+ * (the ledger key is that attempt id + ':debit:messaging'), so re-running the
+ * same batch after a crash never double-charges. Resolves 'failed' (never
+ * throws) when the ledger write fails; the caller keeps the batch and retries.
+ */
+export async function recordMessagingDebit(input: {
+  companyId: string
+  realCostUsd: number
+  batchId: string
+}): Promise<DebitOutcome | 'failed'> {
+  try {
+    return await executeCreditDebit(
+      {
+        companyId: input.companyId,
+        operationType: 'messaging',
+        realCostUsd: input.realCostUsd,
+        attemptId: `messaging:${input.companyId}:${input.batchId}`,
+      },
+      { ignoreByok: true }
+    )
+  } catch (err) {
+    console.warn('[recordMessagingDebit] write failure:', err)
+    notifyCreditLedgerWriteFailed(input.companyId, 'recordMessagingDebit', err)
+    return 'failed'
   }
 }
 

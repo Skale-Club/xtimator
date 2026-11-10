@@ -179,9 +179,14 @@ export async function sendCustomerMessage(
         html: body,
         text: stripHtmlTags(body),
         ...(params.freeform?.attachments?.length ? { attachments: params.freeform.attachments } : {}),
+        meta: { companyId: params.companyId, purpose: 'customer_message', billable: true },
       })
     } else {
-      dispatchResult = await sendCustomerSms(clientRow!.phone!, body)
+      dispatchResult = await sendCustomerSms(clientRow!.phone!, body, {
+        companyId: params.companyId,
+        purpose: 'customer_message',
+        billable: true,
+      })
     }
 
     // 7. Unconditional audit log — every real dispatch attempt, success or

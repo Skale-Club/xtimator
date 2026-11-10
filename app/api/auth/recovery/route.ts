@@ -71,6 +71,18 @@ export async function POST(request: Request) {
           subject: 'Your Xtimator verification code',
           text: `Your Xtimator verification code is ${code}. It expires in 10 minutes. If you did not request this, ignore this message.`,
         })
+        if (!result.error) {
+          // Phase 2b: login/verification codes are a platform cost - recorded, never billed.
+          try {
+            const { recordEmailSent } = await import('@/lib/billing/messaging-cost')
+            await recordEmailSent({
+              id: result.data?.id ?? null,
+              meta: { companyId: null, purpose: 'otp', billable: false },
+            })
+          } catch {
+            /* best-effort */
+          }
+        }
         if (result.error) {
           // Keep account existence private even when delivery fails.
           await service.from('xtimator_auth_challenges').delete().eq('token_hash', hashToken(token))

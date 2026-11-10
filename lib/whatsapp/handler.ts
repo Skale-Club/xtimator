@@ -374,12 +374,17 @@ export async function processInboundMessages(
 
   if (!entitlements.whatsappEnabled) {
     const body = 'WhatsApp channel is not available on your current plan. Upgrade at /settings/billing'
-    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+    const wamid = await sendWhatsAppMessage(
+      ownerPhone,
+      { type: 'text', text: { body } },
+      { companyId, purpose: 'bot_reply', billable: true }
+    )
     logOutboundMessage(supabase, {
       companyId,
       contactPhone: ownerPhone,
       body,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
     return
@@ -395,12 +400,17 @@ export async function processInboundMessages(
       blockedState === 'paywalled'
         ? 'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
         : "You're out of credits — buy credits at /settings/billing to keep creating estimates."
-    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+    const wamid = await sendWhatsAppMessage(
+      ownerPhone,
+      { type: 'text', text: { body } },
+      { companyId, purpose: 'bot_reply', billable: true }
+    )
     logOutboundMessage(supabase, {
       companyId,
       contactPhone: ownerPhone,
       body,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
     return

@@ -43,7 +43,7 @@ describe('GET /api/cron/cleanup-whatsapp-sessions', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     process.env.CRON_SECRET = 'test-secret'
-    mockSend.mockResolvedValue(undefined)
+    mockSend.mockResolvedValue(null)
   })
 
   it('returns 401 when authorization header is missing', async () => {

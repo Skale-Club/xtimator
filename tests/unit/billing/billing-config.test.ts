@@ -718,6 +718,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       ADMIN_INTEGRATIONS_CONTENT_PATH,
       AFFILIATE_ACCRUAL_PATH,
       AFFILIATE_ATTRIBUTION_PATH,
+      // Phase 2b: per-message rates (messagingRates) are read at pricing time.
+      resolve(process.cwd(), 'lib/billing/messaging-cost.ts'),
       // SEED-055 Phase D: the access-state gates and the pre-gate cost reader are
       // legitimate consumers (enforcement flag + estimatedCreditsByOp), and the
       // signup-grant retry in company.ts checks signupCreditGrant before alerting.

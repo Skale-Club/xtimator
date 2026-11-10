@@ -1036,6 +1036,15 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     MACHINE_REASON,
     ['expireCreditLotsJob'],
   ),
+  // Phase 2b: hourly sweep that debits the aggregated WhatsApp/SMS/email cost of
+  // each company in credits. Platform-level, no session and no tenant input.
+  ...excepted(
+    'lib/inngest/functions/debit-messaging-costs.ts',
+    'machine-signed',
+    MACHINE_AUTHORITY,
+    MACHINE_REASON,
+    ['debitMessagingCostsJob'],
+  ),
   // SEED-059 step 1: Inngest replacements for the pg_cron jobs. Platform-level
   // crons, no session and no tenant input.
   ...excepted(

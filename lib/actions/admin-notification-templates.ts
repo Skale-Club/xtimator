@@ -220,7 +220,11 @@ export async function sendTestNotification(
     } else if (!E164_RE.test(input.toPhone)) {
       result = { ok: false, message: 'Phone number must be in E.164 format, e.g. +15551234567.' }
     } else {
-      const smsResult = await sendSms(input.toPhone, renderedBody)
+      const smsResult = await sendSms(input.toPhone, renderedBody, {
+        companyId: null,
+        purpose: 'ops',
+        billable: false,
+      })
       result = smsResult.ok ? { ok: true } : { ok: false, message: smsResult.error }
     }
   } else {

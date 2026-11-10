@@ -125,19 +125,23 @@ export async function deliverEstimateViaWhatsApp(params: {
           svc,
           params.clientName ?? null,
         )
-        await sendWhatsAppMessage(toPhone, {
-          type: 'document',
-          document: {
-            link: signedUrl,
-            filename,
-            caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+        await sendWhatsAppMessage(
+          toPhone,
+          {
+            type: 'document',
+            document: {
+              link: signedUrl,
+              filename,
+              caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
+            },
           },
-        })
+          { companyId, purpose: 'estimate_delivery', billable: true }
+        )
         sentType = 'document'
         sentPreview = filename
       } catch (pdfErr) {
         console.error('[WhatsApp] PDF delivery failed, falling back to share_link:', pdfErr)
-        await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: shareMessage } })
+        await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: shareMessage } }, { companyId, purpose: 'estimate_delivery', billable: true })
         fallback = 'share_link'
       }
     } else if (effectiveDeliveryFormat === 'formatted_text') {
@@ -151,10 +155,10 @@ export async function deliverEstimateViaWhatsApp(params: {
         // components/share/estimate-view.tsx:157-161 -- dormant-first-safe.
         (estimate as { presentation_settings?: unknown }).presentation_settings as PresentationSettings | null | undefined ?? null,
       )
-      await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: formatted } })
+      await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: formatted } }, { companyId, purpose: 'estimate_delivery', billable: true })
       sentPreview = formatted
     } else {
-      await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: shareMessage } })
+      await sendWhatsAppMessage(toPhone, { type: 'text', text: { body: shareMessage } }, { companyId, purpose: 'estimate_delivery', billable: true })
     }
   } catch (sendErr) {
     const errorMessage = sendErr instanceof Error ? sendErr.message : 'WhatsApp send failed'

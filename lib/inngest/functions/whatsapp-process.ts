@@ -30,11 +30,16 @@ const FALLBACK_ERROR_REPLY =
   "Sorry, I hit a problem generating your estimate. Please try again in a moment — if it keeps happening, describe the job in a text message."
 
 async function sendFallbackReply(ownerPhone: string, companyId?: string): Promise<void> {
-  await sendWhatsAppMessage(ownerPhone, {
-    type: 'text',
-    text: { body: FALLBACK_ERROR_REPLY },
-  }).catch((sendErr) => {
+  const wamid = await sendWhatsAppMessage(
+    ownerPhone,
+    {
+      type: 'text',
+      text: { body: FALLBACK_ERROR_REPLY },
+    },
+    { companyId: companyId ?? null, purpose: 'bot_reply', billable: true }
+  ).catch((sendErr) => {
     console.error('[WhatsApp] fallback error reply failed:', sendErr)
+    return null
   })
   if (companyId) {
     logOutboundMessage(requireServiceClient(), {
@@ -42,6 +47,7 @@ async function sendFallbackReply(ownerPhone: string, companyId?: string): Promis
       contactPhone: ownerPhone,
       body: FALLBACK_ERROR_REPLY,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
   }

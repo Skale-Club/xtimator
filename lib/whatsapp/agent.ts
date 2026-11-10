@@ -158,12 +158,17 @@ Instructions:
   }
 
   if (responseText) {
-    await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body: responseText } })
+    const wamid = await sendWhatsAppMessage(
+      ownerPhone,
+      { type: 'text', text: { body: responseText } },
+      { companyId, purpose: 'bot_reply', billable: true }
+    )
     logOutboundMessage(supabase, {
       companyId,
       contactPhone: ownerPhone,
       body: responseText,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
   }

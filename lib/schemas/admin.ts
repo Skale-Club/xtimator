@@ -260,6 +260,19 @@ const affiliateConfigSchema = z.object({
   minPayoutCents: z.number().int().min(0),
 })
 
+/** Phase 2b: per-message provider rates (USD). PLACEHOLDERS - verify against Meta / Twilio pricing. */
+const whatsappCategoryRatesSchema = z.object({
+  utility: z.number().min(0).max(10).optional(),
+  authentication: z.number().min(0).max(10).optional(),
+  marketing: z.number().min(0).max(10).optional(),
+  service: z.number().min(0).max(10).optional(),
+})
+export const messagingRatesSchema = z.object({
+  whatsapp: z.record(z.string().min(1).max(16), whatsappCategoryRatesSchema),
+  sms: z.record(z.string().min(1).max(16), z.number().min(0).max(10)),
+  emailUsd: z.number().min(0).max(10),
+})
+
 export const billingConfigSchema = z.object({
   markup: z.number().positive().max(100),
   creditUnitUsd: z.number().positive().max(1),
@@ -320,6 +333,8 @@ export const billingConfigSchema = z.object({
   brlPricingEnabled: z.boolean().optional(),
   /** SEED-054: affiliate program knobs. See {@link affiliateConfigSchema}. */
   affiliate: affiliateConfigSchema,
+  // Phase 2b: optional so older payloads / stored rows still parse (defaults apply).
+  messagingRates: messagingRatesSchema.optional(),
 })
 export type BillingConfigInput = z.infer<typeof billingConfigSchema>
 

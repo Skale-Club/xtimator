@@ -243,6 +243,7 @@ describe('lib/notifications/customer-send — sendCustomerMessage()', () => {
     expect(mockSendCustomerSms).toHaveBeenCalledWith(
       FULL_CLIENT.phone,
       "Joe's Plumbing sent you an estimate. Review and approve it here: https://x.test/e/1",
+      expect.objectContaining({ purpose: 'customer_message', billable: true }),
     )
     expect(mockLogCustomerMessage).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -272,7 +273,7 @@ describe('lib/notifications/customer-send — sendCustomerMessage()', () => {
 
     expect(mockResolveCustomerCopy).not.toHaveBeenCalled()
     const expectedBody = "Joe's Plumbing: Your appointment is confirmed for 3pm tomorrow."
-    expect(mockSendCustomerSms).toHaveBeenCalledWith(FULL_CLIENT.phone, expectedBody)
+    expect(mockSendCustomerSms).toHaveBeenCalledWith(FULL_CLIENT.phone, expectedBody, expect.objectContaining({ purpose: 'customer_message', billable: true }))
     expect(mockLogCustomerMessage).toHaveBeenCalledWith(
       expect.objectContaining({ isTemplate: false, templateEventType: null, body: expectedBody }),
     )

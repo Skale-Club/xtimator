@@ -184,7 +184,7 @@ function makeSupabase({
 describe('processConfirmationReply', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    mockSend.mockResolvedValue(undefined)
+    mockSend.mockResolvedValue(null)
     mockGeneratePdf.mockResolvedValue({
       signedUrl: 'https://supabase.co/storage/v1/sign/pdfs/co/wa-pdf/est-123.pdf?token=abc',
       filename: 'Estimate-Johnson-2026-05-11.pdf',

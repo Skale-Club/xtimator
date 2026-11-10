@@ -47,15 +47,20 @@ export async function GET(request: Request) {
         const demoBlocked = await assertCompanyWritable(session.company_id as string)
         if (!demoBlocked) {
           try {
-            await sendWhatsAppMessage(session.phone_number as string, {
-              type: 'text',
-              text: { body },
-            })
+            const wamid = await sendWhatsAppMessage(
+              session.phone_number as string,
+              {
+                type: 'text',
+                text: { body },
+              },
+              { companyId: session.company_id as string, purpose: 'bot_reply', billable: true }
+            )
             logOutboundMessage(supabase, {
               companyId: session.company_id as string,
               contactPhone: session.phone_number as string,
               body,
               msgType: 'text',
+              waMessageId: wamid,
               status: 'sent',
             }).catch(() => undefined)
           } catch {

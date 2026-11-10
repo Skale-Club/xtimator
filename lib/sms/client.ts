@@ -1,5 +1,6 @@
 import 'server-only'
 import { getTwilioConfig, getTwilioCustomerMessagingConfig } from '@/lib/platform-config'
+import type { MessagingMeta } from '@/lib/billing/messaging-events'
 
 /**
  * Phase 104 (NOTIF-04) — Twilio SMS send primitive.
@@ -24,7 +25,39 @@ export interface SendSmsResult {
   error?: string
 }
 
-export async function sendSms(to: string, body: string): Promise<SendSmsResult> {
+/**
+ * Phase 2b: after Twilio ACCEPTS a send, record one `messaging_cost_events` row
+ * (segments from Twilio's `num_segments`, else estimated from the body; cost =
+ * segments x the destination country's per-segment rate). A failed API call
+ * records nothing. Never throws. Dynamic import keeps the billing modules off the
+ * module graph of every importer of this file.
+ */
+async function recordSmsCost(
+  to: string,
+  body: string,
+  data: { sid?: string; num_segments?: string | number },
+  meta: MessagingMeta
+): Promise<void> {
+  try {
+    const { recordSmsSent } = await import('@/lib/billing/messaging-cost')
+    const numSegments = data.num_segments != null ? Number(data.num_segments) : null
+    await recordSmsSent({
+      to,
+      body,
+      sid: data.sid ?? null,
+      numSegments: numSegments != null && Number.isFinite(numSegments) ? numSegments : null,
+      meta,
+    })
+  } catch (e) {
+    console.warn('[sms.client] cost record failed:', e instanceof Error ? e.message : String(e))
+  }
+}
+
+/**
+ * Owner/platform SMS (shared From number). `meta` attributes the cost; omitted =
+ * recorded as an 'unclassified', non-billable platform send.
+ */
+export async function sendSms(to: string, body: string, meta?: MessagingMeta): Promise<SendSmsResult> {
   const twilio = await getTwilioConfig()
   if (!twilio) {
     return { ok: false, error: 'twilio_unconfigured' }
@@ -53,11 +86,13 @@ export async function sendSms(to: string, body: string): Promise<SendSmsResult> 
     const data = (await res.json().catch(() => ({}))) as {
       sid?: string
       message?: string
+      num_segments?: string | number
     }
 
     if (!res.ok) {
       return { ok: false, error: data.message ?? `twilio_${res.status}` }
     }
+    await recordSmsCost(to, body, data, meta ?? { companyId: null, purpose: 'unclassified', billable: false })
     return { ok: true, sid: data.sid }
   } catch (e) {
     console.warn(
@@ -90,7 +125,11 @@ export async function sendSms(to: string, body: string): Promise<SendSmsResult> 
  * Secrets stay in `platform_integrations` (encrypted, admin-managed) — read only
  * via `getTwilioCustomerMessagingConfig()`. NO secret literals here.
  */
-export async function sendCustomerSms(to: string, body: string): Promise<SendSmsResult> {
+export async function sendCustomerSms(
+  to: string,
+  body: string,
+  meta?: MessagingMeta
+): Promise<SendSmsResult> {
   const twilio = await getTwilioCustomerMessagingConfig()
   if (!twilio) {
     return { ok: false, error: 'messaging_service_unconfigured' }
@@ -119,11 +158,13 @@ export async function sendCustomerSms(to: string, body: string): Promise<SendSms
     const data = (await res.json().catch(() => ({}))) as {
       sid?: string
       message?: string
+      num_segments?: string | number
     }
 
     if (!res.ok) {
       return { ok: false, error: data.message ?? `twilio_${res.status}` }
     }
+    await recordSmsCost(to, body, data, meta ?? { companyId: null, purpose: 'unclassified', billable: false })
     return { ok: true, sid: data.sid }
   } catch (e) {
     console.warn(

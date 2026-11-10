@@ -103,6 +103,24 @@ export type AffiliateConfig = {
   minPayoutCents: number
 }
 
+/**
+ * Phase 2b: real per-message cost of the messages we send on a customer's behalf,
+ * in USD. PLACEHOLDERS - check against Meta's official WhatsApp rate card and
+ * Twilio's pricing page before charging; they are runtime-editable in the admin
+ * panel (no deploy).
+ *   - whatsapp: market -> Meta pricing category -> USD per DELIVERED message
+ *     (Meta bills per delivered message; the cost is applied when the delivered
+ *     status webhook arrives). Markets: 'US', 'CA', 'BR', 'default'.
+ *   - sms: destination country -> USD per segment (Twilio bills per segment).
+ *   - emailUsd: USD per message (Resend).
+ */
+export type WhatsAppCategory = 'utility' | 'authentication' | 'marketing' | 'service'
+export type MessagingRates = {
+  whatsapp: Record<string, Partial<Record<WhatsAppCategory, number>>>
+  sms: Record<string, number>
+  emailUsd: number
+}
+
 export type BillingConfig = {
   markup: number // global multiplier; default 4.5 (per-op map = v2 GRAN-01 extension point)
   creditUnitUsd: number // 1 credit = $X charged value; default 0.01
@@ -168,6 +186,23 @@ export type BillingConfig = {
   brlPricingEnabled: boolean
   /** SEED-054: affiliate program knobs. See {@link AffiliateConfig}. */
   affiliate: AffiliateConfig
+  /** Phase 2b: per-message provider rates. See {@link MessagingRates}. */
+  messagingRates: MessagingRates
+}
+
+// Meta WhatsApp rates, North America (PLACEHOLDER - verify against Meta's rate card).
+const WA_NORTH_AMERICA = { utility: 0.0034, authentication: 0.0034, service: 0.0034, marketing: 0.025 }
+
+/** PLACEHOLDER rates - check against Meta's official rate card and Twilio pricing. */
+export const DEFAULT_MESSAGING_RATES: MessagingRates = {
+  whatsapp: {
+    US: { ...WA_NORTH_AMERICA },
+    CA: { ...WA_NORTH_AMERICA },
+    BR: { utility: 0.0068, service: 0.0068, authentication: 0.0068, marketing: 0.0625 },
+    default: { ...WA_NORTH_AMERICA },
+  },
+  sms: { US: 0.0083, CA: 0.0083, BR: 0.05, default: 0.05 },
+  emailUsd: 0.0004,
 }
 
 /**
@@ -330,6 +365,7 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
     holdDays: 30,
     minPayoutCents: 5000,
   },
+  messagingRates: DEFAULT_MESSAGING_RATES,
 }
 
 /**
@@ -380,12 +416,25 @@ export function mergeStoredBillingConfig(stored: Partial<BillingConfig>): Billin
     ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp,
     ...((stored.estimatedCreditsByOp ?? {}) as Partial<Record<EstimatedCreditOp, number>>),
   }
+  // Phase 2b: a stored row without messagingRates (or with only some markets /
+  // categories) falls through to the defaults field by field.
+  const storedRates = (stored.messagingRates ?? {}) as Partial<MessagingRates>
+  const whatsappRates: MessagingRates['whatsapp'] = { ...DEFAULT_MESSAGING_RATES.whatsapp }
+  for (const [market, cats] of Object.entries(storedRates.whatsapp ?? {})) {
+    whatsappRates[market] = { ...(DEFAULT_MESSAGING_RATES.whatsapp[market] ?? {}), ...cats }
+  }
+  const messagingRates: MessagingRates = {
+    whatsapp: whatsappRates,
+    sms: { ...DEFAULT_MESSAGING_RATES.sms, ...(storedRates.sms ?? {}) },
+    emailUsd: storedRates.emailUsd ?? DEFAULT_MESSAGING_RATES.emailUsd,
+  }
   const merged: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
     tiers,
     affiliate,
     estimatedCreditsByOp,
+    messagingRates,
   }
   const topUpPacks: TopUpPack[] = (merged.topUpPacks ?? DEFAULT_BILLING_CONFIG.topUpPacks).map((pack) => {
     if (pack.priceCentsBrl != null) return pack

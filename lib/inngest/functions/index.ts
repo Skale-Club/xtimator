@@ -38,3 +38,5 @@ export { autoBlogSweepJob, autoBlogRssFetchJob } from './autoblog'
 export { cleanupOrphanDraftProjectsJob } from './cleanup-orphan-draft-projects'
 export { purgeWhatsAppProcessedMessagesJob } from './purge-whatsapp-processed-messages'
 export { purgeExpiredWhatsAppSessionsJob } from './purge-expired-whatsapp-sessions'
+// Phase 2b - hourly debit of WhatsApp/SMS/email message costs in credits.
+export { debitMessagingCostsJob } from './debit-messaging-costs'

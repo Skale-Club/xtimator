@@ -1,6 +1,7 @@
 import 'server-only'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { customerEmailFrom } from '@/lib/email/sender'
+import type { MessagingMeta } from '@/lib/billing/messaging-events'
 
 /**
  * lib/email/customer-emails.ts
@@ -33,6 +34,11 @@ export interface SendCustomerEmailParams {
   html: string
   text: string
   attachments?: CustomerEmailAttachment[]
+  /**
+   * Phase 2b: attribution for the per-message cost row (who pays, why, billable).
+   * Omitted = recorded as an 'unclassified', non-billable platform send.
+   */
+  meta?: MessagingMeta
 }
 
 export interface SendCustomerEmailResult {
@@ -74,6 +80,16 @@ export async function sendCustomerEmail(
 
     if (error) {
       return { ok: false, error: error.message }
+    }
+    // Phase 2b: record the per-message cost (best-effort, never throws).
+    try {
+      const { recordEmailSent } = await import('@/lib/billing/messaging-cost')
+      await recordEmailSent({
+        id: data?.id ?? null,
+        meta: params.meta ?? { companyId: null, purpose: 'unclassified', billable: false },
+      })
+    } catch (e) {
+      console.warn('[customer-emails] cost record failed:', e instanceof Error ? e.message : String(e))
     }
     return { ok: true, id: data?.id }
   } catch (e) {

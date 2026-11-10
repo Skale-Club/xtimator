@@ -41,11 +41,15 @@ export const notificationChannelSend = inngest.createFunction(
     if (data.channel === 'whatsapp') {
       try {
         await step.run('send-whatsapp-template', async () => {
-          await sendWhatsAppTemplate(data.to, {
-            name: data.templateName,
-            languageCode: data.languageCode,
-            bodyVariables: data.variables,
-          })
+          await sendWhatsAppTemplate(
+            data.to,
+            {
+              name: data.templateName,
+              languageCode: data.languageCode,
+              bodyVariables: data.variables,
+            },
+            { companyId: data.companyId, purpose: 'owner_notification', billable: true }
+          )
         })
         return { ok: true, channel: 'whatsapp' as const }
       } catch (e) {
@@ -60,7 +64,11 @@ export const notificationChannelSend = inngest.createFunction(
     if (data.channel === 'sms') {
       const result = await step.run('send-sms', async () => {
         // sendSms is itself never-throw → returns { ok, sid?, error? }.
-        return sendSms(data.to, data.body)
+        return sendSms(data.to, data.body, {
+          companyId: data.companyId,
+          purpose: 'owner_notification',
+          billable: true,
+        })
       })
       if (!result.ok) {
         console.warn(

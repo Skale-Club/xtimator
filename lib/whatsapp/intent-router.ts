@@ -134,12 +134,17 @@ async function sendOwnerReply(
   input: RouteInput,
   body: string
 ): Promise<void> {
-  await sendWhatsAppMessage(input.ownerPhone, { type: 'text', text: { body } })
+  const wamid = await sendWhatsAppMessage(
+    input.ownerPhone,
+    { type: 'text', text: { body } },
+    { companyId: input.companyId, purpose: 'bot_reply', billable: true }
+  )
   logOutboundMessage(input.supabase, {
     companyId: input.companyId,
     contactPhone: input.ownerPhone,
     body,
     msgType: 'text',
+    waMessageId: wamid,
     status: 'sent',
   }).catch(() => undefined)
 }
@@ -152,12 +157,17 @@ async function sendOwnerReplyChunks(
   chunks: string[]
 ): Promise<void> {
   for (const chunk of chunks) {
-    await sendWhatsAppMessage(input.ownerPhone, { type: 'text', text: { body: chunk } })
+    const wamid = await sendWhatsAppMessage(
+      input.ownerPhone,
+      { type: 'text', text: { body: chunk } },
+      { companyId: input.companyId, purpose: 'bot_reply', billable: true }
+    )
     logOutboundMessage(input.supabase, {
       companyId: input.companyId,
       contactPhone: input.ownerPhone,
       body: chunk,
       msgType: 'text',
+      waMessageId: wamid,
       status: 'sent',
     }).catch(() => undefined)
   }

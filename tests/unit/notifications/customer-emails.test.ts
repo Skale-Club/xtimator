@@ -1,6 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
+// Phase 2b: cost recording is covered in tests/unit/billing/messaging-cost.test.ts.
+vi.mock('@/lib/billing/messaging-cost', () => ({
+  recordSmsSent: vi.fn().mockResolvedValue(undefined),
+  recordEmailSent: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/platform-config', () => ({
   getIntegrationKey: vi.fn(),
 }))
@@ -120,5 +126,40 @@ describe('sendCustomerEmail', () => {
     expect(result).toEqual({ ok: false, error: 'send_failed' })
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
+  })
+})
+
+describe('sendCustomerEmail per-message cost recording (Phase 2b)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(getIntegrationKey).mockResolvedValue('re_test_key')
+    sendMock.mockResolvedValue({ data: { id: 'email-id' }, error: null })
+  })
+
+  const base = { toEmail: 'client@example.com', businessName: 'ACME', subject: 'Hi', html: '<p>Hi</p>', text: 'Hi' }
+
+  it('records the send with the Resend id and the caller attribution', async () => {
+    const { recordEmailSent } = await import('@/lib/billing/messaging-cost')
+    await sendCustomerEmail({ ...base, meta: { companyId: 'co-1', purpose: 'customer_message', billable: true } })
+    expect(recordEmailSent).toHaveBeenCalledWith({
+      id: 'email-id',
+      meta: { companyId: 'co-1', purpose: 'customer_message', billable: true },
+    })
+  })
+
+  it('records an unattributed send as unclassified and non-billable', async () => {
+    const { recordEmailSent } = await import('@/lib/billing/messaging-cost')
+    await sendCustomerEmail(base)
+    expect(recordEmailSent).toHaveBeenCalledWith({
+      id: 'email-id',
+      meta: { companyId: null, purpose: 'unclassified', billable: false },
+    })
+  })
+
+  it('records nothing when Resend rejects the send', async () => {
+    const { recordEmailSent } = await import('@/lib/billing/messaging-cost')
+    sendMock.mockResolvedValue({ data: null, error: { message: 'rejected' } })
+    await sendCustomerEmail({ ...base, meta: { companyId: 'co-1', purpose: 'customer_message', billable: true } })
+    expect(recordEmailSent).not.toHaveBeenCalled()
   })
 })

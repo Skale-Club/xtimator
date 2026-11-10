@@ -6,7 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
-import { getCompanyCostOverview } from '@/lib/queries/admin-company-cost'
+import { getCompanyCostOverview, getCompanyMessagingCost } from '@/lib/queries/admin-company-cost'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
 import { CompanyModelOverrideForm } from './company-model-override-form'
@@ -52,6 +52,7 @@ export default async function AdminCompanyDetailPage({
 
   const cfg = await getBillingConfig()
   const costOverview = await getCompanyCostOverview(company.id, cfg.markup)
+  const messagingCost = await getCompanyMessagingCost(company.id)
 
   // OpenRouter is the single AI engine: effective model is the per-company
   // override when set, else the platform-wide OpenRouter default.
@@ -155,7 +156,7 @@ export default async function AdminCompanyDetailPage({
       </Card>
 
       <Card variant="glass" className="p-6 md:p-8 space-y-4">
-        <CompanyCostCard overview={costOverview} />
+        <CompanyCostCard overview={costOverview} messaging={messagingCost} />
       </Card>
     </div>
   )

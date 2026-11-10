@@ -416,12 +416,17 @@ export function makeWhatsAppAdapter({
 
         const askBody = buildAskDetailsMessage(language)
         const body = droppedNote ? `${askBody}\n\n${droppedNote}` : askBody
-        await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+        const wamid = await sendWhatsAppMessage(
+          ownerPhone,
+          { type: 'text', text: { body } },
+          { companyId, purpose: 'bot_reply', billable: true }
+        )
         await logOutboundMessage(requireServiceClient(), {
           companyId,
           contactPhone: ownerPhone,
           body,
           msgType: 'text',
+          waMessageId: wamid,
           status: 'sent',
         }).catch(() => undefined)
 
@@ -472,12 +477,17 @@ export function makeWhatsAppAdapter({
       // buildConfirmMessage owns the frame strings (lib/whatsapp/confirm-message.ts).
       const body = buildConfirmMessage(language, { total, breakdown, droppedNote })
 
-      await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+      const wamid = await sendWhatsAppMessage(
+        ownerPhone,
+        { type: 'text', text: { body } },
+        { companyId, purpose: 'bot_reply', billable: true }
+      )
       await logOutboundMessage(requireServiceClient(), {
         companyId,
         contactPhone: ownerPhone,
         body,
         msgType: 'text',
+        waMessageId: wamid,
         status: 'sent',
       }).catch(() => undefined)
 
@@ -497,12 +507,17 @@ export function makeWhatsAppAdapter({
       // strings for generation_failed/no_usable_input are preserved verbatim there
       // (regression-gated). Falls back to the no-input copy when failure is unset.
       const body = failureReasonToChannelCopy(state.failure?.reason ?? 'no_usable_input')
-      await sendWhatsAppMessage(ownerPhone, { type: 'text', text: { body } })
+      const wamid = await sendWhatsAppMessage(
+        ownerPhone,
+        { type: 'text', text: { body } },
+        { companyId, purpose: 'bot_reply', billable: true }
+      )
       await logOutboundMessage(requireServiceClient(), {
         companyId,
         contactPhone: ownerPhone,
         body,
         msgType: 'text',
+        waMessageId: wamid,
         status: 'sent',
       }).catch(() => undefined)
       return {}

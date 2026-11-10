@@ -51,7 +51,7 @@ describe('development outbound kill switch', () => {
     vi.stubEnv('NODE_ENV', 'development')
     await expect(
       sendWhatsAppMessage('+15551234567', { type: 'text', text: { body: 'Hello' } })
-    ).resolves.toBeUndefined()
+    ).resolves.toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

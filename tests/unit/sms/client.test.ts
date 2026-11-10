@@ -16,6 +16,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
  * Owner: Wave 2 (104.2 — SMS sender).
  */
 
+// Phase 2b: cost recording is covered in tests/unit/billing/messaging-cost.test.ts; stub it
+// here so it never reaches the stubbed fetch these tests count.
+vi.mock('@/lib/billing/messaging-cost', () => ({
+  recordSmsSent: vi.fn().mockResolvedValue(undefined),
+  recordEmailSent: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/platform-config', () => ({
   getTwilioConfig: vi.fn(),
   getTwilioCustomerMessagingConfig: vi.fn(),
@@ -197,5 +204,54 @@ describe('lib/sms/client — sendCustomerSms()', () => {
 
     const result = await sendCustomerSms('+15551234567', 'Hi')
     expect(result.ok).toBe(false)
+  })
+})
+
+describe('Phase 2b: per-message cost recording', () => {
+  it('records the send with Twilio num_segments and the caller attribution; a failed send records nothing', async () => {
+    const { sendSms, sendCustomerSms } = await import('@/lib/sms/client')
+    const { getTwilioConfig, getTwilioCustomerMessagingConfig } = await import('@/lib/platform-config')
+    const { recordSmsSent } = await import('@/lib/billing/messaging-cost')
+    ;(getTwilioConfig as ReturnType<typeof vi.fn>).mockResolvedValue(TWILIO_PLACEHOLDER)
+    ;(getTwilioCustomerMessagingConfig as ReturnType<typeof vi.fn>).mockResolvedValue(
+      TWILIO_CUSTOMER_MESSAGING_PLACEHOLDER,
+    )
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ sid: 'SM_1', num_segments: '3' }) }),
+    )
+    await sendSms('+15551234567', 'Hello', { companyId: 'co-1', purpose: 'owner_notification', billable: true })
+    expect(recordSmsSent).toHaveBeenCalledWith({
+      to: '+15551234567',
+      body: 'Hello',
+      sid: 'SM_1',
+      numSegments: 3,
+      meta: { companyId: 'co-1', purpose: 'owner_notification', billable: true },
+    })
+
+    await sendCustomerSms('+15551234567', 'Hi there', { companyId: 'co-1', purpose: 'customer_message', billable: true })
+    expect(recordSmsSent).toHaveBeenCalledTimes(2)
+
+    vi.mocked(recordSmsSent).mockClear()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ message: 'invalid number' }) }),
+    )
+    const failed = await sendSms('+15551234567', 'Hello', { companyId: 'co-1', purpose: 'owner_notification' })
+    expect(failed.ok).toBe(false)
+    expect(recordSmsSent).not.toHaveBeenCalled()
+  })
+
+  it('a caller without meta is recorded as an unclassified, non-billable platform send', async () => {
+    const { sendSms } = await import('@/lib/sms/client')
+    const { getTwilioConfig } = await import('@/lib/platform-config')
+    const { recordSmsSent } = await import('@/lib/billing/messaging-cost')
+    ;(getTwilioConfig as ReturnType<typeof vi.fn>).mockResolvedValue(TWILIO_PLACEHOLDER)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ sid: 'SM_2' }) }))
+    await sendSms('+15551234567', 'Hello')
+    expect(recordSmsSent).toHaveBeenCalledWith(
+      expect.objectContaining({ numSegments: null, meta: { companyId: null, purpose: 'unclassified', billable: false } }),
+    )
   })
 })

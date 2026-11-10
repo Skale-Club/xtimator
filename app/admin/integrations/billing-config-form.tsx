@@ -125,6 +125,12 @@ export function BillingConfigForm({ current }: Props) {
     )
   )
 
+  // Phase 2b: per-message provider rates, edited as JSON (nested market -> category
+  // map; PLACEHOLDER values - verify against Meta's rate card and Twilio pricing).
+  const [messagingRatesJson, setMessagingRatesJson] = useState(() =>
+    JSON.stringify(current.messagingRates, null, 2)
+  )
+
   // Low-balance thresholds as a comma-joined text input
   const [lowBalanceThresholds, setLowBalanceThresholds] = useState(
     current.lowBalanceThresholds.join(', ')
@@ -177,6 +183,13 @@ export function BillingConfigForm({ current }: Props) {
   function handleSave() {
     // Assemble the FULL BillingConfig payload. The server action's zod safeParse
     // is the validator of record — we only do the string→number conversion here.
+    let messagingRates: BillingConfig['messagingRates']
+    try {
+      messagingRates = JSON.parse(messagingRatesJson) as BillingConfig['messagingRates']
+    } catch {
+      toast.error(t('Messaging rates must be valid JSON'))
+      return
+    }
     const payload: BillingConfig = {
       markup: Number(markup),
       creditUnitUsd: Number(creditUnitUsd),
@@ -247,6 +260,7 @@ export function BillingConfigForm({ current }: Props) {
       // the program's configuration on every unrelated billing save. Replace this
       // with real inputs when the affiliate admin slice lands.
       affiliate: current.affiliate,
+      messagingRates,
     }
 
     startTransition(async () => {
@@ -319,6 +333,22 @@ export function BillingConfigForm({ current }: Props) {
             className={inputClass}
           />
         </label>
+      </fieldset>
+
+      {/* Messaging rates (WhatsApp / SMS / email passed to customer credits) */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Messaging rates (USD)')}</legend>
+        <p className="text-xs text-muted-foreground max-w-3xl">
+          {t('Placeholders: check against Meta's official rate card and Twilio pricing. WhatsApp is billed per delivered message by market and category; SMS per segment by country; email per message.')}
+        </p>
+        <textarea
+          value={messagingRatesJson}
+          onChange={(e) => setMessagingRatesJson(e.target.value)}
+          disabled={isPending}
+          rows={16}
+          spellCheck={false}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
+        />
       </fieldset>
 
       {/* Estimate fee */}

@@ -19,6 +19,10 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/billing/messaging-cost', () => ({
+  applyWhatsAppStatuses: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@/lib/whatsapp/send-welcome', () => ({
   welcomeOnFirstContact: vi.fn().mockResolvedValue(true),
 }))
@@ -60,6 +64,7 @@ import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { rateLimit } from '@/lib/ratelimit'
 import { logInboundMessage } from '@/lib/whatsapp/conversations'
+import { applyWhatsAppStatuses } from '@/lib/billing/messaging-cost'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
 
 const mockVerify = vi.mocked(verifyWebhookSignature)
@@ -152,7 +157,7 @@ describe('POST /api/webhooks/whatsapp', () => {
     mockServiceClient.mockReset()
     mockProcessInbound.mockReset()
     mockSendWhatsApp.mockReset()
-    mockSendWhatsApp.mockResolvedValue(undefined)
+    mockSendWhatsApp.mockResolvedValue(null)
     mockWelcome.mockReset()
     mockWelcome.mockResolvedValue(true)
     mockFindSender.mockReset()
@@ -178,8 +183,34 @@ describe('POST /api/webhooks/whatsapp', () => {
     const req = makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', statusPayload)
     const res = await POST(req)
     expect(res.status).toBe(200)
-    // No DB calls for status updates
+    // No inbound DB work for status updates
     expect(mockServiceClient).not.toHaveBeenCalled()
+    expect(mockProcessInbound).not.toHaveBeenCalled()
+    // Phase 2b: the statuses are handed to the cost/delivery handler (after()).
+    expect(applyWhatsAppStatuses).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'wamid.abc', status: 'delivered' }),
+    ])
+  })
+
+  it('collects statuses from every entry and change of a status payload', async () => {
+    mockVerify.mockReturnValue(true)
+    vi.mocked(applyWhatsAppStatuses).mockClear()
+    const payload = JSON.stringify({
+      entry: [
+        { changes: [{ value: { statuses: [{ id: 'wamid.1', status: 'sent' }] } }] },
+        {
+          changes: [
+            { value: { statuses: [{ id: 'wamid.2', status: 'delivered', pricing: { billable: true, category: 'utility' } }] } },
+          ],
+        },
+      ],
+    })
+    const res = await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', payload))
+    expect(res.status).toBe(200)
+    expect(applyWhatsAppStatuses).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'wamid.1' }),
+      expect.objectContaining({ id: 'wamid.2', pricing: { billable: true, category: 'utility' } }),
+    ])
   })
 
   it('returns 200 and replies with the signup guidance for an unknown sender', async () => {
@@ -235,7 +266,9 @@ describe('POST /api/webhooks/whatsapp', () => {
           text: expect.objectContaining({
             body: expect.stringContaining('xtimator.com'),
           }),
-        })
+        }),
+        // Platform cost: recorded without a tenant, never billed.
+        expect.objectContaining({ companyId: null, purpose: 'unknown_sender', billable: false })
       )
     })
   })
@@ -510,7 +543,8 @@ describe('POST /api/webhooks/whatsapp', () => {
       expect.objectContaining({
         type: 'text',
         text: expect.objectContaining({ body: expect.stringContaining('Xtimator') }),
-      })
+      }),
+      expect.objectContaining({ companyId: null, purpose: 'unknown_sender', billable: false })
     )
     expect(mockRateLimit).toHaveBeenCalledWith('whatsappUnknownSenderReply', '5511999990000')
 
@@ -574,7 +608,8 @@ describe('POST /api/webhooks/whatsapp', () => {
     // Should reply with guidance
     expect(mockSendWhatsApp).toHaveBeenCalledWith(
       '+15551234567',
-      expect.objectContaining({ type: 'text' })
+      expect.objectContaining({ type: 'text' }),
+      expect.objectContaining({ companyId: null, purpose: 'unknown_sender', billable: false })
     )
   })
 })

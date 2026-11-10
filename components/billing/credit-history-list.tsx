@@ -42,6 +42,10 @@ function rowLabel(row: CreditHistoryRow): React.ReactNode {
       return <T>Price research</T>
     case 'chat':
       return <T>Xtimator AI chat</T>
+    // Phase 2b: WhatsApp / SMS / email sent for the company, ONE aggregated line
+    // per debit run (never one line, or a price, per message).
+    case 'messaging':
+      return <T>Messages</T>
     default:
       return <T>Usage</T>
   }
