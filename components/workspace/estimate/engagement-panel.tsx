@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Eye, Users, Clock, TrendingUp, Flame, Smartphone, Monitor, MousePointerClick, Loader2 } from 'lucide-react'
+import { Eye, Users, Clock, TrendingUp, Flame, Smartphone, Monitor, MousePointerClick, Loader2, Timer } from 'lucide-react'
 import { SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import {
   getEstimateEngagementOverview,
+  getEstimateItemLabels,
   type EstimateEngagementSummary,
   type EngagementVisit,
 } from '@/lib/queries/engagement'
@@ -31,12 +32,34 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}m ${String(secs).padStart(2, '0')}s`
 }
 
+/** Human labels for the document's tracked sections (English source strings,
+ *  run through t() at render time). Unknown targets fall back to the raw id. */
+const SECTION_LABELS: Record<string, string> = {
+  header: 'Header',
+  'line-items': 'Line items',
+  totals: 'Totals',
+  terms: 'Terms',
+  timeline: 'Timeline',
+  signature: 'Signature',
+  photos: 'Photos',
+  'prepared-by': 'Prepared by',
+}
+
+const MOST_VIEWED_ITEMS = 5
+
 type InterestLevel = 'hot' | 'warm' | 'none'
 
 /** Pure presentation classifier — no schema, no persistence (per plan 2b). */
 function deriveInterestLevel(summary: EstimateEngagementSummary): InterestLevel {
   if (summary.opens === 0) return 'none'
-  if (summary.opens >= 3 || summary.uniqueVisitors >= 2 || summary.maxScrollPct >= 100) return 'hot'
+  if (
+    summary.opens >= 3 ||
+    summary.uniqueVisitors >= 2 ||
+    summary.maxScrollPct >= 100 ||
+    (summary.sectionDwell?.totals ?? 0) >= 30
+  ) {
+    return 'hot'
+  }
   return 'warm'
 }
 
@@ -73,6 +96,7 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
   const [summary, setSummary] = useState<EstimateEngagementSummary | null>(null)
   const [visits, setVisits] = useState<EngagementVisit[]>([])
   const [heatmapOpen, setHeatmapOpen] = useState(false)
+  const [itemLabels, setItemLabels] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -83,6 +107,15 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
         if (cancelled) return
         setSummary(s)
         setVisits(v)
+        if (Object.keys(s.itemDwell ?? {}).length > 0) {
+          getEstimateItemLabels(supabase, estimateId)
+            .then((labels) => {
+              if (!cancelled) setItemLabels(labels)
+            })
+            .catch(() => {
+              /* labels are cosmetic — items just stay hidden without them */
+            })
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -93,6 +126,16 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
   }, [estimateId])
 
   const interest = summary ? deriveInterestLevel(summary) : 'none'
+
+  const sectionRows = Object.entries(summary?.sectionDwell ?? {})
+    .filter(([, seconds]) => seconds > 0)
+    .sort((a, b) => b[1] - a[1])
+  const maxSectionDwell = sectionRows[0]?.[1] ?? 0
+  const itemRows = Object.entries(summary?.itemDwell ?? {})
+    .filter(([id, seconds]) => seconds > 0 && itemLabels[id])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MOST_VIEWED_ITEMS)
+  const hasDwell = Object.keys(summary?.itemDwell ?? {}).length > 0 || sectionRows.length > 0
 
   return (
     <>
@@ -152,7 +195,7 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
               size="sm"
               className="gap-1.5"
               onClick={() => setHeatmapOpen(true)}
-              disabled={summary.clicks === 0}
+              disabled={summary.clicks === 0 && !hasDwell}
             >
               <MousePointerClick className="h-3.5 w-3.5" />
               {t('View click heatmap')}
@@ -160,6 +203,45 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
                 <span className="text-muted-foreground">({summary.clicks})</span>
               )}
             </Button>
+
+            {sectionRows.length > 0 && (
+              <Card variant="glass" className="gap-2 py-3">
+                <CardContent className="px-3 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Timer className="h-3.5 w-3.5" />
+                    <h3 className="text-xs">{t('Where they spent time')}</h3>
+                  </div>
+                  {sectionRows.map(([target, seconds]) => (
+                    <div key={target} className="flex flex-col gap-0.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="truncate text-foreground">{t(SECTION_LABELS[target] ?? target)}</span>
+                        <span className="tabular-nums text-muted-foreground">{formatDuration(seconds)}</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-muted">
+                        <div
+                          className="h-1.5 rounded-full bg-primary"
+                          style={{ width: `${maxSectionDwell > 0 ? (seconds / maxSectionDwell) * 100 : 0}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {itemRows.length > 0 && (
+              <Card variant="glass" className="gap-2 py-3">
+                <CardContent className="px-3 flex flex-col gap-2">
+                  <h3 className="text-xs text-muted-foreground">{t('Most viewed items')}</h3>
+                  {itemRows.map(([id, seconds]) => (
+                    <div key={id} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate text-foreground">{itemLabels[id]}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{formatDuration(seconds)}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
             {visits.length > 0 && (
               <div className="flex flex-col gap-2">
@@ -175,6 +257,11 @@ export function EngagementPanel({ estimateId }: EngagementPanelProps) {
                         <span className="text-muted-foreground truncate">
                           {relativeTime(visit.startedAt)}
                         </span>
+                        {visit.topSection && (
+                          <span className="truncate text-xs text-muted-foreground/80">
+                            · {t(SECTION_LABELS[visit.topSection] ?? visit.topSection)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
                         <span className="tabular-nums">{formatDuration(visit.seconds)}</span>

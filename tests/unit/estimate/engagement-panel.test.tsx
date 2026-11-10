@@ -18,6 +18,7 @@ const mockSummary = vi.fn()
 const mockTimeline = vi.fn()
 const mockClickPoints = vi.fn()
 const mockDocument = vi.fn()
+const mockItemLabels = vi.fn()
 
 vi.mock('@/lib/queries/engagement', () => ({
   // The panel reads summary + visits through ONE fetch (a single row set feeds
@@ -31,6 +32,7 @@ vi.mock('@/lib/queries/engagement', () => ({
   getEstimateViewTimeline: (...args: unknown[]) => mockTimeline(...args),
   getEstimateClickPoints: (...args: unknown[]) => mockClickPoints(...args),
   getEstimateDocumentForHeatmap: (...args: unknown[]) => mockDocument(...args),
+  getEstimateItemLabels: (...args: unknown[]) => mockItemLabels(...args),
 }))
 
 function emptySummary(): EstimateEngagementSummary {
@@ -41,6 +43,8 @@ function emptySummary(): EstimateEngagementSummary {
     totalSeconds: 0,
     maxScrollPct: 0,
     sectionsViewed: 0,
+    sectionDwell: {},
+    itemDwell: {},
     clicks: 0,
     deviceSplit: { mobile: 0, desktop: 0, unknown: 0 },
     unlockFails: 0,
@@ -64,6 +68,7 @@ describe('EngagementPanel', () => {
     mockTimeline.mockReset()
     mockClickPoints.mockReset().mockResolvedValue([])
     mockDocument.mockReset().mockResolvedValue(null)
+    mockItemLabels.mockReset().mockResolvedValue({})
   })
 
   it('renders the empty state when the estimate was sent but never opened', async () => {
@@ -83,12 +88,14 @@ describe('EngagementPanel', () => {
       totalSeconds: 125,
       maxScrollPct: 80,
       sectionsViewed: 2,
+      sectionDwell: {},
+      itemDwell: {},
       clicks: 4,
       deviceSplit: { mobile: 2, desktop: 3, unknown: 0 },
       unlockFails: 0,
     }
     const visits: EngagementVisit[] = [
-      { sessionId: 's1', startedAt: '2026-08-24T10:00:00Z', seconds: 60, device: 'desktop', maxScrollPct: 45 },
+      { sessionId: 's1', startedAt: '2026-08-24T10:00:00Z', seconds: 60, device: 'desktop', maxScrollPct: 45, topSection: null },
     ]
     mockSummary.mockResolvedValue(summary)
     mockTimeline.mockResolvedValue(visits)
@@ -104,5 +111,40 @@ describe('EngagementPanel', () => {
     expect(screen.getByText('View click heatmap')).toBeTruthy()
     // Interest badge: opens >= 3 → Hot.
     expect(screen.getByText('Hot')).toBeTruthy()
+  })
+  it('renders the "Where they spent time" card, most viewed items and the visit top section', async () => {
+    const summary: EstimateEngagementSummary = {
+      ...emptySummary(),
+      opens: 1,
+      uniqueVisitors: 1,
+      lastViewedAt: '2026-08-24T10:00:00Z',
+      sectionsViewed: 2,
+      sectionDwell: { 'line-items': 75, totals: 30, header: 5 },
+      itemDwell: { i1: 40, i2: 10 },
+    }
+    mockSummary.mockResolvedValue(summary)
+    mockTimeline.mockResolvedValue([
+      { sessionId: 's1', startedAt: '2026-08-24T10:00:00Z', seconds: 60, device: 'desktop', maxScrollPct: 45, topSection: 'totals' },
+    ])
+    mockItemLabels.mockResolvedValue({ i1: 'Install new vanity', i2: 'Haul away debris' })
+
+    renderPanel('est-1')
+
+    expect(await screen.findByText('Where they spent time')).toBeTruthy()
+    expect(screen.getByText('Line items')).toBeTruthy()
+    expect(screen.getByText('1m 15s')).toBeTruthy()
+    expect(await screen.findByText('Most viewed items')).toBeTruthy()
+    expect(screen.getByText('Install new vanity')).toBeTruthy()
+    expect(screen.getByText(/· Totals/)).toBeTruthy()
+    // totals dwell >= 30s makes a single quiet visit "Hot".
+    expect(screen.getByText('Hot')).toBeTruthy()
+  })
+
+  it('hides the dwell card when no reading time was recorded', async () => {
+    mockSummary.mockResolvedValue({ ...emptySummary(), opens: 1, uniqueVisitors: 1 })
+    mockTimeline.mockResolvedValue([])
+    renderPanel('est-1')
+    expect(await screen.findByText('Opens')).toBeTruthy()
+    expect(screen.queryByText('Where they spent time')).toBeNull()
   })
 })

@@ -37,9 +37,16 @@ class FakeIntersectionObserver {
   takeRecords() {
     return []
   }
-  trigger(el: Element, ratio: number) {
+  trigger(el: Element, ratio: number, rectHeight = 0) {
     this.callback(
-      [{ target: el, intersectionRatio: ratio } as IntersectionObserverEntry],
+      [
+        {
+          target: el,
+          intersectionRatio: ratio,
+          isIntersecting: ratio > 0 || rectHeight > 0,
+          intersectionRect: { height: rectHeight },
+        } as unknown as IntersectionObserverEntry,
+      ],
       this as unknown as IntersectionObserver
     )
   }
@@ -174,8 +181,156 @@ describe('useEstimateTracking', () => {
     })
 
     const [{ body }] = await decodeCalls(sendBeacon)
-    const sectionViews = body.events.filter((e: { event_type: string }) => e.event_type === 'section_view')
+    // The first-seen event has no dwell_seconds; dwell events are separate rows.
+    const sectionViews = body.events.filter(
+      (e: { event_type: string; metadata?: unknown }) => e.event_type === 'section_view' && !e.metadata
+    )
     expect(sectionViews).toEqual([expect.objectContaining({ target: 'totals' })])
+  })
+
+  async function allEvents(sendBeacon: ReturnType<typeof vi.fn>) {
+    const calls = await decodeCalls(sendBeacon)
+    return calls.flatMap((c) => c.body.events) as Array<{
+      event_type: string
+      target?: string
+      metadata?: { dwell_seconds?: number }
+    }>
+  }
+  function totalDwell(events: Awaited<ReturnType<typeof allEvents>>, target: string) {
+    return events
+      .filter((e) => e.event_type === 'section_view' && e.target === target && e.metadata?.dwell_seconds)
+      .reduce((sum, e) => sum + (e.metadata?.dwell_seconds ?? 0), 0)
+  }
+
+  it('accumulates dwell per visible target and emits section_view with dwell_seconds on the 30s dwell drain', async () => {
+    const sendBeacon = installSendBeacon()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const container = makeContainer()
+    const section = document.createElement('div')
+    section.setAttribute('data-track-section', 'totals')
+    const item = document.createElement('div')
+    item.setAttribute('data-track-section', 'item:abc')
+    container.append(section, item)
+
+    renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+    const observer = FakeIntersectionObserver.instances.at(-1)!
+    act(() => observer.trigger(section, 0.8))
+    act(() => observer.trigger(item, 0.8))
+    await act(async () => {
+      vi.advanceTimersByTime(30_000)
+    })
+
+    const events = await allEvents(sendBeacon)
+    expect(totalDwell(events, 'totals')).toBe(30)
+    expect(totalDwell(events, 'item:abc')).toBe(30)
+    // items never produce a first-seen (no-dwell) event
+    expect(events.some((e) => e.target === 'item:abc' && !e.metadata)).toBe(false)
+
+    // Accumulators reset after the flush: leaving view stops the counting.
+    sendBeacon.mockClear()
+    act(() => observer.trigger(section, 0))
+    await act(async () => {
+      vi.advanceTimersByTime(30_000)
+    })
+    const later = await allEvents(sendBeacon)
+    expect(totalDwell(later, 'totals')).toBe(0)
+  })
+
+  it('holds dwell back on the 5s flush but drains it immediately when the tab is hidden', async () => {
+    const sendBeacon = installSendBeacon()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const container = makeContainer()
+    const section = document.createElement('div')
+    section.setAttribute('data-track-section', 'totals')
+    container.appendChild(section)
+
+    renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+    const observer = FakeIntersectionObserver.instances.at(-1)!
+    act(() => observer.trigger(section, 0.8))
+    await act(async () => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(totalDwell(await allEvents(sendBeacon), 'totals')).toBe(0)
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(totalDwell(await allEvents(sendBeacon), 'totals')).toBe(5)
+  })
+
+  it('treats an element covering >= 50% of the viewport height as in view even at a low ratio', async () => {
+    const sendBeacon = installSendBeacon()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 1000, configurable: true })
+    const container = makeContainer()
+    const tall = document.createElement('div')
+    tall.setAttribute('data-track-section', 'line-items')
+    container.appendChild(tall)
+
+    renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+    const observer = FakeIntersectionObserver.instances.at(-1)!
+    act(() => observer.trigger(tall, 0.1, 600))
+    await act(async () => {
+      vi.advanceTimersByTime(30_000)
+    })
+
+    expect(totalDwell(await allEvents(sendBeacon), 'line-items')).toBe(30)
+  })
+
+  it('stops counting dwell and heartbeats after 60s without activity, and resumes on input', async () => {
+    const sendBeacon = installSendBeacon()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const container = makeContainer()
+    const section = document.createElement('div')
+    section.setAttribute('data-track-section', 'totals')
+    container.appendChild(section)
+
+    renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+    const observer = FakeIntersectionObserver.instances.at(-1)!
+    act(() => observer.trigger(section, 0.8))
+    await act(async () => {
+      vi.advanceTimersByTime(120_000)
+    })
+
+    let events = await allEvents(sendBeacon)
+    expect(totalDwell(events, 'totals')).toBeGreaterThanOrEqual(58)
+    expect(totalDwell(events, 'totals')).toBeLessThanOrEqual(60)
+    expect(events.filter((e) => e.event_type === 'heartbeat')).toHaveLength(2)
+
+    sendBeacon.mockClear()
+    act(() => {
+      window.dispatchEvent(new Event('keydown'))
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(30_000)
+    })
+    events = await allEvents(sendBeacon)
+    expect(totalDwell(events, 'totals')).toBeGreaterThanOrEqual(29)
+  })
+
+  it('never sends more than 25 events in one beacon', async () => {
+    const sendBeacon = installSendBeacon()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const container = makeContainer()
+    const els = Array.from({ length: 30 }, (_, i) => {
+      const el = document.createElement('div')
+      el.setAttribute('data-track-section', `item:${i}`)
+      container.appendChild(el)
+      return el
+    })
+
+    renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+    const observer = FakeIntersectionObserver.instances.at(-1)!
+    for (const el of els) act(() => observer.trigger(el, 0.9))
+    await act(async () => {
+      vi.advanceTimersByTime(30_000)
+    })
+
+    const calls = await decodeCalls(sendBeacon)
+    expect(calls.length).toBeGreaterThan(1)
+    for (const c of calls) expect(c.body.events.length).toBeLessThanOrEqual(25)
+    expect(totalDwell(calls.flatMap((c) => c.body.events), 'item:7')).toBe(30)
   })
 
   it('records each scroll-depth milestone (25/50/75/100) at most once', async () => {

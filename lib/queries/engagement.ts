@@ -59,6 +59,10 @@ export interface EstimateEngagementSummary {
   totalSeconds: number
   maxScrollPct: number
   sectionsViewed: number
+  /** Seconds of reading time per section target (item:* targets excluded). */
+  sectionDwell: Record<string, number>
+  /** Seconds of reading time per line item id (key has no `item:` prefix). */
+  itemDwell: Record<string, number>
   clicks: number
   deviceSplit: { mobile: number; desktop: number; unknown: number }
   unlockFails: number
@@ -78,7 +82,11 @@ export interface EngagementVisit {
   seconds: number
   device: 'mobile' | 'desktop' | null
   maxScrollPct: number
+  /** Section with the most dwell time in this visit, null when none recorded. */
+  topSection: string | null
 }
+
+const ITEM_TARGET_PREFIX = 'item:'
 
 // A single event row's `metadata` JSONB is producer-defined (193-01 owns the
 // collector). The contract assumed here — `{ seconds }` on 'heartbeat',
@@ -99,6 +107,8 @@ function readNumericMetadata(metadata: Record<string, unknown> | null, key: stri
 export function aggregateEngagementSummary(rows: EngagementEventRow[]): EstimateEngagementSummary {
   const visitors = new Set<string>()
   const sections = new Set<string>()
+  const sectionDwell: Record<string, number> = {}
+  const itemDwell: Record<string, number> = {}
   const deviceSplit = { mobile: 0, desktop: 0, unknown: 0 }
   let opens = 0
   let clicks = 0
@@ -132,9 +142,21 @@ export function aggregateEngagementSummary(rows: EngagementEventRow[]): Estimate
         if (pct != null) maxScrollPct = Math.max(maxScrollPct, pct)
         break
       }
-      case 'section_view':
-        if (row.target) sections.add(row.target)
+      case 'section_view': {
+        if (!row.target) break
+        const isItem = row.target.startsWith(ITEM_TARGET_PREFIX)
+        if (!isItem) sections.add(row.target)
+        const dwell = readNumericMetadata(row.metadata, 'dwell_seconds')
+        if (dwell != null && dwell > 0) {
+          if (isItem) {
+            const id = row.target.slice(ITEM_TARGET_PREFIX.length)
+            itemDwell[id] = (itemDwell[id] ?? 0) + dwell
+          } else {
+            sectionDwell[row.target] = (sectionDwell[row.target] ?? 0) + dwell
+          }
+        }
         break
+      }
       case 'unlock_fail':
         unlockFails += 1
         break
@@ -150,6 +172,8 @@ export function aggregateEngagementSummary(rows: EngagementEventRow[]): Estimate
     totalSeconds,
     maxScrollPct,
     sectionsViewed: sections.size,
+    sectionDwell,
+    itemDwell,
     clicks,
     deviceSplit,
     unlockFails,
@@ -163,13 +187,19 @@ export function aggregateEngagementSummary(rows: EngagementEventRow[]): Estimate
 export function aggregateViewTimeline(rows: EngagementEventRow[]): EngagementVisit[] {
   const bySession = new Map<
     string,
-    { startedAt: string; seconds: number; device: 'mobile' | 'desktop' | null; maxScrollPct: number }
+    {
+      startedAt: string
+      seconds: number
+      device: 'mobile' | 'desktop' | null
+      maxScrollPct: number
+      dwell: Record<string, number>
+    }
   >()
 
   for (const row of rows) {
     let entry = bySession.get(row.session_id)
     if (!entry) {
-      entry = { startedAt: row.created_at, seconds: 0, device: row.device, maxScrollPct: 0 }
+      entry = { startedAt: row.created_at, seconds: 0, device: row.device, maxScrollPct: 0, dwell: {} }
       bySession.set(row.session_id, entry)
     }
     if (row.created_at < entry.startedAt) entry.startedAt = row.created_at
@@ -181,11 +211,35 @@ export function aggregateViewTimeline(rows: EngagementEventRow[]): EngagementVis
     } else if (row.event_type === 'scroll_depth') {
       const pct = readNumericMetadata(row.metadata, 'pct')
       if (pct != null) entry.maxScrollPct = Math.max(entry.maxScrollPct, pct)
+    } else if (
+      row.event_type === 'section_view' &&
+      row.target &&
+      !row.target.startsWith(ITEM_TARGET_PREFIX)
+    ) {
+      const dwell = readNumericMetadata(row.metadata, 'dwell_seconds')
+      if (dwell != null && dwell > 0) entry.dwell[row.target] = (entry.dwell[row.target] ?? 0) + dwell
     }
   }
 
   return Array.from(bySession.entries())
-    .map(([sessionId, v]) => ({ sessionId, ...v }))
+    .map(([sessionId, v]) => {
+      let topSection: string | null = null
+      let best = 0
+      for (const [target, seconds] of Object.entries(v.dwell)) {
+        if (seconds > best) {
+          best = seconds
+          topSection = target
+        }
+      }
+      return {
+        sessionId,
+        startedAt: v.startedAt,
+        seconds: v.seconds,
+        device: v.device,
+        maxScrollPct: v.maxScrollPct,
+        topSection,
+      }
+    })
     .sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1)) // newest visit first
 }
 
@@ -241,6 +295,75 @@ export async function getEstimateEngagementOverview(
 
   const rows = (data ?? []) as EngagementEventRow[]
   return { summary: aggregateEngagementSummary(rows), visits: aggregateViewTimeline(rows) }
+}
+
+export interface EngagementDwell {
+  sectionDwell: Record<string, number>
+  itemDwell: Record<string, number>
+}
+
+/**
+ * Pure per-device dwell rollup. A section_view row carries no device, so the
+ * device of each session comes from its 'view' event; sessions without one
+ * only count under the 'all' filter.
+ */
+export function aggregateDwellByDevice(
+  rows: Array<Pick<EngagementEventRow, 'session_id' | 'event_type' | 'target' | 'device' | 'metadata'>>,
+  device: 'all' | 'desktop' | 'mobile'
+): EngagementDwell {
+  const sessionDevice = new Map<string, 'mobile' | 'desktop' | null>()
+  for (const row of rows) {
+    if (row.event_type === 'view' && row.device) sessionDevice.set(row.session_id, row.device)
+  }
+  const sectionDwell: Record<string, number> = {}
+  const itemDwell: Record<string, number> = {}
+  for (const row of rows) {
+    if (row.event_type !== 'section_view' || !row.target) continue
+    if (device !== 'all' && sessionDevice.get(row.session_id) !== device) continue
+    const dwell = readNumericMetadata(row.metadata, 'dwell_seconds')
+    if (dwell == null || dwell <= 0) continue
+    if (row.target.startsWith(ITEM_TARGET_PREFIX)) {
+      const id = row.target.slice(ITEM_TARGET_PREFIX.length)
+      itemDwell[id] = (itemDwell[id] ?? 0) + dwell
+    } else {
+      sectionDwell[row.target] = (sectionDwell[row.target] ?? 0) + dwell
+    }
+  }
+  return { sectionDwell, itemDwell }
+}
+
+/** Raw dwell-bearing rows (section_view + view, for the session device). */
+export async function getEstimateDwellRows(
+  supabase: SupabaseClient,
+  estimateId: string
+): Promise<Array<Pick<EngagementEventRow, 'session_id' | 'event_type' | 'target' | 'device' | 'metadata'>>> {
+  const { data } = await supabase
+    .from('estimate_engagement_events')
+    .select('session_id, event_type, target, device, metadata')
+    .eq('estimate_id', estimateId)
+    .in('event_type', ['view', 'section_view'])
+    .order('created_at', { ascending: false })
+    .limit(SUMMARY_ROW_LIMIT)
+  return (data ?? []) as Array<
+    Pick<EngagementEventRow, 'session_id' | 'event_type' | 'target' | 'device' | 'metadata'>
+  >
+}
+
+/** id -> description for every line item of an estimate (authenticated client,
+ *  same RLS posture as the rest of this file). */
+export async function getEstimateItemLabels(
+  supabase: SupabaseClient,
+  estimateId: string
+): Promise<Record<string, string>> {
+  const { data } = await supabase
+    .from('estimate_sections')
+    .select('items:estimate_items(id, description)')
+    .eq('estimate_id', estimateId)
+  const labels: Record<string, string> = {}
+  for (const section of (data ?? []) as Array<{ items: Array<{ id: string; description: string }> | null }>) {
+    for (const item of section.items ?? []) labels[item.id] = item.description
+  }
+  return labels
 }
 
 export async function getEstimateClickPoints(

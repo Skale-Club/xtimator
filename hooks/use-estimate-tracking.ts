@@ -34,7 +34,15 @@ const VISITOR_ID_STORAGE_KEY = 'xtimator_visitor_id'
 const FLUSH_INTERVAL_MS = 5_000
 const FLUSH_AT_BUFFER_SIZE = 20 // stays under the server's 25-per-batch cap
 const HEARTBEAT_INTERVAL_MS = 20_000
-const HEARTBEAT_CAP = 30 // 30 * 20s = 10 minutes of heartbeats per session
+const HEARTBEAT_CAP = 180 // 180 * 20s = 60 minutes of heartbeats per session
+const MAX_EVENTS_PER_BATCH = 25 // server-side cap per beacon
+const ACTIVITY_WINDOW_MS = 60_000 // visitor counts as "active" for 60s after any input
+const DWELL_TICK_MS = 1_000
+const DWELL_DRAIN_INTERVAL_MS = 30_000 // dwell rows at most every 30s per visit
+const MAX_DWELL_PER_FLUSH_S = 60 // sanity cap per target per flush
+const SECTION_THRESHOLDS = [0, 0.25, 0.5, 0.75, 1]
+const ITEM_TARGET_PREFIX = 'item:'
+const ACTIVITY_EVENTS = ['scroll', 'pointermove', 'pointerdown', 'touchstart', 'keydown'] as const
 const SCROLL_MILESTONES = [25, 50, 75, 100] as const
 const SECTION_VISIBLE_THRESHOLD = 0.5
 const MOBILE_BREAKPOINT_PX = 768
@@ -126,11 +134,48 @@ export function useEstimateTracking({
       buffer.push(event)
       if (buffer.length >= FLUSH_AT_BUFFER_SIZE) flush()
     }
-    function flush() {
+    // Accumulated reading seconds per tracked target since the last flush.
+    const dwellSeconds = new Map<string, number>()
+    function drainDwellIntoBuffer() {
+      for (const [target, seconds] of dwellSeconds) {
+        const whole = Math.min(MAX_DWELL_PER_FLUSH_S, Math.floor(seconds))
+        if (whole <= 0) continue
+        buffer.push({ event_type: 'section_view', target, metadata: { dwell_seconds: whole } })
+      }
+      dwellSeconds.clear()
+    }
+    // Dwell rides along at most every DWELL_DRAIN_INTERVAL_MS (or on a forced
+    // flush: tab hidden, pagehide, unmount). Draining on every 5s flush would
+    // write ~6x more rows per visit, and the Insights queries read a bounded
+    // window of recent rows, so long visits would push older ones out.
+    let lastDwellDrainAt = Date.now()
+    function flush(force = false) {
+      if (force || Date.now() - lastDwellDrainAt >= DWELL_DRAIN_INTERVAL_MS) {
+        drainDwellIntoBuffer()
+        lastDwellDrainAt = Date.now()
+      }
       if (buffer.length === 0) return
       const batch = buffer
       buffer = []
-      sendBatch(token, visitorId, sessionId, batch)
+      // A flush can hold more than the server's per-batch cap — chunk it.
+      for (let i = 0; i < batch.length; i += MAX_EVENTS_PER_BATCH) {
+        sendBatch(token, visitorId, sessionId, batch.slice(i, i + MAX_EVENTS_PER_BATCH))
+      }
+    }
+
+    // -- Activity (scroll / pointer / touch / key within the last 60s) --------
+    let lastActivityAt = Date.now()
+    function markActivity() {
+      lastActivityAt = Date.now()
+    }
+    function isActive() {
+      return Date.now() - lastActivityAt < ACTIVITY_WINDOW_MS
+    }
+    function isEngaged() {
+      return document.visibilityState === 'visible' && isActive()
+    }
+    for (const name of ACTIVITY_EVENTS) {
+      window.addEventListener(name, markActivity, { passive: true })
     }
 
     // Initial open — one per mount (reload/new-tab starts a new session,
@@ -154,21 +199,31 @@ export function useEstimateTracking({
     }
     containerRef.current?.addEventListener('click', handleClick, { capture: true })
 
-    // -- Section visibility (IntersectionObserver, once per section) --------
+    // -- Section visibility + dwell (IntersectionObserver, never unobserved) --
+    // An element is "in view" when >= 50% of it is visible OR it covers >= 50%
+    // of the viewport height (very tall blocks like the whole line-items list
+    // can never reach 50% of their own height on a phone).
     const seenSections = new Set<string>()
     const observedElements = new Set<Element>()
+    const inViewElements = new Set<Element>()
     const sectionObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.intersectionRatio < SECTION_VISIBLE_THRESHOLD) continue
+          const inView =
+            entry.intersectionRatio >= SECTION_VISIBLE_THRESHOLD ||
+            (entry.isIntersecting && entry.intersectionRect.height >= window.innerHeight * 0.5)
+          if (!inView) {
+            inViewElements.delete(entry.target)
+            continue
+          }
+          inViewElements.add(entry.target)
           const id = entry.target.getAttribute('data-track-section')
-          if (!id || seenSections.has(id)) continue
+          if (!id || id.startsWith(ITEM_TARGET_PREFIX) || seenSections.has(id)) continue
           seenSections.add(id)
           enqueue({ event_type: 'section_view', target: id })
-          sectionObserver.unobserve(entry.target)
         }
       },
-      { threshold: SECTION_VISIBLE_THRESHOLD }
+      { threshold: SECTION_THRESHOLDS }
     )
     function observeNewSections() {
       const container = containerRef.current
@@ -179,6 +234,15 @@ export function useEstimateTracking({
         sectionObserver.observe(el)
       })
     }
+    const dwellTimer = window.setInterval(() => {
+      if (!isEngaged() || inViewElements.size === 0) return
+      const targets = new Set<string>()
+      for (const el of inViewElements) {
+        const id = el.getAttribute('data-track-section')
+        if (id) targets.add(id)
+      }
+      for (const id of targets) dwellSeconds.set(id, (dwellSeconds.get(id) ?? 0) + 1)
+    }, DWELL_TICK_MS)
     observeNewSections()
     // The document surface renders behind a next/dynamic loading skeleton
     // (see components/share/estimate-view.tsx) — its [data-track-section]
@@ -208,19 +272,20 @@ export function useEstimateTracking({
     // -- Heartbeat (visible tab only, capped) ---------------------------------
     let heartbeatCount = 0
     const heartbeatTimer = window.setInterval(() => {
-      if (document.visibilityState !== 'visible') return
+      if (!isEngaged()) return
       if (heartbeatCount >= HEARTBEAT_CAP) return
       heartbeatCount += 1
       enqueue({ event_type: 'heartbeat', metadata: { seconds: HEARTBEAT_INTERVAL_MS / 1000 } })
     }, HEARTBEAT_INTERVAL_MS)
 
     // -- Flush cadence ---------------------------------------------------------
-    const flushTimer = window.setInterval(flush, FLUSH_INTERVAL_MS)
+    const forceFlush = () => flush(true)
+    const flushTimer = window.setInterval(() => flush(), FLUSH_INTERVAL_MS)
     function handleVisibilityChange() {
-      if (document.visibilityState === 'hidden') flush()
+      if (document.visibilityState === 'hidden') flush(true)
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('pagehide', flush)
+    window.addEventListener('pagehide', forceFlush)
 
     return () => {
       containerRef.current?.removeEventListener('click', handleClick, { capture: true })
@@ -228,10 +293,12 @@ export function useEstimateTracking({
       mutationObserver.disconnect()
       window.removeEventListener('scroll', handleScroll)
       window.clearInterval(heartbeatTimer)
+      window.clearInterval(dwellTimer)
+      for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, markActivity)
       window.clearInterval(flushTimer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('pagehide', flush)
-      flush()
+      window.removeEventListener('pagehide', forceFlush)
+      flush(true)
     }
     // containerRef is a stable ref object — intentionally excluded from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
