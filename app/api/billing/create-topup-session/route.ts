@@ -111,7 +111,10 @@ export async function POST(request: NextRequest) {
   const stripe = await getStripeClient()
 
   // Fix 4b — a double-click must not mint TWO top-up Checkout Sessions.
-  const idempotencyKey = `topup:${company.id}:${packIndex}:${currency}:${Math.floor(Date.now() / 60000)}`
+  // The pack's credits and price are part of the key: if the admin changes the
+  // pack table inside the same minute, Stripe would otherwise reject the reused
+  // key because the request parameters differ.
+  const idempotencyKey = `topup:${company.id}:${packIndex}:${pack.credits}:${priceCents}:${currency}:${Math.floor(Date.now() / 60000)}`
 
   const session = await stripe.checkout.sessions.create(
     {

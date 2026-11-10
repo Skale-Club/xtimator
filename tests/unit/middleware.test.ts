@@ -47,6 +47,12 @@ describe('Middleware route protection rules (D-05)', () => {
     expect(wouldRedirectAnonymous('/api/cron/cleanup-orphan-projects')).toBe(false)
   })
 
+  it('/api/blog/telegram/webhook is public (secret-token verified by the route)', () => {
+    expect(wouldRedirectAnonymous('/api/blog/telegram/webhook')).toBe(false)
+    // Only the webhook itself: the rest of /api/blog stays behind the session.
+    expect(isPublicRoute('/api/blog/telegram/settings')).toBe(false)
+  })
+
   it('/api/webhooks/stripe is public (signature-verified)', () => {
     expect(wouldRedirectAnonymous('/api/webhooks/stripe')).toBe(false)
   })

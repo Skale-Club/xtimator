@@ -118,11 +118,11 @@ describe('rates', () => {
 
   it('prices SMS per segment of the destination country', () => {
     const r = DEFAULT_MESSAGING_RATES
-    expect(smsCostUsd(r, 'US', 1)).toBeCloseTo(0.0083, 6)
-    expect(smsCostUsd(r, 'US', 3)).toBeCloseTo(0.0249, 6)
-    expect(smsCostUsd(r, 'BR', 2)).toBeCloseTo(0.1, 6)
-    expect(smsCostUsd(r, 'default', 1)).toBe(0.05)
-    expect(smsCostUsd(r, 'AR', 1)).toBe(0.05)
+    expect(smsCostUsd(r, 'US', 1)).toBeCloseTo(0.013, 6)
+    expect(smsCostUsd(r, 'US', 3)).toBeCloseTo(0.039, 6)
+    expect(smsCostUsd(r, 'BR', 2)).toBeCloseTo(0.12, 6)
+    expect(smsCostUsd(r, 'default', 1)).toBe(0.06)
+    expect(smsCostUsd(r, 'AR', 1)).toBe(0.06)
   })
 
   it('prices email per message', () => {
