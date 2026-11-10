@@ -10,6 +10,7 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
 import { inngest } from '@/lib/inngest/client'
 import { EVENT_ESTIMATE_VIEWED_NOTIFICATION } from '@/lib/inngest/events'
+import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { sha256Hex, setUnlockCookie, verifySharePassword } from '@/lib/auth/share-password'
 
 export async function logEstimateView(token: string): Promise<void> {
@@ -58,6 +59,10 @@ export async function logEstimateView(token: string): Promise<void> {
 
   const denied = (await assertWritable()) ?? await assertCompanyWritable(estimateRow.company_id)
   if (denied) return
+
+  // The owner (or a teammate) previewing their own link is not a client view:
+  // no viewed_at stamp, activity row or notification.
+  if (await isOwnerVisit(estimateRow.company_id)) return
 
   // Update viewed_at only on first view
   if (!estimateRow.viewed_at) {

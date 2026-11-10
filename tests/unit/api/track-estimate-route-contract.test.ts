@@ -19,6 +19,7 @@ const mockRateLimit = vi.fn()
 const mockAssertCompanyWritable = vi.fn()
 const mockRequireServiceClient = vi.fn()
 const mockHeaders = vi.fn()
+const mockIsOwnerVisit = vi.fn()
 
 vi.mock('next/headers', () => ({ headers: () => mockHeaders() }))
 vi.mock('@/lib/ratelimit', () => ({
@@ -26,6 +27,9 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/demo/guard', () => ({
   assertCompanyWritable: (...args: unknown[]) => mockAssertCompanyWritable(...args),
+}))
+vi.mock('@/lib/estimates/owner-visit', () => ({
+  isOwnerVisit: (...args: unknown[]) => mockIsOwnerVisit(...args),
 }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => mockRequireServiceClient(),
@@ -110,6 +114,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 60 })
   mockAssertCompanyWritable.mockResolvedValue(null)
+  mockIsOwnerVisit.mockResolvedValue(false)
   mockHeaders.mockReturnValue(new Headers({ 'x-forwarded-for': '198.51.100.1' }))
 })
 
@@ -264,6 +269,21 @@ describe('POST /api/track/estimate — always 204, never an oracle', () => {
 
     expect(res.status).toBe(204)
     expect(supabase.__insertMock).not.toHaveBeenCalled()
+  })
+
+  it('owner visit → 204, no insert and no view-count bump', async () => {
+    mockIsOwnerVisit.mockResolvedValue(true)
+    const supabase = buildSupabase({ estimateByShareToken: estimateRow() })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(
+      jsonRequest({ token: 'share-token-abc', visitor_id: 'v1', session_id: 's1', events: [{ event_type: 'view' }] })
+    )
+
+    expect(res.status).toBe(204)
+    expect(mockIsOwnerVisit).toHaveBeenCalledWith('company-1')
+    expect(supabase.__insertMock).not.toHaveBeenCalled()
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
   })
 
   it('an oversized body (> 32KB) → 204, no DB call at all', async () => {

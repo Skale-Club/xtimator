@@ -10,6 +10,7 @@ import {
 import { parsePublicSlugParam } from '@/lib/estimate/public-url'
 import { logEstimateView } from '@/app/estimate/[token]/actions'
 import { EstimateView } from '@/components/share/estimate-view'
+import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
 import { getBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
@@ -135,6 +136,9 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
   // evaluates false today, identical to that route's actual behavior.
   const isWhiteLabel = headersList.get('x-white-label') === '1'
 
+  // The owner previewing their own link sees a banner and is not tracked.
+  const ownerPreview = await isOwnerVisit(data.estimate.company_id)
+
   const tenantBrandHex = data.estimate.company.brand_primary_color
   const tenantBrandTriplet =
     (tenantBrandHex ? hexToHslTriplet(tenantBrandHex) : null) ?? SYSTEM_COLORS.primaryHsl
@@ -153,6 +157,7 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
           alreadyResponded={alreadyResponded}
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}
+          ownerPreview={ownerPreview}
         />
       </main>
     </div>

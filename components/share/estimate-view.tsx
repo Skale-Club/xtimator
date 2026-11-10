@@ -98,6 +98,9 @@ interface EstimateViewProps {
   /** "Prepared by" name, resolved server-side with the PDF's rule
    *  (company_members.display_name of the creator, else company.owner_name). */
   preparedBy?: string | null
+  /** The owner (or a teammate) is previewing their own link: show a banner and
+   *  skip engagement tracking so the visit never reaches Insights. */
+  ownerPreview?: boolean
 }
 
 // Pre-launch audit fix: an anonymous client's browser has no prior
@@ -123,6 +126,7 @@ function EstimateViewInner({
   appName,
   whiteLabelMode = false,
   preparedBy = null,
+  ownerPreview = false,
 }: EstimateViewProps) {
   const { t } = useTranslation()
   const [responding, setResponding] = useState(false)
@@ -140,7 +144,7 @@ function EstimateViewInner({
   // whole page: the proposal bar, invoice cards, etc. live outside it), so
   // click coordinates and doc_h stay meaningful for a future heatmap overlay.
   const documentContainerRef = useRef<HTMLDivElement | null>(null)
-  useEstimateTracking({ token, containerRef: documentContainerRef })
+  useEstimateTracking({ token, containerRef: documentContainerRef, enabled: !ownerPreview })
 
   const { company, project } = estimate
   // Online approval exists ONLY when the company requires a digital signature.
@@ -389,6 +393,11 @@ function EstimateViewInner({
           : undefined
       }
     >
+      {ownerPreview && (
+        <div className="mx-auto mt-2 max-w-4xl rounded-md border border-border bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
+          {t("You're viewing your own estimate. This visit isn't counted in Insights.")}
+        </div>
+      )}
       <ProposalBar
         companyName={company.name}
         logoUrl={company.logo_url}

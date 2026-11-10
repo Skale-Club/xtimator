@@ -5,6 +5,7 @@ import { headers, cookies } from 'next/headers'
 import { getEstimateByShareToken, getShareLinkState, getShareLockCheck } from '@/lib/queries/share'
 import { logEstimateView } from './actions'
 import { EstimateView } from '@/components/share/estimate-view'
+import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
 import { getBranding } from '@/lib/platform-config'
 import { hexToHslTriplet } from '@/lib/color'
@@ -121,6 +122,9 @@ export default async function SharePage({ params }: SharePageProps) {
   // Phase 71-09: inject tenant brand color as --platform-primary so the
   // forced-light scope cascades it into --primary, which gradient-brand +
   // gradient-hero consume via hsl(var(--primary)). RESEARCH G6 + G7.
+  // The owner previewing their own link sees a banner and is not tracked.
+  const ownerPreview = await isOwnerVisit(data.estimate.company_id)
+
   const tenantBrandHex = data.estimate.company.brand_primary_color
   const tenantBrandTriplet =
     (tenantBrandHex ? hexToHslTriplet(tenantBrandHex) : null) ??
@@ -140,6 +144,7 @@ export default async function SharePage({ params }: SharePageProps) {
           alreadyResponded={alreadyResponded}
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}
+          ownerPreview={ownerPreview}
         />
       </main>
     </div>
