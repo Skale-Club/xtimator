@@ -21,6 +21,7 @@ import {
   type ItemMutationResult,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
+import { describeSendResult } from '@/lib/whatsapp/send-result-message'
 import {
   getNumberedEstimate,
   buildNumberedBreakdownLines,
@@ -35,16 +36,12 @@ export function makeConfirmationTools(
   const sendEstimate = tool(
     async () => {
       const result = await actionSend(session, companyId, supabase)
-      if (result.deliveredToClient) {
-        const who = result.clientName ?? result.clientPhone
-        return `Estimate sent to ${who} via WhatsApp. Share link: ${result.shareUrl}`
-      }
-      return `Estimate ready. Share link: ${result.shareUrl}\n(No client phone on file — share manually)`
+      return describeSendResult(result)
     },
     {
       name: 'send_estimate',
       description:
-        'Deliver the estimate to the client and mark it as sent. Use when the owner wants to send, deliver, submit, or go ahead with the estimate.',
+        'Deliver the estimate to the client by email and/or SMS (never WhatsApp) and mark it as sent. Use when the owner wants to send, deliver, submit, or go ahead with the estimate.',
       schema: z.object({}),
     }
   )

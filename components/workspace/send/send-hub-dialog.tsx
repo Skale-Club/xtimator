@@ -9,7 +9,7 @@
 //      native share sheet) whose intents open the user's own app with the
 //      message + link pre-filled,
 //   3. keeps the copy-ready formatted message visible + editable inline.
-// The old in-app dispatch routes (/send, /send-sms, /send-whatsapp) are no
+// The old in-app dispatch routes (/send, /send-sms) are no
 // longer called from here, and the Mark-as-sent button was dropped from the
 // hub (markAsSentAction still exists server-side for other callers).
 

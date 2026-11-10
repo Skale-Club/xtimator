@@ -219,3 +219,66 @@ describe('lib/notifications/whatsapp-registry — expectedVariableCount (TNT-03 
     expect(tpl?.expectedVariableCount).toBe(2)
   })
 })
+
+describe('lib/notifications/whatsapp-registry — static map by owner language', () => {
+  it('estimate.viewed and estimate.expired reuse owner_estimate_update (2 variables)', async () => {
+    const { getTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    for (const event of ['estimate.viewed', 'estimate.expired'] as const) {
+      const tpl = getTemplateForEvent(event)
+      expect(tpl?.templateName).toBe('owner_estimate_update')
+      expect(tpl?.languageCode).toBe('en_US')
+      expect(tpl?.expectedVariableCount).toBe(2)
+      expect(tpl?.variables({ title: 'T', body: 'B' })).toEqual(['T', 'B'])
+    }
+  })
+
+  it('every mapped event resolves a pt_BR and an es variant of the same template name', async () => {
+    const { getTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const mapped = [
+      'estimate.viewed',
+      'estimate.accepted',
+      'estimate.declined',
+      'estimate.expired',
+      'payment.received',
+      'quota.exhausted',
+      'trial.expiring_3d',
+    ] as const
+    for (const event of mapped) {
+      const en = getTemplateForEvent(event, 'en')
+      const pt = getTemplateForEvent(event, 'pt')
+      const es = getTemplateForEvent(event, 'es')
+      expect(pt?.languageCode).toBe('pt_BR')
+      expect(es?.languageCode).toBe('es')
+      expect(pt?.templateName).toBe(en?.templateName)
+      expect(es?.templateName).toBe(en?.templateName)
+    }
+  })
+
+  it('unmapped events still resolve to null in every language', async () => {
+    const { getTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    expect(getTemplateForEvent('ai_job.completed', 'pt')).toBeNull()
+  })
+
+  it('owner_update is a 1-variable summary template in the owner language', async () => {
+    const { getOwnerUpdateTemplate, summaryVariable } = await import('@/lib/notifications/whatsapp-registry')
+    const tpl = getOwnerUpdateTemplate({ title: 'Estimate viewed', body: 'Johnson opened it' }, 'pt')
+    expect(tpl).toEqual({
+      name: 'owner_update',
+      languageCode: 'pt_BR',
+      bodyVariables: ['Estimate viewed: Johnson opened it'],
+    })
+    expect(getOwnerUpdateTemplate({ title: 'a', body: 'b' }).languageCode).toBe('en_US')
+    expect(summaryVariable({ title: 'x'.repeat(300), body: '' }).length).toBeLessThanOrEqual(200)
+  })
+
+  it('getApprovedTemplateForEvent falls back to the language-specific static template', async () => {
+    const { getApprovedTemplateForEvent } = await import('@/lib/notifications/whatsapp-registry')
+    const { createServiceClient } = await import('@/lib/supabase/service')
+    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      makeTemplateClient({ data: null, error: null }),
+    )
+    const tpl = await getApprovedTemplateForEvent('estimate.viewed', 'es')
+    expect(tpl?.templateName).toBe('owner_estimate_update')
+    expect(tpl?.languageCode).toBe('es')
+  })
+})

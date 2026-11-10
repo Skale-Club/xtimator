@@ -616,7 +616,6 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ),
   ...guarded('app/api/estimates/[id]/refine/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/send-sms/route.ts', 'demoGuardResponse', ['POST']),
-  ...guarded('app/api/estimates/[id]/send-whatsapp/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/send/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/sign/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/generate-estimate/route.ts', 'demoGuardResponse', ['POST']),

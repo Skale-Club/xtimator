@@ -157,7 +157,6 @@ const CLIENT_FACING = [
   'lib/estimate/pagination',
   'lib/estimate/templates',
   'lib/whatsapp/formatter.ts',
-  'lib/whatsapp/send-estimate.ts',
   'lib/utils/estimate-template.ts',
   'app/estimate',
   // The MCP read tools return whole rows to an external agent.

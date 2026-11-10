@@ -47,45 +47,73 @@ function titleBodyVars(payload: { title: string; body: string }): string[] {
   return [payload.title, payload.body]
 }
 
-const REGISTRY: Partial<Record<EventType, NotificationTemplate>> = {
-  // Estimate lifecycle — owner wants to know the moment a client acts.
-  'estimate.accepted': {
-    templateName: 'owner_estimate_update',
-    languageCode: 'en_US',
-    variables: titleBodyVars,
-    expectedVariableCount: 2,
-  },
-  'estimate.declined': {
-    templateName: 'owner_estimate_update',
-    languageCode: 'en_US',
-    variables: titleBodyVars,
-    expectedVariableCount: 2,
-  },
-  // Billing — money + plan health.
-  'payment.received': {
-    templateName: 'owner_billing_alert',
-    languageCode: 'en_US',
-    variables: titleBodyVars,
-    expectedVariableCount: 2,
-  },
-  'quota.exhausted': {
-    templateName: 'owner_billing_alert',
-    languageCode: 'en_US',
-    variables: titleBodyVars,
-    expectedVariableCount: 2,
-  },
-  'trial.expiring_3d': {
-    templateName: 'owner_billing_alert',
-    languageCode: 'en_US',
-    variables: titleBodyVars,
-    expectedVariableCount: 2,
-  },
+/** Owner language -> Meta template language code. One template name carries all translations. */
+export type OwnerTemplateLanguage = 'en' | 'pt' | 'es'
+
+export const TEMPLATE_LANGUAGE_CODES: Record<OwnerTemplateLanguage, string> = {
+  en: 'en_US',
+  pt: 'pt_BR',
+  es: 'es',
+}
+
+export function templateLanguageCode(language: OwnerTemplateLanguage | null | undefined): string {
+  return TEMPLATE_LANGUAGE_CODES[language ?? 'en'] ?? 'en_US'
+}
+
+/** Template names (provisional until approved in Meta WhatsApp Manager). See docs/whatsapp/templates.md. */
+export const OWNER_ESTIMATE_UPDATE = 'owner_estimate_update'
+export const OWNER_BILLING_ALERT = 'owner_billing_alert'
+/** Generic re-open template: 1 variable (short summary). Fallback when a free-form owner message hits 131047. */
+export const OWNER_UPDATE = 'owner_update'
+
+/** Event -> template name. Variables are always [title, body]. */
+const EVENT_TEMPLATE_NAMES: Partial<Record<EventType, string>> = {
+  // Estimate lifecycle: owner wants to know the moment a client acts. viewed and
+  // expired reuse owner_estimate_update ({{1}} title, {{2}} body) because their
+  // copy already fits the two-variable shape.
+  'estimate.viewed': OWNER_ESTIMATE_UPDATE,
+  'estimate.accepted': OWNER_ESTIMATE_UPDATE,
+  'estimate.declined': OWNER_ESTIMATE_UPDATE,
+  'estimate.expired': OWNER_ESTIMATE_UPDATE,
+  // Billing: money + plan health.
+  'payment.received': OWNER_BILLING_ALERT,
+  'quota.exhausted': OWNER_BILLING_ALERT,
+  'trial.expiring_3d': OWNER_BILLING_ALERT,
 }
 
 export function getTemplateForEvent(
   eventType: EventType,
+  language: OwnerTemplateLanguage = 'en',
 ): NotificationTemplate | null {
-  return REGISTRY[eventType] ?? null
+  const templateName = EVENT_TEMPLATE_NAMES[eventType]
+  if (!templateName) return null
+  return {
+    templateName,
+    languageCode: templateLanguageCode(language),
+    variables: titleBodyVars,
+    expectedVariableCount: 2,
+  }
+}
+
+/** Collapse a title/body pair into the single short summary the owner_update template takes. */
+export function summaryVariable(payload: { title: string; body: string }, maxLen = 200): string {
+  const text = [payload.title, payload.body]
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(': ')
+  return text.length > maxLen ? `${text.slice(0, maxLen - 1)}…` : text
+}
+
+/** Generic re-open template (1 variable). Used when a free-form owner message hits 131047/131049. */
+export function getOwnerUpdateTemplate(
+  payload: { title: string; body: string },
+  language: OwnerTemplateLanguage = 'en',
+): { name: string; languageCode: string; bodyVariables: string[] } {
+  return {
+    name: OWNER_UPDATE,
+    languageCode: templateLanguageCode(language),
+    bodyVariables: [summaryVariable(payload)],
+  }
 }
 
 /**
@@ -102,22 +130,27 @@ export function getTemplateForEvent(
  */
 export async function getApprovedTemplateForEvent(
   eventType: EventType,
+  language: OwnerTemplateLanguage = 'en',
 ): Promise<NotificationTemplate | null> {
   try {
     // Lazy import to keep this module free of a service-client dependency for the
     // sync path (and to avoid pulling server-only deps into static analysis).
     const { createServiceClient } = await import('@/lib/supabase/service')
     const svc = createServiceClient()
-    if (!svc) return getTemplateForEvent(eventType)
+    if (!svc) return getTemplateForEvent(eventType, language)
 
-    const { data } = await svc
-      .from('whatsapp_notification_templates')
-      .select('template_name, language_code, variables_schema')
-      .eq('event_type', eventType)
-      .eq('status', 'approved')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    // Prefer the approved row in the owner's language; otherwise any approved row.
+    const base = () =>
+      svc
+        .from('whatsapp_notification_templates')
+        .select('template_name, language_code, variables_schema')
+        .eq('event_type', eventType)
+        .eq('status', 'approved')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+    const wanted = templateLanguageCode(language)
+    const localized = await base().eq('language_code', wanted).maybeSingle()
+    const { data } = localized.data ? localized : await base().maybeSingle()
 
     if (data?.template_name) {
       return {
@@ -134,5 +167,5 @@ export async function getApprovedTemplateForEvent(
   } catch (err) {
     console.warn('[whatsapp-registry] getApprovedTemplateForEvent fell back to static map:', err)
   }
-  return getTemplateForEvent(eventType)
+  return getTemplateForEvent(eventType, language)
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { getOwnerLastInboundAt, sendOwnerWhatsApp } from '@/lib/whatsapp/owner-send'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
+import { getOwnerUpdateTemplate } from '@/lib/notifications/whatsapp-registry'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { isAuthorizedCron } from '@/lib/auth/cron-auth'
 import { notifyOps } from '@/lib/observability/ops-alert'
@@ -47,14 +49,24 @@ export async function GET(request: Request) {
         const demoBlocked = await assertCompanyWritable(session.company_id as string)
         if (!demoBlocked) {
           try {
-            const wamid = await sendWhatsAppMessage(
-              session.phone_number as string,
-              {
-                type: 'text',
-                text: { body },
-              },
-              { companyId: session.company_id as string, purpose: 'bot_reply', billable: true }
-            )
+            // Business-initiated: free-form only inside the owner's 24h window,
+            // otherwise (or on Meta 131047) the generic owner_update template.
+            const companyId = session.company_id as string
+            const ownerPhone = session.phone_number as string
+            const language = await resolveOwnerLanguage(supabase, companyId)
+            const sent = await sendOwnerWhatsApp({
+              to: ownerPhone,
+              companyId,
+              text: body,
+              template: getOwnerUpdateTemplate(
+                { title: 'Estimate confirmation expired', body: 'Send a new audio, text or photo to create a fresh estimate.' },
+                language,
+              ),
+              meta: { companyId, purpose: 'owner_notification', billable: true },
+              lastInboundAt: await getOwnerLastInboundAt(supabase, companyId, ownerPhone),
+            })
+            if (!sent.ok) throw new Error(sent.message ?? sent.error)
+            const wamid = sent.wamid
             logOutboundMessage(supabase, {
               companyId: session.company_id as string,
               contactPhone: session.phone_number as string,

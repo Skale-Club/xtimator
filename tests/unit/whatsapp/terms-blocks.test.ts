@@ -139,24 +139,6 @@ describe('plain-text template breakdown', () => {
   })
 })
 
-// Both WhatsApp send paths must hand the formatter the same fields, or the same
-// estimate would read differently depending on how it was sent.
-import { readFileSync } from 'node:fs'
-
-describe('WhatsApp send paths select the same terms fields', () => {
-  const needed = ['payment_terms', 'timeline', 'warranty_terms', 'notes', 'presentation_settings']
-
-  for (const file of ['lib/whatsapp/send-estimate.ts', 'lib/whatsapp/confirm-actions.ts']) {
-    it(`${file} selects every field the formatter needs`, () => {
-      const source = readFileSync(file, 'utf8')
-      // The full-estimate select is the template literal that also loads the items.
-      const select = [...source.matchAll(/`([^`]*estimate_items[^`]*)`/g)].map((m) => m[1])[0] ?? ''
-      expect(select.length).toBeGreaterThan(0)
-      for (const field of needed) expect(select, `${file} must select ${field}`).toContain(field)
-    })
-  }
-})
-
 import { WHATSAPP_MAX_BODY_CHARS } from '@/lib/whatsapp/formatter'
 
 describe('WhatsApp body limit (4096 characters)', () => {

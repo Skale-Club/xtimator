@@ -3,7 +3,8 @@
  *
  * Triggers: events `notification/whatsapp.send` + `notification/sms.send` (from
  * lib/notifications/dispatch.ts). Branches on `data.channel`:
- *   - 'whatsapp' → sendWhatsAppTemplate(to, { name, languageCode, bodyVariables })
+ *   - 'whatsapp' → sendOwnerWhatsApp: free-form inside the owner's 24h window,
+ *                  the mapped template outside it (and once on Meta 131047/131049)
  *   - 'sms'      → sendSms(to, body)
  *
  * Best-effort posture (mirrors the email digest worker): a failing send is caught
@@ -17,7 +18,8 @@
  */
 import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
-import { sendWhatsAppTemplate } from '@/lib/whatsapp/client'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { getOwnerLastInboundAt, sendOwnerWhatsApp } from '@/lib/whatsapp/owner-send'
 import { sendSms } from '@/lib/sms/client'
 import {
   EVENT_NOTIFICATION_WHATSAPP_SEND,
@@ -40,18 +42,26 @@ export const notificationChannelSend = inngest.createFunction(
 
     if (data.channel === 'whatsapp') {
       try {
-        await step.run('send-whatsapp-template', async () => {
-          await sendWhatsAppTemplate(
-            data.to,
-            {
+        const sent = await step.run('send-whatsapp-owner', async () => {
+          const lastInboundAt = await getOwnerLastInboundAt(requireServiceClient(), data.companyId, data.to)
+          return sendOwnerWhatsApp({
+            to: data.to,
+            companyId: data.companyId,
+            text: data.title ? `${data.title}\n${data.body ?? ''}`.trim() : data.variables.join('\n'),
+            template: {
               name: data.templateName,
               languageCode: data.languageCode,
               bodyVariables: data.variables,
             },
-            { companyId: data.companyId, purpose: 'owner_notification', billable: true }
-          )
+            meta: { companyId: data.companyId, purpose: 'owner_notification', billable: true },
+            lastInboundAt,
+          })
         })
-        return { ok: true, channel: 'whatsapp' as const }
+        if (!sent.ok) {
+          console.warn('[notification-channel-send] whatsapp send failed:', sent.error, sent.message ?? '')
+          return { ok: false, channel: 'whatsapp' as const, error: 'send_failed' }
+        }
+        return { ok: true, channel: 'whatsapp' as const, mode: sent.mode }
       } catch (e) {
         console.warn(
           '[notification-channel-send] whatsapp send failed:',

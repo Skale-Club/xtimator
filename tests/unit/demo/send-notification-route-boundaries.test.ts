@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextResponse } from 'next/server'
@@ -81,13 +81,8 @@ describe('SAFE-01/SAFE-02: send and notification routes deny demo contexts befor
     expectGuardBefore(body, targetGuard, /sendCustomerMessage\s*\(/, 'SMS send target')
   })
 
-  it('denies a demo actor and a demo estimate target before WhatsApp dispatch or persistence work', () => {
-    const body = functionBody(routeSource('app/api/estimates/[id]/send-whatsapp/route.ts'), 'POST')
-
-    expectGuardBefore(body, ambientGuard, /deliverEstimateViaWhatsApp\s*\(/, 'WhatsApp send')
-    expectGuardBefore(body, targetGuard, /getWhatsAppAccountStatus\s*\(/, 'WhatsApp send target')
-    expectGuardBefore(body, targetGuard, /requireServiceClient\s*\(/, 'WhatsApp send target')
-    expectGuardBefore(body, targetGuard, /deliverEstimateViaWhatsApp\s*\(/, 'WhatsApp send target')
+  it('has no WhatsApp-to-client send route (clients are reached by SMS and email only)', () => {
+    expect(existsSync(resolve(process.cwd(), 'app/api/estimates/[id]/send-whatsapp/route.ts'))).toBe(false)
   })
 
   it('denies demo preference updates before notification persistence', () => {

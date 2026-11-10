@@ -11,18 +11,15 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendWhatsAppMessage: vi.fn(),
 }))
 
-vi.mock('@/lib/whatsapp/pdf-delivery', () => ({
-  generateAndUploadEstimatePDF: vi.fn(),
-}))
-
-vi.mock('@/lib/whatsapp/account-registry', () => ({
-  getWhatsAppAccountStatus: vi.fn(async (_companyId: string) => ({
-    configured: true,
-    active: true,
-    status: 'active',
-    deliveryFormat: 'share_link',
-  })),
-}))
+// The end client is reached through the platform (email/SMS), never WhatsApp.
+vi.mock('@/lib/notifications/deliver-estimate-to-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/notifications/deliver-estimate-to-client')>()
+  return {
+    ...actual,
+    getClientContacts: vi.fn(),
+    deliverEstimateToClient: vi.fn(),
+  }
+})
 
 // The real agent calls the OpenAI API — replace with a deterministic stub that
 // routes "send"/"cancel" through the real confirm-actions layer so the live
@@ -40,6 +37,7 @@ vi.mock('@/lib/whatsapp/agent', () => ({
     supabase: import('@supabase/supabase-js').SupabaseClient,
   ) => {
     const { actionSend, actionCancel } = await import('@/lib/whatsapp/confirm-actions')
+    const { describeSendResult } = await import('@/lib/whatsapp/send-result-message')
     const { sendWhatsAppMessage } = await import('@/lib/whatsapp/client')
     const { logOutboundMessage } = await import('@/lib/whatsapp/conversations')
 
@@ -53,10 +51,7 @@ vi.mock('@/lib/whatsapp/agent', () => ({
 
     if (verb === 'send') {
       const result = await actionSend(session as never, companyId, supabase)
-      const ownerMsg = result.deliveredToClient
-        ? `✅ *Estimate sent!*\n\nYour client received the estimate via WhatsApp.\n\nShare link: ${result.shareUrl}`
-        : `✅ *Estimate ready!*\n\nShare link: ${result.shareUrl}\n\n_(No client phone on file — send the link manually)_`
-      await reply(ownerMsg)
+      await reply(describeSendResult(result))
       return
     }
     if (verb === 'cancel') {
@@ -70,11 +65,11 @@ vi.mock('@/lib/whatsapp/agent', () => ({
 
 import { processConfirmationReply } from '@/lib/whatsapp/confirm'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
-import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
-import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
+import { deliverEstimateToClient, getClientContacts } from '@/lib/notifications/deliver-estimate-to-client'
 
 const mockSend = vi.mocked(sendWhatsAppMessage)
-const mockGeneratePdf = vi.mocked(generateAndUploadEstimatePDF)
+const mockContacts = vi.mocked(getClientContacts)
+const mockDeliver = vi.mocked(deliverEstimateToClient)
 
 const OWNER_PHONE = '+15551234567'
 const COMPANY_ID = 'company-1'
@@ -89,106 +84,50 @@ const BASE_SESSION = {
 const BASE_ESTIMATE = {
   id: 'estimate-1',
   share_token: 'tok-abc',
-  total: 2750,
-  subtotal: 2500,
-  tax_rate: 0.1,
-  tax_amount: 250,
-  summary: 'Kitchen reno',
-  payment_terms: 'Net 30',
-  timeline: '2 weeks',
-  sections: [
-    {
-      title: 'Labor',
-      subtotal: 2500,
-      items: [{ description: 'Demo', quantity: 1, unit: null, unit_price: 2500, total: 2500 }],
-    },
-  ],
+  public_slug_token: null,
+  language: 'en',
 }
 
-function makeSupabase({
-  clientPhone = null as string | null,
-  clientName = 'Johnson' as string | null,
-  deliveryFormat = 'share_link' as string,
-} = {}) {
+function makeSupabase({ clientId = 'client-1' as string | null } = {}) {
   const deleteSpy = vi.fn().mockReturnValue({
     eq: vi.fn().mockResolvedValue({ error: null }),
   })
-  // Chainable update builder: supports .eq().eq() and is directly awaitable
+  // Chainable update builder: supports .eq().eq().is() and is directly awaitable
   const makeUpdateChain = (): object => {
     const chain: Record<string, unknown> = {}
     chain['eq'] = vi.fn().mockReturnValue(chain)
+    chain['is'] = vi.fn().mockReturnValue(chain)
     chain['then'] = (res: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(res)
     chain['catch'] = (rej: (e: unknown) => unknown) => Promise.resolve({ error: null }).catch(rej)
     return chain
   }
   const updateSpy = vi.fn().mockImplementation(makeUpdateChain)
+  const single = (data: unknown) => ({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data, error: null }) }),
+    }),
+    update: updateSpy,
+    delete: deleteSpy,
+  })
 
   const fromMock = vi.fn().mockImplementation((table: string) => {
-    if (table === 'estimates') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: BASE_ESTIMATE, error: null }),
-          }),
-        }),
-        update: updateSpy,
-      }
-    }
-    if (table === 'projects') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'project-1', client_id: clientPhone ? 'client-1' : null },
-              error: null,
-            }),
-          }),
-        }),
-        update: updateSpy,
-        delete: deleteSpy,
-      }
-    }
-    if (table === 'clients') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { phone: clientPhone, name: clientName },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-    if (table === 'companies') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { name: 'Acme Builders' },
-              error: null,
-            }),
-          }),
-        }),
-      }
-    }
-    if (table === 'whatsapp_sessions') {
-      return { delete: deleteSpy }
-    }
+    if (table === 'estimates') return single(BASE_ESTIMATE)
+    if (table === 'projects') return single({ id: 'project-1', client_id: clientId, name: 'Kitchen' })
+    if (table === 'companies') return single({ name: 'Acme Builders', slug: 'acme' })
+    if (table === 'whatsapp_sessions') return { delete: deleteSpy }
     return { delete: deleteSpy, update: updateSpy }
   })
 
   return { client: { from: fromMock } as never, deleteSpy, updateSpy }
 }
 
+const ownerMessage = () =>
+  (mockSend.mock.calls[mockSend.mock.calls.length - 1]![1] as { text: { body: string } }).text.body
+
 describe('processConfirmationReply', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mockSend.mockResolvedValue(null)
-    mockGeneratePdf.mockResolvedValue({
-      signedUrl: 'https://supabase.co/storage/v1/sign/pdfs/co/wa-pdf/est-123.pdf?token=abc',
-      filename: 'Estimate-Johnson-2026-05-11.pdf',
-    })
     process.env.NEXT_PUBLIC_APP_URL = 'https://xtimator.com'
   })
 
@@ -198,84 +137,77 @@ describe('processConfirmationReply', () => {
       await processConfirmationReply('sure thing', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
       expect(mockSend).toHaveBeenCalledOnce()
-      const body = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(body).toMatch(/send/i)
-      expect(body).toMatch(/cancel/i)
-    })
-
-    it('handles "send" with different casing', async () => {
-      const { client } = makeSupabase()
-      await processConfirmationReply('SEND', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-      const body = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
-      expect(body).not.toMatch(/valid command/i)
-      expect(body).toMatch(/estimate/i)
+      expect(ownerMessage()).toMatch(/send/i)
+      expect(ownerMessage()).toMatch(/cancel/i)
     })
 
     it('handles "cancel" with trailing punctuation', async () => {
       const { client } = makeSupabase()
       await processConfirmationReply('cancel!', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-      const body = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(body).toMatch(/discarded/i)
+      expect(ownerMessage()).toMatch(/discarded/i)
     })
   })
 
-  describe('"send" — share_link format (default)', () => {
-    it('marks estimate+project as sent, deletes session, sends share link to owner', async () => {
-      const { client, deleteSpy, updateSpy } = makeSupabase({ clientPhone: null })
+  describe('"send" — client delivery by email/SMS only', () => {
+    it('with email and phone: delivers through the platform, marks sent, deletes session, never WhatsApps the client', async () => {
+      const { client, deleteSpy, updateSpy } = makeSupabase()
+      mockContacts.mockResolvedValue({ clientId: 'client-1', clientName: 'Johnson', email: 'j@example.com', phone: '+15559876543' })
+      mockDeliver.mockResolvedValue({ status: 'sent', sent: ['email', 'sms'], failed: [] })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
+      expect(mockDeliver).toHaveBeenCalledOnce()
+      const args = mockDeliver.mock.calls[0]![0]
+      expect(args.businessName).toBe('Acme Builders')
+      expect(args.shareUrl).toMatch(/xtimator\.com\/estimate\/.*tok-abc/)
+
+      // No WhatsApp to the client phone: the only WhatsApp message is the owner's.
+      expect(mockSend.mock.calls.some(([to]) => to === '+15559876543')).toBe(false)
+      expect(mockSend).toHaveBeenCalledOnce()
+      expect(mockSend.mock.calls[0]![0]).toBe(OWNER_PHONE)
+
+      // One short owner confirmation naming the channels.
+      expect(ownerMessage()).toMatch(/sent to Johnson by email and SMS/)
       expect(updateSpy).toHaveBeenCalledWith({ status: 'sent' })
       expect(deleteSpy).toHaveBeenCalled()
-
-      const ownerMsg = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
-      expect(ownerMsg).toMatch(/estimate ready/i)
-      expect(ownerMsg).toMatch(/xtimator\.com\/estimate\/tok-abc/)
     })
 
-    it('delivers share link to client phone and confirms to owner', async () => {
-      const { client, updateSpy } = makeSupabase({
-        clientPhone: '+15559876543',
-        clientName: 'Johnson',
-        deliveryFormat: 'share_link',
-      })
+    it('with only a phone: SMS only, confirmed to the owner', async () => {
+      const { client } = makeSupabase()
+      mockContacts.mockResolvedValue({ clientId: 'client-1', clientName: 'Johnson', email: null, phone: '+15559876543' })
+      mockDeliver.mockResolvedValue({ status: 'sent', sent: ['sms'], failed: [] })
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
-      const clientCall = mockSend.mock.calls.find(([to]) => to === '+15559876543')
-      expect(clientCall).toBeDefined()
-      const clientBody = (clientCall![1] as { text: { body: string } }).text.body
-      expect(clientBody).toMatch(/Johnson/)
-      expect(clientBody).toMatch(/xtimator\.com\/estimate\/tok-abc/)
-      // share_link should NOT contain section breakdowns
-      expect(clientBody).not.toMatch(/Labor/)
-
-      const ownerMsg = (mockSend.mock.calls[mockSend.mock.calls.length - 1][1] as { text: { body: string } }).text.body
-      expect(ownerMsg).toMatch(/sent/i)
-      expect(updateSpy).toHaveBeenCalledWith({ status: 'sent' })
+      expect(ownerMessage()).toMatch(/by SMS/)
+      expect(ownerMessage()).not.toMatch(/email/)
     })
-  })
 
-  describe('"send" — formatted_text delivery format', () => {
-    it('sends full formatted estimate to client instead of share link', async () => {
-      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
-        configured: true, active: true, status: 'active', deliveryFormat: 'formatted_text',
-      })
-      const { client } = makeSupabase({
-        clientPhone: '+15559876543',
-        clientName: 'Johnson',
-      })
+    it('with no phone and no email: nothing is sent or changed, owner is asked for a contact', async () => {
+      const { client, deleteSpy, updateSpy } = makeSupabase({ clientId: null })
+      mockContacts.mockResolvedValue(null)
 
       await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
-      const clientCall = mockSend.mock.calls.find(([to]) => to === '+15559876543')
-      expect(clientCall).toBeDefined()
-      const clientBody = (clientCall![1] as { text: { body: string } }).text.body
-      // Formatted text includes section title and total
-      expect(clientBody).toMatch(/Labor/)
-      expect(clientBody).toMatch(/Total/)
-      // Formatted text includes company name
-      expect(clientBody).toMatch(/Acme Builders/)
+      expect(mockDeliver).not.toHaveBeenCalled()
+      expect(updateSpy).not.toHaveBeenCalled()
+      expect(deleteSpy).not.toHaveBeenCalled()
+      expect(mockSend).toHaveBeenCalledOnce()
+      expect(ownerMessage()).toMatch(/no phone or email on file/i)
+      expect(ownerMessage()).toMatch(/set_client/)
+    })
+
+    it('when every channel is blocked: not marked sent, session kept, reason given', async () => {
+      const { client, deleteSpy, updateSpy } = makeSupabase()
+      mockContacts.mockResolvedValue({ clientId: 'client-1', clientName: 'Johnson', email: null, phone: '+15559876543' })
+      mockDeliver.mockResolvedValue({ status: 'not_delivered', failed: [{ channel: 'sms', ok: false, reason: 'no_consent' }] })
+
+      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
+
+      expect(ownerMessage()).toMatch(/Not sent to Johnson/)
+      expect(ownerMessage()).toMatch(/not agreed to SMS/)
+      expect(updateSpy).not.toHaveBeenCalledWith({ status: 'sent' })
+      expect(deleteSpy).not.toHaveBeenCalled()
     })
   })
 
@@ -286,8 +218,7 @@ describe('processConfirmationReply', () => {
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
       expect(deleteSpy).toHaveBeenCalled()
-      const body = (mockSend.mock.calls[0][1] as { text: { body: string } }).text.body
-      expect(body).toMatch(/discarded/i)
+      expect(ownerMessage()).toMatch(/discarded/i)
     })
 
     it('does not update estimate or project status on cancel', async () => {
@@ -296,50 +227,6 @@ describe('processConfirmationReply', () => {
       await processConfirmationReply('cancel', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
 
       expect(updateSpy).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('"send" — pdf_attachment format (WAPDF-03 + WAPDF-04)', () => {
-    it('sends document message to client when pdf_attachment format succeeds (WAPDF-03)', async () => {
-      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
-        configured: true, active: true, status: 'active', deliveryFormat: 'pdf_attachment',
-      })
-      const { client } = makeSupabase({ clientPhone: '+15559876543', clientName: 'Johnson' })
-
-      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-
-      const documentCall = mockSend.mock.calls.find(
-        ([, body]) => (body as { type: string }).type === 'document'
-      )
-      expect(documentCall).toBeDefined()
-      const doc = (documentCall![1] as { document: { link: string; filename: string; caption: string } }).document
-      expect(doc.link).toMatch(/https:\/\//)
-      expect(doc.filename).toMatch(/^Estimate-/)
-      expect(doc.caption).toMatch(/Acme Builders/)
-    })
-
-    it('falls back to share_link when PDF generation throws (WAPDF-04)', async () => {
-      vi.mocked(getWhatsAppAccountStatus).mockResolvedValueOnce({
-        configured: true, active: true, status: 'active', deliveryFormat: 'pdf_attachment',
-      })
-      mockGeneratePdf.mockRejectedValue(new Error('Bucket full'))
-      const { client } = makeSupabase({ clientPhone: '+15559876543' })
-
-      await processConfirmationReply('send', BASE_SESSION, COMPANY_ID, OWNER_PHONE, client)
-
-      // No document message should have been sent
-      const documentCall = mockSend.mock.calls.find(
-        ([, body]) => (body as { type: string }).type === 'document'
-      )
-      expect(documentCall).toBeUndefined()
-
-      // A text message with share link should have been sent to client
-      const textToClientCall = mockSend.mock.calls.find(
-        ([to, body]) => to === '+15559876543' && (body as { type: string }).type === 'text'
-      )
-      expect(textToClientCall).toBeDefined()
-      const body = (textToClientCall![1] as { text: { body: string } }).text.body
-      expect(body).toMatch(/xtimator\.com\/estimate\//)
     })
   })
 })

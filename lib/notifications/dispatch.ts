@@ -4,7 +4,8 @@ import { inngest } from '@/lib/inngest/client'
 import { type EventType, EVENT_CATEGORIES } from './event-types'
 import { resolveChannels } from './preferences'
 import { resolveOwnerPhone } from './owner-phone'
-import { getApprovedTemplateForEvent } from './whatsapp-registry'
+import { getApprovedTemplateForEvent, type OwnerTemplateLanguage } from './whatsapp-registry'
+import { resolveOwnerLanguage } from '@/lib/whatsapp/owner-language'
 import type { CopyContext } from './copy'
 import { resolveNotificationCopy } from './template-resolver'
 import { buildFullCopyContext } from './copy-context'
@@ -266,7 +267,15 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
             // the static registry map. Its own internal try/catch already degrades
             // to the static map, but keep this branch's try/catch so any unexpected
             // rejection still never breaks the in-app insert (Research Pitfall 4).
-            const tpl = await getApprovedTemplateForEvent(params.eventType)
+            // Owner language cascade (company default -> English-first): picks the
+            // pt_BR / es / en_US variant of the mapped template. Never throws.
+            let ownerLanguage: OwnerTemplateLanguage = 'en'
+            try {
+              ownerLanguage = await resolveOwnerLanguage(requireServiceClient(), params.companyId)
+            } catch {
+              /* keep 'en' */
+            }
+            const tpl = await getApprovedTemplateForEvent(params.eventType, ownerLanguage)
             if (tpl) {
               const variables = tpl.variables({
                 title: resolvedTitle,
@@ -299,6 +308,11 @@ export async function notify(params: NotifyParams): Promise<NotifyResult> {
                     templateName: tpl.templateName,
                     languageCode: tpl.languageCode,
                     variables,
+                    // Lets the sender go free-form inside the 24h window and fall
+                    // back to the generic owner_update template on 131047.
+                    title: resolvedTitle,
+                    body: resolvedBody,
+                    ownerLanguage,
                   },
                 })
               }

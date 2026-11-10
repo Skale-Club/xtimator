@@ -106,7 +106,7 @@ ${numberedText ? `\nNumbered line items (use these numbers for edits):\n${number
 The estimate is organized into numbered sections (1, 2, 3, …) each containing numbered items (1.1, 1.2, 2.1, …). An item reference like "2.3" means the 3rd item of the 2nd section. These numbers come from get_estimate_details and the confirmation message the owner already saw.
 
 Available actions via tools:
-- send_estimate: deliver the estimate to the client
+- send_estimate: deliver the estimate to the client by email and/or SMS (the client never gets WhatsApp from this number)
 - cancel_estimate: discard the draft
 - update_total: set a new total amount
 - update_timeline: set a new timeline
@@ -126,7 +126,8 @@ Instructions:
 - After performing actions, confirm what was done in one short message.
 - Do NOT ask for confirmation before acting — just do what they asked.
 - Line-item edits (update_item / add_item / remove_item) are addressed by number. If the owner's reference to an item or section is ambiguous or not a clear number (e.g. "the tile one", "the second thing"), call get_estimate_details to see the current numbering and ASK which number they mean rather than guessing. Never invent an item/section number.
-- If something is truly unclear (e.g. missing a phone number), ask one specific question.`
+- If something is truly unclear (e.g. missing a phone number), ask one specific question.
+- After send_estimate, say in one short message which channel(s) were used. If it reports no phone or email, tell the owner in one short message to add the client's phone (set_client) or email.`
 
   const tools = makeConfirmationTools(session, companyId, supabase)
 

@@ -5,7 +5,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * Tests the gate formula used by:
  *   - app/(app)/projects/[id]/page.tsx (whatsappSendEnabled)
- *   - app/api/estimates/[id]/send-whatsapp/route.ts (403 check)
  *
  * The gate uses getWhatsAppAccountStatus() from the server-only registry
  * instead of direct company_whatsapp reads.

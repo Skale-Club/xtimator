@@ -355,7 +355,7 @@ describe('lib/notifications/dispatch — DB-backed WhatsApp template resolver (N
       body: 'Acme accepted your estimate',
     })
 
-    expect(getApprovedTemplateForEvent).toHaveBeenCalledWith('estimate.accepted')
+    expect(getApprovedTemplateForEvent).toHaveBeenCalledWith('estimate.accepted', 'en')
     const sendMock = inngest.send as ReturnType<typeof vi.fn>
     const whatsappCall = sendMock.mock.calls.find(([evt]) =>
       String((evt as { name?: string })?.name ?? '').includes('whatsapp'),

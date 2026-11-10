@@ -218,6 +218,10 @@ export type NotificationChannelSendPayload =
       templateName: string
       languageCode: string
       variables: string[]
+      /** Source copy, used for a free-form send inside the 24h window and for the owner_update fallback. */
+      title?: string
+      body?: string
+      ownerLanguage?: 'en' | 'pt' | 'es'
     }
   | {
       channel: 'sms'

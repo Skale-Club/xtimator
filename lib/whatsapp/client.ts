@@ -14,6 +14,58 @@ import {
   type MessagingMeta,
 } from '@/lib/billing/messaging-events'
 
+/** Meta error 131047: free-form message outside the 24h customer-service window. */
+export const META_ERR_REENGAGEMENT_REQUIRED = 131047
+/** Meta error 131049: Meta declined a marketing-type message for this recipient. */
+export const META_ERR_MARKETING_LIMIT = 131049
+
+/** A failed Graph API send. `code` is Meta's error.code when the body carried one. */
+export class WhatsAppSendError extends Error {
+  readonly status: number
+  readonly code: number | null
+  constructor(status: number, code: number | null, body: string) {
+    super(`[WhatsApp] sendMessage failed ${status}: ${body}`)
+    this.name = 'WhatsAppSendError'
+    this.status = status
+    this.code = code
+  }
+}
+
+/** 131047: the 24h window is closed, only an approved template can be sent. */
+export class WhatsAppReengagementRequiredError extends WhatsAppSendError {
+  constructor(status: number, body: string) {
+    super(status, META_ERR_REENGAGEMENT_REQUIRED, body)
+    this.name = 'WhatsAppReengagementRequiredError'
+  }
+}
+
+/** 131049: Meta limited this (marketing-like) message to protect the recipient. */
+export class WhatsAppMarketingLimitError extends WhatsAppSendError {
+  constructor(status: number, body: string) {
+    super(status, META_ERR_MARKETING_LIMIT, body)
+    this.name = 'WhatsAppMarketingLimitError'
+  }
+}
+
+/** Build the right typed error from a non-2xx Graph API response. Pure. */
+export function buildWhatsAppSendError(status: number, body: string): WhatsAppSendError {
+  let code: number | null = null
+  try {
+    const parsed = JSON.parse(body) as { error?: { code?: unknown } }
+    if (typeof parsed?.error?.code === 'number') code = parsed.error.code
+  } catch {
+    /* non-JSON body: keep code null */
+  }
+  if (code === META_ERR_REENGAGEMENT_REQUIRED) return new WhatsAppReengagementRequiredError(status, body)
+  if (code === META_ERR_MARKETING_LIMIT) return new WhatsAppMarketingLimitError(status, body)
+  return new WhatsAppSendError(status, code, body)
+}
+
+/** True for the two errors that mean "send an approved template instead". */
+export function isTemplateRequiredError(err: unknown): boolean {
+  return err instanceof WhatsAppReengagementRequiredError || err instanceof WhatsAppMarketingLimitError
+}
+
 const GRAPH_BASE = `https://graph.facebook.com/${process.env.META_WHATSAPP_API_VERSION ?? 'v21.0'}`
 
 /**
@@ -51,7 +103,7 @@ export async function sendWhatsAppMessage(
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`[WhatsApp] sendMessage failed ${res.status}: ${text}`)
+    throw buildWhatsAppSendError(res.status, text)
   }
   const wamid = await readWamid(res)
   if (wamid) {

@@ -155,22 +155,15 @@ describe('D-04/D-05/D-07/D-15: tenant WhatsApp surface guard', () => {
     expect(violations).toEqual([])
   })
 
-  it('opaque estimate send route/form still exists (D-06)', () => {
+  it('estimate send hub still exists and the WhatsApp-to-client route is removed', () => {
     // The Send hub and WhatsApp send API must remain intact
     expect(existsSync(resolve(ROOT, 'app/(app)/projects/[id]/page.tsx'))).toBe(true)
-    // The send-whatsapp API route must exist (Phase 163 widened it; still lives
-    // at the same path).
-    const sendRoute = existsSync(
-      resolve(ROOT, 'app/api/estimates/[id]/send-whatsapp/route.ts'),
-    )
-    // If the route ever moves, the format-first Send hub still references
-    // whatsapp delivery.
-    if (!sendRoute) {
-      const hubFile = resolve(ROOT, 'components/workspace/send/send-hub-dialog.tsx')
-      if (existsSync(hubFile)) {
-        const src = readFileSync(hubFile, 'utf8')
-        expect(src).toMatch(/whatsapp/i)
-      }
+    // The bot's number never messages the end client: the send-whatsapp route is gone.
+    expect(existsSync(resolve(ROOT, 'app/api/estimates/[id]/send-whatsapp/route.ts'))).toBe(false)
+    // The hub still offers the owner's own WhatsApp (wa.me share intent).
+    const hubFile = resolve(ROOT, 'components/workspace/send/send-hub-dialog.tsx')
+    if (existsSync(hubFile)) {
+      expect(readFileSync(hubFile, 'utf8')).toMatch(/whatsapp/i)
     }
   })
 

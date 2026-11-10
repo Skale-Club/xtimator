@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 const SOURCES = [
   'app/api/estimates/[id]/send/route.ts',
   'app/api/estimates/[id]/send-sms/route.ts',
-  'lib/whatsapp/send-estimate.ts',
+  'lib/notifications/deliver-estimate-to-client.ts',
   'lib/actions/estimate.ts', // markAsSentAction gains an insert in Wave 3
 ]
 

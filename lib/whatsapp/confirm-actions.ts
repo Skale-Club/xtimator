@@ -5,16 +5,16 @@
  * the return value and crafts a single owner reply that may combine multiple actions.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { generateEstimateForProject } from '@/lib/services/generate-estimate'
-import { generateAndUploadEstimatePDF } from '@/lib/whatsapp/pdf-delivery'
-import { formatEstimateForWhatsApp, type FormatterEstimate } from '@/lib/whatsapp/formatter'
-import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
-import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import type { SendChannel } from '@/lib/notifications/customer-send-gate'
+import {
+  deliverEstimateToClient,
+  describeFailure,
+  getClientContacts,
+} from '@/lib/notifications/deliver-estimate-to-client'
 import { formatMoney, DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
-import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
 import {
   getNumberedEstimate,
@@ -76,14 +76,19 @@ export function formatEstimateContext(ctx: EstimateContext | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// send — delivers to client, marks sent, deletes session
+// send — delivers to the CLIENT by email and/or SMS (never WhatsApp), marks sent
 // ---------------------------------------------------------------------------
 
 export type SendResult = {
   shareUrl: string
+  /** 'sent' (at least one channel delivered), 'no_contact' (nothing on file, nothing changed) or 'not_delivered'. */
+  outcome: 'sent' | 'no_contact' | 'not_delivered'
   deliveredToClient: boolean
-  clientPhone: string | null
+  /** Channels actually used, e.g. ['email', 'sms']. */
+  channels: SendChannel[]
   clientName: string | null
+  /** Short owner-facing reasons for channels that were skipped or failed. */
+  problems: string[]
 }
 
 export async function actionSend(
@@ -96,31 +101,40 @@ export async function actionSend(
     throw new Error('No estimate to send.')
   }
 
-  const [estimateResult, projectResult, accountStatus, companyResult] = await Promise.all([
+  const [estimateResult, projectResult, companyResult] = await Promise.all([
     supabase
       .from('estimates')
-      .select(`
-        id, share_token, public_slug_token, total, subtotal, tax_rate, tax_amount,
-        deposit_type, deposit_value, balance_due, currency_code, summary,
-        payment_terms, timeline, warranty_terms, notes, presentation_settings, language,
-        sections:estimate_sections(
-          title, subtotal,
-          items:estimate_items(description, quantity, unit, unit_price, total)
-        )
-      `)
+      .select('id, share_token, public_slug_token, language')
       .eq('id', draft_estimate_id)
       .single(),
     supabase.from('projects').select('id, client_id, name').eq('id', draft_project_id).single(),
-    getWhatsAppAccountStatus(companyId),
     supabase.from('companies').select('name, slug').eq('id', companyId).single(),
   ])
 
   const estimate = estimateResult.data
   const project = projectResult.data
-  const deliveryFormat = (accountStatus.deliveryFormat ?? 'share_link') as 'share_link' | 'formatted_text' | 'pdf_attachment'
   const companyName = (companyResult.data?.name as string | null) ?? null
 
   if (!estimate || !project) throw new Error('Could not load estimate or project.')
+
+  const shareUrl = `${getCanonicalBaseUrl()}${buildEstimatePublicPath(
+    { slug: companyResult.data?.slug ?? null, name: companyName ?? 'Company' },
+    { id: draft_estimate_id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token, project_name: project.name }
+  )}`
+
+  // The client is reached by email and/or SMS only. No contact on file: change
+  // nothing (the draft and the session stay so the owner can add a contact and retry).
+  const contacts = await getClientContacts(supabase, companyId, (project.client_id as string | null) ?? null)
+  if (!contacts || (!contacts.email && !contacts.phone)) {
+    return {
+      shareUrl,
+      outcome: 'no_contact',
+      deliveredToClient: false,
+      channels: [],
+      clientName: contacts?.clientName ?? null,
+      problems: [],
+    }
+  }
 
   // Consolidate so the public share link works (SEED-028)
   await supabase
@@ -129,129 +143,48 @@ export async function actionSend(
     .eq('id', draft_estimate_id)
     .eq('workflow_status', 'draft')
 
-  const shareUrl = `${getCanonicalBaseUrl()}${buildEstimatePublicPath(
-    { slug: companyResult.data?.slug ?? null, name: companyName ?? 'Company' },
-    { id: draft_estimate_id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token, project_name: project.name }
-  )}`
+  const delivery = await deliverEstimateToClient({
+    svc: supabase,
+    companyId,
+    estimateId: draft_estimate_id,
+    projectId: draft_project_id,
+    businessName: companyName ?? 'Your contractor',
+    shareUrl,
+    contacts,
+  })
 
-  let clientPhone: string | null = null
-  let clientName: string | null = null
-  let clientPreferredLanguage: string | null = null
-
-  if (project.client_id) {
-    const { data: client } = await supabase
-      .from('clients')
-      .select('phone, name, preferred_language')
-      .eq('id', project.client_id)
-      .single()
-    clientPhone = (client?.phone as string | null) ?? null
-    clientName = (client?.name as string | null) ?? null
-    clientPreferredLanguage = (client?.preferred_language as string | null) ?? null
-  }
-
-  let deliveredToClient = false
-
-  if (clientPhone) {
-    if (deliveryFormat === 'pdf_attachment') {
-      let pdfDelivered = false
-      try {
-        const { signedUrl, filename } = await generateAndUploadEstimatePDF(
-          draft_estimate_id,
-          companyId,
-          supabase,
-          clientName,
-        )
-        await sendWhatsAppMessage(
-          clientPhone,
-          {
-            type: 'document',
-            document: {
-              link: signedUrl,
-              filename,
-              caption: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
-            },
-          },
-          { companyId, purpose: 'estimate_delivery', billable: true }
-        )
-        pdfDelivered = true
-        deliveredToClient = true
-        logOutboundMessage(supabase, {
-          companyId,
-          contactPhone: clientPhone,
-          contactName: clientName,
-          clientId: project.client_id as string | null,
-          body: companyName ? `Your estimate from ${companyName}` : 'Your estimate',
-          msgType: 'document',
-          status: 'sent',
-        }).catch(() => undefined)
-      } catch {
-        // fall through to share_link (WAPDF-04)
-      }
-      if (!pdfDelivered) {
-        const body = buildShareLinkMessage(shareUrl, clientName)
-        try {
-          await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } }, { companyId, purpose: 'estimate_delivery', billable: true })
-          deliveredToClient = true
-          logOutboundMessage(supabase, {
-            companyId,
-            contactPhone: clientPhone,
-            contactName: clientName,
-            clientId: project.client_id as string | null,
-            body,
-            msgType: 'text',
-            status: 'sent',
-          }).catch(() => undefined)
-        } catch {
-          /* non-fatal */
-        }
-      }
-    } else {
-      const body =
-        deliveryFormat === 'formatted_text'
-          ? formatEstimateForWhatsApp(
-              estimate as FormatterEstimate,
-              clientName,
-              companyName,
-              null,
-              null,
-              // SEED-056: honour the estimate's own block visibility, like send-estimate does.
-              (estimate as { presentation_settings?: PresentationSettings | null }).presentation_settings ?? null,
-            )
-          : buildShareLinkMessage(shareUrl, clientName)
-      try {
-        await sendWhatsAppMessage(clientPhone, { type: 'text', text: { body } }, { companyId, purpose: 'estimate_delivery', billable: true })
-        deliveredToClient = true
-        logOutboundMessage(supabase, {
-          companyId,
-          contactPhone: clientPhone,
-          contactName: clientName,
-          clientId: project.client_id as string | null,
-          body,
-          msgType: 'text',
-          status: 'sent',
-        }).catch(() => undefined)
-      } catch {
-        /* non-fatal */
-      }
+  if (delivery.status !== 'sent') {
+    return {
+      shareUrl,
+      outcome: 'not_delivered',
+      deliveredToClient: false,
+      channels: [],
+      clientName: contacts.clientName,
+      problems: delivery.status === 'not_delivered' ? delivery.failed.map(describeFailure) : [],
     }
   }
 
-  await Promise.all([
-    supabase.from('estimates').update({ status: 'sent' }).eq('id', draft_estimate_id),
-    supabase.from('projects').update({ status: 'sent' }).eq('id', draft_project_id),
-  ])
+  await supabase.from('estimates').update({ status: 'sent' }).eq('id', draft_estimate_id)
 
   // Phase 52 auto-learn: write client's preferred language if unknown
-  if (project.client_id && !clientPreferredLanguage && estimate.language) {
+  if (project.client_id && estimate.language) {
     await supabase
       .from('clients')
       .update({ preferred_language: estimate.language })
       .eq('id', project.client_id)
+      .is('preferred_language', null)
   }
 
   await supabase.from('whatsapp_sessions').delete().eq('id', session.id)
 
-  return { shareUrl, deliveredToClient, clientPhone, clientName }
+  return {
+    shareUrl,
+    outcome: 'sent',
+    deliveredToClient: true,
+    channels: delivery.sent,
+    clientName: contacts.clientName,
+    problems: delivery.failed.map(describeFailure),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -668,13 +601,4 @@ export async function actionRemoveItem(
     message: `Removed item ${sectionNumber}.${itemNumber} (${removedName}).`,
     breakdown,
   }
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function buildShareLinkMessage(shareUrl: string, clientName: string | null): string {
-  const greeting = clientName ? `Hi ${clientName},` : 'Hi,'
-  return `${greeting}\n\nPlease find your estimate here:\n${shareUrl}\n\nLet us know if you have any questions!`
 }

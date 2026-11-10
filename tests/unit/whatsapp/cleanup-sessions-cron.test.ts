@@ -4,15 +4,17 @@ vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn(),
 }))
 
-vi.mock('@/lib/whatsapp/client', () => ({
-  sendWhatsAppMessage: vi.fn(),
+// The expiry notice is business-initiated, so it goes through the 24h-window helper.
+vi.mock('@/lib/whatsapp/owner-send', () => ({
+  sendOwnerWhatsApp: vi.fn(),
+  getOwnerLastInboundAt: vi.fn(async () => null),
 }))
 
 import { GET } from '@/app/api/cron/cleanup-whatsapp-sessions/route'
 import { requireServiceClient } from '@/lib/supabase/service'
-import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
+import { sendOwnerWhatsApp } from '@/lib/whatsapp/owner-send'
 
-const mockSend = vi.mocked(sendWhatsAppMessage)
+const mockSend = vi.mocked(sendOwnerWhatsApp)
 const mockServiceClient = vi.mocked(requireServiceClient)
 
 function makeRequest(authHeader?: string) {
@@ -43,7 +45,7 @@ describe('GET /api/cron/cleanup-whatsapp-sessions', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     process.env.CRON_SECRET = 'test-secret'
-    mockSend.mockResolvedValue(null)
+    mockSend.mockResolvedValue({ ok: true, mode: 'template', wamid: null, fellBack: false })
   })
 
   it('returns 401 when authorization header is missing', async () => {
@@ -89,15 +91,17 @@ describe('GET /api/cron/cleanup-whatsapp-sessions', () => {
 
     // Expiry notification sent to each owner
     expect(mockSend).toHaveBeenCalledTimes(2)
-    const phones = mockSend.mock.calls.map(([to]) => to)
+    const phones = mockSend.mock.calls.map(([opts]) => opts.to)
     expect(phones).toContain('+15551111111')
     expect(phones).toContain('+15552222222')
+    // Outside the window the owner_update template is the fallback.
+    expect(mockSend.mock.calls[0]![0].template?.name).toBe('owner_update')
 
     // Sessions deleted
     expect(deleteSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('still deletes session even when sendWhatsAppMessage fails', async () => {
+  it('still deletes session even when the owner send fails', async () => {
     const expiredSessions = [
       { id: 'session-1', phone_number: '+15551111111', draft_project_id: null },
     ]
