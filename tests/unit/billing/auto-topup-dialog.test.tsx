@@ -44,6 +44,9 @@ describe('auto-topup-dialog (CREDITFIX-01 / CREDITUI-04)', () => {
 
   it('Test B (continued): dollar amount is still derived from priceCents', () => {
     const label = selectItemMatch?.[1] ?? ''
-    expect(label).toMatch(/formatUsd\(pack\.priceCents\)/)
+    // Currency-aware since Phase 1 (BRL behind a flag): price resolved per pack,
+    // then formatted from cents — never a hardcoded amount.
+    expect(label).toMatch(/resolvePackPrice\(pack,/)
+    expect(label).toMatch(/formatBillingAmount\(price\.priceCents,/)
   })
 })

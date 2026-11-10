@@ -27,7 +27,7 @@ const topUpButtonSrc = readFileSync(
 
 describe('topup-pack-labels-no-hardcode', () => {
   it('topup-pack-card.tsx derives the dollar amount from priceCents, never a hardcoded $10/$20/$50/$100 literal', () => {
-    expect(packCardSrc).toMatch(/formatUsd\(priceCents\)/)
+    expect(packCardSrc).toMatch(/formatBillingAmount\(priceCents,/)
     expect(packCardSrc).not.toMatch(/['"`]\$(10|20|50|100)['"`]/)
   })
 
