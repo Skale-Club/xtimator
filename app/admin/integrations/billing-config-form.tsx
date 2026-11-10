@@ -339,7 +339,7 @@ export function BillingConfigForm({ current }: Props) {
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Messaging rates (USD)')}</legend>
         <p className="text-xs text-muted-foreground max-w-3xl">
-          {t("Placeholders: check against Meta's official rate card and Twilio pricing. WhatsApp is billed per delivered message by market and category; SMS per segment by country; email per message.")}
+          {t("Checked 2026-11-10. WhatsApp is billed per delivered message by market and category (re-check against Meta's rate card); SMS per segment by country, including the carrier fee; email per message.")}
         </p>
         <textarea
           value={messagingRatesJson}
