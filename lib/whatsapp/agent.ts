@@ -12,6 +12,7 @@
  */
 import { createReactAgent } from '@langchain/langgraph/prebuilt'
 import { makeWhatsAppLLM } from '@/lib/whatsapp/llm'
+import type { WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages'
 import type { BaseMessage } from '@langchain/core/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -74,7 +75,9 @@ export async function runConfirmationAgent(
   session: Session,
   companyId: string,
   ownerPhone: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  // Phase 2a: per-inbound-message cost meter owned (and settled) by the intent router.
+  meter?: WhatsAppCostMeter
 ): Promise<void> {
   const [estimateCtx, numbered, history] = await Promise.all([
     session.draft_estimate_id
@@ -127,7 +130,7 @@ Instructions:
 
   const tools = makeConfirmationTools(session, companyId, supabase)
 
-  const model = await makeWhatsAppLLM(companyId)
+  const model = await makeWhatsAppLLM(companyId, 'chat', meter)
 
   const agent = createReactAgent({ llm: model, tools })
 

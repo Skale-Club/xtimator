@@ -90,9 +90,17 @@ export async function transcribeAudioBuffer(
  * path (UNIFY-01). Returns the AI description, or '' when ingestMultimodal
  * skipped the item (empty result).
  */
-export async function analyzeImageBuffer(buffer: Buffer, mimeType: string): Promise<string> {
+export async function analyzeImageBuffer(
+  buffer: Buffer,
+  mimeType: string,
+  // Phase 2a: callers that know the tenant pass { companyId, attemptId, projectId? } so the
+  // 'vision' cost row is attributed (and the company's BYOK key honored). The attemptId is
+  // what lib/whatsapp/credits.ts reads the cost back from to debit 'photo_batch'.
+  costContext?: CostContext
+): Promise<string> {
   const { photoDescriptions } = await ingestMultimodal({
     photos: [{ base64: buffer.toString('base64'), mimeType }],
+    ...(costContext ? { costContext } : {}),
   })
   return photoDescriptions[0] ?? ''
 }

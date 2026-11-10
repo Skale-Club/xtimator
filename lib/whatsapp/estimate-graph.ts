@@ -57,6 +57,13 @@ interface WhatsAppInitialState {
    * finalize TTL is replay-safe. Channel-neutral.
    */
   requestedAt?: number
+  /**
+   * Phase 2a: per-batch generation attempt id (a UUID derived from the event's
+   * batchKey, lib/whatsapp/credits.ts). Threaded into the core state so every
+   * 'estimate' / price-research cost row of this run is attributable and the job
+   * can debit it once. Absent = uncorrelated cost rows, exactly as before.
+   */
+  attemptId?: string
 }
 
 /**
@@ -103,6 +110,7 @@ export function buildEstimateGraph() {
           // HARD-07: thread the durable graph-entry timestamp into core state so
           // the finalize TTL is replay-safe (derived, not re-minted on replay).
           requestedAt: initial.requestedAt,
+          attemptId: initial.attemptId,
         },
         { callbacks: [handler] }
       )

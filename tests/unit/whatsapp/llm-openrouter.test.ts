@@ -41,6 +41,7 @@ vi.mock('@/lib/ai/openrouter-client', () => ({
 }))
 
 import { makeWhatsAppLLM } from '@/lib/whatsapp/llm'
+import { createCostMeter } from '@/lib/whatsapp/cost-meter'
 
 describe('makeWhatsAppLLM', () => {
   beforeEach(() => {
@@ -75,5 +76,23 @@ describe('makeWhatsAppLLM', () => {
   it('classifier uses the cheap OR_DEFAULTS.fast slug', async () => {
     await makeWhatsAppLLM('co-1', 'classify')
     expect(ctorArgs[0].model).toBe('anthropic/claude-haiku-5.5')
+  })
+  it('Phase 2a: no meter -> no custom fetch; a meter installs a metering fetch on the OpenRouter client', async () => {
+    await makeWhatsAppLLM('co-1')
+    expect(ctorArgs[0].configuration.fetch).toBeUndefined()
+
+    ctorArgs.length = 0
+    const meter = createCostMeter()
+    await makeWhatsAppLLM('co-1', 'chat', meter)
+    expect(typeof ctorArgs[0].configuration.fetch).toBe('function')
+    // Still OpenRouter, still the same key resolution (BYOK key is unaffected by metering).
+    expect(ctorArgs[0].configuration.baseURL).toBe('https://openrouter.ai/api/v1')
+  })
+
+  it('Phase 2a: BYOK key + meter -> the company key is used and the cost is still measured', async () => {
+    mockGetByok.mockResolvedValue('or-byok-key')
+    await makeWhatsAppLLM('co-byok', 'classify', createCostMeter())
+    expect(ctorArgs[0].apiKey).toBe('or-byok-key')
+    expect(typeof ctorArgs[0].configuration.fetch).toBe('function')
   })
 })

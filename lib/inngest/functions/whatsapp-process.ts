@@ -21,6 +21,7 @@ import {
   type WhatsAppIntentPayload,
 } from '@/lib/inngest/events'
 import { langfuseProcessor } from '@/instrumentation'
+import { debitWhatsAppEstimate, waGenerationAttemptId } from '@/lib/whatsapp/credits'
 
 // Last-line-of-defense reply. Sent when the estimate graph (or anything around it)
 // throws so the owner is NEVER left with read+typing and total silence — the
@@ -89,7 +90,14 @@ export const whatsAppProcessJob = inngest.createFunction(
     // the LangGraph StateGraph. Fan-out is parallel (one processMessage branch per
     // inbound message); graph handles the full supervisor → gather → generate →
     // vagueness-check → send flow.
-    return await step.run('orchestrate-estimate', async () => {
+    // Phase 2a: one generation attempt per batch. Derived from the (event-idempotent)
+    // batchKey, so an Inngest retry reuses the same attempt and the same
+    // `${attemptId}:debit:estimate` key.
+    const attemptId = waGenerationAttemptId(
+      data.batchKey || `${projectId}:${messages.map((m) => m.id).join(',')}`
+    )
+
+    const result = await step.run('orchestrate-estimate', async () => {
       const { buildEstimateGraph } = await import('@/lib/whatsapp/estimate-graph')
       const graph = buildEstimateGraph()
       const result = await graph.invoke({
@@ -104,6 +112,7 @@ export const whatsAppProcessJob = inngest.createFunction(
         estimateLanguage: undefined,
         isVague: undefined,
         requestedAt,
+        attemptId,
       })
 
       // OBS-03: flush Langfuse spans before step.run returns (Pitfall 3 — serverless suspension).
@@ -111,6 +120,21 @@ export const whatsAppProcessJob = inngest.createFunction(
 
       return result
     })
+
+    // Phase 2a: debit the generation exactly like the web job (generate-estimate.ts
+    // 'record-credit-debit'): its own retry-isolated step AFTER the work, never
+    // blocking the owner's reply (debitWhatsAppEstimate never throws). A run that
+    // ended in failure-as-state (no estimate produced) is not charged, as on the web
+    // where a failed job never reaches the debit step. Needs-details (vague) runs
+    // spent real money and are debited, like the web. BYOK is skipped centrally.
+    const failed = Boolean((result as { failure?: unknown } | null)?.failure)
+    if (!failed) {
+      await step.run('record-credit-debit', async () => {
+        await debitWhatsAppEstimate({ companyId, attemptId })
+      })
+    }
+
+    return result
   }
 )
 

@@ -19,12 +19,17 @@ import { ChatOpenAI } from '@langchain/openai'
 import { OPENROUTER_BASE, OR_DEFAULTS, getORKey } from '@/lib/ai/openrouter-client'
 import { getByokOpenRouterKey } from '@/lib/billing/byok'
 import { resolveChatModelId } from '@/lib/chat/provider'
+import { meteredFetch, type WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
 
 export type WhatsAppLLMKind = 'chat' | 'classify'
 
 export async function makeWhatsAppLLM(
   companyId: string,
-  kind: WhatsAppLLMKind = 'chat'
+  kind: WhatsAppLLMKind = 'chat',
+  // Phase 2a: when given, every completion's real OpenRouter cost is added to this
+  // per-inbound-message meter (settled once by lib/whatsapp/credits.ts). Absent =
+  // unmetered, exactly as before.
+  meter?: WhatsAppCostMeter
 ): Promise<ChatOpenAI> {
   const byokKey = await getByokOpenRouterKey(companyId)
   const apiKey = byokKey ?? (await getORKey())
@@ -40,6 +45,11 @@ export async function makeWhatsAppLLM(
         'HTTP-Referer': 'https://xtimator.com',
         'X-Title': 'Xtimator',
       },
+      ...(meter ? { fetch: meteredFetch(meter) } : {}),
     },
+    // OpenRouter only reliably returns `usage.cost` when asked (same as every
+    // other OpenRouter call in lib/ai); without it the meter stays null and the
+    // turn would go undebited.
+    ...(meter ? { modelKwargs: { usage: { include: true } } } : {}),
   })
 }

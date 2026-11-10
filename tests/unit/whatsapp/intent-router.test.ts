@@ -20,7 +20,27 @@ vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 const mockInvoke = vi.fn()
 // The WhatsApp LLM factory (OpenRouter-routed) is mocked so no key/DB lookup runs.
 vi.mock('@/lib/whatsapp/llm', () => ({
-  makeWhatsAppLLM: async () => ({ invoke: (...a: unknown[]) => mockInvoke(...a) }),
+  // Phase 2a: like the real factory, a supplied cost meter observes every completion
+  // (one call, $0.002) so the router's settle-once behaviour can be asserted.
+  makeWhatsAppLLM: async (
+    _companyId: string,
+    _kind?: string,
+    meter?: { calls: number; addCost(c: number): void }
+  ) => ({
+    invoke: (...a: unknown[]) => {
+      if (meter) {
+        meter.calls += 1
+        meter.addCost(0.002)
+      }
+      return mockInvoke(...a)
+    },
+  }),
+}))
+
+// Phase 2a: the per-message chat settle (cost row + debit) is asserted, not executed.
+const mockSettleChat = vi.fn()
+vi.mock('@/lib/whatsapp/credits', () => ({
+  settleWhatsAppChat: (...a: unknown[]) => mockSettleChat(...a),
 }))
 vi.mock('@langchain/openai', () => ({
   // Class-based so `new ChatOpenAI()` is constructible after vi.clearAllMocks.
@@ -126,6 +146,7 @@ beforeEach(() => {
   mockProcessConfirmationReply.mockResolvedValue(undefined)
   mockRunConfirmationAgent.mockResolvedValue(undefined)
   mockMakeQueryTools.mockReturnValue([{ name: 'list_recent_estimates' }])
+  mockSettleChat.mockResolvedValue(undefined)
 })
 
 describe('classifyAndRoute', () => {
@@ -284,5 +305,77 @@ describe('Task 2: Inngest job + event registration', () => {
   it('events.ts exports EVENT_WHATSAPP_INTENT', () => {
     const src = readFileSync(resolve(process.cwd(), 'lib/inngest/events.ts'), 'utf8')
     expect(src).toMatch(/EVENT_WHATSAPP_INTENT/)
+  })
+})
+
+describe('Phase 2a: classifyAndRoute settles the LLM spend of one inbound message once', () => {
+  const base = {
+    companyId: 'company-1',
+    ownerPhone: '+15551112222',
+    fromPhone: '15551112222',
+  }
+
+  it('QUERY: classifier + agent spend is settled once, keyed on the wamid, with the shared meter', async () => {
+    mockNormalize.mockResolvedValue({ text: 'status do projeto Y', kind: 'text', ok: true })
+    mockInvoke.mockResolvedValue(new AIMessage('QUERY'))
+    mockAgentInvoke.mockResolvedValue({ messages: [new AIMessage('It is done.')] })
+
+    await classifyAndRoute({
+      ...base,
+      message: TEXT('status do projeto Y'),
+      session: null,
+      supabase: makeSupabase(),
+    })
+
+    expect(mockSettleChat).toHaveBeenCalledTimes(1)
+    const arg = mockSettleChat.mock.calls[0][0] as {
+      companyId: string
+      wamid: string
+      meter: { calls: number; costUsd: number | null }
+    }
+    expect(arg.companyId).toBe('company-1')
+    expect(arg.wamid).toBe('wamid.text')
+    expect(arg.meter.calls).toBe(1)
+    expect(arg.meter.costUsd).toBeCloseTo(0.002)
+  })
+
+  it('EDIT: the same meter is handed to the edit agent so its spend joins the one chat debit', async () => {
+    mockNormalize.mockResolvedValue({ text: 'change the total to 2k', kind: 'text', ok: true })
+    mockInvoke.mockResolvedValue(new AIMessage('EDIT'))
+
+    await classifyAndRoute({
+      ...base,
+      message: TEXT('change the total to 2k'),
+      session: SESSION,
+      supabase: makeSupabase(),
+    })
+
+    expect(mockRunConfirmationAgent).toHaveBeenCalledTimes(1)
+    const agentMeter = mockRunConfirmationAgent.mock.calls[0][5]
+    const settled = (mockSettleChat.mock.calls[0][0] as { meter: unknown }).meter
+    expect(agentMeter).toBe(settled)
+    expect(mockSettleChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('a message that cannot be read still settles (an empty meter, which records nothing)', async () => {
+    mockNormalize.mockResolvedValue({ text: '', kind: 'audio', ok: false, reason: 'transcription_failed' })
+
+    await classifyAndRoute({ ...base, message: AUDIO, session: SESSION, supabase: makeSupabase() })
+
+    expect(mockSettleChat).toHaveBeenCalledTimes(1)
+    expect((mockSettleChat.mock.calls[0][0] as { meter: { calls: number } }).meter.calls).toBe(0)
+  })
+
+  it('settles even when a dispatch throws (spend already incurred is never lost)', async () => {
+    mockNormalize.mockResolvedValue({ text: 'new job', kind: 'text', ok: true })
+    mockInvoke.mockResolvedValue(new AIMessage('CREATE'))
+    mockProcessInboundMessages.mockRejectedValue(new Error('inngest down'))
+
+    await expect(
+      classifyAndRoute({ ...base, message: TEXT('new job'), session: null, supabase: makeSupabase() })
+    ).rejects.toThrow('inngest down')
+
+    expect(mockSettleChat).toHaveBeenCalledTimes(1)
+    expect((mockSettleChat.mock.calls[0][0] as { meter: { calls: number } }).meter.calls).toBe(1)
   })
 })

@@ -58,6 +58,7 @@ import {
   analyzeImageBuffer,
 } from '@/lib/whatsapp/media'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { debitWhatsAppMedia, waAttemptId } from '@/lib/whatsapp/credits'
 import { getServerStorage } from '@/lib/storage/server'
 import { formatMoney } from '@/lib/money/currency'
 import {
@@ -212,13 +213,22 @@ export function makeWhatsAppAdapter({
           // transcripts: [], so transcribeAudioBuffer surfaces '' and the
           // empty-transcript guard below preserves today's ok:false outcome.
           // companyId/projectId attribute the 'audio_minutes' cost row (previously none was recorded).
-          transcript = await transcribeAudioBuffer(audioBuffer, { mimeType, ext }, { companyId, projectId })
+          // Phase 2a: attemptId = the per-message id, so the debit below (and the intent
+          // router's read of the same voice note) share ONE `:debit:audio_minutes` key.
+          transcript = await transcribeAudioBuffer(
+            audioBuffer,
+            { mimeType, ext },
+            { companyId, projectId, attemptId: waAttemptId(msgId) }
+          )
         } catch (err) {
           console.error('[WhatsApp] audio transcription failed:', err)
           return { mediaResults: [{ msgId, ok: false, reason: 'transcription_failed' }] }
         }
 
         if (!transcript) return { mediaResults: [{ msgId, ok: false, reason: 'empty_transcript' }] }
+
+        // Phase 2a: debit the Whisper spend (never throws; BYOK/metering inside recordCreditDebit).
+        await debitWhatsAppMedia({ companyId, wamid: msgId, kind: 'audio' })
 
         const svc = requireServiceClient()
         await svc.from('recordings').insert({
@@ -261,7 +271,13 @@ export function makeWhatsAppAdapter({
         // path (UNIFY-01). Same fallback-wrapped primitive underneath; storage
         // upload + photos insert + mediaResults batch structure around it are
         // unchanged.
-        const aiDescription = await analyzeImageBuffer(imageBuffer, mimeType)
+        const aiDescription = await analyzeImageBuffer(imageBuffer, mimeType, {
+          companyId,
+          projectId,
+          attemptId: waAttemptId(msgId),
+        })
+        // Phase 2a: debit the vision spend as 'photo_batch' (per-message key, never throws).
+        if (aiDescription) await debitWhatsAppMedia({ companyId, wamid: msgId, kind: 'photo' })
 
         await svc.from('photos').insert({
           project_id: projectId,

@@ -41,6 +41,8 @@ import { makeManageTools } from '@/lib/whatsapp/manage-tools'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { splitReply } from '@/lib/whatsapp/split-reply'
+import { createCostMeter, type WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
+import { settleWhatsAppChat } from '@/lib/whatsapp/credits'
 import { askKnowledge } from '@/lib/agent-tools/ask-knowledge'
 import {
   resolvePendingByChannelRef,
@@ -165,7 +167,8 @@ async function classify(
   companyId: string,
   normalizedText: string,
   session: Session | null,
-  history: BaseMessage[]
+  history: BaseMessage[],
+  meter?: WhatsAppCostMeter
 ): Promise<Intent> {
   const sessionState = session?.state ?? 'none'
   const hasDraft = Boolean(session?.draft_estimate_id)
@@ -191,7 +194,7 @@ DISAMBIGUATION — QUERY vs KNOWLEDGE (decide carefully):
 
 Use the recent conversation history for context. Reply with ONLY one of: CONFIRM_OR_CANCEL, EDIT, CREATE, QUERY, KNOWLEDGE, MANAGE.`
 
-  const model = await makeWhatsAppLLM(companyId, 'classify')
+  const model = await makeWhatsAppLLM(companyId, 'classify', meter)
 
   const result = await model.invoke([
     new SystemMessage(systemPrompt),
@@ -228,7 +231,11 @@ function buildCompanyProfileBlock(
   return lines.length > 0 ? lines.join('\n') : '- (no additional profile on file)'
 }
 
-async function dispatchQuery(input: RouteInput, normalizedText: string): Promise<void> {
+async function dispatchQuery(
+  input: RouteInput,
+  normalizedText: string,
+  meter?: WhatsAppCostMeter
+): Promise<void> {
   // Fetch the resolved company's profile (scoped to the trusted companyId).
   // Reuse input.supabase — already a service client (same as query-tools). The
   // LLM's only grounding is this profile + tool results; missing row degrades
@@ -250,7 +257,7 @@ async function dispatchQuery(input: RouteInput, normalizedText: string): Promise
   const companyProfileBlock = buildCompanyProfileBlock(profile)
 
   const tools = makeQueryTools(input.companyId, input.supabase)
-  const llm = await makeWhatsAppLLM(input.companyId)
+  const llm = await makeWhatsAppLLM(input.companyId, 'chat', meter)
 
   // T-mk4-01/02: this prompt only REINFORCES single-tenant isolation in natural
   // language. The actual isolation control is the companyId closure inside
@@ -343,13 +350,14 @@ async function dispatchKnowledge(
 
 async function dispatchManage(
   input: RouteInput,
-  normalizedText: string
+  normalizedText: string,
+  meter?: WhatsAppCostMeter
 ): Promise<void> {
   // companyId is the trusted closure inside makeManageTools — no tool schema
   // accepts a tenant, so untrusted message text can never switch companies.
   // ownerPhone is likewise a trusted closure — the channelRef any draft binds to.
   const tools = makeManageTools(input.companyId, input.supabase, input.ownerPhone)
-  const llm = await makeWhatsAppLLM(input.companyId)
+  const llm = await makeWhatsAppLLM(input.companyId, 'chat', meter)
 
   const systemPrompt = `You are Xtimator AI, the Xtimator assistant helping a service-business owner over WhatsApp manage their own account. If asked who or what you are, introduce yourself as Xtimator AI.
 
@@ -426,6 +434,21 @@ async function dispatchPendingSendReply(
 // ---------------------------------------------------------------------------
 
 export async function classifyAndRoute(input: RouteInput): Promise<void> {
+  // Phase 2a: every LangChain call this message triggers (intent classifier + the
+  // edit / QUERY / MANAGE agent) reports its real cost into ONE meter, settled in
+  // `finally` as a single 'chat' cost row + debit keyed on the wamid. Messages that
+  // never reach an LLM (pending-send reply, text-less media) settle nothing. The
+  // welcome message, the unknown-sender reply and client (non-owner) messages
+  // never reach this function at all.
+  const meter = createCostMeter()
+  try {
+    await routeInbound(input, meter)
+  } finally {
+    await settleWhatsAppChat({ companyId: input.companyId, wamid: input.message.id, meter })
+  }
+}
+
+async function routeInbound(input: RouteInput, meter: WhatsAppCostMeter): Promise<void> {
   const { companyId, ownerPhone, fromPhone, message, session, supabase } = input
 
   // 1. Normalize (audio→transcript, photo→analysis, text→as-is). Never throws.
@@ -458,7 +481,7 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
   // primary estimating flow alive by falling back to the safe CREATE path.
   let intent: Intent
   try {
-    intent = await classify(companyId, normalized.text, session, history)
+    intent = await classify(companyId, normalized.text, session, history, meter)
   } catch (err) {
     console.error('[WhatsApp] intent classification failed; defaulting to CREATE', err)
     intent = 'CREATE'
@@ -473,7 +496,8 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
           session,
           companyId,
           ownerPhone,
-          supabase
+          supabase,
+          meter
         )
         return
       }
@@ -483,14 +507,14 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
     }
     case 'EDIT': {
       if (session) {
-        await runConfirmationAgent(normalized.text, session, companyId, ownerPhone, supabase)
+        await runConfirmationAgent(normalized.text, session, companyId, ownerPhone, supabase, meter)
         return
       }
       await dispatchCreate(input, message, session)
       return
     }
     case 'QUERY': {
-      await dispatchQuery(input, normalized.text)
+      await dispatchQuery(input, normalized.text, meter)
       return
     }
     case 'KNOWLEDGE': {
@@ -498,7 +522,7 @@ export async function classifyAndRoute(input: RouteInput): Promise<void> {
       return
     }
     case 'MANAGE': {
-      await dispatchManage(input, normalized.text)
+      await dispatchManage(input, normalized.text, meter)
       return
     }
     case 'CREATE':

@@ -22,7 +22,15 @@ vi.mock('@/lib/whatsapp/client', () => ({
   downloadWhatsAppMedia: (...args: unknown[]) => mockDownload(...args),
 }))
 
+// Phase 2a: the media debit is observed here; the ledger itself is covered by credits.test.ts.
+const mockDebitMedia = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/lib/whatsapp/credits', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/whatsapp/credits')>()
+  return { ...actual, debitWhatsAppMedia: (...a: unknown[]) => mockDebitMedia(...a) }
+})
+
 import { normalizeMessage } from '@/lib/whatsapp/normalize'
+import { waAttemptId } from '@/lib/whatsapp/credits'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 
 const supabase = {} as never
@@ -43,6 +51,7 @@ describe('normalizeMessage', () => {
     const result = await normalizeMessage(msg, 'company-1', supabase)
     expect(result).toEqual({ text: 'replace kitchen cabinets', kind: 'text', ok: true })
     expect(mockTranscribe).not.toHaveBeenCalled()
+    expect(mockDebitMedia).not.toHaveBeenCalled() // text costs nothing
   })
 
   it('Test 2: audio path calls transcribeAudioOR with m4a when mime is audio/mp4', async () => {
@@ -76,7 +85,44 @@ describe('normalizeMessage', () => {
       audio: { id: 'media-a2', mime_type: 'audio/ogg' },
     }
     await normalizeMessage(msg, 'company-1', supabase)
-    expect(mockTranscribe.mock.calls[0][3]).toEqual({ companyId: 'company-1' })
+    // Phase 2a: the cost context also carries the per-message attemptId (the debit read-back key).
+    expect(mockTranscribe.mock.calls[0][3]).toEqual({
+      companyId: 'company-1',
+      attemptId: waAttemptId('m2a'),
+    })
+  })
+
+  it('Test 2c: a read voice note is debited once as audio under its wamid', async () => {
+    mockDownload.mockResolvedValue(Buffer.from('audio-bytes'))
+    mockTranscribe.mockResolvedValue({ text: 'hello', servedBy: 'primary' })
+    const msg: WhatsAppMessage = {
+      id: 'wamid.voice',
+      from: '1555',
+      timestamp: '1',
+      type: 'audio',
+      audio: { id: 'media-v', mime_type: 'audio/ogg' },
+    }
+    await normalizeMessage(msg, 'company-1', supabase)
+    expect(mockDebitMedia).toHaveBeenCalledTimes(1)
+    expect(mockDebitMedia).toHaveBeenCalledWith({
+      companyId: 'company-1',
+      wamid: 'wamid.voice',
+      kind: 'audio',
+    })
+  })
+
+  it('Test 2d: an unreadable voice note (transcription failed) is not debited', async () => {
+    mockDownload.mockResolvedValue(Buffer.from('a'))
+    mockTranscribe.mockRejectedValue(new Error('whisper down'))
+    const msg: WhatsAppMessage = {
+      id: 'wamid.bad',
+      from: '1555',
+      timestamp: '1',
+      type: 'audio',
+      audio: { id: 'media-b', mime_type: 'audio/ogg' },
+    }
+    await normalizeMessage(msg, 'company-1', supabase)
+    expect(mockDebitMedia).not.toHaveBeenCalled()
   })
 
   it('Test 2b: audio with codec param strips the codec before splitting', async () => {
@@ -114,6 +160,13 @@ describe('normalizeMessage', () => {
     // caption is included in the normalized text
     expect(result.text).toContain('see this')
     expect(result.text).toContain('a broken tile floor')
+    // Phase 2a: vision is attributed to the tenant + per-message attempt and debited as a photo.
+    expect(mockAnalyzePhoto.mock.calls[0][3]).toEqual({
+      companyId: 'company-1',
+      attemptId: waAttemptId('m3'),
+    })
+    expect(mockDebitMedia).toHaveBeenCalledTimes(1)
+    expect(mockDebitMedia).toHaveBeenCalledWith({ companyId: 'company-1', wamid: 'm3', kind: 'photo' })
   })
 
   it('Test 4: download failure returns ok:false (no throw)', async () => {

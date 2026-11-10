@@ -13,6 +13,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runConfirmationAgent } from '@/lib/whatsapp/agent'
+import type { WhatsAppCostMeter } from '@/lib/whatsapp/cost-meter'
 
 export type Session = {
   id: string
@@ -29,7 +30,8 @@ export async function processConfirmationReply(
   session: Session,
   companyId: string,
   ownerPhone: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  meter?: WhatsAppCostMeter
 ): Promise<void> {
-  await runConfirmationAgent(textBody, session, companyId, ownerPhone, supabase)
+  await runConfirmationAgent(textBody, session, companyId, ownerPhone, supabase, meter)
 }

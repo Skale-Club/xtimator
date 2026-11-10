@@ -21,6 +21,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { downloadWhatsAppMedia } from '@/lib/whatsapp/client'
 import { deriveAudioFormat, deriveImageFormat } from '@/lib/whatsapp/media'
+import { debitWhatsAppMedia, waAttemptId } from '@/lib/whatsapp/credits'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
 import {
   normalizeInput,
@@ -57,14 +58,19 @@ export async function normalizeMessage(
       return { text: '', kind: 'audio', ok: false, reason: 'download_failed' }
     }
 
-    return normalizeInput(
+    // Phase 2a: attemptId = the per-message id, so the 'audio_minutes' cost row and the
+    // debit below key on the wamid (retry-stable; shared with the CREATE graph's read of
+    // the same message, which therefore cannot debit it a second time).
+    const result = await normalizeInput(
       {
         kind: 'audio',
         blob: new Blob([new Uint8Array(buf)], { type: mimeType }),
         ext,
       },
-      { companyId }
+      { companyId, attemptId: waAttemptId(msg.id) }
     )
+    if (result.ok) await debitWhatsAppMedia({ companyId, wamid: msg.id, kind: 'audio' })
+    return result
   }
 
   // --- image --------------------------------------------------------------
@@ -79,15 +85,17 @@ export async function normalizeMessage(
       return { text: '', kind: 'photo', ok: false, reason: 'download_failed' }
     }
 
-    return normalizeInput(
+    const result = await normalizeInput(
       {
         kind: 'photo',
         base64: buf.toString('base64'),
         mimeType,
         caption: msg.image.caption?.trim(),
       },
-      { companyId }
+      { companyId, attemptId: waAttemptId(msg.id) }
     )
+    if (result.ok) await debitWhatsAppMedia({ companyId, wamid: msg.id, kind: 'photo' })
+    return result
   }
 
   // --- anything else (document/video/sticker/reaction/unknown) ------------

@@ -106,6 +106,19 @@ describe('analyzeImageBuffer', () => {
     expect(desc).toBe('a broken tile floor')
   })
 
+  it('threads the tenant costContext to the vision primitive so the cost row is attributed (Phase 2a)', async () => {
+    mockAnalyzePhoto.mockResolvedValue('a description')
+    const ctx = { companyId: 'company-1', projectId: 'project-1', attemptId: 'attempt-1' }
+    await analyzeImageBuffer(Buffer.from('a'), 'image/jpeg', ctx)
+    expect(mockAnalyzePhoto.mock.calls[0][3]).toEqual(ctx)
+  })
+
+  it('without a costContext the vision call is unattributed, exactly as before', async () => {
+    mockAnalyzePhoto.mockResolvedValue('a description')
+    await analyzeImageBuffer(Buffer.from('a'), 'image/jpeg')
+    expect(mockAnalyzePhoto.mock.calls[0][3]).toBeUndefined()
+  })
+
   it('returns "" when ingestMultimodal skips the item (empty result)', async () => {
     mockAnalyzePhoto.mockResolvedValue('')
     const desc = await analyzeImageBuffer(Buffer.from('a'), 'image/jpeg')
