@@ -63,7 +63,7 @@ Xtimator is a SaaS web application for US-based service businesses (construction
 - Tailwind CSS v4 + shadcn/ui; react-hook-form + zod for forms
 - PostgreSQL with RLS on every table: production on Coolify, development on Supabase. Auth is moving from Supabase Auth to an owned phone-first identity (see the Journal's Current State); check the code before assuming either
 - Migrations live in `supabase/migrations/` and are applied by hand, never by the deploy, **on both databases** before the push that depends on them: `npm run db:migrate` (`scripts/apply-migrations.mjs` uses `MIGRATION_DATABASE_URL`, then `POSTGRES_URL_NON_POOLING`, then `DATABASE_URL` from `.env.local`, so by default the Supabase dev database), then again with `MIGRATION_DATABASE_URL` pointing at the Coolify production database
-- Inngest for background jobs (`app/api/inngest`), Resend (email), Twilio (SMS/WhatsApp), Stripe (billing)
+- Inngest for background jobs (`app/api/inngest`), Resend (email), Twilio (SMS only), Meta WhatsApp Cloud API (WhatsApp bot, `lib/whatsapp/`), Stripe (billing)
 - @react-pdf/renderer for PDFs (`components/pdf/`, `lib/pdf/`)
 - Tests: vitest (`tests/unit`, `tests/eval`), Playwright (`tests/e2e`); see `package.json` scripts for dev/test commands
 
