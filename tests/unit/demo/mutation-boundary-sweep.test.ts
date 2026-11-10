@@ -498,6 +498,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'saveTwilioFromPhone',
     'saveWhatsAppConfig',
     'saveWhatsAppSystemPrompt',
+    'saveWhatsAppWelcomeConfig',
     'saveXphereBaseUrl',
     'sendTelegramTestAlert',
     'setEscalationConfig',

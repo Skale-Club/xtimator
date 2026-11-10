@@ -793,6 +793,78 @@ export async function saveWhatsAppSystemPrompt(
   return { ok: true }
 }
 
+type WelcomeLanguageInput = { pt: string; en: string; es: string }
+
+/**
+ * Save the WhatsApp welcome settings into platform_integrations.meta_whatsapp
+ * metadata: the approved template name per language (sent right after onboarding)
+ * and the "how it works" video URL per language (post-reply welcome sequence).
+ * Empty string = not set. Merges with the other metadata keys.
+ */
+export async function saveWhatsAppWelcomeConfig(input: {
+  templateNames: WelcomeLanguageInput
+  videoUrls: WelcomeLanguageInput
+}): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const langs = ['pt', 'en', 'es'] as const
+  const templateNames: Record<string, string> = {}
+  const videoUrls: Record<string, string> = {}
+  for (const l of langs) {
+    const name = (input.templateNames?.[l] ?? '').trim()
+    if (name && !/^[a-z0-9_]{1,512}$/.test(name)) {
+      return { ok: false, message: `Template name (${l}) must be lowercase letters, digits and underscores.` }
+    }
+    templateNames[l] = name
+    const url = (input.videoUrls?.[l] ?? '').trim()
+    if (url && !/^https:\/\/\S+$/i.test(url)) {
+      return { ok: false, message: `Video URL (${l}) must start with https://.` }
+    }
+    videoUrls[l] = url
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'meta_whatsapp',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: {
+        ...((existing?.metadata as object) ?? {}),
+        welcome_template_names: templateNames,
+        welcome_video_urls: videoUrls,
+      },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'meta_whatsapp_welcome',
+    metadata: {
+      templates: langs.filter((l) => templateNames[l]),
+      videos: langs.filter((l) => videoUrls[l]),
+    },
+  })
+
+  return { ok: true }
+}
+
 /**
  * Persist the platform-wide default OpenRouter model id. OpenRouter is the
  * single AI engine (see lib/ai/index.ts), so this is THE model used for any

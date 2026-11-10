@@ -21,7 +21,7 @@ export interface WhatsAppMessage {
   id: string        // wamid.*
   from: string      // E.164 without leading +
   timestamp: string
-  type: 'text' | 'audio' | 'image' | 'document' | 'video' | 'sticker' | 'reaction' | 'unknown'
+  type: 'text' | 'audio' | 'image' | 'document' | 'video' | 'sticker' | 'reaction' | 'button' | 'unknown'
   text?: { body: string }
   audio?: { id: string; mime_type: string }
   image?: { id: string; mime_type: string; caption?: string }

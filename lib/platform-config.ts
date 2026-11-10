@@ -664,6 +664,52 @@ export async function getWhatsAppSystemPrompt(): Promise<string | null> {
   return fromDb && fromDb.trim() ? fromDb.trim() : null
 }
 
+/** Per-language (pt/en/es) string setting; null = not set. */
+export type WhatsAppWelcomeLanguageMap = { pt: string | null; en: string | null; es: string | null }
+
+export type WhatsAppWelcomeConfig = {
+  /** Approved Meta template (reply call to action) sent right after onboarding. */
+  templateNames: WhatsAppWelcomeLanguageMap
+  /** "How it works" video URLs used in the post-reply welcome sequence. */
+  videoUrls: WhatsAppWelcomeLanguageMap
+}
+
+function languageMapFrom(raw: unknown): WhatsAppWelcomeLanguageMap {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const pick = (k: string): string | null => {
+    const v = src[k]
+    return typeof v === 'string' && v.trim() ? v.trim() : null
+  }
+  return { pt: pick('pt'), en: pick('en'), es: pick('es') }
+}
+
+/**
+ * Admin-configured welcome settings, stored in platform_integrations.meta_whatsapp
+ * metadata (`welcome_template_names`, `welcome_video_urls`, each { pt, en, es }).
+ * Empty = not set. Read fresh (low-frequency admin setting, no cache).
+ */
+export async function getWhatsAppWelcomeConfig(): Promise<WhatsAppWelcomeConfig> {
+  const empty: WhatsAppWelcomeConfig = {
+    templateNames: { pt: null, en: null, es: null },
+    videoUrls: { pt: null, en: null, es: null },
+  }
+  const svc = createServiceClient()
+  if (!svc) return empty
+  const { data } = await svc
+    .from('platform_integrations')
+    .select('metadata')
+    .eq('provider', 'meta_whatsapp')
+    .maybeSingle()
+  const meta = (data?.metadata ?? {}) as {
+    welcome_template_names?: unknown
+    welcome_video_urls?: unknown
+  }
+  return {
+    templateNames: languageMapFrom(meta.welcome_template_names),
+    videoUrls: languageMapFrom(meta.welcome_video_urls),
+  }
+}
+
 export type AcademyNotionConfig = {
   token: string
   coursesDbId: string

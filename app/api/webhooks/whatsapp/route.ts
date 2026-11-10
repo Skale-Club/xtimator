@@ -379,7 +379,11 @@ async function processOneMessage(
       try {
         // Localized internally (companies.default_estimate_language cascade),
         // resolved only after the atomic claim is won — no select on repeat messages.
-        await welcomeOnFirstContact(supabase, resolvedCompanyId, `+${fromPhone}`)
+        const welcomed = await welcomeOnFirstContact(supabase, resolvedCompanyId, `+${fromPhone}`)
+        // Phase 3b: the tap on the welcome template's quick-reply button carries no
+        // job content; the welcome sequence IS the reply, so it is not sent to the agent.
+        // (A button tap after the sequence was already sent still flows to processing.)
+        if (welcomed && message.type === 'button') return
       } catch (welcomeErr) {
         console.error('[WhatsApp] first-contact welcome error:', welcomeErr)
       }

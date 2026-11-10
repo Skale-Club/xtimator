@@ -10,6 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+// Phase 3b: welcome template is best-effort and tested in whatsapp/welcome-template.test.ts.
+vi.mock('@/lib/whatsapp/welcome-template', () => ({
+  sendWelcomeTemplate: vi.fn().mockResolvedValue('sent'),
+  sendWelcomeTemplateForUser: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('@/lib/whatsapp/sender-link', () => ({
   ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
   syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),
@@ -84,6 +89,7 @@ import { notifyOps } from '@/lib/observability/ops-alert'
 // still apply; the graph now loads once during collection, off the test clock.
 import { createOrUpdateCompany } from '@/lib/actions/company'
 import { ensureWhatsAppSenderForUser } from '@/lib/whatsapp/sender-link'
+import { sendWelcomeTemplate } from '@/lib/whatsapp/welcome-template'
 
 // Capture what was passed to insert() or update()
 let capturedInsertRow: Record<string, unknown> | null = null
@@ -205,6 +211,8 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     await createOrUpdateCompany({ companyName: 'New Co' }).catch(() => {/* redirect throws */})
 
     expect(ensureWhatsAppSenderForUser).toHaveBeenCalledWith('user-abc', 'company-new')
+    // Phase 3b: the welcome template is attempted right after the link (new company only).
+    expect(sendWelcomeTemplate).toHaveBeenCalledWith('user-abc', 'company-new')
   })
 
   it('Phase 3a: re-submitting onboarding (existing company) also ensures the WhatsApp link', async () => {
@@ -213,6 +221,7 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
 
     expect(ensureWhatsAppSenderForUser).toHaveBeenCalledWith('user-abc', 'company-xyz')
+    expect(sendWelcomeTemplate).not.toHaveBeenCalled()
   })
 
   it('SEED-056: blank payment / warranty terms stay NULL (nothing is seeded)', async () => {

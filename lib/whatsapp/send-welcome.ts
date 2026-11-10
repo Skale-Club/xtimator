@@ -1,64 +1,73 @@
 /**
- * WhatsApp welcome message, sent on the owner's FIRST inbound contact.
+ * WhatsApp welcome sequence, sent after the owner's FIRST inbound message
+ * (the reply to the welcome template, or any first message).
  *
  * We only welcome people who actually have WhatsApp — proven by the fact that
- * they messaged us. The copy is localized (pt/en/es) via buildWelcomeMessage,
- * mirroring buildAskDetailsMessage: the language is resolved from the owner's
+ * they messaged us. The sequence is three SHORT messages sent one after another
+ * (content kept, delivery chopped; never a wall of text):
+ *   1. what the assistant does
+ *   2. the how-it-works video (a line + URL), or a text placeholder until the
+ *      owner has recorded the video for that language (assets never block)
+ *   3. a call to send the first job now
+ * The copy is localized (pt/en/es). The language is resolved from the owner's
  * company default (companies.default_estimate_language) through the shared
- * per-estimate language cascade, with an English-first fallback.
+ * per-estimate language cascade, with an English-first fallback. The video URL
+ * comes from the admin config (platform_integrations.meta_whatsapp metadata).
  *
  * whatsapp_company_configs is RLS deny-all — always call with a service-role client.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { getWhatsAppWelcomeConfig } from '@/lib/platform-config'
 import {
   resolveEstimateLanguage,
   type EstimateLanguage,
 } from '@/lib/i18n/resolve-estimate-language'
 
-const WELCOME_MESSAGES: Record<EstimateLanguage, string> = {
-  en: [
-    '👋 Welcome to Xtimator!',
-    '',
-    "You're all set to create professional estimates right here on WhatsApp. Just send a voice message or text describing the job — I'll generate a ready-to-send estimate in seconds. You can also ask me questions any time.",
-    '',
-    'Prefer to use the app instead? You can create and manage everything there too — whatever works best for you on the job site.',
-    '',
-    '💡 *Tip:* If you write in Portuguese, I\'ll reply in Portuguese. 🇧🇷',
-    '',
-    'Go ahead — describe your first job!',
-  ].join('\n'),
-  pt: [
-    '👋 Bem-vindo ao Xtimator!',
-    '',
-    'Tudo pronto para você criar orçamentos profissionais aqui mesmo no WhatsApp. É só enviar um áudio ou uma mensagem de texto descrevendo o serviço — eu gero um orçamento pronto para enviar em segundos. Você também pode me fazer perguntas a qualquer momento.',
-    '',
-    'Prefere usar o app? Você também pode criar e gerenciar tudo por lá — o que funcionar melhor para você no local de trabalho.',
-    '',
-    '💡 *Dica:* Escreva no idioma que preferir e eu respondo no mesmo idioma. 🇧🇷',
-    '',
-    'Pode começar — descreva o seu primeiro serviço!',
-  ].join('\n'),
-  es: [
-    '👋 ¡Bienvenido a Xtimator!',
-    '',
-    'Ya está todo listo para crear presupuestos profesionales aquí mismo en WhatsApp. Solo envíe un audio o un mensaje de texto describiendo el trabajo — generaré un presupuesto listo para enviar en segundos. También puede hacerme preguntas en cualquier momento.',
-    '',
-    '¿Prefiere usar la app? También puede crear y gestionar todo desde ahí — lo que mejor le funcione en la obra.',
-    '',
-    '💡 *Consejo:* Escriba en el idioma que prefiera y le responderé en el mismo idioma. 🌎',
-    '',
-    '¡Adelante — describa su primer trabajo!',
-  ].join('\n'),
+type WelcomeCopy = {
+  intro: string
+  videoWithUrl: (url: string) => string
+  videoPlaceholder: string
+  tryNow: string
+}
+
+const WELCOME_COPY: Record<EstimateLanguage, WelcomeCopy> = {
+  pt: {
+    intro:
+      'Olá! Eu sou o assistente da Xtimator. Por aqui você cria orçamentos profissionais mandando áudio e fotos do serviço.',
+    videoWithUrl: (url) => `Veja em 1 minuto como funciona: ${url}`,
+    videoPlaceholder: 'Em breve vou te mandar um vídeo curto mostrando como funciona.',
+    tryNow: 'Quer testar agora? Me manda um áudio contando o serviço que você precisa orçar.',
+  },
+  en: {
+    intro:
+      "Hi! I'm the Xtimator assistant. Right here you can create professional estimates by sending audio and photos of the job.",
+    videoWithUrl: (url) => `See how it works in 1 minute: ${url}`,
+    videoPlaceholder: "I'll send you a short video soon showing how it works.",
+    tryNow: 'Want to try it now? Send me a voice message describing the job you need to estimate.',
+  },
+  es: {
+    intro:
+      '¡Hola! Soy el asistente de Xtimator. Aquí puede crear presupuestos profesionales enviando audio y fotos del trabajo.',
+    videoWithUrl: (url) => `Vea cómo funciona en 1 minuto: ${url}`,
+    videoPlaceholder: 'Pronto le enviaré un video corto mostrando cómo funciona.',
+    tryNow: '¿Quiere probar ahora? Envíeme un audio contando el trabajo que necesita presupuestar.',
+  },
 }
 
 /**
- * Localized first-contact welcome copy. Mirrors buildAskDetailsMessage:
- * unknown languages fall back to English (English-first principle).
+ * The welcome sequence as an ordered list of short messages. Unknown languages
+ * fall back to English (English-first principle). `videoUrl` empty/null → the
+ * text placeholder replaces the video message.
  */
-export function buildWelcomeMessage(language: EstimateLanguage): string {
-  return WELCOME_MESSAGES[language] ?? WELCOME_MESSAGES.en
+export function buildWelcomeSequence(
+  language: EstimateLanguage,
+  videoUrl?: string | null
+): string[] {
+  const copy = WELCOME_COPY[language] ?? WELCOME_COPY.en
+  const url = videoUrl?.trim()
+  return [copy.intro, url ? copy.videoWithUrl(url) : copy.videoPlaceholder, copy.tryNow]
 }
 
 /**
@@ -85,13 +94,13 @@ export async function claimWhatsAppWelcome(
 }
 
 /**
- * Resolve the welcome language from the company default
+ * Resolve the owner-facing language from the company default
  * (companies.default_estimate_language) through the shared per-estimate
- * language cascade. Called only after the claim is won, so the select runs
- * once per company ever — never on the webhook hot path. Best-effort: any
+ * language cascade. Called only after a claim is won, so the select runs once
+ * per company per flow — never on the webhook hot path. Best-effort: any
  * failure falls back to English.
  */
-async function resolveWelcomeLanguage(
+export async function resolveWelcomeLanguage(
   serviceClient: SupabaseClient,
   companyId: string
 ): Promise<EstimateLanguage> {
@@ -111,8 +120,9 @@ async function resolveWelcomeLanguage(
 
 /**
  * First-contact convenience: claim the welcome slot, and if won, resolve the
- * company's language and send the message. Best-effort — never throws.
- * Returns true if the welcome was sent.
+ * company's language and send the three-message sequence in order (each awaited
+ * before the next). Best-effort — never throws. Returns true if the whole
+ * sequence was sent; if a message fails, the rest are not sent.
  */
 export async function welcomeOnFirstContact(
   serviceClient: SupabaseClient,
@@ -122,21 +132,28 @@ export async function welcomeOnFirstContact(
   const claimed = await claimWhatsAppWelcome(serviceClient, companyId)
   if (!claimed) return false
   try {
-    const body = buildWelcomeMessage(await resolveWelcomeLanguage(serviceClient, companyId))
-    // Onboarding welcome: a PLATFORM cost, recorded but never billed to the customer.
-    const wamid = await sendWhatsAppMessage(
-      toPhone,
-      { type: 'text', text: { body } },
-      { companyId, purpose: 'welcome', billable: false }
-    )
-    logOutboundMessage(serviceClient, {
-      companyId,
-      contactPhone: toPhone,
-      body,
-      msgType: 'text',
-      waMessageId: wamid,
-      status: 'sent',
-    }).catch(() => undefined)
+    const language = await resolveWelcomeLanguage(serviceClient, companyId)
+    const videoUrl = await getWhatsAppWelcomeConfig()
+      .then((c) => c.videoUrls[language])
+      .catch(() => null)
+    const messages = buildWelcomeSequence(language, videoUrl)
+
+    for (const body of messages) {
+      // Onboarding welcome: a PLATFORM cost, recorded but never billed to the customer.
+      const wamid = await sendWhatsAppMessage(
+        toPhone,
+        { type: 'text', text: { body } },
+        { companyId, purpose: 'welcome', billable: false }
+      )
+      logOutboundMessage(serviceClient, {
+        companyId,
+        contactPhone: toPhone,
+        body,
+        msgType: 'text',
+        waMessageId: wamid,
+        status: 'sent',
+      }).catch(() => undefined)
+    }
     return true
   } catch (err) {
     console.warn('[WhatsApp] welcome message send failed', err)

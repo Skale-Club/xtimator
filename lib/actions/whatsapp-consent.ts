@@ -3,6 +3,7 @@
 import { getAuthClaims } from '@/lib/queries/auth'
 import { assertWritable } from '@/lib/demo/guard'
 import { getUserPreferences, upsertUserPreferences } from '@/lib/notifications/preferences'
+import { sendWelcomeTemplateForUser } from '@/lib/whatsapp/welcome-template'
 
 /**
  * Records the owner's explicit WhatsApp consent (notification_preferences.whatsapp_opt_in_at).
@@ -22,5 +23,9 @@ export async function recordWhatsAppOptIn(): Promise<{ ok: true } | { error: str
   if (existing?.whatsapp_opt_in_at) return { ok: true }
 
   await upsertUserPreferences(userId, { whatsapp_opt_in_at: new Date().toISOString() })
+
+  // Consent may arrive after the company and its sender link exist: send the welcome
+  // template now (idempotent, best-effort, never throws).
+  await sendWelcomeTemplateForUser(userId)
   return { ok: true }
 }

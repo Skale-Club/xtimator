@@ -10,6 +10,11 @@
 // without it, a stub that happened to return a relative string would pass.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 // Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+// Phase 3b: welcome template is best-effort and tested in whatsapp/welcome-template.test.ts.
+vi.mock('@/lib/whatsapp/welcome-template', () => ({
+  sendWelcomeTemplate: vi.fn().mockResolvedValue('sent'),
+  sendWelcomeTemplateForUser: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('@/lib/whatsapp/sender-link', () => ({
   ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
   syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),

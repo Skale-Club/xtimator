@@ -17,6 +17,7 @@ import { TwilioFromPhoneForm } from './twilio-from-phone-form'
 import { TwilioCustomerMessagingForm } from './twilio-customer-messaging-form'
 import { WhatsAppConfigForm } from './whatsapp-config-form'
 import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
+import { WhatsAppWelcomeForm } from './whatsapp-welcome-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
 import { TelegramChatIdForm } from './telegram-chat-id-form'
@@ -65,6 +66,8 @@ export async function IntegrationCategoryContent({
   let waWabaId = ''
   let waDisplayNumber = ''
   let waSystemPrompt = ''
+  let waWelcomeTemplates = { pt: '', en: '', es: '' }
+  let waWelcomeVideos = { pt: '', en: '', es: '' }
   if (category.showWhatsAppConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -78,11 +81,23 @@ export async function IntegrationCategoryContent({
         waba_id?: string
         display_number?: string
         system_prompt?: string
+        welcome_template_names?: Partial<Record<'pt' | 'en' | 'es', string>>
+        welcome_video_urls?: Partial<Record<'pt' | 'en' | 'es', string>>
       } | null) ?? {}
     waPhoneNumberId = meta.phone_number_id ?? ''
     waWabaId = meta.waba_id ?? ''
     waDisplayNumber = meta.display_number ?? ''
     waSystemPrompt = meta.system_prompt ?? ''
+    waWelcomeTemplates = {
+      pt: meta.welcome_template_names?.pt ?? '',
+      en: meta.welcome_template_names?.en ?? '',
+      es: meta.welcome_template_names?.es ?? '',
+    }
+    waWelcomeVideos = {
+      pt: meta.welcome_video_urls?.pt ?? '',
+      en: meta.welcome_video_urls?.en ?? '',
+      es: meta.welcome_video_urls?.es ?? '',
+    }
   }
 
   let xphereBaseUrl = ''
@@ -228,6 +243,10 @@ export async function IntegrationCategoryContent({
             currentDisplayNumber={waDisplayNumber}
           />
           <WhatsAppSystemPromptForm currentPrompt={waSystemPrompt} />
+          <WhatsAppWelcomeForm
+            currentTemplateNames={waWelcomeTemplates}
+            currentVideoUrls={waWelcomeVideos}
+          />
         </>
       )}
 

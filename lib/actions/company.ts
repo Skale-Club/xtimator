@@ -26,6 +26,7 @@ import { grantSignupCredits } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { ensureWhatsAppSenderForUser } from '@/lib/whatsapp/sender-link'
+import { sendWelcomeTemplate } from '@/lib/whatsapp/welcome-template'
 import { WHATSAPP_WELCOME_COOKIE } from '@/lib/whatsapp/welcome-card'
 import { assertWritable } from '@/lib/demo/guard'
 import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
@@ -527,6 +528,10 @@ export async function createOrUpdateCompany(
     // Phase 3a: the verified signup phone becomes the company's WhatsApp owner
     // sender right away (no admin step). Best-effort; never throws or blocks setup.
     await ensureWhatsAppSenderForUser(claims.sub as string, newCompany.id)
+
+    // Phase 3b: first WhatsApp message = approved welcome template (needs consent +
+    // linked sender + configured approved template; idempotent, best-effort, never throws).
+    await sendWelcomeTemplate(claims.sub as string, newCompany.id)
 
     // One-shot marker so the dashboard shows the "Open in WhatsApp" card once.
     cookieStore2.set(WHATSAPP_WELCOME_COOKIE, '1', {

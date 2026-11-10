@@ -58,6 +58,7 @@ import {
   analyzeImageBuffer,
 } from '@/lib/whatsapp/media'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
+import { sendFirstEstimateTips } from '@/lib/whatsapp/first-estimate-tips'
 import { debitWhatsAppMedia, waAttemptId } from '@/lib/whatsapp/credits'
 import { getServerStorage } from '@/lib/storage/server'
 import { formatMoney } from '@/lib/money/currency'
@@ -490,6 +491,11 @@ export function makeWhatsAppAdapter({
         waMessageId: wamid,
         status: 'sent',
       }).catch(() => undefined)
+
+      // Phase 3b: after the company's FIRST ready estimate on WhatsApp, two short tips
+      // (once, atomically claimed). We are inside the 24h window: the owner just acted.
+      // Best-effort and never throws, so the confirmation above is never affected.
+      await sendFirstEstimateTips(requireServiceClient(), companyId, ownerPhone, language)
 
       return {}
     },

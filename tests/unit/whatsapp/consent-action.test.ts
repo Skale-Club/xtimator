@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   denied: null as { error: string } | null,
   prefs: null as { whatsapp_opt_in_at?: string | null } | null,
   upsert: vi.fn().mockResolvedValue(undefined),
+  welcome: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: async () => mocks.claims }))
@@ -14,6 +15,10 @@ vi.mock('@/lib/notifications/preferences', () => ({
   upsertUserPreferences: mocks.upsert,
 }))
 
+vi.mock('@/lib/whatsapp/welcome-template', () => ({
+  sendWelcomeTemplateForUser: mocks.welcome,
+}))
+
 import { recordWhatsAppOptIn } from '@/lib/actions/whatsapp-consent'
 
 beforeEach(() => {
@@ -21,12 +26,14 @@ beforeEach(() => {
   mocks.denied = null
   mocks.prefs = null
   mocks.upsert.mockClear()
+  mocks.welcome.mockClear()
 })
 
 describe('recordWhatsAppOptIn', () => {
   it('stores whatsapp_opt_in_at for the signed-in user', async () => {
     await expect(recordWhatsAppOptIn()).resolves.toEqual({ ok: true })
     expect(mocks.upsert).toHaveBeenCalledWith('user-1', { whatsapp_opt_in_at: expect.any(String) })
+    expect(mocks.welcome).toHaveBeenCalledWith('user-1')
   })
 
   it('keeps an existing consent timestamp (idempotent)', async () => {
