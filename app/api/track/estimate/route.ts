@@ -5,6 +5,7 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { rateLimit } from '@/lib/ratelimit'
 import { assertCompanyWritable } from '@/lib/demo/guard'
+import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 
 /**
  * Phase 193-01 — public engagement-tracking beacon collector.
@@ -73,6 +74,10 @@ export async function POST(request: Request) {
     // the resolved estimate (mirrors logEstimateView's demo-write posture).
     const denied = await assertCompanyWritable(estimate.company_id)
     if (denied) return noContent()
+
+    // The owner previewing their own link is not engagement. Same silent 204 as
+    // every other early return so this can't be probed as an oracle.
+    if (await isOwnerVisit(estimate.company_id)) return noContent()
 
     const rows = body.events.map((event: TrackEvent) => ({
       estimate_id: estimate.id,

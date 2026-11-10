@@ -772,6 +772,7 @@ function DocumentSectionBlock({
           section.items.map((item) => (
             <div
               key={item.id}
+              data-track-section={`item:${item.id}`}
               className="px-4 py-2.5 mx-6 my-1.5 rounded-lg border border-border/40"
             >
               <p className="text-base font-medium">{item.description}</p>
@@ -855,6 +856,7 @@ function DocumentSectionBlock({
               {section.items.map((item, idx) => (
                 <tr
                   key={item.id}
+                  data-track-section={`item:${item.id}`}
                   className={`border-b border-border/50 last:border-0 ${idx % 2 === 1 ? 'bg-muted/40' : ''}`}
                 >
                   <td className="py-2 pl-6 sm:pl-10 pr-2 text-base">{item.description}</td>

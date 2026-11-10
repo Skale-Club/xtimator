@@ -27,6 +27,7 @@ import { TwaProvider } from '@/components/pwa/twa-provider'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { SWRegister } from '@/components/pwa/sw-register'
 import { SessionKeepalive } from '@/components/pwa/session-keepalive'
+import { OwnerDeviceMarker } from '@/components/workspace/owner-device-marker'
 import { InstallPrompt } from '@/components/pwa/install-prompt'
 import { OfflineIndicator } from '@/components/pwa/offline-indicator'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
@@ -291,6 +292,7 @@ export default async function AppShellLayout({
           <InstallPrompt />
           <SWRegister />
           <SessionKeepalive />
+          <OwnerDeviceMarker />
         </div>
       </BreadcrumbProvider>
     </TourProvider>

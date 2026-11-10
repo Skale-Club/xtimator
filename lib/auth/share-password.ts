@@ -100,7 +100,7 @@ export function sha256Hex(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex')
 }
 
-function loadSigningKey(): Buffer {
+export function loadSigningKey(): Buffer {
   const raw = process.env.APP_ENCRYPTION_KEY
   if (!raw) throw new Error('APP_ENCRYPTION_KEY is not set')
   const key = Buffer.from(raw, 'base64')

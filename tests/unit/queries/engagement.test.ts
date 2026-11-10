@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  aggregateDwellByDevice,
   aggregateEngagementSummary,
   aggregateViewTimeline,
   type EngagementEventRow,
@@ -38,6 +39,8 @@ describe('aggregateEngagementSummary', () => {
       uniqueVisitors: 0,
       lastViewedAt: null,
       totalSeconds: 0,
+      sectionDwell: {},
+      itemDwell: {},
       maxScrollPct: 0,
       sectionsViewed: 0,
       clicks: 0,
@@ -123,6 +126,46 @@ describe('aggregateViewTimeline', () => {
       seconds: 20,
       device: 'mobile',
       maxScrollPct: 55,
+      topSection: null,
     })
+  })
+
+  it('reports the section with the most dwell as the visit topSection (items ignored)', () => {
+    const rows: EngagementEventRow[] = [
+      row({ session_id: 's1', event_type: 'view', created_at: '2026-08-20T10:00:00Z' }),
+      row({ session_id: 's1', event_type: 'section_view', target: 'header', metadata: { dwell_seconds: 4 } }),
+      row({ session_id: 's1', event_type: 'section_view', target: 'totals', metadata: { dwell_seconds: 9 } }),
+      row({ session_id: 's1', event_type: 'section_view', target: 'totals', metadata: { dwell_seconds: 3 } }),
+      row({ session_id: 's1', event_type: 'section_view', target: 'item:abc', metadata: { dwell_seconds: 99 } }),
+    ]
+    expect(aggregateViewTimeline(rows)[0].topSection).toBe('totals')
+  })
+})
+
+describe('dwell aggregation', () => {
+  const rows: EngagementEventRow[] = [
+    row({ session_id: 's1', event_type: 'view', device: 'mobile' }),
+    row({ session_id: 's1', event_type: 'section_view', target: 'totals' }), // first-seen, no dwell
+    row({ session_id: 's1', event_type: 'section_view', target: 'totals', metadata: { dwell_seconds: 10 } }),
+    row({ session_id: 's1', event_type: 'section_view', target: 'totals', metadata: { dwell_seconds: 5 } }),
+    row({ session_id: 's1', event_type: 'section_view', target: 'item:i1', metadata: { dwell_seconds: 7 } }),
+    row({ session_id: 's2', event_type: 'view', device: 'desktop' }),
+    row({ session_id: 's2', event_type: 'section_view', target: 'totals', metadata: { dwell_seconds: 20 } }),
+    row({ session_id: 's2', event_type: 'section_view', target: 'item:i1', metadata: { dwell_seconds: 3 } }),
+    row({ session_id: 's2', event_type: 'section_view', target: 'terms', metadata: { dwell_seconds: 'bad' } }),
+  ]
+
+  it('sums sectionDwell and itemDwell, and ignores item targets in sectionsViewed', () => {
+    const summary = aggregateEngagementSummary(rows)
+    expect(summary.sectionDwell).toEqual({ totals: 35 })
+    expect(summary.itemDwell).toEqual({ i1: 10 })
+    // totals + terms; item:i1 does not count as a section
+    expect(summary.sectionsViewed).toBe(2)
+  })
+
+  it('splits dwell by the session device taken from its view event', () => {
+    expect(aggregateDwellByDevice(rows, 'mobile')).toEqual({ sectionDwell: { totals: 15 }, itemDwell: { i1: 7 } })
+    expect(aggregateDwellByDevice(rows, 'desktop')).toEqual({ sectionDwell: { totals: 20 }, itemDwell: { i1: 3 } })
+    expect(aggregateDwellByDevice(rows, 'all').sectionDwell).toEqual({ totals: 35 })
   })
 })

@@ -278,6 +278,7 @@ export function EstimateDocumentModern({
               {section.items.map((item) => (
                 <div
                   key={item.id}
+                  data-track-section={`item:${item.id}`}
                   className="px-8 py-3 mx-6 my-1.5 rounded-lg border border-[#e4e4e7]"
                 >
                   <p className="text-base font-medium">{item.description}</p>
@@ -308,7 +309,7 @@ export function EstimateDocumentModern({
                 </thead>
                 <tbody>
                   {section.items.map((item) => (
-                    <tr key={item.id} className="border-b last:border-0" style={{ borderBottomColor: '#e4e4e7' }}>
+                    <tr key={item.id} data-track-section={`item:${item.id}`} className="border-b last:border-0" style={{ borderBottomColor: '#e4e4e7' }}>
                       <td className="py-3 px-0 text-base">{item.description}</td>
                       <td className="py-3 px-2 text-base text-center tabular-nums">{item.quantity}</td>
                       <td className="py-3 px-2 text-base text-center">{item.unit ?? ''}</td>
