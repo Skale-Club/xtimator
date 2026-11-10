@@ -77,7 +77,15 @@ beforeEach(() => {
 
   mockEq.mockReturnValue({ maybeSingle: mockMaybeSingle })
   mockSelect.mockReturnValue({ eq: mockEq })
-  mockMaybeSingle.mockResolvedValue({ data: { stripe_customer_id: 'cus_1' } })
+  mockMaybeSingle.mockResolvedValue({
+    data: {
+      stripe_customer_id: 'cus_1',
+      tier: 'pro',
+      stripe_subscription_status: 'active',
+      stripe_subscription_id: 'sub_1',
+      currency_code: 'USD',
+    },
+  })
 
   mockUpdateEq.mockResolvedValue({ error: null })
   mockUpdate.mockReturnValue({ eq: mockUpdateEq })
@@ -101,6 +109,48 @@ describe('saveAutoTopupSettings (CREDITUI-07)', () => {
 
     expect(result).toHaveProperty('error')
     expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['free tier', { tier: 'free', stripe_subscription_status: null, stripe_subscription_id: null }],
+    ['pro with a canceled subscription', { tier: 'pro', stripe_subscription_status: 'canceled', stripe_subscription_id: 'sub_1' }],
+  ])('rejects a non-subscriber server-side and never touches Stripe or the row: %s', async (_label, extra) => {
+    mockMaybeSingle.mockResolvedValue({ data: { stripe_customer_id: 'cus_1', currency_code: 'USD', ...extra } })
+
+    const result = await saveAutoTopupSettings({ thresholdCredits: 200, packIndex: 1 })
+
+    expect(result).toHaveProperty('error')
+    expect((result as { error: string }).error).toMatch(/paid plan/i)
+    expect(mockCustomersRetrieve).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it.each(['pro', 'business'])('allows an active %s subscriber', async (tier) => {
+    mockMaybeSingle.mockResolvedValue({
+      data: { stripe_customer_id: 'cus_1', tier, stripe_subscription_status: 'active', stripe_subscription_id: 'sub_1', currency_code: 'USD' },
+    })
+
+    const result = await saveAutoTopupSettings({ thresholdCredits: 200, packIndex: 1 })
+
+    expect(result).toEqual({ success: true })
+  })
+
+  it('snapshots the BRL price for a BRL company when the pack has one', async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: { stripe_customer_id: 'cus_1', tier: 'pro', stripe_subscription_status: 'active', stripe_subscription_id: 'sub_1', currency_code: 'BRL' },
+    })
+    vi.mocked(getBillingConfig).mockResolvedValue({
+      autoTopupEnabled: true,
+      brlPricingEnabled: true,
+      topUpPacks: [{ credits: 1900, priceCents: 2000, priceCentsBrl: 10990 }],
+    } as never)
+
+    const result = await saveAutoTopupSettings({ thresholdCredits: 200, packIndex: 0 })
+
+    expect(result).toEqual({ success: true })
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ auto_topup_pack_price_cents: 10990, auto_topup_pack_credits: 1900 })
+    )
   })
 
   it('rejects when the Stripe customer has no default_payment_method, even if the client claims enabled:true (Pitfall 2)', async () => {

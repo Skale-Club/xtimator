@@ -65,7 +65,7 @@ export const tiers: Record<TierName, Entitlements> = {
     maxEstimatesPerMonth: null, // credits are the meter (SEED-055)
     maxEstimatesPerDay: 30,
     maxPriceResearchPerMonth: 1000, // ~$5/mo research ceiling
-    monthlyCreditGrant: 3500, // mirrors DEFAULT_BILLING_CONFIG.tiers.pro (margin-safe placeholder)
+    monthlyCreditGrant: 3000, // mirrors DEFAULT_BILLING_CONFIG.tiers.pro (owner-approved 2026-11-09)
     maxPhotosPerEstimate: 20,
     maxAudioMinutesPerEstimate: 15,
     whatsappEnabled: true,

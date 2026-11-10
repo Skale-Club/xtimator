@@ -44,6 +44,7 @@ import {
   getBillingConfig,
   DEFAULT_BILLING_CONFIG,
   invalidateBillingConfigCache,
+  mergeStoredBillingConfig,
 } from '@/lib/billing/billing-config'
 import { billingConfigSchema } from '@/lib/schemas/admin'
 import { tiers as staticTiers, type TierName } from '@/lib/entitlements'
@@ -814,5 +815,81 @@ describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
       estimatedCreditsByOp: { ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp, chat: 1.5 },
     })
     expect(frac.success).toBe(false)
+  })
+})
+
+// =============================================================================
+// Credit scale and packs (owner decision 2026-11-09) + BRL prices
+// =============================================================================
+describe('credit scale: defaults', () => {
+  it('1 credit = US$0.01', () => {
+    expect(DEFAULT_BILLING_CONFIG.creditUnitUsd).toBe(0.01)
+  })
+
+  it('Pro grants 3000 credits/month, Business stays 12000, markup is unchanged', () => {
+    expect(DEFAULT_BILLING_CONFIG.tiers.pro.monthlyCreditGrant).toBe(3000)
+    expect(DEFAULT_BILLING_CONFIG.tiers.business.monthlyCreditGrant).toBe(12000)
+    expect(DEFAULT_BILLING_CONFIG.markup).toBe(4.5)
+  })
+
+  it('packs are US$10/900, US$20/1900, US$50/5000 with BRL R$54,90/R$109,90/R$279,90', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks).toEqual([
+      { credits: 900, priceCents: 1000, priceCentsBrl: 5490 },
+      { credits: 1900, priceCents: 2000, priceCentsBrl: 10990 },
+      { credits: 5000, priceCents: 5000, priceCentsBrl: 27990 },
+    ])
+  })
+
+  it('BRL plan prices: Pro R$159,90, Business R$549,90 (USD prices unchanged)', () => {
+    expect(DEFAULT_BILLING_CONFIG.tiers.pro.subscriptionPriceBrlCents).toBe(15990)
+    expect(DEFAULT_BILLING_CONFIG.tiers.business.subscriptionPriceBrlCents).toBe(54990)
+    expect(DEFAULT_BILLING_CONFIG.tiers.pro.subscriptionPriceCents).toBe(2900)
+    expect(DEFAULT_BILLING_CONFIG.tiers.business.subscriptionPriceCents).toBe(9900)
+  })
+
+  it('BRL pricing ships OFF; a stored row without the flag resolves to false', () => {
+    expect(DEFAULT_BILLING_CONFIG.brlPricingEnabled).toBe(false)
+    expect(mergeStoredBillingConfig({}).brlPricingEnabled).toBe(false)
+    expect(mergeStoredBillingConfig({ brlPricingEnabled: true }).brlPricingEnabled).toBe(true)
+  })
+
+  it('the default config (with BRL fields) round-trips through the admin schema', () => {
+    const parsed = billingConfigSchema.parse(DEFAULT_BILLING_CONFIG)
+    expect(parsed.topUpPacks).toEqual(DEFAULT_BILLING_CONFIG.topUpPacks)
+    expect(parsed.tiers.pro.subscriptionPriceBrlCents).toBe(15990)
+  })
+})
+
+describe('mergeStoredBillingConfig: stored config without the BRL fields', () => {
+  it('a stored tier without BRL prices falls through to the default BRL prices', () => {
+    const cfg = mergeStoredBillingConfig({
+      tiers: { pro: { monthlyCreditGrant: 3500, subscriptionPriceCents: 2900 } },
+    } as never)
+    expect(cfg.tiers.pro.monthlyCreditGrant).toBe(3500) // stored value wins
+    expect(cfg.tiers.pro.subscriptionPriceBrlCents).toBe(15990)
+    expect(cfg.tiers.pro.subscriptionPriceAnnualBrlCents).toBe(159900)
+  })
+
+  it('stored packs without BRL are backfilled when the USD price matches a default pack', () => {
+    const cfg = mergeStoredBillingConfig({
+      topUpPacks: [
+        { credits: 1300, priceCents: 2000 },
+        { credits: 777, priceCents: 777 },
+      ],
+    } as never)
+    expect(cfg.topUpPacks[0]).toEqual({ credits: 1300, priceCents: 2000, priceCentsBrl: 10990 })
+    // no default with that USD price: left without BRL (resolvePackPrice falls back to USD)
+    expect(cfg.topUpPacks[1]).toEqual({ credits: 777, priceCents: 777 })
+  })
+
+  it('stored packs that already carry a BRL price keep it', () => {
+    const cfg = mergeStoredBillingConfig({
+      topUpPacks: [{ credits: 1900, priceCents: 2000, priceCentsBrl: 9999 }],
+    } as never)
+    expect(cfg.topUpPacks[0].priceCentsBrl).toBe(9999)
+  })
+
+  it('an empty stored row resolves to the defaults', () => {
+    expect(mergeStoredBillingConfig({})).toEqual(DEFAULT_BILLING_CONFIG)
   })
 })

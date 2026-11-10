@@ -20,7 +20,13 @@ import type { EstimatedCreditOp } from '@/lib/billing/estimated-credit-ops'
  * (20260517000002) already permits with all crypto columns null.
  */
 
-export type TopUpPack = { credits: number; priceCents: number }
+/**
+ * One-off credit pack. `priceCents` is the USD price (the original field, kept
+ * for backward compatibility with every stored row). `priceCentsBrl` is the
+ * Brazilian-real price in centavos (optional: a stored row written before BRL
+ * existed lacks it; the reader backfills it, see {@link mergeStoredBillingConfig}).
+ */
+export type TopUpPack = { credits: number; priceCents: number; priceCentsBrl?: number }
 /**
  * Per-tier entitlement caps + feature flags, mirroring lib/entitlements.ts
  * `Entitlements` (minus monthlyCreditGrant, which already lives on TierBilling).
@@ -43,6 +49,13 @@ export type TierBilling = {
   subscriptionPriceCents: number
   // per-tier ANNUAL subscription price in integer cents (SEED-038); CALIBRATE BEFORE CHARGING placeholder — the displayed discount % is DERIVED (1 − annual/(12×monthly)), never stored
   subscriptionPriceAnnualCents: number
+  // BRL (centavos) counterparts of the two prices above, for companies resolved
+  // to the 'brl' billing currency (lib/billing/billing-currency.ts). Optional so
+  // a stored row without them falls through to the defaults. DISPLAY/CONFIG
+  // ONLY today: subscription checkout still charges the USD Stripe Price (a BRL
+  // Stripe Price needs its own id + sync; TODO in create-checkout-session).
+  subscriptionPriceBrlCents?: number
+  subscriptionPriceAnnualBrlCents?: number
   // seats bundled in the tier before per-seat billing kicks in (e.g. the owner
   // seat is included) — CALIBRATE BEFORE CHARGING (placeholder, not final).
   includedSeats: number
@@ -146,6 +159,13 @@ export type BillingConfig = {
    * tenant's own opt-in (company.auto_topup_enabled).
    */
   autoTopupEnabled: boolean
+  /**
+   * BRL pricing for Brazilian companies (packs today; plans still charge USD).
+   * Default FALSE: until BRL plan checkout exists and a BRL pack charge on a
+   * USD-subscribed Stripe customer is verified, every company resolves to USD.
+   * See lib/billing/billing-currency.ts. A stored row without it falls to false.
+   */
+  brlPricingEnabled: boolean
   /** SEED-054: affiliate program knobs. See {@link AffiliateConfig}. */
   affiliate: AffiliateConfig
 }
@@ -175,19 +195,23 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // subscriptionPriceAnnualCents per tier is also a CALIBRATION PLACEHOLDER (≈10× monthly
   // for paid tiers so the later-derived annual discount is visible, 0 for free/trial) —
   // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
-  // Grant sizes are ILLUSTRATIVE — pro 3500 ≈ 27% of the $29 monthly price,
-  // business 12000 ≈ 27% of the $99 monthly price, but BOTH fail the CALIB-02
-  // margin invariant against the placeholder ANNUAL prices (≈32% > the 30%
-  // max — see lib/billing/calibration.ts). enforcementEnabled defaults FALSE
-  // (below) precisely because these numbers are not yet calibrated to charge
-  // on. CALIBRATE BEFORE CHARGING: tune price/grant/markup together in the
-  // admin panel — the charge-on gate will refuse to flip enforcement on until
-  // the numbers you enter actually pass.
+  // Credit scale (owner decision 2026-11-09): 1 credit = US$0.01. Pro US$29
+  // grants 3,000 credits/month and Business US$99 grants 12,000 - both
+  // owner-approved. The MARKUP (4.5) is still uncalibrated: Business still
+  // fails the CALIB-02 margin invariant against the placeholder ANNUAL price
+  // (see lib/billing/calibration.ts), and enforcementEnabled defaults FALSE
+  // (below) until the markup is calibrated against measured cost. The
+  // charge-on gate refuses to flip enforcement on until the numbers pass.
+  // BRL prices (owner 2026-11-09): same credits as USD, priced in reais. The
+  // annual BRL prices are 10x monthly like the USD placeholders (NOT owner
+  // approved - confirm before charging in BRL).
   tiers: {
     free: {
       monthlyCreditGrant: 0,
       subscriptionPriceCents: 0,
       subscriptionPriceAnnualCents: 0,
+      subscriptionPriceBrlCents: 0,
+      subscriptionPriceAnnualBrlCents: 0,
       includedSeats: 1,
       stripePriceIdMonth: null,
       stripePriceIdYear: null,
@@ -209,9 +233,11 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
       ],
     },
     pro: {
-      monthlyCreditGrant: 3500,
+      monthlyCreditGrant: 3000,
       subscriptionPriceCents: 2900,
       subscriptionPriceAnnualCents: 29000,
+      subscriptionPriceBrlCents: 15990,
+      subscriptionPriceAnnualBrlCents: 159900,
       includedSeats: 1,
       stripePriceIdMonth: null,
       stripePriceIdYear: null,
@@ -238,6 +264,8 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
       monthlyCreditGrant: 12000,
       subscriptionPriceCents: 9900,
       subscriptionPriceAnnualCents: 99000,
+      subscriptionPriceBrlCents: 54990,
+      subscriptionPriceAnnualBrlCents: 549900,
       includedSeats: 1,
       stripePriceIdMonth: null,
       stripePriceIdYear: null,
@@ -261,13 +289,13 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
       ],
     },
   },
-  // Billing v2 (CREDITUI-06): 3 dollar-denominated packs at $20/$50/$100.
-  // Credits-per-pack are CALIBRATE-BEFORE-CHARGING placeholders (mild volume
-  // discount curve consistent with the prior 2-pack ratio) — NOT final pricing.
+  // Credit packs, owner-approved 2026-11-09 (subscribers only - see
+  // lib/billing/topup-eligibility.ts): US$10 = 900, US$20 = 1,900, US$50 =
+  // 5,000 credits; BRL R$54,90 / R$109,90 / R$279,90 for the same credits.
   topUpPacks: [
-    { credits: 1300, priceCents: 2000 },
-    { credits: 3500, priceCents: 5000 },
-    { credits: 7500, priceCents: 10000 },
+    { credits: 900, priceCents: 1000, priceCentsBrl: 5490 },
+    { credits: 1900, priceCents: 2000, priceCentsBrl: 10990 },
+    { credits: 5000, priceCents: 5000, priceCentsBrl: 27990 },
   ],
   // SEED-055 Phase C: top-up lots expire 3 months after purchase.
   topupExpiryMonths: 3,
@@ -288,6 +316,8 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // enforcementEnabled's exact pattern — flip on only after the tenant-facing
   // settings UI (Plan 03) and the trigger core (this plan) are both verified.
   autoTopupEnabled: false,
+  // BRL pricing ships OFF (see the type docs).
+  brlPricingEnabled: false,
   // SEED-054: ships OFF (same pattern as autoTopupEnabled) — no attribution and
   // no accrual until the owner enables the program. The rates below are
   // CALIBRATION PLACEHOLDERS in the same spirit as the tier prices: 20% for 12
@@ -300,6 +330,69 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
     holdDays: 30,
     minPayoutCents: 5000,
   },
+}
+
+/**
+ * Pure merge of a stored `billing_config` metadata blob over
+ * {@link DEFAULT_BILLING_CONFIG} (no I/O, so it is unit-testable). A stored row
+ * written before a field existed falls through to the default, including the
+ * BRL price fields: a stored pack without `priceCentsBrl` is backfilled from the
+ * default pack with the SAME USD price (else left undefined, and
+ * resolvePackPrice falls back to USD for it).
+ */
+export function mergeStoredBillingConfig(stored: Partial<BillingConfig>): BillingConfig {
+  // Deep-merge each tier so a row written before `entitlements` existed still
+  // resolves that nested object from the defaults (research Pitfall 6). Every
+  // tier now carries a nested `entitlements` map that must fall through
+  // field-by-field, not be dropped when a stored tier omits it.
+  const storedTiers = (stored.tiers ?? {}) as Partial<
+    Record<BillingTier, Partial<TierBilling>>
+  >
+  const tierNames: BillingTier[] = ['free', 'pro', 'business']
+  const tiers = Object.fromEntries(
+    tierNames.map((t) => {
+      const storedTier = storedTiers[t] ?? {}
+      // SEED-055: `chatEnabled` was removed (chat is for everyone). A stored row
+      // written before that still carries it - drop it so it never resurfaces.
+      const storedEnt = { ...(storedTier.entitlements ?? {}) } as Record<string, unknown>
+      delete storedEnt.chatEnabled
+      return [
+        t,
+        {
+          ...DEFAULT_BILLING_CONFIG.tiers[t],
+          ...storedTier,
+          entitlements: {
+            ...DEFAULT_BILLING_CONFIG.tiers[t].entitlements,
+            ...(storedEnt as Partial<TierEntitlements>),
+          },
+        },
+      ]
+    })
+  ) as Record<BillingTier, TierBilling>
+  // SEED-054: same deep-merge rationale as `tiers` (research Pitfall 6) — a row
+  // saved before a knob existed, or by an admin form that only writes a subset,
+  // must fall through field-by-field instead of replacing the whole block.
+  const affiliate: AffiliateConfig = {
+    ...DEFAULT_BILLING_CONFIG.affiliate,
+    ...((stored.affiliate ?? {}) as Partial<AffiliateConfig>),
+  }
+  const estimatedCreditsByOp: Record<EstimatedCreditOp, number> = {
+    ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp,
+    ...((stored.estimatedCreditsByOp ?? {}) as Partial<Record<EstimatedCreditOp, number>>),
+  }
+  const merged: BillingConfig = {
+    ...DEFAULT_BILLING_CONFIG,
+    ...stored,
+    tiers,
+    affiliate,
+    estimatedCreditsByOp,
+  }
+  const topUpPacks: TopUpPack[] = (merged.topUpPacks ?? DEFAULT_BILLING_CONFIG.topUpPacks).map((pack) => {
+    if (pack.priceCentsBrl != null) return pack
+    const fallback = DEFAULT_BILLING_CONFIG.topUpPacks.find((d) => d.priceCents === pack.priceCents)
+    return fallback?.priceCentsBrl != null ? { ...pack, priceCentsBrl: fallback.priceCentsBrl } : pack
+  })
+  return { ...merged, topUpPacks }
 }
 
 // 30s TTL cache mirroring brandingCache (lib/platform-config.ts). The
@@ -340,52 +433,7 @@ export async function getBillingConfig(): Promise<BillingConfig> {
     billingConfigCache = { value: DEFAULT_BILLING_CONFIG, fetchedAt: now }
     return DEFAULT_BILLING_CONFIG
   }
-  // Deep-merge each tier so a row written before `entitlements` existed still
-  // resolves that nested object from the defaults (research Pitfall 6). Every
-  // tier now carries a nested `entitlements` map that must fall through
-  // field-by-field, not be dropped when a stored tier omits it.
-  const storedTiers = (stored.tiers ?? {}) as Partial<
-    Record<BillingTier, Partial<TierBilling>>
-  >
-  const tierNames: BillingTier[] = ['free', 'pro', 'business']
-  const tiers = Object.fromEntries(
-    tierNames.map((t) => {
-      const storedTier = storedTiers[t] ?? {}
-      // SEED-055: `chatEnabled` was removed (chat is for everyone). A stored row
-      // written before that still carries it - drop it so it never resurfaces.
-      const storedEnt = { ...(storedTier.entitlements ?? {}) } as Record<string, unknown>
-      delete storedEnt.chatEnabled
-      return [
-        t,
-        {
-          ...DEFAULT_BILLING_CONFIG.tiers[t],
-          ...storedTier,
-          entitlements: {
-            ...DEFAULT_BILLING_CONFIG.tiers[t].entitlements,
-            ...(storedEnt as Partial<TierEntitlements>),
-          },
-        },
-      ]
-    })
-  ) as Record<BillingTier, TierBilling>
-  // SEED-054: same deep-merge rationale as `tiers` (research Pitfall 6) — a row
-  // saved before a knob existed, or by an admin form that only writes a subset,
-  // must fall through field-by-field instead of replacing the whole block.
-  const affiliate: AffiliateConfig = {
-    ...DEFAULT_BILLING_CONFIG.affiliate,
-    ...((stored.affiliate ?? {}) as Partial<AffiliateConfig>),
-  }
-  const estimatedCreditsByOp: Record<EstimatedCreditOp, number> = {
-    ...DEFAULT_BILLING_CONFIG.estimatedCreditsByOp,
-    ...((stored.estimatedCreditsByOp ?? {}) as Partial<Record<EstimatedCreditOp, number>>),
-  }
-  const value: BillingConfig = {
-    ...DEFAULT_BILLING_CONFIG,
-    ...stored,
-    tiers,
-    affiliate,
-    estimatedCreditsByOp,
-  }
+  const value = mergeStoredBillingConfig(stored)
   billingConfigCache = { value, fetchedAt: now }
   return value
 }

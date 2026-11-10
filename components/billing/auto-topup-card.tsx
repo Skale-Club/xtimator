@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertTitle } from '@/components/ui/alert'
 import { T } from '@/components/i18n/t'
 import { AutoTopupDialogLauncher } from '@/components/billing/auto-topup-dialog'
+import type { BillingCurrency } from '@/lib/billing/billing-currency'
 
 /**
  * Phase 153 Plan 03 (CREDITUI-07) — Settings > Plans auto-top-up card.
@@ -23,18 +24,20 @@ export function AutoTopupCard({
   currentThresholdCredits,
   currentPackIndex,
   isOwner = true,
+  currency = 'usd',
 }: {
   enabled: boolean
   packAmount: string | null
   thresholdAmount: string | null
   paymentMethodLabel: string | null
   lastFailed: boolean
-  packs: Array<{ priceCents: number; credits: number }>
+  packs: Array<{ priceCents: number; credits: number; priceCentsBrl?: number }>
   currentThresholdCredits: number | null
   currentPackIndex: number | null
   // False when the signed-in user is a company member, not the owner —
   // defaults to true so existing callers keep today's behavior.
   isOwner?: boolean
+  currency?: BillingCurrency
 }) {
   return (
     <div className="space-y-3">
@@ -73,6 +76,7 @@ export function AutoTopupCard({
             currentPackIndex={currentPackIndex}
             hasPaymentMethod={!!paymentMethodLabel}
             isOwner={isOwner}
+            currency={currency}
           />
         </div>
       </div>

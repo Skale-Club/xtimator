@@ -22,6 +22,7 @@ let companyRow: {
   stripe_customer_id?: string | null
   tier?: string | null
   stripe_subscription_status?: string | null
+  currency_code?: string | null
 } | null = null
 
 const updates: Array<{ table: string; payload: Record<string, unknown> }> = []
@@ -76,6 +77,7 @@ let billingConfig: {
   autoTopupEnabled: boolean
   topUpPacks: Array<{ credits: number; priceCents: number }>
   topupExpiryMonths?: number
+  brlPricingEnabled?: boolean
 } = {
   autoTopupEnabled: true,
   topUpPacks: [{ credits: 1300, priceCents: 2000 }],
@@ -382,6 +384,73 @@ describe('CREDITUI-07: pack snapshot (charge what was authorized)', () => {
     expect(paymentIntentsCreate).toHaveBeenCalledTimes(1)
     expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 2000 })
     expect(paymentIntentsCreate.mock.calls[0][0].metadata).toMatchObject({ credits: '1300' })
+  })
+})
+
+// =============================================================================
+// BRL: the off-session charge uses the company's billing currency.
+// =============================================================================
+describe('BRL auto top-up currency', () => {
+  const brlPacks = [{ credits: 1900, priceCents: 2000, priceCentsBrl: 10990 }]
+
+  function brlCompany(snapshotCents: number | null) {
+    companyRow = {
+      auto_topup_enabled: true,
+      auto_topup_threshold_credits: 100,
+      auto_topup_pack_index: 0,
+      auto_topup_pack_price_cents: snapshotCents,
+      auto_topup_pack_credits: snapshotCents == null ? null : 1900,
+      stripe_customer_id: 'cus_test',
+      tier: 'pro',
+      stripe_subscription_status: 'active',
+      currency_code: 'BRL',
+    }
+    billingConfig = { autoTopupEnabled: true, brlPricingEnabled: true, topUpPacks: brlPacks }
+  }
+
+  it('charges brl when the BRL snapshot matches the configured BRL pack price', async () => {
+    brlCompany(10990)
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 10990, currency: 'brl' })
+  })
+
+  it('legacy row (no snapshot) resolves the BRL price from the config pack', async () => {
+    brlCompany(null)
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 10990, currency: 'brl' })
+  })
+
+  it('fails CLOSED (no charge) when a BRL company snapshot matches neither configured price', async () => {
+    brlCompany(12345)
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate).not.toHaveBeenCalled()
+  })
+
+  it('flag OFF: a BRL company with a USD snapshot is charged USD; a BRL snapshot is never charged', async () => {
+    brlCompany(2000)
+    billingConfig.brlPricingEnabled = false
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 2000, currency: 'usd' })
+
+    paymentIntentsCreate.mockClear()
+    brlCompany(10990)
+    billingConfig.brlPricingEnabled = false
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate).not.toHaveBeenCalled()
+  })
+
+  it('a USD company is still charged in usd', async () => {
+    brlCompany(2000)
+    companyRow!.currency_code = 'USD'
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ amount: 2000, currency: 'usd' })
+  })
+
+  it('a free BRL company is never charged', async () => {
+    brlCompany(10990)
+    companyRow!.tier = 'free'
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate).not.toHaveBeenCalled()
   })
 })
 

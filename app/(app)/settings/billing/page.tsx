@@ -25,6 +25,7 @@ import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
 import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
+import { formatBillingAmount, resolveBillingCurrency } from '@/lib/billing/billing-currency'
 import { T } from '@/components/i18n/t'
 import { LocalizedDate } from '@/components/i18n/localized-date'
 import { SettingsCard, SettingsHeader } from '@/components/settings/settings-ui'
@@ -174,8 +175,13 @@ export default async function BillingPage() {
       : null
   const autoTopupPackPriceCents =
     autoTopupCompany?.auto_topup_pack_price_cents ?? autoTopupPack?.priceCents ?? null
+  // Packs (one-off and auto top-up) are priced in the company's billing
+  // currency; the plan price below stays USD until BRL Stripe Prices exist.
+  const billingCurrency = resolveBillingCurrency({ currency_code: company.currency_code }, cfg.brlPricingEnabled === true)
   const autoTopupPackAmount =
-    autoTopupPackPriceCents != null ? formatUsd(autoTopupPackPriceCents) : null
+    autoTopupPackPriceCents != null
+      ? formatBillingAmount(autoTopupPackPriceCents, billingCurrency)
+      : null
   // CREDITFIX-03 (audit finding #3): auto_topup_threshold_credits is a CREDIT
   // count, not a cents figure — running it through formatUsd rendered "500
   // credits" as "$5". formatCredits renders the credit count as-is.
@@ -376,7 +382,7 @@ export default async function BillingPage() {
               <T>Only the company owner can manage billing.</T>
             </p>
           )}
-          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} />
+          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} currency={billingCurrency} />
           {/* Auto top-up is gated behind the platform kill switch
               (billing_config.autoTopupEnabled); omitted from the tree
               entirely, not rendered-disabled, when the switch is off. */}
@@ -392,6 +398,7 @@ export default async function BillingPage() {
                 currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}
                 currentPackIndex={autoTopupCompany?.auto_topup_pack_index ?? null}
                 isOwner={isOwner}
+                currency={billingCurrency}
               />
             </div>
           )}

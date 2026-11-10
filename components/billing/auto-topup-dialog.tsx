@@ -12,7 +12,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { saveAutoTopupSettings, disableAutoTopup } from '@/lib/actions/auto-topup'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { formatUsd } from '@/lib/billing/format-usd'
+import { formatBillingAmount, resolvePackPrice, type BillingCurrency } from '@/lib/billing/billing-currency'
 
 /**
  * Phase 153 Plan 03 (CREDITUI-07) — Manage auto top-up modal + its launcher
@@ -28,17 +28,18 @@ import { formatUsd } from '@/lib/billing/format-usd'
 
 interface AutoTopupDialogLauncherProps {
   enabled: boolean
-  packs: Array<{ priceCents: number; credits: number }>
+  packs: Array<{ priceCents: number; credits: number; priceCentsBrl?: number }>
   currentThresholdCredits: number | null
   currentPackIndex: number | null
   hasPaymentMethod: boolean
   // False when the signed-in user is a company member, not the owner —
   // defaults to true so existing callers keep today's behavior.
   isOwner?: boolean
+  currency?: BillingCurrency
 }
 
 export function AutoTopupDialogLauncher({
-  enabled, packs, currentThresholdCredits, currentPackIndex, hasPaymentMethod, isOwner = true,
+  enabled, packs, currentThresholdCredits, currentPackIndex, hasPaymentMethod, isOwner = true, currency = 'usd',
 }: AutoTopupDialogLauncherProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -59,7 +60,7 @@ export function AutoTopupDialogLauncher({
       const thresholdCredits = Math.round(thresholdDollars * 100)
       const result = await saveAutoTopupSettings({ thresholdCredits, packIndex })
       if ('error' in result) {
-        toast.error(result.error)
+        toast.error(t(result.error))
         return
       }
       toast.success(t('Auto top-up settings saved.'))
@@ -137,7 +138,10 @@ export function AutoTopupDialogLauncher({
                 <SelectContent>
                   {packs.map((pack, i) => (
                     <SelectItem key={i} value={String(i)}>
-                      {formatUsd(pack.priceCents)}
+                      {(() => {
+                        const price = resolvePackPrice(pack, currency)
+                        return formatBillingAmount(price.priceCents, price.currency)
+                      })()}
                     </SelectItem>
                   ))}
                 </SelectContent>

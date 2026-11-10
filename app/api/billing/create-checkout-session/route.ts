@@ -84,6 +84,14 @@ export async function POST(request: NextRequest) {
   // saveBillingConfig from the admin dollar amount, no deploy); fall back to the
   // STRIPE_PRICE_* env var only when the config slot is still null. Both absent →
   // the same 500 as before.
+  // TODO(brl-subscriptions): subscriptions still charge the USD Stripe Price.
+  // BRL plan prices exist in billing_config (subscriptionPriceBrlCents /
+  // subscriptionPriceAnnualBrlCents) but need their own Stripe Prices: add
+  // stripePriceId*Brl slots, a currency param on syncTierPrice (it hardcodes
+  // 'usd' and compares unit_amount only), include them in resolveTierFromPriceId
+  // and getStripeDisplayPrices, then pick by resolveBillingCurrency(company)
+  // here and show resolveTierPrice() on the plan cards. Credit packs are
+  // already priced in BRL (create-topup-session).
   const cfg = await getBillingConfig()
   const tierCfg = cfg.tiers[plan]
   const configPriceId =

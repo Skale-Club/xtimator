@@ -5,8 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * Locks the contract of lib/billing/calibration.ts BEFORE its implementation
  * (Task 1 — RED). Four behaviour groups:
- *   - CORRECT-FAIL: validateMarginInvariant(DEFAULT_BILLING_CONFIG) FAILS on pro
- *     + business by design (the illustrative defaults are placeholders). The test
+ *   - CORRECT-FAIL: validateMarginInvariant(DEFAULT_BILLING_CONFIG) FAILS (business
+ *     annual leg; pro passes since the 3000-credit grant, 2026-11-09). The test
  *     ASSERTS the FAIL — the defaults are NOT edited to make it green.
  *   - PASSING FIXTURE: a hand-crafted calibrated config PASSES the invariant.
  *   - SKIP: zero-price tiers (free, trial) are skipped, not marked FAIL, and do
@@ -104,24 +104,23 @@ describe('CALIB-02: MARGIN_INVARIANT_MAX', () => {
 // nothing until an admin explicitly runs them through this validator via the
 // charge-on gate (saveBillingConfig).
 // =============================================================================
-describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — monthly passes, annual fails', () => {
-  it('overall pass is FALSE (annual price is not yet calibrated for either priced tier)', () => {
+describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — monthly passes, business annual fails', () => {
+  it('overall pass is FALSE (the business annual price is not yet calibrated)', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
     expect(res.pass).toBe(false)
   })
 
-  it('pro: monthly ratio 7.7778/29 ≈ 0.268 PASSES, annual ratio 12×7.7778/290 ≈ 0.322 FAILS', () => {
+  it('pro (3000 credits, owner-approved 2026-11-09): monthly ratio ≈ 0.230 and annual ratio ≈ 0.276 both PASS', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    // 3500 × 0.01 / 4.5 = 7.7778
-    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(7.7778, 3)
-    expect(res.tiers.pro.ratio).toBeCloseTo(0.2682, 3)
+    // 3000 × 0.01 / 4.5 = 6.6667
+    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(6.6667, 3)
+    expect(res.tiers.pro.ratio).toBeCloseTo(0.2299, 3)
     expect(res.tiers.pro.skipped).toBe(false)
-    // 12 × 7.7778 / 290 = 0.3218
-    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.3218, 3)
+    // 12 × 6.6667 / 290 = 0.2759
+    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.2759, 3)
     expect(res.tiers.pro.annualSkipped).toBe(false)
-    expect(res.tiers.pro.annualPass).toBe(false)
-    // pass requires BOTH legs — the passing monthly leg does not save it.
-    expect(res.tiers.pro.pass).toBe(false)
+    expect(res.tiers.pro.annualPass).toBe(true)
+    expect(res.tiers.pro.pass).toBe(true)
   })
 
   it('business: monthly ratio 26.6667/99 ≈ 0.269 PASSES, annual ratio 12×26.6667/990 ≈ 0.323 FAILS', () => {

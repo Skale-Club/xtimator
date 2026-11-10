@@ -7,6 +7,8 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { assertWritable } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { isTopupEligible } from '@/lib/billing/topup-eligibility'
+import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -80,11 +82,31 @@ export async function saveAutoTopupSettings(input: {
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, tier, stripe_subscription_status, stripe_subscription_id, currency_code')
     .eq('id', ctx.companyId)
     .maybeSingle()
 
-  const stripeCustomerId = (company as { stripe_customer_id?: string | null } | null)?.stripe_customer_id
+  const companyRow = company as {
+    stripe_customer_id?: string | null
+    tier?: string | null
+    stripe_subscription_status?: string | null
+    stripe_subscription_id?: string | null
+    currency_code?: string | null
+  } | null
+
+  // Auto top-up, like packs, is for subscribers only (owner decision
+  // 2026-11-09). Enforced here, on the server, regardless of what the UI shows.
+  if (
+    !isTopupEligible(
+      companyRow?.tier,
+      companyRow?.stripe_subscription_status,
+      companyRow?.stripe_subscription_id,
+    )
+  ) {
+    return { error: 'Auto top-up is available on paid plans. Subscribe to a plan to turn it on.' }
+  }
+
+  const stripeCustomerId = companyRow?.stripe_customer_id
   if (!stripeCustomerId) {
     return { error: 'Add a payment method before enabling auto top-up.' }
   }
@@ -102,14 +124,20 @@ export async function saveAutoTopupSettings(input: {
   // Snapshot the pack the tenant is authorizing (price + credits) so a later
   // admin reorder/reprice of billing_config.topUpPacks cannot change what this
   // company gets charged; auto_topup_pack_index is kept as a legacy fallback.
+  // The snapshot is in the company's billing currency (BRL for Brazil, else USD)
+  // so the later off-session charge uses exactly what the tenant saw.
   const selectedPack = cfg.topUpPacks[input.packIndex]
+  const selectedPrice = resolvePackPrice(
+    selectedPack,
+    resolveBillingCurrency({ currency_code: companyRow?.currency_code }, cfg.brlPricingEnabled === true),
+  )
   const { error } = await svc
     .from('companies')
     .update({
       auto_topup_enabled: true,
       auto_topup_threshold_credits: input.thresholdCredits,
       auto_topup_pack_index: input.packIndex,
-      auto_topup_pack_price_cents: selectedPack.priceCents,
+      auto_topup_pack_price_cents: selectedPrice.priceCents,
       auto_topup_pack_credits: selectedPack.credits,
     })
     .eq('id', ctx.companyId)

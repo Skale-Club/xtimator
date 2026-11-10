@@ -68,6 +68,7 @@ function makeSupabaseMock(
     stripe_customer_id: string | null
     tier?: string | null
     stripe_subscription_status?: string | null
+    currency_code?: string | null
   } | null
 ) {
   // SEED-055 Phase C: top-ups need a Pro company with a live subscription;
@@ -139,6 +140,84 @@ describe('SEED-055 Phase C: top-up checkout is Pro-with-live-subscription only',
 
     expect(res.status).toBe(200)
     expect(mockSessionCreate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('top-up checkout currency (owner decision 2026-11-09)', () => {
+  beforeEach(() => {
+    vi.mocked(getBillingConfig).mockResolvedValue({
+      brlPricingEnabled: true,
+      topUpPacks: [
+        { credits: 900, priceCents: 1000, priceCentsBrl: 5490 },
+        { credits: 1900, priceCents: 2000, priceCentsBrl: 10990 },
+        { credits: 5000, priceCents: 5000 }, // no BRL price: must fall back to USD
+      ],
+    } as never)
+  })
+
+  async function buy(packIndex: number, currency_code: string | null) {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: null, currency_code }
+      ) as never
+    )
+    return POST(makeRequest({ packIndex }))
+  }
+
+  it('charges a BRL company the BRL price in brl with the same credits', async () => {
+    const res = await buy(1, 'BRL')
+    expect(res.status).toBe(200)
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.line_items[0].price_data.currency).toBe('brl')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(10990)
+    expect(arg.metadata.credits).toBe('1900')
+  })
+
+  it('charges a USD company the USD price in usd', async () => {
+    const res = await buy(1, 'USD')
+    expect(res.status).toBe(200)
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.line_items[0].price_data.currency).toBe('usd')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(2000)
+  })
+
+  it('flag OFF: a BRL company is charged the USD price in usd', async () => {
+    vi.mocked(getBillingConfig).mockResolvedValue({
+      brlPricingEnabled: false,
+      topUpPacks: [{ credits: 1900, priceCents: 2000, priceCentsBrl: 10990 }],
+    } as never)
+    const res = await buy(0, 'BRL')
+    expect(res.status).toBe(200)
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.line_items[0].price_data.currency).toBe('usd')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(2000)
+  })
+
+  it('a missing currency_code resolves to USD', async () => {
+    await buy(0, null)
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.line_items[0].price_data.currency).toBe('usd')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(1000)
+  })
+
+  it('a BRL company buying a pack with no BRL price is charged in USD, never a USD amount in brl', async () => {
+    await buy(2, 'BRL')
+    const arg = mockSessionCreate.mock.calls[0][0]
+    expect(arg.line_items[0].price_data.currency).toBe('usd')
+    expect(arg.line_items[0].price_data.unit_amount).toBe(5000)
+  })
+
+  it('a BRL free company is still rejected (subscribers only)', async () => {
+    vi.mocked(createClient).mockResolvedValue(
+      makeSupabaseMock(
+        { sub: 'user-1', email: 'u@test.com' },
+        { id: 'co_1', stripe_customer_id: null, tier: 'free', stripe_subscription_status: null, currency_code: 'BRL' }
+      ) as never
+    )
+    const res = await POST(makeRequest({ packIndex: 0 }))
+    expect(res.status).toBe(403)
+    expect(mockSessionCreate).not.toHaveBeenCalled()
   })
 })
 

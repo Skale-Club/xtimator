@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { T } from '@/components/i18n/t'
 import { TopUpButton } from '@/components/billing/top-up-button'
-import { formatUsd } from '@/lib/billing/format-usd'
+import { formatBillingAmount, type BillingCurrency } from '@/lib/billing/billing-currency'
 
 /**
  * Phase 153-01 (CREDITUI-06) — a single dollar-denominated top-up pack card.
@@ -21,14 +21,17 @@ export function TopUpPackCard({
   // Threaded from the page: a non-owner gets a disabled button with a reason
   // instead of a 403 they cannot interpret.
   isOwner = true,
+  currency = 'usd',
 }: {
   packIndex: number
   priceCents: number
   credits: number
   recommended?: boolean
   isOwner?: boolean
+  // Currency `priceCents` is expressed in (already resolved by the caller).
+  currency?: BillingCurrency
 }) {
-  const amount = formatUsd(priceCents)
+  const amount = formatBillingAmount(priceCents, currency)
   return (
     <div
       className={cn(

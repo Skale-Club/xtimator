@@ -10,6 +10,7 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
+import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { isTopupEligible, TOPUP_REQUIRES_SUBSCRIPTION_BODY } from '@/lib/billing/topup-eligibility'
 
 const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
   const { data: company } = companyId
     ? await supabase
         .from('companies')
-        .select('id, stripe_customer_id, tier, stripe_subscription_status, stripe_subscription_id')
+        .select('id, stripe_customer_id, tier, stripe_subscription_status, stripe_subscription_id, currency_code')
         .eq('id', companyId)
         .maybeSingle()
     : { data: null }
@@ -97,10 +98,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid pack' }, { status: 400 })
   }
 
+  // Same credits in every currency; only the price differs. A pack with no BRL
+  // price falls back to USD (resolvePackPrice), so display and charge agree.
+  const { priceCents, currency } = resolvePackPrice(
+    pack,
+    resolveBillingCurrency(
+      { currency_code: (company as { currency_code?: string | null }).currency_code },
+      cfg.brlPricingEnabled === true
+    )
+  )
+
   const stripe = await getStripeClient()
 
   // Fix 4b — a double-click must not mint TWO top-up Checkout Sessions.
-  const idempotencyKey = `topup:${company.id}:${packIndex}:${Math.floor(Date.now() / 60000)}`
+  const idempotencyKey = `topup:${company.id}:${packIndex}:${currency}:${Math.floor(Date.now() / 60000)}`
 
   const session = await stripe.checkout.sessions.create(
     {
@@ -109,8 +120,8 @@ export async function POST(request: NextRequest) {
         {
           quantity: 1,
           price_data: {
-            currency: 'usd',
-            unit_amount: pack.priceCents, // server-side — never from the body (Pitfall 4)
+            currency, // 'usd' | 'brl'
+            unit_amount: priceCents, // server-side — never from the body (Pitfall 4)
             product_data: {
               name: `${pack.credits} Xtimator credits`,
               images: [STRIPE_PRODUCT_IMAGE_URL],

@@ -121,12 +121,12 @@ describe('entitlements', () => {
   })
 
   // Phase 112 (CREDIT-04): monthlyCreditGrant on every tier, mirroring
-  // billing_config.tiers defaults (free 0 / pro 3500 / business 12000 —
-  // margin-safe placeholders sized for the CALIB-02 invariant at default markup).
+  // billing_config.tiers defaults (free 0 / pro 3000 / business 12000;
+  // owner-approved 2026-11-09, 1 credit = US$0.01).
   // Billing v2: free's allowance is the ONE-TIME signupCreditGrant, not monthly.
-  it('documents the per-tier monthly credit grant: free 0 / pro 3500 / business 12000', () => {
+  it('documents the per-tier monthly credit grant: free 0 / pro 3000 / business 12000', () => {
     expect(tiers.free.monthlyCreditGrant).toBe(0)
-    expect(tiers.pro.monthlyCreditGrant).toBe(3500)
+    expect(tiers.pro.monthlyCreditGrant).toBe(3000)
     expect(tiers.business.monthlyCreditGrant).toBe(12000)
   })
 

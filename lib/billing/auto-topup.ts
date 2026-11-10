@@ -5,6 +5,7 @@ import { getBillingConfig } from '@/lib/billing/billing-config'
 import { grantCredits } from '@/lib/billing/credit-ledger'
 import { topupExpiresAt } from '@/lib/billing/credit-window'
 import { isTopupEligible } from '@/lib/billing/topup-eligibility'
+import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { notifyOps } from '@/lib/observability/ops-alert'
 
 /**
@@ -85,7 +86,7 @@ export async function triggerAutoTopupIfNeeded(input: {
     const { data: co } = await svc
       .from('companies')
       .select(
-        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at, tier, stripe_subscription_status, stripe_subscription_id'
+        'auto_topup_enabled, auto_topup_threshold_credits, auto_topup_pack_index, auto_topup_pack_price_cents, auto_topup_pack_credits, stripe_customer_id, auto_topup_last_failed_at, auto_topup_last_charge_attempt_at, tier, stripe_subscription_status, stripe_subscription_id, currency_code'
       )
       .eq('id', input.companyId)
       .maybeSingle()
@@ -102,6 +103,7 @@ export async function triggerAutoTopupIfNeeded(input: {
       tier?: string | null
       stripe_subscription_status?: string | null
       stripe_subscription_id?: string | null
+      currency_code?: string | null
     } | null
 
     if (!company?.auto_topup_enabled) return
@@ -147,6 +149,7 @@ export async function triggerAutoTopupIfNeeded(input: {
         packIndex: company.auto_topup_pack_index,
         packPriceCents: company.auto_topup_pack_price_cents ?? null,
         packCredits: company.auto_topup_pack_credits ?? null,
+        currencyCode: company.currency_code ?? null,
       })
     } finally {
       await releaseAutoTopupLock(input.companyId)
@@ -197,6 +200,7 @@ async function chargeAutoTopup(input: {
   packIndex: number
   packPriceCents?: number | null
   packCredits?: number | null
+  currencyCode?: string | null
 }): Promise<void> {
   const svc = requireServiceClient()
   try {
@@ -217,17 +221,45 @@ async function chargeAutoTopup(input: {
     // of billing_config.topUpPacks cannot change the amount. Legacy rows with a
     // null snapshot fall back to the index lookup (original behavior).
     let pack: { priceCents: number; credits: number }
+    // Currency the snapshot was taken in (see saveAutoTopupSettings).
     // SEED-055 Phase C: the top-up lot expires topupExpiryMonths after purchase.
     const expiryCfg = await getBillingConfig()
+    const brlEnabled = expiryCfg.brlPricingEnabled === true
+    let chargeCurrency = resolveBillingCurrency({ currency_code: input.currencyCode }, brlEnabled)
+    // A BRL company may hold a BRL snapshot saved while the flag was on.
+    const isBrlCompany = resolveBillingCurrency({ currency_code: input.currencyCode }, true) === 'brl'
     if (input.packPriceCents != null && input.packCredits != null) {
       pack = { priceCents: input.packPriceCents, credits: input.packCredits }
+      if (isBrlCompany) {
+        // The snapshot stores cents but not their currency (no column; no
+        // migration in this change). For a BRL company, recover it from the
+        // configured pack: the snapshot must equal that pack's BRL price (charge
+        // BRL) or its USD price (the pack had no BRL price when saved: charge
+        // USD). Anything else means the pack was repriced since - fail CLOSED
+        // rather than charge the wrong currency; the tenant sees the failure
+        // banner and re-saves.
+        const configPack = expiryCfg.topUpPacks[input.packIndex]
+        if (configPack?.priceCentsBrl != null && configPack.priceCentsBrl === input.packPriceCents) {
+          chargeCurrency = 'brl'
+        } else if (configPack && configPack.priceCents === input.packPriceCents) {
+          chargeCurrency = 'usd'
+        } else {
+          throw new Error('auto top-up snapshot currency is ambiguous; re-save auto top-up')
+        }
+        // Flag turned off after a BRL snapshot was saved: never charge BRL.
+        if (chargeCurrency === 'brl' && !brlEnabled) {
+          throw new Error('BRL pricing is disabled; auto top-up not charged')
+        }
+      }
     } else {
       const cfg = expiryCfg
       const configPack = cfg.topUpPacks[input.packIndex]
       if (!configPack) {
         throw new Error(`invalid auto_topup_pack_index ${input.packIndex}`)
       }
-      pack = configPack
+      const resolved = resolvePackPrice(configPack, chargeCurrency)
+      pack = { priceCents: resolved.priceCents, credits: configPack.credits }
+      chargeCurrency = resolved.currency
     }
 
     // Deterministic per-hour idempotency key: dedupes retried Stripe API calls
@@ -237,7 +269,7 @@ async function chargeAutoTopup(input: {
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: pack.priceCents,
-        currency: 'usd',
+        currency: chargeCurrency,
         customer: input.stripeCustomerId,
         payment_method: paymentMethodId,
         off_session: true,

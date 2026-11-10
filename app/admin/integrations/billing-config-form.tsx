@@ -106,6 +106,7 @@ export function BillingConfigForm({ current }: Props) {
     current.topUpPacks.map((p) => ({
       credits: String(p.credits),
       priceCents: String(p.priceCents),
+      priceCentsBrl: p.priceCentsBrl != null ? String(p.priceCentsBrl) : '',
     }))
   )
 
@@ -140,6 +141,7 @@ export function BillingConfigForm({ current }: Props) {
 
   // Platform-wide auto-top-up kill switch (CREDITUI-07).
   const [autoTopupEnabled, setAutoTopupEnabled] = useState(current.autoTopupEnabled)
+  const [brlPricingEnabled, setBrlPricingEnabled] = useState(current.brlPricingEnabled === true)
 
   // Metering: which operations debit credits vs run absorbed, keyed exactly as
   // stored (no keys invented) + the absorbed-chat anti-abuse rate limit.
@@ -158,14 +160,14 @@ export function BillingConfigForm({ current }: Props) {
     setTiers((prev) => ({ ...prev, [tier]: { ...prev[tier], [field]: value } }))
   }
 
-  function updatePack(index: number, field: 'credits' | 'priceCents', value: string) {
+  function updatePack(index: number, field: 'credits' | 'priceCents' | 'priceCentsBrl', value: string) {
     setTopUpPacks((prev) =>
       prev.map((p, i) => (i === index ? { ...p, [field]: value } : p))
     )
   }
 
   function addPack() {
-    setTopUpPacks((prev) => [...prev, { credits: '', priceCents: '' }])
+    setTopUpPacks((prev) => [...prev, { credits: '', priceCents: '', priceCentsBrl: '' }])
   }
 
   function removePack(index: number) {
@@ -190,6 +192,10 @@ export function BillingConfigForm({ current }: Props) {
             monthlyCreditGrant: Number(s.monthlyCreditGrant),
             subscriptionPriceCents: Number(s.subscriptionPriceCents),
             subscriptionPriceAnnualCents: Number(s.subscriptionPriceAnnualCents),
+            // BRL prices are not editable in this form yet - pass the current
+            // values through so a save never drops them.
+            subscriptionPriceBrlCents: current.tiers[tier].subscriptionPriceBrlCents,
+            subscriptionPriceAnnualBrlCents: current.tiers[tier].subscriptionPriceAnnualBrlCents,
             includedSeats: Number(s.includedSeats),
             // Stripe Price IDs are provisioned/refreshed by the save action from
             // the price fields — pass the current IDs through unchanged.
@@ -218,6 +224,7 @@ export function BillingConfigForm({ current }: Props) {
       topUpPacks: topUpPacks.map((p) => ({
         credits: Number(p.credits),
         priceCents: Number(p.priceCents),
+        ...(p.priceCentsBrl.trim() !== '' ? { priceCentsBrl: Number(p.priceCentsBrl) } : {}),
       })),
       topupExpiryMonths: Number(topupExpiryMonths),
       estimatedCreditsByOp: Object.fromEntries(
@@ -233,6 +240,7 @@ export function BillingConfigForm({ current }: Props) {
       meteredOperations,
       absorbedChatRateLimitPerMin: Number(absorbedChatRateLimitPerMin),
       autoTopupEnabled,
+      brlPricingEnabled,
       // SEED-054: pass the stored affiliate block through UNCHANGED. This panel
       // has no affiliate fields yet, and saveBillingConfig persists `parsed.data`
       // as the WHOLE metadata row — omitting the block here would silently wipe
@@ -610,7 +618,7 @@ export function BillingConfigForm({ current }: Props) {
         <legend className={legendClass}>{t('Top-up packs')}</legend>
         <div className="space-y-3">
           {topUpPacks.map((pack, index) => (
-            <div key={index} className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div key={index} className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">{t('Credits')}</span>
                 <input
@@ -629,6 +637,17 @@ export function BillingConfigForm({ current }: Props) {
                   step="1"
                   value={pack.priceCents}
                   onChange={(e) => updatePack(index, 'priceCents', e.target.value)}
+                  disabled={isPending}
+                  className={inputClass}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">{t('Price in BRL (centavos)')}</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={pack.priceCentsBrl}
+                  onChange={(e) => updatePack(index, 'priceCentsBrl', e.target.value)}
                   disabled={isPending}
                   className={inputClass}
                 />
@@ -759,6 +778,23 @@ export function BillingConfigForm({ current }: Props) {
                 'Platform-wide kill switch. Turning it on enables the tenant-facing auto-top-up feature for every company; each tenant still opts in individually.'
               )}
             </span>
+          </span>
+        </label>
+      </fieldset>
+
+      {/* BRL pricing switch */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('BRL pricing')}</legend>
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={brlPricingEnabled}
+            onChange={(e) => setBrlPricingEnabled(e.target.checked)}
+            disabled={isPending}
+            className="mt-1 h-4 w-4"
+          />
+          <span className="text-sm font-medium">
+            {t('BRL pricing for Brazilian companies (plans still charge in USD)')}
           </span>
         </label>
       </fieldset>

@@ -49,6 +49,8 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Manage your plan on xtimator.com from a web browser.':
       'Gerencie seu plano em xtimator.com pelo navegador.',
     'Only the company owner can manage billing.': 'Só o dono da empresa pode gerenciar a cobrança.',
+    'Auto top-up is available on paid plans. Subscribe to a plan to turn it on.':
+      'A recarga automática está disponível nos planos pagos. Assine um plano para ativá-la.',
     'Manage Subscription': 'Gerenciar assinatura',
     'Opening portal...': 'Abrindo portal...',
     'Could not open subscription portal. Please try again.':
@@ -174,6 +176,8 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Manage your plan on xtimator.com from a web browser.':
       'Gestione su plan en xtimator.com desde un navegador.',
     'Only the company owner can manage billing.': 'Solo el dueño de la empresa puede gestionar la facturación.',
+    'Auto top-up is available on paid plans. Subscribe to a plan to turn it on.':
+      'La recarga automática está disponible en los planes de pago. Suscríbete a un plan para activarla.',
     'Manage Subscription': 'Gestionar suscripción',
     'Opening portal...': 'Abriendo portal...',
     'Could not open subscription portal. Please try again.':

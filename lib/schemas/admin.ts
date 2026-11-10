@@ -231,6 +231,9 @@ const tierBillingSchema = z.object({
   subscriptionPriceCents: z.number().int().min(0),
   // per-tier ANNUAL subscription price in integer cents (no upper bound that would reject a sane annual price).
   subscriptionPriceAnnualCents: z.number().int().min(0),
+  // BRL (centavos) counterparts; optional so a stored/older payload still parses.
+  subscriptionPriceBrlCents: z.number().int().min(0).optional(),
+  subscriptionPriceAnnualBrlCents: z.number().int().min(0).optional(),
   // seats bundled in the tier before per-seat billing (non-negative int count).
   includedSeats: z.number().int().min(0),
   // Stripe Price IDs auto-created/refreshed by the save action (null until provisioned).
@@ -279,7 +282,14 @@ export const billingConfigSchema = z.object({
     business: tierBillingSchema,
   }),
   topUpPacks: z
-    .array(z.object({ credits: z.number().int().positive(), priceCents: z.number().int().positive() }))
+    .array(
+      z.object({
+        credits: z.number().int().positive(),
+        priceCents: z.number().int().positive(),
+        // BRL price in centavos; optional so older stored packs still parse.
+        priceCentsBrl: z.number().int().positive().optional(),
+      })
+    )
     .max(10),
   // SEED-055 Phase C: months until a top-up lot expires.
   topupExpiryMonths: z.number().int().min(1).max(36),
@@ -306,6 +316,8 @@ export const billingConfigSchema = z.object({
    * enforcementEnabled's exact pattern: default FALSE.
    */
   autoTopupEnabled: z.boolean(),
+  // BRL pricing master switch; optional so older payloads still parse (default false).
+  brlPricingEnabled: z.boolean().optional(),
   /** SEED-054: affiliate program knobs. See {@link affiliateConfigSchema}. */
   affiliate: affiliateConfigSchema,
 })
