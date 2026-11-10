@@ -25,6 +25,8 @@ import { captureBackgroundError } from '@/lib/observability/capture'
 import { grantSignupCredits } from '@/lib/billing/credit-ledger'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { ensureWhatsAppSenderForUser } from '@/lib/whatsapp/sender-link'
+import { WHATSAPP_WELCOME_COOKIE } from '@/lib/whatsapp/welcome-card'
 import { assertWritable } from '@/lib/demo/guard'
 import { attributeReferralFromCookie } from '@/lib/affiliates/attribution-server'
 
@@ -396,6 +398,10 @@ export async function createOrUpdateCompany(
 
     // Mirror the company update into Xphere CRM (fire-and-forget).
     dispatchXphereSync(existing.id, 'company.updated')
+
+    // Link the verified signup phone to WhatsApp (best-effort, never throws; also
+    // heals an owner whose first completion attempt failed before this point).
+    await ensureWhatsAppSenderForUser(claims.sub as string, existing.id)
   } else {
     // Insert new company.
     // Billing v2: the free tier IS the trial — no 14-day clock. tier uses the DB
@@ -517,6 +523,18 @@ export async function createOrUpdateCompany(
 
     const cookieStore2 = await cookies()
     cookieStore2.set(ACTIVE_COMPANY_COOKIE, newCompany.id, ACTIVE_COMPANY_COOKIE_OPTIONS)
+
+    // Phase 3a: the verified signup phone becomes the company's WhatsApp owner
+    // sender right away (no admin step). Best-effort; never throws or blocks setup.
+    await ensureWhatsAppSenderForUser(claims.sub as string, newCompany.id)
+
+    // One-shot marker so the dashboard shows the "Open in WhatsApp" card once.
+    cookieStore2.set(WHATSAPP_WELCOME_COOKIE, '1', {
+      httpOnly: true,
+      maxAge: 600,
+      path: '/',
+      sameSite: 'lax',
+    })
   }
 
   // Set a short-lived non-httpOnly cookie so TourProvider can detect onboarding completion client-side

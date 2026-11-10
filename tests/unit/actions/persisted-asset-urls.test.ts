@@ -9,6 +9,12 @@
 // (2) is what makes the suite capable of failing if a single line is reverted —
 // without it, a stub that happened to return a relative string would pass.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+// Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+vi.mock('@/lib/whatsapp/sender-link', () => ({
+  ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
+  syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),
+  findOwnerCandidateByVerifiedPhone: vi.fn().mockResolvedValue(null),
+}))
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const USER_ID = '33333333-3333-4333-8333-333333333333'

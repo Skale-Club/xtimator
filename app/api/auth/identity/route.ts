@@ -9,6 +9,7 @@ import { noStore, safeInviteDestination, sameAuthOrigin } from '@/lib/auth/http'
 import { requireDataServiceClient } from '@/lib/supabase/data-service'
 import { clientIpFromHeaders } from '@/lib/security/bot-defense'
 import { isValidTheme, writeThemeCookie } from '@/lib/theme/cookie'
+import { syncWhatsAppSenderAfterPhoneChange } from '@/lib/whatsapp/sender-link'
 
 export const runtime = 'nodejs'
 const bodySchema = z.object({ idToken: z.string().min(1).max(16384), next: z.string().max(2048).nullable().optional(), purpose: z.enum(['login', 'link']).default('login') }).strict()
@@ -51,6 +52,9 @@ export async function POST(request: Request) {
     const { data: demo, error: demoError } = await service.from('demo_config').select('user_id').eq('user_id', id).maybeSingle()
     if (demoError) throw new Error('identity_unavailable')
     if (demo) return NextResponse.json({ code: 'demo_login_required' }, { status: 403 })
+    // A verified phone change (the 'link' flow) moves the WhatsApp owner sender with it:
+    // old rows are suspended, the new phone is linked. Best-effort, never throws.
+    if (phone && (body.data.purpose === 'link' || jar.get(RECOVERY_COOKIE)?.value)) await syncWhatsAppSenderAfterPhoneChange(id)
     const token = await issueOwnedSession(id, identity.authTime * 1000)
     if (body.data.purpose === 'link' || (phone && jar.get(RECOVERY_COOKIE)?.value)) await revokeOwnedSession(token, id)
     await revokeOwnedSession(jar.get(SESSION_COOKIE)?.value)

@@ -5,6 +5,8 @@ import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import '@/lib/visual-viewport'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { AppIcon } from '@/components/ui/app-icon'
 import { SurveyProgress } from './survey-progress'
@@ -28,6 +30,9 @@ interface SurveyShellProps {
   onRetrySave?: () => void
   logoUploadStatus?: 'uploading' | 'saved' | 'error'
   onRetryLogo?: () => void
+  /** WhatsApp consent shown on the last step. Pre-unchecked: the owner must tick it. */
+  whatsappOptIn?: boolean
+  onWhatsappOptInChange?: (value: boolean) => void
 }
 
 export function SurveyShell({
@@ -41,6 +46,8 @@ export function SurveyShell({
   // deliberately silent: the owner never sees save status (autosave keeps running).
   logoUploadStatus,
   onRetryLogo,
+  whatsappOptIn = false,
+  onWhatsappOptInChange,
 }: SurveyShellProps) {
   const { t } = useTranslation()
   const stepContent = useRef<HTMLDivElement>(null)
@@ -189,6 +196,20 @@ export function SurveyShell({
                     >
                       {renderStep()}
                     </SurveyStep>
+                    {isLast && onWhatsappOptInChange && (
+                      <div className="mx-auto mt-6 flex max-w-md items-start gap-3 text-left">
+                        <Checkbox
+                          id="survey-whatsapp-opt-in"
+                          checked={whatsappOptIn}
+                          onCheckedChange={(checked) => onWhatsappOptInChange(checked === true)}
+                          disabled={isSubmitting}
+                          className="mt-0.5"
+                        />
+                        <Label htmlFor="survey-whatsapp-opt-in" className="text-sm font-normal leading-snug text-muted-foreground">
+                          {t('Get your estimates and updates on WhatsApp from the Xtimator assistant.')}
+                        </Label>
+                      </div>
+                    )}
                   </div>
 
                   <footer data-onboarding-actions className="shrink-0 border-t border-border/60 bg-card px-4 py-4 min-[360px]:px-6 md:px-10">

@@ -9,6 +9,10 @@ import { ProjectList } from '@/components/dashboard/project-list'
 import { ListCard } from '@/components/ui/list-page'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
 import { T } from '@/components/i18n/t'
+import { cookies } from 'next/headers'
+import { getWhatsAppDisplayNumber } from '@/lib/platform-config'
+import { WHATSAPP_WELCOME_COOKIE, buildFirstEstimateLink } from '@/lib/whatsapp/welcome-card'
+import { WhatsAppWelcomeCard } from '@/components/dashboard/whatsapp-welcome-card'
 
 export default async function DashboardPage() {
   const claims = await getAuthClaims()
@@ -49,6 +53,10 @@ export default async function DashboardPage() {
         </p>
       </section>
 
+      <Suspense fallback={null}>
+        <WhatsAppWelcome />
+      </Suspense>
+
       <Suspense fallback={<StatCardsSkeleton />}>
           <DashboardStats companyId={company.id} currencyCode={company.currency_code} />
       </Suspense>
@@ -60,6 +68,15 @@ export default async function DashboardPage() {
       </section>
     </div>
   )
+}
+
+// Shown once after onboarding (cookie set by createOrUpdateCompany). The platform
+// display number is read server-side; with no number configured nothing renders.
+async function WhatsAppWelcome() {
+  const jar = await cookies()
+  if (!jar.get(WHATSAPP_WELCOME_COOKIE)) return null
+  const href = buildFirstEstimateLink(await getWhatsAppDisplayNumber())
+  return href ? <WhatsAppWelcomeCard href={href} /> : null
 }
 
 async function DashboardStats({ companyId, currencyCode }: { companyId: string; currencyCode: string }) {

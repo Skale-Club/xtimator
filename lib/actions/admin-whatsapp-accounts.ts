@@ -351,7 +351,10 @@ export async function saveWhatsAppSender(
       config_id: config.id,
       phone_e164: phoneE164,
       user_id: opts.userId ?? null,
-      status: 'pending',
+      // 'pending' is not in the status CHECK ('pending_review','active','suspended'),
+      // so every admin-created sender insert failed. An admin-provisioned sender is
+      // authorized by definition.
+      status: 'active',
       created_by_admin: true,
     })
     .select()

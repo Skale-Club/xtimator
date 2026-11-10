@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { switchActiveCompany } from '@/lib/actions/active-company'
 import { syncSeatBilling } from '@/lib/billing/seat-billing'
 import { assertWritable } from '@/lib/demo/guard'
+import { ensureWhatsAppSenderForUser } from '@/lib/whatsapp/sender-link'
 
 /**
  * SEAT-04 — acceptInvite(token): the token-authority join action.
@@ -128,6 +129,10 @@ export async function acceptInvite(
   //    cookie-write hiccup must not fail the join — we ignore its discriminated
   //    error but still call it so the active company is correct.
   await switchActiveCompany(invite.company_id as string)
+
+  // 8b. Link the new member's verified phone to the company's WhatsApp bot
+  //     (best-effort and never-throw; a phone already active elsewhere alerts ops).
+  await ensureWhatsAppSenderForUser(claims.sub as string, invite.company_id as string)
 
   // 9. SEAT-07 — reconcile the Stripe seat quantity for the joined company. The
   //    membership now exists, so a seat-sync hiccup must NEVER fail the join.

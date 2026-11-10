@@ -1,5 +1,11 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+// Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+vi.mock('@/lib/whatsapp/sender-link', () => ({
+  ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
+  syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),
+  findOwnerCandidateByVerifiedPhone: vi.fn().mockResolvedValue(null),
+}))
 
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(), complete: vi.fn(), account: vi.fn(), rate: vi.fn(), remember: vi.fn(), activation: vi.fn(),

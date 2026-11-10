@@ -9,6 +9,12 @@
 // an inherited PAID tier receives this month's grant immediately.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+vi.mock('@/lib/whatsapp/sender-link', () => ({
+  ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
+  syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),
+  findOwnerCandidateByVerifiedPhone: vi.fn().mockResolvedValue(null),
+}))
 
 // SEED-055 D9: new companies / invites are disabled in production; these suites
 // cover the machinery that sits behind the gate, so open the add-on here.
@@ -77,6 +83,7 @@ import { notifyOps } from '@/lib/observability/ops-alert'
 // contention and flaked. vi.mock() is hoisted above imports, so the mocks above
 // still apply; the graph now loads once during collection, off the test clock.
 import { createOrUpdateCompany } from '@/lib/actions/company'
+import { ensureWhatsAppSenderForUser } from '@/lib/whatsapp/sender-link'
 
 // Capture what was passed to insert() or update()
 let capturedInsertRow: Record<string, unknown> | null = null
@@ -190,6 +197,22 @@ describe('createOrUpdateCompany — Billing v2 (mode: first regression)', () => 
     expect(notifyOps).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'tenant_signup' })
     )
+  })
+
+  it('Phase 3a: completing onboarding links the verified phone to WhatsApp for the new company', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: true }) as never)
+
+    await createOrUpdateCompany({ companyName: 'New Co' }).catch(() => {/* redirect throws */})
+
+    expect(ensureWhatsAppSenderForUser).toHaveBeenCalledWith('user-abc', 'company-new')
+  })
+
+  it('Phase 3a: re-submitting onboarding (existing company) also ensures the WhatsApp link', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock({ isNewCompany: false }) as never)
+
+    await createOrUpdateCompany({ companyName: 'Existing Co' }).catch(() => {/* redirect throws */})
+
+    expect(ensureWhatsAppSenderForUser).toHaveBeenCalledWith('user-abc', 'company-xyz')
   })
 
   it('SEED-056: blank payment / warranty terms stay NULL (nothing is seeded)', async () => {

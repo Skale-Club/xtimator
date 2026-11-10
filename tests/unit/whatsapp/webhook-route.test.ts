@@ -38,6 +38,11 @@ vi.mock('@/lib/whatsapp/account-registry', () => ({
   }),
 }))
 
+vi.mock('@/lib/whatsapp/sender-link', () => ({
+  findOwnerCandidateByVerifiedPhone: vi.fn().mockResolvedValue(null),
+  ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
+}))
+
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 1, max: 1 }),
 }))
@@ -63,6 +68,8 @@ import { sendWhatsAppMessage } from '@/lib/whatsapp/client'
 import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
 import { rateLimit } from '@/lib/ratelimit'
+import { ensureWhatsAppSenderForUser, findOwnerCandidateByVerifiedPhone } from '@/lib/whatsapp/sender-link'
+import { assertCompanyWritable } from '@/lib/demo/guard'
 import { logInboundMessage } from '@/lib/whatsapp/conversations'
 import { applyWhatsAppStatuses } from '@/lib/billing/messaging-cost'
 import { GET, POST } from '@/app/api/webhooks/whatsapp/route'
@@ -74,6 +81,9 @@ const mockSendWhatsApp = vi.mocked(sendWhatsAppMessage)
 const mockWelcome = vi.mocked(welcomeOnFirstContact)
 const mockFindSender = vi.mocked(findActiveWhatsAppSender)
 const mockRateLimit = vi.mocked(rateLimit)
+const mockCandidate = vi.mocked(findOwnerCandidateByVerifiedPhone)
+const mockEnsure = vi.mocked(ensureWhatsAppSenderForUser)
+const mockDemoGuard = vi.mocked(assertCompanyWritable)
 const mockLogInbound = vi.mocked(logInboundMessage)
 
 /** fromMock for an owner resolved via Route 1 (findActiveWhatsAppSender). */
@@ -164,6 +174,12 @@ describe('POST /api/webhooks/whatsapp', () => {
     mockFindSender.mockResolvedValue(null)
     mockRateLimit.mockReset()
     mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 1 })
+    mockCandidate.mockReset()
+    mockCandidate.mockResolvedValue(null)
+    mockEnsure.mockReset()
+    mockEnsure.mockResolvedValue({ status: 'linked' })
+    mockDemoGuard.mockReset()
+    mockDemoGuard.mockResolvedValue(null)
     mockLogInbound.mockReset()
     mockLogInbound.mockResolvedValue(undefined as never)
   })
@@ -611,5 +627,104 @@ describe('POST /api/webhooks/whatsapp', () => {
       expect.objectContaining({ type: 'text' }),
       expect.objectContaining({ companyId: null, purpose: 'unknown_sender', billable: false })
     )
+  })
+
+  describe('lazy owner link (verified signup phone)', () => {
+    it('links a unique verified-phone user with one company and processes the message as the owner', async () => {
+      mockVerify.mockReturnValue(true)
+      mockFindSender.mockResolvedValue(null)
+      mockCandidate.mockResolvedValue({ userId: 'user-9', companyId: 'company-9', phoneE164: '+15551234567' })
+      const serviceClient = { from: makeOwnerResolvedFromMock('company-9') } as unknown as ReturnType<typeof requireServiceClient>
+      mockServiceClient.mockReturnValue(serviceClient)
+
+      const res = await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload('wamid.lazy1')))
+      expect(res.status).toBe(200)
+
+      await vi.waitFor(() => {
+        expect(mockEnsure).toHaveBeenCalledWith('user-9', 'company-9')
+        // Treated as Route 1: owner welcome fires and the agent receives the message.
+        expect(mockWelcome).toHaveBeenCalledWith(serviceClient, 'company-9', '+15551234567')
+        expect(mockProcessInbound).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'wamid.lazy1' }),
+          'company-9',
+          '15551234567',
+          serviceClient
+        )
+      })
+      // The demo guard ran for the candidate company before anything was linked.
+      expect(mockDemoGuard.mock.invocationCallOrder[0]).toBeLessThan(mockEnsure.mock.invocationCallOrder[0])
+      expect(mockDemoGuard).toHaveBeenCalledWith('company-9')
+    })
+
+    it('does not link when the candidate company is a read-only demo', async () => {
+      mockVerify.mockReturnValue(true)
+      mockFindSender.mockResolvedValue(null)
+      mockCandidate.mockResolvedValue({ userId: 'user-9', companyId: 'company-9', phoneE164: '+15551234567' })
+      mockDemoGuard.mockResolvedValue({ error: 'demo' } as never)
+      mockServiceClient.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }),
+      } as unknown as ReturnType<typeof requireServiceClient>)
+
+      await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload('wamid.lazy2')))
+      await new Promise((r) => setTimeout(r, 10))
+      expect(mockEnsure).not.toHaveBeenCalled()
+      expect(mockProcessInbound).not.toHaveBeenCalled()
+    })
+
+    it('does not treat the sender as the owner when the link is refused (conflict)', async () => {
+      mockVerify.mockReturnValue(true)
+      mockFindSender.mockResolvedValue(null)
+      mockCandidate.mockResolvedValue({ userId: 'user-9', companyId: 'company-9', phoneE164: '+15551234567' })
+      mockEnsure.mockResolvedValue({ status: 'conflict' })
+      mockServiceClient.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }),
+      } as unknown as ReturnType<typeof requireServiceClient>)
+
+      await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload('wamid.lazy3')))
+      await new Promise((r) => setTimeout(r, 10))
+      expect(mockProcessInbound).not.toHaveBeenCalled()
+      expect(mockWelcome).not.toHaveBeenCalled()
+    })
+
+    it('falls through to Routes 2/3 (unknown sender reply) when there is no verified-phone match or it is ambiguous', async () => {
+      mockVerify.mockReturnValue(true)
+      mockFindSender.mockResolvedValue(null)
+      mockCandidate.mockResolvedValue(null) // none, several users or several companies
+      mockServiceClient.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            }),
+          }),
+        }),
+      } as unknown as ReturnType<typeof requireServiceClient>)
+
+      await POST(makeRequest('POST', 'http://localhost/api/webhooks/whatsapp', ownerTextPayload('wamid.lazy4')))
+      await vi.waitFor(() => {
+        expect(mockSendWhatsApp).toHaveBeenCalledWith(
+          '+15551234567',
+          expect.objectContaining({ type: 'text' }),
+          expect.objectContaining({ purpose: 'unknown_sender' })
+        )
+      })
+      expect(mockEnsure).not.toHaveBeenCalled()
+      expect(mockProcessInbound).not.toHaveBeenCalled()
+    })
   })
 })

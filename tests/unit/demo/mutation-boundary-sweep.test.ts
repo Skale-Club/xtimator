@@ -861,6 +861,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...guarded('lib/actions/invite-accept.ts', 'assertWritable', ['acceptInvite']),
   ...guarded('lib/actions/invoice.ts', 'assertWritable', ['generateInvoice']),
+  ...guarded('lib/actions/whatsapp-consent.ts', 'assertWritable', ['recordWhatsAppOptIn']),
   ...excepted('lib/actions/invoice.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getInvoicesForEstimate',
   ]),

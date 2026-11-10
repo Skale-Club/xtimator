@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
 import { SurveyShell } from '@/components/onboarding/survey/survey-shell'
 import { completeOnboarding, uploadOnboardingDraftLogo } from '@/lib/actions/onboarding-draft'
+import { recordWhatsAppOptIn } from '@/lib/actions/whatsapp-consent'
 import { useDraftAutosave } from '@/lib/onboarding/use-draft-autosave'
 import type { OnboardingDraft } from '@/lib/onboarding/draft'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -35,6 +36,7 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(false)
   const [uploadAttempt, setUploadAttempt] = useState(0)
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false)
   const completing = useRef(false)
   const upload = useRef<{ file: File; promise: ReturnType<typeof uploadOnboardingDraftLogo> } | null>(null)
   const file = state.logoFile
@@ -77,6 +79,8 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
           finalValues = { ...finalValues, logoUrl: result.url }
           state.setValue('logoUrl', result.url)
         }
+        // Explicit WhatsApp consent (pre-unchecked box). Best-effort: never blocks setup.
+        if (whatsappOptIn) await recordWhatsAppOptIn().catch(() => undefined)
         const payload = await autosave.prepareCompletion(finalValues)
         const result = await completeOnboarding(payload)
         if (result?.error) toast.error(t(result.error))
@@ -93,6 +97,7 @@ export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValu
 
   return <SurveyShell appName={appName} logoUrl={logoUrl} state={state}
     isSubmitting={isSubmitting} completionDisabled={uploading} onComplete={handleComplete}
+    whatsappOptIn={whatsappOptIn} onWhatsappOptInChange={setWhatsappOptIn}
     logoUploadStatus={uploading ? 'uploading' : uploadError ? 'error' : savedLogo ? 'saved' : undefined}
     onRetryLogo={() => { upload.current = null; setUploadAttempt(attempt => attempt + 1) }}
     draftStatus={uploading ? 'saving' : autosave.status} onRetrySave={autosave.retry} />

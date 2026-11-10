@@ -8,7 +8,8 @@ import { welcomeOnFirstContact } from '@/lib/whatsapp/send-welcome'
 import { logInboundMessage, type WaMsgType } from '@/lib/whatsapp/conversations'
 import type { WhatsAppMessage, WhatsAppPayload, WhatsAppValue } from '@/lib/whatsapp/types'
 import { rateLimit } from '@/lib/ratelimit'
-import { findActiveWhatsAppSender } from '@/lib/whatsapp/account-registry'
+import { findActiveWhatsAppSender, type WhatsAppSenderMatch } from '@/lib/whatsapp/account-registry'
+import { ensureWhatsAppSenderForUser, findOwnerCandidateByVerifiedPhone } from '@/lib/whatsapp/sender-link'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { unknownSenderReplyText } from '@/lib/whatsapp/unknown-sender-reply'
 import { applyWhatsAppStatuses } from '@/lib/billing/messaging-cost'
@@ -220,6 +221,28 @@ async function replyToUnknownSender(fromPhone: string): Promise<void> {
   })
 }
 
+// Lazy owner link (Route 1b). Kept out of processOneMessage so the demo guard for the
+// candidate company runs here, before the link writes anything, while the guard order
+// inside processOneMessage (guard before rateLimit and insert) is untouched.
+async function lazyLinkOwnerSender(phoneE164: string): Promise<WhatsAppSenderMatch | null> {
+  try {
+    const candidate = await findOwnerCandidateByVerifiedPhone(phoneE164)
+    if (!candidate) return null
+    const demoBlocked = await assertCompanyWritable(candidate.companyId)
+    if (demoBlocked) return null
+    const result = await ensureWhatsAppSenderForUser(candidate.userId, candidate.companyId)
+    if (result.status !== 'linked' && result.status !== 'already_linked') return null
+    console.info('[WhatsApp] sender auto-linked from verified signup phone', {
+      fromLast4: phoneE164.slice(-4),
+      status: result.status,
+    })
+    return { companyId: candidate.companyId, userId: candidate.userId, phoneE164: candidate.phoneE164 }
+  } catch (err) {
+    console.warn('[WhatsApp] lazy owner link failed; falling through to Routes 2/3', err)
+    return null
+  }
+}
+
 async function processOneMessage(
   message: WhatsAppMessage,
   value: WhatsAppValue | undefined
@@ -237,7 +260,13 @@ async function processOneMessage(
 
     // Route 1 (D-13): admin-provisioned authorized sender — the ONLY owner routing path.
     // The account-registry enforces exactly-one-active-sender-per-phone globally.
-    const senderMatch = await findActiveWhatsAppSender(`+${fromPhone}`)
+    let senderMatch = await findActiveWhatsAppSender(`+${fromPhone}`)
+
+    // Route 1b (lazy auto-link): no authorized sender yet, but the phone is the
+    // VERIFIED signup phone of exactly one user who belongs to exactly one company.
+    // Link it now (covers every existing account with no data migration) and treat
+    // the message as Route 1. Ambiguity falls through to Routes 2/3.
+    if (!senderMatch) senderMatch = await lazyLinkOwnerSender(`+${fromPhone}`)
 
     let resolvedCompanyId: string | null = senderMatch?.companyId ?? null
     let resolvedOwnerPhone: string | null = null

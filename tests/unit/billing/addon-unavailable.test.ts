@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+// Phase 3a: WhatsApp auto-link is best-effort and tested in whatsapp/sender-link.test.ts.
+vi.mock('@/lib/whatsapp/sender-link', () => ({
+  ensureWhatsAppSenderForUser: vi.fn().mockResolvedValue({ status: 'linked' }),
+  syncWhatsAppSenderAfterPhoneChange: vi.fn().mockResolvedValue(undefined),
+  findOwnerCandidateByVerifiedPhone: vi.fn().mockResolvedValue(null),
+}))
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
