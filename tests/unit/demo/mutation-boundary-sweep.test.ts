@@ -829,6 +829,9 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/actions/onboarding-draft.ts', 'assertWritable', [
     'saveOnboardingDraft', 'uploadOnboardingDraftLogo', 'completeOnboarding',
   ]),
+  // Reads the caller's memberships and sets a signed httpOnly cookie on the
+  // caller's own browser (owner previews are not counted as client views).
+  ...excepted('lib/actions/owner-device.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['markOwnerDevice']),
   ...guarded('lib/actions/custom-domain.ts', 'assertWritable', ['saveCustomDomain']),
   ...guarded('lib/actions/document-blocks.ts', 'assertWritable', ['updateDocumentBlocks']),
   ...guarded('lib/actions/estimate-photo.ts', 'assertWritable', [
