@@ -36,6 +36,13 @@ vi.mock('@/lib/storage/server', () => ({
   getServerStorage: () => ({ upload: vi.fn().mockResolvedValue(undefined) }),
 }))
 
+// getTranscriptionModel reads platform_integrations through .maybeSingle(), which the
+// chainable client below does not model; pin it so the audio path reaches Whisper.
+vi.mock('@/lib/platform-config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/platform-config')>()
+  return { ...actual, getTranscriptionModel: vi.fn().mockResolvedValue('openai/whisper-1') }
+})
+
 const debitWhatsAppMedia = vi.fn().mockResolvedValue(undefined)
 vi.mock('@/lib/whatsapp/credits', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/whatsapp/credits')>()

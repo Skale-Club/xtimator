@@ -1275,7 +1275,7 @@ describe('Phase 180 mutation-boundary census', () => {
       'app/api/cron/cleanup-whatsapp-sessions/route.ts',
       'GET',
       'assertCompanyWritable',
-      'sendWhatsAppMessage',
+      'sendOwnerWhatsApp',
     )
   })
 

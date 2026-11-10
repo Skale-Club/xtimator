@@ -237,10 +237,10 @@ describe('CREDITUI-06: topUpPacks (3 dollar packs)', () => {
     expect(DEFAULT_BILLING_CONFIG.topUpPacks).toHaveLength(3)
   })
 
-  it('topUpPacks priceCents are $20/$50/$100 in order', () => {
-    expect(DEFAULT_BILLING_CONFIG.topUpPacks[0].priceCents).toBe(2000)
-    expect(DEFAULT_BILLING_CONFIG.topUpPacks[1].priceCents).toBe(5000)
-    expect(DEFAULT_BILLING_CONFIG.topUpPacks[2].priceCents).toBe(10000)
+  it('topUpPacks priceCents are $10/$20/$50 in order', () => {
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[0].priceCents).toBe(1000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[1].priceCents).toBe(2000)
+    expect(DEFAULT_BILLING_CONFIG.topUpPacks[2].priceCents).toBe(5000)
   })
 
   it('every pack credits value is a positive integer', () => {

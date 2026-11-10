@@ -88,7 +88,7 @@ describe('lib/notifications/whatsapp-registry — getApprovedTemplateForEvent()'
       makeTemplateClient({ data: null, error: null }),
     )
 
-    const tpl = await getApprovedTemplateForEvent('estimate.viewed')
+    const tpl = await getApprovedTemplateForEvent('payment.refunded')
     expect(tpl).toBeNull()
   })
 
