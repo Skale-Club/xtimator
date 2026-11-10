@@ -25,6 +25,6 @@ export function isTopupEligible(
 
 /** 403 body shared by both top-up session routes. */
 export const TOPUP_REQUIRES_SUBSCRIPTION_BODY = {
-  error: 'Credit top-ups require an active Pro subscription.',
+  error: 'Credit top-ups require an active subscription.',
   code: 'topup_requires_subscription',
 } as const

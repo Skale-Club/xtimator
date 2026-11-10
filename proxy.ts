@@ -37,6 +37,8 @@ const PROTECTED_ROUTE_PREFIXES = [
 
 const PUBLIC_EXACT_ROUTES = ['/', '/callback'] as const
 
+const TELEGRAM_BLOG_WEBHOOK = '/api/blog/telegram/webhook'
+
 const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
 export function isPublicRoute(pathname: string): boolean {
@@ -54,6 +56,13 @@ export function isPublicRoute(pathname: string): boolean {
   // Stripe (and other) webhooks verify authenticity via signature header — must
   // bypass session auth so Stripe's delivery reaches the handler without redirect.
   if (pathname.startsWith('/api/webhooks/')) {
+    return true
+  }
+  // The blog's Telegram approval webhook lives outside /api/webhooks/ but is the
+  // same kind of endpoint: Telegram never has a session, and the route checks
+  // X-Telegram-Bot-Api-Secret-Token itself before reading the body. Without this
+  // exemption every approval tap was 307'd to /?auth=login and silently lost.
+  if (pathname === TELEGRAM_BLOG_WEBHOOK) {
     return true
   }
   // Inngest invokes background functions (transcribe, generate-estimate,
@@ -150,6 +159,7 @@ function isClaimFreeApiRoute(pathname: string): boolean {
   return (
     isOwnedAuthEntry(pathname) ||
     pathname === '/api/webhooks' || pathname.startsWith('/api/webhooks/') ||
+    pathname === TELEGRAM_BLOG_WEBHOOK ||
     pathname === '/api/inngest' || pathname.startsWith('/api/inngest/') ||
     pathname === '/api/cron' || pathname.startsWith('/api/cron/') ||
     pathname === '/api/health' || pathname.startsWith('/api/health/') ||

@@ -147,7 +147,7 @@ export type BillingConfig = {
    * through to the defaults (merged per key in getBillingConfig).
    */
   estimatedCreditsByOp: Record<EstimatedCreditOp, number>
-  lowBalanceThresholds: number[] // credit balances at which to warn; default [200, 50]
+  lowBalanceThresholds: number[] // credit balances at which to warn; default [300, 110]
   meteredOperations: Record<string, boolean> // which ops debit vs absorbed (schema slot for Phase 112; minimal UI now)
   absorbedChatRateLimitPerMin: number // anti-abuse for absorbed chat; default 20
   /**
@@ -190,10 +190,17 @@ export type BillingConfig = {
   messagingRates: MessagingRates
 }
 
-// Meta WhatsApp rates, North America (PLACEHOLDER - verify against Meta's rate card).
+// Meta WhatsApp rates, North America. Checked 2026-11-10 against secondary
+// sources that cite Meta's USD rate card (courier.com, 2026-09-16) and Meta's
+// pricing page footnote for BR utility; re-check against the official CSV.
 const WA_NORTH_AMERICA = { utility: 0.0034, authentication: 0.0034, service: 0.0034, marketing: 0.025 }
 
-/** PLACEHOLDER rates - check against Meta's official rate card and Twilio pricing. */
+/**
+ * Per-message provider rates, checked 2026-11-10. SMS is Twilio's base rate
+ * PLUS the per-segment carrier fee (US 0.0035-0.005, CA 0.0064-0.0087), rounded
+ * up, because the carrier fee is charged on every segment too. Email is Resend
+ * Pro's in-plan rate (US$20 / 50,000).
+ */
 export const DEFAULT_MESSAGING_RATES: MessagingRates = {
   whatsapp: {
     US: { ...WA_NORTH_AMERICA },
@@ -201,7 +208,7 @@ export const DEFAULT_MESSAGING_RATES: MessagingRates = {
     BR: { utility: 0.0068, service: 0.0068, authentication: 0.0068, marketing: 0.0625 },
     default: { ...WA_NORTH_AMERICA },
   },
-  sms: { US: 0.0083, CA: 0.0083, BR: 0.05, default: 0.05 },
+  sms: { US: 0.013, CA: 0.015, BR: 0.06, default: 0.06 },
   emailUsd: 0.0004,
 }
 
@@ -211,6 +218,10 @@ export const DEFAULT_MESSAGING_RATES: MessagingRates = {
  * save; real grant/markup/price come from the cost measured since Phase 110.
  */
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
+  // Markup 4.5 confirmed 2026-11-10 against measured production cost: a full
+  // estimate is ~105 credits, so Pro's 3,000 gives ~28 estimates (owner target
+  // 20-30), and the real cost of a full grant is 23% of Pro and 27% of
+  // Business, inside the 30% margin invariant (validateMarginInvariant).
   markup: 4.5,
   creditUnitUsd: 0.01,
   whisperUsdPerMinute: 0.006,
@@ -334,9 +345,15 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   ],
   // SEED-055 Phase C: top-up lots expire 3 months after purchase.
   topupExpiryMonths: 3,
-  // SEED-055 Phase D: pre-gate cost per op (calibrate from prod data later).
-  estimatedCreditsByOp: { estimate: 1, photo_batch: 1, audio_minutes: 1, price_research: 1, chat: 1 },
-  lowBalanceThresholds: [200, 50],
+  // SEED-055 Phase D: pre-gate cost per op, calibrated 2026-11-10 from the
+  // measured production p90 at markup 4.5 and US$0.01/credit (estimate $0.0364,
+  // vision $0.0119, audio $0.0044, price research $0.2184), rounded up. The
+  // debit is always the measured cost; this only decides whether an op starts.
+  // Chat is absorbed (not metered), so it stays at 1.
+  estimatedCreditsByOp: { estimate: 17, photo_batch: 6, audio_minutes: 2, price_research: 99, chat: 1 },
+  // A full estimate (audio + photos + generation + price research) measures
+  // about 105 credits, so warn at roughly three estimates left and at one.
+  lowBalanceThresholds: [300, 110],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
   // Billing v2: free-tier one-time allowance. CALIBRATE (sized ≈ a handful of

@@ -781,12 +781,12 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
 // SEED-055 Phase D - estimatedCreditsByOp (pre-gate cost per operation)
 // =============================================================================
 describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
-  it('defaults to 1 for every operation', () => {
+  it('defaults to the calibrated p90 cost per operation', () => {
     expect(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp).toEqual({
-      estimate: 1,
-      photo_batch: 1,
-      audio_minutes: 1,
-      price_research: 1,
+      estimate: 17,
+      photo_batch: 6,
+      audio_minutes: 2,
+      price_research: 99,
       chat: 1,
     })
   })
@@ -802,7 +802,7 @@ describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
       makeServiceClient({ metadata: { estimatedCreditsByOp: { estimate: 40 } } })
     const cfg = await getBillingConfig()
     expect(cfg.estimatedCreditsByOp.estimate).toBe(40)
-    expect(cfg.estimatedCreditsByOp.photo_batch).toBe(1)
+    expect(cfg.estimatedCreditsByOp.photo_batch).toBe(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.photo_batch)
   })
 
   it('the admin schema accepts the default map and rejects a negative or fractional value', () => {
