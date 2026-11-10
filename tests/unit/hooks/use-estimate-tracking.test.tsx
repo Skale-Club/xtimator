@@ -64,10 +64,10 @@ function installSendBeacon() {
 
 async function decodeCalls(sendBeacon: ReturnType<typeof vi.fn>) {
   return Promise.all(
-    sendBeacon.mock.calls.map(async ([url, blob]: [string, Blob]) => ({
-      url,
-      body: JSON.parse(await blob.text()),
-    }))
+    sendBeacon.mock.calls.map(async (call) => {
+      const [url, blob] = call as [string, Blob]
+      return { url, body: JSON.parse(await blob.text()) }
+    })
   )
 }
 
