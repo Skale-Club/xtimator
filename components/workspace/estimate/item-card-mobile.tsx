@@ -251,6 +251,7 @@ export function ItemCardMobile({
       <div className={MOBILE_FIELD_GRID_CLS}>
         <input
           type="number"
+          inputMode="decimal"
           step="any"
           min="0"
           value={item.quantity}

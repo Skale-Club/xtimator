@@ -23,7 +23,10 @@ export default async function CaptureLayout({ children }: { children: React.Reac
 
   return (
     <TwaProvider isTwa={isTwa}>
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    {/* While the phone keyboard is up the surface is exactly the visible area
+        (see lib/visual-viewport.ts), so the screen's bottom action and its
+        scroll region sit above the keyboard instead of behind it. */}
+    <div className="fixed inset-0 z-50 bg-background flex flex-col [html[data-keyboard=open]_&]:bottom-auto [html[data-keyboard=open]_&]:top-[var(--app-vv-top,0px)] [html[data-keyboard=open]_&]:h-[var(--app-vvh,100dvh)]">
       {paywall.state === 'active' ? (
         children
       ) : (

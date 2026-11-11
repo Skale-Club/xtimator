@@ -184,6 +184,7 @@ function EstimateCreationPopupInner() {
             </DialogTitle>
             <input
               type="text"
+              enterKeyHint="done"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={saveName}

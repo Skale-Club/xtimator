@@ -452,6 +452,7 @@ export function PriceBookList({
                   {isRenaming ? (
                     <Input
                       autoFocus
+                      enterKeyHint="done"
                       className="h-7 w-40 text-sm"
                       value={renamingFolderValue}
                       onChange={(e) => setRenamingFolderValue(e.target.value)}
@@ -815,6 +816,7 @@ export function PriceBookList({
           </DialogHeader>
           <Input
             placeholder={t('Category name...')}
+            enterKeyHint="done"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}

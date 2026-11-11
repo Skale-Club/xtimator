@@ -82,6 +82,7 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
       <input
         ref={inputRef}
         type="text"
+        enterKeyHint="done"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {

@@ -97,7 +97,7 @@ export function PhotosInput({ project, companyId, projectId }: PhotosInputProps)
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 h-14 border-b shrink-0">
         <Link

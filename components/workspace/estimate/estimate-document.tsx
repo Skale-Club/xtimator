@@ -429,6 +429,7 @@ function SortableDocumentItemRow({
       <td className={`${EDIT_CELL} w-16`}>
         <input
           type="number"
+          inputMode="decimal"
           step="any"
           min="0"
           value={item.quantity}
@@ -995,6 +996,7 @@ function PercentField({ value, onChange }: { value: number; onChange: (v: number
     <label className={`${TOTALS_FIELD} flex shrink-0 cursor-text items-center justify-end gap-0.5`}>
       <input
         type="number"
+        inputMode="decimal"
         step="0.01"
         min="0"
         value={value}

@@ -321,7 +321,7 @@ export function Step1Upload({ state, dispatch, onCancel }: Step1UploadProps) {
       {/* Step footer: cancel + primary CTA */}
       {/* Pinned to the bottom of the dialog's scroll area so the primary action is
           never below the fold on a short phone screen. */}
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-end items-stretch sm:items-center gap-2 sticky bottom-0 z-10 -mx-2 border-t border-border bg-popover px-2 pb-1 pt-3">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end items-stretch sm:items-center gap-2 sticky bottom-0 z-10 [html[data-keyboard=open]_&]:static -mx-2 border-t border-border bg-popover px-2 pb-1 pt-3">
         <Button variant="ghost" onClick={onCancel} className="sm:w-auto">
           {t('Cancel')}
         </Button>

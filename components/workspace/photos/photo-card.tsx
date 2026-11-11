@@ -145,6 +145,7 @@ export function PhotoCard({
           <input
             ref={captionInputRef}
             type="text"
+            enterKeyHint="done"
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             onBlur={handleCaptionSave}

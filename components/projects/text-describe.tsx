@@ -101,7 +101,9 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    // h-full: the capture layout already is the visible area (it follows the
+    // phone keyboard), so the Generate button never sits behind the keyboard.
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 h-14 border-b shrink-0">
         <Link
@@ -117,9 +119,11 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
       </header>
 
       {/* Main content — Phase 71-08: glass card wrapper with primary CTA */}
-      <main className="flex-1 flex flex-col px-4 py-6 gap-6 min-h-0">
+      {/* The [html[data-keyboard=open]_&] classes compact the padding while typing so
+          textarea + button fit above the keyboard on a small phone. */}
+      <main className="flex-1 flex flex-col px-4 py-6 gap-6 min-h-0 [html[data-keyboard=open]_&]:py-2 [html[data-keyboard=open]_&]:gap-2">
         {/* Textarea wrapped in glass card */}
-        <Card variant="glass" className="flex-1 flex flex-col min-h-0 px-6 mx-auto w-full max-w-2xl">
+        <Card variant="glass" className="flex-1 flex flex-col min-h-0 px-6 mx-auto w-full max-w-2xl [html[data-keyboard=open]_&]:py-3 [html[data-keyboard=open]_&]:gap-2">
           <label htmlFor="job-description" className="block text-sm font-medium text-foreground">
             {t('Job Description')}
           </label>
@@ -130,7 +134,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={t("Describe the job here | for example: 'Pressure wash the driveway and two-car garage, remove mold from the north-facing fascia boards, and seal all concrete surfaces. Approximately 1,800 sq ft total.'")}
-            className="flex-1 min-h-[200px] w-full resize-none rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 min-h-[200px] [html[data-keyboard=open]_&]:min-h-[96px] w-full resize-none rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isGenerating}
           />
         </Card>
