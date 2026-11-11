@@ -34,6 +34,7 @@ export function CodeInput({ id, value, onChange, disabled, length = 6, label = '
       type="text"
       inputMode="numeric"
       autoComplete="one-time-code"
+      enterKeyHint="go"
       pattern="[0-9]*"
       maxLength={length}
       aria-label={label}

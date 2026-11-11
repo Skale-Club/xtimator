@@ -27,6 +27,8 @@ export function DefaultsStep({ values, setValue, onNext }: Props) {
           id="survey-tax"
           autoFocus
           type="number"
+          inputMode="decimal"
+          enterKeyHint="next"
           min={0}
           max={100}
           step="0.01"
@@ -43,6 +45,8 @@ export function DefaultsStep({ values, setValue, onNext }: Props) {
         <Input
           id="survey-validity"
           type="number"
+          inputMode="numeric"
+          enterKeyHint="next"
           min={1}
           className="min-h-[44px]"
           value={values.defaultValidityDays}

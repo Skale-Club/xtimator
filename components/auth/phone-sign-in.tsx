@@ -147,7 +147,7 @@ export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string 
     {errorBox}
     <div className="space-y-2">
       <label htmlFor={fieldId} className="block text-sm font-medium">Account email</label>
-      <Input id={fieldId} type="email" inputMode="email" autoComplete="email" autoFocus placeholder="you@example.com" value={email} onChange={event => setEmail(event.target.value)} disabled={busy} required className="h-12 rounded-xl !text-base" />
+      <Input id={fieldId} type="email" inputMode="email" autoComplete="email" enterKeyHint="send" autoFocus placeholder="you@example.com" value={email} onChange={event => setEmail(event.target.value)} disabled={busy} required className="h-12 rounded-xl !text-base" />
     </div>
     <Button type="submit" className={primary} disabled={busy || !config}>
       {busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> : null}Send code<ArrowRight className="ml-1 size-4" aria-hidden />
@@ -164,7 +164,7 @@ export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string 
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
         <label htmlFor={fieldId} className="block text-sm font-medium">Phone number</label>
-        <PhoneInput id={fieldId} value={phone} onChange={setPhone} onEnter={() => submit()} disabled={busy || !config} className="[&_button]:h-12 [&_button]:rounded-xl [&_input]:h-12 [&_input]:rounded-xl [&_input]:!text-base" />
+        <PhoneInput id={fieldId} value={phone} onChange={setPhone} enterKeyHint="send" onEnter={() => submit()} disabled={busy || !config} className="[&_button]:h-12 [&_button]:rounded-xl [&_input]:h-12 [&_input]:rounded-xl [&_input]:!text-base" />
       </div>
       <Button type="submit" className={primary} disabled={busy || !config}>
         {busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> : null}Send code<ArrowRight className="ml-1 size-4" aria-hidden />

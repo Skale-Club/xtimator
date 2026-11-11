@@ -103,6 +103,7 @@ export function ChatMessage({
             }
             if (e.key === 'Escape') setEditing(false)
           }}
+          enterKeyHint="send"
           aria-label={t('Edit message')}
           className="max-h-40 min-h-[60px] w-full max-w-[88%] resize-none md:max-w-[75%]"
           autoFocus
