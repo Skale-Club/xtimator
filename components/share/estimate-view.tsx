@@ -571,7 +571,14 @@ function EstimateViewInner({
       {/* Signature step — overlay panel opened by Accept. Accept means sign. */}
       {approvalEnabled && (
         <Dialog open={showSignaturePad && !responded} onOpenChange={(open) => !open && closeSignature()}>
-          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+          {/* The dialog portals to <body>, outside the forced-light share layout, so it
+              re-declares the light scope (otherwise it turns dark for dark-mode
+              visitors around a white signature canvas). Tighter padding/gaps on
+              phones keep the footer actions closer to the fold. */}
+          <DialogContent
+            data-theme="light"
+            className="max-h-[90dvh] gap-3 overflow-y-auto p-4 text-foreground sm:max-w-xl sm:gap-4 sm:p-6"
+          >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">
                 <PenLine className="h-5 w-5" style={{ color: brandText }} />
@@ -618,7 +625,7 @@ function EstimateViewInner({
             </div>
 
             {/* Discreet decline — asks for confirmation before anything is sent. */}
-            <div className="border-t border-border pt-3 text-center">
+            <div className="border-t border-border pt-1 text-center">
               {confirmingDecline ? (
                 <div className="space-y-2" data-testid="decline-confirm">
                   <p className="text-sm font-medium">{t('Decline this estimate?')}</p>
@@ -646,7 +653,7 @@ function EstimateViewInner({
               ) : (
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  className="py-2.5 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                   onClick={() => setConfirmingDecline(true)}
                   disabled={isSubmittingSignature}
                 >

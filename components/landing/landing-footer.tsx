@@ -30,36 +30,36 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
           <div className="grid grid-cols-2 gap-6 sm:contents">
             <div>
               <h4 className="text-sm font-semibold text-white">Product</h4>
-              <ul className="mt-4 sm:mt-6 space-y-4 text-sm text-muted-foreground">
+              <ul className="mt-4 sm:mt-6 space-y-1 text-sm text-muted-foreground">
                 <li>
-                  <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
+                  <Link href="/#features" className="inline-block py-1.5 transition-colors hover:text-white">Features</Link>
                 </li>
                 <li>
-                  <Link href="/#how-it-works" className="transition-colors hover:text-white">How it works</Link>
+                  <Link href="/#how-it-works" className="inline-block py-1.5 transition-colors hover:text-white">How it works</Link>
                 </li>
                 <li>
-                  <Link href="/industries" className="transition-colors hover:text-white">Industries</Link>
+                  <Link href="/industries" className="inline-block py-1.5 transition-colors hover:text-white">Industries</Link>
                 </li>
                 <li>
-                  <Link href="/blog" className="transition-colors hover:text-white">Blog</Link>
+                  <Link href="/blog" className="inline-block py-1.5 transition-colors hover:text-white">Blog</Link>
                 </li>
                 <li>
-                  <button type="button" onClick={() => onOpenAuth?.('signup')} className="transition-colors hover:text-white">Start</button>
+                  <button type="button" onClick={() => onOpenAuth?.('signup')} className="inline-block py-1.5 transition-colors hover:text-white">Start</button>
                 </li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-sm font-semibold text-white">Legal</h4>
-              <ul className="mt-4 sm:mt-6 space-y-4 text-sm text-muted-foreground">
+              <ul className="mt-4 sm:mt-6 space-y-1 text-sm text-muted-foreground">
                 <li>
-                  <Link href="/privacy-policy" className="transition-colors hover:text-white">Privacy Policy</Link>
+                  <Link href="/privacy-policy" className="inline-block py-1.5 transition-colors hover:text-white">Privacy Policy</Link>
                 </li>
                 <li>
-                  <Link href="/terms-of-service" className="transition-colors hover:text-white">Terms of Service</Link>
+                  <Link href="/terms-of-service" className="inline-block py-1.5 transition-colors hover:text-white">Terms of Service</Link>
                 </li>
                 <li>
-                  <Link href="/demo/entry" className="transition-colors hover:text-white">See Demo</Link>
+                  <Link href="/demo/entry" className="inline-block py-1.5 transition-colors hover:text-white">See Demo</Link>
                 </li>
               </ul>
             </div>

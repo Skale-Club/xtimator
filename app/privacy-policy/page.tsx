@@ -44,7 +44,7 @@ export default async function PrivacyPolicyPage() {
               </p>
             )}
           </header>
-          <Card variant="glass" className="p-8 sm:p-10">
+          <Card variant="glass" className="p-5 sm:p-10">
             <BlogContent markdown={page.content} />
           </Card>
         </article>

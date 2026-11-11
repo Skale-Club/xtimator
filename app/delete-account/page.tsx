@@ -43,7 +43,7 @@ export default async function DeleteAccountPage() {
             </p>
           </header>
 
-          <Card variant="glass" className="space-y-4 p-6 sm:p-8">
+          <Card variant="glass" className="gap-0 space-y-4 p-6 sm:p-8">
             <h2 className="text-lg font-semibold">What gets deleted</h2>
             <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
               <li>Your login, profile, phone number and email address.</li>
@@ -60,7 +60,7 @@ export default async function DeleteAccountPage() {
             </p>
           </Card>
 
-          <Card variant="glass" className="space-y-4 p-6 sm:p-8">
+          <Card variant="glass" className="gap-0 space-y-4 p-6 sm:p-8">
             <h2 className="text-lg font-semibold">Delete it now</h2>
             {accountLabel ? (
               <DeleteAccountPanel accountLabel={accountLabel} />
@@ -78,7 +78,7 @@ export default async function DeleteAccountPage() {
             )}
           </Card>
 
-          <Card variant="glass" className="space-y-3 p-6 sm:p-8">
+          <Card variant="glass" className="gap-0 space-y-3 p-6 sm:p-8">
             <h2 className="text-lg font-semibold">Can&apos;t sign in?</h2>
             <p className="text-sm text-muted-foreground">
               Email{' '}

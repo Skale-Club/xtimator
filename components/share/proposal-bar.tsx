@@ -91,7 +91,10 @@ export function ProposalBar({
 
         {trailing}
 
-        <div className="shrink-0 text-right">
+        {/* On phones with the Accept button present the fixed bottom bar already
+            shows the total; dropping it here keeps the company name readable
+            instead of squeezed to one letter at 360px. */}
+        <div className={`shrink-0 text-right ${showAccept ? 'hidden sm:block' : ''}`}>
           <p className="hidden text-[11px] leading-none text-muted-foreground sm:block">
             {t('Total')}
           </p>

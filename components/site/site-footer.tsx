@@ -51,11 +51,11 @@ export function SiteFooter({ branding }: SiteFooterProps) {
 
           <div>
             <h4 className="text-sm font-semibold text-white">Product</h4>
-            <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
+            <ul className="mt-6 space-y-1 text-sm text-muted-foreground">
               <li>
                 <Link
                   href="/#features"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   Features
                 </Link>
@@ -63,7 +63,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               <li>
                 <Link
                   href="/#how-it-works"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   How it works
                 </Link>
@@ -71,7 +71,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               <li>
                 <Link
                   href="/?auth=signup"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   Start
                 </Link>
@@ -81,11 +81,11 @@ export function SiteFooter({ branding }: SiteFooterProps) {
 
           <div>
             <h4 className="text-sm font-semibold text-white">Legal</h4>
-            <ul className="mt-6 space-y-4 text-sm text-muted-foreground">
+            <ul className="mt-6 space-y-1 text-sm text-muted-foreground">
               <li>
                 <Link
                   href="/privacy-policy"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   Privacy Policy
                 </Link>
@@ -93,7 +93,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               <li>
                 <Link
                   href="/terms-of-service"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   Terms of Service
                 </Link>
@@ -101,7 +101,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               <li>
                 <Link
                   href="/delete-account"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   Delete Account
                 </Link>
@@ -109,7 +109,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               <li>
                 <Link
                   href="/?auth=login"
-                  className="transition-colors hover:text-white"
+                  className="inline-block py-1.5 transition-colors hover:text-white"
                 >
                   See Demo
                 </Link>
@@ -128,7 +128,7 @@ export function SiteFooter({ branding }: SiteFooterProps) {
           <div className="flex gap-6 text-muted-foreground">
             <Link
               href="#"
-              className="transition-colors hover:text-white"
+              className="-m-2.5 inline-block p-2.5 transition-colors hover:text-white"
               aria-label="Twitter"
             >
               <svg
