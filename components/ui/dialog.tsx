@@ -1,5 +1,9 @@
 "use client"
 
+// Side effect: keeps the phone keyboard's visible area in CSS variables so
+// this primitive stays above the keyboard (see lib/visual-viewport.ts).
+import "@/lib/visual-viewport"
+
 import * as React from "react"
 import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"

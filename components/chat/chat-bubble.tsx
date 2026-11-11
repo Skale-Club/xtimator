@@ -313,6 +313,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
           aria-label={t('Open chat assistant')}
+          data-hide-on-keyboard
           title={t('Drag to move')}
           style={launcherStyle}
           className={cn(

@@ -57,6 +57,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
       // iOS PWA, making them float far above the screen base. Subtract 14px so
       // the bar hugs the base while still clearing the home indicator; max()
       // keeps browsers without an inset (env = 0) at pb-0 exactly as before.
+      data-hide-on-keyboard
       className="fixed bottom-0 left-0 right-0 z-50 flex items-center border-t border-border bg-background md:hidden pb-[max(calc(env(safe-area-inset-bottom,_0px)_-_14px),0px)]"
     >
       {orderedItems.map((item) => {

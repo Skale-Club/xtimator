@@ -670,6 +670,7 @@ function EstimateViewInner({
       {showMobileAcceptBar && (
         <div
           data-testid="mobile-accept-bar"
+          data-hide-on-keyboard
           className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur sm:hidden"
         >
           <div className="min-w-0">

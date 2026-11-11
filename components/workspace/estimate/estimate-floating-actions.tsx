@@ -59,6 +59,7 @@ interface EstimateFloatingActionsProps {
 function Pill({ children }: { children: ReactNode }) {
   return (
     <div
+      data-hide-on-keyboard
       className="pointer-events-none sticky z-40 h-0 w-full"
       style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
@@ -108,6 +109,7 @@ function CollapsedTab({ onExpand }: { onExpand: () => void }) {
         type="button"
         onClick={onExpand}
         aria-label={t('Show actions')}
+        data-hide-on-keyboard
         className="fixed bottom-0 z-40 flex min-h-7 w-16 -translate-x-1/2 items-start justify-center rounded-t-xl border border-b-0 border-border bg-background/95 pt-1 text-foreground shadow-[0_-6px_16px_rgba(0,0,0,0.25)] backdrop-blur transition-colors hover:bg-muted"
         style={{ left: centerX ?? '50%', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
