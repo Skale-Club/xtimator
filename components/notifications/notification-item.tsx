@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/utils/format-date'
 import { CategoryIcon } from './category-icon'
 import type { NotificationListItem } from './use-notifications'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 /**
  * Compact relative time (no extra dep). 30s buckets → "now"; 60s →
@@ -32,6 +33,7 @@ export function NotificationItem({
   onMarkRead,
   onAfterNavigate,
 }: NotificationItemProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const isUnread = !item.read_at
 
@@ -47,7 +49,7 @@ export function NotificationItem({
     <button
       type="button"
       onClick={handleClick}
-      aria-label={`Notification: ${item.title}`}
+      aria-label={`${t('Notification')}: ${item.title}`}
       className={cn(
         'w-full text-left px-3 py-3 flex gap-3 items-start transition-colors',
         'hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',

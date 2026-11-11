@@ -1,5 +1,6 @@
 import { Eye } from 'lucide-react'
 import { exitDemoToSignup } from '@/lib/demo/actions'
+import { T } from '@/components/i18n/t'
 
 /**
  * Fixed read-only demo banner shown across the app when the active company is
@@ -13,16 +14,16 @@ export function DemoBanner() {
     <div className="flex items-center justify-center gap-2 border-b border-primary/20 bg-primary/10 px-4 py-2 text-sm text-foreground">
       <Eye className="h-4 w-4 shrink-0 text-primary" />
       <span className="text-center">
-        You&apos;re viewing a read-only Xtimator demo with sample data.{' '}
+        <T>You&apos;re viewing a read-only Xtimator demo with sample data.</T>{' '}
         <form action={exitDemoToSignup} className="inline">
           <button
             type="submit"
             className="font-semibold underline underline-offset-2 hover:no-underline"
           >
-            Create your account
+            <T>Create your account</T>
           </button>
         </form>{' '}
-        to build real estimates.
+        <T>to build real estimates.</T>
       </span>
     </div>
   )

@@ -11,7 +11,7 @@ import { ListHeaderSkeleton, ListRowsSkeleton, ListToolbarSkeleton } from '@/com
 /** Mirrors StatCards / StatCard: 2 columns (4 from lg), icon + label row, number below. */
 export function StatCardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3 px-6 sm:gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 px-4 sm:gap-4 sm:px-6 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-2.5 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3.5 sm:p-5">
           <div className="flex min-h-8 items-center gap-2.5">

@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   return (
     <div className="pb-12">
       {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
-      <section className="relative isolate px-6 py-6">
+      <section className="relative isolate px-4 py-6 sm:px-6">
         {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces.
             Bottom mask fades the gradient to alpha 0 so it dissolves smoothly into the page bg
             (instead of cutting off with a visible edge). */}
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
           <DashboardStats companyId={company.id} currencyCode={company.currency_code} />
       </Suspense>
 
-      <section className="px-6 mt-12">
+      <section className="mt-8 px-4 sm:mt-12 sm:px-6">
         <Suspense fallback={<RecentProjectsSkeleton />}>
           <DashboardProjects companyId={company.id} />
         </Suspense>
