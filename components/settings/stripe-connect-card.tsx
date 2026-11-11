@@ -70,15 +70,17 @@ export function StripeConnectCard({
     })
   }
 
+  // Same gutters as SettingsCard (20px phone / 24px sm+); the old p-2 stacked on
+  // the Card parts' px-6 and left the title hugging the top edge.
   return (
-    <Card variant="glass" className="p-2 md:p-4">
-      <CardHeader>
+    <Card variant="glass" className="gap-4 py-5 sm:py-6">
+      <CardHeader className="px-5 sm:px-6">
         <CardTitle>{t('Stripe payments')}</CardTitle>
         <CardDescription>
           {t('Accept card payments from customers directly on your shared estimates. Funds settle to your own Stripe account | Xtimator never holds your money.')}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5 sm:px-6">
         {state.kind === 'not_configured' && (
           <p className="text-sm text-muted-foreground">
             {t('Stripe Connect is not yet enabled on this platform. Please contact support.')}
@@ -91,8 +93,8 @@ export function StripeConnectCard({
         )}
         {state.kind === 'connected' && (
           <div className="text-sm">
-            <p className="flex items-center">
-              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 mr-2" />
+            <p className="break-words">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 mr-2 align-middle" />
               {t('Connected as')} <strong className="ml-1">{state.displayName}</strong>
             </p>
             {state.email && (
@@ -102,8 +104,8 @@ export function StripeConnectCard({
         )}
         {state.kind === 'restricted' && (
           <div className="text-sm">
-            <p className="flex items-center">
-              <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 mr-2" />
+            <p className="break-words">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500 mr-2 align-middle" />
               {t('Connected as')} <strong className="ml-1">{state.displayName}</strong>
             </p>
             {state.email && (
@@ -144,7 +146,7 @@ export function StripeConnectCard({
           <p className="text-sm text-destructive mt-3">{error}</p>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="px-5 sm:px-6">
         {state.kind === 'not_connected' && (
           <a href="/api/stripe/connect/initiate">
             <Button variant="primary">

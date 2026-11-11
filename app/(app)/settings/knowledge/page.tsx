@@ -74,19 +74,22 @@ export default async function CompanyKnowledgePage() {
             </Button>
           </div>
         ) : (
+          // Phones: Source and Created are hidden (hidden sm:table-cell) so the
+          // table fits; overflow-x-auto is the safety net for long titles.
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--glass-border)] text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-3 font-medium">
                   <T>Title</T>
                 </th>
-                <th className="px-4 py-3 font-medium">
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">
                   <T>Source</T>
                 </th>
                 <th className="px-4 py-3 font-medium">
                   <T>Status</T>
                 </th>
-                <th className="px-4 py-3 font-medium">
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">
                   <T>Created</T>
                 </th>
                 <th className="px-4 py-3 text-right font-medium">
@@ -100,7 +103,7 @@ export default async function CompanyKnowledgePage() {
                   key={entry.id}
                   className="border-b border-[var(--glass-border)] last:border-0 transition-colors hover:bg-[var(--glass-bg-light)]"
                 >
-                  <td className="px-4 py-3">
+                  <td className="min-w-0 break-words px-4 py-3">
                     <Link
                       href={`/settings/knowledge/${entry.id}`}
                       className="font-medium hover:underline"
@@ -108,7 +111,7 @@ export default async function CompanyKnowledgePage() {
                       {entry.title}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{entry.source ?? '—'}</td>
+                  <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">{entry.source ?? '—'}</td>
                   <td className="px-4 py-3">
                     {entry.embedding == null ? (
                       <Badge
@@ -123,7 +126,7 @@ export default async function CompanyKnowledgePage() {
                       </Badge>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
                     {new Date(entry.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
@@ -137,6 +140,7 @@ export default async function CompanyKnowledgePage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Card>
     </div>

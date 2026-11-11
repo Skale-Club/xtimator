@@ -80,7 +80,7 @@ export default async function McpSettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <pre className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
+            <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
               <code>{mcpUrl}</code>
             </pre>
             <CopyButton value={mcpUrl} label="Copy URL" />

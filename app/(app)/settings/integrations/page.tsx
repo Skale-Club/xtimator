@@ -68,7 +68,7 @@ export default async function SettingsIntegrationsPage() {
                   <CreditCard className="h-5 w-5 text-primary" aria-hidden />
                   <CardTitle className="text-base">Stripe</CardTitle>
                   <Badge variant={stripeConnected ? 'default' : 'secondary'}>
-                    {stripeConnected ? 'Connected' : 'Not connected'}
+                    {stripeConnected ? <T>Connected</T> : <T>Not connected</T>}
                   </Badge>
                 </div>
                 <ChevronRight
@@ -99,7 +99,7 @@ export default async function SettingsIntegrationsPage() {
                 <div className="flex items-center gap-2">
                   <Plug className="h-5 w-5 text-primary" aria-hidden />
                   <CardTitle className="text-base">MCP Server</CardTitle>
-                  <Badge variant="secondary">Beta</Badge>
+                  <Badge variant="secondary"><T>Beta</T></Badge>
                 </div>
                 <ChevronRight
                   className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5"
@@ -107,11 +107,11 @@ export default async function SettingsIntegrationsPage() {
                 />
               </div>
               <CardDescription>
-                Use Xtimator from inside Claude, Claude Code, or ChatGPT.
+                <T>Use Xtimator from inside Claude, Claude Code, or ChatGPT.</T>
               </CardDescription>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
-              6 tools available · OAuth 2.0 · per-company scope
+              <T>6 tools available · OAuth 2.0 · per-company scope</T>
             </CardContent>
           </Card>
         </Link>

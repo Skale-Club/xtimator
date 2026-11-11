@@ -19,6 +19,11 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Account': 'Conta',
     'Appearance': 'Aparência',
     'Connections': 'Conexões',
+    'Connected': 'Conectado',
+    'Not connected': 'Não conectado',
+    'Beta': 'Beta',
+    'Use Xtimator from inside Claude, Claude Code, or ChatGPT.': 'Use o Xtimator dentro do Claude, Claude Code ou ChatGPT.',
+    '6 tools available · OAuth 2.0 · per-company scope': '6 ferramentas disponíveis · OAuth 2.0 · escopo por empresa',
     'Integrations': 'Integrações',
 
     // Page + current plan
@@ -261,6 +266,11 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     '20 photos per estimate': '20 fotos por presupuesto',
     'Custom branding': 'Su marca en los presupuestos',
     'Priority email support': 'Soporte prioritario por correo',
+    'Connected': 'Conectado',
+    'Not connected': 'No conectado',
+    'Beta': 'Beta',
+    'Use Xtimator from inside Claude, Claude Code, or ChatGPT.': 'Use Xtimator dentro de Claude, Claude Code o ChatGPT.',
+    '6 tools available · OAuth 2.0 · per-company scope': '6 herramientas disponibles · OAuth 2.0 · alcance por empresa',
     'Could not start checkout. Please try again.': 'No se pudo iniciar el pago. Inténtelo de nuevo.',
   },
 }
