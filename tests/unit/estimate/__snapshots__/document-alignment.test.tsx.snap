@@ -78,7 +78,7 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
         style="background-color: rgb(64, 110, 241);"
       >
         <span
-          class="flex-1 font-semibold text-base tracking-wide select-none"
+          class="flex-1 min-w-0 break-words font-semibold text-base tracking-wide select-none"
           style="color: rgb(255, 255, 255);"
         >
           Materials

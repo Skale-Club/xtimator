@@ -693,20 +693,26 @@ function DocumentSectionBlock({
         )}
 
         {isEditable && dispatch ? (
-          <input
+          // Wrapping, auto-growing single-paragraph field (field-sizing-content): a long
+          // section title is fully visible on a phone instead of cut off at one line.
+          <textarea
+            rows={1}
             value={section.title}
             onChange={(e) =>
               dispatch({
                 type: 'UPDATE_SECTION_TITLE',
                 sectionId: section.id,
-                title: e.target.value,
+                title: e.target.value.replace(/\n/g, ' '),
               })
             }
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.preventDefault()
+            }}
             style={{ color: brandOnFill }}
-            className="order-3 ml-2 sm:ml-0.5 flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0"
+            className="order-3 ml-2 sm:ml-0.5 flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0 resize-none [field-sizing:content] break-words"
           />
         ) : (
-          <span className="flex-1 font-semibold text-base tracking-wide select-none" style={{ color: brandOnFill }}>{section.title}</span>
+          <span className="flex-1 min-w-0 break-words font-semibold text-base tracking-wide select-none" style={{ color: brandOnFill }}>{section.title}</span>
         )}
 
         {isEditable && dispatch && (
@@ -972,8 +978,10 @@ const TOTALS_FIELD = 'h-8 w-20 shrink-0 rounded-md border border-zinc-200 bg-whi
 /** The amount column of a totals row. Always rendered (empty when there is no
  *  amount) so the controls of every row end on the same line. */
 function TotalsAmount({ children, className }: { children: React.ReactNode; className?: string }) {
+  // min-w (not w): the column keeps its alignment width but grows leftwards for a 6-figure amount
+  // instead of clipping it (e.g. "-$299,999.99" is wider than 6rem).
   return (
-    <span className={`shrink-0 ml-auto w-24 text-right tabular-nums font-medium ${children == null ? 'hidden sm:block' : ''} ${className ?? ''}`}>
+    <span className={`shrink-0 ml-auto min-w-24 text-right tabular-nums font-medium ${children == null ? 'hidden sm:block' : ''} ${className ?? ''}`}>
       {children}
     </span>
   )
@@ -1821,7 +1829,7 @@ export function EstimateDocument({
             <div className="space-y-0.5">
               <p className="text-xl font-bold">{client.name}</p>
               {client.email && (
-                <p className="text-base text-muted-foreground mt-1">{client.email}</p>
+                <p className="text-base text-muted-foreground mt-1 [overflow-wrap:anywhere]">{client.email}</p>
               )}
               {client.phone && (
                 <p className="text-base text-muted-foreground">

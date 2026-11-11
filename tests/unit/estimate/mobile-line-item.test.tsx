@@ -69,7 +69,7 @@ describe('mobile line-item editor (DOCUX-06)', () => {
       <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
     )
     const descInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Description"]'
+      'textarea[aria-label="Description"]'
     )
     expect(descInput).toBeTruthy()
     expect(descInput!.className).toMatch(/bg-transparent/)
@@ -158,7 +158,7 @@ describe('mobile line-item editor (DOCUX-06)', () => {
         labels={{ description: 'Descrição', qty: 'Qtd', taxable: 'Imposto' }}
       />
     )
-    expect(container.querySelector('input[aria-label="Descrição"]')).toBeTruthy()
+    expect(container.querySelector('textarea[aria-label="Descrição"]')).toBeTruthy()
     expect(container.querySelector('input[aria-label="Qtd"]')).toBeTruthy()
     expect(container.querySelector('[role="switch"][aria-label="Imposto"]')).toBeTruthy()
   })
