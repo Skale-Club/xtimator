@@ -113,7 +113,14 @@ export function ClientResponseControl({
             ) : (
               <MessageSquareReply className="h-3.5 w-3.5" />
             )}
-            {stateLabel ? `${stateLabel}${date ? ` · ${date}` : ''}` : t('Record answer')}
+            {stateLabel ? (
+              `${stateLabel}${date ? ` · ${date}` : ''}`
+            ) : (
+              // Icon-only on phones: with Photos and Share the pill is wider than a
+              // 360px screen and Share would scroll out of view. Stays readable to
+              // screen readers via the aria-label above.
+              <span className="max-sm:sr-only">{t('Record answer')}</span>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" side="top" className="max-w-64">

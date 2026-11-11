@@ -17,6 +17,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'New Client': 'Novo Cliente',
     'Recordings': 'Gravações',
     'Photos': 'Fotos',
+    'Show actions': 'Mostrar ações',
+    'Hide actions': 'Ocultar ações',
+    'Estimate debug': 'Depurar orçamento',
     // Client response (manual accept/decline)
     'Client response': 'Resposta do cliente',
     'Record answer': 'Registrar resposta',
@@ -357,6 +360,9 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'New Client': 'Nuevo Cliente',
     'Recordings': 'Grabaciones',
     'Photos': 'Fotos',
+    'Show actions': 'Mostrar acciones',
+    'Hide actions': 'Ocultar acciones',
+    'Estimate debug': 'Depurar presupuesto',
     // Client response (manual accept/decline)
     'Client response': 'Respuesta del cliente',
     'Record answer': 'Registrar respuesta',
