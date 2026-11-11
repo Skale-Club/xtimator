@@ -1,4 +1,5 @@
 'use client'
+import { MessageCircleQuestionMark } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -36,17 +37,22 @@ export function CaptureNeedsDetails({
   const hasQuestions = !!questions && questions.length > 0
 
   return (
-    <div className="space-y-3" data-testid="capture-needs-details">
+    // Centered like CaptureFailure; the question list stays left-aligned in a
+    // muted box so multi-line questions read naturally.
+    <div className="flex flex-col items-center gap-3 text-center" data-testid="capture-needs-details">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10" aria-hidden>
+        <MessageCircleQuestionMark className="h-5 w-5 text-primary" />
+      </span>
       {reason === 'mic_test' ? (
         <p className="text-sm text-muted-foreground">
           {t('That sounded like a mic test 🙂 Record again describing the job.')}
         </p>
       ) : hasQuestions ? (
-        <div className="space-y-2">
+        <div className="w-full space-y-2">
           <p className="text-sm text-muted-foreground">
             {t('Almost there — a few details would make this priceable:')}
           </p>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-foreground">
+          <ul className="list-disc space-y-1 rounded-lg bg-muted/40 py-2.5 pl-8 pr-3 text-left text-sm text-foreground">
             {questions!.map((q, i) => (
               <li key={i}>{q}</li>
             ))}

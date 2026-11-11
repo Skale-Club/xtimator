@@ -1581,13 +1581,15 @@ export function CaptureRecorder({
         // was clipped to the container's 260px minimum (the checklist is ~470px
         // tall). `overflow-y-auto` keeps a tall photos-mode checklist inside
         // the Dialog's max-height on short phones.
-        <div className="relative flex-1 min-h-[260px] overflow-y-auto">
+        // flex-col so the processing view can pin its header/footer and the
+        // failure / needs-details panels are centered in the dialog body.
+        <div className="relative flex flex-1 min-h-[260px] flex-col overflow-y-auto">
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
           {!failedAt && !needsDetailsInfo && (
             <CaptureProcessingOverlay
-              layout="inline"
+              layout="popup"
               stage={stage}
               mode={activeMode}
               completedSteps={attemptProgress.completedSteps}
@@ -1750,12 +1752,16 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
     // second row of thumbnails covered the textarea and the recording
     // waveform, and on short screens the "Listening..." pill was clipped.
     return (
-      <div className="flex flex-col flex-1 min-h-[380px] relative overflow-hidden bg-background">
+      <div className="flex flex-col flex-1 relative overflow-hidden bg-background">
 
         {/* Canvas: the textarea when idle, the recording view on top of it
             while recording. It owns all the space above the photo strip and
-            the action bar, so the recording view only ever covers the canvas. */}
-        <div className="relative flex flex-col flex-1 min-h-0">
+            the action bar, so the recording view only ever covers the canvas.
+            Its minimum height is what the recording view needs (pill + timer
+            + waveform) and no more, so recording shows no dead band above the
+            pill, and the popup does not change height when recording starts
+            (the record button stays under the thumb). */}
+        <div className="relative flex flex-col flex-1 min-h-[220px]">
           <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4">
             <textarea
               value={descriptionText}
@@ -1813,7 +1819,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
               states. Pill, timer and waveform are centered as one group and
               the view scrolls instead of clipping on very short screens. */}
           {isRecording && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-background px-6 py-4 animate-in fade-in duration-300">
+            <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-background px-6 py-3 animate-in fade-in duration-300">
               {/* Ambient brand glow — depth without shapes. Centered and fully
                   faded before the view's edges, so it never ends in a hard line
                   above the photo strip. */}
@@ -1821,7 +1827,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
                 aria-hidden
                 className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_65%)]"
               />
-              <div className="my-auto flex w-full max-w-md flex-col items-center gap-5">
+              <div className="my-auto flex w-full max-w-md flex-col items-center gap-4">
                 {/* Status pill — 260707-o7a: no live caption (transcription is
                     Whisper, server-side); a REC-style pill. Paused reads as
                     static amber. */}

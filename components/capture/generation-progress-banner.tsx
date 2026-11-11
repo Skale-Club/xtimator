@@ -53,18 +53,25 @@ export function GenerationProgressBanner({ mode, progress, medians }: Generation
       data-testid="generation-progress-banner"
       role="status"
     >
-      <div className="flex items-center gap-2">
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">
-          {t('Generating a new version of this estimate')}
-          {active && (
-            <span className="font-normal text-muted-foreground">
-              {' · '}
-              {t(rowLabels(active.id, mode).ongoing)}
-            </span>
-          )}
-        </p>
-        <span className="shrink-0 text-xs text-muted-foreground">{remainingText}</span>
+      {/* Two lines (headline, then step + time left) rather than one
+          nowrap row: the single row was wider than a phone, so the time left
+          was cut off and the long line widened the whole page. */}
+      <div className="flex items-start gap-2">
+        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">
+            {t('Generating a new version of this estimate')}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {active && (
+              <>
+                {t(rowLabels(active.id, mode).ongoing)}
+                {' · '}
+              </>
+            )}
+            {remainingText}
+          </p>
+        </div>
       </div>
       <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div

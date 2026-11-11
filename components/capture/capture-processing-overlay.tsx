@@ -61,9 +61,12 @@ export interface CaptureProcessingOverlayProps {
    * Positioning. `overlay` (default) covers its positioned parent, as in the
    * New Xtimate popup. `inline` flows in the page, for surfaces that render it
    * as the page's main content (the fullscreen /capture route, the project
-   * estimate tab).
+   * estimate tab). `popup` fills a Dialog body edge to edge: the headline and
+   * progress bar stay pinned at the top, the leave-this-screen footer stays
+   * pinned at the bottom, and only the checklist scrolls when the dialog is
+   * shorter than the content (the parent must be a flex column).
    */
-  layout?: 'overlay' | 'inline'
+  layout?: 'overlay' | 'inline' | 'popup'
 }
 
 export function CaptureProcessingOverlay({
@@ -101,7 +104,9 @@ export function CaptureProcessingOverlay({
   const containerClass =
     layout === 'overlay'
       ? 'absolute inset-0 z-10 overflow-y-auto bg-background/95 backdrop-blur-sm'
-      : 'w-full'
+      : layout === 'popup'
+        ? 'flex min-h-0 w-full flex-1 flex-col'
+        : 'w-full'
 
   if (!mode) {
     const stageLabel =
@@ -156,72 +161,97 @@ export function CaptureProcessingOverlay({
         ? t('Less than a minute left')
         : `${t('About')} ${remaining.minutes} ${t('min left')}`
 
+  const header = (
+    <div className="flex items-center gap-3">
+      <div className="shrink-0" data-testid="capture-processing-loader">
+        <TowerLoader size={0.9} label={t('Loading')} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-semibold leading-snug" data-testid="capture-processing-label">
+          {isDone ? t('Your estimate is ready') : t('Generating your estimate')}
+        </p>
+        <p
+          className={`text-xs ${snapshot.overdue ? 'text-foreground/75' : 'text-muted-foreground'}`}
+          data-testid="capture-processing-remaining"
+        >
+          {remainingText}
+        </p>
+      </div>
+      {snapshot.elapsedMs > 0 && !isDone && (
+        <span
+          className="shrink-0 rounded-full bg-muted/60 px-2 py-0.5 text-xs leading-none tabular-nums text-muted-foreground/80"
+          data-testid="capture-processing-elapsed"
+          aria-label={t('Elapsed time')}
+        >
+          {formatElapsed(snapshot.elapsedMs)}
+        </span>
+      )}
+    </div>
+  )
+
+  const bar = (
+    <div
+      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(fraction * 100)}
+      aria-label={t('Estimate progress')}
+    >
+      <div
+        className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+        style={{ width: `${Math.round(fraction * 1000) / 10}%` }}
+        data-testid="capture-progress-fill"
+      />
+    </div>
+  )
+
+  const checklist = <CaptureProgressChecklist rows={snapshot.rows} mode={mode} t={t} />
+
+  const footer = !isDone && showLeaveHint ? (
+    <>
+      <p className="text-balance text-xs text-muted-foreground" data-testid="capture-processing-leave-hint">
+        {t('You can leave this screen. The estimate keeps generating and we will let you know when it is ready.')}
+      </p>
+      {/* 260928: the "let you know" reaches a locked phone only through
+          Web Push, which needs this device's opt-in. */}
+      <PushOptIn />
+      {onContinueInBackground && (
+        <button
+          type="button"
+          onClick={onContinueInBackground}
+          className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+          data-testid="capture-continue-in-background"
+        >
+          {t('Continue in the background')}
+        </button>
+      )}
+    </>
+  ) : null
+
+  if (layout === 'popup') {
+    // Edge to edge inside the dialog (same px-4 gutter as the dialog header),
+    // no narrow centered column: headline + bar pinned on top, footer pinned
+    // at the bottom, only the checklist scrolls on short screens.
+    return (
+      <div className={containerClass} data-testid="capture-processing-overlay">
+        <div className="shrink-0 space-y-4 px-4 pt-5 pb-4">
+          {header}
+          {bar}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{checklist}</div>
+        {footer && <div className="shrink-0 space-y-2 border-t px-4 py-3 text-center">{footer}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className={containerClass} data-testid="capture-processing-overlay">
       <div className="mx-auto flex min-h-full w-full max-w-sm flex-col justify-center gap-5 px-5 py-6">
-        <div className="flex items-center gap-3">
-          <div className="shrink-0" data-testid="capture-processing-loader">
-            <TowerLoader size={0.9} label={t('Loading')} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-base font-semibold" data-testid="capture-processing-label">
-              {isDone ? t('Your estimate is ready') : t('Generating your estimate')}
-            </p>
-            <p
-              className={`text-xs ${snapshot.overdue ? 'text-foreground/75' : 'text-muted-foreground'}`}
-              data-testid="capture-processing-remaining"
-            >
-              {remainingText}
-            </p>
-          </div>
-          {snapshot.elapsedMs > 0 && !isDone && (
-            <span
-              className="ml-auto shrink-0 rounded-full bg-muted/60 px-2 py-0.5 text-xs leading-none tabular-nums text-muted-foreground/80"
-              data-testid="capture-processing-elapsed"
-              aria-label={t('Elapsed time')}
-            >
-              {formatElapsed(snapshot.elapsedMs)}
-            </span>
-          )}
-        </div>
-
-        <div
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(fraction * 100)}
-          aria-label={t('Estimate progress')}
-        >
-          <div
-            className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-            style={{ width: `${Math.round(fraction * 1000) / 10}%` }}
-            data-testid="capture-progress-fill"
-          />
-        </div>
-
-        <CaptureProgressChecklist rows={snapshot.rows} mode={mode} t={t} />
-
-        {!isDone && showLeaveHint && (
-          <div className="space-y-2 border-t pt-4 text-center">
-            <p className="text-xs text-muted-foreground" data-testid="capture-processing-leave-hint">
-              {t('You can leave this screen. The estimate keeps generating and we will let you know when it is ready.')}
-            </p>
-            {/* 260928: the "let you know" reaches a locked phone only through
-                Web Push, which needs this device's opt-in. */}
-            <PushOptIn />
-            {onContinueInBackground && (
-              <button
-                type="button"
-                onClick={onContinueInBackground}
-                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
-                data-testid="capture-continue-in-background"
-              >
-                {t('Continue in the background')}
-              </button>
-            )}
-          </div>
-        )}
+        {header}
+        {bar}
+        {checklist}
+        {footer && <div className="space-y-2 border-t pt-4 text-center">{footer}</div>}
       </div>
     </div>
   )
