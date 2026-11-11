@@ -145,7 +145,7 @@ export function TrashList({ items }: TrashListProps) {
                               <ImageIcon className="h-4 w-4 text-muted-foreground" />
                             </div>
                           )}
-                          {item.name}
+                          <span className="block max-w-[24rem] truncate" title={item.name}>{item.name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -188,7 +188,8 @@ export function TrashList({ items }: TrashListProps) {
           {/* Mobile cards */}
           <div className="md:hidden space-y-2">
             {items.map((item) => (
-              <Card key={item.id}>
+              // py-0: Card ships py-6; stacked on CardContent's p-3 it made rows ~120px tall.
+              <Card key={item.id} className="py-0">
                 <CardContent className="flex items-center justify-between gap-3 p-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {item.image_url ? (
@@ -204,7 +205,7 @@ export function TrashList({ items }: TrashListProps) {
                     )}
                     <div className="min-w-0">
                       <p className="font-medium truncate">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="truncate text-sm text-muted-foreground">
                         {formatMoney(item.unit_price, item.currency_code)}
                         {' · '}
                         {new Date(item.deleted_at).toLocaleDateString()}
@@ -215,7 +216,7 @@ export function TrashList({ items }: TrashListProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-10 w-10"
                       disabled={isPending}
                       onClick={() => handleRestore(item)}
                       aria-label={`${t('Restore')} ${item.name}`}
@@ -225,7 +226,7 @@ export function TrashList({ items }: TrashListProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      className="h-10 w-10 text-destructive hover:text-destructive"
                       disabled={isPending}
                       onClick={() => setDestroyingItem({ id: item.id, name: item.name })}
                       aria-label={`${t('Delete forever')} ${item.name}`}
@@ -255,7 +256,7 @@ export function TrashList({ items }: TrashListProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDestroy}
               disabled={isPending}
@@ -277,7 +278,7 @@ export function TrashList({ items }: TrashListProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmEmptyTrash}
               disabled={isPending}

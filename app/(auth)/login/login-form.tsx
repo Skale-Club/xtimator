@@ -178,6 +178,7 @@ function EmailStep({ initialEmail, topLevelError, isPending, captchaToken, setCa
                     type="email"
                     placeholder="you@example.com"
                     autoComplete="email"
+                    enterKeyHint="go"
                     disabled={isPending}
                     className={inputCls}
                     {...field}
@@ -269,6 +270,7 @@ function PasswordStep({ email, captchaToken, onBack, onForgot, onError }: Passwo
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="current-password"
+                      enterKeyHint="go"
                       disabled={isPending}
                       autoFocus
                       className={`${inputCls} pr-10`}
@@ -407,6 +409,7 @@ function ResetStep({ initialEmail, captchaToken, setCaptchaToken, onSent, onBack
                     type="email"
                     placeholder="you@example.com"
                     autoComplete="email"
+                    enterKeyHint="go"
                     disabled={isPending}
                     className={inputCls}
                     {...field}

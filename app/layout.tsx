@@ -30,6 +30,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
+  // Android Chrome: the keyboard resizes the layout viewport (dvh, fixed and
+  // centred surfaces follow it). iOS ignores this; lib/visual-viewport.ts and
+  // the html[data-keyboard] rules in globals.css cover it there.
+  interactiveWidget: 'resizes-content',
 }
 
 export async function generateMetadata(): Promise<Metadata> {

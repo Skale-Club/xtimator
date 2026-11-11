@@ -66,7 +66,7 @@ export function EstimateUnlockForm({
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-24">
+    <div className="max-w-md mx-auto px-4 py-12 sm:py-24">
       <Card variant="glass">
         <CardContent className="p-6 sm:p-8 space-y-6 text-center">
           {logoUrl ? (
@@ -97,6 +97,7 @@ export function EstimateUnlockForm({
                 type="password"
                 autoFocus
                 autoComplete="current-password"
+                enterKeyHint="go"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}

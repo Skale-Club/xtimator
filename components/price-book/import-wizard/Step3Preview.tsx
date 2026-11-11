@@ -117,6 +117,7 @@ export function Step3Preview({ state, dispatch, onCancel, currencyCode }: Step3P
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder={t('Filter rows…')}
+              enterKeyHint="search"
               className="pl-8"
             />
           </div>
@@ -284,7 +285,9 @@ export function Step3Preview({ state, dispatch, onCancel, currencyCode }: Step3P
         </p>
       )}
 
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 pt-2">
+      {/* Pinned to the bottom of the dialog's scroll area so the primary action is
+          never below the fold on a short phone screen. */}
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 sticky bottom-0 z-10 [html[data-keyboard=open]_&]:static -mx-2 border-t border-border bg-popover px-2 pb-1 pt-3">
         <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
           {t('Back')}
         </Button>
@@ -335,6 +338,7 @@ function EditableCell({
       <TableCell className="p-1">
         <Input
           autoFocus
+          enterKeyHint="done"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}

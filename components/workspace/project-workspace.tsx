@@ -170,7 +170,11 @@ export function ProjectWorkspace({
         </div>
 
         <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
-          <DialogContent className="w-[90vw] max-w-3xl max-h-[85dvh] overflow-y-auto">
+          {/* grid-cols-[minmax(0,1fr)]: DialogContent is a grid whose implicit column
+              sizes to its content, so the photo grid / drop-zone buttons used to
+              stretch the dialog wider than the screen. p-4 on a phone gives the
+              photos the room back. */}
+          <DialogContent className="w-[calc(100%-2rem)] max-w-3xl max-h-[85dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>{t('Photos')}</DialogTitle>
               <DialogDescription className="sr-only">

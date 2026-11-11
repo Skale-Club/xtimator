@@ -187,7 +187,7 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
               type="button"
               onClick={(e) => e.stopPropagation()}
               title={t('Change client')}
-              className="text-left text-muted-foreground transition-colors hover:text-foreground hover:underline underline-offset-2"
+              className="-my-2 max-w-full truncate py-2 text-left text-muted-foreground transition-colors hover:text-foreground hover:underline underline-offset-2"
             >
               {props.clientName}
             </button>
@@ -195,7 +195,7 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
             <button
               type="button"
               onClick={(e) => e.stopPropagation()}
-              className="text-muted-foreground/40 hover:text-primary transition-colors hover:underline underline-offset-2"
+              className="-my-2 whitespace-nowrap py-2 text-muted-foreground/40 hover:text-primary transition-colors hover:underline underline-offset-2"
             >
               + {t('Add client')}
             </button>

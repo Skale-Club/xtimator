@@ -166,14 +166,16 @@ function EstimateCreationPopupInner() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) clearParams() }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-md max-h-[80vh] flex flex-col">
-        <DialogHeader className="px-4 py-3 border-b shrink-0 text-left">
+      <DialogContent className="p-0 gap-0 sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
+        {/* pr-12 reserves room for the dialog's absolutely positioned close (X) button;
+            without it the project name input ran underneath the X. */}
+        <DialogHeader className="py-3 pl-4 pr-12 border-b shrink-0 text-left">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleBack}
               aria-label={t('Back')}
-              className="-ml-1 p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+              className="-ml-2 flex size-10 items-center justify-center rounded-lg hover:bg-muted transition-colors shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -182,6 +184,7 @@ function EstimateCreationPopupInner() {
             </DialogTitle>
             <input
               type="text"
+              enterKeyHint="done"
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={saveName}

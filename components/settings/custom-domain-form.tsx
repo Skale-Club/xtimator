@@ -86,7 +86,7 @@ export function CustomDomainForm({ settings }: CustomDomainFormProps) {
                 <FormItem>
                   <FormLabel>Hostname</FormLabel>
                   <FormControl>
-                    <Input placeholder="estimates.mycompany.com" {...field} />
+                    <Input placeholder="estimates.mycompany.com" inputMode="url" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} {...field} />
                   </FormControl>
                   <FormDescription>
                     A subdomain like <code className="text-xs">estimates.mycompany.com</code> or a domain like{' '}

@@ -1581,13 +1581,15 @@ export function CaptureRecorder({
         // was clipped to the container's 260px minimum (the checklist is ~470px
         // tall). `overflow-y-auto` keeps a tall photos-mode checklist inside
         // the Dialog's max-height on short phones.
-        <div className="relative flex-1 min-h-[260px] overflow-y-auto">
+        // flex-col so the processing view can pin its header/footer and the
+        // failure / needs-details panels are centered in the dialog body.
+        <div className="relative flex flex-1 min-h-[260px] flex-col overflow-y-auto">
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
           {!failedAt && !needsDetailsInfo && (
             <CaptureProcessingOverlay
-              layout="inline"
+              layout="popup"
               stage={stage}
               mode={activeMode}
               completedSteps={attemptProgress.completedSteps}
@@ -1742,126 +1744,131 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
 
   // Unified layout — responsive: stacked on mobile, 2-column on sm+
   if (isHorizontal) {
-    // For the mobile popup redesign: immersive glassmorphism layout
+    // For the mobile popup redesign: immersive glassmorphism layout.
+    // Layout is a plain flex column (canvas -> photo strip -> action bar) so
+    // no region can sit on top of another. The canvas, strip and bar used to
+    // be absolutely positioned with fixed offsets (pb-32, bottom-[88px],
+    // pb-[196px]) that assumed a single row of photos and a tall dialog: a
+    // second row of thumbnails covered the textarea and the recording
+    // waveform, and on short screens the "Listening..." pill was clipped.
     return (
-      <div className="flex flex-col flex-1 min-h-[380px] relative overflow-hidden bg-background">
+      <div className="flex flex-col flex-1 relative overflow-hidden bg-background">
 
-        {/* Z-0: Main Text Area (Borderless, full canvas) */}
-        <div className="flex flex-col flex-1 min-h-0 relative z-0 p-4 pb-32">
-           <textarea
-             value={descriptionText}
-             onChange={e => setDescriptionText(e.target.value)}
-             placeholder={t('Describe the job here...')}
-             className="flex-1 w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
-             data-testid="capture-description"
-           />
-           {refineMode && !isRecording && (
-             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-               {hasAudio && (
-                 <span
-                   className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-primary"
-                   data-testid="refine-voice-chip"
-                 >
-                   {t('Voice note ready')}
-                   <button
-                     type="button"
-                     onClick={onClearAudio}
-                     aria-label={t('Remove voice note')}
-                     className="opacity-70 hover:opacity-100"
-                   >
-                     <X className="h-3 w-3" />
-                   </button>
-                 </span>
-               )}
-               <button
-                 type="button"
-                 onClick={onRegenerate}
-                 disabled={!hasAnyInput}
-                 className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50 disabled:no-underline"
-                 data-testid="regenerate-from-scratch-btn"
-               >
-                 {t('Regenerate from scratch')}
-               </button>
-             </div>
-           )}
-           {onStartBlank && !descriptionText.trim() && !isRecording && (
-             <div className="mt-4 flex justify-center pb-8">
-               <button
-                 type="button"
-                 onClick={onStartBlank}
-                 className="text-xs sm:text-sm text-muted-foreground/80 hover:text-foreground transition-colors py-2 px-4 rounded-full bg-muted/20 hover:bg-muted/40"
-                 data-testid="start-from-scratch-btn"
-               >
-                 {t('Or start with a blank estimate')}
-               </button>
-             </div>
-           )}
+        {/* Canvas: the textarea when idle, the recording view on top of it
+            while recording. It owns all the space above the photo strip and
+            the action bar, so the recording view only ever covers the canvas.
+            Its minimum height is what the recording view needs (pill + timer
+            + waveform) and no more, so recording shows no dead band above the
+            pill, and the popup does not change height when recording starts
+            (the record button stays under the thumb). */}
+        <div className="relative flex flex-col flex-1 min-h-[220px]">
+          <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4">
+            <textarea
+              value={descriptionText}
+              onChange={e => setDescriptionText(e.target.value)}
+              placeholder={t('Describe the job here...')}
+              className="flex-1 min-h-[96px] w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
+              data-testid="capture-description"
+            />
+            {refineMode && !isRecording && (
+              <div className="mt-3 flex shrink-0 flex-wrap items-center gap-2 text-xs">
+                {hasAudio && (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-primary"
+                    data-testid="refine-voice-chip"
+                  >
+                    {t('Voice note ready')}
+                    <button
+                      type="button"
+                      onClick={onClearAudio}
+                      aria-label={t('Remove voice note')}
+                      className="opacity-70 hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={onRegenerate}
+                  disabled={!hasAnyInput}
+                  className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50 disabled:no-underline"
+                  data-testid="regenerate-from-scratch-btn"
+                >
+                  {t('Regenerate from scratch')}
+                </button>
+              </div>
+            )}
+            {onStartBlank && !descriptionText.trim() && !isRecording && (
+              <div className="mt-4 flex shrink-0 justify-center">
+                <button
+                  type="button"
+                  onClick={onStartBlank}
+                  className="text-xs sm:text-sm text-center text-muted-foreground/80 hover:text-foreground transition-colors py-2 px-4 rounded-full bg-muted/20 hover:bg-muted/40"
+                  data-testid="start-from-scratch-btn"
+                >
+                  {t('Or start with a blank estimate')}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Recording view — 260707-ru5: the recording screen and the idle
+              canvas are ONE surface (same bg-background, no backdrop-blur);
+              the glass action bar below is the shared anchor across both
+              states. Pill, timer and waveform are centered as one group and
+              the view scrolls instead of clipping on very short screens. */}
+          {isRecording && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-background px-6 py-3 animate-in fade-in duration-300">
+              {/* Ambient brand glow — depth without shapes. Centered and fully
+                  faded before the view's edges, so it never ends in a hard line
+                  above the photo strip. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_65%)]"
+              />
+              <div className="my-auto flex w-full max-w-md flex-col items-center gap-4">
+                {/* Status pill — 260707-o7a: no live caption (transcription is
+                    Whisper, server-side); a REC-style pill. Paused reads as
+                    static amber. */}
+                <div
+                  className={cn(
+                    'flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em]',
+                    isPaused
+                      ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
+                      : 'border-red-500/20 bg-red-500/10 text-red-500'
+                  )}
+                  data-testid="capture-recording-status"
+                >
+                  <span className="relative flex h-1.5 w-1.5">
+                    {!isPaused && (
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70 motion-reduce:hidden" />
+                    )}
+                    <span className={cn('relative inline-flex h-1.5 w-1.5 rounded-full', isPaused ? 'bg-amber-500' : 'bg-red-500')} />
+                  </span>
+                  {isPaused ? t('Paused') : t('Listening...')}
+                </div>
+                {/* CaptureTimer is rendered directly (no nested <p>); paused dims it. */}
+                <CaptureTimer elapsedMs={elapsedMs} className={cn('leading-none', isPaused && 'text-muted-foreground')} />
+                <div className="w-full">
+                  <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={72} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Z-10: Recording Immersive Overlay — 260707-ru5: the recording screen
-            and the idle canvas are ONE surface, not a separate layer. Same
-            bg-background as the idle textarea (no extra backdrop-blur/opacity
-            "other screen" read); the glass action bar (z-30 below) is the
-            shared visual anchor across both states. */}
-        {isRecording && (
-          <div
-            className={cn(
-              'absolute inset-0 z-10 flex flex-col items-center overflow-hidden bg-background animate-in fade-in duration-300 px-6 pt-6',
-              // Bottom padding clears the floating action bar (and the photo
-              // strip when present) INSIDE the flex layout — the old
-              // mb-[120px] + justify-center pushed content past the container
-              // edges and "Listening..." bled out above the dialog.
-              photoItems.length > 0 ? 'pb-[196px]' : 'pb-[120px]'
-            )}
-          >
-            {/* Ambient brand glow behind the waveform — depth without shapes. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-64 bg-[radial-gradient(ellipse_at_bottom,hsl(var(--primary)/0.10),transparent_65%)]"
-            />
-
-            {/* Status pill — 260707-o7a: no live caption (transcription is
-                Whisper, server-side); a REC-style pill replaces the dated
-                pulsing italic line. Paused reads as static amber. */}
-            <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-end pb-6">
-              <div
-                className={cn(
-                  'flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em]',
-                  isPaused
-                    ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
-                    : 'border-red-500/20 bg-red-500/10 text-red-500'
-                )}
-              >
-                <span className="relative flex h-1.5 w-1.5">
-                  {!isPaused && (
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70 motion-reduce:hidden" />
-                  )}
-                  <span className={cn('relative inline-flex h-1.5 w-1.5 rounded-full', isPaused ? 'bg-amber-500' : 'bg-red-500')} />
-                </span>
-                {isPaused ? t('Paused') : t('Listening...')}
-              </div>
-            </div>
-
-            {/* Timer + waveform pinned just above the action bar. CaptureTimer
-                is rendered directly (no nested <p>); paused dims it. */}
-            <div className="w-full max-w-md shrink-0 flex flex-col items-center gap-5">
-              <CaptureTimer elapsedMs={elapsedMs} className={cn(isPaused && 'text-muted-foreground')} />
-              <div className="w-full">
-                <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={72} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Z-20: Floating Photo Thumbnails */}
+        {/* Photo thumbnails — one scrollable row in the layout flow, so a
+            growing count never covers the canvas or the action bar. */}
         {photoItems.length > 0 && (
-          <div className="absolute bottom-[88px] left-0 right-0 z-20 px-4">
-             <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} />
+          <div className="shrink-0 px-4">
+            <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} singleRow />
           </div>
         )}
 
-        {/* Z-30: Glassmorphism Bottom Action Bar */}
-        <div className="absolute bottom-4 left-4 right-4 z-30">
+        {/* Glassmorphism bottom action bar. pt-6 leaves room for the record
+            button, which rises above the bar. */}
+        <div className="relative z-30 shrink-0 px-4 pb-4 pt-6">
           <input
             ref={photoInputRef}
             type="file"
@@ -1870,8 +1877,11 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             className="hidden"
             onChange={onPhotoFileChange}
           />
-          <div className="rounded-full bg-background/60 backdrop-blur-xl border border-border shadow-lg p-2 flex items-center justify-between gap-2">
-            
+          {/* Three-column grid (1fr auto 1fr): the record button sits on the
+              bar's true center whatever the widths of the side controls (the
+              old flex row pushed it off-center next to the wider Generate). */}
+          <div className="rounded-full bg-background/60 backdrop-blur-xl border border-border shadow-lg p-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2">
+
             {/* Left: Camera when idle. During recording, when SUPPORTS_PAUSE
                 is available, the SAME footprint (h-12 w-12 rounded-full)
                 becomes the Pause/Resume control — no reflow of the bar's
@@ -1881,7 +1891,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0"
+                className="justify-self-start rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0"
                 onClick={onPause}
                 aria-label={isPaused ? t('Resume recording') : t('Pause recording')}
                 data-testid="capture-pause"
@@ -1892,7 +1902,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
               <Button
                 variant="ghost"
                 size="icon"
-                className="rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
+                className="justify-self-start rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
                 onClick={() => photoInputRef.current?.click()}
                 disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
                 data-testid="capture-add-photos"
@@ -1909,7 +1919,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             {/* Center: FAB — glass+REC-dot idle / gradient-danger stop+halo
                 recording / same stop dimmed (no halo) while paused. Replaces
                 the dated animate-pulse mic icon with a classic REC button. */}
-            <div className="flex-1 flex justify-center shrink-0">
+            <div className="flex justify-center">
                <button
                   type="button"
                   onClick={onToggle}
@@ -1938,7 +1948,7 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
             {/* Right: Generate */}
             <Button
                size="default"
-               className="rounded-full h-12 px-5 font-medium shrink-0 bg-primary/90 hover:bg-primary transition-colors text-sm"
+               className="justify-self-end rounded-full h-12 px-4 sm:px-5 font-medium shrink-0 bg-primary/90 hover:bg-primary transition-colors text-sm"
                onClick={onGenerate}
                disabled={!hasAnyInput || isRecording}
                data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
@@ -2046,14 +2056,16 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
 
 // PhotoThumbnailGrid — per-photo thumbnail strip with uploading / error overlays
 // and a remove (×) button. Renders nothing when there are no items.
-export function PhotoThumbnailGrid({ items, onRemove }: { items: PhotoItem[]; onRemove: (id: string) => void }) {
+// singleRow: one horizontally scrolling row (used inside the popup layout,
+// where a wrapping grid would grow and push into the regions around it).
+export function PhotoThumbnailGrid({ items, onRemove, singleRow = false }: { items: PhotoItem[]; onRemove: (id: string) => void; singleRow?: boolean }) {
   const { t } = useTranslation()
   if (items.length === 0) return null
   return (
-    <div className="border-t px-3 py-2.5 shrink-0" data-testid="capture-photo-grid">
-      <div className="flex flex-wrap gap-2">
+    <div className={cn('shrink-0', singleRow ? 'py-1' : 'border-t px-3 py-2.5')} data-testid="capture-photo-grid">
+      <div className={cn('flex gap-2', singleRow ? 'flex-nowrap overflow-x-auto' : 'flex-wrap')}>
         {items.map(item => (
-          <div key={item.id} className="relative h-14 w-14 rounded-md overflow-hidden border border-border bg-muted/30 group">
+          <div key={item.id} className="relative h-14 w-14 shrink-0 rounded-md overflow-hidden border border-border bg-muted/30 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
             {item.status === 'uploading' && (

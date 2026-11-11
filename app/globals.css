@@ -800,3 +800,44 @@
 @media (prefers-reduced-motion: reduce) {
   .checklist-pop { animation: none; }
 }
+
+/* ── Phone keyboard ─────────────────────────────────────────────────────────
+   lib/visual-viewport.ts sets html[data-keyboard="open"] while a text field
+   has focus and the on-screen keyboard covers part of the screen, plus
+   --app-vvh / --app-vv-top (the area the keyboard leaves visible) and
+   --app-kb (the height it covers). iOS never shrinks the layout viewport for
+   the keyboard, so fixed + centred surfaces would keep their submit button
+   behind it. These rules apply to every primitive, so no screen has to opt in.
+   Attribute selectors outrank the utility classes callers pass, which is
+   intended: while the keyboard is up the visible area wins. */
+html[data-keyboard='open'] :is([data-slot='dialog-content'], [data-slot='alert-dialog-content']) {
+  top: calc(var(--app-vv-top, 0px) + var(--app-vvh, 100dvh) / 2);
+  max-height: calc(var(--app-vvh, 100dvh) - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html[data-keyboard='open'] [data-slot='sheet-content'][data-side='bottom'] {
+  bottom: var(--app-kb, 0px);
+  max-height: calc(var(--app-vvh, 100dvh) - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html[data-keyboard='open'] [data-slot='sheet-content']:is([data-side='left'], [data-side='right']) {
+  top: var(--app-vv-top, 0px);
+  bottom: auto;
+  height: var(--app-vvh, 100dvh);
+}
+/* Keyboard-height scroll room at the end of the page, so content that fits
+   the screen exactly can still scroll up above the keyboard (body is a flex
+   column, so this is a trailing spacer). --app-kb-room is 0 when the browser
+   already shrinks the layout viewport (Android with interactive-widget). */
+html[data-keyboard='open'] body::after {
+  content: '';
+  flex: none;
+  height: var(--app-kb-room, 0px);
+}
+/* Fixed bottom bars (bottom nav, action pill, accept bar, floating buttons)
+   only steal space above the keyboard, and on iOS they jump around under it. */
+html[data-keyboard='open'] [data-hide-on-keyboard] {
+  display: none !important;
+}

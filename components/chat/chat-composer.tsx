@@ -206,6 +206,7 @@ export function ChatComposer({
             submitText()
           }
         }}
+        enterKeyHint="send"
         placeholder={t('Type a message…')}
         // Typing stays open while the assistant streams (only submit is gated) —
         // media normalization still locks the field (its result overwrites text).

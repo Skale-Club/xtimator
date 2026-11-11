@@ -178,16 +178,20 @@ export function PriceBookImportWizard({ open, onOpenChange, currencyCode }: Pric
           else onOpenChange(true)
         }}
       >
-        <DialogContent className="sm:max-w-3xl max-w-[calc(100%-2rem)] max-h-[85vh] flex flex-col gap-6">
+        <DialogContent className="sm:max-w-3xl max-w-[calc(100%-2rem)] max-h-[85dvh] flex flex-col gap-6">
           <DialogHeader>
             <DialogTitle>{t(title)}</DialogTitle>
             <DialogDescription>{t(description)}</DialogDescription>
           </DialogHeader>
 
-          <StepIndicator currentStep={state.step} onStepClick={handleStepClick} />
+          {/* The progress bar and the draft notice are dropped while the phone keyboard
+              is up: on a short phone they left no room for the field being edited. */}
+          <div className="[html[data-keyboard=open]_&]:hidden">
+            <StepIndicator currentStep={state.step} onStepClick={handleStepClick} />
+          </div>
 
           {draftRestoredAt && !draftAlertDismissed && (
-            <Alert>
+            <Alert className="[html[data-keyboard=open]_&]:hidden">
               <History className="h-4 w-4" />
               <AlertTitle>{t('Picked up where you left off')}</AlertTitle>
               <AlertDescription className="flex items-center justify-between gap-2">

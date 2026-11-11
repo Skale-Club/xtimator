@@ -448,9 +448,18 @@ export function SharePasswordControl({
         <div className="flex items-center gap-2">
           <Input
             type="password"
+            autoComplete="new-password"
+            enterKeyHint="done"
             placeholder="Set a password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              // Return saves, same as tapping Save (which is disabled until valid).
+              if (e.key === 'Enter' && !saving && password.trim().length >= 4) {
+                e.preventDefault()
+                void handleSetPassword()
+              }
+            }}
             className="h-8 text-sm"
           />
           <Button

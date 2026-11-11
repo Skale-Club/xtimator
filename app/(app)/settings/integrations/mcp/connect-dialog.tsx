@@ -36,7 +36,10 @@ export function ConnectDialog({ mcpUrl, claudeCodeCmd }: ConnectDialogProps) {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl">
+      {/* grid-cols-[minmax(0,1fr)]: the dialog is a grid whose implicit column sized to
+          the widest child (the nowrap tabs and the command <pre>), so on a phone the
+          content ran past the dialog edge. max-h + scroll keeps the footer reachable. */}
+      <DialogContent className="max-h-[90dvh] max-w-[calc(100%-2rem)] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Connect Xtimator as a custom MCP connector</DialogTitle>
           <DialogDescription>
@@ -46,10 +49,10 @@ export function ConnectDialog({ mcpUrl, claudeCodeCmd }: ConnectDialogProps) {
         </DialogHeader>
 
         <Tabs defaultValue="claude-code" className="mt-2">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
-            <TabsTrigger value="claude-ai">Claude.ai / Desktop</TabsTrigger>
-            <TabsTrigger value="chatgpt">ChatGPT</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3">
+            <TabsTrigger value="claude-code" className="min-h-9 whitespace-normal px-1.5 text-xs sm:text-sm">Claude Code</TabsTrigger>
+            <TabsTrigger value="claude-ai" className="min-h-9 whitespace-normal px-1.5 text-xs sm:text-sm">Claude.ai / Desktop</TabsTrigger>
+            <TabsTrigger value="chatgpt" className="min-h-9 whitespace-normal px-1.5 text-xs sm:text-sm">ChatGPT</TabsTrigger>
           </TabsList>
 
           {/* Claude Code (CLI) */}
@@ -58,7 +61,7 @@ export function ConnectDialog({ mcpUrl, claudeCodeCmd }: ConnectDialogProps) {
               Run this command in any terminal where the <code className="rounded bg-muted px-1 py-0.5">claude</code> CLI is installed.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <pre className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
+              <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
                 <code>{claudeCodeCmd}</code>
               </pre>
               <CopyButton value={claudeCodeCmd} label="Copy command" />
@@ -79,7 +82,7 @@ export function ConnectDialog({ mcpUrl, claudeCodeCmd }: ConnectDialogProps) {
               <li>
                 Remote MCP server URL:
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <pre className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
+                  <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
                     <code>{mcpUrl}</code>
                   </pre>
                   <CopyButton value={mcpUrl} label="Copy URL" />
@@ -99,7 +102,7 @@ export function ConnectDialog({ mcpUrl, claudeCodeCmd }: ConnectDialogProps) {
               <li>
                 Server URL:
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <pre className="flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
+                  <pre className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 text-sm">
                     <code>{mcpUrl}</code>
                   </pre>
                   <CopyButton value={mcpUrl} label="Copy URL" />

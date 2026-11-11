@@ -169,6 +169,10 @@ export function SignaturePad({
     const canvas = canvasRef.current
     if (!canvas) return
     e.preventDefault()
+    // preventDefault stops the tap from moving focus, so on iOS the keyboard would
+    // stay up over the signature box. Drop the focused name/email field explicitly.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && focused !== canvas && focused !== document.body) focused.blur()
     try {
       canvas.setPointerCapture(e.pointerId)
     } catch {
@@ -227,6 +231,16 @@ export function SignaturePad({
         <Input
           id="signer-name"
           placeholder="John Smith"
+          autoComplete="name"
+          autoCapitalize="words"
+          enterKeyHint="next"
+          onKeyDown={(e) => {
+            // Enter moves to the next field instead of doing nothing (there is no form).
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              document.getElementById('signer-email')?.focus()
+            }
+          }}
           value={signerName}
           onChange={(e) => onSignerNameChange(e.target.value)}
         />
@@ -238,6 +252,18 @@ export function SignaturePad({
           type="email"
           id="signer-email"
           placeholder="john@example.com"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          inputMode="email"
+          enterKeyHint="done"
+          onKeyDown={(e) => {
+            // Done closes the keyboard so the signature box and Sign button come into view.
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+          }}
           value={signerEmail}
           onChange={(e) => onSignerEmailChange(e.target.value)}
         />

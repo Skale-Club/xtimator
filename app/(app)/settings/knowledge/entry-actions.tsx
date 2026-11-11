@@ -28,7 +28,7 @@ export function EntryActions({ id }: { id: string }) {
       <button
         onClick={handleDelete}
         disabled={isPending}
-        className="text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
+        className="min-h-10 px-2 text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-50"
       >
         {t('Delete')}
       </button>

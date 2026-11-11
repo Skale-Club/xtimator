@@ -31,6 +31,7 @@ export function TourHelpButton() {
     <button
       onClick={handleClick}
       aria-label={t('Open app tour')}
+      data-hide-on-keyboard
       className={[
         'fixed bottom-24 right-4 lg:bottom-6 lg:right-6',
         'z-50 flex items-center justify-center',

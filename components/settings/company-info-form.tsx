@@ -316,7 +316,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('Company Name')} *</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('Your Company')} {...field} />
+                          <Input placeholder={t('Your Company')} autoComplete="organization" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -331,7 +331,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('Owner Name')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="John Doe" {...field} />
+                          <Input placeholder="John Doe" autoComplete="name" {...field} />
                         </FormControl>
                         <FormDescription className="text-xs text-muted-foreground">
                           {t('Appears on generated estimates when the owner name is included.')}
@@ -368,7 +368,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('Email')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="info@company.com" {...field} />
+                          <Input placeholder="info@company.com" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -381,7 +381,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem className="sm:col-span-2">
                         <FormLabel>{t('Website')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="https://company.com" {...field} />
+                          <Input placeholder="https://company.com" inputMode="url" autoComplete="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -397,7 +397,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                     <FormItem>
                       <FormLabel>{t('Address')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="123 Main St" {...field} />
+                        <Input placeholder="123 Main St" autoComplete="street-address" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -413,7 +413,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('City')}</FormLabel>
                         <FormControl>
-                          <Input placeholder={t('City')} {...field} />
+                          <Input placeholder={t('City')} autoComplete="address-level2" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -426,7 +426,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('State')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="CA" {...field} />
+                          <Input placeholder="CA" autoComplete="address-level1" autoCapitalize="characters" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -439,7 +439,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                       <FormItem>
                         <FormLabel>{t('Zip')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="90210" {...field} />
+                          <Input placeholder="90210" inputMode="numeric" autoComplete="postal-code" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

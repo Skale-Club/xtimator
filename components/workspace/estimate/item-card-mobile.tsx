@@ -46,8 +46,10 @@ const MONEY_INPUT_CLS =
 
 /** Column template shared by the per-section header row and every card's
  *  numeric line, so each label sits exactly above the field it names. */
+// 4rem qty column: fits 4-digit and fractional quantities (1,250 / 146.5)
+// without clipping; the unit column (minmax 0) absorbs the difference.
 export const MOBILE_FIELD_GRID_CLS =
-  'grid grid-cols-[3rem_minmax(0,1fr)_6rem_3.25rem] items-center gap-x-1'
+  'grid grid-cols-[4rem_minmax(0,1fr)_6rem_3.25rem] items-center gap-x-1'
 
 /** Width of the grip + kebab column, matching the desktop table's first cell. */
 const HANDLE_COL_CLS = 'flex items-center gap-0.5 w-12 shrink-0'
@@ -127,7 +129,6 @@ export function ItemCardMobileHeader({
       <div className="flex items-center gap-0.5">
         <span className="w-12 shrink-0" aria-hidden />
         <span className="flex-1 min-w-0 truncate font-medium px-1">{L.description}</span>
-        <span className="shrink-0 font-medium text-right pl-1">{L.total}</span>
       </div>
       <div className={MOBILE_FIELD_GRID_CLS}>
         <span className="font-medium text-center truncate">{L.qty}</span>
@@ -236,20 +237,21 @@ export function ItemCardMobile({
           currencyCode={currencyCode}
           placeholder={L.description}
           aria-label={L.description}
-          className={`${INLINE_INPUT_CLS} min-w-0`}
+          // Wraps and grows (textarea) instead of cutting a long description off at
+          // one line; the line total moved to its own row below so the description
+          // keeps the full row width.
+          multiline
+          className={`${INLINE_INPUT_CLS} min-w-0 break-words`}
           noMatchesLabel={L.noMatches}
           disabled={isReadOnly}
         />
-
-        <span className="shrink-0 pl-1 text-base tabular-nums font-medium text-right whitespace-nowrap">
-          {formatMoney(item.total, currencyCode)}
-        </span>
       </div>
 
       {/* line 2: qty, unit, unit price, tax (same order as the desktop columns) */}
       <div className={MOBILE_FIELD_GRID_CLS}>
         <input
           type="number"
+          inputMode="decimal"
           step="any"
           min="0"
           value={item.quantity}
@@ -302,7 +304,15 @@ export function ItemCardMobile({
         </div>
       </div>
 
-      {/* line 3: discount, only while the row has (or drafts) one */}
+      {/* line 3: line total, right-aligned under the unit price / tax columns */}
+      <div className="flex items-baseline justify-end gap-2 pb-1 pr-1">
+        <span className="text-xs text-muted-foreground select-none">{L.total}</span>
+        <span className="text-base tabular-nums font-medium text-right break-all">
+          {formatMoney(item.total, currencyCode)}
+        </span>
+      </div>
+
+      {/* line 4: discount, only while the row has (or drafts) one */}
       {discountVisible && (
         <div className="flex items-center justify-end gap-2 pb-1">
           <span className="text-sm text-muted-foreground select-none">{L.discount}</span>

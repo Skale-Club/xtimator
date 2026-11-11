@@ -154,6 +154,10 @@ function PanelBody({
   const { t } = useTranslation()
   const resolved = resolvePresentationSettings(settings)
   const raw = settings ?? {}
+  // What the user is typing in the custom tax field. Rendering the stored rate
+  // with toFixed(2) on every keystroke rewrote "7." to "7.00" mid-typing; the
+  // formatted value only shows when the field is not being edited.
+  const [taxDraft, setTaxDraft] = useState<string | null>(null)
 
   function patch(next: Partial<PresentationSettings>): void {
     onChange({ ...raw, ...next })
@@ -234,10 +238,14 @@ function PanelBody({
           {resolved.tax.mode === 'custom' && (
             <Input
               type="number"
+              inputMode="decimal"
               step="0.01"
               aria-label={t('Custom tax rate (%)')}
-              value={((resolved.tax.customRate ?? 0) * 100).toFixed(2)}
-              onChange={(e) =>
+              value={taxDraft ?? ((resolved.tax.customRate ?? 0) * 100).toFixed(2)}
+              onFocus={(e) => setTaxDraft(e.currentTarget.value)}
+              onBlur={() => setTaxDraft(null)}
+              onChange={(e) => {
+                setTaxDraft(e.target.value)
                 patch({
                   tax: {
                     ...resolved.tax,
@@ -245,7 +253,7 @@ function PanelBody({
                     customRate: (parseFloat(e.target.value) || 0) / 100,
                   },
                 })
-              }
+              }}
               className="h-8"
             />
           )}
@@ -287,6 +295,7 @@ function PanelBody({
           {resolved.discount.enabled && (
             <Input
               type="number"
+              inputMode="decimal"
               step="0.01"
               aria-label={t('Discount value')}
               value={resolved.discount.value ?? 0}
@@ -335,6 +344,7 @@ function PanelBody({
           {resolved.deposit.enabled && (
             <Input
               type="number"
+              inputMode="decimal"
               step="0.01"
               aria-label={t('Deposit value')}
               value={resolved.deposit.value ?? 0}

@@ -60,6 +60,7 @@ import {
   fetchItemOptions,
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { ImagePositionEditor, DEFAULT_IMAGE_POSITION, type ImagePosition } from '@/components/admin/image-position-editor'
 
 const MAX_ITEM_PHOTO_SIZE = 4 * 1024 * 1024
@@ -131,6 +132,7 @@ export function PriceBookItemDialog({
   folders,
 }: PriceBookItemDialogProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -268,7 +270,7 @@ export function PriceBookItemDialog({
         return
       }
 
-      toast.success(item ? 'Item updated' : 'Item added')
+      toast.success(item ? t('Item updated') : t('Item added'))
       onOpenChange(false)
       router.refresh()
     })
@@ -278,13 +280,15 @@ export function PriceBookItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* grid-cols-[minmax(0,1fr)]: the dialog is a grid, and its implicit column
+          otherwise grows to the widest input row (the dialog scrolled sideways). */}
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Service' : 'Add Service'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('Edit Service') : t('Add Service')}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Update price book service.'
-              : 'Add a new service to your price book.'}
+              ? t('Update price book service.')
+              : t('Add a new service to your price book.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -299,7 +303,7 @@ export function PriceBookItemDialog({
                 const selectedFolder = folders.find((f) => f.id === field.value) ?? null
                 return (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Folder (optional)</FormLabel>
+                    <FormLabel>{t('Folder (optional)')}</FormLabel>
                     <Popover open={folderOpen} onOpenChange={setFolderOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -310,7 +314,7 @@ export function PriceBookItemDialog({
                             className="w-full justify-between font-normal"
                           >
                             <span className={selectedFolder ? '' : 'text-muted-foreground'}>
-                              {selectedFolder?.name ?? 'No folder'}
+                              {selectedFolder?.name ?? t('No folder')}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
@@ -318,15 +322,15 @@ export function PriceBookItemDialog({
                       </PopoverTrigger>
                       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                         <Command>
-                          <CommandInput placeholder="Search folders..." />
+                          <CommandInput placeholder={t('Search folders...')} />
                           <CommandList>
-                            <CommandEmpty>No folders found.</CommandEmpty>
+                            <CommandEmpty>{t('No folders found.')}</CommandEmpty>
                             <CommandGroup>
                               <CommandItem
                                 value=""
                                 onSelect={() => { field.onChange(null); setFolderOpen(false) }}
                               >
-                                No folder
+                                {t('No folder')}
                               </CommandItem>
                               {folders.map((folder) => (
                                 <CommandItem
@@ -354,9 +358,9 @@ export function PriceBookItemDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Service Name *</FormLabel>
+                  <FormLabel>{t('Service Name')} *</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. General Labor" {...field} />
+                    <Input placeholder={t('e.g. General Labor')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -365,11 +369,11 @@ export function PriceBookItemDialog({
 
             {/* Pricing Type */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Pricing Type</Label>
+              <Label className="text-sm font-medium">{t('Pricing Type')}</Label>
               <RadioGroup
                 value={pricingType}
                 onValueChange={(v) => handlePricingTypeChange(v as PricingType)}
-                className="grid grid-cols-3 gap-2"
+                className="grid grid-cols-1 gap-2 sm:grid-cols-3"
               >
                 {PRICING_TYPES.map((pt) => (
                   <label
@@ -383,10 +387,10 @@ export function PriceBookItemDialog({
                   >
                     <div className="flex items-center gap-2">
                       <RadioGroupItem id={`pt-${pt.value}`} value={pt.value} className="shrink-0" />
-                      <span className="font-medium leading-tight">{pt.label}</span>
+                      <span className="font-medium leading-tight">{t(pt.label)}</span>
                     </div>
                     <span className="text-xs text-muted-foreground pl-5 leading-tight">
-                      {pt.description}
+                      {t(pt.description)}
                     </span>
                   </label>
                 ))}
@@ -397,12 +401,12 @@ export function PriceBookItemDialog({
             {pricingType === 'fixed' && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium leading-none">Unit</label>
+                  <label className="text-sm font-medium leading-none">{t('Unit')}</label>
                   <div className="flex gap-2">
                     <Input
                       inputMode="decimal"
-                      placeholder="Qty"
-                      aria-label="Unit quantity"
+                      placeholder={t('Qty')}
+                      aria-label={t('Unit quantity')}
                       className="w-20 shrink-0"
                       value={unit.qty}
                       onChange={(e) => applyUnit({ qty: e.target.value.replace(/[^\d.]/g, '') })}
@@ -411,8 +415,8 @@ export function PriceBookItemDialog({
                       value={unit.measure || undefined}
                       onValueChange={(value) => applyUnit({ measure: value })}
                     >
-                      <SelectTrigger className="flex-1" aria-label="Unit measure">
-                        <SelectValue placeholder="Select unit" />
+                      <SelectTrigger className="flex-1" aria-label={t('Unit measure')}>
+                        <SelectValue placeholder={t('Select unit')} />
                       </SelectTrigger>
                       <SelectContent>
                         {UNIT_OPTIONS.map((option) => (
@@ -420,14 +424,14 @@ export function PriceBookItemDialog({
                             {option.label}
                           </SelectItem>
                         ))}
-                        <SelectItem value="other">Other…</SelectItem>
+                        <SelectItem value="other">{t('Other…')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   {unit.measure === 'other' && (
                     <Input
-                      placeholder="Custom unit (e.g. sqft, gal, visit)"
-                      aria-label="Custom unit"
+                      placeholder={t('Custom unit (e.g. sqft, gal, visit)')}
+                      aria-label={t('Custom unit')}
                       value={unit.custom}
                       onChange={(e) => applyUnit({ custom: e.target.value })}
                     />
@@ -439,7 +443,7 @@ export function PriceBookItemDialog({
                   name="unit_price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Unit Price *</FormLabel>
+                      <FormLabel>{t('Unit Price')} *</FormLabel>
                       <FormControl>
                         <div>
                           <input type="hidden" value={field.value ?? ''} readOnly name={field.name} ref={field.ref} />
@@ -468,7 +472,7 @@ export function PriceBookItemDialog({
                     name="price_per_unit"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Price per Unit *</FormLabel>
+                        <FormLabel>{t('Price per Unit')} *</FormLabel>
                         <FormControl>
                           <div>
                             <input type="hidden" value={field.value ?? ''} readOnly name={field.name} ref={field.ref} />
@@ -490,7 +494,7 @@ export function PriceBookItemDialog({
                     name="minimum_price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Minimum Price</FormLabel>
+                        <FormLabel>{t('Minimum Price')}</FormLabel>
                         <FormControl>
                           <div>
                             <input type="hidden" value={field.value ?? ''} readOnly name={field.name} ref={field.ref} />
@@ -512,31 +516,34 @@ export function PriceBookItemDialog({
                 {/* Area size presets */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Size Presets</Label>
+                    <Label className="text-sm font-medium">{t('Size Presets')}</Label>
                     <Button type="button" variant="outline" size="sm" onClick={addAreaSize}>
                       <Plus className="h-3.5 w-3.5 mr-1" />
-                      Add size
+                      {t('Add size')}
                     </Button>
                   </div>
                   {areaSizes.length > 0 && (
                     <div className="rounded-md border divide-y">
-                      <div className="grid grid-cols-[1fr_80px_100px_36px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/40">
-                        <span>Name</span>
-                        <span>Sqft</span>
-                        <span>Price</span>
+                      {/* Phone: the header row is dropped and each row becomes two lines
+                          (name on top, then sqft / price / delete); four fixed columns left
+                          the name input ~36px wide inside the dialog. */}
+                      <div className="hidden sm:grid grid-cols-[1fr_80px_100px_36px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/40">
+                        <span>{t('Name')}</span>
+                        <span>{t('Sqft')}</span>
+                        <span>{t('Price')}</span>
                         <span />
                       </div>
                       {areaSizes.map((size, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_80px_100px_36px] gap-2 px-3 py-2 items-center">
+                        <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_36px] sm:grid-cols-[1fr_80px_100px_36px] gap-2 px-3 py-2 items-center">
                           <Input
-                            placeholder="Small Room"
+                            placeholder={t('Small Room')}
                             value={size.name}
                             onChange={(e) => updateAreaSize(i, { name: e.target.value })}
-                            className="h-8 text-sm"
+                            className="col-span-3 sm:col-span-1 h-8 text-sm"
                           />
                           <Input
                             inputMode="decimal"
-                            placeholder="—"
+                            placeholder={t('Sqft')}
                             value={size.sqft ?? ''}
                             onChange={(e) => {
                               const v = e.target.value
@@ -556,6 +563,7 @@ export function PriceBookItemDialog({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            aria-label={t('Remove')}
                             onClick={() => removeAreaSize(i)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -566,7 +574,7 @@ export function PriceBookItemDialog({
                   )}
                   {areaSizes.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Add size presets so customers can pick a standard size. Leave empty to use only price-per-unit.
+                      {t('Add size presets so customers can pick a standard size. Leave empty to use only price-per-unit.')}
                     </p>
                   )}
                 </div>
@@ -581,7 +589,7 @@ export function PriceBookItemDialog({
                   name="base_price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Base Price *</FormLabel>
+                      <FormLabel>{t('Base Price')} *</FormLabel>
                       <FormControl>
                         <div>
                           <input type="hidden" value={field.value ?? ''} readOnly name={field.name} ref={field.ref} />
@@ -602,27 +610,27 @@ export function PriceBookItemDialog({
                 {/* Options / add-ons */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Add-on Options</Label>
+                    <Label className="text-sm font-medium">{t('Add-on Options')}</Label>
                     <Button type="button" variant="outline" size="sm" onClick={addOption}>
                       <Plus className="h-3.5 w-3.5 mr-1" />
-                      Add option
+                      {t('Add option')}
                     </Button>
                   </div>
                   {options.length > 0 && (
                     <div className="rounded-md border divide-y">
-                      <div className="grid grid-cols-[1fr_100px_70px_36px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/40">
-                        <span>Option name</span>
-                        <span>Price</span>
-                        <span>Max qty</span>
+                      <div className="hidden sm:grid grid-cols-[1fr_100px_70px_36px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/40">
+                        <span>{t('Option name')}</span>
+                        <span>{t('Price')}</span>
+                        <span>{t('Max qty')}</span>
                         <span />
                       </div>
                       {options.map((opt, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_100px_70px_36px] gap-2 px-3 py-2 items-center">
+                        <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_36px] sm:grid-cols-[1fr_100px_70px_36px] gap-2 px-3 py-2 items-center">
                           <Input
-                            placeholder="Extra window"
+                            placeholder={t('Extra window')}
                             value={opt.name}
                             onChange={(e) => updateOption(i, { name: e.target.value })}
-                            className="h-8 text-sm"
+                            className="col-span-3 sm:col-span-1 h-8 text-sm"
                           />
                           <MoneyInput
                             value={opt.price}
@@ -633,7 +641,7 @@ export function PriceBookItemDialog({
                           />
                           <Input
                             inputMode="numeric"
-                            placeholder="—"
+                            placeholder={t('Max qty')}
                             value={opt.max_quantity ?? ''}
                             onChange={(e) => {
                               const v = e.target.value
@@ -646,6 +654,7 @@ export function PriceBookItemDialog({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            aria-label={t('Remove')}
                             onClick={() => removeOption(i)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -656,7 +665,7 @@ export function PriceBookItemDialog({
                   )}
                   {options.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Add optional extras that can be added on top of the base price.
+                      {t('Add optional extras that can be added on top of the base price.')}
                     </p>
                   )}
                 </div>
@@ -669,9 +678,9 @@ export function PriceBookItemDialog({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel>{t('Notes')}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Optional notes..." {...field} />
+                    <Textarea placeholder={t('Optional notes...')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -680,12 +689,12 @@ export function PriceBookItemDialog({
 
             {/* Photo */}
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none">Photo (optional)</label>
+              <label className="text-sm font-medium leading-none">{t('Photo (optional)')}</label>
               <div className="flex items-center gap-3">
                 {imagePreview ? (
                   <img
                     src={imagePreview}
-                    alt="Item preview"
+                    alt={t('Item preview')}
                     className="h-10 w-10 rounded object-cover border border-border shrink-0"
                   />
                 ) : (
@@ -696,7 +705,7 @@ export function PriceBookItemDialog({
                 <div className="flex gap-2 flex-1">
                   <label htmlFor="price-book-image-upload" className="cursor-pointer flex-1">
                     <div className="flex items-center justify-center h-9 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-                      {imagePreview ? 'Change photo' : 'Add photo'}
+                      {imagePreview ? t('Change photo') : t('Add photo')}
                     </div>
                     <input
                       id="price-book-image-upload"
@@ -708,11 +717,11 @@ export function PriceBookItemDialog({
                         if (!file) return
                         e.target.value = ''
                         if (!ACCEPTED_ITEM_PHOTO_TYPES.includes(file.type)) {
-                          toast.error('Unsupported format. Please upload PNG, JPG, or WebP.')
+                          toast.error(t('Unsupported format. Please upload PNG, JPG, or WebP.'))
                           return
                         }
                         if (file.size > MAX_ITEM_PHOTO_SIZE) {
-                          toast.error('Photo must be under 4MB.')
+                          toast.error(t('Photo must be under 4MB.'))
                           return
                         }
                         setImageFile(file)
@@ -728,7 +737,7 @@ export function PriceBookItemDialog({
                       size="sm"
                       onClick={() => { setImageFile(null); setImagePreview(null); setImagePosition(DEFAULT_IMAGE_POSITION) }}
                     >
-                      Remove
+                      {t('Remove')}
                     </Button>
                   )}
                 </div>
@@ -736,7 +745,7 @@ export function PriceBookItemDialog({
               {imagePreview && (
                 <ImagePositionEditor
                   src={imagePreview}
-                  alt="Item photo position preview"
+                  alt={t('Item photo position preview')}
                   aspectRatio={1}
                   fit="cover"
                   value={imagePosition}
@@ -748,8 +757,8 @@ export function PriceBookItemDialog({
 
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending
-                ? isEditing ? 'Updating...' : 'Adding...'
-                : isEditing ? 'Update Service' : 'Add Service'}
+                ? isEditing ? t('Updating...') : t('Adding...')
+                : isEditing ? t('Update Service') : t('Add Service')}
             </Button>
           </form>
         </Form>

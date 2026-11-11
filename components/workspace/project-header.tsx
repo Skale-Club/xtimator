@@ -8,6 +8,7 @@ import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-h
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { ViewModeToggle } from '@/components/workspace/view-mode-toggle'
 import { EngagementButton } from '@/components/workspace/estimate/engagement-button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -15,6 +16,7 @@ interface ProjectHeaderProps {
 
 export function ProjectHeader({ project }: ProjectHeaderProps) {
   const { slot } = useEstimateVersionSlot()
+  const { t } = useTranslation()
   const breadcrumbItems = useMemo(
     () => [
       { label: 'Projects', href: '/projects' },
@@ -52,7 +54,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
               className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap"
               aria-live="polite"
             >
-              {slot.saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+              {slot.saveStatus === 'saving' ? t('Saving…') : t('Saved')}
             </span>
           )}
           {/* Phase 193 (193-03) — Insights chip/trigger. Hidden entirely until
@@ -73,7 +75,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
       </div>
 
       {project.client && (
-        <p className="mt-1 text-sm text-muted-foreground">{project.client.name}</p>
+        <p className="mt-1 truncate text-sm text-muted-foreground">{project.client.name}</p>
       )}
     </header>
   )

@@ -8,6 +8,7 @@ import type { ProjectFormValues } from '@/lib/schemas/project'
 import type { InputMode } from '@/lib/schemas/project'
 
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface StepModalitySelectProps {
   /** When provided, selection is tracked via form state. Omit for standalone picker use. */
@@ -49,6 +50,7 @@ export const MODALITIES: ReadonlyArray<Modality> = [
 ] as const
 
 export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: StepModalitySelectProps) {
+  const { t } = useTranslation()
   const selectedMode = form?.watch('inputMode')
 
   return (
@@ -133,9 +135,9 @@ export function StepModalitySelect({ form, onSelect, isPending, pendingMode }: S
               </span>
               <div className="min-w-0 flex-1 sm:flex-none space-y-0 sm:space-y-1">
                 <p className={cn('font-medium sm:font-semibold text-sm sm:text-base leading-tight', isSelected && 'text-primary')}>
-                  {label}
+                  {t(label)}
                 </p>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-tight truncate">{description}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-tight truncate">{t(description)}</p>
               </div>
             </button>
           )

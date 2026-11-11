@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { EventCategory } from '@/lib/notifications/event-types'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Phase 104: only the 3 visible categories are filterable.
 export const CATEGORY_ICONS: Partial<Record<EventCategory, LucideIcon>> = {
@@ -46,6 +47,7 @@ export function NotificationFilters({
   onCategoryChange,
   onUnreadChange,
 }: NotificationFiltersProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const params = useSearchParams()
   const [, startTransition] = useTransition()
@@ -96,27 +98,27 @@ export function NotificationFilters({
           aria-pressed={category === null}
           onClick={() => setCategory(null)}
           className={cn(
-            'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            'inline-flex min-h-9 items-center rounded-full border px-3.5 py-1 text-xs font-medium transition-colors',
             category === null
               ? 'gradient-brand text-white border-transparent'
               : 'border-border text-foreground hover:bg-accent',
           )}
         >
-          All
+          {t('All')}
         </button>
         <button
           type="button"
           aria-pressed={unreadOnly}
           onClick={() => setUnread(!unreadOnly)}
           className={cn(
-            'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            'inline-flex min-h-9 items-center rounded-full border px-3.5 py-1 text-xs font-medium transition-colors',
             unreadOnly
               ? 'bg-primary text-primary-foreground border-transparent'
               : 'border-border text-foreground hover:bg-accent',
           )}
           data-testid="filter-unread"
         >
-          Unread only
+          {t('Unread only')}
         </button>
         {ORDER.map((cat) => {
           const Icon = CATEGORY_ICONS[cat] ?? Wrench
@@ -129,14 +131,14 @@ export function NotificationFilters({
               data-testid={`filter-cat-${cat}`}
               onClick={() => setCategory(active ? null : cat)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 py-1 text-xs font-medium transition-colors',
                 active
                   ? 'gradient-brand text-white border-transparent'
                   : 'border-border text-foreground hover:bg-accent',
               )}
             >
               <Icon className="h-3 w-3" aria-hidden="true" />
-              {CATEGORY_LABELS[cat]}
+              {CATEGORY_LABELS[cat] ? t(CATEGORY_LABELS[cat]!) : null}
             </button>
           )
         })}
@@ -144,7 +146,7 @@ export function NotificationFilters({
 
       <Input
         type="search"
-        placeholder="Search notifications…"
+        placeholder={t('Search notifications…')}
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         data-testid="filter-search"

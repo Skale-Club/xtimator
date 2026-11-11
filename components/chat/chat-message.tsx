@@ -103,8 +103,9 @@ export function ChatMessage({
             }
             if (e.key === 'Escape') setEditing(false)
           }}
+          enterKeyHint="send"
           aria-label={t('Edit message')}
-          className="max-h-40 min-h-[60px] w-full max-w-[75%] resize-none"
+          className="max-h-40 min-h-[60px] w-full max-w-[88%] resize-none md:max-w-[75%]"
           autoFocus
         />
         <div className="flex gap-2">
@@ -128,7 +129,8 @@ export function ChatMessage({
             <div
               key={i}
               className={cn(
-                'max-w-[75%] rounded-2xl px-3 py-2 text-sm break-words',
+                // 88% on phones: the popup is only ~290px wide inside, 75% left a big gutter.
+                'max-w-[88%] rounded-2xl px-3 py-2 text-sm break-words md:max-w-[75%]',
                 isUser
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-card text-foreground border border-border',
@@ -137,7 +139,7 @@ export function ChatMessage({
               {isUser ? (
                 <span className="whitespace-pre-wrap">{partText}</span>
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
                   <Markdown remarkPlugins={[remarkGfm]}>{partText}</Markdown>
                 </div>
               )}
@@ -167,7 +169,7 @@ export function ChatMessage({
               variant="ghost"
               onClick={startEdit}
               aria-label={t('Edit message')}
-              className="h-7 w-7"
+              className="h-9 w-9 md:h-7 md:w-7"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -179,7 +181,7 @@ export function ChatMessage({
                 variant="ghost"
                 onClick={() => void copy()}
                 aria-label={t('Copy message')}
-                className="h-7 w-7"
+                className="h-9 w-9 md:h-7 md:w-7"
               >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
@@ -191,7 +193,7 @@ export function ChatMessage({
                     variant="ghost"
                     onClick={() => onVote(message.id, true)}
                     aria-label={t('Good response')}
-                    className={cn('h-7 w-7', vote === true && 'text-primary')}
+                    className={cn('h-9 w-9 md:h-7 md:w-7', vote === true && 'text-primary')}
                   >
                     <ThumbsUp className="h-3.5 w-3.5" />
                   </Button>
@@ -201,7 +203,7 @@ export function ChatMessage({
                     variant="ghost"
                     onClick={() => onVote(message.id, false)}
                     aria-label={t('Bad response')}
-                    className={cn('h-7 w-7', vote === false && 'text-destructive')}
+                    className={cn('h-9 w-9 md:h-7 md:w-7', vote === false && 'text-destructive')}
                   >
                     <ThumbsDown className="h-3.5 w-3.5" />
                   </Button>
@@ -214,7 +216,7 @@ export function ChatMessage({
                   variant="ghost"
                   onClick={() => onRegenerate(message.id)}
                   aria-label={t('Regenerate response')}
-                  className="h-7 w-7"
+                  className="h-9 w-9 md:h-7 md:w-7"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>

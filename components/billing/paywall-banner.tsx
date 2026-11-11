@@ -83,7 +83,7 @@ export function PaywallBanner({
       </span>
       <Link
         href={BILLING_SETTINGS_PATH}
-        className="inline-flex min-h-[32px] items-center rounded-md bg-destructive px-3 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90"
+        className="inline-flex min-h-10 items-center rounded-md bg-destructive px-3 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90"
       >
         {t('Subscribe')}
       </Link>

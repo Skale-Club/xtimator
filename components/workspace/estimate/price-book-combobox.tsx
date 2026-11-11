@@ -61,6 +61,9 @@ const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { 
     if (!multiline) {
       return <input ref={ref as React.Ref<HTMLInputElement>} onChange={onChange} {...props} />
     }
+    // Return on a one-paragraph field would only turn into a space (see onChange
+    // below), so it closes the keyboard instead, like "Done" on a single-line field.
+    const { onKeyDown, ...rest } = props
     return (
       <textarea
         ref={(el) => {
@@ -75,7 +78,16 @@ const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { 
           if (e.target.value.includes('\n')) e.target.value = e.target.value.replace(/\n/g, ' ')
           onChange(e)
         }}
-        {...props}
+        enterKeyHint="done"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            e.currentTarget.blur()
+            return
+          }
+          onKeyDown?.(e)
+        }}
+        {...rest}
       />
     )
   }
@@ -157,7 +169,9 @@ export function PriceBookCombobox({
       <PopoverContent
         align="start"
         sideOffset={2}
-        className="p-0 w-[--radix-popover-trigger-width] min-w-[280px]"
+        // "No matches" is noise on a phone: the popup would sit on top of the qty and
+        // price fields of the same row, which are the next thing the user taps.
+        className={`p-0 w-[--radix-popover-trigger-width] min-w-[280px]${filtered.length === 0 ? ' max-sm:hidden' : ''}`}
         onOpenAutoFocus={(e) => {
           // Keep focus on the visible input.
           e.preventDefault()

@@ -58,7 +58,7 @@ export function TradeSuggestionBanner({ suggestedTrade, occurrences }: TradeSugg
   return (
     <Alert data-testid="trade-suggestion-banner">
       <Lightbulb />
-      <AlertTitle>
+      <AlertTitle className="line-clamp-none">
         {t('Most of your recent estimates were')} <span className="font-semibold">{suggestedTrade}</span>{' '}
         {t('work — make it your primary trade?')}
       </AlertTitle>

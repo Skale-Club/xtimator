@@ -9,6 +9,7 @@ import { LanguageToggle } from '@/components/app-shell/language-toggle'
 import { CreditChip } from '@/components/app-shell/credit-chip'
 import { MobileAccountMenu } from '@/components/app-shell/mobile-account-menu'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const PAGE_TITLES: Record<string, string> = {
   '/projects/new': 'New Xtimate',
@@ -56,16 +57,17 @@ export function MobileHeader({
   credits,
 }: MobileHeaderProps) {
   const pathname = usePathname()
+  const { t } = useTranslation()
   const title = getTitleFromPathname(pathname)
   const breadcrumbs = useCurrentBreadcrumbs()
 
   return (
     <header
       data-testid="mobile-header"
-      className="sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 pb-3 pt-[calc(env(safe-area-inset-top,_0px)_+_0.75rem)] md:hidden"
+      className="@container/mh sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 pb-3 pt-[calc(env(safe-area-inset-top,_0px)_+_0.75rem)] md:hidden"
     >
       {/* Left: Xtimator logo */}
-      <div className="flex items-center gap-2 min-w-0 shrink">
+      <div className="flex min-w-0 shrink items-center gap-2">
         <Link
           href="/"
           aria-label={branding?.appName ?? 'Xtimator'}
@@ -76,9 +78,12 @@ export function MobileHeader({
             appName={branding?.appName}
             className="h-7 w-7"
           />
-          {/* Show name only when there are no breadcrumbs/title, to avoid crowding */}
+          {/* Show name only when there are no breadcrumbs/title, to avoid crowding.
+              Also only when the header is wide enough (container query): the
+              right-hand action group is ~250px, and on <=390px phones the name
+              used to overflow its box and paint over the language flag. */}
           {breadcrumbs.length === 0 && !title && (
-            <span className="text-base font-bold tracking-tight text-foreground">
+            <span className="hidden truncate text-base font-bold tracking-tight text-foreground @[380px]/mh:inline">
               {branding?.appName ?? 'Xtimator'}
             </span>
           )}
@@ -110,7 +115,7 @@ export function MobileHeader({
             ))}
           </nav>
         ) : title ? (
-          <h1 className="text-base font-semibold tracking-tight truncate">{title}</h1>
+          <h1 className="text-base font-semibold tracking-tight truncate">{t(title)}</h1>
         ) : null}
       </div>
 
@@ -122,7 +127,7 @@ export function MobileHeader({
         )}
         <Link
           href="/notifications"
-          aria-label="Notifications"
+          aria-label={t('Notifications')}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           <Bell className="h-4 w-4" />

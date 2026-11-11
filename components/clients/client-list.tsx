@@ -99,7 +99,8 @@ export function ClientList({ clients, companyId }: ClientListProps) {
               {client.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="font-medium">{client.name}</span>
+          {/* Table cells are nowrap: cap long names/emails so the table fits its card. */}
+          <span className="block max-w-[22rem] truncate font-medium" title={client.name}>{client.name}</span>
         </Link>
       ),
     },
@@ -107,7 +108,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
       key: 'email',
       header: t('Email'),
       cell: (client) => (
-        <span className="text-muted-foreground">{client.email || '—'}</span>
+        <span className="block max-w-[18rem] truncate text-muted-foreground" title={client.email ?? undefined}>{client.email || '—'}</span>
       ),
     },
     {
@@ -209,7 +210,7 @@ export function ClientList({ clients, companyId }: ClientListProps) {
             <div className="shrink-0 relative z-10">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`${t('Actions')}: ${client.name}`}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={`${t('Actions')}: ${client.name}`}>
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

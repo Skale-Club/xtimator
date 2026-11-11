@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
@@ -25,6 +26,16 @@ export interface CaptureFailureProps {
   billingBlock?: BillingBlockCode | 'credits'
 }
 
+// Centered panel (icon, message, actions) so it sits balanced in the popup
+// body instead of hugging the top-left corner.
+function FailureIcon() {
+  return (
+    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10" aria-hidden>
+      <AlertTriangle className="h-5 w-5 text-destructive" />
+    </span>
+  )
+}
+
 export function CaptureFailure({
   errorMessage,
   retriesUsed,
@@ -37,8 +48,9 @@ export function CaptureFailure({
   if (billingBlock && isTwa) {
     // Android TWA: no purchase CTA; the error message itself stays.
     return (
-      <div className="space-y-3" data-testid="capture-failure">
-        <p className="text-sm text-destructive">{errorMessage}</p>
+      <div className="flex flex-col items-center gap-3 text-center" data-testid="capture-failure">
+        <FailureIcon />
+        <p className="text-sm text-foreground/90">{errorMessage}</p>
       </div>
     )
   }
@@ -50,8 +62,9 @@ export function CaptureFailure({
           ? t('Buy credits')
           : t('Open billing')
     return (
-      <div className="space-y-3" data-testid="capture-failure">
-        <p className="text-sm text-destructive">{errorMessage}</p>
+      <div className="flex flex-col items-center gap-3 text-center" data-testid="capture-failure">
+        <FailureIcon />
+        <p className="text-sm text-foreground/90">{errorMessage}</p>
         <Button asChild size="sm">
           <Link href={BILLING_SETTINGS_PATH} data-testid="capture-billing-cta">
             {cta}
@@ -62,14 +75,15 @@ export function CaptureFailure({
   }
   const canRetry = !!onRetry && retriesUsed < 2
   return (
-    <div className="space-y-3" data-testid="capture-failure">
-      <p className="text-sm text-destructive">{errorMessage}</p>
-      <div className="flex gap-2">
+    <div className="flex flex-col items-center gap-3 text-center" data-testid="capture-failure">
+      <FailureIcon />
+      <p className="text-sm text-foreground/90">{errorMessage}</p>
+      <div className="flex flex-wrap justify-center gap-2">
         {canRetry && (
           <Button variant="outline" size="sm" onClick={onRetry} data-testid="capture-retry">
-            {/* Keep the literal at the call site for the i18n extractor; the
-                ({n} left) count stays outside t() so the key stays extractable. */}
-            {t('Retry')} ({2 - retriesUsed} left)
+            {/* Keep the literals at the call site for the i18n extractor; the
+                count stays outside t() so the keys stay extractable. */}
+            {t('Retry')} ({2 - retriesUsed} {t('attempts left')})
           </Button>
         )}
         {onEditManually && (

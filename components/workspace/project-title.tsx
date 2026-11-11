@@ -82,6 +82,7 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
       <input
         ref={inputRef}
         type="text"
+        enterKeyHint="done"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -104,12 +105,12 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
 
   return (
     <div className="flex items-center gap-2 group min-w-0">
-      {/* Mobile: up to 2 wrapped lines at a smaller size (no mid-word "…" cut);
+      {/* Mobile: up to 3 wrapped lines (the "Edit with AI" pill leaves the title only ~160px on a 360px phone) at a smaller size (no mid-word "…" cut);
           sm+: single-line ellipsis as before. Pencil is always visible on touch
           (no hover on mobile) and hover-revealed on desktop. */}
       <h1
         onClick={enterEdit}
-        className="min-w-0 line-clamp-2 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] cursor-pointer"
+        className="min-w-0 line-clamp-3 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] cursor-pointer"
       >
         {name}
       </h1>

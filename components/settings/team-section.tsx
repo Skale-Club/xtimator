@@ -239,7 +239,9 @@ export function TeamSection({ companyId, currentUserId, members: initialMembers,
             {invites.map((invite) => (
               <div
                 key={invite.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-3.5 sm:px-6"
+                // Revoke stays right of the text on phones too (a stacked
+                // 44px button left a dead row under every invite).
+                className="flex items-center justify-between gap-3 px-5 py-2 sm:px-6"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">
@@ -256,7 +258,7 @@ export function TeamSection({ companyId, currentUserId, members: initialMembers,
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="min-h-[44px] min-w-[44px] text-muted-foreground hover:text-destructive"
+                        className="min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label={t('Revoke invite')}
                       >
                         <X className="w-4 h-4" />

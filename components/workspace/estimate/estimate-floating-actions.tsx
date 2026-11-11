@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { Share2, Camera, Settings, Bug, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 type Status = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -58,6 +59,7 @@ interface EstimateFloatingActionsProps {
 function Pill({ children }: { children: ReactNode }) {
   return (
     <div
+      data-hide-on-keyboard
       className="pointer-events-none sticky z-40 h-0 w-full"
       style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
@@ -79,6 +81,7 @@ function Pill({ children }: { children: ReactNode }) {
  * when the window or the sidebar changes width.
  */
 function CollapsedTab({ onExpand }: { onExpand: () => void }) {
+  const { t } = useTranslation()
   const markerRef = useRef<HTMLDivElement>(null)
   const [centerX, setCenterX] = useState<number | null>(null)
 
@@ -105,7 +108,8 @@ function CollapsedTab({ onExpand }: { onExpand: () => void }) {
       <button
         type="button"
         onClick={onExpand}
-        aria-label="Show actions"
+        aria-label={t('Show actions')}
+        data-hide-on-keyboard
         className="fixed bottom-0 z-40 flex min-h-7 w-16 -translate-x-1/2 items-start justify-center rounded-t-xl border border-b-0 border-border bg-background/95 pt-1 text-foreground shadow-[0_-6px_16px_rgba(0,0,0,0.25)] backdrop-blur transition-colors hover:bg-muted"
         style={{ left: centerX ?? '50%', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -138,6 +142,7 @@ export function EstimateFloatingActions({
   // stops covering the bottom of the document. Session-local state (resets on
   // navigation) — the pill should reappear expanded on a fresh visit.
   const [collapsed, setCollapsed] = useState(false)
+  const { t } = useTranslation()
 
   if (!isCurrent) return null
 
@@ -159,7 +164,7 @@ export function EstimateFloatingActions({
           size="sm"
           variant="ghost"
           onClick={onOpenSettings}
-          aria-label="Settings"
+          aria-label={t('Settings')}
           className="shrink-0 rounded-full text-foreground"
         >
           <Settings className="h-3.5 w-3.5" />
@@ -170,8 +175,8 @@ export function EstimateFloatingActions({
           size="icon"
           variant="ghost"
           onClick={onOpenDebug}
-          aria-label="Estimate debug"
-          title="Estimate debug"
+          aria-label={t('Estimate debug')}
+          title={t('Estimate debug')}
           data-testid="estimate-debug-trigger"
           className="h-8 w-8 shrink-0 rounded-full text-muted-foreground"
         >
@@ -186,19 +191,20 @@ export function EstimateFloatingActions({
           className="shrink-0 rounded-full gap-1.5 text-foreground"
         >
           <Camera className="h-3.5 w-3.5" />
-          Photos
+          {/* Icon-only below sm so Share always fits the pill on a phone. */}
+          <span className="max-sm:sr-only">{t('Photos')}</span>
         </Button>
       )}
       {responseControl}
       <Button size="sm" onClick={onSend} disabled={isSaving} className="shrink-0 rounded-full gap-1.5">
         <Share2 className="h-3.5 w-3.5" />
-        Share
+        {t('Share')}
       </Button>
       <Button
         size="sm"
         variant="ghost"
         onClick={() => setCollapsed(true)}
-        aria-label="Hide actions"
+        aria-label={t('Hide actions')}
         className="shrink-0 rounded-full text-foreground"
       >
         <ChevronDown className="h-3.5 w-3.5" />

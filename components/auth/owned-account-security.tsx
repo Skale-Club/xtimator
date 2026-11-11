@@ -44,8 +44,8 @@ export function OwnedAccountSecurity() {
     <SettingsCard title="Verified email" description="Used for account recovery and team invitations.">
       <form onSubmit={submit} className="max-w-sm space-y-3">
         <label htmlFor="owned-account-email" className="block text-sm">New email address</label>
-        <Input id="owned-account-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} disabled={busy || sent} required />
-        {sent ? <><label htmlFor="owned-email-code" className="block text-sm">Verification code</label><Input id="owned-email-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></> : null}
+        <Input id="owned-account-email" type="email" inputMode="email" autoComplete="email" enterKeyHint="send" value={email} onChange={event => setEmail(event.target.value)} disabled={busy || sent} required />
+        {sent ? <><label htmlFor="owned-email-code" className="block text-sm">Verification code</label><Input id="owned-email-code" inputMode="numeric" autoComplete="one-time-code" enterKeyHint="go" autoFocus maxLength={6} pattern="[0-9]{6}" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required /></> : null}
         {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
         {message ? <p role="status" className="text-sm text-muted-foreground">{message}</p> : null}
         <Button disabled={busy || (sent && code.length !== 6)}>{sent ? 'Verify email' : 'Send verification code'}</Button>

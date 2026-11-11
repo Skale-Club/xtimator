@@ -5,7 +5,7 @@ export default function DashboardLoading() {
   return (
     <div className="pb-12">
       {/* Hero — mirrors the "Dashboard" label, greeting and subtitle (px-6 py-6) */}
-      <div className="space-y-3 px-6 py-6">
+      <div className="space-y-3 px-4 py-6 sm:px-6">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-9 w-64 max-w-full" />
         <Skeleton className="h-4 w-96 max-w-full" />
@@ -13,7 +13,7 @@ export default function DashboardLoading() {
 
       <StatCardsSkeleton />
 
-      <section className="mt-12 px-6">
+      <section className="mt-8 px-4 sm:mt-12 sm:px-6">
         <RecentProjectsSkeleton />
       </section>
     </div>

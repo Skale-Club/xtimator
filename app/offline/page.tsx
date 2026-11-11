@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "You're offline", robots: PRIVATE_ROB
 
 export default function OfflinePage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center bg-background">
+    <div className="min-h-dvh flex flex-col items-center justify-center gap-6 p-6 text-center bg-background">
       <div className="flex items-center justify-center w-20 h-20 rounded-full bg-muted">
         <WifiOff className="w-10 h-10 text-muted-foreground" />
       </div>

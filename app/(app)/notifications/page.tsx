@@ -56,7 +56,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
       <NotificationList
         items={items}
         nextCursor={nextCursor}

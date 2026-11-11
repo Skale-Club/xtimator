@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { NotificationItem } from './notification-item'
 import type { NotificationListItem } from './use-notifications'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface PanelState {
   items: NotificationListItem[]
@@ -47,6 +48,7 @@ function groupByDay(items: NotificationListItem[]): Array<{ label: string; items
 }
 
 export function NotificationPanel({ state, onItemClick }: NotificationPanelProps) {
+  const { t } = useTranslation()
   const { items, unreadCount, loading, markRead, markAllRead } = state
   const unread = items.filter((i) => !i.read_at)
   const read = items.filter((i) => i.read_at)
@@ -55,14 +57,14 @@ export function NotificationPanel({ state, onItemClick }: NotificationPanelProps
     <div className="flex flex-col max-h-[70vh]">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--glass-border)]">
-        <h3 className="text-sm font-semibold">Notifications</h3>
+        <h3 className="text-sm font-semibold">{t('Notifications')}</h3>
         {unreadCount > 0 && (
           <button
             type="button"
             onClick={() => markAllRead()}
             className="text-xs text-primary hover:underline focus:outline-none focus-visible:underline"
           >
-            Mark all as read
+            {t('Mark all as read')}
           </button>
         )}
       </div>
@@ -71,23 +73,23 @@ export function NotificationPanel({ state, onItemClick }: NotificationPanelProps
       <div className="flex-1 overflow-y-auto">
         {loading && items.length === 0 ? (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            Loading…
+            {t('Loading…')}
           </div>
         ) : items.length === 0 ? (
           <div className="px-3 py-10 text-center text-sm text-muted-foreground">
-            All caught up
+            {t('All caught up')}
           </div>
         ) : (
           <>
             {unread.length > 0 && (
               <section>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Unread
+                  {t('Unread')}
                 </div>
                 {groupByDay(unread).map((group) => (
                   <div key={`u-${group.label}`}>
                     <div className="px-3 py-1 text-[10px] text-muted-foreground/80">
-                      {group.label}
+                      {['Today', 'Yesterday', 'Earlier'].includes(group.label) ? t(group.label) : group.label}
                     </div>
                     {group.items.map((item) => (
                       <NotificationItem
@@ -104,12 +106,12 @@ export function NotificationPanel({ state, onItemClick }: NotificationPanelProps
             {read.length > 0 && (
               <section>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Recent
+                  {t('Recent')}
                 </div>
                 {groupByDay(read).map((group) => (
                   <div key={`r-${group.label}`}>
                     <div className="px-3 py-1 text-[10px] text-muted-foreground/80">
-                      {group.label}
+                      {['Today', 'Yesterday', 'Earlier'].includes(group.label) ? t(group.label) : group.label}
                     </div>
                     {group.items.map((item) => (
                       <NotificationItem
@@ -134,7 +136,7 @@ export function NotificationPanel({ state, onItemClick }: NotificationPanelProps
           onClick={onItemClick}
           className="text-xs text-primary hover:underline"
         >
-          See all →
+          {t('See all →')}
         </Link>
       </div>
     </div>

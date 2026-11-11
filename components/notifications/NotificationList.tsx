@@ -18,6 +18,7 @@ import {
   type EventType,
 } from '@/lib/notifications/event-types'
 import type { NotificationRow } from '@/lib/notifications/queries'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 export interface NotificationListProps {
   items: NotificationRow[]
@@ -32,6 +33,7 @@ export function NotificationList({
   category,
   unreadOnly,
 }: NotificationListProps) {
+  const { t } = useTranslation()
   const router = useRouter()
   const params = useSearchParams()
   const [, startTransition] = useTransition()
@@ -62,13 +64,12 @@ export function NotificationList({
   }
 
   const emptyMessage = (): string => {
-    if (search.trim()) return `No notifications match “${search.trim()}”.`
-    if (unreadOnly && category)
-      return `No unread ${(CATEGORY_LABELS[category] ?? category).toLowerCase()} notifications.`
-    if (unreadOnly) return 'No unread notifications.'
-    if (category)
-      return `No ${(CATEGORY_LABELS[category] ?? category).toLowerCase()} notifications yet.`
-    return 'No notifications yet.'
+    const label = category ? t(CATEGORY_LABELS[category] ?? category).toLowerCase() : ''
+    if (search.trim()) return t('No notifications match “{query}”.').replace('{query}', search.trim())
+    if (unreadOnly && category) return t('No unread {category} notifications.').replace('{category}', label)
+    if (unreadOnly) return t('No unread notifications.')
+    if (category) return t('No {category} notifications yet.').replace('{category}', label)
+    return t('No notifications yet.')
   }
 
   return (
@@ -94,7 +95,7 @@ export function NotificationList({
           data-testid="notifications-list"
         >
           {filtered.map((n) => (
-            <NotificationRow key={n.id} row={n} mounted={mounted} />
+            <NotificationRow key={n.id} row={n} mounted={mounted} t={t} />
           ))}
         </ul>
       )}
@@ -106,7 +107,7 @@ export function NotificationList({
             onClick={loadMore}
             data-testid="notifications-load-more"
           >
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}
@@ -114,7 +115,7 @@ export function NotificationList({
   )
 }
 
-function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: boolean }) {
+function NotificationRow({ row, mounted, t }: { row: NotificationRow; mounted: boolean; t: (s: string) => string }) {
   const category: EventCategory =
     EVENT_CATEGORIES[row.event_type as EventType] ?? 'system'
   const Icon = categoryIconFor(category)
@@ -124,7 +125,7 @@ function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: bool
     <Card
       variant={unread ? 'glass' : 'default'}
       className={cn(
-        'flex items-start gap-3 px-4 py-3 transition-colors',
+        'flex-row items-start gap-3 px-4 py-3 transition-colors',
         unread ? 'border-l-2 border-l-primary' : 'opacity-80',
       )}
       data-testid="notification-item"
@@ -153,7 +154,7 @@ function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: bool
             dateTime={row.created_at}
             suppressHydrationWarning
           >
-            {mounted ? formatRelative(row.created_at) : formatDate(row.created_at)}
+            {mounted ? formatRelative(row.created_at, t) : formatDate(row.created_at)}
           </time>
         </div>
         <p className="mt-0.5 text-sm text-muted-foreground line-clamp-2">
@@ -162,10 +163,10 @@ function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: bool
       </div>
       {row.pinned && (
         <span
-          className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
-          aria-label="Pinned"
+          className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+          aria-label={t('Pinned')}
         >
-          Pinned
+          {t('Pinned')}
         </span>
       )}
     </Card>
@@ -186,11 +187,11 @@ function NotificationRow({ row, mounted }: { row: NotificationRow; mounted: bool
   return <li>{content}</li>
 }
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string, t: (s: string) => string): string {
   const then = new Date(iso).getTime()
   if (Number.isNaN(then)) return ''
   const diffSec = Math.max(0, Math.floor((Date.now() - then) / 1000))
-  if (diffSec < 60) return 'just now'
+  if (diffSec < 60) return t('just now')
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
   if (diffSec < 604800) return `${Math.floor(diffSec / 86400)}d ago`

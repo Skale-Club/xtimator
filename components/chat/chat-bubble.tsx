@@ -313,6 +313,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
           aria-label={t('Open chat assistant')}
+          data-hide-on-keyboard
           title={t('Drag to move')}
           style={launcherStyle}
           className={cn(
@@ -361,12 +362,12 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
             onPointerUp={onHeaderPointerEnd}
             onPointerCancel={onHeaderPointerEnd}
             className={cn(
-              'flex items-center gap-2 border-b border-border px-4 py-3',
+              'flex items-center gap-1 border-b border-border py-2 pl-4 pr-2',
               'lg:touch-none lg:select-none',
               panelDragging ? 'lg:cursor-grabbing' : 'lg:cursor-grab',
             )}
           >
-            <MessageSquare className="h-4 w-4 text-primary" />
+            <MessageSquare className="mr-1 h-4 w-4 text-primary" />
             <h2 className="flex-1 truncate text-sm font-semibold tracking-tight">
               {t('Assistant')}
             </h2>
@@ -379,7 +380,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                   variant="ghost"
                   onClick={newChat}
                   aria-label={t('New chat')}
-                  className="h-8 w-8"
+                  className="h-10 w-10"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -391,7 +392,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                       size="icon"
                       variant="ghost"
                       aria-label={t('Chat history')}
-                      className="h-8 w-8"
+                      className="h-10 w-10"
                     >
                       <History className="h-4 w-4" />
                     </Button>
@@ -435,7 +436,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
               variant="ghost"
               onClick={() => setOpen(false)}
               aria-label={t('Close chat')}
-              className="h-8 w-8"
+              className="h-10 w-10"
             >
               <X className="h-4 w-4" />
             </Button>

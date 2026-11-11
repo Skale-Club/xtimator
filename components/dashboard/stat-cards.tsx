@@ -12,7 +12,7 @@ interface StatCardsProps {
 
 export function StatCards({ stats, currencyCode = DEFAULT_CURRENCY_CODE }: StatCardsProps) {
   return (
-    <section className="grid grid-cols-2 gap-3 px-6 sm:gap-4 lg:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3 px-4 sm:gap-4 sm:px-6 lg:grid-cols-4">
       <StatCard
         icon={FolderOpen}
         label="Total Projects"

@@ -1,5 +1,10 @@
 'use client'
 
+// Installed from the root layout so the keyboard-aware visual viewport
+// variables (lib/visual-viewport.ts) exist on every page, not only on pages
+// that happen to load a dialog.
+import '@/lib/visual-viewport'
+
 // Patch console.error at module-load time (before React hydration).
 // React 19 warns about <script> elements in JSX because it now treats them as
 // hoisted resources. next-themes v0.4.x injects an inline script for SSR FOUC

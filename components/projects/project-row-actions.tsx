@@ -29,6 +29,7 @@ import {
   hardDeleteProjectAction,
 } from '@/lib/actions/project'
 import type { ProjectListStatus } from '@/lib/queries/project'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
   projectId: string
@@ -38,6 +39,7 @@ interface Props {
 
 export function ProjectRowActions({ projectId, projectName, status }: Props) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [softConfirmOpen, setSoftConfirmOpen] = useState(false)
@@ -63,7 +65,9 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            // 40px tap target on touch screens, the compact 32px from md up.
+            className="h-10 w-10 md:h-8 md:w-8"
+            aria-label={t('Actions')}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -75,17 +79,17 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 disabled={isPending}
                 onClick={() =>
-                  run(() => archiveProjectAction(projectId), `"${projectName}" archived`)
+                  run(() => archiveProjectAction(projectId), `"${projectName}" ${t('archived')}`)
                 }
               >
-                Archive
+                {t('Archive')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
                 disabled={isPending}
                 onClick={() => setSoftConfirmOpen(true)}
               >
-                Delete
+                {t('Delete')}
               </DropdownMenuItem>
             </>
           )}
@@ -96,18 +100,18 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
                 onClick={() =>
                   run(
                     () => unarchiveProjectAction(projectId),
-                    `"${projectName}" unarchived`
+                    `"${projectName}" ${t('unarchived')}`
                   )
                 }
               >
-                Unarchive
+                {t('Unarchive')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
                 disabled={isPending}
                 onClick={() => setSoftConfirmOpen(true)}
               >
-                Delete
+                {t('Delete')}
               </DropdownMenuItem>
             </>
           )}
@@ -116,17 +120,17 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 disabled={isPending}
                 onClick={() =>
-                  run(() => restoreProjectAction(projectId), `"${projectName}" restored`)
+                  run(() => restoreProjectAction(projectId), `"${projectName}" ${t('restored')}`)
                 }
               >
-                Restore
+                {t('Restore')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
                 disabled={isPending}
                 onClick={() => setConfirmOpen(true)}
               >
-                Delete permanently
+                {t('Delete permanently')}
               </DropdownMenuItem>
             </>
           )}
@@ -136,25 +140,25 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Permanently delete project?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Permanently delete project?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`"${projectName}" will be permanently deleted along with all its recordings, photos, estimates, and activity. This action cannot be undone.`}
+              {`"${projectName}" ${t('will be permanently deleted along with all its recordings, photos, estimates, and activity. This action cannot be undone.')}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 run(
                   () => hardDeleteProjectAction(projectId),
-                  `"${projectName}" permanently deleted`
+                  `"${projectName}" ${t('permanently deleted')}`
                 )
                 setConfirmOpen(false)
               }}
             >
-              {isPending ? 'Deleting...' : 'Delete permanently'}
+              {isPending ? t('Deleting...') : t('Delete permanently')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -163,25 +167,25 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
       <AlertDialog open={softConfirmOpen} onOpenChange={setSoftConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Move project to Trash?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Move project to Trash?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`"${projectName}" will be moved to Trash. You can restore it from the Trash view within 30 days before it is permanently deleted.`}
+              {`"${projectName}" ${t('will be moved to Trash. You can restore it from the Trash view within 30 days before it is permanently deleted.')}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 run(
                   () => softDeleteProjectAction(projectId),
-                  `"${projectName}" moved to Trash`
+                  `"${projectName}" ${t('moved to Trash')}`
                 )
                 setSoftConfirmOpen(false)
               }}
             >
-              {isPending ? 'Moving...' : 'Move to Trash'}
+              {isPending ? t('Moving...') : t('Move to Trash')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

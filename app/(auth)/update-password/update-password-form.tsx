@@ -71,6 +71,7 @@ export function UpdatePasswordForm() {
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="new-password"
+                      enterKeyHint="next"
                       disabled={isPending}
                       className="input-glow-strong min-h-[44px] pr-10 transition-all"
                       {...field}
@@ -102,6 +103,7 @@ export function UpdatePasswordForm() {
                       type={showConfirm ? 'text' : 'password'}
                       placeholder="••••••••"
                       autoComplete="new-password"
+                      enterKeyHint="go"
                       disabled={isPending}
                       className="input-glow-strong min-h-[44px] pr-10 transition-all"
                       {...field}

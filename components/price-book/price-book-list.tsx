@@ -324,15 +324,15 @@ export function PriceBookList({
       <>
         <EmptyState
           icon={BookOpen}
-          title="No price book items yet"
-          description="Add your pricing standards and the AI will use them as anchors when generating estimates. Leaving this empty is fine | the AI will use market estimates instead."
-          actionLabel="Add first item"
+          title={t('No price book items yet')}
+          description={t('Add your pricing standards and the AI will use them as anchors when generating estimates. Leaving this empty is fine | the AI will use market estimates instead.')}
+          actionLabel={t('Add first item')}
           onAction={handleAddItem}
         />
         <div className="flex justify-center -mt-4">
           <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
-            Import CSV
+            {t('Import CSV')}
           </Button>
         </div>
         <PriceBookItemDialog
@@ -365,7 +365,7 @@ export function PriceBookList({
             className="min-w-0 flex-1 lg:max-w-64"
             value={search}
             onChange={setSearch}
-            placeholder="Search items..."
+            placeholder={t('Search items...')}
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -375,7 +375,7 @@ export function PriceBookList({
           </Button>
           <Button variant="outline" size="sm" className={cn(TOOLBAR_CONTROL, 'hidden lg:inline-flex')} onClick={() => setImportDialogOpen(true)}>
             <Upload className="h-4 w-4" />
-            Import CSV
+            {t('Import CSV')}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -396,7 +396,7 @@ export function PriceBookList({
           </DropdownMenu>
           <Button variant="primary" size="sm" className="h-9 rounded-lg" onClick={handleAddItem}>
             <Plus className="h-4 w-4" />
-            Add Service
+            {t('Add Service')}
           </Button>
         </div>
       </div>
@@ -405,8 +405,8 @@ export function PriceBookList({
       {filtered.length === 0 && items.length > 0 && (
         <EmptyState
           icon={Search}
-          title="No items match your search"
-          description="Try a different search term"
+          title={t('No items match your search')}
+          description={t('Try a different search term')}
           onClearFilter={() => setSearch('')}
         />
       )}
@@ -423,11 +423,14 @@ export function PriceBookList({
             return (
               <div key={folderId ?? '__uncategorized__'} className="space-y-4">
                 {/* Folder header */}
-                <div className="flex items-center gap-2 border-b pb-2">
+                {/* flex-wrap: on a 360px phone the name + 5 action buttons cannot share a
+                    line (the name was squeezed to "Plum…"), so the actions drop to
+                    their own right-aligned line and the name gets the full width. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b pb-2">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-8 rounded-lg"
+                    className="size-10 rounded-lg md:size-8"
                     aria-label={isCollapsed ? t('Expand category') : t('Collapse category')}
                     onClick={() => {
                       if (!folderId) return
@@ -449,6 +452,7 @@ export function PriceBookList({
                   {isRenaming ? (
                     <Input
                       autoFocus
+                      enterKeyHint="done"
                       className="h-7 w-40 text-sm"
                       value={renamingFolderValue}
                       onChange={(e) => setRenamingFolderValue(e.target.value)}
@@ -459,7 +463,7 @@ export function PriceBookList({
                       onBlur={() => handleRenameConfirm(folderId!)}
                     />
                   ) : (
-                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold" title={folderName}>
+                    <span className="flex min-w-0 flex-1 basis-32 items-center gap-1.5 text-sm font-semibold" title={folderName}>
                       <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate">{folderName}</span>
                       <span className="ml-1 shrink-0 font-normal text-muted-foreground">
@@ -478,9 +482,9 @@ export function PriceBookList({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={`size-8 rounded-lg ${selState === false ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary'}`}
+                          className={`size-10 rounded-lg md:size-8 ${selState === false ? 'text-muted-foreground hover:text-foreground' : 'text-primary hover:text-primary'}`}
                           onClick={() => toggleFolderSelected(folderItems, selState !== true)}
-                          aria-label={`Select all in ${folderName}`}
+                          aria-label={`${t('Select all in')} ${folderName}`}
                           aria-pressed={selState === true}
                           title={selState === true ? t('Deselect all') : t('Select all')}
                           data-testid={`select-all-folder-${folderId ?? 'uncategorized'}`}
@@ -492,7 +496,7 @@ export function PriceBookList({
                     {!isVirtual && !isRenaming && (
                       <>
                         <Button
-                          variant="ghost" size="icon" className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                          variant="ghost" size="icon" className="size-10 rounded-lg text-muted-foreground hover:text-foreground md:size-8"
                           aria-label={t('Rename category')}
                           onClick={() => {
                             setRenamingFolderId(folderId!)
@@ -502,7 +506,7 @@ export function PriceBookList({
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="ghost" size="icon" className="size-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          variant="ghost" size="icon" className="size-10 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:size-8"
                           aria-label={selected.size > 0 ? t('Delete selected items') : t('Delete category')}
                           data-testid={`delete-folder-btn-${folderId}`}
                           onClick={() => {
@@ -524,7 +528,7 @@ export function PriceBookList({
                     <Button
                       variant="outline"
                       size="sm"
-                      className={cn(TOOLBAR_CONTROL, 'ml-1.5 h-8 gap-1 px-2.5')}
+                      className={cn(TOOLBAR_CONTROL, 'ml-1.5 h-10 gap-1 px-2.5 md:h-8')}
                       disabled={folderItems.length === 0}
                       onClick={() => handleAdjustFolder(folderId, folderName)}
                       data-testid={`adjust-btn-folder-${folderId ?? 'uncategorized'}`}
@@ -532,7 +536,7 @@ export function PriceBookList({
                     >
                       <Percent className="h-3.5 w-3.5" />
                       {/* Icon-only on a phone so the category row stays one line. */}
-                      <span className="hidden sm:inline">Adjust %</span>
+                      <span className="hidden sm:inline">{t('Adjust %')}</span>
                     </Button>
                   </div>
                 </div>
@@ -547,9 +551,9 @@ export function PriceBookList({
                           <TableHeader>
                             <TableRow>
                               <TableHead className="w-[40px]" />
-                              <TableHead>Item</TableHead>
-                              <TableHead>Unit</TableHead>
-                              <TableHead>Unit Price</TableHead>
+                              <TableHead>{t('Item')}</TableHead>
+                              <TableHead>{t('Unit')}</TableHead>
+                              <TableHead>{t('Unit Price')}</TableHead>
                               <TableHead className="w-[50px]" />
                             </TableRow>
                           </TableHeader>
@@ -560,7 +564,7 @@ export function PriceBookList({
                                   <Checkbox
                                     checked={selected.has(item.id)}
                                     onCheckedChange={(checked) => toggleItemSelected(item.id, checked === true)}
-                                    aria-label={`Select ${item.name}`}
+                                    aria-label={`${t('Select')} ${item.name}`}
                                   />
                                 </TableCell>
                                 <TableCell className="font-medium">
@@ -600,13 +604,13 @@ export function PriceBookList({
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                        Edit
+                                        {t('Edit')}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         className="text-destructive"
                                         onClick={() => handleDeletePrompt(item)}
                                       >
-                                        Delete
+                                        {t('Delete')}
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -621,16 +625,21 @@ export function PriceBookList({
                     {/* Mobile: card list (<md only) — no left indent to maximize narrow-screen width */}
                     <div className="md:hidden space-y-2">
                       {folderItems.map((item) => (
-                        <Card key={item.id}>
+                        // py-0: Card ships py-6, which stacked on CardContent's p-3 made each
+                        // row ~118px tall for a 40px thumbnail.
+                        <Card key={item.id} className="py-0">
                           <CardContent className="flex items-center justify-between gap-3 p-3">
                             {/* Left: checkbox + thumb + name + price/unit */}
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <Checkbox
-                                checked={selected.has(item.id)}
-                                onCheckedChange={(checked) => toggleItemSelected(item.id, checked === true)}
-                                aria-label={`Select ${item.name}`}
-                                className="shrink-0"
-                              />
+                              {/* The label widens the 16px checkbox's tap area to ~40px
+                                  (the negative margin keeps the row layout unchanged). */}
+                              <label className="-m-3 flex shrink-0 cursor-pointer items-center justify-center p-3">
+                                <Checkbox
+                                  checked={selected.has(item.id)}
+                                  onCheckedChange={(checked) => toggleItemSelected(item.id, checked === true)}
+                                  aria-label={`${t('Select')} ${item.name}`}
+                                />
+                              </label>
                               {item.image_url ? (
                                 <img
                                   src={item.image_url}
@@ -648,7 +657,7 @@ export function PriceBookList({
                               )}
                               <div className="min-w-0">
                                 <p className="font-medium truncate">{item.name}</p>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="truncate text-sm text-muted-foreground">
                                   {formatMoney(item.unit_price, item.currency_code)}
                                   {item.unit ? ` / ${item.unit}` : ''}
                                 </p>
@@ -659,19 +668,19 @@ export function PriceBookList({
                             <div className="shrink-0">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Button variant="ghost" size="icon" className="h-10 w-10" aria-label={t('Actions')}>
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => handleEditItem(item)}>
-                                    Edit
+                                    {t('Edit')}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => handleDeletePrompt(item)}
                                   >
-                                    Delete
+                                    {t('Delete')}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -736,7 +745,7 @@ export function PriceBookList({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmBulkDelete}
               disabled={isPending}
@@ -752,21 +761,21 @@ export function PriceBookList({
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Item</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete Item')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deletingItem
-                ? `Delete "${deletingItem.name}"? ${t('It will move to Trash, where you can restore it later.')}`
+                ? `${t('Delete')} "${deletingItem.name}"? ${t('It will move to Trash, where you can restore it later.')}`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending ? t('Deleting...') : t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -784,7 +793,7 @@ export function PriceBookList({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDeleteFolder}
               disabled={isPending}
@@ -807,6 +816,7 @@ export function PriceBookList({
           </DialogHeader>
           <Input
             placeholder={t('Category name...')}
+            enterKeyHint="done"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}
@@ -814,10 +824,10 @@ export function PriceBookList({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button onClick={handleCreateFolder} disabled={!newFolderName.trim() || isPending}>
-              Create
+              {t('Create')}
             </Button>
           </DialogFooter>
         </DialogContent>

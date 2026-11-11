@@ -91,7 +91,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               />
             </div>
           )}
-          <Card variant="glass" className="p-8 sm:p-10">
+          <Card variant="glass" className="p-5 sm:p-10">
             <BlogContent markdown={post.content} />
           </Card>
         </article>

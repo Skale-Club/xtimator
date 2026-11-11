@@ -105,7 +105,7 @@ export function CaptureProgressChecklist({ rows, mode, t }: CaptureProgressCheck
               </div>
               {detail && (
                 <p
-                  className="mt-0.5 truncate text-xs text-muted-foreground"
+                  className="mt-0.5 line-clamp-2 break-words text-xs text-muted-foreground"
                   data-testid="checklist-row-detail"
                   title={detail}
                 >

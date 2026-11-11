@@ -13,7 +13,8 @@ export function CompanyContactLinks({
   email?: string | null
   website?: string | null
 }) {
-  const linkClass = 'text-inherit no-underline hover:underline'
+  // overflow-wrap:anywhere: a long email/website wraps inside the header instead of overflowing the frame on phones.
+  const linkClass = 'text-inherit no-underline hover:underline min-w-0 [overflow-wrap:anywhere]'
   const items: ReactNode[] = []
   if (phone) {
     items.push(

@@ -19,6 +19,7 @@ interface Rect {
 }
 
 const PADDING = 8 // px padding around the target element
+const TOOLTIP_EST_HEIGHT = 200 // px, rough card height used only to decide above/below
 
 // Pick the first VISIBLE match for `selector`. Fixes the dual-mount bug at
 // `[data-tour="language-toggle"]` which exists in both topbar.tsx and
@@ -194,18 +195,29 @@ export function TourSpotlight() {
       }
     : { display: 'none' }
 
-  // Position tooltip card below the spotlight (or above if near bottom)
+  // Position tooltip card below the spotlight, or ABOVE it when there is no room
+  // underneath. On phones every step targets the bottom nav, so "below" used to
+  // land the whole card off-screen. `bottom` anchors the flipped card to the
+  // spotlight whatever its real height is.
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 320
+  const viewportH = typeof window !== 'undefined' ? window.innerHeight : 640
+  const tooltipWidth = Math.min(300, viewportW - 32)
   const tooltipTop = rect ? rect.top + rect.height + PADDING + PADDING + 8 : 0
+  const placeAbove = rect ? tooltipTop + TOOLTIP_EST_HEIGHT > viewportH && rect.top > TOOLTIP_EST_HEIGHT / 2 : false
   const tooltipLeft = rect
-    ? Math.max(16, Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 320) - 320 - 16))
+    ? Math.max(16, Math.min(rect.left, viewportW - tooltipWidth - 16))
     : 0
 
   const tooltipStyle: React.CSSProperties = rect
     ? {
         position: 'fixed',
-        top: tooltipTop,
+        ...(placeAbove
+          ? { bottom: viewportH - (rect.top - PADDING * 2 - 8) }
+          : { top: tooltipTop }),
         left: tooltipLeft,
-        width: 300,
+        width: tooltipWidth,
+        maxHeight: 'calc(100dvh - 2rem)',
+        overflowY: 'auto',
         zIndex: 9999,
       }
     : { display: 'none' }

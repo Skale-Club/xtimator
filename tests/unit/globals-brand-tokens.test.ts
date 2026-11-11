@@ -52,7 +52,7 @@ describe('Global brand tokens (Phase 10)', () => {
       // The auth layout was redesigned into a dedicated full-height shell; the brand primary
       // now reaches auth pages via the global --system-primary token (BRAND-01), not a layout
       // literal. The regression guard below still forbids the old hardcoded fallback.
-      expect(authLayout).toMatch(/min-h-screen/)
+      expect(authLayout).toMatch(/min-h-(screen|dvh)/)  // full-height shell; dvh avoids the mobile URL-bar jump
       expect(authLayout).not.toContain('220 91% 60%')
     })
   })

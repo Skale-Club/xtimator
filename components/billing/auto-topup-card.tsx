@@ -83,7 +83,7 @@ export function AutoTopupCard({
       {lastFailed && (
         <Alert variant="destructive">
           <AlertTriangle />
-          <AlertTitle><T>Auto-top-up failed &mdash; update your payment method to keep it active.</T></AlertTitle>
+          <AlertTitle className="line-clamp-none"><T>Auto-top-up failed &mdash; update your payment method to keep it active.</T></AlertTitle>
         </Alert>
       )}
     </div>

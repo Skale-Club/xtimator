@@ -3,12 +3,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, Phone, MapPin, FileText } from 'lucide-react'
 import type { ClientDetail } from '@/lib/queries/clients'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientInfoGridProps {
   client: ClientDetail
 }
 
 export function ClientInfoGrid({ client }: ClientInfoGridProps) {
+  const { t } = useTranslation()
   const addressParts = [client.address, client.city, client.state, client.zip].filter(Boolean)
   const fullAddress = addressParts.length > 0 ? addressParts.join(', ') : null
 
@@ -18,7 +20,7 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
       <Card variant="glass">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            Contact
+            {t('Contact')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
@@ -29,7 +31,7 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
               </div>
               <a
                 href={`mailto:${client.email}`}
-                className="text-sm text-foreground hover:underline truncate"
+                className="min-w-0 truncate text-sm text-foreground hover:underline"
               >
                 {client.email}
               </a>
@@ -39,7 +41,7 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <Mail className="h-4 w-4 text-muted-foreground" />
               </div>
-              <span className="text-sm text-muted-foreground">No email</span>
+              <span className="text-sm text-muted-foreground">{t('No email')}</span>
             </div>
           )}
 
@@ -60,7 +62,7 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <Phone className="h-4 w-4 text-muted-foreground" />
               </div>
-              <span className="text-sm text-muted-foreground">No phone</span>
+              <span className="text-sm text-muted-foreground">{t('No phone')}</span>
             </div>
           )}
         </CardContent>
@@ -70,7 +72,7 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
       <Card variant="glass">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            Details
+            {t('Details')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
@@ -79,14 +81,14 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
               </div>
-              <span className="text-sm text-foreground">{fullAddress}</span>
+              <span className="min-w-0 break-words text-sm text-foreground">{fullAddress}</span>
             </div>
           ) : (
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
               </div>
-              <span className="text-sm text-muted-foreground">No address</span>
+              <span className="text-sm text-muted-foreground">{t('No address')}</span>
             </div>
           )}
 
@@ -95,14 +97,14 @@ export function ClientInfoGrid({ client }: ClientInfoGridProps) {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </div>
-              <p className="text-sm text-foreground whitespace-pre-wrap">{client.notes}</p>
+              <p className="min-w-0 break-words text-sm text-foreground whitespace-pre-wrap">{client.notes}</p>
             </div>
           ) : (
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </div>
-              <span className="text-sm text-muted-foreground">No notes</span>
+              <span className="text-sm text-muted-foreground">{t('No notes')}</span>
             </div>
           )}
         </CardContent>
