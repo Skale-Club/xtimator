@@ -37,7 +37,7 @@ export default async function ClientDetailPage({
   const activeCount = projects.filter((p) => p.status !== 'archived' && p.status !== 'declined').length
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
 
       <ClientBreadcrumb clientName={client.name} />
 

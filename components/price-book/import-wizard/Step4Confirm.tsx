@@ -328,7 +328,9 @@ export function Step4Confirm({ state, dispatch, onCancel, onDone }: Step4Confirm
         {state.locale.toUpperCase()} {t('format')}
       </p>
 
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 pt-2">
+      {/* Pinned to the bottom of the dialog's scroll area so the primary action is
+          never below the fold on a short phone screen. */}
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 sticky bottom-0 z-10 -mx-2 border-t border-border bg-popover px-2 pb-1 pt-3">
         <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
           {t('Back')}
         </Button>

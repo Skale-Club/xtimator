@@ -68,8 +68,11 @@ function ProjectClientCell({
   onEditClient?: (clientId: string) => void
   onCreateNew?: () => void
 }) {
+  const { t } = useTranslation()
   return (
-    <div className="flex items-center gap-2">
+    // min-w-0 + the picker's truncate: a long client name ellipsizes in the
+    // phone card's meta line instead of wrapping under the date.
+    <div className="flex min-w-0 items-center">
       <ClientPicker
         projectId={projectId}
         currentClientId={client?.id ?? null}
@@ -81,8 +84,11 @@ function ProjectClientCell({
       {client && companyId && onEditClient && (
         <button
           onClick={(e) => { e.stopPropagation(); onEditClient(client.id) }}
-          className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="Edit client"
+          // The glyph stays 12px; the padded box (with the negative margin) gives
+          // a ~32px tap target without growing the row.
+          className="-my-2 -mr-1 inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title={t('Edit client')}
+          aria-label={t('Edit client')}
         >
           <Pencil className="h-3 w-3" />
         </button>
@@ -112,14 +118,15 @@ function ProjectGeneratingBadge({ projectId }: { projectId: string }) {
 }
 
 function ProjectPaidBadge({ project }: { project: ProjectTableRow }) {
+  const { t } = useTranslation()
   if (project.payment_status !== 'paid') return null
 
   return (
     <span
-      title={project.paid_at ? `Paid ${formatDate(project.paid_at)}` : 'Paid'}
-      className="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+      title={project.paid_at ? `${t('Paid')} ${formatDate(project.paid_at)}` : t('Paid')}
+      className="ml-2 inline-flex shrink-0 items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
     >
-      Paid
+      {t('Paid')}
     </span>
   )
 }
@@ -360,21 +367,22 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
   onCreateNew?: () => void
 }) {
   return (
-    <div className="relative flex items-center gap-3 border-b border-border/50 py-3 last:border-0">
+    <div className="relative flex items-center gap-2 border-b border-border/50 py-3 last:border-0">
       <Link href={`/projects/${project.id}`} className="absolute inset-0" aria-hidden tabIndex={-1} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="font-medium truncate">{project.name}</span>
+          <span className="min-w-0 truncate font-medium">{project.name}</span>
           <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-          <span>
+          {/* nowrap: the date must never break across two lines on a 360px phone */}
+          <span className="shrink-0 whitespace-nowrap">
             {formatDate(project.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
-          <span className="text-muted-foreground/30">·</span>
+          <span className="shrink-0 text-muted-foreground/30">·</span>
           {/* z-10 lifts the picker above the card's full-bleed overlay Link */}
-          <div className="relative z-10">
+          <div className="relative z-10 min-w-0">
             <ProjectClientCell
               projectId={project.id}
               client={project.client}

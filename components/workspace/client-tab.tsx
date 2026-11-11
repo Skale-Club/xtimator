@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ClientPicker } from '@/components/clients/client-picker'
 import { patchClientContactAction } from '@/lib/actions/client'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientTabProps {
   project: ProjectDetail
@@ -20,6 +21,7 @@ interface ClientTabProps {
 
 export function ClientTab({ project }: ClientTabProps) {
   const client = project.client
+  const { t } = useTranslation()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -42,7 +44,7 @@ export function ClientTab({ project }: ClientTabProps) {
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success('Client updated')
+        toast.success(t('Client updated'))
         router.refresh()
       }
     })
@@ -60,17 +62,19 @@ export function ClientTab({ project }: ClientTabProps) {
 
   return (
     <div className="max-w-md space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+      <div className="flex items-center justify-between gap-2">
+        {/* min-w-0 + shrink-0 on the avatar: a long client name wraps inside its
+            own column instead of squashing the avatar circle into a pill. */}
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
             <UserRound className="h-4 w-4 text-muted-foreground" />
           </div>
-          <h2 className="text-base font-semibold">{client.name}</h2>
+          <h2 className="min-w-0 break-words text-base font-semibold">{client.name}</h2>
         </div>
-        <Button variant="ghost" size="sm" asChild className="gap-1.5 text-muted-foreground">
+        <Button variant="ghost" size="sm" asChild className="shrink-0 gap-1.5 text-muted-foreground">
           <a href={`/clients/${client.id}`} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-3.5 w-3.5" />
-            Full profile
+            {t('Full profile')}
           </a>
         </Button>
       </div>
@@ -82,12 +86,12 @@ export function ClientTab({ project }: ClientTabProps) {
               <FormField
                 control={form.control}
                 name="name"
-                rules={{ required: 'Name is required' }}
+                rules={{ required: t('Name is required') }}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>{t('Name')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Client name" {...field} />
+                      <Input placeholder={t('Client name')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -98,9 +102,9 @@ export function ClientTab({ project }: ClientTabProps) {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>{t('Email')}</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Email address" autoComplete="email" {...field} />
+                      <Input type="email" placeholder={t('Email address')} autoComplete="email" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -111,12 +115,12 @@ export function ClientTab({ project }: ClientTabProps) {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone</FormLabel>
+                    <FormLabel>{t('Phone')}</FormLabel>
                     <FormControl>
                       <PhoneInput
                         value={field.value ?? ''}
                         onChange={field.onChange}
-                        placeholder="Phone number"
+                        placeholder={t('Phone number')}
                       />
                     </FormControl>
                     <FormMessage />
@@ -124,7 +128,7 @@ export function ClientTab({ project }: ClientTabProps) {
                 )}
               />
               <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? 'Saving...' : 'Save'}
+                {isPending ? t('Saving...') : t('Save')}
               </Button>
             </form>
           </Form>

@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { Camera } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
@@ -21,6 +22,7 @@ export function ClientLogoUploader({
   onFileSelect,
   onRemove,
 }: ClientLogoUploaderProps) {
+  const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
 
   function handleClick() {
@@ -35,12 +37,12 @@ export function ClientLogoUploader({
     e.target.value = ''
 
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error('Unsupported image format. Please upload a PNG or JPG file.')
+      toast.error(t('Unsupported image format. Please upload a PNG or JPG file.'))
       return
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('Logo must be under 2MB. Please choose a smaller file.')
+      toast.error(t('Logo must be under 2MB. Please choose a smaller file.'))
       return
     }
 
@@ -52,13 +54,13 @@ export function ClientLogoUploader({
     <div className="flex flex-col items-center gap-2">
       <button
         type="button"
-        aria-label="Upload client logo"
+        aria-label={t('Upload client logo')}
         onClick={handleClick}
         className="cursor-pointer"
       >
         <Avatar className="h-16 w-16">
           {preview ? (
-            <AvatarImage src={preview} alt="Client logo preview" />
+            <AvatarImage src={preview} alt={t('Client logo preview')} />
           ) : null}
           <AvatarFallback className="bg-muted text-lg">
             {preview ? null : clientInitial ? clientInitial.toUpperCase() : (
@@ -77,24 +79,24 @@ export function ClientLogoUploader({
       />
 
       {preview ? (
-        <div className="flex gap-3">
+        <div className="flex gap-1">
           <button
             type="button"
             onClick={handleClick}
-            className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+            className="px-2 py-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            Change
+            {t('Change')}
           </button>
           <button
             type="button"
             onClick={onRemove}
-            className="text-sm text-muted-foreground hover:text-foreground cursor-pointer"
+            className="px-2 py-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            Remove
+            {t('Remove')}
           </button>
         </div>
       ) : (
-        <span className="text-sm text-muted-foreground">Upload Logo</span>
+        <span className="text-sm text-muted-foreground">{t('Upload Logo')}</span>
       )}
     </div>
   )

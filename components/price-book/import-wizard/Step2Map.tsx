@@ -163,7 +163,9 @@ export function Step2Map({ state, dispatch, onCancel }: Step2MapProps) {
         })}
       </div>
 
-      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 pt-2">
+      {/* Pinned to the bottom of the dialog's scroll area so the primary action is
+          never below the fold on a short phone screen. */}
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2 sticky bottom-0 z-10 -mx-2 border-t border-border bg-popover px-2 pb-1 pt-3">
         <Button variant="ghost" onClick={() => dispatch({ type: 'BACK' })}>
           {t('Back')}
         </Button>

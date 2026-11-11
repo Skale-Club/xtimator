@@ -34,6 +34,7 @@ import {
   uploadClientLogoAction,
 } from '@/lib/actions/client'
 import type { ClientDetail } from '@/lib/queries/clients'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface ClientSheetProps {
   open: boolean
@@ -58,6 +59,7 @@ function ClientSheetForm({
   onCreated,
 }: ClientSheetProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(client?.logo_url ?? null)
@@ -144,13 +146,13 @@ function ClientSheetForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[90vw] max-w-4xl max-h-[90dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Client' : 'Add Client'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('Edit Client') : t('Add Client')}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Update client information.'
-              : 'Add a new client to your database.'}
+              ? t('Update client information.')
+              : t('Add a new client to your database.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -177,9 +179,9 @@ function ClientSheetForm({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name *</FormLabel>
+                  <FormLabel>{t('Name')} *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Client name" {...field} />
+                    <Input placeholder={t('Client name')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -191,9 +193,9 @@ function ClientSheetForm({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t('Email')}</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Email address" autoComplete="email" {...field} />
+                    <Input type="email" placeholder={t('Email address')} autoComplete="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -205,12 +207,12 @@ function ClientSheetForm({
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone</FormLabel>
+                  <FormLabel>{t('Phone')}</FormLabel>
                   <FormControl>
                     <PhoneInput
                       value={field.value ?? ''}
                       onChange={field.onChange}
-                      placeholder="Phone number"
+                      placeholder={t('Phone number')}
                     />
                   </FormControl>
                   <FormMessage />
@@ -223,9 +225,9 @@ function ClientSheetForm({
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Address</FormLabel>
+                  <FormLabel>{t('Address')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Street address" {...field} />
+                    <Input placeholder={t('Street address')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -238,9 +240,9 @@ function ClientSheetForm({
                 name="city"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City</FormLabel>
+                    <FormLabel>{t('City')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="City" {...field} />
+                      <Input placeholder={t('City')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -252,9 +254,9 @@ function ClientSheetForm({
                 name="state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>State</FormLabel>
+                    <FormLabel>{t('State')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="State" {...field} />
+                      <Input placeholder={t('State')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -266,9 +268,9 @@ function ClientSheetForm({
                 name="zip"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ZIP</FormLabel>
+                    <FormLabel>{t('ZIP')}</FormLabel>
                     <FormControl>
-                      <Input placeholder="ZIP code" {...field} />
+                      <Input placeholder={t('ZIP code')} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -281,9 +283,9 @@ function ClientSheetForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel>{t('Notes')}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Notes..." {...field} />
+                    <Textarea placeholder={t('Notes...')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -295,7 +297,7 @@ function ClientSheetForm({
               name="preferred_language"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Preferred estimate language</FormLabel>
+                  <FormLabel>{t('Preferred estimate language')}</FormLabel>
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value === LANGUAGE_NOT_SET_VALUE ? '' : value)
@@ -304,11 +306,11 @@ function ClientSheetForm({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Not set (follows company default)" />
+                        <SelectValue placeholder={t('Not set (follows company default)')} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={LANGUAGE_NOT_SET_VALUE}>Not set (follows company default)</SelectItem>
+                      <SelectItem value={LANGUAGE_NOT_SET_VALUE}>{t('Not set (follows company default)')}</SelectItem>
                       <SelectItem value="en">English</SelectItem>
                       <SelectItem value="pt">Português (Brazil)</SelectItem>
                       <SelectItem value="es">Español</SelectItem>
@@ -322,11 +324,11 @@ function ClientSheetForm({
             <Button type="submit" className="w-full" disabled={isPending}>
               {isPending
                 ? isEditing
-                  ? 'Updating...'
-                  : 'Creating...'
+                  ? t('Updating...')
+                  : t('Creating...')
                 : isEditing
-                  ? 'Update Client'
-                  : 'Add Client'}
+                  ? t('Update Client')
+                  : t('Add Client')}
             </Button>
           </form>
         </Form>

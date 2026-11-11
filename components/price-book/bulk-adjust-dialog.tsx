@@ -35,6 +35,7 @@ import { bulkAdjustSchema, type BulkAdjustFormValues } from '@/lib/schemas/price
 import { bulkAdjustPriceBookFolder } from '@/lib/actions/price-book'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 import { formatMoney } from '@/lib/money/currency'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface BulkAdjustDialogProps {
   open: boolean
@@ -52,6 +53,7 @@ export function BulkAdjustDialog({
   items,
 }: BulkAdjustDialogProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
 
   const form = useForm<BulkAdjustFormValues>({
@@ -91,7 +93,7 @@ export function BulkAdjustDialog({
         toast.error(result.error)
         return
       }
-      toast.success(`Updated ${result.data.updated} items`)
+      toast.success(`${t('Updated')} ${result.data.updated} ${t('items')}`)
       // Pitfall 5: close THEN refresh
       onOpenChange(false)
       router.refresh()
@@ -100,11 +102,11 @@ export function BulkAdjustDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Adjust prices | {folderName}</DialogTitle>
+          <DialogTitle className="break-words">{t('Adjust prices')} | {folderName}</DialogTitle>
           <DialogDescription>
-            Apply a percentage increase or decrease to every item in this category.
+            {t('Apply a percentage increase or decrease to every item in this category.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,12 +118,12 @@ export function BulkAdjustDialog({
               name="adjustmentPercent"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Adjustment %</FormLabel>
+                  <FormLabel>{t('Adjustment %')}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       step="0.1"
-                      placeholder="+10 or -5"
+                      placeholder={t('+10 or -5')}
                       value={field.value ?? ''}
                       onChange={(e) => field.onChange(e.target.value)}
                       onBlur={field.onBlur}
@@ -140,9 +142,9 @@ export function BulkAdjustDialog({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Current Price</TableHead>
-                      <TableHead>New Price</TableHead>
+                      <TableHead>{t('Item')}</TableHead>
+                      <TableHead>{t('Current Price')}</TableHead>
+                      <TableHead>{t('New Price')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -176,7 +178,7 @@ export function BulkAdjustDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 type="submit"
@@ -186,7 +188,7 @@ export function BulkAdjustDialog({
                   adjustmentPercent === 0
                 }
               >
-                {isPending ? 'Applying...' : `Apply to ${items.length} items`}
+                {isPending ? t('Applying...') : `${t('Apply to')} ${items.length} ${t('items')}`}
               </Button>
             </DialogFooter>
           </form>

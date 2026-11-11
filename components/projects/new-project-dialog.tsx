@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { X } from 'lucide-react'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { useLanguage, ScopedLanguageProvider } from '@/lib/i18n/language-context'
@@ -52,6 +53,7 @@ export function editEstimateHref(
 
 function NewProjectDialogInner() {
   const searchParams = useSearchParams()
+  const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
@@ -89,8 +91,10 @@ function NewProjectDialogInner() {
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close"
-                className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-label={t('Close')}
+                // size-10 gives a 40px tap target (the glyph stays 16px); -mr-2 keeps the
+                // glyph on the header's px-4 gutter.
+                className="-mr-2 flex size-10 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <X className="h-4 w-4" />
               </button>

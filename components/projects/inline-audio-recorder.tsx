@@ -315,7 +315,7 @@ export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAud
         <button
           type="button"
           onClick={() => setSaveError(undefined)}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -ml-1 p-1.5 rounded-lg hover:bg-muted transition-colors"
+          className="flex min-h-10 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -ml-1 px-2 rounded-lg hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           {t('Back')}
@@ -341,7 +341,7 @@ export function InlineAudioRecorder({ projectId, onBack, onComplete }: InlineAud
           onClick={onBack}
           disabled={isRecording}
           aria-label={t('Back')}
-          className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0 -ml-1"
+          className="flex size-10 items-center justify-center rounded-lg hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0 -ml-2"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>

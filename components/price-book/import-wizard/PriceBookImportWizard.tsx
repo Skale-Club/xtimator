@@ -178,7 +178,7 @@ export function PriceBookImportWizard({ open, onOpenChange, currencyCode }: Pric
           else onOpenChange(true)
         }}
       >
-        <DialogContent className="sm:max-w-3xl max-w-[calc(100%-2rem)] max-h-[85vh] flex flex-col gap-6">
+        <DialogContent className="sm:max-w-3xl max-w-[calc(100%-2rem)] max-h-[85dvh] flex flex-col gap-6">
           <DialogHeader>
             <DialogTitle>{t(title)}</DialogTitle>
             <DialogDescription>{t(description)}</DialogDescription>

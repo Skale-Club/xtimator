@@ -82,8 +82,10 @@ export function ClientProjectsSection({
   ]
 
   return (
-    <Card variant="glass" className="p-6">
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    // Card's own py-6 would stack on top of this padding; p-4 on a phone keeps
+    // the same 16px gutter as the cards above it.
+    <Card variant="glass" className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold tracking-tight">{t('Projects')}</h2>
           <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
@@ -149,10 +151,12 @@ function ClientProjectCard({
   currencyCode: string
 }) {
   return (
-    <Card>
+    // py-0: Card ships py-6, which on top of the inner p-4 made these rows 40px
+    // taller than their content.
+    <Card className="mb-2 py-0">
       <div className="p-4">
         <div className="mb-2 flex items-start justify-between gap-3">
-          <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
+          <Link href={`/projects/${project.id}`} className="min-w-0 break-words font-medium hover:underline">
             {project.name}
           </Link>
         </div>

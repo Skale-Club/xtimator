@@ -102,7 +102,9 @@ export function PhotoCard({
       <button
         onClick={handleDelete}
         disabled={isDeleting}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+        // Always visible on touch screens (there is no hover to reveal it); the
+        // before: layer enlarges the hit area to ~40px without growing the glyph.
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90 before:absolute before:-inset-2.5 before:content-['']"
         aria-label={t('Delete photo')}
       >
         <X className="h-3.5 w-3.5" />
@@ -115,7 +117,7 @@ export function PhotoCard({
             e.stopPropagation()
             onToggleAttach(photo.id)
           }}
-          className={`absolute top-2 left-2 rounded-full p-1 transition-colors ${
+          className={`absolute top-2 left-2 rounded-full p-1 transition-colors before:absolute before:-inset-2.5 before:content-[''] ${
             isAttached
               ? 'bg-primary text-primary-foreground'
               : 'bg-black/40 text-white hover:bg-black/60'

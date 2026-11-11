@@ -6,6 +6,7 @@ import { Plus, Loader2 } from 'lucide-react'
 
 import { newProjectHref } from '@/components/projects/new-project-dialog'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from '@/lib/i18n/use-translation'
 
 function useIsOffline(): boolean {
   const [offline, setOffline] = useState(false)
@@ -30,6 +31,7 @@ interface ClientNewProjectButtonProps {
 
 export function ClientNewProjectButton({ clientId, clientName }: ClientNewProjectButtonProps) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const offline = useIsOffline()
 
@@ -48,10 +50,10 @@ export function ClientNewProjectButton({ clientId, clientName }: ClientNewProjec
       size="sm"
       onClick={handleNewProject}
       disabled={isPending || offline}
-      title={offline ? 'Requires internet connection' : undefined}
+      title={offline ? t('Requires internet connection') : undefined}
     >
       {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-      New Project
+      {t('New Project')}
     </Button>
   )
 }

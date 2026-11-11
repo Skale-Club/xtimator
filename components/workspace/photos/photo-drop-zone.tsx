@@ -155,7 +155,7 @@ export function PhotoDropZone({
 
       {/* Drop zone — Phase 71-08: glass border + gradient-accent empty state */}
       <div
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-4 sm:p-8 text-center transition-colors ${
           isDragging
             ? 'border-[hsl(var(--primary))] bg-[var(--glass-bg-light)]'
             : 'border-[var(--glass-border)] hover:border-[hsl(var(--primary))]/60'
@@ -184,7 +184,8 @@ export function PhotoDropZone({
               {currentCount} / {maxPhotos} {t('photos')}
               {remaining > 0 && remaining < maxPhotos && ` (${t(`${remaining} remaining`)})`}
             </p>
-            <div className="flex gap-2">
+            {/* flex-wrap: two buttons do not fit side by side inside a phone dialog */}
+            <div className="flex flex-wrap justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
