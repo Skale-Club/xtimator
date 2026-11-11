@@ -966,14 +966,18 @@ function LegacyAuthDialog({ branding, initialMode = 'login', open, onClose, next
 
   const content = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm"
+      // Pinned to the area the phone keyboard leaves visible (iOS does not shrink
+      // the layout viewport) and scrollable, so the focused field and the submit
+      // button stay reachable. The inner column centres with my-auto, which
+      // (unlike items-center) never clips the top when the card is taller.
+      className="fixed inset-x-0 top-[var(--app-vv-top,0px)] z-[9999] flex h-[var(--app-vvh,100dvh)] flex-col overflow-y-auto overscroll-contain bg-black/80 px-4 py-4 backdrop-blur-sm"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
       aria-label={heading}
     >
       <div
-        className="flex w-full max-w-[400px] flex-col gap-5"
+        className="mx-auto my-auto flex w-full max-w-[400px] flex-col gap-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Card */}

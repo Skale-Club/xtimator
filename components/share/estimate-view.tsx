@@ -578,6 +578,13 @@ function EstimateViewInner({
           <DialogContent
             data-theme="light"
             className="max-h-[90dvh] gap-3 overflow-y-auto p-4 text-foreground sm:max-w-xl sm:gap-4 sm:p-6"
+            // Focus the dialog itself, not the name field: auto-focusing the field
+            // raises the phone keyboard over the signature box the moment the
+            // client taps Accept. They tap the field when they are ready to type.
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+              ;(e.currentTarget as HTMLElement | null)?.focus()
+            }}
           >
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-base">

@@ -97,6 +97,7 @@ export function EstimateUnlockForm({
                 type="password"
                 autoFocus
                 autoComplete="current-password"
+                enterKeyHint="go"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}
