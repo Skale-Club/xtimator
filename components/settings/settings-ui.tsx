@@ -154,7 +154,13 @@ export function SettingsSaveBar({
 }) {
   return (
     <div
-      className={cn(dirty && 'sticky bottom-3 z-20 md:bottom-4', className)}
+      // Phone keyboard open: rest at the form's end instead. A sticky bar is
+      // pinned to the layout viewport's bottom, which on iOS is BEHIND the
+      // keyboard (Save unreachable) and on Android floats over the field being
+      // typed in. At the end of the form it is a normal scroll target, and the
+      // keyboard helper (lib/visual-viewport.ts) scrolls it into view when the
+      // field and Save fit together.
+      className={cn(dirty && "sticky bottom-3 z-20 md:bottom-4 [html[data-keyboard='open']_&]:static", className)}
       data-testid="settings-save-bar"
     >
       <div

@@ -183,7 +183,7 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
                     <FormLabel>{t('Tax rate')}</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type="number" step="0.01" min="0" max="100" placeholder="0" className="pr-8" {...field} />
+                        <Input type="number" inputMode="decimal" step="0.01" min="0" max="100" placeholder="0" className="pr-8" {...field} />
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
                       </div>
                     </FormControl>
@@ -200,7 +200,7 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
                     <FormLabel>{t('Valid for')}</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Input type="number" min="1" placeholder="30" className="pr-14" {...field} />
+                        <Input type="number" inputMode="numeric" min="1" placeholder="30" className="pr-14" {...field} />
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{t('days')}</span>
                       </div>
                     </FormControl>
