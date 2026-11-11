@@ -125,17 +125,22 @@ export function WaveformVisualizer({ analyser, isRecording, height = 96 }: Wavef
       roundRect?: (x: number, y: number, w: number, h: number, radii: number) => void
     }
 
-    // Flat brand-gradient bars, right-aligned (newest bar flush against the
-    // right edge), fading toward MIN_BAR_ALPHA as bars age — no shadowBlur.
+    // Flat brand-gradient bars, fading toward MIN_BAR_ALPHA as bars age — no
+    // shadowBlur. The bar group is horizontally CENTERED: it grows outward
+    // from the middle until it fills the width, then scrolls right-to-left.
+    // (It used to be right-aligned, so a short take sat as a lopsided cluster
+    // in the right corner, off the axis of the centered timer above it.)
     function paintBars(buffer: number[]) {
       context.clearRect(0, 0, width, height)
       const count = buffer.length
+      const groupWidth = count * step - BAR_GAP
+      const left = Math.max(0, (width - groupWidth) / 2)
       context.fillStyle = grad
       for (let i = 0; i < count; i++) {
         const barHeight = normalizeAmplitude(buffer[i], halfHeight, MIN_BAR)
         const ageIndex = count - 1 - i // 0 = newest
         const ageFrac = maxBars > 1 ? Math.min(ageIndex / (maxBars - 1), 1) : 0
-        const x = width - BAR_WIDTH - ageIndex * step
+        const x = left + i * step
         if (x + BAR_WIDTH < 0) continue // fully scrolled off-screen
         const y = (height - barHeight) / 2
         const r = Math.min(BAR_WIDTH / 2, barHeight / 2)
