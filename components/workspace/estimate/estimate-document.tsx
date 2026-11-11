@@ -441,7 +441,9 @@ function SortableDocumentItemRow({
               value: parseFloat(e.target.value) || 0,
             })
           }
-          className={`${EDIT_FIELD_CLS} text-center`}
+          // No browser spin buttons: in the 4rem column they ate the width and
+          // cut "146.5" down to "14" on desktop.
+          className={`${EDIT_FIELD_CLS} text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
         />
       </td>
       {/* unit */}
