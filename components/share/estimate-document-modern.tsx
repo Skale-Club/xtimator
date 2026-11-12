@@ -135,20 +135,35 @@ export function EstimateDocumentModern({
   return (
     <div
       className="font-serif rounded-[8px] shadow-lg overflow-hidden"
+      // The paper is always light: pin the theme tokens it uses, exactly like the
+      // Classic document (estimate-document.tsx). Without this a dark app or OS
+      // theme leaked in: item totals rendered near-white on white and the
+      // Payment box's bg-muted turned dark grey.
       style={{
         backgroundColor: '#ffffff',
         colorScheme: 'light',
+        '--foreground': '240 10% 3.9%',
+        '--muted-foreground': '240 3.8% 46.1%',
+        '--muted': '240 4.8% 95.9%',
+        '--border': '240 5.9% 90%',
+        '--card': '0 0% 100%',
+        '--card-foreground': '240 10% 3.9%',
+        '--glass-bg': 'rgba(255, 255, 255, 0.65)',
+        '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
+        '--glass-border': 'rgba(15, 23, 42, 0.08)',
         color: 'hsl(240 10% 3.9%)',
-      }}
+      } as React.CSSProperties}
     >
       {/* Company header — thin hairline rule instead of Classic's brand-filled top border */}
       <div
         data-track-section="header"
-        className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 px-8 sm:px-12 py-8 border-b border-t"
+        // Logo to the right of the company info at every width, like Classic
+        // (it used to drop below it on phones via flex-col).
+        className="flex flex-row items-start justify-between gap-4 px-8 sm:px-12 py-8 border-b border-t"
         style={{ borderTopColor: brandColor, borderBottomColor: '#e4e4e7' }}
       >
-        <div className="min-w-0">
-          <p className="font-bold text-2xl leading-tight">{company.name}</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-2xl leading-tight break-words">{company.name}</p>
           {company.owner_name && (
             <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
           )}
@@ -180,7 +195,7 @@ export function EstimateDocumentModern({
               alt={company.name}
               width={64}
               height={64}
-              className="rounded object-contain"
+              className="h-12 w-12 rounded object-contain sm:h-16 sm:w-16"
               unoptimized
             />
           </div>
@@ -376,21 +391,27 @@ export function EstimateDocumentModern({
               </p>
             </div>
 
+            {/* Payment — deposit due now and the balance, apart from the price
+                (the same box in every rendering). -mx-3/px-3 keeps the rows on the
+                rails of the lines above. */}
             {dep.showDeposit && (
-              <div className="flex justify-between text-base">
-                <span className="text-muted-foreground select-none">{L.depositRequired}</span>
-                <span className="tabular-nums text-muted-foreground font-medium">
-                  -{fmt(dep.depositAmount)}
-                </span>
-              </div>
-            )}
-
-            {dep.showDeposit && (
-              <div className="flex justify-between items-baseline pt-2 border-t" style={{ borderTopColor: '#e4e4e7' }}>
-                <span className="text-base font-semibold text-muted-foreground select-none">
-                  {L.balanceDue}
-                </span>
-                <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
+              <div data-testid="totals-payment-box" className="mt-4 -mx-3 space-y-1 rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
+                  {L.payment}
+                </p>
+                <div className="flex justify-between text-base">
+                  <span className="text-muted-foreground select-none">
+                    {L.depositRequired}
+                    {data.deposit_type === 'percent' && data.deposit_value
+                      ? ` (${formatPercent(data.deposit_value)})`
+                      : ''}
+                  </span>
+                  <span className="tabular-nums font-medium">{fmt(dep.depositAmount)}</span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-base font-semibold select-none">{L.balanceDue}</span>
+                  <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
+                </div>
               </div>
             )}
           </div>

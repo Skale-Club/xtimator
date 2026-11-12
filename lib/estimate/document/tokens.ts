@@ -183,3 +183,34 @@ export function cardTintFill(brandColor: string): string | undefined {
   if (typeof brandColor !== 'string' || !HEX_COLOR_RE.test(brandColor)) return undefined
   return `${brandColor}${CARD_TINT_ALPHA_HEX}`
 }
+
+/** The Payment box (deposit + balance due, apart from the price) in the PDF
+ *  and the paginated preview. Read by components/pdf/shared/pdf-totals-block.tsx,
+ *  components/workspace/estimate/preview-template/payment-box.tsx and
+ *  lib/estimate/pagination/blocks-from-model.ts (its height) — change it here
+ *  and all follow. The web document and share page draw the same box in
+ *  Tailwind (estimate-document.tsx, estimate-document-modern.tsx).
+ *
+ *  Its two rows are tighter than a totals row and have no rule (the fill
+ *  groups them), so the box costs about what the two old ruled rows did and a
+ *  one-page estimate stays on one page. */
+export const PAYMENT_BOX = {
+  classic: { marginTopPt: 6, paddingVerticalPt: 3, paddingHorizontalPt: 6, radiusPt: 4, titleFontSizePt: 7, titleMarginBottomPt: 2, titleLetterSpacingPt: 0.6, rowPaddingVerticalPt: 2, rowFontSizePt: 10, fill: '#f4f4f5' },
+  modern: { marginTopPt: 12, paddingVerticalPt: 3, paddingHorizontalPt: 6, radiusPt: 4, titleFontSizePt: 7, titleMarginBottomPt: 2, titleLetterSpacingPt: 0.6, rowPaddingVerticalPt: 3, rowFontSizePt: 10, fill: '#f4f4f5' },
+} as const satisfies Record<EstimateTemplateId, unknown>
+
+/** Full height of the Payment box: margin above, vertical padding, the title
+ *  line and its two rows (deposit, balance due; regular and bold share the
+ *  family's line height). */
+export function paymentBoxHeightPt(template: EstimateTemplateId): number {
+  const box = PAYMENT_BOX[template]
+  const tokens = ESTIMATE_DESIGN_TOKENS[template]
+  const row = box.rowPaddingVerticalPt * 2 + box.rowFontSizePt * LINE_HEIGHT[tokens.fontFamily]
+  return (
+    box.marginTopPt +
+    box.paddingVerticalPt * 2 +
+    box.titleFontSizePt * LINE_HEIGHT[tokens.fontFamilyBold] +
+    box.titleMarginBottomPt +
+    row * 2
+  )
+}

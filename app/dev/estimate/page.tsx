@@ -152,11 +152,25 @@ export default function EstimatePreview() {
   return <Preview />
 }
 
+// ?totals=1: discount 10% + tax 8.25% + 30% deposit on the read-only views, to
+// check the totals and the Payment box on every rendering.
+const TOTALS_DATA: EstimateDocumentData = (() => {
+  const subtotal = 280, discount_amount = 28, tax_amount = 20.79, total = subtotal - discount_amount + tax_amount
+  const deposit = Math.round(total * 30) / 100
+  return {
+    ...DATA, subtotal, discount_type: 'percentage', discount_value: 10, discount_amount,
+    tax_rate: 0.0825, tax_amount, total, deposit_type: 'percent', deposit_value: 30, deposit,
+    balance_due: Math.round((total - deposit) * 100) / 100,
+  }
+})()
+
 function Preview() {
-  const view = useSearchParams().get('view') ?? 'preview'
+  const params = useSearchParams()
+  const view = params.get('view') ?? 'preview'
+  const data = params.get('totals') ? TOTALS_DATA : DATA
   const templateId = view === 'page-modern' ? 'modern' : 'classic'
   const { pages } = usePaginatedPreview({
-    data: DATA, structuralEpoch: 0, company: COMPANY, templateId, preparedBy: null, language: 'en',
+    data, structuralEpoch: 0, company: COMPANY, templateId, preparedBy: null, language: 'en',
     projectName: COMMON.projectName, projectType: COMMON.projectType, client: CLIENT,
     estimateSeq: 1049, estimateCreatedAt: COMMON.estimateCreatedAt, enabled: view.startsWith('page'),
   })
@@ -172,11 +186,11 @@ function Preview() {
       ))}
     </nav>
     {view.startsWith('page')
-      ? <PaginatedPreview {...COMMON} pages={pages} templateId={templateId} bottomBar={(leading) => bar(leading)} dispatch={view === 'page-edit' ? noop : undefined} />
+      ? <PaginatedPreview {...COMMON} data={data} pages={pages} templateId={templateId} bottomBar={(leading) => bar(leading)} dispatch={view === 'page-edit' ? noop : undefined} />
       : <div className="mx-auto max-w-4xl space-y-3">
-          {view === 'modern' ? <EstimateDocumentModern {...COMMON} />
+          {view === 'modern' ? <EstimateDocumentModern {...COMMON} data={data} />
             : view === 'edit' ? <DevEditableDocument />
-              : <EstimateDocument mode="view" {...COMMON} />}
+              : <EstimateDocument mode="view" {...COMMON} data={data} />}
           {bar()}
         </div>}
     <PresentationSettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} settings={DATA.presentation_settings} onChange={noop} defaultTaxRate={0} estimateSentOrViewed={false} anchorRef={gearRef} />

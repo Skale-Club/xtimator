@@ -16,6 +16,7 @@ import Image from 'next/image'
 import type { CSSProperties } from 'react'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
+import { PaymentBoxView } from './payment-box'
 import { formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 import { PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 import { ReadOnlyPhotoThumb } from './shared'
@@ -158,7 +159,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
               {L.discount}
               {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
             </span>
-            <span className="text-[#dc2626]">-{fmt(data.discount_amount)}</span>
+            <span>-{fmt(data.discount_amount)}</span>
           </div>
         )}
         {data.tax_amount > 0 && (
@@ -178,16 +179,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
           </p>
         </div>
         {dep.showDeposit && (
-          <div className={TOTALS_ROW} style={{ ...totalsRowStyle, marginTop: pt(16) }}>
-            <span className={`${MUTED} select-none`}>{L.depositRequired}</span>
-            <span>-{fmt(dep.depositAmount)}</span>
-          </div>
-        )}
-        {dep.showDeposit && (
-          <div className={TOTALS_ROW} style={totalsRowStyle}>
-            <span className={`${MUTED} select-none`}>{L.balanceDue}</span>
-            <span>{fmt(dep.balanceDue)}</span>
-          </div>
+          <PaymentBoxView ctx={ctx} template="modern" mutedClassName={MUTED} />
         )}
       </EditableTotals>
     </div>

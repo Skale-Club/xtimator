@@ -90,7 +90,7 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
     expect(screen.queryByText('Balance Due')).toBeNull()
   })
 
-  it('Test 2 — with deposit (percent): renders Deposit (-$300.00) and Balance Due ($700.00) in order', () => {
+  it('Test 2 — with deposit (percent): renders the Payment box with Deposit required (30%) $300.00 and Balance Due $700.00', () => {
     renderView(
       makeData({
         total: 1000,
@@ -103,15 +103,20 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
 
     expect(screen.getByText('Subtotal')).toBeTruthy()
     expect(screen.getAllByText('Total').length).toBeGreaterThan(0)
-    // View mode reads "Deposit required" (not the editor's bare "Deposit", which reads like a discount next to "-$300.00").
-    expect(screen.getByText('Deposit required')).toBeTruthy()
+    // View mode reads "Deposit required" (not the editor's bare "Deposit"), with the rule,
+    // inside the Payment box, as the amount due now (no minus sign: it is not a discount).
+    expect(screen.getByText('Deposit required (30%)')).toBeTruthy()
     expect(screen.queryByText('Deposit')).toBeNull()
     expect(screen.getByText('Balance Due')).toBeTruthy()
-    expect(screen.getByText('-$300.00')).toBeTruthy()
+    expect(screen.getByText('$300.00')).toBeTruthy()
+    expect(screen.queryByText('-$300.00')).toBeNull()
     expect(screen.getByText('$700.00')).toBeTruthy()
+    const box = screen.getByTestId('totals-payment-box')
+    expect(box.textContent).toContain('Payment')
+    expect(box.textContent).toContain('$700.00')
   })
 
-  it('Test 3 — reads persisted balance_due, not recompute: Deposit -$240.00 (1000−760), Balance Due $760.00', () => {
+  it('Test 3 — reads persisted balance_due, not recompute: Deposit $240.00 (1000−760), Balance Due $760.00', () => {
     // deposit_value intentionally != total − balance_due; deriveDepositDisplay must use balance_due.
     renderView(
       makeData({
@@ -124,11 +129,11 @@ describe('DocumentTotals — public share VIEW mode (PUI-02)', () => {
     )
 
     expect(screen.getByText('Deposit required')).toBeTruthy()
-    expect(screen.getByText('-$240.00')).toBeTruthy()
+    expect(screen.getByText('$240.00')).toBeTruthy()
     expect(screen.getByText('Balance Due')).toBeTruthy()
     expect(screen.getByText('$760.00')).toBeTruthy()
     // The raw deposit_value (250) must NOT appear as the deposit amount.
-    expect(screen.queryByText('-$250.00')).toBeNull()
+    expect(screen.queryByText('$250.00')).toBeNull()
   })
 
   it('Test 4 — edit-mode deposit Select untouched (fence): rendering with isEditable + dispatch still shows the deposit control', () => {

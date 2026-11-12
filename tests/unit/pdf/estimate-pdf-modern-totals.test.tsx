@@ -138,7 +138,7 @@ describe('EstimatePDFModern totals block — deposit / balance due (PUI-02)', ()
     expect(texts).not.toContain('Balance Due')
   })
 
-  it('with deposit: renders Subtotal → Total → Deposit (-$300.00) → Balance Due ($700.00) in order', () => {
+  it('with deposit: renders Subtotal → Total → Payment box (Deposit required (30%) $300.00 → Balance Due $700.00) in order', () => {
     const texts = renderTexts(
       baseEstimate({
         total: 1000,
@@ -148,27 +148,31 @@ describe('EstimatePDFModern totals block — deposit / balance due (PUI-02)', ()
         balance_due: 700,
       })
     )
-    expect(texts).toContain('Deposit required')
+    expect(texts).toContain('Deposit required (30%)')
     expect(texts).not.toContain('Deposit') // PDF reads "Deposit required", never the bare editor label
     expect(texts).toContain('Balance Due')
+    expect(texts).toContain('Payment') // the Payment box title
 
     const iSubtotal = texts.indexOf('Subtotal')
     const iGrandTotal = texts.lastIndexOf('Total')
-    const iDeposit = texts.indexOf('Deposit required')
+    const iDeposit = texts.indexOf('Deposit required (30%)')
     const iBalance = texts.indexOf('Balance Due')
 
-    // Locked order: Subtotal → … → Total → Deposit → Balance Due
+    // Locked order: Subtotal → … → Total → Payment (Deposit → Balance Due)
     expect(iSubtotal).toBeLessThan(iGrandTotal)
-    expect(iGrandTotal).toBeLessThan(iDeposit)
+    expect(iGrandTotal).toBeLessThan(texts.indexOf('Payment'))
+    expect(texts.indexOf('Payment')).toBeLessThan(iDeposit)
     expect(iDeposit).toBeLessThan(iBalance)
 
-    // Deposit value = total − persisted balance_due = 1000 − 700 = 300, shown negative
-    expect(texts).toContain('-$300.00')
+    // Deposit value = total − persisted balance_due = 1000 − 700 = 300, the amount due
+    // now (no minus sign: inside the Payment box it is not a discount)
+    expect(texts).toContain('$300.00')
+    expect(texts).not.toContain('-$300.00')
     // Balance due = persisted balance_due = 700
     expect(texts).toContain('$700.00')
   })
 
-  it('reads persisted balance_due, never recomputes: balance_due 800 (mismatched) → Deposit -$200.00, Balance $800.00', () => {
+  it('reads persisted balance_due, never recomputes: balance_due 800 (mismatched) → Deposit $200.00, Balance $800.00', () => {
     const texts = renderTexts(
       baseEstimate({
         total: 1000,
@@ -179,8 +183,8 @@ describe('EstimatePDFModern totals block — deposit / balance due (PUI-02)', ()
       })
     )
     // depositAmount = 1000 − 800 = 200 (proves trust-the-persisted, not 30% of 1000 = 300)
-    expect(texts).toContain('-$200.00')
+    expect(texts).toContain('$200.00')
     expect(texts).toContain('$800.00')
-    expect(texts).not.toContain('-$300.00')
+    expect(texts).not.toContain('$300.00')
   })
 })

@@ -536,22 +536,29 @@ describe('blocksFromModel — section-title measurement width', () => {
 })
 
 describe('blocksFromModel — totals block height matches the real rendered height', () => {
-  // Real heights were measured from generated PDFs (pdftotext -bbox row pitches:
-  // Modern 25.3 per row, Tax -> Deposit 111.22; Classic 20.6 per row, Total -> Deposit
-  // 28.94). Before 2026-10-02 the row text lines were not charged at all (Modern 165.5 /
-  // Classic 84.5 predicted vs 240.42 / 161.94 real), which the flat safety margin hid.
+  // Real heights were measured from generated PDFs (text and box positions). Before
+  // 2026-10-02 the row text lines were not charged at all (Modern 165.5 / Classic 84.5
+  // predicted vs 240.42 / 161.94 real), which the flat safety margin hid.
+  // 2026-11-12: deposit + balance due moved into the Payment box (tokens.ts
+  // PAYMENT_BOX, paymentBoxHeightPt). Re-measured on rendered PDFs with discount +
+  // tax + deposit: Classic 175.40 (box 554.72 -> 603.38), Modern 240.38 (box
+  // 278.65 -> 333.21), both equal to the formula below.
   const full = { discount_amount: 15, tax_amount: 111.38, dep: { showDeposit: true, depositAmount: 118.91, balanceDue: 277.47 } }
 
-  it('Modern, subtotal + discount + tax + grand total + deposit + balance due = 240.42pt', () => {
+  it('Modern: container + subtotal/discount/tax rows + hero total + Payment box = 240.38pt', () => {
     const totals = blocksFromModel(baseInput({ ...full, templateId: 'modern' })).find((b) => b.kind === 'totals')!
-    // 28 container marginTop + 5 rows x 25.3 + grand total block 69.92 + deposit row marginTop 16
-    expect(totals.baseHeightPt).toBeCloseTo(28 + 5 * 25.3 + 69.92 + 16, 2)
-    expect(totals.baseHeightPt).toBeCloseTo(240.42, 2)
+    // 28 container marginTop + 3 rows x 25.3 + grand total block 69.92
+    // + Payment box: 12 marginTop + 3x2 padding + title 7 x 1.28 + 2 + 2 rows x (3x2 + 10 x 1.28)
+    expect(totals.baseHeightPt).toBeCloseTo(28 + 3 * 25.3 + 69.92 + (12 + 6 + 7 * 1.28 + 2 + 2 * (6 + 12.8)), 2)
+    expect(totals.baseHeightPt).toBeCloseTo(240.38, 2)
   })
 
-  it('Classic, the same rows = 161.94pt', () => {
+  it('Classic: the same content = 175.41pt', () => {
     const totals = blocksFromModel(baseInput({ ...full, templateId: 'classic' })).find((b) => b.kind === 'totals')!
-    expect(totals.baseHeightPt).toBeCloseTo(161.94, 2)
+    // 20 + 3 rows x 20.6 + boxed total 38.94
+    // + Payment box: 6 marginTop + 3x2 padding + title 7 x 1.21 + 2 + 2 rows x (2x2 + 10 x 1.21)
+    expect(totals.baseHeightPt).toBeCloseTo(20 + 3 * 20.6 + 38.94 + (6 + 6 + 7 * 1.21 + 2 + 2 * (4 + 12.1)), 2)
+    expect(totals.baseHeightPt).toBeCloseTo(175.41, 2)
   })
 })
 

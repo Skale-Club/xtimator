@@ -30,6 +30,7 @@ import {
   ESTIMATE_DESIGN_TOKENS,
   ESTIMATE_PAGE_GEOMETRY,
   LINE_HEIGHT,
+  paymentBoxHeightPt,
   photoTileWidthPt,
   photosPerRow,
 } from '@/lib/estimate/document/tokens'
@@ -182,13 +183,11 @@ interface TemplateLiterals {
    *  2026-10-02: the text line heights were previously charged as bare font sizes (9 + 30
    *  = 39 vs 49.92; Classic's 14pt line not at all). */
   grandTotalHeightPt: number
-  /** pdf-totals-block.tsx Modern-only: the FIRST deposit row (when
-   *  `dep.showDeposit`) carries an extra inline `marginTop: 16` not present on
-   *  Classic's equivalent row (`{...styles.totalsRow, marginTop: 16}` vs
-   *  Classic's plain `styles.totalsRow`) — 0 for Classic, 16 for Modern. Phase
-   *  185 pre-flight verification finding (GAP 1b, 2026-07-28): previously
-   *  uncharged entirely. */
-  depositRowFirstBonusPt: number
+  /** With a deposit, the deposit and balance-due rows sit in the Payment box
+   *  (tokens.ts PAYMENT_BOX, paymentBoxHeightPt): the whole box, rows
+   *  included, instead of two totals rows. Replaced 2026-11-12 the two ruled
+   *  deposit rows and Modern's first-deposit-row marginTop (16). */
+  paymentBoxHeightPt: number
   /** termsTitle.fontSize (8, both templates). The title's real line is this × the bold
    *  family's natural line height (termsTitle sets no lineHeight). */
   termsTitleFontSizePt: number
@@ -248,7 +247,7 @@ function buildTemplateLiterals(p: {
   totalsContainerMarginTopPt: number
   totalsRowHeightPt: number
   grandTotalHeightPt: number
-  depositRowFirstBonusPt: number
+  paymentBoxHeightPt: number
   termsTitleFontSizePt: number
   termsTitleSpacingContributionPt: number
   termsTitleLineHeightMultiplier: number
@@ -286,7 +285,7 @@ function buildTemplateLiterals(p: {
     totalsContainerMarginTopPt: p.totalsContainerMarginTopPt,
     totalsRowHeightPt: p.totalsRowHeightPt,
     grandTotalHeightPt: p.grandTotalHeightPt,
-    depositRowFirstBonusPt: p.depositRowFirstBonusPt,
+    paymentBoxHeightPt: p.paymentBoxHeightPt,
     termsTitleFontSizePt: p.termsTitleFontSizePt,
     termsCardBaseHeightPt:
       p.termsTitleFontSizePt * p.termsTitleLineHeightMultiplier +
@@ -338,7 +337,7 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     totalsContainerMarginTopPt: 20, // styles.totalsContainer.marginTop
     totalsRowHeightPt: 4 * 2 + 0.5 + 10 * LINE_HEIGHT.Inter, // styles.totalsRow.paddingVertical×2 + borderBottomWidth + totalsLabel/Value.fontSize(10) × Inter line height
     grandTotalHeightPt: 8 * 2 + 2 + 4 + 14 * LINE_HEIGHT['Inter-Bold'], // styles.grandTotalRow.paddingVertical×2 + borderTopWidth + marginTop + grandTotalLabel/Value.fontSize(14) × Inter-Bold line height
-    depositRowFirstBonusPt: 0, // Classic's deposit row carries no extra margin (unlike Modern)
+    paymentBoxHeightPt: paymentBoxHeightPt('classic'), // tokens.ts PAYMENT_BOX.classic
     termsTitleFontSizePt: 8, // styles.termsTitle.fontSize
     termsTitleSpacingContributionPt: 6, // styles.termsTitle.marginBottom (the paddingBottom + rule were dropped when the title became an eyebrow label)
     termsTitleLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.classic.fontFamilyBold], // styles.termsTitle.fontFamily (Inter-Bold) natural line height — the "Photos" label line
@@ -379,7 +378,7 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     totalsContainerMarginTopPt: 28, // styles.totalsContainer.marginTop
     totalsRowHeightPt: 6 * 2 + 0.5 + 10 * LINE_HEIGHT.Lora, // styles.totalsRow.paddingVertical×2 + borderBottomWidth + totalsLabel/Value.fontSize(10) × Lora line height
     grandTotalHeightPt: 16 + 4 + 9 * LINE_HEIGHT['Lora-Bold'] + 30 * LINE_HEIGHT['Lora-Bold'], // grandTotalBlock.marginTop + grandTotalLabel.marginBottom + grandTotalLabel.fontSize(9) × Lora-Bold line height + grandTotalValue.fontSize(30) × Lora-Bold line height
-    depositRowFirstBonusPt: 16, // pdf-totals-block.tsx Modern-only: {...styles.totalsRow, marginTop: 16} on the FIRST deposit row
+    paymentBoxHeightPt: paymentBoxHeightPt('modern'), // tokens.ts PAYMENT_BOX.modern
     termsTitleFontSizePt: 8, // styles.termsTitle.fontSize
     termsTitleSpacingContributionPt: 7, // styles.termsTitle.marginBottom (the paddingBottom + rule were dropped when the title became an eyebrow label)
     termsTitleLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.termsTitle.fontFamily (Lora-Bold) natural line height — the "Photos" label line
@@ -613,7 +612,7 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
     1 /* subtotal */ +
     (discount_amount > 0 ? 1 : 0) +
     (tax_amount > 0 ? 1 : 0) +
-    (dep.showDeposit ? 2 : 0) /* deposit + balance due */
+    0 /* deposit + balance due: inside the Payment box, charged below */
   blocks.push({
     kind: 'totals',
     id: 'totals',
@@ -621,7 +620,7 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
       lit.totalsContainerMarginTopPt +
       lit.totalsRowHeightPt * totalsRowCount +
       lit.grandTotalHeightPt +
-      (dep.showDeposit ? lit.depositRowFirstBonusPt : 0),
+      (dep.showDeposit ? lit.paymentBoxHeightPt : 0),
     atomic: true,
   })
 

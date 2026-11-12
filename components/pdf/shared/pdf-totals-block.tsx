@@ -30,6 +30,7 @@ import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import type { DepositDisplay } from '@/lib/estimate/deposit-display'
 import { formatPercent } from '@/lib/estimate/document/format'
 import type { DocumentLabels } from '@/lib/estimate/document/labels'
+import { ESTIMATE_DESIGN_TOKENS, PAYMENT_BOX } from '@/lib/estimate/document/tokens'
 
 export interface PdfTotalsBlockEstimate {
   subtotal: number
@@ -39,6 +40,9 @@ export interface PdfTotalsBlockEstimate {
   tax_amount: number
   tax_rate: number
   total: number
+  /** For the "(30%)" on a percent deposit; optional for older callers. */
+  deposit_type?: string | null
+  deposit_value?: number | null
 }
 
 export interface PdfTotalsBlockStyles {
@@ -80,9 +84,8 @@ export function PdfTotalsBlock({
         {L.discount}
         {isPercentageDiscount(estimate.discount_type) ? ` (${formatPercent(estimate.discount_value)})` : ''}
       </Text>
-      <Text style={[styles.totalsValue, { color: '#dc2626' }]}>
-        -{fmt(estimate.discount_amount)}
-      </Text>
+      {/* Normal color in every rendering: red read as an error. */}
+      <Text style={styles.totalsValue}>-{fmt(estimate.discount_amount)}</Text>
     </View>
   )
 
@@ -92,6 +95,57 @@ export function PdfTotalsBlock({
         {L.tax} ({formatPercent(estimate.tax_rate * 100)})
       </Text>
       <Text style={styles.totalsValue}>{fmt(estimate.tax_amount)}</Text>
+    </View>
+  )
+
+  // Payment box: deposit due now and the balance, apart from the price (the
+  // same box as the editor, the web document and the share page). Its rows are
+  // tighter and unruled; blocks-from-model.ts charges tokens.ts
+  // paymentBoxHeightPt for the whole box.
+  const box = PAYMENT_BOX[variant]
+  const boxRow = [styles.totalsRow, { paddingVertical: box.rowPaddingVerticalPt, borderBottomWidth: 0 }]
+  const depositPct =
+    estimate.deposit_type === 'percent' && estimate.deposit_value
+      ? ` (${formatPercent(estimate.deposit_value)})`
+      : ''
+  const paymentBox = dep.showDeposit && (
+    <View
+      style={{
+        marginTop: box.marginTopPt,
+        marginHorizontal: -box.paddingHorizontalPt,
+        paddingVertical: box.paddingVerticalPt,
+        paddingHorizontal: box.paddingHorizontalPt,
+        backgroundColor: box.fill,
+        borderRadius: box.radiusPt,
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: ESTIMATE_DESIGN_TOKENS[variant].fontFamilyBold,
+          fontSize: box.titleFontSizePt,
+          letterSpacing: box.titleLetterSpacingPt,
+          textTransform: 'uppercase',
+          color: '#71717a',
+          marginBottom: box.titleMarginBottomPt,
+        }}
+      >
+        {L.payment}
+      </Text>
+      <View style={boxRow}>
+        <Text style={styles.totalsLabel}>
+          {L.depositRequired}
+          {depositPct}
+        </Text>
+        <Text style={styles.totalsValue}>{fmt(dep.depositAmount)}</Text>
+      </View>
+      <View style={boxRow}>
+        <Text style={[styles.totalsLabel, { fontFamily: ESTIMATE_DESIGN_TOKENS[variant].fontFamilyBold, color: '#111827' }]}>
+          {L.balanceDue}
+        </Text>
+        <Text style={[styles.totalsValue, { fontFamily: ESTIMATE_DESIGN_TOKENS[variant].fontFamilyBold }]}>
+          {fmt(dep.balanceDue)}
+        </Text>
+      </View>
     </View>
   )
 
@@ -116,21 +170,9 @@ export function PdfTotalsBlock({
             </Text>
           </View>
 
-          {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set.
-              Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
-          {dep.showDeposit && (
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
-              <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
-            </View>
-          )}
-
-          {dep.showDeposit && (
-            <View style={styles.totalsRow}>
-              <Text style={styles.totalsLabel}>{L.balanceDue}</Text>
-              <Text style={styles.totalsValue}>{fmt(dep.balanceDue)}</Text>
-            </View>
-          )}
+          {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set,
+              in the Payment box. Order: Subtotal → Discount → Tax → Total → Payment. */}
+          {paymentBox}
         </View>
       </View>
     )
@@ -156,21 +198,9 @@ export function PdfTotalsBlock({
           </Text>
         </View>
 
-        {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set.
-            Locked order: Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
-        {dep.showDeposit && (
-          <View style={[styles.totalsRow, { marginTop: 16 }]}>
-            <Text style={styles.totalsLabel}>{L.depositRequired}</Text>
-            <Text style={styles.totalsValue}>-{fmt(dep.depositAmount)}</Text>
-          </View>
-        )}
-
-        {dep.showDeposit && (
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>{L.balanceDue}</Text>
-            <Text style={styles.totalsValue}>{fmt(dep.balanceDue)}</Text>
-          </View>
-        )}
+        {/* PUI-02 (v4.11): deposit + balance due — only when a deposit is set,
+            in the Payment box (its marginTop replaces the old 16pt row margin). */}
+        {paymentBox}
       </View>
     </View>
   )

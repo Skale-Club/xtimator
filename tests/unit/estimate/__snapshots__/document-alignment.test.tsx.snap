@@ -215,12 +215,12 @@ exports[`EstimateDocument alignment (DOCUX-05) > view mode DOM — snapshot stab
         style="border-top-color: rgb(54, 103, 240);"
       >
         <span
-          class="text-3xl font-extrabold select-none"
+          class="text-2xl sm:text-3xl font-extrabold select-none"
         >
           Total
         </span>
         <span
-          class="text-3xl font-extrabold tabular-nums"
+          class="text-2xl sm:text-3xl font-extrabold tabular-nums"
           style="color: rgb(54, 103, 240);"
         >
           $100.00

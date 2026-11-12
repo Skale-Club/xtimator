@@ -103,6 +103,7 @@ interface DocLabels {
   depositPct: string
   depositAmount: string
   balanceDue: string
+  payment: string
   tax: string
   grandTotal: string
   paymentTerms: string
@@ -1275,7 +1276,7 @@ function EditableTotals({
         {depositActive && (
           <div data-testid="totals-payment-box" className="mt-4 -mx-3 rounded-lg bg-muted/50 px-3 py-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground select-none">
-              {t('Payment')}
+              {L.payment}
             </p>
             <div data-testid="totals-deposit-row" className={TOTALS_GRID}>
               <span className="text-muted-foreground select-none">{L.deposit}</span>
@@ -1404,7 +1405,8 @@ function DocumentTotals({
               {L.discount}
               {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
             </span>
-            <span className="tabular-nums text-destructive font-medium">
+            {/* Normal color, like the editor: red read as an error. */}
+            <span className="tabular-nums font-medium">
               -{fmt(data.discount_amount)}
             </span>
           </div>
@@ -1425,28 +1427,33 @@ function DocumentTotals({
           className="flex justify-between items-baseline pt-3 border-t-2"
           style={{ borderTopColor: brandText }}
         >
-          <span className="text-3xl font-extrabold select-none">{L.grandTotal}</span>
-          <span className="text-3xl font-extrabold tabular-nums" style={{ color: brandText }}>
+          <span className="text-2xl sm:text-3xl font-extrabold select-none">{L.grandTotal}</span>
+          <span className="text-2xl sm:text-3xl font-extrabold tabular-nums" style={{ color: brandText }}>
             {fmt(data.total)}
           </span>
         </div>
 
-        {/* Deposit (view) */}
-        {dep.showDeposit ? (
-          /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
-          <div className="flex justify-between text-base pt-2">
-            <span className="text-muted-foreground select-none">{L.depositRequired}</span>
-            <span className="tabular-nums text-muted-foreground font-medium">-{fmt(dep.depositAmount)}</span>
-          </div>
-        ) : null}
-
-        {/* Balance Due — only when a deposit is set (edit: type !== none; view: persisted deposit via deriveDepositDisplay). */}
+        {/* Payment — deposit due now and the balance, apart from the price
+            (same box as the editor). Persisted-read (PUI-02), never recomputed.
+            -mx-3/px-3 keeps the rows on the same rails as the lines above. */}
         {dep.showDeposit && (
-          <div className="flex justify-between items-baseline">
-            <span className="text-base font-semibold text-muted-foreground select-none">{L.balanceDue}</span>
-            <span className="text-base font-semibold tabular-nums">
-              {fmt(dep.balanceDue)}
-            </span>
+          <div data-testid="totals-payment-box" className="mt-4 -mx-3 space-y-1 rounded-lg bg-muted/50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground select-none">
+              {L.payment}
+            </p>
+            <div className="flex justify-between text-base">
+              <span className="text-muted-foreground select-none">
+                {L.depositRequired}
+                {data.deposit_type === 'percent' && data.deposit_value
+                  ? ` (${formatPercent(data.deposit_value)})`
+                  : ''}
+              </span>
+              <span className="tabular-nums font-medium">{fmt(dep.depositAmount)}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-base font-semibold select-none">{L.balanceDue}</span>
+              <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
+            </div>
           </div>
         )}
       </div>

@@ -308,7 +308,8 @@ export const CONTINUATION_TABLE_HEADER_HEIGHT_PT: Record<EstimateTemplateId, num
  * bugs were found and fixed in `blocks-from-model.ts` during the Phase 185
  * pre-flight verification pass (2026-07-28, GAP 1b): `totalsRowHeightPt` and
  * `grandTotalHeightPt` both omitted real border/margin StyleSheet terms, and
- * Modern's first-deposit-row `marginTop: 16` (`pdf-totals-block.tsx`) was
+ * Modern's first-deposit-row `marginTop: 16` (`pdf-totals-block.tsx`; since
+ * 2026-11-12 the Payment box, `paymentBoxHeightPt`) was
  * uncharged entirely — see `blocks-from-model.ts`'s `TemplateLiterals`
  * comments for the exact corrections. The REMAINING residual is not
  * attributable to any single further formula bug: isolated fixture testing
