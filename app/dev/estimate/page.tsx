@@ -7,8 +7,9 @@ import { PaginatedPreview } from '@/components/workspace/estimate/paginated-prev
 import { usePaginatedPreview } from '@/components/workspace/estimate/use-paginated-preview'
 import { EstimateFloatingActions } from '@/components/workspace/estimate/estimate-floating-actions'
 import { PresentationSettingsPanel } from '@/components/workspace/estimate/presentation-settings-panel'
-import { useRef, useState } from 'react'
+import { useReducer, useRef, useState } from 'react'
 import type { DocumentCompany } from '@/lib/estimate/document/model'
+import type { EstimateAction } from '@/components/workspace/estimate/use-estimate-reducer'
 
 /**
  * Dev-only visual check of the estimate document without signing in, with
@@ -89,6 +90,44 @@ const COMMON = {
 // Edit views draw the editing controls (tax switches, Add section) without saving anything.
 const noop = () => {}
 
+type Sections = EstimateDocumentData['sections']
+
+/** Dev-only item editing so ?view=edit can exercise the mobile item editor
+ *  (open, change, add, delete, undo, duplicate, reorder). Totals are the plain
+ *  qty × price − discount; the real reducer lives in use-estimate-reducer.ts. */
+function devItemsReducer(sections: Sections, action: EstimateAction): Sections {
+  const withTotals = (list: Sections): Sections =>
+    list.map((s) => {
+      const items = s.items.map((i) => ({ ...i, total: Math.max(0, i.quantity * i.unit_price - (i.discount ?? 0)) }))
+      return { ...s, items, subtotal: items.reduce((n, i) => n + i.total, 0) }
+    })
+  const inSection = (id: string, fn: (items: Sections[number]['items']) => Sections[number]['items']) =>
+    withTotals(sections.map((s) => (s.id === id ? { ...s, items: fn(s.items) } : s)))
+  switch (action.type) {
+    case 'UPDATE_ITEM':
+      return inSection(action.sectionId, (items) => items.map((i) => (i.id === action.itemId ? { ...i, [action.field]: action.value } : i)))
+    case 'APPLY_PRICE_BOOK_ITEM':
+      return inSection(action.sectionId, (items) => items.map((i) => (i.id === action.itemId ? { ...i, description: action.item.name, unit: action.item.unit, unit_price: action.item.unit_price } : i)))
+    case 'ADD_ITEM':
+      return inSection(action.sectionId, (items) => [...items, { id: action.itemId ?? 'temp-' + crypto.randomUUID(), description: action.description ?? '', quantity: 1, unit: null, unit_price: 0, total: 0, taxable: true, discount: 0 }])
+    case 'REMOVE_ITEM':
+      return inSection(action.sectionId, (items) => items.filter((i) => i.id !== action.itemId))
+    case 'INSERT_ITEM':
+      return inSection(action.sectionId, (items) => [...items.slice(0, action.index), { ...action.item, id: action.itemId ?? 'temp-' + crypto.randomUUID() }, ...items.slice(action.index)])
+    case 'REORDER_ITEMS':
+      return inSection(action.sectionId, (items) => action.itemIds.map((id) => items.find((i) => i.id === id)!).filter(Boolean))
+    default:
+      return sections
+  }
+}
+
+function DevEditableDocument() {
+  const [sections, dispatch] = useReducer(devItemsReducer, DATA.sections)
+  const subtotal = sections.reduce((n, s) => n + s.subtotal, 0)
+  const data = { ...DATA, sections, subtotal, total: subtotal, balance_due: subtotal }
+  return <EstimateDocument mode="edit" {...COMMON} data={data} dispatch={dispatch} projectId="demo" companyDefaults={{ tax_rate: 0 } as never} />
+}
+
 export default function EstimatePreview() {
   if (process.env.NODE_ENV === 'production') notFound()
   return <Preview />
@@ -117,7 +156,7 @@ function Preview() {
       ? <PaginatedPreview {...COMMON} pages={pages} templateId={templateId} bottomBar={(leading) => bar(leading)} dispatch={view === 'page-edit' ? noop : undefined} />
       : <div className="mx-auto max-w-4xl space-y-3">
           {view === 'modern' ? <EstimateDocumentModern {...COMMON} />
-            : view === 'edit' ? <EstimateDocument mode="edit" {...COMMON} dispatch={noop} projectId="demo" companyDefaults={{ tax_rate: 0 } as never} />
+            : view === 'edit' ? <DevEditableDocument />
               : <EstimateDocument mode="view" {...COMMON} />}
           {bar()}
         </div>}

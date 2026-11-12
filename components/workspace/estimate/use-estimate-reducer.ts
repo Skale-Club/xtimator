@@ -127,6 +127,10 @@ export type EstimateAction =
   // a price-book pick right after.
   | { type: 'ADD_ITEM'; sectionId: string; itemId?: string; description?: string }
   | { type: 'REMOVE_ITEM'; sectionId: string; itemId: string }
+  // Insert a copy of a line at a position (mobile editor: Duplicate, and Undo
+  // after Delete). Always gets a fresh temp- id, so an undone delete is saved
+  // as a new row and never collides with the row the last save removed.
+  | { type: 'INSERT_ITEM'; sectionId: string; index: number; item: EditorItem; itemId?: string }
   // title/firstItemDescription: same reason as ADD_ITEM's optional fields.
   | { type: 'ADD_SECTION'; title?: string; firstItemDescription?: string }
   | { type: 'REMOVE_SECTION'; sectionId: string }
@@ -524,6 +528,26 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
             ...s,
             items: s.items.filter((i) => i.id !== action.itemId),
           }
+        }),
+        ...structuralDirty(state),
+      }
+      return recalculate(updated)
+    }
+
+    case 'INSERT_ITEM': {
+      const updated = {
+        ...state,
+        sections: state.sections.map((s) => {
+          if (s.id !== action.sectionId) return s
+          const index = Math.max(0, Math.min(action.index, s.items.length))
+          const copy: EditorItem = {
+            ...action.item,
+            id: action.itemId ?? 'temp-' + crypto.randomUUID(),
+          }
+          const items = [...s.items.slice(0, index), copy, ...s.items.slice(index)].map(
+            (i, idx) => ({ ...i, sort_order: idx }),
+          )
+          return { ...s, items }
         }),
         ...structuralDirty(state),
       }

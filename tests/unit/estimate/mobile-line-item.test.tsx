@@ -1,191 +1,218 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
-import React from 'react'
-import { ItemCardMobile } from '@/components/workspace/estimate/item-card-mobile'
-import type { EditorItem } from '@/components/workspace/estimate/use-estimate-reducer'
+import { render, screen, fireEvent, renderHook, act } from '@testing-library/react'
+import type { DocumentItem } from '@/lib/estimate/document/model'
+import { ItemSummaryRow, formatItemQuantityLine } from '@/components/workspace/estimate/item-card-mobile'
+import { ItemEditorSheet } from '@/components/workspace/estimate/item-editor-sheet'
+import { useEstimateReducer } from '@/components/workspace/estimate/use-estimate-reducer'
+import type { EstimateWithSections } from '@/lib/queries/estimate'
 
-// Phase 162 plan 162-05 (DOCUX-06) — mobile line-item editor rebuilt to match
-// the desktop document-native table language: transparent inputs on the paper
-// surface, NO glass card wrapper, 44px touch targets preserved on the row
-// kebab + Switch container.
-//
-// Quick 260927: the card is now the desktop row folded onto two lines — same
-// column order (description/total, then qty/unit/unit price/tax), same
-// localized labels (defaults to LABELS.en when none are passed), same kebab
-// actions (add/remove discount, delete line) instead of a trash button, and
-// the discount field hidden until the row has (or drafts) a discount.
+// Mobile line items (Phase 1 of the line-item redesign, 2026-11-12): the list
+// shows a read summary per item, and one item at a time is edited in a bottom
+// sheet. Competitors (Jobber, Joist, Square, JobNimbus) all work this way on a
+// phone; the old card folded the desktop table into four lines of inputs.
 
-// ---- Stub EditorItem builder (mirrors the shape used in the retired
-// price-badge.test.tsx, extended with v4.11 advanced-pricing fields) ----
-function makeItem(overrides: Partial<EditorItem> = {}): EditorItem {
+vi.mock('@/lib/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (s: string) => s }),
+}))
+
+function makeItem(overrides: Partial<DocumentItem> = {}): DocumentItem {
   return {
     id: 'item-1',
-    description: 'Test item',
+    description: 'Recurring home cleaning',
     quantity: 2,
-    unit: 'each',
-    unit_price: 100,
-    total: 200,
-    sort_order: 0,
-    price_source: null,
-    isManuallyEdited: false,
+    unit: 'visit',
+    unit_price: 90,
+    total: 180,
     taxable: true,
-    tax_category: null,
     discount: 0,
-    cost: null,
-    markup_pct: null,
     ...overrides,
   }
 }
 
-describe('mobile line-item editor (DOCUX-06)', () => {
-  it('no glass card — rendered DOM does NOT contain the string "glass" as a class value', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    // A glass card would surface `variant="glass"` styles onto the outer
-    // element. Walk every descendant and confirm no class list contains "glass".
-    const glassNodes = container.querySelectorAll('[class*="glass"]')
-    expect(glassNodes.length).toBe(0)
+describe('ItemSummaryRow', () => {
+  it('shows description, "qty unit × price" and the line total, with no inputs', () => {
+    const { container } = render(<ItemSummaryRow item={makeItem()} onOpen={vi.fn()} />)
+    expect(container.textContent).toContain('Recurring home cleaning')
+    expect(container.textContent).toContain('2 visit × $90.00')
+    expect(container.textContent).toContain('$180.00')
+    expect(container.querySelector('input, textarea, select, [role="switch"]')).toBeNull()
   })
 
-  it('no glass card — no <Card> wrapper (the outer node is a <div>, not a Card)', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    // shadcn `Card` renders as `<div class="... rounded-lg border ...">`. The
-    // structural distinction we care about is the ABSENCE of the glass variant
-    // shell — assert the outer element is a plain `<div>` with the new
-    // document-native row classes.
-    const outer = container.firstChild as HTMLElement
-    expect(outer).toBeTruthy()
-    expect(outer.tagName).toBe('DIV')
-    // The old Card wrapper always carried a `rounded-lg` shell class. The
-    // new document-native row must NOT.
-    expect(outer.className).not.toMatch(/rounded-lg/)
+  it('opens the editor on tap', () => {
+    const onOpen = vi.fn()
+    render(<ItemSummaryRow item={makeItem()} onOpen={onOpen} />)
+    fireEvent.click(screen.getByRole('button', { name: /Edit item: Recurring home cleaning/ }))
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
-  it('transparent inputs — description input uses INLINE_INPUT_CLS bg-transparent styling', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    const descInput = container.querySelector<HTMLInputElement>(
-      'textarea[aria-label="Description"]'
-    )
-    expect(descInput).toBeTruthy()
-    expect(descInput!.className).toMatch(/bg-transparent/)
-  })
-
-  it('transparent inputs — qty input uses INLINE_INPUT_CLS text-center styling (desktop parity)', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    const qtyInput = container.querySelector<HTMLInputElement>('input[aria-label="Qty"]')
-    expect(qtyInput).toBeTruthy()
-    expect(qtyInput!.className).toMatch(/bg-transparent/)
-    expect(qtyInput!.className).toMatch(/text-center/)
-  })
-
-  it('transparent inputs — unit-price MoneyInput uses bg-transparent border-0 shadow-none', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    // MoneyInput exposes its `name` prop through to the underlying <input>,
-    // so we query by name to nail down the specific control under test.
-    const unitPriceInput = container.querySelector<HTMLInputElement>(
-      'input[name="unit_price"]'
-    )
-    expect(unitPriceInput).toBeTruthy()
-    expect(unitPriceInput!.className).toMatch(/bg-transparent/)
-    expect(unitPriceInput!.className).toMatch(/border-0/)
-    expect(unitPriceInput!.className).toMatch(/shadow-none/)
-    // Same pl-6 as the desktop cell (guards the $-overlap regression).
-    expect(unitPriceInput!.className).toContain('pl-6')
-  })
-
-  it('touch targets — row kebab trigger preserves min-h-[44px]', () => {
-    const { getByRole } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    const kebab = getByRole('button', { name: /line actions/i })
-    expect(kebab.className).toMatch(/min-h-\[44px\]/)
-  })
-
-  it('touch targets — Switch container preserves min-h-[44px]', () => {
-    const { getByRole } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    const taxSwitch = getByRole('switch', { name: /^tax$/i })
-    // The 44px minimum lives on the immediate wrapping div — the Switch itself
-    // is a compact primitive.
-    const wrapper = taxSwitch.parentElement
-    expect(wrapper).toBeTruthy()
-    expect(wrapper!.className).toMatch(/min-h-\[44px\]/)
-  })
-
-  it('row structure — border-b border-border/50 last:border-b-0, no zebra (Phase 186: mobile rows drop the stripe-zebra pattern; only the desktop table keeps it)', () => {
-    const { container } = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    const outer = container.firstChild as HTMLElement
-    expect(outer).toBeTruthy()
-    expect(outer.className).toMatch(/border-b/)
-    expect(outer.className).toMatch(/border-border\/50/)
-    expect(outer.className).toMatch(/last:border-b-0/)
-    expect(outer.className).not.toMatch(/bg-muted/)
-  })
-
-  it('desktop parity — discount field hidden at rest, revealed when the item carries a discount', () => {
-    const rest = render(
-      <ItemCardMobile item={makeItem()} onUpdate={vi.fn()} onRemove={vi.fn()} />
-    )
-    expect(rest.container.querySelector('input[name="discount"]')).toBeNull()
-    rest.unmount()
+  it('tags only what differs from the default: no tax, line discount', () => {
+    const plain = render(<ItemSummaryRow item={makeItem()} />)
+    expect(plain.container.textContent).not.toContain('No tax')
+    expect(plain.container.textContent).not.toContain('Discount')
+    plain.unmount()
 
     const { container } = render(
-      <ItemCardMobile item={makeItem({ discount: 10 })} onUpdate={vi.fn()} onRemove={vi.fn()} />
+      <ItemSummaryRow item={makeItem({ taxable: false, discount: 20, total: 160 })} />,
     )
-    const discountInput = container.querySelector<HTMLInputElement>('input[name="discount"]')
-    expect(discountInput).toBeTruthy()
-    expect(discountInput!.className).toContain('pl-6')
+    expect(container.textContent).toContain('No tax')
+    expect(container.textContent).toContain('Discount −$20.00')
   })
 
-  it('localized labels — passing labels swaps the field aria-labels (PT)', () => {
-    const { container } = render(
-      <ItemCardMobile
-        item={makeItem()}
-        onUpdate={vi.fn()}
-        onRemove={vi.fn()}
-        labels={{ description: 'Descrição', qty: 'Qtd', taxable: 'Imposto' }}
-      />
-    )
-    expect(container.querySelector('textarea[aria-label="Descrição"]')).toBeTruthy()
-    expect(container.querySelector('input[aria-label="Qtd"]')).toBeTruthy()
-    expect(container.querySelector('[role="switch"][aria-label="Imposto"]')).toBeTruthy()
+  it('names an empty line "New item" instead of showing a blank row', () => {
+    const { container } = render(<ItemSummaryRow item={makeItem({ description: '' })} />)
+    expect(container.textContent).toContain('New item')
   })
 
-  it('preserves onUpdate + onRemove props signature (same as current ItemCardMobile)', () => {
-    // Compile-time contract: this render call MUST typecheck against the
-    // rebuilt ItemCardMobile export. If the prop signature drifts (e.g. onUpdate
-    // field union changes, or onRemove disappears), TypeScript would fail here
-    // during `tsc --noEmit`. The runtime assertion just confirms the render did
-    // not throw and produced a rendered DOM.
-    const onUpdate = vi.fn<
-      (
-        field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable',
-        value: string | number | boolean | null
-      ) => void
-    >()
-    const onRemove = vi.fn<() => void>()
-    const { container } = render(
-      <ItemCardMobile
-        item={makeItem()}
-        onUpdate={onUpdate}
-        onRemove={onRemove}
-        isReadOnly={false}
-        currencyCode="USD"
-        unitOptions={['each', 'hour']}
-      />
+  it('formats fractional quantities without float noise', () => {
+    expect(formatItemQuantityLine(makeItem({ quantity: 146.5, unit: 'sq ft', unit_price: 2 }), 'USD')).toBe(
+      '146.5 sq ft × $2.00',
     )
-    expect(container.firstChild).toBeTruthy()
+    expect(formatItemQuantityLine(makeItem({ quantity: 0.1 + 0.2, unit: null, unit_price: 1 }), 'USD')).toBe(
+      '0.3 × $1.00',
+    )
+  })
+})
+
+function renderSheet(overrides: Partial<React.ComponentProps<typeof ItemEditorSheet>> = {}) {
+  const props = {
+    item: makeItem(),
+    onClose: vi.fn(),
+    onUpdate: vi.fn(),
+    onDelete: vi.fn(),
+    onDuplicate: vi.fn(),
+    ...overrides,
+  }
+  render(<ItemEditorSheet {...props} />)
+  return props
+}
+
+describe('ItemEditorSheet', () => {
+  it('renders nothing while no item is open', () => {
+    renderSheet({ item: null })
+    expect(screen.queryByTestId('item-editor-sheet')).toBeNull()
+  })
+
+  it('steps the quantity with − and +', () => {
+    const { onUpdate } = renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Increase quantity' }))
+    expect(onUpdate).toHaveBeenLastCalledWith('quantity', 3)
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease quantity' }))
+    expect(onUpdate).toHaveBeenLastCalledWith('quantity', 1)
+  })
+
+  it('never steps below zero', () => {
+    renderSheet({ item: makeItem({ quantity: 0 }) })
+    expect(screen.getByRole('button', { name: 'Decrease quantity' })).toHaveProperty('disabled', true)
+  })
+
+  it('picks a unit from the chips and shows the current one selected', () => {
+    const { onUpdate } = renderSheet({ item: makeItem({ unit: 'each' }), unitOptions: ['each', 'hour', 'day'] })
+    expect(screen.getByRole('radio', { name: 'each' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(screen.getByRole('radio', { name: 'hour' }))
+    expect(onUpdate).toHaveBeenLastCalledWith('unit', 'hour')
+  })
+
+  it('keeps a custom unit visible as its own chip', () => {
+    renderSheet({ item: makeItem({ unit: 'visit' }), unitOptions: ['visit', 'each', 'hour'] })
+    expect(screen.getByRole('radio', { name: 'visit' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('shows the live line total', () => {
+    renderSheet({ item: makeItem({ total: 360 }) })
+    expect(screen.getByTestId('item-editor-total').textContent).toBe('$360.00')
+  })
+
+  it('keeps tax and discount under More options', () => {
+    renderSheet()
+    expect(screen.queryByText('Charge tax')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }))
+    expect(screen.getByText('Charge tax')).toBeTruthy()
+  })
+
+  it('opens More options by itself when the item already skips tax', () => {
+    renderSheet({ item: makeItem({ taxable: false }) })
+    expect(screen.getByText('Charge tax')).toBeTruthy()
+  })
+
+  it('toggles tax for the line', () => {
+    const { onUpdate } = renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Charge tax' }))
+    expect(onUpdate).toHaveBeenLastCalledWith('taxable', false)
+  })
+
+  it('Delete, Duplicate and Done call their handlers', () => {
+    const props = renderSheet()
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    expect(props.onDuplicate).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(props.onDelete).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('titles a just-added line "New item"', () => {
+    renderSheet({ isNew: true, item: makeItem({ description: '' }) })
+    expect(screen.getByText('New item')).toBeTruthy()
+  })
+})
+
+function buildEstimate(): EstimateWithSections {
+  return {
+    id: 'est-1', project_id: 'proj-1', company_id: 'company-1', currency_code: 'USD', version: 1,
+    estimate_seq: 1, estimate_number: null, estimate_date: null, is_current: true, share_token: 'tok',
+    public_slug_token: null, status: 'draft', language: 'en', summary: null, notes: null, timeline: null,
+    payment_terms: null, warranty_terms: null, subtotal: 300, discount_type: null, discount_value: 0,
+    discount_amount: 0, tax_rate: 0, tax_amount: 0, total: 300, deposit_type: 'none', deposit_value: null,
+    balance_due: null, sent_at: null, viewed_at: null, responded_at: null, client_response: null,
+    created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z',
+    presentation_settings: null, attachedPhotos: [], hasSignature: false,
+    sections: [{
+      id: 'sec-1', estimate_id: 'est-1', company_id: 'company-1', title: 'General', sort_order: 0, subtotal: 300,
+      items: [
+        { id: 'a', section_id: 'sec-1', company_id: 'company-1', description: 'A', quantity: 1, unit: 'ea', unit_price: 100, total: 100, sort_order: 0, price_source: null, taxable: true },
+        { id: 'b', section_id: 'sec-1', company_id: 'company-1', description: 'B', quantity: 2, unit: 'ea', unit_price: 100, total: 200, sort_order: 1, price_source: null, taxable: true },
+      ],
+    }],
+  } as unknown as EstimateWithSections
+}
+
+describe('INSERT_ITEM (Duplicate, Undo after Delete)', () => {
+  it('inserts a copy at the index with a fresh temp- id, renumbers and re-totals', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    const source = result.current[0].sections[0].items[0]
+    act(() => {
+      result.current[1]({ type: 'INSERT_ITEM', sectionId: 'sec-1', index: 1, item: source })
+    })
+    const items = result.current[0].sections[0].items
+    expect(items.map((i) => i.description)).toEqual(['A', 'A', 'B'])
+    expect(items[1].id).toMatch(/^temp-/)
+    expect(items[1].id).not.toBe(source.id)
+    expect(items.map((i) => i.sort_order)).toEqual([0, 1, 2])
+    expect(result.current[0].sections[0].subtotal).toBe(400)
+    expect(result.current[0].isDirty).toBe(true)
+  })
+
+  it('restores a deleted line at its old position as a NEW row (never reuses the saved id)', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    const removed = result.current[0].sections[0].items[0]
+    act(() => {
+      result.current[1]({ type: 'REMOVE_ITEM', sectionId: 'sec-1', itemId: 'a' })
+    })
+    act(() => {
+      result.current[1]({ type: 'INSERT_ITEM', sectionId: 'sec-1', index: 0, item: removed })
+    })
+    const items = result.current[0].sections[0].items
+    expect(items.map((i) => i.description)).toEqual(['A', 'B'])
+    expect(items[0].id).not.toBe('a')
+  })
+
+  it('clamps an out-of-range index to the end', () => {
+    const { result } = renderHook(() => useEstimateReducer(buildEstimate()))
+    const source = result.current[0].sections[0].items[0]
+    act(() => {
+      result.current[1]({ type: 'INSERT_ITEM', sectionId: 'sec-1', index: 99, item: source })
+    })
+    expect(result.current[0].sections[0].items.map((i) => i.description)).toEqual(['A', 'B', 'A'])
   })
 })

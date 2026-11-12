@@ -9,6 +9,7 @@ import {
   DndContext,
   closestCenter,
   type DragEndEvent,
+  MouseSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -71,9 +72,10 @@ import type {
   DocumentPhoto,
   EstimateDocumentData,
 } from '@/lib/estimate/document/model'
-import { ItemCardMobile, ItemCardMobileHeader } from './item-card-mobile'
+import { ItemSummaryRow } from './item-card-mobile'
+import { ItemEditorSheet } from './item-editor-sheet'
 import { PriceBookCombobox } from './price-book-combobox'
-import type { EstimateAction } from './use-estimate-reducer'
+import type { EditorItem, EstimateAction } from './use-estimate-reducer'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import type { PriceBookItem } from '@/lib/queries/price-book'
 
@@ -539,69 +541,47 @@ function SortableDocumentItemRow({
 }
 
 // ---------------------------------------------------------------------------
-// SortableItemCardMobile — the desktop row folded for the sm:hidden branch.
-// Same dnd-kit wiring and dispatches as SortableDocumentItemRow; the card
-// itself lives in item-card-mobile.tsx.
+// SortableItemSummaryRow — the mobile (sm:hidden) item row: a read summary
+// that opens the item editor sheet on tap and reorders on long press.
 // ---------------------------------------------------------------------------
 
-function SortableItemCardMobile({
+function SortableItemSummaryRow({
   item,
-  sectionId,
-  dispatch,
   currencyCode,
-  lang,
-  priceBookItems,
-  L,
-  isDiscountDraft,
-  onAddDiscountDraft,
-  onRemoveDiscountDraft,
+  onOpen,
 }: {
   item: DocumentItem
-  sectionId: string
-  dispatch: React.Dispatch<EstimateAction>
   currencyCode: string
-  lang: EstimateLanguage
-  priceBookItems: PriceBookItem[]
-  L: DocLabels
-  isDiscountDraft: boolean
-  onAddDiscountDraft: (itemId: string) => void
-  onRemoveDiscountDraft: (itemId: string) => void
+  onOpen: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.6 : 1,
+    position: 'relative' as const,
+    zIndex: isDragging ? 10 : undefined,
   }
 
   return (
-    <ItemCardMobile
+    <ItemSummaryRow
       item={item}
-      onUpdate={(field, value) =>
-        dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field, value })
-      }
-      onRemove={() => dispatch({ type: 'REMOVE_ITEM', sectionId, itemId: item.id })}
-      onSelectPriceBookItem={(pb) =>
-        dispatch({
-          type: 'APPLY_PRICE_BOOK_ITEM',
-          sectionId,
-          itemId: item.id,
-          item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
-        })
-      }
-      priceBookItems={priceBookItems}
       currencyCode={currencyCode}
-      unitOptions={resolveUnitOptions(lang, item.unit ?? null)}
-      labels={L}
-      showDiscount={(item.discount ?? 0) !== 0 || isDiscountDraft}
-      onAddDiscount={() => onAddDiscountDraft(item.id)}
-      onRemoveDiscount={() => onRemoveDiscountDraft(item.id)}
-      dragHandleProps={{ ...attributes, ...listeners }}
+      onOpen={onOpen}
+      dragProps={{ ...attributes, ...listeners }}
       sortableRef={setNodeRef}
       style={style}
     />
   )
+}
+
+/** Opens the mobile item editor for one item of one section. */
+type OpenItemEditor = (sectionId: string, itemId: string, isNew?: boolean) => void
+
+/** Below Tailwind's sm breakpoint the item list is the mobile summary list. */
+function isMobileViewport(): boolean {
+  return typeof window !== 'undefined' && !window.matchMedia('(min-width: 640px)').matches
 }
 
 // ---------------------------------------------------------------------------
@@ -620,6 +600,7 @@ function DocumentSectionBlock({
   dragHandleProps,
   priceBookItems = [],
   showSectionSubtotal = true,
+  onOpenItem,
 }: {
   section: DocumentSection
   dispatch?: React.Dispatch<EstimateAction>
@@ -634,10 +615,20 @@ function DocumentSectionBlock({
   /** False in read-only view when this is the only visible section (its subtotal
    *  would just repeat the Subtotal row right below). Edit mode always shows it. */
   showSectionSubtotal?: boolean
+  /** Edit mode, mobile: opens the item editor sheet (owned by EstimateDocument). */
+  onOpenItem?: OpenItemEditor
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  )
+
+  // Mobile summary rows carry the drag listeners on the whole row, so only a
+  // long press may start a drag (a swipe must keep scrolling the page, a tap
+  // must open the editor). Mouse drags still work on a narrow desktop window.
+  const mobileSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
   )
 
   const itemDndId = `dnd-items-${section.id}`
@@ -683,12 +674,14 @@ function DocumentSectionBlock({
         data-page-block-id={`${section.id}-header`}
         // Edit mode on sm+: the same gutter as the item rows (handle 4px,
         // ⋮ 20px, title text 40px). Phones keep handle · title · ⋮ in a row.
-        className={`flex items-center py-2 group/header ${isEditable ? 'pl-6 pr-6 sm:pl-1 sm:pr-10' : SECTION_PX}`}
+        // Phones: the handle sits INSIDE the 24px gutter (absolute), so the title
+        // text starts on the same 24px rail as every item, label and total.
+        className={`flex items-center py-2 group/header ${isEditable ? 'relative pl-6 pr-6 sm:pl-1 sm:pr-10' : SECTION_PX}`}
         style={{ backgroundColor: brandColor }}
       >
         {isEditable && (
           <span
-            className="order-1 cursor-grab text-white/40 group-hover/header:text-white/70 flex-shrink-0 transition-colors"
+            className="order-1 cursor-grab text-white/40 group-hover/header:text-white/70 flex-shrink-0 transition-colors absolute inset-y-0 left-0 flex w-6 items-center justify-center touch-none sm:static sm:w-auto sm:touch-auto"
             {...dragHandleProps}
           >
             <GripVertical className="h-3.5 w-3.5" />
@@ -712,7 +705,7 @@ function DocumentSectionBlock({
               if (e.key === 'Enter') e.preventDefault()
             }}
             style={{ color: brandOnFill }}
-            className="order-3 ml-2 sm:ml-0.5 flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0 resize-none [field-sizing:content] break-words"
+            className="order-3 -ml-1 sm:ml-0.5 flex-1 bg-transparent font-semibold text-base tracking-wide focus:outline-none placeholder:text-white/50 focus:bg-white/10 rounded px-1 min-w-0 resize-none [field-sizing:content] break-words"
           />
         ) : (
           <span className="flex-1 min-w-0 break-words font-semibold text-base tracking-wide select-none" style={{ color: brandOnFill }}>{section.title}</span>
@@ -725,7 +718,7 @@ function DocumentSectionBlock({
                 type="button"
                 aria-label={L.sectionActions}
                 style={{ color: brandOnFill }}
-                className="order-4 ml-2 p-1 sm:order-2 sm:ml-0.5 sm:p-0 flex-shrink-0 transition-opacity opacity-60 hover:opacity-100"
+                className="order-4 ml-2 -mr-1 p-1 sm:order-2 sm:ml-0.5 sm:mr-0 sm:p-0 flex-shrink-0 transition-opacity opacity-60 hover:opacity-100"
               >
                 <MoreVertical className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
@@ -744,14 +737,14 @@ function DocumentSectionBlock({
         )}
       </div>
 
-      {/* Mobile: the desktop table folded — same header, same row
-          controls, same dnd-kit reorder (own DndContext so the hidden
-          desktop table never shares droppable ids with it). */}
+      {/* Mobile: a read list of item summaries. Tap opens the item editor
+          sheet; long press reorders (own DndContext so the hidden desktop
+          table never shares droppable ids with it). */}
       <div className="sm:hidden">
         {isEditable && dispatch ? (
           <DndContext
             id={`${itemDndId}-mobile`}
-            sensors={sensors}
+            sensors={mobileSensors}
             collisionDetection={closestCenter}
             onDragEnd={handleItemDragEnd}
           >
@@ -759,20 +752,12 @@ function DocumentSectionBlock({
               items={section.items.map((i) => i.id)}
               strategy={verticalListSortingStrategy}
             >
-              <ItemCardMobileHeader labels={L} />
               {section.items.map((item) => (
-                <SortableItemCardMobile
+                <SortableItemSummaryRow
                   key={item.id}
                   item={item}
-                  sectionId={section.id}
-                  dispatch={dispatch}
                   currencyCode={currencyCode}
-                  lang={lang}
-                  priceBookItems={priceBookItems}
-                  L={L}
-                  isDiscountDraft={validDiscountDraftIds.includes(item.id)}
-                  onAddDiscountDraft={addDiscountDraft}
-                  onRemoveDiscountDraft={removeDiscountDraft}
+                  onOpen={() => onOpenItem?.(section.id, item.id)}
                 />
               ))}
             </SortableContext>
@@ -890,8 +875,19 @@ function DocumentSectionBlock({
         // at 40px with the item text.
         <div className="pl-6 pr-6 sm:pl-[21px] sm:pr-10 py-1.5 border-t border-dashed border-border/50">
           <button
-            onClick={() => dispatch({ type: 'ADD_ITEM', sectionId: section.id })}
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 sm:gap-[7px] transition-colors select-none"
+            onClick={() => {
+              // On a phone the new line opens straight in the item editor; the
+              // desktop table keeps adding an empty row to type into.
+              if (onOpenItem && isMobileViewport()) {
+                const itemId = 'temp-' + crypto.randomUUID()
+                dispatch({ type: 'ADD_ITEM', sectionId: section.id, itemId })
+                onOpenItem(section.id, itemId, true)
+              } else {
+                dispatch({ type: 'ADD_ITEM', sectionId: section.id })
+              }
+            }}
+            // Phones: the "+" hangs in the gutter so the label starts on the 24px rail.
+            className="-ml-[18px] sm:ml-0 text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 sm:gap-[7px] transition-colors select-none"
           >
             <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
             {L.addItem}
@@ -903,7 +899,8 @@ function DocumentSectionBlock({
       {showSectionSubtotal && (
       <div
         data-page-block-id={`${section.id}-subtotal`}
-        className={`flex justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}
+        // Phones: label on the left rail, amount on the right rail, like the totals rows.
+        className={`flex justify-between sm:justify-end items-center gap-3 ${SECTION_PX} py-2 border-t border-border/50 bg-muted/10`}
       >
         <span className="text-sm text-muted-foreground select-none">{L.sectionSubtotal}</span>
         <span className="text-sm font-semibold tabular-nums">
@@ -929,6 +926,7 @@ function SortableDocumentSection({
   L,
   lang,
   priceBookItems,
+  onOpenItem,
 }: {
   section: DocumentSection
   dispatch: React.Dispatch<EstimateAction>
@@ -939,6 +937,7 @@ function SortableDocumentSection({
   L: DocLabels
   lang: EstimateLanguage
   priceBookItems: PriceBookItem[]
+  onOpenItem?: OpenItemEditor
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id })
@@ -961,6 +960,7 @@ function SortableDocumentSection({
         lang={lang}
         dragHandleProps={listeners}
         priceBookItems={priceBookItems}
+        onOpenItem={onOpenItem}
       />
     </div>
   )
@@ -1642,6 +1642,67 @@ export function EstimateDocument({
     dispatch({ type: 'REORDER_SECTIONS', sectionIds: reordered })
   }
 
+  // ---- Mobile item editor sheet -------------------------------------------
+  // Tracked by POSITION, not id: an autosave remaps temp- ids to server uuids
+  // (MARK_SAVED) while the sheet is open, and section blocks are keyed by id,
+  // so an id-based target would vanish mid-typing. The sheet is modal, so
+  // nothing can reorder sections or items underneath it.
+  const { t: tUi } = useTranslation()
+  const [itemEditor, setItemEditor] = useState<
+    { sectionIndex: number; itemIndex: number; isNew: boolean } | null
+  >(null)
+  const sectionsRef = useRef(data.sections)
+  sectionsRef.current = data.sections
+
+  const openItemEditor: OpenItemEditor = (sectionId, itemId, isNew = false) => {
+    const sectionIndex = data.sections.findIndex((s) => s.id === sectionId)
+    if (sectionIndex === -1) return
+    const existing = data.sections[sectionIndex].items.findIndex((i) => i.id === itemId)
+    // A just-added item is not in `data` yet (same tick): it is appended last.
+    const itemIndex = existing === -1 ? data.sections[sectionIndex].items.length : existing
+    setItemEditor({ sectionIndex, itemIndex, isNew })
+  }
+
+  const editorSection = itemEditor ? data.sections[itemEditor.sectionIndex] : undefined
+  const editorItem = itemEditor ? editorSection?.items[itemEditor.itemIndex] ?? null : null
+
+  function toEditorItem(item: DocumentItem): EditorItem {
+    return { ...item, sort_order: item.sort_order ?? 0, price_source: item.price_source ?? null }
+  }
+
+  function handleDeleteEditorItem() {
+    if (!dispatch || !itemEditor || !editorSection || !editorItem) return
+    const { sectionIndex, itemIndex } = itemEditor
+    const removed = toEditorItem(editorItem)
+    dispatch({ type: 'REMOVE_ITEM', sectionId: editorSection.id, itemId: editorItem.id })
+    setItemEditor(null)
+    toast(tUi('Item deleted'), {
+      action: {
+        label: tUi('Undo'),
+        onClick: () => {
+          // Resolve the section at undo time: a save may have remapped its id.
+          const section = sectionsRef.current[sectionIndex]
+          if (!section) return
+          dispatch({ type: 'INSERT_ITEM', sectionId: section.id, index: itemIndex, item: removed })
+        },
+      },
+    })
+  }
+
+  function handleDuplicateEditorItem() {
+    if (!dispatch || !itemEditor || !editorSection || !editorItem) return
+    const index = itemEditor.itemIndex + 1
+    dispatch({
+      type: 'INSERT_ITEM',
+      sectionId: editorSection.id,
+      index,
+      item: toEditorItem(editorItem),
+    })
+    // Keep editing on the copy, the usual next step after duplicating.
+    setItemEditor({ ...itemEditor, itemIndex: index, isNew: false })
+    toast.success(tUi('Item duplicated'))
+  }
+
   const companyAddr = company ? formatAddress(company) : null
   const clientAddr = client ? formatAddress(client) : null
   // hasTerms wraps the terms container; each individual TermsBlock also
@@ -1682,7 +1743,7 @@ export function EstimateDocument({
         '--card-foreground': '240 10% 3.9%',
         // The document forces a light "paper" surface. The glass tokens must be
         // overridden too, otherwise glass cards nested in the paper (e.g. the
-        // mobile ItemCardMobile) inherit the app's DARK glass fill and render as
+        // mobile item rows) inherit the app's DARK glass fill and render as
         // dark-grey slabs with near-invisible labels on white. Pin them light.
         '--glass-bg': 'rgba(255, 255, 255, 0.65)',
         '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
@@ -1908,6 +1969,7 @@ export function EstimateDocument({
                   L={L}
                   lang={lang}
                   priceBookItems={priceBookItems}
+                  onOpenItem={openItemEditor}
                 />
               ))}
             </SortableContext>
@@ -1929,12 +1991,64 @@ export function EstimateDocument({
         )}
       </div>
 
+      {/* Mobile item editor (one item at a time). Rendered for the editable
+          document only; it portals out of the paper, so it uses app colors. */}
+      {isEditable && dispatch && (
+        <ItemEditorSheet
+          item={editorItem}
+          isNew={itemEditor?.isNew}
+          editorKey={itemEditor ? `${itemEditor.sectionIndex}:${itemEditor.itemIndex}` : undefined}
+          onClose={() => {
+            // A new line closed without any content is dropped, so tapping
+            // "Add item" by mistake leaves nothing behind.
+            if (
+              itemEditor?.isNew &&
+              editorSection &&
+              editorItem &&
+              !editorItem.description.trim() &&
+              editorItem.unit_price === 0
+            ) {
+              dispatch({ type: 'REMOVE_ITEM', sectionId: editorSection.id, itemId: editorItem.id })
+            }
+            setItemEditor(null)
+          }}
+          onUpdate={(field, value) => {
+            if (!editorSection || !editorItem) return
+            dispatch({ type: 'UPDATE_ITEM', sectionId: editorSection.id, itemId: editorItem.id, field, value })
+          }}
+          onSelectPriceBookItem={(pb) => {
+            if (!editorSection || !editorItem) return
+            dispatch({
+              type: 'APPLY_PRICE_BOOK_ITEM',
+              sectionId: editorSection.id,
+              itemId: editorItem.id,
+              item: { name: pb.name, unit: pb.unit, unit_price: pb.unit_price },
+            })
+          }}
+          onDelete={handleDeleteEditorItem}
+          onDuplicate={handleDuplicateEditorItem}
+          currencyCode={data.currency_code}
+          unitOptions={resolveUnitOptions(lang, editorItem?.unit ?? null)}
+          priceBookItems={priceBookItems}
+        />
+      )}
+
       {/* Add section / details — edit mode only */}
       {isEditable && dispatch && (
         <div className="px-6 sm:px-10 py-3 border-t border-dashed border-border/50 flex items-center gap-2">
+          {/* Phones: a plain row like "Add item" ("+" in the gutter, label on
+              the 24px rail); sm+: the tinted pill. */}
           <button
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
-            className="text-sm font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
+            className="sm:hidden -ml-[22px] text-sm font-medium flex items-center gap-1.5 py-1.5 select-none"
+            style={{ color: brandText }}
+          >
+            <Plus className="h-4 w-4" />
+            {L.addSection}
+          </button>
+          <button
+            onClick={() => dispatch({ type: 'ADD_SECTION' })}
+            className="hidden sm:flex text-sm font-medium items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
             style={{
               color: brandText,
               backgroundColor: `${brandColor}1A`,
