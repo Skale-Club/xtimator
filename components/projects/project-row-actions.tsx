@@ -24,9 +24,7 @@ import {
 import {
   archiveProjectAction,
   unarchiveProjectAction,
-  softDeleteProjectAction,
-  restoreProjectAction,
-  hardDeleteProjectAction,
+  deleteProjectAction,
 } from '@/lib/actions/project'
 import type { ProjectListStatus } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -42,7 +40,6 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [softConfirmOpen, setSoftConfirmOpen] = useState(false)
 
   function run(
     action: () => Promise<{ data?: unknown; error?: string }>,
@@ -87,7 +84,7 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 variant="destructive"
                 disabled={isPending}
-                onClick={() => setSoftConfirmOpen(true)}
+                onClick={() => setConfirmOpen(true)}
               >
                 {t('Delete')}
               </DropdownMenuItem>
@@ -109,28 +106,9 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               <DropdownMenuItem
                 variant="destructive"
                 disabled={isPending}
-                onClick={() => setSoftConfirmOpen(true)}
-              >
-                {t('Delete')}
-              </DropdownMenuItem>
-            </>
-          )}
-          {status === 'trash' && (
-            <>
-              <DropdownMenuItem
-                disabled={isPending}
-                onClick={() =>
-                  run(() => restoreProjectAction(projectId), `"${projectName}" ${t('restored')}`)
-                }
-              >
-                {t('Restore')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                disabled={isPending}
                 onClick={() => setConfirmOpen(true)}
               >
-                {t('Delete permanently')}
+                {t('Delete')}
               </DropdownMenuItem>
             </>
           )}
@@ -152,40 +130,13 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 run(
-                  () => hardDeleteProjectAction(projectId),
+                  () => deleteProjectAction(projectId),
                   `"${projectName}" ${t('permanently deleted')}`
                 )
                 setConfirmOpen(false)
               }}
             >
               {isPending ? t('Deleting...') : t('Delete permanently')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={softConfirmOpen} onOpenChange={setSoftConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('Move project to Trash?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {`"${projectName}" ${t('will be moved to Trash. You can restore it from the Trash view within 30 days before it is permanently deleted.')}`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                run(
-                  () => softDeleteProjectAction(projectId),
-                  `"${projectName}" ${t('moved to Trash')}`
-                )
-                setSoftConfirmOpen(false)
-              }}
-            >
-              {isPending ? t('Moving...') : t('Move to Trash')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

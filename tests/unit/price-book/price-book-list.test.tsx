@@ -24,14 +24,14 @@ vi.mock('sonner', () => ({
 }))
 
 const mockDelete = vi.fn().mockResolvedValue({ data: { deleted: true } })
-const mockTrash = vi.fn().mockResolvedValue({ data: { trashed: 2 } })
+const mockTrash = vi.fn().mockResolvedValue({ data: { deleted: 2 } })
 const mockDeleteFolderWithItems = vi.fn().mockResolvedValue({ data: { deleted: true } })
 
 vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   updatePriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
   deletePriceBookItem: (...args: any[]) => mockDelete(...args),
-  trashPriceBookItems: (...args: any[]) => mockTrash(...args),
+  deletePriceBookItems: (...args: any[]) => mockTrash(...args),
   bulkAdjustPriceBookFolder: vi.fn().mockResolvedValue({ data: { updated: 2 } }),
   createFolder: vi.fn().mockResolvedValue({ data: {} }),
   updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
@@ -222,7 +222,7 @@ describe('PriceBookList', () => {
   })
 })
 
-// Quick-260718-t7d — bulk select-all + move-to-Trash from the category header.
+// Quick-260718-t7d — bulk select-all + permanent delete from the category header.
 describe('Bulk select and delete (quick-260718-t7d)', () => {
   beforeEach(() => {
     mockTrash.mockClear()
@@ -248,7 +248,7 @@ describe('Bulk select and delete (quick-260718-t7d)', () => {
     expect(screen.queryByTestId('bulk-delete-btn')).toBeNull()
   })
 
-  it('confirming bulk delete calls trashPriceBookItems with the selected ids', async () => {
+  it('confirming bulk delete calls deletePriceBookItems with the selected ids', async () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
     fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
     fireEvent.click(screen.getByTestId('bulk-delete-btn'))
@@ -307,7 +307,7 @@ describe('Select-all icon button (quick-260718-s8a)', () => {
 })
 
 // Quick-260718-d2f — category trash button is dual-function: with a selection it
-// bulk-trashes the selected items; with none it deletes the category + its items.
+// bulk-deletes the selected items; with none it deletes the category + its items.
 describe('Category trash button dual function (quick-260718-d2f)', () => {
   beforeEach(() => {
     mockTrash.mockClear()
@@ -315,7 +315,7 @@ describe('Category trash button dual function (quick-260718-d2f)', () => {
     mockRefresh.mockClear()
   })
 
-  it('with a selection, opens the bulk-delete dialog and trashes the selected ids', async () => {
+  it('with a selection, opens the bulk-delete dialog and deletes the selected ids', async () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
     fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
     fireEvent.click(screen.getByTestId('delete-folder-btn-folder-labor'))
@@ -335,9 +335,10 @@ describe('Category trash button dual function (quick-260718-d2f)', () => {
 
     const dialog = screen.getByRole('alertdialog')
     expect(within(dialog).getByRole('heading', { name: 'Delete Category' })).toBeDefined()
-    // Labor has 2 (unfiltered) items — copy announces they move to Trash
+    // Labor has 2 (unfiltered) items — copy warns they are deleted for good
     expect(dialog.textContent).toContain('2')
-    expect(dialog.textContent).toContain('to Trash')
+    expect(dialog.textContent).toContain('permanently delete its')
+    expect(dialog.textContent).toContain('This cannot be undone.')
   })
 
   it('confirming the Delete Category dialog calls deleteFolderWithItems with the folder id', async () => {

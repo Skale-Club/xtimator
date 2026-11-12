@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Settings, Trash2, LogOut, HelpCircle, GraduationCap, SunMoon } from 'lucide-react'
+import { Settings, LogOut, HelpCircle, GraduationCap, SunMoon } from 'lucide-react'
 import { ThemeSegmentedPicker } from '@/components/app-shell/theme-toggle'
 import { CreditMenuRow } from '@/components/app-shell/credit-chip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -28,7 +28,7 @@ interface MobileAccountMenuProps {
   /** Platform admin — shows the "Add new company" item in CompanySelector. */
   isAdmin?: boolean
   userName: string | null
-  /** Read-only public demo session — hides Settings + Trash (matches desktop). */
+  /** Read-only public demo session — hides Academy (matches desktop). */
   isDemo?: boolean
   /** At least one Academy course is visible (server-computed); adds "Academy" below App Tour. */
   academyAvailable?: boolean
@@ -42,7 +42,7 @@ interface MobileAccountMenuProps {
  *
  * Renders <CompanySelector> (Companies switcher + Add new company) with a custom
  * avatar trigger and an accountMenuSlot mirroring the desktop slot built in
- * Sidebar (user name/email header + Install app + Settings + Trash + App Tour +
+ * Sidebar (user name/email header + Install app + Settings + App Tour +
  * Sign Out). Mobile-only extras: the Credits row and the theme picker, which
  * the desktop keeps in its topbar but the narrow mobile header has no room for.
  * The company switch itself is handled entirely inside CompanySelector via the
@@ -106,13 +106,6 @@ export function MobileAccountMenu({
           <Settings className="h-4 w-4" />{t('Settings')}
         </Link>
       </DropdownMenuItem>
-      {!isDemo && (
-        <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/trash" className="flex items-center gap-2">
-            <Trash2 className="h-4 w-4" />{t('Trash')}
-          </Link>
-        </DropdownMenuItem>
-      )}
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>

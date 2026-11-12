@@ -64,7 +64,7 @@ import { PriceBookImportWizard } from '@/components/price-book/import-wizard'
 import { BulkAdjustDialog } from '@/components/price-book/bulk-adjust-dialog'
 import {
   deletePriceBookItem,
-  trashPriceBookItems,
+  deletePriceBookItems,
   createFolder,
   updateFolder,
   deleteFolderWithItems,
@@ -106,7 +106,7 @@ export function PriceBookList({
   const [adjustFolder, setAdjustFolder] = useState<{ id: string | null; name: string } | null>(null)
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 
-  // Bulk selection (quick-260718-t7d) — item ids selected for bulk trash.
+  // Bulk selection (quick-260718-t7d) — item ids selected for bulk delete.
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
 
@@ -248,11 +248,11 @@ export function PriceBookList({
     const ids = Array.from(selected)
     if (ids.length === 0) return
     startTransition(async () => {
-      const result = await trashPriceBookItems(ids)
+      const result = await deletePriceBookItems(ids)
       if ('error' in result && result.error) {
         toast.error(result.error)
       } else {
-        toast.success(t('Moved to Trash'))
+        toast.success(t('Deleted'))
         setSelected(new Set())
         router.refresh()
       }
@@ -268,7 +268,7 @@ export function PriceBookList({
       if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(`"${target.name}" ${t('moved to Trash')}`)
+        toast.success(`"${target.name}" ${t('deleted')}`)
         setSelected((prev) => {
           if (!prev.has(target.id)) return prev
           const next = new Set(prev)
@@ -311,7 +311,7 @@ export function PriceBookList({
     startTransition(async () => {
       const result = await deleteFolderWithItems(deletingFolderId)
       if (result.error) { toast.error(result.error); return }
-      toast.success(hadItems ? t('Category deleted — items moved to Trash') : t('Category deleted'))
+      toast.success(hadItems ? t('Category and its items deleted') : t('Category deleted'))
       setDeleteFolderDialogOpen(false)
       setDeletingFolderId(null)
       router.refresh()
@@ -511,7 +511,7 @@ export function PriceBookList({
                           data-testid={`delete-folder-btn-${folderId}`}
                           onClick={() => {
                             // Dual function (quick-260718-d2f): with a selection,
-                            // trash the selected items; with none, delete the
+                            // delete the selected items; with none, delete the
                             // category together with all its items.
                             if (selected.size > 0) {
                               setBulkDeleteDialogOpen(true)
@@ -735,13 +735,13 @@ export function PriceBookList({
         folders={folders}
       />
 
-      {/* Bulk Delete Confirmation (quick-260718-t7d) */}
+      {/* Bulk Delete Confirmation — permanent, there is no Trash */}
       <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('Delete selected items')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`${t('Move')} ${selected.size} ${selected.size === 1 ? t('item') : t('items')} ${t('to Trash? You can restore them later from Trash.')}`}
+              {`${t('Permanently delete')} ${selected.size} ${selected.size === 1 ? t('item') : t('items')}? ${t('This cannot be undone.')}`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -764,7 +764,7 @@ export function PriceBookList({
             <AlertDialogTitle>{t('Delete Item')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deletingItem
-                ? `${t('Delete')} "${deletingItem.name}"? ${t('It will move to Trash, where you can restore it later.')}`
+                ? `${t('Permanently delete')} "${deletingItem.name}"? ${t('This cannot be undone.')}`
                 : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -788,7 +788,7 @@ export function PriceBookList({
             <AlertDialogTitle>{t('Delete Category')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deletingFolderItemCount > 0
-                ? `${t('This will delete the category and move its')} ${deletingFolderItemCount} ${deletingFolderItemCount === 1 ? t('item') : t('items')} ${t('to Trash. You can restore them later from Trash.')}`
+                ? `${t('This will delete the category and permanently delete its')} ${deletingFolderItemCount} ${deletingFolderItemCount === 1 ? t('item') : t('items')}. ${t('This cannot be undone.')}`
                 : t('This will delete the empty category.')}
             </AlertDialogDescription>
           </AlertDialogHeader>

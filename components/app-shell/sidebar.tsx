@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { ChevronLeft, ChevronRight, Settings, Trash2, LogOut, HelpCircle, GraduationCap } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Settings, LogOut, HelpCircle, GraduationCap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
@@ -121,15 +121,6 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user,
           <Settings className="h-4 w-4" />{t('Settings')}
         </Link>
       </DropdownMenuItem>
-      {/* quick-260725-dts: Trash moved off the sidebar menu into this dropdown,
-          next to Settings. */}
-      {!isDemo && (
-        <DropdownMenuItem asChild className="cursor-pointer">
-          <Link href="/trash" className="flex items-center gap-2">
-            <Trash2 className="h-4 w-4" />{t('Trash')}
-          </Link>
-        </DropdownMenuItem>
-      )}
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>
@@ -236,7 +227,7 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user,
 
       {/* Navigation */}
       <nav className={cn('flex-1 flex flex-col gap-1', collapsed ? 'px-0 py-2 items-center' : 'p-2')}>
-        {/* quick-260725-dts: exclude `userMenu` items (Trash + Settings) from the
+        {/* quick-260725-dts: exclude `userMenu` items (Settings) from the
             desktop sidebar menu — they now live only inside the CompanySelector
             (profile) dropdown via accountMenuSlot below. */}
         {NAV_ITEMS.filter((item) => !(isDemo && item.demoHidden) && !item.userMenu).map((item) => {

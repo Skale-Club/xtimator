@@ -29,7 +29,6 @@ const ALL_CLIENTS = '__all__'
 const VIEW_TABS: ReadonlyArray<{ value: ProjectListStatus; label: string }> = [
   { value: 'active', label: 'Active' },
   { value: 'archived', label: 'Archived' },
-  { value: 'trash', label: 'Trash' },
 ]
 
 interface Props {
@@ -158,18 +157,14 @@ export function ProjectsPageShell({
               ? 'No projects for this client here'
               : status === 'active'
                 ? 'No projects yet'
-                : status === 'archived'
-                  ? 'No archived projects'
-                  : 'Trash is empty'
+                : 'No archived projects'
           }
           emptyDescription={
             clientId
               ? 'Pick another client or clear the filter.'
               : status === 'active'
                 ? 'Create your first project to get started.'
-                : status === 'archived'
-                  ? 'Archived projects appear here.'
-                  : 'Soft-deleted projects appear here for 30 days before being permanently removed.'
+                : 'Archived projects appear here.'
           }
           emptyActionLabel={status === 'active' && !clientId ? 'Create project' : undefined}
           emptyActionHref={status === 'active' && !clientId ? '?modal=new-project' : undefined}

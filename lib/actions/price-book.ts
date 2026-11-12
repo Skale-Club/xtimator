@@ -101,11 +101,9 @@ export async function deleteFolder(folderId: string) {
   return { data: { deleted: true } }
 }
 
-/** Delete a category AND move all its items to Trash (quick-260718-d2f).
- *  Active items are soft-deleted first; deleting the folder row then relies on
- *  the FK's ON DELETE SET NULL to un-categorize any remaining (already-trashed)
- *  rows, so everything in Trash stays restorable — restored items land in
- *  Uncategorized. */
+/** Delete a category AND permanently delete all its items. There is no Trash:
+ *  the UI confirms first. Rows soft-deleted before Trash was removed are left
+ *  alone; the FK's ON DELETE SET NULL un-categorizes them when the folder goes. */
 export async function deleteFolderWithItems(folderId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -115,13 +113,13 @@ export async function deleteFolderWithItems(folderId: string) {
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
-  const { error: trashErr } = await supabase
+  const { error: itemsErr } = await supabase
     .from('company_price_book')
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq('company_id', company.id)
     .eq('folder_id', folderId)
     .is('deleted_at', null)
-  if (trashErr) return { error: 'Failed to move items to Trash. Please try again.' }
+  if (itemsErr) return { error: 'Failed to delete the items. Please try again.' }
 
   const { error } = await supabase
     .from('price_book_folders')
@@ -131,7 +129,6 @@ export async function deleteFolderWithItems(folderId: string) {
   if (error) return { error: 'Failed to delete category.' }
 
   revalidatePath('/price-book')
-  revalidatePath('/trash')
   return { data: { deleted: true } }
 }
 
@@ -270,7 +267,7 @@ export async function createPriceBookItem(
       // thumbnails have been silently broken. The proxy path is served to authenticated
       // company members by app/storage/[bucket]/[...key]/route.ts's canReadPrivateKey
       // gate. This value is rendered ONLY on authenticated surfaces (price-book list /
-      // item dialog / trash) — never on a share page or in a PDF.
+      // item dialog) — never on a share page or in a PDF.
       const imageUrl = storageProxyPath('photos', key)
       const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
@@ -351,7 +348,7 @@ export async function updatePriceBookItem(
       // thumbnails have been silently broken. The proxy path is served to authenticated
       // company members by app/storage/[bucket]/[...key]/route.ts's canReadPrivateKey
       // gate. This value is rendered ONLY on authenticated surfaces (price-book list /
-      // item dialog / trash) — never on a share page or in a PDF.
+      // item dialog) — never on a share page or in a PDF.
       const imageUrl = storageProxyPath('photos', key)
       const positionCheck = imagePositionSchema.safeParse(imagePosition ?? null)
       await supabase
@@ -392,8 +389,8 @@ export async function fetchItemOptions(itemId: string): Promise<
   return { data: data ?? [] }
 }
 
-// Quick-260718-t7d — deleting from the price book is a SOFT delete: the row
-// gets deleted_at and moves to /trash, where it can be restored or destroyed.
+// Deleting from the price book is permanent (there is no Trash); the UI
+// confirms first. Options cascade via their FK.
 export async function deletePriceBookItem(itemId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -401,72 +398,22 @@ export async function deletePriceBookItem(itemId: string) {
   if (denied) return denied
   const billingDenied = await billingEditDenied(ctx.company.id)
   if (billingDenied) return billingDenied
-  const { supabase } = ctx
+  const { supabase, company } = ctx
 
   const { error } = await supabase
     .from('company_price_book')
-    .update({ deleted_at: new Date().toISOString() })
+    .delete()
     .eq('id', itemId)
+    .eq('company_id', company.id)
 
   if (error) return { error: 'Failed to delete item. Please try again.' }
 
   revalidatePath('/price-book')
-  revalidatePath('/trash')
   return { data: { deleted: true } }
 }
 
-/** Bulk soft delete — moves the given items to Trash (quick-260718-t7d). */
-export async function trashPriceBookItems(itemIds: string[]) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase, company } = ctx
-  if (itemIds.length === 0) return { error: 'No items selected.' }
-
-  const { error } = await supabase
-    .from('company_price_book')
-    .update({ deleted_at: new Date().toISOString() })
-    .in('id', itemIds)
-    .eq('company_id', company.id)
-
-  if (error) return { error: 'Failed to move items to Trash. Please try again.' }
-
-  revalidatePath('/price-book')
-  revalidatePath('/trash')
-  return { data: { trashed: itemIds.length } }
-}
-
-/** Restore trashed items back into the price book (quick-260718-t7d). */
-export async function restorePriceBookItems(itemIds: string[]) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase, company } = ctx
-  if (itemIds.length === 0) return { error: 'No items selected.' }
-
-  const { error } = await supabase
-    .from('company_price_book')
-    .update({ deleted_at: null })
-    .in('id', itemIds)
-    .eq('company_id', company.id)
-
-  if (error) return { error: 'Failed to restore items. Please try again.' }
-
-  revalidatePath('/price-book')
-  revalidatePath('/trash')
-  return { data: { restored: itemIds.length } }
-}
-
-/** Permanently delete specific trashed items. Only rows already in Trash
- *  (deleted_at set) can be destroyed — an active item can never be hard-deleted
- *  through this path (quick-260718-t7d). */
-export async function destroyPriceBookItems(itemIds: string[]) {
+/** Bulk permanent delete of the selected items. */
+export async function deletePriceBookItems(itemIds: string[]) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
@@ -481,34 +428,11 @@ export async function destroyPriceBookItems(itemIds: string[]) {
     .delete()
     .in('id', itemIds)
     .eq('company_id', company.id)
-    .not('deleted_at', 'is', null)
 
   if (error) return { error: 'Failed to delete items. Please try again.' }
 
-  revalidatePath('/trash')
-  return { data: { destroyed: itemIds.length } }
-}
-
-/** Permanently delete EVERYTHING in the company's Trash (quick-260718-t7d). */
-export async function emptyPriceBookTrash() {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase, company } = ctx
-
-  const { error, count } = await supabase
-    .from('company_price_book')
-    .delete({ count: 'exact' })
-    .eq('company_id', company.id)
-    .not('deleted_at', 'is', null)
-
-  if (error) return { error: 'Failed to empty Trash. Please try again.' }
-
-  revalidatePath('/trash')
-  return { data: { destroyed: count ?? 0 } }
+  revalidatePath('/price-book')
+  return { data: { deleted: itemIds.length } }
 }
 
 export async function importPriceBookItems(

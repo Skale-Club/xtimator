@@ -29,8 +29,7 @@
  *     persisted `photos` URL is `company_price_book.image_url`, rendered
  *     exclusively on authenticated app surfaces
  *     (`components/price-book/price-book-list.tsx`,
- *     `components/price-book/price-book-item-dialog.tsx`,
- *     `components/trash/trash-list.tsx`). It is NEVER rendered on a share page
+ *     `components/price-book/price-book-item-dialog.tsx`). It is NEVER rendered on a share page
  *     or in a PDF. Tenant job-site photos on share pages and in PDFs keep
  *     resolving through short-lived signed URLs generated server-side
  *     (`lib/queries/share.ts`, `lib/pdf/render-estimate-pdf.ts`) — those are not

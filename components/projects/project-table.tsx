@@ -33,7 +33,7 @@ interface ProjectTableProps<TProject extends ProjectTableRow> {
   searchPlaceholder?: string
   /** Client-side status tabs; the first one ("All") shows everything. */
   statusTabs?: ReadonlyArray<{ value: string; label: string }>
-  /** Server-side view tabs the caller owns (Projects: Active / Archived / Trash). */
+  /** Server-side view tabs the caller owns (Projects: Active / Archived). */
   viewTabs?: ReadonlyArray<{ value: string; label: string }>
   viewValue?: string
   onViewChange?: (value: string) => void

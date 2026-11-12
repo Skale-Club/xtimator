@@ -145,6 +145,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // Trash was removed (deletes are permanent); old links land on Projects.
+      { source: '/trash', destination: '/projects', permanent: false },
+    ];
+  },
 };
 
 export default withSentryConfig(nextConfig, {

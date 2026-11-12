@@ -232,6 +232,8 @@ export async function deleteProjectAction(projectId: string) {
   }
 
   revalidatePath('/dashboard')
+  revalidatePath('/projects')
+  revalidatePath('/', 'layout')
   return { data: { deleted: true } }
 }
 
@@ -392,7 +394,8 @@ export async function renameProjectAction(projectId: string, name: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Quick task 260522-lhp (QUICK-LHP-BE-01) — Two-stage trash + archive actions.
+// Quick task 260522-lhp (QUICK-LHP-BE-01) — archive actions. (The Trash half
+// was removed: deleting a project is permanent, via deleteProjectAction.)
 //
 // RLS already enforces company scope for both UPDATE and DELETE on `projects`
 // (lines 192-196 of 20260409000001_initial_schema.sql). The actions only
@@ -449,83 +452,3 @@ export async function unarchiveProjectAction(projectId: string) {
   return { data: { unarchived: true } }
 }
 
-export async function softDeleteProjectAction(projectId: string) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase } = ctx
-
-  // Soft delete: sets deleted_at. Row hides from Active AND Archived; appears in Trash.
-  // We do NOT clear archived_at — restoring later should bring it back to wherever it was.
-  const { error } = await supabase
-    .from('projects')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('id', projectId)
-
-  if (error) return { error: 'Failed to delete project. Please try again.' }
-  revalidatePath('/projects')
-  revalidatePath('/dashboard')
-  revalidatePath('/', 'layout')
-  return { data: { soft_deleted: true } }
-}
-
-export async function restoreProjectAction(projectId: string) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase } = ctx
-
-  // Restore = clear deleted_at. archived_at is preserved (intentional — see softDelete above).
-  // If the row was archived before deletion, it returns to Archived; otherwise to Active.
-  const { error } = await supabase
-    .from('projects')
-    .update({ deleted_at: null })
-    .eq('id', projectId)
-
-  if (error) return { error: 'Failed to restore project. Please try again.' }
-  revalidatePath('/projects')
-  revalidatePath('/dashboard')
-  revalidatePath('/', 'layout')
-  return { data: { restored: true } }
-}
-
-export async function hardDeleteProjectAction(projectId: string) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase } = ctx
-
-  if (await projectHasSignedEstimate(supabase, projectId)) {
-    return { error: SIGNED_PROJECT_DELETE_ERROR }
-  }
-
-  // Hard delete: cascades to recordings/photos/estimates/sections/items/activity per FK ON DELETE CASCADE.
-  // Only valid for rows that are already in Trash (deleted_at IS NOT NULL) — defense-in-depth filter.
-  // UI gates this behind an AlertDialog (project-row-actions.tsx).
-  const { error } = await supabase
-    .from('projects')
-    .delete()
-    .eq('id', projectId)
-    .not('deleted_at', 'is', null)
-
-  if (error) {
-    // Defensive: same race-window mapping as deleteProjectAction above.
-    if ((error as { code?: string }).code === 'P0005') {
-      return { error: SIGNED_PROJECT_DELETE_ERROR }
-    }
-    return { error: 'Failed to permanently delete project. Please try again.' }
-  }
-  revalidatePath('/projects')
-  revalidatePath('/dashboard')
-  revalidatePath('/', 'layout')
-  return { data: { hard_deleted: true } }
-}

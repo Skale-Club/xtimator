@@ -112,7 +112,6 @@ const AUTHENTICATED_ONLY_PERSISTED = {
     renderedOn: [
       'components/price-book/price-book-list.tsx',
       'components/price-book/price-book-item-dialog.tsx',
-      'components/trash/trash-list.tsx',
     ],
   },
 } as const

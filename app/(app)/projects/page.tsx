@@ -8,7 +8,7 @@ import { ProjectsPageShell } from '@/components/projects/projects-page-shell'
 
 function parseStatus(raw: string | string[] | undefined): ProjectListStatus {
   const v = Array.isArray(raw) ? raw[0] : raw
-  return v === 'archived' || v === 'trash' ? v : 'active'
+  return v === 'archived' ? v : 'active'
 }
 
 function parseClient(raw: string | string[] | undefined): string | null {

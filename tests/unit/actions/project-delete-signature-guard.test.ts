@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
  * Security-hardening S3 (audit finding A) — evidence-retention pre-check on
- * project deletion. deleteProjectAction/hardDeleteProjectAction (lib/actions/
+ * project deletion. deleteProjectAction (lib/actions/
  * project.ts) previously had no awareness of estimate_signatures at all: RLS
  * lets any company member DELETE a projects row, and estimates.project_id ON
  * DELETE CASCADE (through to estimate_signatures) would silently destroy a
@@ -152,42 +152,5 @@ describe('deleteProjectAction — signature pre-check', () => {
     const result = await deleteProjectAction('proj_1')
 
     expect(result.error).toBe('Failed to delete project. Please try again.')
-  })
-})
-
-describe('hardDeleteProjectAction — signature pre-check', () => {
-  it('deletes normally when the project has no signed estimates', async () => {
-    estimateIdsForProject = ['est_1']
-    signatureRows = []
-    const { hardDeleteProjectAction } = await import('@/lib/actions/project')
-
-    const result = await hardDeleteProjectAction('proj_1')
-
-    expect(result.error).toBeUndefined()
-    expect(result.data).toEqual({ hard_deleted: true })
-    expect(projectsDeleteAttempted).toBe(true)
-  })
-
-  it('rejects with a friendly error BEFORE attempting the delete when a signed estimate exists', async () => {
-    estimateIdsForProject = ['est_1']
-    signatureRows = [{ id: 'sig_1' }]
-    const { hardDeleteProjectAction } = await import('@/lib/actions/project')
-
-    const result = await hardDeleteProjectAction('proj_1')
-
-    expect(result.error).toMatch(/signature/i)
-    expect(projectsDeleteAttempted).toBe(false)
-  })
-
-  it('maps the trigger ERRCODE (P0005) defensively when a signature slips in after the pre-check', async () => {
-    estimateIdsForProject = ['est_1']
-    signatureRows = []
-    deleteError = { code: 'P0005', message: 'estimate_signed_undeletable' }
-    const { hardDeleteProjectAction } = await import('@/lib/actions/project')
-
-    const result = await hardDeleteProjectAction('proj_1')
-
-    expect(result.error).toMatch(/signature/i)
-    expect(projectsDeleteAttempted).toBe(true)
   })
 })

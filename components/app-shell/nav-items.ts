@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Trash2, Settings, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Users, FolderPlus, FolderOpen, BookOpen, Settings, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   label: string
@@ -26,7 +26,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Projects',     href: '/projects',     icon: FolderOpen, prefetch: true },
   { label: 'Clients',      href: '/clients',      icon: Users, prefetch: true },
   { label: 'Price Book',   shortLabel: 'Prices', href: '/price-book', icon: BookOpen },
-  { label: 'Trash',        href: '/trash',        icon: Trash2,     demoHidden: true, userMenu: true },
   // Phase 181: Settings IS reachable in demo (filtered to Company/Team/Notifications
   // by settings-nav.tsx). No `demoHidden` here — it would contradict that, and the
   // account-menu entry points render it for demo sessions on purpose.

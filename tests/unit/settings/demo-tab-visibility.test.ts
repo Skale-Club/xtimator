@@ -16,7 +16,8 @@ import { describe, expect, it } from 'vitest'
  *   session renders the real SettingsLayoutClient tree unconditionally.
  * - SettingsLayoutClient threads isDemo down to SettingsNav.
  * - Settings is reachable from both account-menu surfaces for demo sessions
- *   while Trash stays hidden (exactly one remaining `{!isDemo && (` guard).
+ *   (no `{!isDemo && (` guard left around any account-menu entry; Trash,
+ *   the last guarded one, was removed from the product).
  */
 
 const root = resolve(__dirname, '..', '..', '..')
@@ -84,17 +85,17 @@ describe('Demo tab visibility (181-01)', () => {
     })
   })
 
-  describe('Settings entry point reachable for demo; Trash stays hidden', () => {
-    it('sidebar.tsx has exactly one remaining {!isDemo && ( guard (Trash only)', () => {
+  describe('Settings entry point reachable for demo', () => {
+    it('sidebar.tsx has no {!isDemo && ( guard left (Settings is never hidden)', () => {
       const sidebar = read('components/app-shell/sidebar.tsx')
       const matches = sidebar.match(/\{!isDemo && \(/g) ?? []
-      expect(matches.length).toBe(1)
+      expect(matches.length).toBe(0)
     })
 
-    it('mobile-account-menu.tsx has exactly one remaining {!isDemo && ( guard (Trash only)', () => {
+    it('mobile-account-menu.tsx has no {!isDemo && ( guard left (Settings is never hidden)', () => {
       const mobileMenu = read('components/app-shell/mobile-account-menu.tsx')
       const matches = mobileMenu.match(/\{!isDemo && \(/g) ?? []
-      expect(matches.length).toBe(1)
+      expect(matches.length).toBe(0)
     })
   })
 })

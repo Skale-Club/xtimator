@@ -133,7 +133,9 @@ export async function getProjectsByCompany(
  * Branches on the requested status:
  *   - 'active'   → archived_at IS NULL AND deleted_at IS NULL
  *   - 'archived' → archived_at IS NOT NULL AND deleted_at IS NULL
- *   - 'trash'    → deleted_at IS NOT NULL
+ *
+ * There is no Trash view any more (deletes are permanent). Rows soft-deleted
+ * before that change keep deleted_at set and stay hidden from both views.
  *
  * Optionally filtered by client_id (null/undefined = unfiltered).
  *
@@ -141,7 +143,7 @@ export async function getProjectsByCompany(
  * indexes are hit (idx_projects_active_by_company is on (company_id, created_at DESC) with
  * the active partial predicate).
  */
-export type ProjectListStatus = 'active' | 'archived' | 'trash'
+export type ProjectListStatus = 'active' | 'archived'
 
 export interface ProjectListRow {
   id: string
@@ -180,11 +182,8 @@ export async function getProjectsForListPage(
 
   if (opts.status === 'active') {
     q = q.is('archived_at', null).is('deleted_at', null)
-  } else if (opts.status === 'archived') {
-    q = q.not('archived_at', 'is', null).is('deleted_at', null)
   } else {
-    // 'trash'
-    q = q.not('deleted_at', 'is', null)
+    q = q.not('archived_at', 'is', null).is('deleted_at', null)
   }
 
   if (opts.clientId) {
