@@ -54,6 +54,11 @@ export interface PdfInfoGridProps {
   clientNameFontFamily: string
   /** SEED-056 (D4): draw the Valid-until line (valid_until block on AND a date present). */
   showValidUntil?: boolean
+  /** Classic draws the date and the estimate number in the project column; Modern
+   *  draws them in the title row (blocks-from-model.ts infoShowsDateAndNumber). */
+  showDateAndNumber?: boolean
+  /** Color for the secondary lines (project type, date, contact lines). */
+  secondaryColor?: string
 }
 
 export function PdfInfoGrid({
@@ -66,6 +71,8 @@ export function PdfInfoGrid({
   styles,
   clientNameFontFamily,
   showValidUntil = false,
+  showDateAndNumber = true,
+  secondaryColor = '#6b7280',
 }: PdfInfoGridProps) {
   const clientAddress = client ? formatAddress(client) : null
   const projectTypeText = formatProjectType(projectType)
@@ -76,27 +83,31 @@ export function PdfInfoGrid({
         <Text style={styles.infoLabel}>{L.project}</Text>
         <Text style={styles.infoValue}>{projectName}</Text>
         {projectTypeText && (
-          <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+          <Text style={[styles.infoValue, { color: secondaryColor }]}>
             {projectTypeText}
           </Text>
         )}
-        <Text
-          style={[
-            styles.infoValue,
-            { color: '#6b7280', marginTop: 4 },
-          ]}
-        >
-          {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
-        </Text>
+        {showDateAndNumber && (
+          <Text
+            style={[
+              styles.infoValue,
+              { color: secondaryColor, marginTop: 4 },
+            ]}
+          >
+            {L.date}: {fmtDate(estimate.estimate_date ?? estimate.created_at)}
+          </Text>
+        )}
         {showValidUntil && estimate.valid_until && (
-          <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+          <Text style={[styles.infoValue, { color: secondaryColor }]}>
             {L.validUntil}: {fmtDate(estimate.valid_until)}
           </Text>
         )}
-        <Text style={[styles.infoValue, { color: '#6b7280' }]}>
-          {L.estimateNum}
-          {formatEstimateNumber(estimate)}
-        </Text>
+        {showDateAndNumber && (
+          <Text style={[styles.infoValue, { color: secondaryColor }]}>
+            {L.estimateNum}
+            {formatEstimateNumber(estimate)}
+          </Text>
+        )}
       </View>
 
       {client && (
@@ -108,14 +119,14 @@ export function PdfInfoGrid({
             {client.name}
           </Text>
           {client.email && (
-            <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+            <Text style={[styles.infoValue, { color: secondaryColor }]}>
               <Link src={`mailto:${client.email}`} style={styles.infoValueLink}>
                 {client.email}
               </Link>
             </Text>
           )}
           {client.phone && (
-            <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+            <Text style={[styles.infoValue, { color: secondaryColor }]}>
               <Link
                 src={`tel:${client.phone.replace(/[^\d+]/g, '')}`}
                 style={styles.infoValueLink}
@@ -125,7 +136,7 @@ export function PdfInfoGrid({
             </Text>
           )}
           {clientAddress && (
-            <Text style={[styles.infoValue, { color: '#6b7280' }]}>
+            <Text style={[styles.infoValue, { color: secondaryColor }]}>
               {clientAddress}
             </Text>
           )}

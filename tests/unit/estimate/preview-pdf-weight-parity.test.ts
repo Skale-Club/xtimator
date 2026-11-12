@@ -7,10 +7,10 @@
 // sources. Use font-normal (400) or font-bold (700), chosen per block by
 // whether the matching PDF style uses fontFamily or fontFamilyBold.
 //
-// One exception: the Classic ESTIMATE title is 800, because the PDF registers
-// Inter-ExtraBold for exactly that style (ESTIMATE_DESIGN_TOKENS.classic
-// .fontFamilyTitle). It is allowed only there, and only while that font is
-// registered.
+// The exceptions are 800 where the PDF draws Inter-ExtraBold
+// (ESTIMATE_DESIGN_TOKENS.*.fontFamilyTitle): the Classic ESTIMATE title, and
+// since the 2026-11-12 Modern redesign the Modern title and total amount. They
+// are allowed only there, and only while that font is registered.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -51,18 +51,28 @@ describe('preview weights stay within the PDF-registered 400/700', () => {
         expect(source.split(allowed).length - 1, 'classic title banner keeps its single font-extrabold').toBe(1)
         source = source.replace(allowed, '')
       }
+      if (/[\\/]preview-template[\\/]modern\.tsx$/.test(file)) {
+        // Modern's sanctioned 800s: the title h1 and the total amount (once each).
+        for (const allowed of ['className="font-extrabold select-none"', 'className="font-extrabold text-right"']) {
+          expect(source.split(allowed).length - 1, `modern keeps its single ${allowed}`).toBe(1)
+          source = source.replace(allowed, '')
+        }
+      }
       const m = FORBIDDEN.exec(source)
       expect(m, m ? `forbidden weight "${m[0]}" in ${file}` : '').toBeNull()
     })
   }
 })
 
-describe('the Classic title 800 is backed by a registered PDF font', () => {
-  it('registers Inter-ExtraBold and points the Classic title at it', () => {
+describe('the 800 titles are backed by a registered PDF font', () => {
+  it('registers Inter-ExtraBold and points the Classic title and the Modern title / total at it', () => {
     const fonts = readFileSync('lib/pdf/register-fonts.ts', 'utf8')
     expect(fonts).toMatch(/family: 'Inter-ExtraBold', src: path\.join\(FONTS_DIR, 'inter', 'Inter-ExtraBold\.ttf'\)/)
     const tokens = readFileSync('lib/estimate/document/tokens.ts', 'utf8')
     expect(tokens).toMatch(/classic: \{[^}]*fontFamilyTitle: 'Inter-ExtraBold'/)
     expect(readFileSync('components/pdf/estimate-pdf.tsx', 'utf8')).toContain('fontFamily: ESTIMATE_DESIGN_TOKENS.classic.fontFamilyTitle')
+    expect(tokens).toMatch(/modern: \{[^}]*fontFamilyTitle: 'Inter-ExtraBold'/)
+    const modernPdf = readFileSync('components/pdf/estimate-pdf-modern.tsx', 'utf8')
+    expect(modernPdf.split('fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyTitle').length - 1).toBe(2)
   })
 })

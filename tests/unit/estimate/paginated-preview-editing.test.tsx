@@ -205,7 +205,13 @@ describe.each(['classic', 'modern'] as const)('PaginatedPreview editing — %s',
   it('"Add item" creates the line only once it has a description', () => {
     const dispatch = vi.fn()
     const { container } = renderPreview({ templateId, dispatch })
-    const subtotal = container.querySelector(`[data-page-block-id="${SECTION_ID}-subtotal"]`) as HTMLElement
+    // Classic hosts the slot on the section's subtotal row; Modern (no subtotal row
+    // since 2026-11-12) on a strip hanging from the section's last line.
+    const subtotal = container.querySelector(
+      templateId === 'modern'
+        ? `[data-testid="modern-section-slots"][data-section-id="${SECTION_ID}"]`
+        : `[data-page-block-id="${SECTION_ID}-subtotal"]`
+    ) as HTMLElement
 
     fireEvent.click(within(subtotal).getByRole('button', { name: /add item/i }))
     const field = within(subtotal).getByRole('textbox')

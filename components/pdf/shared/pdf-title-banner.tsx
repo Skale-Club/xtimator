@@ -27,6 +27,10 @@ export interface PdfTitleBannerProps {
   brandText: string
   brandOnFill: string
   styles: PdfTitleBannerStyles
+  /** Modern only: the estimate number and the date, drawn on the title's line at
+   *  the right (number over date). Their two lines add up to the title line's
+   *  height (tokens.ts MODERN_LAYOUT), so the row is as tall as the title. */
+  docId?: { number: string; date: string; numberFontSizePt: number; dateFontSizePt: number; numberFontFamily: string; dateColor: string }
 }
 
 export function PdfTitleBanner({
@@ -36,6 +40,7 @@ export function PdfTitleBanner({
   brandText,
   brandOnFill,
   styles,
+  docId,
 }: PdfTitleBannerProps) {
   if (solidFill) {
     // Classic — NEW: a solid brand-color banner wrapping the title, matching
@@ -57,10 +62,23 @@ export function PdfTitleBanner({
     )
   }
 
-  // Modern — UNCHANGED: accent-colored text with a thin rule underneath, no fill.
+  // Modern (2026-11-12): the title on the left and, when given, the estimate
+  // number over the date on the right, then a full-width brand rule.
   return (
     <Fragment>
-      <Text style={[styles.estimateTitle, { color: brandText }]}>{label}</Text>
+      {docId ? (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Text style={[styles.estimateTitle, { color: brandText }]}>{label}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: docId.numberFontSizePt, fontFamily: docId.numberFontFamily, color: brandText }}>
+              {docId.number}
+            </Text>
+            <Text style={{ fontSize: docId.dateFontSizePt, color: docId.dateColor }}>{docId.date}</Text>
+          </View>
+        </View>
+      ) : (
+        <Text style={[styles.estimateTitle, { color: brandText }]}>{label}</Text>
+      )}
       {styles.estimateTitleRule && (
         <View style={[styles.estimateTitleRule, { borderBottomColor: brandColor }]} />
       )}

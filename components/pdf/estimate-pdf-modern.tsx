@@ -33,6 +33,8 @@ import {
 import { LABELS as PDF_LABELS } from '@/lib/estimate/document/labels'
 import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
+  MODERN_COLORS,
+  MODERN_LAYOUT,
   ESTIMATE_DESIGN_TOKENS,
   LINE_HEIGHT,
   ESTIMATE_PAGE_GEOMETRY,
@@ -172,7 +174,7 @@ const styles = StyleSheet.create({
     paddingTop: 52,
     paddingBottom: 68,
     paddingHorizontal: 52,
-    color: '#1f2937',
+    color: MODERN_COLORS.body,
   },
   // Header — thin neutral hairline instead of a bold brand-colored border-bottom letterhead.
   header: {
@@ -181,7 +183,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingBottom: 20,
     borderBottomWidth: 0.75,
-    borderBottomColor: '#d1d5db',
+    borderBottomColor: MODERN_COLORS.rule,
   },
   headerLeft: {
     flexDirection: 'column',
@@ -209,59 +211,62 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     paddingBottom: 8,
     borderBottomWidth: 0.75,
-    borderBottomColor: '#d1d5db',
+    borderBottomColor: MODERN_COLORS.rule,
   },
   compactCompanyName: {
     fontSize: 11,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#1f2937',
+    color: MODERN_COLORS.ink,
     flexShrink: 1,
   },
   compactEstimateId: {
     fontSize: 8.5,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     flexShrink: 0,
   },
   companyName: {
     fontSize: 15,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
     marginBottom: 5,
-    color: '#1f2937',
+    color: MODERN_COLORS.ink,
   },
   companyContact: {
     fontSize: 9,
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     lineHeight: 1.6,
   },
   contactLink: {
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     textDecoration: 'none',
   },
   // Must carry the same color as companyName: the website-wrapped name renders
   // as a <Link>, and react-pdf paints links its default blue unless the Link's
   // own style sets a color (a color on the parent <Text> does not reach it).
   nameLink: {
-    color: '#1f2937',
+    color: MODERN_COLORS.ink,
     textDecoration: 'none',
   },
   infoValueLink: {
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     textDecoration: 'none',
   },
   // Estimate title — smaller, letter-spaced, left-aligned accent text with a thin rule
   // underneath, instead of Classic's large centered bold headline.
+  // Title row (2026-11-12): "Estimate" large on the left, the estimate number
+  // over the date on the right (PdfTitleBanner modern branch), then a full-width
+  // brand rule. Sizes: tokens.ts MODERN_LAYOUT (pagination reads the same).
   estimateTitle: {
-    fontSize: 13,
-    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    letterSpacing: 2,
-    marginBottom: 6,
+    fontSize: MODERN_LAYOUT.titleFontSizePt,
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyTitle,
+    letterSpacing: 0.5,
+    marginBottom: MODERN_LAYOUT.titleMarginBottomPt,
     textAlign: 'left',
   },
   estimateTitleRule: {
-    borderBottomWidth: 0.75,
-    marginBottom: 28,
-    width: 60,
+    borderBottomWidth: MODERN_LAYOUT.titleRuleWidthPt,
+    marginBottom: MODERN_LAYOUT.titleRuleMarginBottomPt,
+    width: '100%',
   },
   // Info grid
   infoRow: {
@@ -275,7 +280,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 8,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 5,
@@ -290,17 +295,17 @@ const styles = StyleSheet.create({
     marginTop: 22,
     marginBottom: 0,
     borderBottomWidth: 1,
-    borderBottomColor: '#1f2937',
+    borderBottomColor: MODERN_COLORS.ink,
   },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: ESTIMATE_PAGE_GEOMETRY.modern.sectionTitleFontSizePt,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    // Default colour only — PdfSectionHeader overrides it with `titleColor`
-    // (brandText, the readable brand colour) at the call sites; the rule under it
-    // (sectionHeader.borderBottomColor) stays neutral.
-    color: '#1f2937',
+    // Ink since the 2026-11-12 redesign: the brand colour is kept for the title
+    // banner, the estimate number and the total; section titles and their rule
+    // stay neutral so the brand accents read as accents.
+    color: MODERN_COLORS.ink,
     letterSpacing: 0.5,
-    lineHeight: LINE_HEIGHT['Lora-Bold'],
+    lineHeight: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold],
   },
   // Table — lighter/thinner divider rules, no filled header background, airier feel.
   // paddingHorizontal 0 — see the Classic template's note: puts the
@@ -311,14 +316,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 0,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#d1d5db',
+    borderBottomColor: MODERN_COLORS.rule,
   },
   tableRow: {
     flexDirection: 'row',
     paddingVertical: 8,
     paddingHorizontal: 0,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#f0f1f3',
+    borderBottomColor: MODERN_COLORS.rule,
   },
   tableRowAlt: {},
   colDescription: { width: '40%' },
@@ -329,14 +334,14 @@ const styles = StyleSheet.create({
   tableHeaderText: {
     fontSize: 8.5,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   tableCellText: {
     fontSize: 9.5,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
-    lineHeight: LINE_HEIGHT.Lora,
+    lineHeight: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamily],
   },
   // Section subtotal
   sectionSubtotal: {
@@ -350,7 +355,7 @@ const styles = StyleSheet.create({
   sectionSubtotalLabel: {
     fontSize: 9,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     marginRight: 12,
   },
   sectionSubtotalValue: {
@@ -372,11 +377,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 6,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: MODERN_COLORS.rule,
   },
   totalsLabel: {
     fontSize: 10,
-    color: '#6b7280',
+    color: MODERN_COLORS.secondary,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
   },
   totalsValue: {
@@ -384,22 +389,28 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily,
   },
-  // Hero total — large standalone block, own margin, no border-top table row.
+  // Total (2026-11-12): one row under a brand rule (border color set at the
+  // call site) — label left, amount right; MODERN_LAYOUT feeds pagination.
   grandTotalBlock: {
-    marginTop: 16,
+    marginTop: MODERN_LAYOUT.totalMarginTopPt,
+    borderTopWidth: MODERN_LAYOUT.totalRuleWidthPt,
+    paddingTop: MODERN_LAYOUT.totalPaddingTopPt,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-end',
   },
   grandTotalLabel: {
-    fontSize: 9,
+    fontSize: MODERN_LAYOUT.totalLabelFontSizePt,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     marginBottom: 4,
   },
   grandTotalValue: {
-    fontSize: 30,
-    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+    fontSize: MODERN_LAYOUT.totalValueFontSizePt,
+    fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyTitle,
+    letterSpacing: -0.4,
     textAlign: 'right',
   },
   // Terms — marginTop moved to PdfTermsSection's topMarginPt prop (Phase 184
@@ -412,7 +423,7 @@ const styles = StyleSheet.create({
   termsTitle: {
     fontSize: 8,
     fontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 7,
@@ -420,13 +431,13 @@ const styles = StyleSheet.create({
   termsText: {
     fontSize: 9,
     lineHeight: 1.6,
-    color: '#4b5563',
+    color: MODERN_COLORS.secondary,
     marginBottom: 14,
   },
   // Language badge in header
   langBadge: {
     fontSize: 8.5,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
     marginTop: 2,
     letterSpacing: 1,
   },
@@ -438,7 +449,7 @@ const styles = StyleSheet.create({
     right: 52,
     textAlign: 'center',
     fontSize: 8,
-    color: '#9ca3af',
+    color: MODERN_COLORS.label,
   },
 })
 
@@ -509,6 +520,14 @@ export default function EstimatePDFModern({
                 estimateTitle: styles.estimateTitle,
                 estimateTitleRule: styles.estimateTitleRule,
               },
+              docId: {
+                number: `#${estimateNumber}`,
+                date: fmtDate(estimate.estimate_date ?? estimate.created_at),
+                numberFontSizePt: MODERN_LAYOUT.docIdNumberFontSizePt,
+                dateFontSizePt: MODERN_LAYOUT.docIdDateFontSizePt,
+                numberFontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+                dateColor: MODERN_COLORS.secondary,
+              },
             })}
           </Fragment>
         )
@@ -524,6 +543,8 @@ export default function EstimatePDFModern({
               fmtDate,
               showValidUntil: isSectionVisible(resolvedSettings, 'valid_until') && !!estimate.valid_until,
               clientNameFontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold,
+              showDateAndNumber: false,
+              secondaryColor: MODERN_COLORS.secondary,
               styles: {
                 infoRow: styles.infoRow,
                 infoBlock: styles.infoBlock,
@@ -558,7 +579,8 @@ export default function EstimatePDFModern({
               solidFill: ESTIMATE_DESIGN_TOKENS.modern.solidHeaderFill,
               brandColor,
               brandOnFill,
-              titleColor: brandText,
+              titleColor: MODERN_COLORS.ink,
+              subtotal: { value: fmt(section?.subtotal ?? 0), widthPt: MODERN_LAYOUT.sectionSubtotalWidthPt },
               styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
             })}
             {PdfTableHeaderOnly({
@@ -754,7 +776,7 @@ export default function EstimatePDFModern({
                 solidFill: ESTIMATE_DESIGN_TOKENS.modern.solidHeaderFill,
                 brandColor,
                 brandOnFill,
-                titleColor: brandText,
+                titleColor: MODERN_COLORS.ink,
                 continuedLabel: L.continued,
                 styles: { sectionHeader: styles.sectionHeader, sectionTitle: styles.sectionTitle },
               })}

@@ -102,7 +102,7 @@ const HEADER_LAYOUT: Record<EstimateTemplateId, HeaderLayoutConstants> = {
   // Cited to components/pdf/estimate-pdf-modern.tsx's StyleSheet.
   modern: {
     companyNameFontSizePt: 15, // styles.companyName.fontSize
-    companyNameFontFamilyBold: 'Lora-Bold', // styles.companyName.fontFamily
+    companyNameFontFamilyBold: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold, // styles.companyName.fontFamily
     companyNameMarginBottomPt: 5, // styles.companyName.marginBottom
     contactFontSizePt: 9, // styles.companyContact.fontSize
     langBadgeFontSizePt: 8.5, // styles.langBadge.fontSize
@@ -129,9 +129,9 @@ const COMPACT_HEADER_LAYOUT: Record<EstimateTemplateId, CompactHeaderLayoutConst
   // Cited to components/pdf/estimate-pdf-modern.tsx's StyleSheet.
   modern: {
     nameFontSizePt: 11, // styles.compactCompanyName.fontSize
-    nameFontFamily: 'Lora-Bold', // styles.compactCompanyName.fontFamily
+    nameFontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold, // styles.compactCompanyName.fontFamily
     idFontSizePt: 8.5, // styles.compactEstimateId.fontSize
-    idFontFamily: 'Lora', // styles.compactEstimateId.fontFamily
+    idFontFamily: ESTIMATE_DESIGN_TOKENS.modern.fontFamily, // styles.compactEstimateId.fontFamily
     paddingBottomPt: 8, // styles.compactHeader.paddingBottom
     marginBottomPt: 18, // styles.compactHeader.marginBottom
     borderBottomWidthPt: 0.75, // styles.compactHeader.borderBottomWidth
@@ -274,7 +274,7 @@ const CONTINUATION_COLUMN_HEADER_HEIGHT_PT: Record<EstimateTemplateId, number> =
   // tableHeader.paddingVertical(6)×2 + borderBottomWidth(1) + tableHeaderText.fontSize(9) × LINE_HEIGHT['Inter-Bold'] (= blocks-from-model.ts's classic tableHeaderHeightPt)
   classic: 6 * 2 + 1 + 9 * LINE_HEIGHT['Inter-Bold'],
   // tableHeader.paddingVertical(8)×2 + borderBottomWidth(0.5) + tableHeaderText.fontSize(8.5) × LINE_HEIGHT['Lora-Bold'] (= blocks-from-model.ts's modern tableHeaderHeightPt)
-  modern: 8 * 2 + 0.5 + 8.5 * LINE_HEIGHT['Lora-Bold'],
+  modern: 8 * 2 + 0.5 + 8.5 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold],
 }
 
 /**

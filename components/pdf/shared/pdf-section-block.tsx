@@ -70,6 +70,9 @@ export interface PdfSectionHeaderProps {
    * space would double up. */
   continuedLabel?: string
   styles: Pick<PdfSectionBlockStyles, 'sectionHeader' | 'sectionTitle'>
+  /** Modern: the section subtotal on the title's line, in a right column this
+   *  wide (tokens.ts MODERN_LAYOUT.sectionSubtotalWidthPt); no subtotal row. */
+  subtotal?: { value: string; widthPt: number }
 }
 
 export function PdfSectionHeader({
@@ -80,6 +83,7 @@ export function PdfSectionHeader({
   brandOnFill,
   titleColor,
   continuedLabel,
+  subtotal,
   styles,
 }: PdfSectionHeaderProps) {
   const textColor = solidFill ? brandOnFill : titleColor
@@ -104,7 +108,14 @@ export function PdfSectionHeader({
       key={`${sectionId}-header`}
       style={solidFill ? [styles.sectionHeader, { backgroundColor: brandColor }] : styles.sectionHeader}
     >
-      <Text style={titleStyle}>{title}</Text>
+      {subtotal ? (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <Text style={[...(Array.isArray(titleStyle) ? titleStyle : [titleStyle]), { flex: 1 }]}>{title}</Text>
+          <Text style={[styles.sectionTitle, { width: subtotal.widthPt, textAlign: 'right' }]}>{subtotal.value}</Text>
+        </View>
+      ) : (
+        <Text style={titleStyle}>{title}</Text>
+      )}
     </View>
   )
 }

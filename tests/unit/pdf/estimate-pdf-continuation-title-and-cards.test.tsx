@@ -8,7 +8,7 @@
 //   - Classic terms + signature cards carry padding 10 / radius 4 / margin-bottom 8
 //     (and the text inside drops its own 12pt bottom margin), Modern stays box-less
 //     and fill-free;
-//   - Modern section titles use the readable brand colour (the rule stays neutral);
+//   - Modern section titles and their rule are ink (#18181b) since the 2026-11-12 redesign;
 //   - Modern summary -> next block spacing is the tightened 6pt text margin on a
 //     margin-less wrapper;
 //   - photo tiles span the content width (172 Classic / 164 Modern) and the
@@ -21,7 +21,6 @@ import EstimatePDF from '@/components/pdf/estimate-pdf'
 import EstimatePDFModern from '@/components/pdf/estimate-pdf-modern'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
 import { LABELS } from '@/lib/estimate/document/labels'
-import { ensureReadableOnWhite } from '@/lib/color/contrast'
 import { cardTintFill, ESTIMATE_PAGE_GEOMETRY, photoTileWidthPt } from '@/lib/estimate/document/tokens'
 import { collectTextNodes, flattenText } from '../estimate/_pdf-text-walker'
 import {
@@ -208,21 +207,20 @@ describe('Classic PDF — terms + signature cards have inner padding', () => {
   })
 })
 
-describe('Modern PDF — section titles use the brand colour, summary spacing tightened', () => {
-  it('section title Text colour is the readable brand colour; the rule under it stays neutral #1f2937', () => {
+describe('Modern PDF — section titles are ink, summary spacing tightened', () => {
+  it('section title Text colour is ink #18181b (not the brand), and so is the rule under it', () => {
     const company = { ...FIXTURE_COMPANY, brand_primary_color: '#e11d48' }
     const estimate = buildFixtureEstimate({})
     const { tree } = renderTree('modern', estimate, { company })
-    const brandText = ensureReadableOnWhite('#e11d48')
     const titles = findElements(tree, (el) => isText(el) && textOf(el) === 'Labor')
     expect(titles.length).toBeGreaterThan(0)
-    for (const t of titles) expect(flattenStyle(t.props.style).color).toBe(brandText)
+    for (const t of titles) expect(flattenStyle(t.props.style).color).toBe('#18181b')
     const band = findElements(tree, (el) => {
       const s = flattenStyle(el.props.style)
       return !isText(el) && s.borderBottomWidth === 1 && s.paddingVertical === 6
     })
     expect(band.length).toBeGreaterThan(0)
-    for (const b of band) expect(flattenStyle(b.props.style).borderBottomColor).toBe('#1f2937')
+    for (const b of band) expect(flattenStyle(b.props.style).borderBottomColor).toBe('#18181b')
   })
 
   it('summary: wrapper View has no margin; the text carries marginBottom 6 (summary -> section title = 6 + sectionHeader.marginTop 22 = 28pt)', () => {

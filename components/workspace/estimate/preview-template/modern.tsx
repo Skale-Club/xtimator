@@ -3,11 +3,12 @@
 // The Modern look of PaginatedPreview. This is a PRINT preview: STRUCTURE,
 // ORDER, type sizes, weights, letter-spacing and spacings all mirror
 // components/pdf/estimate-pdf-modern.tsx (+ components/pdf/shared/*) — the pt
-// values converted with PX_PER_PT (units.ts), weights only 400 / 700 (Lora /
-// Lora-Bold), so wrapping inside the (PDF-margined) sheet approximates the
-// PDF. The Tailwind vocabulary (font-serif = Lora via --font-serif, hairline
-// rules, no brand fills, brand colour only as text / short rules) follows
-// components/share/estimate-document-modern.tsx.
+// values converted with PX_PER_PT (units.ts), weights 400 / 700 / 800 (Inter /
+// Inter-Bold / Inter-ExtraBold), so wrapping inside the (PDF-margined) sheet
+// approximates the PDF. Modern moved off Lora to Inter on 2026-11-12: the title
+// carries the estimate number and date on its line, a section's subtotal sits on
+// its title line (no subtotal row), and the total is one row under a brand rule.
+// The neutral palette is tokens.ts MODERN_COLORS, shared with the PDF.
 //
 // Modern is fill-free by design (ESTIMATE_DESIGN_TOKENS.modern
 // .solidHeaderFill === false): brandOnFill / cardTintFill are intentionally
@@ -18,9 +19,9 @@ import { formatPhoneForDisplay } from '@/lib/phone/format'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { PaymentBoxView } from './payment-box'
 import { formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
-import { PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
+import { ESTIMATE_PAGE_GEOMETRY, MODERN_LAYOUT, PHOTO_TILE_GAP_PT } from '@/lib/estimate/document/tokens'
 import { ReadOnlyPhotoThumb } from './shared'
-import { LORA_LH, font, pt, tracking } from './units'
+import { INTER_LH, font, pt, tracking } from './units'
 import {
   ClientCell,
   EditableDate,
@@ -43,37 +44,40 @@ import {
 import type { PreviewTemplate, RenderCtx } from './types'
 import { isSectionVisible } from '@/lib/estimate/presentation-settings'
 
-// Neutral palette — the same literals the Modern PDF's StyleSheet uses.
-const INK = 'text-[#1f2937]'
-const MUTED = 'text-[#6b7280]'
-const LABEL = 'text-[#9ca3af]'
-const RULE = 'border-[#d1d5db]'
+// Neutral palette — tokens.ts MODERN_COLORS, the literals the Modern PDF uses
+// (Tailwind needs them spelled out to generate the classes).
+const INK = 'text-[#18181b]' // MODERN_COLORS.ink
+const BODY = 'text-[#52525b]' // MODERN_COLORS.secondary (summary / terms text)
+const MUTED = 'text-[#52525b]' // MODERN_COLORS.secondary
+const LABEL = 'text-[#71717a]' // MODERN_COLORS.label
+const RULE = 'border-[#e4e4e7]' // MODERN_COLORS.rule
+const INK_RULE = 'border-[#18181b]' // MODERN_COLORS.ink, the section rule
 
-// styles.infoLabel / termsTitle: 8pt Lora-Bold, light grey, uppercase, 1.5pt
+// styles.infoLabel / termsTitle: 8pt Inter-Bold, light grey, uppercase, 1.5pt
 // letter-spacing. One eyebrow for the whole document, exactly like the PDF.
 const EYEBROW = `font-bold uppercase ${LABEL} select-none`
 const eyebrowStyle = (marginBottomPt: number): CSSProperties => ({
-  ...font(8, LORA_LH),
+  ...font(8, INTER_LH),
   ...tracking(1.5),
   marginBottom: pt(marginBottomPt),
 })
 // styles.infoValue: 10pt / 1.6.
 const INFO_VALUE = font(10, 1.6)
-// styles.termsText: 9pt / 1.6, #4b5563.
+// styles.termsText: 9pt / 1.6, MODERN_COLORS.secondary.
 const TERMS_TEXT = font(9, 1.6)
-// styles.tableCellText: 9.5pt / Lora's 1.28.
-const CELL = font(9.5, LORA_LH)
+// styles.tableCellText: 9.5pt / Inter's 1.21.
+const CELL = font(9.5, INTER_LH)
 // styles.termsTitle.marginBottom (7pt) / termsText.marginBottom (14pt) / the
 // first terms card's topMarginPt (32pt).
 const TERMS_TITLE_GAP_PT = 7
 const TERMS_TEXT_GAP_PT = 14
 const FIRST_TERMS_CARD_TOP_PT = 32
-// styles.sectionTitle: 11pt bold, 0.5pt tracking, Lora-Bold line-height.
+// styles.sectionTitle: 11pt bold, 0.5pt tracking, Inter-Bold line-height, ink.
 const SECTION_TITLE_CLASS = 'min-w-0 font-bold select-none'
-const SECTION_TITLE_STYLE: CSSProperties = { ...font(11, LORA_LH), ...tracking(0.5) }
+const SECTION_TITLE_STYLE: CSSProperties = { ...font(11, INTER_LH), ...tracking(0.5) }
 
 function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
-  const { data, L, lang, client, clientAddr, projectType, estimateCreatedAt } = ctx
+  const { data, L, lang, client, clientAddr, projectType } = ctx
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-4" style={{ marginBottom: pt(28) }}>
       <div>
@@ -88,23 +92,12 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
             {formatProjectType(projectType)}
           </p>
         )}
-        <p className={`font-normal ${MUTED}`} style={{ ...INFO_VALUE, marginTop: pt(4) }}>
-          {L.date}:{' '}
-          <EditableDate
-            ctx={ctx}
-            value={data.estimate_date}
-            display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
-          />
-        </p>
+        {/* The date and the estimate number are on the title's line (titleBanner). */}
         {isSectionVisible(ctx.resolvedSettings, 'valid_until') && data.valid_until && (
           <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
             {L.validUntil}: {formatDate(data.valid_until, lang)}
           </p>
         )}
-        <p className={`font-normal ${MUTED}`} style={INFO_VALUE}>
-          {L.estimateNum}
-          <EditableEstimateNumber ctx={ctx} />
-        </p>
       </div>
       {client ? (
         <ClientCell ctx={ctx}>
@@ -138,11 +131,11 @@ function InfoGridBlock({ ctx }: { ctx: RenderCtx }) {
 }
 
 // PdfTotalsBlock variant 'modern': hairline-divided rows (10pt, 6pt vertical
-// padding, 0.5pt rule), then a standalone hero total in the brand colour (no
-// table row, no border above it), then the deposit / balance-due rows. Locked
-// order: Subtotal → Discount → Tax → Total → Deposit → Balance Due.
-const TOTALS_ROW = 'flex justify-between font-normal border-b border-[#e5e7eb]'
-const totalsRowStyle: CSSProperties = { ...font(10, LORA_LH), paddingTop: pt(6), paddingBottom: pt(6) }
+// padding, 0.5pt rule), then the total as ONE row under a 2pt brand rule (label
+// left, amount right), then the Payment box. Locked order: Subtotal → Discount →
+// Tax → Total → Payment box.
+const TOTALS_ROW = `flex justify-between font-normal border-b ${RULE}`
+const totalsRowStyle: CSSProperties = { ...font(10, INTER_LH), paddingTop: pt(6), paddingBottom: pt(6) }
 
 function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
   const { data, L, brandText, fmt, dep } = ctx
@@ -170,11 +163,25 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
             <span>{fmt(data.tax_amount)}</span>
           </div>
         )}
-        <div className="flex flex-col items-end" style={{ marginTop: pt(16) }}>
-          <p className={`font-bold uppercase ${LABEL} select-none`} style={{ ...font(9, LORA_LH), ...tracking(1.5), marginBottom: pt(4) }}>
+        <div
+          data-testid="modern-total-row"
+          className="flex items-end justify-between"
+          style={{
+            marginTop: pt(MODERN_LAYOUT.totalMarginTopPt),
+            borderTop: `${pt(MODERN_LAYOUT.totalRuleWidthPt)}px solid ${brandText}`,
+            paddingTop: pt(MODERN_LAYOUT.totalPaddingTopPt),
+          }}
+        >
+          <p
+            className={`font-bold uppercase ${LABEL} select-none`}
+            style={{ ...font(MODERN_LAYOUT.totalLabelFontSizePt, INTER_LH), ...tracking(1.2), marginBottom: pt(4) }}
+          >
             {L.grandTotal}
           </p>
-          <p className="font-bold" style={{ ...font(30, LORA_LH), color: brandText }}>
+          <p
+            className="font-extrabold text-right"
+            style={{ ...font(MODERN_LAYOUT.totalValueFontSizePt, INTER_LH), ...tracking(-0.4), color: brandText }}
+          >
             {fmt(data.total)}
           </p>
         </div>
@@ -187,7 +194,7 @@ function TotalsBlockView({ ctx }: { ctx: RenderCtx }) {
 }
 
 export const modernTemplate: PreviewTemplate = {
-  sheetClassName: 'font-serif',
+  sheetClassName: 'font-sans',
 
   // PdfHeader (modern): 15pt bold name, 9pt contact line joined by "|",
   // address, logo right; a neutral hairline underneath instead of Classic's
@@ -203,7 +210,7 @@ export const modernTemplate: PreviewTemplate = {
         style={{ paddingBottom: pt(20), marginBottom: pt(32) }}
       >
         <div className="min-w-0">
-          <p className={`font-bold ${INK}`} style={{ ...font(15, LORA_LH), marginBottom: pt(5) }}>
+          <p className={`font-bold ${INK}`} style={{ ...font(15, INTER_LH), marginBottom: pt(5) }}>
             {company.name}
           </p>
           {contacts.length > 0 && (
@@ -241,10 +248,10 @@ export const modernTemplate: PreviewTemplate = {
         className={`flex items-center justify-between gap-3 border-b ${RULE} select-none`}
         style={{ paddingBottom: pt(8), marginBottom: pt(18) }}
       >
-        <span className={`min-w-0 truncate font-bold ${INK}`} style={font(11, LORA_LH)}>
+        <span className={`min-w-0 truncate font-bold ${INK}`} style={font(11, INTER_LH)}>
           {company.name}
         </span>
-        <span className={`flex-shrink-0 font-normal ${MUTED}`} style={font(8.5, LORA_LH)}>
+        <span className={`flex-shrink-0 font-normal ${MUTED}`} style={font(8.5, INTER_LH)}>
           {L.estimateNum}
           {data.estimate_number ?? defaultEstimateNumber}
         </span>
@@ -252,20 +259,43 @@ export const modernTemplate: PreviewTemplate = {
     )
   },
 
-  // PdfTitleBanner (modern): 13pt bold, 2pt-tracked, brand-coloured title, left
-  // aligned, over a SHORT (60pt) brand rule — no fill.
+  // PdfTitleBanner (modern, 2026-11-12): the 20pt ExtraBold brand title on the
+  // left and the estimate number (11pt bold, brand) over the date (9pt, grey) on
+  // the right, then a full-width 2pt brand rule — no fill.
   titleBanner(key, ctx) {
+    const { data, lang, estimateCreatedAt } = ctx
     return (
       <div key={key}>
-        <h1
-          className="font-bold select-none"
-          style={{ ...font(13, LORA_LH), ...tracking(2), color: ctx.brandText, marginBottom: pt(6) }}
-        >
-          {ctx.L.estimate}
-        </h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1
+            className="font-extrabold select-none"
+            style={{
+              ...font(MODERN_LAYOUT.titleFontSizePt, INTER_LH),
+              ...tracking(0.5),
+              color: ctx.brandText,
+              marginBottom: pt(MODERN_LAYOUT.titleMarginBottomPt),
+            }}
+          >
+            {ctx.L.estimate}
+          </h1>
+          <div className="flex flex-col items-end text-right">
+            <span className="font-bold" style={{ ...font(MODERN_LAYOUT.docIdNumberFontSizePt, INTER_LH), color: ctx.brandText }}>
+              #<EditableEstimateNumber ctx={ctx} />
+            </span>
+            <span className={`font-normal ${MUTED}`} style={font(MODERN_LAYOUT.docIdDateFontSizePt, INTER_LH)}>
+              <EditableDate
+                ctx={ctx}
+                value={data.estimate_date}
+                display={formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+              />
+            </span>
+          </div>
+        </div>
         <div
-          className="border-b"
-          style={{ borderBottomColor: ctx.brandColor, width: pt(60), marginBottom: pt(28) }}
+          style={{
+            borderBottom: `${pt(MODERN_LAYOUT.titleRuleWidthPt)}px solid ${ctx.brandColor}`,
+            marginBottom: pt(MODERN_LAYOUT.titleRuleMarginBottomPt),
+          }}
         />
       </div>
     )
@@ -282,16 +312,17 @@ export const modernTemplate: PreviewTemplate = {
         <p className={EYEBROW} style={eyebrowStyle(5)}>
           {ctx.L.summary}
         </p>
-        <p className="font-normal text-[#4b5563] whitespace-pre-line" style={{ ...TERMS_TEXT, marginBottom: pt(6) }}>
+        <p className={`font-normal ${BODY} whitespace-pre-line`} style={{ ...TERMS_TEXT, marginBottom: pt(6) }}>
           <EditableSummary ctx={ctx} text={text} />
         </p>
       </div>
     )
   },
 
-  // Section title in the readable brand colour over a DARK 1pt rule — no
-  // fill. The continuation band drops the leading margin (the compact header
-  // above already carries its own).
+  // Section title in ink over an ink 1pt rule — no fill — with the section's
+  // subtotal on the same line, right-aligned in a MODERN_LAYOUT
+  // .sectionSubtotalWidthPt column (there is no subtotal row in Modern). The
+  // continuation band drops the leading margin and the subtotal.
   sectionHeader(key, sectionId, ctx, continued) {
     const section = ctx.sectionsById.get(sectionId)
     const title = section?.title ?? ''
@@ -300,13 +331,13 @@ export const modernTemplate: PreviewTemplate = {
         <div
           key={key}
           data-testid="continuation-title"
-          className="flex items-baseline gap-1 border-b border-[#1f2937]"
+          className={`flex items-baseline gap-1 border-b ${INK_RULE}`}
           style={{ paddingTop: pt(6), paddingBottom: pt(6) }}
         >
-          <span className={`${SECTION_TITLE_CLASS} truncate max-w-[80%]`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
+          <span className={`${SECTION_TITLE_CLASS} ${INK} truncate max-w-[80%]`} style={SECTION_TITLE_STYLE}>
             {title}
           </span>
-          <span className={`${SECTION_TITLE_CLASS} flex-shrink-0`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
+          <span className={`${SECTION_TITLE_CLASS} ${INK} flex-shrink-0`} style={SECTION_TITLE_STYLE}>
             {ctx.L.continued}
           </span>
         </div>
@@ -316,11 +347,18 @@ export const modernTemplate: PreviewTemplate = {
       <div
         key={key}
         data-page-block-id={`${sectionId}-header`}
-        className="group relative flex items-center border-b border-[#1f2937]"
+        className={`group relative flex items-start border-b ${INK_RULE}`}
         style={{ marginTop: pt(22), paddingTop: pt(6), paddingBottom: pt(6) }}
       >
-        <span className={`${SECTION_TITLE_CLASS} flex-1`} style={{ ...SECTION_TITLE_STYLE, color: ctx.brandText }}>
+        <span className={`${SECTION_TITLE_CLASS} ${INK} flex-1`} style={SECTION_TITLE_STYLE}>
           <EditableSectionTitle ctx={ctx} sectionId={sectionId} title={title} />
+        </span>
+        <span
+          data-testid="section-header-subtotal"
+          className={`${SECTION_TITLE_CLASS} ${INK} flex-shrink-0 text-right whitespace-nowrap`}
+          style={{ ...SECTION_TITLE_STYLE, width: pt(MODERN_LAYOUT.sectionSubtotalWidthPt) }}
+        >
+          {ctx.fmt(section?.subtotal ?? 0)}
         </span>
         <SectionActions ctx={ctx} sectionId={sectionId} />
       </div>
@@ -333,7 +371,7 @@ export const modernTemplate: PreviewTemplate = {
     const { L } = ctx
     const th = `font-bold ${LABEL}`
     const thStyle: CSSProperties = {
-      ...font(8.5, LORA_LH),
+      ...font(8.5, INTER_LH),
       ...tracking(0.5),
       paddingTop: pt(8),
       paddingBottom: pt(8),
@@ -356,15 +394,30 @@ export const modernTemplate: PreviewTemplate = {
   itemRow(block, item, _itemIndex, ctx) {
     const cell: CSSProperties = { ...CELL, paddingTop: pt(8), paddingBottom: pt(8) }
     const sectionId = block.ref?.sectionId ?? ''
+    // Modern has no subtotal row, so the section's "+ Add item" / "Add section"
+    // slots hang from its LAST line: an absolute strip under the row, over the
+    // blank space before the next section (it never changes the measured layout).
+    const isLastOfSection = ctx.edit != null && ctx.itemsBySection.get(sectionId)?.at(-1)?.id === item.id
     return (
       <tr
         key={block.id}
         data-page-block-id={block.id}
         data-item-id={item.id}
-        className="group border-b border-[#f0f1f3] font-normal"
+        className={`group border-b ${RULE} font-normal`}
       >
         <td className="relative px-0" style={cell}>
           <ItemRowActions ctx={ctx} sectionId={sectionId} item={item} />
+          {isLastOfSection && (
+            <div
+              data-testid="modern-section-slots"
+              data-section-id={sectionId}
+              className="group absolute left-0 top-full"
+              style={{ width: pt(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt), height: pt(22) }}
+            >
+              <NewItemSlot ctx={ctx} sectionId={sectionId} />
+              <AddSectionSlot ctx={ctx} sectionId={sectionId} />
+            </div>
+          )}
           <EditableDescription ctx={ctx} sectionId={sectionId} item={item} />
         </td>
         <td className="px-0 text-center" style={cell}>
@@ -392,24 +445,10 @@ export const modernTemplate: PreviewTemplate = {
     )
   },
 
-  // styles.sectionSubtotal: 8pt padding, 0.5pt top rule, 9pt bold label (12pt
-  // right margin) + value in the Total column's 18%.
-  sectionSubtotal(block, subtotal, ctx) {
-    return (
-      <div
-        key={block.id}
-        data-page-block-id={block.id}
-        className={`group relative flex justify-end items-baseline border-t ${RULE}`}
-        style={{ ...font(9, LORA_LH), paddingTop: pt(8), paddingBottom: pt(8) }}
-      >
-        <NewItemSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
-        <AddSectionSlot ctx={ctx} sectionId={block.ref?.sectionId ?? ''} />
-        <span className={`font-bold ${MUTED} select-none`} style={{ marginRight: pt(12) }}>
-          {ctx.L.sectionSubtotal}
-        </span>
-        <span className="font-bold text-right w-[18%]">{ctx.fmt(subtotal)}</span>
-      </div>
-    )
+  // Never emitted for Modern since 2026-11-12 (blocks-from-model.ts
+  // sectionSubtotalInHeaderWidthPt): the subtotal is on the section title line.
+  sectionSubtotal() {
+    return null
   },
 
   totals(key, ctx) {
@@ -436,7 +475,7 @@ export const modernTemplate: PreviewTemplate = {
           {card.label}
         </p>
         <p
-          className="font-normal text-[#4b5563] whitespace-pre-line"
+          className={`font-normal ${BODY} whitespace-pre-line`}
           style={{ ...TERMS_TEXT, marginBottom: pt(TERMS_TEXT_GAP_PT) }}
         >
           <EditableTermsText ctx={ctx} card={card} />
@@ -460,10 +499,10 @@ export const modernTemplate: PreviewTemplate = {
           className="object-contain"
           style={{ width: pt(150), height: pt(40) }}
         />
-        <p className="font-normal" style={{ ...font(9, LORA_LH), marginTop: pt(4) }}>
+        <p className="font-normal" style={{ ...font(9, INTER_LH), marginTop: pt(4) }}>
           {signature.signerName}
         </p>
-        <p className={`font-normal ${MUTED}`} style={font(9, LORA_LH)}>
+        <p className={`font-normal ${MUTED}`} style={font(9, INTER_LH)}>
           {formatDate(signature.signedAt, ctx.lang)}
         </p>
       </div>
@@ -494,7 +533,7 @@ export const modernTemplate: PreviewTemplate = {
               overlay={<PhotoRemoveButton ctx={ctx} photoId={photo.id} />}
               frameClassName="aspect-square overflow-hidden relative bg-[#f3f4f6]"
               captionClassName={`font-normal ${MUTED} line-clamp-2`}
-              captionStyle={{ ...font(8, LORA_LH), marginTop: pt(2) }}
+              captionStyle={{ ...font(8, INTER_LH), marginTop: pt(2) }}
             />
           ))}
         </div>

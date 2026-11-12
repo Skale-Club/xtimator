@@ -15,7 +15,7 @@ import React from 'react'
 import { PaginatedPreview } from '@/components/workspace/estimate/paginated-preview'
 import type { DocumentCompany, EstimateDocumentData } from '@/lib/estimate/document/model'
 import type { EstimateTemplateId } from '@/lib/estimate/templates/registry'
-import { CLASSIC_CARD_BOX, ESTIMATE_PAGE_GEOMETRY, LETTER_WIDTH_PT, PX_PER_PT } from '@/lib/estimate/document/tokens'
+import { CLASSIC_CARD_BOX, ESTIMATE_PAGE_GEOMETRY, LETTER_WIDTH_PT, PX_PER_PT, MODERN_LAYOUT } from '@/lib/estimate/document/tokens'
 import { LABELS } from '@/lib/estimate/document/labels'
 import { buildPagesForFixture } from '../pdf/_pages-for-fixture'
 import {
@@ -108,39 +108,48 @@ function brandFilled(container: HTMLElement): HTMLElement[] {
 }
 
 describe('PaginatedPreview — Modern template', () => {
-  it('draws the Modern look: serif sheets, no brand-filled band, hairline section rule, no zebra, hero total', () => {
+  it('draws the Modern look: Inter sheets, no brand-filled band, ink section rule with the subtotal on its line, no zebra, total row', () => {
     const { container, data } = renderFor('modern')
     const sheets = container.querySelectorAll<HTMLElement>('[data-page-sheet]')
     expect(sheets.length).toBeGreaterThan(2)
-    sheets.forEach((sheet) => expect(sheet.className).toContain('font-serif'))
+    // Modern moved off Lora to Inter on 2026-11-12.
+    sheets.forEach((sheet) => expect(sheet.className).toContain('font-sans'))
+    sheets.forEach((sheet) => expect(sheet.className).not.toContain('font-serif'))
 
     // Fill-free: neither the title nor a section header paints the brand colour.
     expect(brandFilled(container)).toHaveLength(0)
 
-    // Section header = readable brand text over a dark bottom rule.
+    // Section header = ink title over an ink bottom rule, the subtotal on the same line.
     const header = container.querySelector<HTMLElement>(`[data-page-block-id="${data.sections[0].id}-header"]`)!
     expect(header.className).toContain('border-b')
-    expect(header.className).toContain('border-[#1f2937]')
+    expect(header.className).toContain('border-[#18181b]')
     expect(header.style.backgroundColor).toBe('')
+    const sub = header.querySelector<HTMLElement>('[data-testid="section-header-subtotal"]')!
+    expect(sub.textContent).toMatch(/^\$[\d,]+\.\d\d$/)
+    expect(parseFloat(sub.style.width)).toBeCloseTo(MODERN_LAYOUT.sectionSubtotalWidthPt * PX_PER_PT, 3)
+    // ... so there is no subtotal row.
+    expect(container.querySelector('[data-page-block-id$="-subtotal"]')).toBeNull()
 
     // No zebra rows.
     expect(container.querySelectorAll('tr[data-item-id].bg-muted\\/40').length).toBe(0)
     expect(container.innerHTML).not.toContain('bg-muted/40')
 
-    // Letter-spaced title with a short brand rule (no banner).
+    // Title with the estimate number and date at its right, over a full-width brand rule (no banner).
     const title = container.querySelector('h1')!
     expect(title.textContent).toBe(LABELS.en.estimate)
-    // PDF estimateTitle: 13pt bold, letterSpacing 2pt.
-    expect(parseFloat(title.style.letterSpacing)).toBeCloseTo(2 * PX_PER_PT, 3)
-    expect(parseFloat(title.style.fontSize)).toBeCloseTo(13 * PX_PER_PT, 3)
+    // PDF estimateTitle: 20pt ExtraBold, letterSpacing 0.5pt.
+    expect(parseFloat(title.style.letterSpacing)).toBeCloseTo(0.5 * PX_PER_PT, 3)
+    expect(parseFloat(title.style.fontSize)).toBeCloseTo(MODERN_LAYOUT.titleFontSizePt * PX_PER_PT, 3)
     expect(title.parentElement!.style.backgroundColor).toBe('')
+    expect(title.parentElement!.textContent).toContain('#')
 
-    // Hero total in the brand colour.
-    const hero = Array.from(container.querySelectorAll<HTMLElement>('p')).find((p) => p.textContent === '$3,897.00')!
-    expect(hero).toBeTruthy()
-    // PDF grandTotalValue: 30pt bold.
-    expect(parseFloat(hero.style.fontSize)).toBeCloseTo(30 * PX_PER_PT, 3)
-    expect(hero.style.color).not.toBe('')
+    // The total is one row (label left, amount right) under a brand rule.
+    const totalRow = container.querySelector<HTMLElement>('[data-testid="modern-total-row"]')!
+    const amount = Array.from(totalRow.querySelectorAll<HTMLElement>('p')).find((p) => p.textContent === '$3,897.00')!
+    expect(amount).toBeTruthy()
+    expect(parseFloat(amount.style.fontSize)).toBeCloseTo(MODERN_LAYOUT.totalValueFontSizePt * PX_PER_PT, 3)
+    expect(amount.style.color).not.toBe('')
+    expect(totalRow.style.borderTop).toContain('solid')
   })
 
   it('draws terms as label + text without tinted cards, and the first terms card carries the PDF top spacing', () => {
@@ -177,7 +186,7 @@ describe('PaginatedPreview — Modern template', () => {
     expect(titles.length).toBeGreaterThan(0)
     for (const t of Array.from(titles)) {
       expect(t.textContent).toContain(LABELS.en.continued)
-      expect(t.className).toContain('border-[#1f2937]')
+      expect(t.className).toContain('border-[#18181b]')
       expect(t.style.backgroundColor).toBe('')
     }
   })
@@ -277,10 +286,13 @@ describe('PaginatedPreview — template parity', () => {
       preparedBy: found.includes('prepared-by'),
       terms: found.filter((i) => i.startsWith('terms-')).sort(),
       headers: found.filter((i) => i.endsWith('-header')).sort(),
-      subtotals: found.filter((i) => i.endsWith('-subtotal')).sort(),
       rows: found.filter((i) => i.includes('-row-')).length,
     })
     expect(kinds(modern.found)).toEqual(kinds(classic.found))
+    // The one intended difference: Modern draws each section's subtotal on its title
+    // line (2026-11-12), so it has no subtotal blocks; Classic keeps its rows.
+    expect(modern.found.filter((i) => i.endsWith('-subtotal'))).toEqual([])
+    expect(classic.found.filter((i) => i.endsWith('-subtotal')).length).toBeGreaterThan(0)
     expect(kinds(modern.found).totals).toBe(true)
     expect(kinds(modern.found).signature).toBe(true)
   })

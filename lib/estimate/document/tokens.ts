@@ -47,7 +47,8 @@ export interface EstimateDesignTokens {
 
 export const ESTIMATE_DESIGN_TOKENS: Record<EstimateTemplateId, EstimateDesignTokens> = {
   classic: { fontFamily: 'Inter', fontFamilyBold: 'Inter-Bold', fontFamilyTitle: 'Inter-ExtraBold', solidHeaderFill: true },
-  modern: { fontFamily: 'Lora', fontFamilyBold: 'Lora-Bold', fontFamilyTitle: 'Lora-Bold', solidHeaderFill: false },
+  // Modern moved off Lora to Inter on 2026-11-12 (owner: the serif read as old-fashioned).
+  modern: { fontFamily: 'Inter', fontFamilyBold: 'Inter-Bold', fontFamilyTitle: 'Inter-ExtraBold', solidHeaderFill: false },
 }
 
 // Phase 184 Plan 01 (PGBRK-05) — font-metrics-derived line-height multiplier,
@@ -214,3 +215,38 @@ export function paymentBoxHeightPt(template: EstimateTemplateId): number {
     row * 2
   )
 }
+
+/** Modern (2026-11-12 redesign) layout numbers shared by the PDF
+ *  (estimate-pdf-modern.tsx + shared pdf-* blocks), the paginated preview
+ *  (preview-template/modern.tsx) and the pagination literals
+ *  (blocks-from-model.ts) — change one here and all follow.
+ *   - title row: "Estimate" at titleFontSizePt on the left, the estimate
+ *     number (docIdNumberFontSizePt) over the date (docIdDateFontSizePt) on the
+ *     right; the right column is exactly as tall as the title line (11 + 9 =
+ *     20pt of text), so the row height is the title line.
+ *   - sectionSubtotalWidthPt: the section subtotal sits on the section title's
+ *     line, in a right column this wide; the title wraps at the rest.
+ *   - total: one row under a brand rule — label left, amount right. */
+export const MODERN_LAYOUT = {
+  titleFontSizePt: 20,
+  titleMarginBottomPt: 6,
+  titleRuleWidthPt: 2,
+  titleRuleMarginBottomPt: 24,
+  docIdNumberFontSizePt: 11,
+  docIdDateFontSizePt: 9,
+  sectionSubtotalWidthPt: 90,
+  totalMarginTopPt: 8,
+  totalRuleWidthPt: 2,
+  totalPaddingTopPt: 8,
+  totalValueFontSizePt: 22,
+  totalLabelFontSizePt: 9,
+} as const
+
+/** Modern palette (AA contrast on white for every text color). */
+export const MODERN_COLORS = {
+  ink: '#18181b',
+  body: '#27272a',
+  secondary: '#52525b',
+  label: '#71717a',
+  rule: '#e4e4e7',
+} as const

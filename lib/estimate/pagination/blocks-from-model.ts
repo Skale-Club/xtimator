@@ -31,6 +31,7 @@ import {
   ESTIMATE_PAGE_GEOMETRY,
   LINE_HEIGHT,
   paymentBoxHeightPt,
+  MODERN_LAYOUT,
   photoTileWidthPt,
   photosPerRow,
 } from '@/lib/estimate/document/tokens'
@@ -162,6 +163,13 @@ interface TemplateLiterals {
    *  the full content width, so the section title's real text box is
    *  contentWidthPt - 2 x this — the width the title is measured (wrapped) at. */
   sectionTitleHorizontalPaddingPt: number
+  /** Modern: the section subtotal sits on the title line in a right column this
+   *  wide (MODERN_LAYOUT.sectionSubtotalWidthPt) and there is no separate
+   *  subtotal row; the title wraps at the remaining width. 0 for Classic. */
+  sectionSubtotalInHeaderWidthPt: number
+  /** Classic draws the date and the estimate number in the info grid's project
+   *  column; Modern draws them in the title row instead. */
+  infoShowsDateAndNumber: boolean
   /** tableRow paddingVertical×2 + borderBottomWidth(0.5) (classic 6×2+0.5=12.5, modern 8×2+0.5=16.5). */
   itemRowBaseHeightPt: number
   /** sectionSubtotal paddingVertical×2 + borderTopWidth + ONE label line (9 × the bold family's natural line height). */
@@ -241,6 +249,8 @@ function buildTemplateLiterals(p: {
   sectionHeaderPaddingContributionPt: number
   tableHeaderHeightPt: number
   sectionTitleHorizontalPaddingPt: number
+  sectionSubtotalInHeaderWidthPt: number
+  infoShowsDateAndNumber: boolean
   itemRowPaddingContributionPt: number
   sectionSubtotalPaddingContributionPt: number
   sectionSubtotalLabelLinePt: number
@@ -280,6 +290,8 @@ function buildTemplateLiterals(p: {
       p.labelFontSizePt * p.proseLineHeightMultiplier + p.labelMarginBottomPt + p.summaryBottomSpacingPt,
     sectionHeaderBaseHeightPt: p.sectionHeaderPaddingContributionPt + p.tableHeaderHeightPt,
     sectionTitleHorizontalPaddingPt: p.sectionTitleHorizontalPaddingPt,
+    sectionSubtotalInHeaderWidthPt: p.sectionSubtotalInHeaderWidthPt,
+    infoShowsDateAndNumber: p.infoShowsDateAndNumber,
     itemRowBaseHeightPt: p.itemRowPaddingContributionPt,
     sectionSubtotalBaseHeightPt: p.sectionSubtotalPaddingContributionPt + p.sectionSubtotalLabelLinePt,
     totalsContainerMarginTopPt: p.totalsContainerMarginTopPt,
@@ -331,6 +343,8 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     sectionHeaderPaddingContributionPt: 8 * 2 + 16, // styles.sectionHeader.padding×2 + marginTop
     tableHeaderHeightPt: 6 * 2 + 1 + 9 * LINE_HEIGHT['Inter-Bold'], // PdfTableHeaderOnly: styles.tableHeader.paddingVertical×2 + borderBottomWidth + tableHeaderText.fontSize × Inter-Bold line height
     sectionTitleHorizontalPaddingPt: 10, // styles.sectionHeader.paddingHorizontal (title text box = contentWidthPt - 2×10)
+    sectionSubtotalInHeaderWidthPt: 0, // Classic keeps its Section Subtotal row
+    infoShowsDateAndNumber: true, // pdf-info-grid.tsx date + number lines
     itemRowPaddingContributionPt: 6 * 2 + 0.5, // styles.tableRow.paddingVertical×2 + borderBottomWidth
     sectionSubtotalPaddingContributionPt: 6 * 2 + 1, // styles.sectionSubtotal.paddingVertical×2 + borderTopWidth
     sectionSubtotalLabelLinePt: 9 * LINE_HEIGHT['Inter-Bold'], // styles.sectionSubtotalLabel/Value.fontSize × Inter-Bold line height
@@ -362,26 +376,28 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     labelFontSizePt: 8, // styles.infoLabel.fontSize
     labelMarginBottomPt: 5, // styles.infoLabel.marginBottom
     valueFontSizePt: 10, // styles.infoValue.fontSize
-    titleBannerFontSizePt: 13, // styles.estimateTitle.fontSize
-    titleBannerBaseHeightPt: 6 + 0.75 + 28, // estimateTitle.marginBottom + estimateTitleRule.borderBottomWidth + estimateTitleRule.marginBottom
+    titleBannerFontSizePt: MODERN_LAYOUT.titleFontSizePt, // styles.estimateTitle.fontSize (the right doc-id column is exactly as tall)
+    titleBannerBaseHeightPt: MODERN_LAYOUT.titleMarginBottomPt + MODERN_LAYOUT.titleRuleWidthPt + MODERN_LAYOUT.titleRuleMarginBottomPt, // title row marginBottom + brand rule + its marginBottom
     proseLineHeightMultiplier: ESTIMATE_PAGE_GEOMETRY.modern.proseLineHeightMultiplier,
-    infoLabelLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.infoLabel.fontFamily (Lora-Bold), no lineHeight: natural line height
-    infoDateMarginTopPt: 4, // pdf-info-grid.tsx date Text `marginTop: 4`
+    infoLabelLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.infoLabel.fontFamily (Inter-Bold), no lineHeight: natural line height
+    infoDateMarginTopPt: 0, // no date line in Modern's info grid (it is in the title row)
     infoRowMarginBottomPt: 28, // styles.infoRow.marginBottom
     termsTextMarginBottomPt: 14, // styles.termsText.marginBottom
     sectionHeaderPaddingContributionPt: 6 * 2 + 22 + 1, // paddingVertical×2 + marginTop + borderBottomWidth
-    tableHeaderHeightPt: 8 * 2 + 0.5 + 8.5 * LINE_HEIGHT['Lora-Bold'], // PdfTableHeaderOnly: styles.tableHeader.paddingVertical×2 + borderBottomWidth + tableHeaderText.fontSize × Lora-Bold line height
+    tableHeaderHeightPt: 8 * 2 + 0.5 + 8.5 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // PdfTableHeaderOnly: styles.tableHeader.paddingVertical×2 + borderBottomWidth + tableHeaderText.fontSize × bold-family line height
     sectionTitleHorizontalPaddingPt: 0, // styles.sectionHeader has no paddingHorizontal (title text box = full contentWidthPt)
+    sectionSubtotalInHeaderWidthPt: MODERN_LAYOUT.sectionSubtotalWidthPt, // subtotal on the title line (no subtotal row)
+    infoShowsDateAndNumber: false, // date + number live in the title row
     itemRowPaddingContributionPt: 8 * 2 + 0.5, // styles.tableRow.paddingVertical×2 + borderBottomWidth
     sectionSubtotalPaddingContributionPt: 8 * 2 + 0.5, // paddingVertical×2 + borderTopWidth
-    sectionSubtotalLabelLinePt: 9 * LINE_HEIGHT['Lora-Bold'], // styles.sectionSubtotalLabel/Value.fontSize × Lora-Bold line height
+    sectionSubtotalLabelLinePt: 9 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.sectionSubtotalLabel/Value.fontSize × bold-family line height
     totalsContainerMarginTopPt: 28, // styles.totalsContainer.marginTop
-    totalsRowHeightPt: 6 * 2 + 0.5 + 10 * LINE_HEIGHT.Lora, // styles.totalsRow.paddingVertical×2 + borderBottomWidth + totalsLabel/Value.fontSize(10) × Lora line height
-    grandTotalHeightPt: 16 + 4 + 9 * LINE_HEIGHT['Lora-Bold'] + 30 * LINE_HEIGHT['Lora-Bold'], // grandTotalBlock.marginTop + grandTotalLabel.marginBottom + grandTotalLabel.fontSize(9) × Lora-Bold line height + grandTotalValue.fontSize(30) × Lora-Bold line height
+    totalsRowHeightPt: 6 * 2 + 0.5 + 10 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamily], // styles.totalsRow.paddingVertical×2 + borderBottomWidth + totalsLabel/Value.fontSize(10) × family line height
+    grandTotalHeightPt: MODERN_LAYOUT.totalMarginTopPt + MODERN_LAYOUT.totalRuleWidthPt + MODERN_LAYOUT.totalPaddingTopPt + MODERN_LAYOUT.totalValueFontSizePt * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyTitle], // one row under the brand rule: marginTop + rule + paddingTop + the amount line (the label is shorter)
     paymentBoxHeightPt: paymentBoxHeightPt('modern'), // tokens.ts PAYMENT_BOX.modern
     termsTitleFontSizePt: 8, // styles.termsTitle.fontSize
     termsTitleSpacingContributionPt: 7, // styles.termsTitle.marginBottom (the paddingBottom + rule were dropped when the title became an eyebrow label)
-    termsTitleLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.termsTitle.fontFamily (Lora-Bold) natural line height — the "Photos" label line
+    termsTitleLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold], // styles.termsTitle.fontFamily (Inter-Bold) natural line height — the "Photos" label line
     termsCardFirstBonusPt: 32, // removed styles.termsSection.marginTop, now PdfTermsSection topMarginPt
     termsCardPaddingPt: 0, // Modern cards are box-less (no `box` prop passed): no padding
     termsCardMarginBottomPt: 0, // ...and no inter-card margin
@@ -390,11 +406,11 @@ const TEMPLATE_LITERALS: Record<EstimateTemplateId, TemplateLiterals> = {
     signatureMarginTopPt: 16, // PdfSignatureBlock outer View marginTop (shared component)
     signatureImageHeightPt: 40, // PdfSignatureBlock Image height (shared component)
     signatureLineFontSizePt: 9, // PdfSignatureBlock's 2 Text lines fontSize (shared component)
-    signatureLineHeightMultiplier: LINE_HEIGHT.Lora, // those Texts set no lineHeight: Lora natural line height
+    signatureLineHeightMultiplier: LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamily], // those Texts set no lineHeight: family natural line height
     signatureNameMarginTopPt: 4, // PdfSignatureBlock signer-name Text marginTop (shared component)
     photoRowGapPt: 8, // PdfPhotoGrid non-first-row marginTop (PHOTO_TILE_GAP_PT, shared component); the tile edge itself is photoTileWidthPt(contentWidthPt), read in blocksFromModel
     photoCaptionMarginTopPt: 2, // PdfPhotoGrid caption Text marginTop (shared component)
-    photoCaptionFontSizePt: 8, // PdfPhotoGrid caption Text fontSize (shared component; line height = Lora natural, applied at measurement)
+    photoCaptionFontSizePt: 8, // PdfPhotoGrid caption Text fontSize (shared component; line height = family natural, applied at measurement)
     photoRowFirstBonusPt: 20, // estimate-pdf-modern.tsx's PdfPhotoGrid topMargin call-site value (first chunk: marginTop ABOVE the Photos label)
     preparedByMarginTopPt: 20, // Prepared-by View marginTop
   }),
@@ -430,13 +446,17 @@ function infoGridColumns(
   const projectLines: TextMeasurement[] = [regular(info.projectName)]
   const projectTypeText = formatProjectType(info.projectType)
   if (projectTypeText) projectLines.push(regular(projectTypeText))
-  projectLines.push(
-    regular(`${L.date}: ${formatDate(info.estimate.estimate_date ?? info.estimate.created_at, info.language)}`)
-  )
+  if (lit.infoShowsDateAndNumber) {
+    projectLines.push(
+      regular(`${L.date}: ${formatDate(info.estimate.estimate_date ?? info.estimate.created_at, info.language)}`)
+    )
+  }
   if (showValidUntil && info.estimate.valid_until) {
     projectLines.push(regular(`${L.validUntil}: ${formatDate(info.estimate.valid_until, info.language)}`))
   }
-  projectLines.push(regular(`${L.estimateNum}${formatEstimateNumber(info.estimate)}`))
+  if (lit.infoShowsDateAndNumber) {
+    projectLines.push(regular(`${L.estimateNum}${formatEstimateNumber(info.estimate)}`))
+  }
   const columns: StackedColumn[] = [
     {
       fixedHeightPt: lit.infoColumnLabelHeightPt + lit.infoDateMarginTopPt,
@@ -550,7 +570,9 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
     // editor page view included; the web editor view (estimate-document.tsx) keeps the
     // row while editing. Modern keeps its subtotal row (standby template, unchanged).
     const visibleSectionCount = sections.filter((s) => visibleSectionItems(s).length > 0).length
-    const omitSectionSubtotal = templateId === 'classic' && visibleSectionCount === 1
+    // Modern (2026-11-12): the subtotal is on the section title line, never a row.
+    const omitSectionSubtotal =
+      lit.sectionSubtotalInHeaderWidthPt > 0 || (templateId === 'classic' && visibleSectionCount === 1)
     for (const section of sections) {
       const items = visibleSectionItems(section)
       if (items.length === 0) continue
@@ -570,7 +592,8 @@ export function blocksFromModel(input: BlocksFromModelInput): PageBlock[] {
           lineHeightMultiplier: LINE_HEIGHT[design.fontFamilyBold],
           // The title sits inside the section band's horizontal padding, so it
           // wraps at the band's INNER width, not the full content width.
-          maxWidthPt: geometry.contentWidthPt - 2 * lit.sectionTitleHorizontalPaddingPt,
+          maxWidthPt:
+            geometry.contentWidthPt - 2 * lit.sectionTitleHorizontalPaddingPt - lit.sectionSubtotalInHeaderWidthPt,
         },
         keepWithNextId: rowIds[0],
         atomic: true,

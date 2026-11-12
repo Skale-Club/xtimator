@@ -140,21 +140,22 @@ describe('measureHeaderHeightPt (PGBRK-01/03/04, corrected max(left,right) formu
 
   it('modern: tall-left/no-logo header height is driven by the LEFT column (hand-computed, 2-line address)', () => {
     // GAP 1 fix — see the classic case's comment above for the root cause.
-    // left  = companyName(15 * LINE_HEIGHT['Lora-Bold']=1.28) + marginBottom(5)
+    // Modern is Inter since 2026-11-12 (was Lora-Bold 1.28).
+    // left  = companyName(15 * LINE_HEIGHT['Inter-Bold']=1.21) + marginBottom(5)
     //         + contact(9 * prose=1.6) + address(2 lines * 9 * 1.6)
-    //       = 19.2 + 5 + 14.4 + 28.8 = 67.4
+    //       = 18.15 + 5 + 14.4 + 28.8 = 66.35
     // right = 0   (English: no langBadge; no logo)
-    // headerRow = max(67.4, 0) = 67.4
+    // headerRow = max(66.35, 0) = 66.35
     // chrome = paddingBottom(20) + marginBottom(32) + borderBottomWidth(0.75) = 52.75
-    // total = 120.15
+    // total = 119.1
     const height = measureHeaderHeightPt(tallLeftNoLogoTwoLineAddress(), 'modern', 'en')
-    expect(height).toBeCloseTo(120.15, 5)
+    expect(height).toBeCloseTo(119.1, 5)
   })
 
   it('modern: short-left/with-logo header height is driven by the RIGHT column (hand-computed, non-English: badge + gap + logo)', () => {
-    // left  = companyName(15 * 1.28) + marginBottom(5) = 24.2   (no contact/address)
+    // left  = companyName(15 * 1.21) + marginBottom(5) = 23.15   (no contact/address)
     // right = langBadge(8.5 * 1.6=13.6) + gap(8) + logoHeight(64) = 85.6
-    // headerRow = max(24.2, 85.6) = 85.6
+    // headerRow = max(23.15, 85.6) = 85.6
     // chrome = 52.75
     // total = 138.35
     const height = measureHeaderHeightPt(shortLeftWithLogo(), 'modern', 'es')
@@ -206,9 +207,9 @@ describe('measureCompactHeaderHeightPt (pages 2+, hand-computed from the compact
     expect(measureCompactHeaderHeightPt('classic')).toBeCloseTo(34.31, 5)
   })
 
-  it('modern: max(name 11*1.28, id 8.5*1.28) + paddingBottom(8) + marginBottom(18) + border(0.75)', () => {
-    // 14.08 + 8 + 18 + 0.75 = 40.83
-    expect(measureCompactHeaderHeightPt('modern')).toBeCloseTo(40.83, 5)
+  it('modern: max(name 11*1.21, id 8.5*1.21) + paddingBottom(8) + marginBottom(18) + border(0.75)', () => {
+    // Inter since 2026-11-12: 13.31 + 8 + 18 + 0.75 = 40.06
+    expect(measureCompactHeaderHeightPt('modern')).toBeCloseTo(40.06, 5)
   })
 
   it('is much shorter than the full header for a typical company, in both templates', () => {
@@ -224,14 +225,14 @@ describe('continuation-page repeated header reservation (section title "(cont.)"
     expect(CONTINUATION_SECTION_TITLE_HEIGHT_PT.classic).toBeCloseTo(29.31, 5)
   })
 
-  it('modern title band: paddingVertical(6)x2 + borderBottomWidth(1) + sectionTitle 11 x LINE_HEIGHT[Lora-Bold] 1.28', () => {
-    // 12 + 1 + 14.08 = 27.08
-    expect(CONTINUATION_SECTION_TITLE_HEIGHT_PT.modern).toBeCloseTo(27.08, 5)
+  it('modern title band: paddingVertical(6)x2 + borderBottomWidth(1) + sectionTitle 11 x LINE_HEIGHT[Inter-Bold] 1.21', () => {
+    // 12 + 1 + 13.31 = 26.31
+    expect(CONTINUATION_SECTION_TITLE_HEIGHT_PT.modern).toBeCloseTo(26.31, 5)
   })
 
-  it('the engine reservation is the title band PLUS the column-header row (classic 13 + 9 x 1.21, modern 16.5 + 8.5 x 1.28)', () => {
+  it('the engine reservation is the title band PLUS the column-header row (classic 13 + 9 x 1.21, modern 16.5 + 8.5 x 1.21)', () => {
     expect(CONTINUATION_TABLE_HEADER_HEIGHT_PT.classic).toBeCloseTo(13 + 9 * 1.21 + 29.31, 5)
-    expect(CONTINUATION_TABLE_HEADER_HEIGHT_PT.modern).toBeCloseTo(16.5 + 8.5 * 1.28 + 27.08, 5)
+    expect(CONTINUATION_TABLE_HEADER_HEIGHT_PT.modern).toBeCloseTo(16.5 + 8.5 * 1.21 + 26.31, 5)
   })
 })
 
@@ -244,7 +245,7 @@ describe('measureHeaderHeightPt — the company name / contact / address WRAP in
     for (const tpl of ['classic', 'modern'] as const) {
       const short = measure(nameOnly('Acme'), tpl)
       const long = measure(nameOnly(LONG), tpl)
-      const nameLine = tpl === 'classic' ? 18 * 1.21 : 15 * 1.28
+      const nameLine = tpl === 'classic' ? 18 * 1.21 : 15 * 1.21
       expect(long - short).toBeGreaterThanOrEqual(nameLine - 1e-6)
       expect((long - short) / nameLine).toBeCloseTo(Math.round((long - short) / nameLine), 6) // whole extra lines
     }

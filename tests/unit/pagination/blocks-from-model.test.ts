@@ -12,7 +12,9 @@ import { resolvePresentationSettings } from '@/lib/estimate/presentation-setting
 import { LABELS } from '@/lib/estimate/document/labels'
 import {
   CLASSIC_CARD_BOX,
+  ESTIMATE_DESIGN_TOKENS,
   ESTIMATE_PAGE_GEOMETRY,
+  MODERN_LAYOUT,
   LINE_HEIGHT,
   PHOTO_TILE_GAP_PT,
   photoTileWidthPt,
@@ -246,11 +248,11 @@ describe('blocksFromModel — photo-row chunking and first-row height bonus', ()
     expect(rows[1].baseHeightPt).toBeCloseTo(tile + PHOTO_TILE_GAP_PT, 6)
   })
 
-  it('Modern: same structure with the 20pt top margin, Lora-Bold label line and 7pt label marginBottom', () => {
+  it('Modern: same structure with the 20pt top margin, bold-family label line and 7pt label marginBottom', () => {
     const rows = blocksFromModel(baseInput({ photos: fourPhotos, templateId: 'modern' })).filter((b) => b.kind === 'photo-row')
     const tile = photoTileWidthPt(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
     expect(tile).toBe(164)
-    expect(rows[0].baseHeightPt).toBeCloseTo(tile + 20 + 8 * LINE_HEIGHT['Lora-Bold'] + 7, 6)
+    expect(rows[0].baseHeightPt).toBeCloseTo(tile + 20 + 8 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold] + 7, 6)
     expect(rows[1].baseHeightPt).toBeCloseTo(tile + PHOTO_TILE_GAP_PT, 6)
   })
 
@@ -302,7 +304,7 @@ describe('blocksFromModel — signature and prepared-by presence gates', () => {
 describe('blocksFromModel — ref population, ID naming, and section keep-with links', () => {
   it('every section-header/item-row/section-subtotal block has ref.sectionId; item-row additionally has ref.itemId and ref.itemIndex WITHIN the filtered list', () => {
     const input = baseInput({
-      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
+      templateId: 'classic', // with a second section Classic keeps its subtotal row (Modern has none since 2026-11-12: the subtotal is on the title line)
       sections: [
         section({
           id: 'sec-a',
@@ -312,12 +314,14 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
             { id: 'second', description: 'Second item', quantity: 1, unit: null, unit_price: 1, total: 1 },
           ],
         }),
+        section({ id: 'other', items: [{ id: 'o', description: 'O', quantity: 1, unit: null, unit_price: 1, total: 1 }] }),
       ],
     })
     const blocks = blocksFromModel(input)
     const header = blocks.find((b) => b.kind === 'section-header')!
     const subtotal = blocks.find((b) => b.kind === 'section-subtotal')!
-    const rows = blocks.filter((b) => b.kind === 'item-row')
+    // only this section's rows (a second section keeps Classic's subtotal row)
+    const rows = blocks.filter((b) => b.kind === 'item-row' && b.ref?.sectionId === header.ref?.sectionId)
 
     expect(header.ref?.sectionId).toBe('sec-a')
     expect(subtotal.ref?.sectionId).toBe('sec-a')
@@ -328,12 +332,13 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
 
   it('ID naming convention: `${section.id}-header`, `${section.id}-rows-${item.id}`, `${section.id}-subtotal`', () => {
     const input = baseInput({
-      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
+      templateId: 'classic', // with a second section Classic keeps its subtotal row (Modern has none since 2026-11-12: the subtotal is on the title line)
       sections: [
         section({
           id: 'sec-xyz',
           items: [{ id: 'item-42', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }],
         }),
+        section({ id: 'other', items: [{ id: 'o', description: 'O', quantity: 1, unit: null, unit_price: 1, total: 1 }] }),
       ],
     })
     const blocks = blocksFromModel(input)
@@ -344,7 +349,7 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
 
   it("section-header's keepWithNextId points at the FIRST item-row id; section-subtotal's keepWithPreviousId points at the LAST item-row id — both array-adjacent", () => {
     const input = baseInput({
-      templateId: 'modern', // Classic omits the subtotal for a lone section; Modern always emits it
+      templateId: 'classic', // with a second section Classic keeps its subtotal row (Modern has none since 2026-11-12: the subtotal is on the title line)
       sections: [
         section({
           id: 'sec-b',
@@ -353,12 +358,14 @@ describe('blocksFromModel — ref population, ID naming, and section keep-with l
             { id: 'b', description: 'B', quantity: 1, unit: null, unit_price: 1, total: 1 },
           ],
         }),
+        section({ id: 'other', items: [{ id: 'o', description: 'O', quantity: 1, unit: null, unit_price: 1, total: 1 }] }),
       ],
     })
     const blocks = blocksFromModel(input)
     const header = blocks.find((b) => b.kind === 'section-header')!
     const subtotal = blocks.find((b) => b.kind === 'section-subtotal')!
-    const rows = blocks.filter((b) => b.kind === 'item-row')
+    // only this section's rows (a second section keeps Classic's subtotal row)
+    const rows = blocks.filter((b) => b.kind === 'item-row' && b.ref?.sectionId === header.ref?.sectionId)
 
     expect(header.keepWithNextId).toBe(rows[0].id)
     expect(subtotal.keepWithPreviousId).toBe(rows[rows.length - 1].id)
@@ -475,16 +482,16 @@ describe('blocksFromModel — Classic card box (inner padding) vs Modern (box-le
     }
   })
 
-  it('Modern terms card stays box-less: title line (8 x Lora-Bold 1.28) + marginBottom 7 + text marginBottom 14', () => {
+  it('Modern terms card stays box-less: title line (8 x bold family) + marginBottom 7 + text marginBottom 14', () => {
     const cards = blocksFromModel(baseInput({ ...twoTerms, templateId: 'modern' })).filter((b) => b.kind === 'terms-card')
-    expect(cards[1].baseHeightPt).toBeCloseTo(8 * LINE_HEIGHT['Lora-Bold'] + 7 + 14, 9)
+    expect(cards[1].baseHeightPt).toBeCloseTo(8 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold] + 7 + 14, 9)
   })
 
   it('signature card: marginTop 16 + title line + title marginBottom + image 40 + signer marginTop 4 + 2 text lines; Classic additionally the card box (2x10 padding + 8 marginBottom), Modern does not', () => {
     const signature = { signerName: 'Jane', signedAt: '2026-01-01T00:00:00Z', signatureDataUrl: 'data:image/png;base64,x' }
     const sig = (templateId: 'classic' | 'modern') =>
       blocksFromModel(baseInput({ signature, templateId })).find((b) => b.kind === 'signature')!
-    const modern = 16 + 8 * LINE_HEIGHT['Lora-Bold'] + 7 + 40 + 4 + 2 * 9 * LINE_HEIGHT.Lora
+    const modern = 16 + 8 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamilyBold] + 7 + 40 + 4 + 2 * 9 * LINE_HEIGHT[ESTIMATE_DESIGN_TOKENS.modern.fontFamily]
     const classic = 16 + 8 * LINE_HEIGHT['Inter-Bold'] + 6 + 40 + 4 + 2 * 9 * LINE_HEIGHT.Inter
     expect(sig('modern').baseHeightPt).toBeCloseTo(modern, 9)
     expect(sig('classic').baseHeightPt).toBeCloseTo(classic + 2 * 10 + 8, 9)
@@ -499,7 +506,7 @@ describe('blocksFromModel — section-title measurement width', () => {
     return blocks.find((b) => b.kind === 'section-header')!.measurement!
   }
 
-  it('Classic measures the section title at contentWidthPt - 2x10 (the band inner width), Modern at the full contentWidthPt', () => {
+  it('Classic measures the section title at contentWidthPt - 2x10 (the band inner width), Modern at contentWidthPt minus the subtotal column', () => {
     expect(classicTitleMeasurement().maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.classic.contentWidthPt - 20)
 
     const modern = blocksFromModel(
@@ -508,7 +515,8 @@ describe('blocksFromModel — section-title measurement width', () => {
         sections: [section({ title: 'T', items: [{ id: 'i1', description: 'Work', quantity: 1, unit: null, unit_price: 1, total: 1 }] })],
       }),
     ).find((b) => b.kind === 'section-header')!.measurement!
-    expect(modern.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt)
+    // Modern (2026-11-12): the section subtotal shares the title line, in a right column
+    expect(modern.maxWidthPt).toBe(ESTIMATE_PAGE_GEOMETRY.modern.contentWidthPt - MODERN_LAYOUT.sectionSubtotalWidthPt)
   })
 
   it('a Classic title wider than contentWidthPt - 20 but narrower than contentWidthPt wraps to 2 lines (would be 1 at the full width)', () => {
@@ -541,16 +549,17 @@ describe('blocksFromModel — totals block height matches the real rendered heig
   // predicted vs 240.42 / 161.94 real), which the flat safety margin hid.
   // 2026-11-12: deposit + balance due moved into the Payment box (tokens.ts
   // PAYMENT_BOX, paymentBoxHeightPt). Re-measured on rendered PDFs with discount +
-  // tax + deposit: Classic 175.40 (box 554.72 -> 603.38), Modern 240.38 (box
-  // 278.65 -> 333.21), both equal to the formula below.
+  // tax + deposit: Classic 175.40 (box 554.72 -> 603.38), Modern (pre-redesign Lora) 240.38; both equal to the formula below.
   const full = { discount_amount: 15, tax_amount: 111.38, dep: { showDeposit: true, depositAmount: 118.91, balanceDue: 277.47 } }
 
-  it('Modern: container + subtotal/discount/tax rows + hero total + Payment box = 240.38pt', () => {
+  it('Modern: container + subtotal/discount/tax rows + total row + Payment box = 211.09pt', () => {
     const totals = blocksFromModel(baseInput({ ...full, templateId: 'modern' })).find((b) => b.kind === 'totals')!
-    // 28 container marginTop + 3 rows x 25.3 + grand total block 69.92
-    // + Payment box: 12 marginTop + 3x2 padding + title 7 x 1.28 + 2 + 2 rows x (3x2 + 10 x 1.28)
-    expect(totals.baseHeightPt).toBeCloseTo(28 + 3 * 25.3 + 69.92 + (12 + 6 + 7 * 1.28 + 2 + 2 * (6 + 12.8)), 2)
-    expect(totals.baseHeightPt).toBeCloseTo(240.38, 2)
+    // Modern redesign (2026-11-12, Inter): 28 container marginTop + 3 rows x (6x2 + 0.5 + 10 x 1.21)
+    // + total row (8 marginTop + 2 brand rule + 8 paddingTop + 22 x 1.21)
+    // + Payment box (12 marginTop + 3x2 padding + title 7 x 1.21 + 2 + 2 rows x (3x2 + 10 x 1.21)).
+    // Real rendered PDF: totals 92.06 -> 303.15 = 211.09.
+    expect(totals.baseHeightPt).toBeCloseTo(28 + 3 * 24.6 + (8 + 2 + 8 + 22 * 1.21) + (12 + 6 + 7 * 1.21 + 2 + 2 * (6 + 12.1)), 2)
+    expect(totals.baseHeightPt).toBeCloseTo(211.09, 2)
   })
 
   it('Classic: the same content = 175.41pt', () => {
@@ -569,7 +578,7 @@ describe('blocksFromModel — photo captions are measured at the tile width', ()
       { url: 'https://x/2.jpg', caption: null },
       { url: 'https://x/3.jpg', caption: 'Short' },
     ]
-    for (const [templateId, family] of [['classic', 'Inter'], ['modern', 'Lora']] as const) {
+    for (const [templateId, family] of [['classic', 'Inter'], ['modern', 'Inter']] as const) {
       const row = blocksFromModel(baseInput({ photos, templateId })).find((b) => b.kind === 'photo-row')!
       expect(row.parallelMeasurements).toHaveLength(2)
       for (const m of row.parallelMeasurements!) {
@@ -617,10 +626,13 @@ describe('blocksFromModel — single visible section omits the section subtotal 
     expect(blocks.filter((b) => b.kind === 'section-subtotal').map((b) => b.id)).toEqual(['s1-subtotal', 's2-subtotal'])
   })
 
-  it('Modern keeps the subtotal even for a lone section (only Classic changed)', () => {
-    const blocks = blocksFromModel(
-      baseInput({ templateId: 'modern', sections: [section({ id: 'only', items: [item('a')] })] }),
-    )
-    expect(blocks.filter((b) => b.kind === 'section-subtotal')).toHaveLength(1)
+  it('Modern never emits a subtotal row: the subtotal sits on the section title line (2026-11-12)', () => {
+    for (const sections of [
+      [section({ id: 'only', items: [item('a')] })],
+      [section({ id: 's1', items: [item('a')] }), section({ id: 's2', items: [item('b')] })],
+    ]) {
+      const blocks = blocksFromModel(baseInput({ templateId: 'modern', sections }))
+      expect(blocks.filter((b) => b.kind === 'section-subtotal')).toHaveLength(0)
+    }
   })
 })

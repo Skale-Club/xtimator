@@ -74,6 +74,11 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
   // infoLabel line (8pt, natural bold line height) + its marginBottom (Classic 4 / Modern 5).
   const label = 8 * LINE_HEIGHT[design.fontFamilyBold] + (templateId === 'classic' ? 4 : 5)
   const rowMarginBottom = templateId === 'classic' ? 20 : 28
+  // Classic draws the date (with its marginTop 4) and the estimate number in the
+  // Project column; Modern draws them in the title row (2026-11-12 redesign).
+  const dated = templateId === 'classic'
+  const dateMarginTop = dated ? 4 : 0
+  const dateLines = (date: string, number: string) => (dated ? [date, number] : [])
 
   it('emits Project + Bill To columns, each line measured at 48% of the content width', () => {
     const block = gridBlock(templateId, infoGrid())
@@ -93,16 +98,15 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
     expect(project.measurements.map((m) => m.text)).toEqual([
       'Kitchen Remodel',
       'Kitchen Remodel',
-      'Date: September 28, 2026',
-      'Estimate #0001',
+      ...dateLines('Date: September 28, 2026', 'Estimate #0001'),
     ])
     expect(project.measurements.every((m) => m.styleKey === design.fontFamily)).toBe(true)
 
     const [noType] = gridBlock(templateId, infoGrid({ projectType: null })).columns!
-    expect(noType.measurements.map((m) => m.text)).toEqual(['Kitchen Remodel', 'Date: September 28, 2026', 'Estimate #0001'])
+    expect(noType.measurements.map((m) => m.text)).toEqual(['Kitchen Remodel', ...dateLines('Date: September 28, 2026', 'Estimate #0001')])
     // A blank / underscore-only type draws nothing, exactly like the template's `{projectTypeText && ...}`.
     const [blankType] = gridBlock(templateId, infoGrid({ projectType: '  ' })).columns!
-    expect(blankType.measurements).toHaveLength(3)
+    expect(blankType.measurements).toHaveLength(dated ? 3 : 1)
   })
 
   it('the date falls back to created_at; the number prefers estimate_number; the language drives labels and the date', () => {
@@ -110,11 +114,13 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
       templateId,
       infoGrid({ estimate: { estimate_date: null, created_at: '2026-03-05T12:00:00Z', estimate_number: 'EST-1042', estimate_seq: 7 } })
     ).columns!
-    expect(fallback.measurements.map((m) => m.text)).toEqual(['Kitchen Remodel', 'Date: March 5, 2026', 'Estimate #EST-1042'])
+    expect(fallback.measurements.map((m) => m.text)).toEqual(['Kitchen Remodel', ...dateLines('Date: March 5, 2026', 'Estimate #EST-1042')])
 
-    const [es] = gridBlock(templateId, infoGrid({ language: 'es' }), 'es').columns!
-    expect(es.measurements[1].text).toBe('Fecha: 28 de septiembre de 2026')
-    expect(es.measurements[2].text).toBe('Presupuesto Nº0001')
+    if (dated) {
+      const [es] = gridBlock(templateId, infoGrid({ language: 'es' }), 'es').columns!
+      expect(es.measurements[1].text).toBe('Fecha: 28 de septiembre de 2026')
+      expect(es.measurements[2].text).toBe('Presupuesto Nº0001')
+    }
   })
 
   it('Bill To column: bold name, then only the email / phone / address that exist; phone formatted, address "street\\ncity, ST zip"', () => {
@@ -147,7 +153,7 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
   it('label part: infoLabel natural line + marginBottom; the Project column adds the date line\'s marginTop 4', () => {
     const [project, billTo] = gridBlock(templateId, infoGrid()).columns!
     expect(billTo.fixedHeightPt).toBeCloseTo(label, 9)
-    expect(project.fixedHeightPt).toBeCloseTo(label + 4, 9)
+    expect(project.fixedHeightPt).toBeCloseTo(label + dateMarginTop, 9)
   })
 
   it('charged height (short grid, full client) = infoRow margin + label + 5 Bill To lines (the 2-line address is 2 lines)', () => {
@@ -156,9 +162,10 @@ describe.each(['classic', 'modern'] as const)('info-grid measurement — %s', (t
   })
 
   it('no client, short project: 3 Project lines (no type) + the date marginTop', () => {
-    expect(heightOf(templateId, infoGrid({ client: null }))).toBeCloseTo(rowMarginBottom + label + 4 + 3 * line, 9)
+    const projectLines = dated ? 3 : 1
+    expect(heightOf(templateId, infoGrid({ client: null }))).toBeCloseTo(rowMarginBottom + label + dateMarginTop + projectLines * line, 9)
     expect(heightOf(templateId, infoGrid({ client: null, projectType: 'kitchen' }))).toBeCloseTo(
-      rowMarginBottom + label + 4 + 4 * line,
+      rowMarginBottom + label + dateMarginTop + (projectLines + 1) * line,
       9
     )
   })
@@ -194,7 +201,8 @@ describe('info-grid measurement — real react-pdf numbers (pdftotext -bbox, wit
   // Short / long-name / long-address / no-client cases, verified 2026-10-02 against a real render.
   const real: Record<EstimateTemplateId, Record<string, number>> = {
     classic: { short: 108.68, longName3: 142.68, noClient: 82.68, noClientLongName: 142.68, allLong: 157.68 },
-    modern: { short: 123.24, longName3: 159.24, noClient: 95.24, noClientLongName: 159.24, allLong: 175.24 },
+    // Modern re-measured 2026-11-12 after the Inter redesign (date and number moved to the title row).
+    modern: { short: 122.68, longName3: 122.68, noClient: 58.68, noClientLongName: 122.68, allLong: 170.68 },
   }
   const longType = 'kitchen_and_bath_remodel_with_structural_changes_and_more'
   const longClientName = 'Michael and Jennifer Thompson-Alvarez Family Revocable Living Trust'

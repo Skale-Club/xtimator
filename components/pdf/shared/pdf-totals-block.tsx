@@ -190,8 +190,8 @@ export function PdfTotalsBlock({
         {discountRow}
         {taxRow}
 
-        {/* Hero total — large standalone number, own block, no border-top table row */}
-        <View style={styles.grandTotalBlock}>
+        {/* Total (2026-11-12): one row under a brand rule — label left, amount right */}
+        <View style={[styles.grandTotalBlock as Style, { borderTopColor: brandText }]}>
           <Text style={styles.grandTotalLabel}>{L.grandTotal}</Text>
           <Text style={[styles.grandTotalValue, { color: brandText }]}>
             {fmt(estimate.total)}

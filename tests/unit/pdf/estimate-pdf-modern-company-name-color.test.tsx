@@ -5,7 +5,7 @@
 // blue unless the Link's OWN style carries a color (the parent <Text> color
 // does not cascade into it), and Modern — unlike Classic — passes no
 // `companyNameColor` override to PdfHeader. So Modern's `nameLink` style must
-// itself resolve to the same dark gray as `companyName` (#1f2937).
+// itself resolve to the same dark gray as `companyName` (#18181b, MODERN_COLORS.ink).
 //
 // EstimatePDFModern is called as a plain function (no React renderer) and the
 // returned tree is walked directly — see estimate-pdf-banner-fill.test.tsx.
@@ -19,7 +19,7 @@ import { buildPagesForFixture } from './_pages-for-fixture'
 
 type StyledElement = ReactElement<{ style?: unknown; children?: ReactNode; src?: string }>
 
-const NAME_COLOR = '#1f2937'
+const NAME_COLOR = '#18181b'
 
 function flattenStyle(style: unknown): Record<string, unknown> {
   if (!style) return {}
@@ -71,7 +71,7 @@ function renderModern(company: typeof FIXTURE_COMPANY) {
 }
 
 describe('Modern PDF company-name link color', () => {
-  it('the website-linked company name resolves to #1f2937, never a blue default', () => {
+  it('the website-linked company name resolves to #18181b, never a blue default', () => {
     expect(FIXTURE_COMPANY.website).toBeTruthy()
     const tree = renderModern(FIXTURE_COMPANY)
 

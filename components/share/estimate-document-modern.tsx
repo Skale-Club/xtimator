@@ -18,7 +18,7 @@ import type {
 } from '@/components/workspace/estimate/estimate-document'
 
 // ---------------------------------------------------------------------------
-// Modern share-page document — editorial serif styling, VIEW-ONLY.
+// Modern share-page document — VIEW-ONLY.
 //
 // This is a brand-new, self-contained component. It consumes the exact same
 // already-computed EstimateDocumentData/DocumentCompany/DocumentClient props
@@ -26,8 +26,11 @@ import type {
 // mode="view">, and reuses the same pure helpers (deriveDepositDisplay,
 // ensureReadableOnWhite, readableTextColor, formatMoney, formatPhoneForDisplay)
 // — same totals/conditionals/order as Classic. Only JSX/Tailwind styling
-// differs: font-serif, hairline rules instead of brand-color fills, a hero
-// total, and more generous whitespace.
+// differs. Since the 2026-11-12 redesign (shared with the Modern PDF and the
+// paginated preview): Inter only (no serif), the estimate number and date on
+// the title's line, a section's subtotal on its title line (no subtotal row),
+// the editor's read list for items on a phone, the total as one row under a
+// brand rule, and the neutral palette of tokens.ts MODERN_COLORS.
 //
 // components/workspace/estimate/estimate-document.tsx is NOT imported at
 // runtime — only its exported TYPES are type-imported above. No edit-mode
@@ -41,6 +44,21 @@ import type {
 
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
 import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
+
+// tokens.ts MODERN_COLORS, spelled out so Tailwind generates the classes.
+const INK = 'text-[#18181b]' // MODERN_COLORS.ink — values, titles
+const SECONDARY = 'text-[#52525b]' // MODERN_COLORS.secondary — supporting text
+const LABEL = 'text-[#71717a]' // MODERN_COLORS.label — small uppercase labels
+const RULE = '#e4e4e7' // MODERN_COLORS.rule — hairlines
+const EYEBROW = `text-xs font-semibold uppercase tracking-widest ${LABEL} select-none`
+
+/** "2 hr × $85.00" — the same line the editor's mobile read list shows
+ *  (item-card-mobile.tsx formatItemQuantityLine; restated here because that
+ *  module is a client component and this one renders on the server). */
+function quantityLine(quantity: number, unit: string | null, unitPrice: string): string {
+  const qty = Number.isInteger(quantity) ? String(quantity) : String(Number(quantity.toFixed(4)))
+  return `${qty}${unit ? ` ${unit}` : ''} × ${unitPrice}`
+}
 
 // ---------------------------------------------------------------------------
 // Public props
@@ -134,7 +152,7 @@ export function EstimateDocumentModern({
 
   return (
     <div
-      className="font-serif rounded-[8px] shadow-lg overflow-hidden"
+      className="font-sans rounded-[8px] shadow-lg overflow-hidden"
       // The paper is always light: pin the theme tokens it uses, exactly like the
       // Classic document (estimate-document.tsx). Without this a dark app or OS
       // theme leaked in: item totals rendered near-white on white and the
@@ -160,12 +178,12 @@ export function EstimateDocumentModern({
         // Logo to the right of the company info at every width, like Classic
         // (it used to drop below it on phones via flex-col).
         className="flex flex-row items-start justify-between gap-4 px-8 sm:px-12 py-8 border-b border-t"
-        style={{ borderTopColor: brandColor, borderBottomColor: '#e4e4e7' }}
+        style={{ borderTopColor: brandColor, borderBottomColor: RULE }}
       >
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-2xl leading-tight break-words">{company.name}</p>
+          <p className={`font-bold text-2xl leading-tight tracking-tight break-words ${INK}`}>{company.name}</p>
           {company.owner_name && (
-            <p className="text-xs text-muted-foreground mt-0.5">{company.owner_name}</p>
+            <p className={`text-xs ${SECONDARY} mt-0.5`}>{company.owner_name}</p>
           )}
           <CompanyContactLinks
             phone={company.phone}
@@ -173,7 +191,7 @@ export function EstimateDocumentModern({
             website={company.website}
           />
           {companyAddr && (
-            <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
+            <p className={`text-xs ${SECONDARY} mt-0.5 whitespace-pre-line`}>
               {companyAddr}
             </p>
           )}
@@ -202,60 +220,60 @@ export function EstimateDocumentModern({
         )}
       </div>
 
-      {/* ESTIMATE title — small, letter-spaced, left-aligned, thin rule underneath */}
+      {/* Title row — "ESTIMATE" on the left, the estimate number over the date on
+          the right, then a full-width 2px brand rule (the PDF's PdfTitleBanner). */}
       <div className="px-8 sm:px-12 pt-8">
-        <h1
-          className="text-sm font-bold tracking-[0.2em] select-none"
-          style={{ color: brandText }}
-        >
-          {L.estimate}
-        </h1>
-        <div className="mt-3 border-t" style={{ borderTopColor: '#e4e4e7' }} />
+        <div className="flex items-start justify-between gap-4 pb-2">
+          <h1
+            className="text-2xl sm:text-3xl font-extrabold tracking-[0.02em] leading-tight select-none"
+            style={{ color: brandText }}
+          >
+            {L.estimate}
+          </h1>
+          <div className="text-right">
+            <p data-testid="modern-estimate-number" className="text-base font-bold tabular-nums leading-tight" style={{ color: brandText }}>
+              #{data.estimate_number ?? defaultEstimateNumber}
+            </p>
+            <p className={`text-sm ${SECONDARY} leading-tight mt-0.5`}>
+              {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
+            </p>
+          </div>
+        </div>
+        <div className="border-t-2" style={{ borderTopColor: brandColor }} />
       </div>
 
-      {/* Info grid: PROJECT | BILL TO */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 px-8 sm:px-12 pt-8 pb-6 border-b border-border/50">
+      {/* Info grid: PROJECT | BILL TO (the date and number are in the title row) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 px-8 sm:px-12 pt-7 pb-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {L.project}
-          </p>
-          <p className="text-xl font-bold">{projectName}</p>
+          <p className={`${EYEBROW} mb-1.5`}>{L.project}</p>
+          <p className={`text-xl font-bold leading-snug ${INK}`}>{projectName}</p>
           {projectType && (
-            <p className="text-base text-muted-foreground mt-2 capitalize">
+            <p className={`text-base ${SECONDARY} mt-1 capitalize`}>
               {formatProjectType(projectType)}
             </p>
           )}
-          <p className="text-base text-muted-foreground mt-3">
-            {L.date}: {formatDate(data.estimate_date ?? estimateCreatedAt, lang)}
-          </p>
           {isSectionVisible(resolvedSettings, 'valid_until') && data.valid_until && (
-            <p className="text-base text-muted-foreground mt-2" data-testid="valid-until">
+            <p className={`text-base ${SECONDARY} mt-1`} data-testid="valid-until">
               {L.validUntil}: {formatDate(data.valid_until, lang)}
             </p>
           )}
-          <p className="text-base text-muted-foreground mt-2 tabular-nums">
-            {L.estimateNum}
-            {data.estimate_number ?? defaultEstimateNumber}
-          </p>
         </div>
 
         {client && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-              {L.billTo}
-            </p>
+            <p className={`${EYEBROW} mb-1.5`}>{L.billTo}</p>
             <div className="space-y-0.5">
-              <p className="text-xl font-bold">{client.name}</p>
+              <p className={`text-xl font-bold leading-snug ${INK}`}>{client.name}</p>
               {client.email && (
-                <p className="text-base text-muted-foreground mt-1">{client.email}</p>
+                <p className={`text-base ${SECONDARY} break-words`}>{client.email}</p>
               )}
               {client.phone && (
-                <p className="text-base text-muted-foreground">
+                <p className={`text-base ${SECONDARY}`}>
                   {formatPhoneForDisplay(client.phone)}
                 </p>
               )}
               {clientAddr && (
-                <p className="text-base text-muted-foreground whitespace-pre-line">{clientAddr}</p>
+                <p className={`text-base ${SECONDARY} whitespace-pre-line`}>{clientAddr}</p>
               )}
             </div>
           </div>
@@ -264,48 +282,49 @@ export function EstimateDocumentModern({
 
       {/* Summary — conditional on data.summary + SENDHUB-04 resolver gate */}
       {isSectionVisible(resolvedSettings, 'summary') && data.summary != null && (
-        <div className="px-8 sm:px-12 py-6 border-b border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
-            {L.summary}
-          </p>
-          <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+        <div className="px-8 sm:px-12 pb-6">
+          <p className={`${EYEBROW} mb-1.5`}>{L.summary}</p>
+          <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
             {data.summary}
           </p>
         </div>
       )}
 
-      {/* Sections */}
-      <div data-track-section="line-items" className="divide-y divide-border/50">
+      {/* Sections — ink title with its subtotal on the same line over an ink rule;
+          no "Section Subtotal" row (the PDF's PdfSectionHeader subtotal). */}
+      <div data-track-section="line-items">
         {visibleSections.map((section) => (
-          <div key={section.id}>
-            {/* Section header — plain serif text with thin bottom border, no brand fill */}
+          <div key={section.id} className="pt-6">
             <div
-              className="px-8 sm:px-12 pt-6 pb-2 border-b"
-              style={{ borderBottomColor: '#e4e4e7' }}
+              data-testid="modern-section-header"
+              className="mx-8 sm:mx-12 flex items-baseline justify-between gap-4 border-b pb-2"
+              style={{ borderBottomColor: '#18181b' }}
             >
-              <span className="font-semibold text-base tracking-wide select-none" style={{ color: brandText }}>
+              <span className={`min-w-0 break-words font-bold text-base tracking-wide select-none ${INK}`}>
                 {section.title}
+              </span>
+              <span className={`flex-shrink-0 font-bold text-base tabular-nums ${INK}`}>
+                {formatMoney(section.subtotal, data.currency_code)}
               </span>
             </div>
 
-            {/* Mobile: stacked cards */}
-            <div className="sm:hidden">
+            {/* Mobile: the editor's read list — description, "qty unit × price",
+                the line total on the right; hairlines on the content rails, no cards. */}
+            <div className="sm:hidden mx-8">
               {section.items.map((item) => (
                 <div
                   key={item.id}
                   data-track-section={`item:${item.id}`}
-                  className="px-8 py-3 mx-6 my-1.5 rounded-lg border border-[#e4e4e7]"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-3 border-b last:border-b-0"
+                  style={{ borderBottomColor: RULE }}
                 >
-                  <p className="text-base font-medium">{item.description}</p>
-                  <div className="flex justify-between text-sm text-muted-foreground mt-0.5">
-                    <span>
-                      {item.quantity} {item.unit ? item.unit : ''} ×{' '}
-                      {formatMoney(item.unit_price, data.currency_code)}
-                    </span>
-                    <span className="font-semibold text-foreground tabular-nums">
-                      {formatMoney(item.total, data.currency_code)}
-                    </span>
-                  </div>
+                  <p className={`break-words text-base font-medium leading-snug ${INK}`}>{item.description}</p>
+                  <span className={`row-span-2 self-center text-right text-base font-semibold tabular-nums whitespace-nowrap ${INK}`}>
+                    {formatMoney(item.total, data.currency_code)}
+                  </span>
+                  <span className={`text-sm ${SECONDARY} tabular-nums`}>
+                    {quantityLine(item.quantity, item.unit, formatMoney(item.unit_price, data.currency_code))}
+                  </span>
                 </div>
               ))}
             </div>
@@ -314,20 +333,20 @@ export function EstimateDocumentModern({
             <div className="hidden sm:block overflow-x-auto px-8 sm:px-12">
               <table className="w-full">
                 <thead>
-                  <tr className="text-xs text-muted-foreground border-b" style={{ borderBottomColor: '#e4e4e7' }}>
-                    <th className="py-2 px-0 text-left font-medium w-[40%]">{L.description}</th>
-                    <th className="py-2 px-2 w-[12%] text-center font-medium">{L.qty}</th>
-                    <th className="py-2 px-2 w-[13%] text-center font-medium">{L.unit}</th>
-                    <th className="py-2 px-2 w-[17%] text-right font-medium">{L.unitPrice}</th>
-                    <th className="py-2 px-0 w-[18%] text-right font-medium">{L.total}</th>
+                  <tr className={`text-xs uppercase tracking-wider ${LABEL} border-b`} style={{ borderBottomColor: RULE }}>
+                    <th className="py-2 px-0 text-left font-semibold w-[40%]">{L.description}</th>
+                    <th className="py-2 px-2 w-[12%] text-center font-semibold">{L.qty}</th>
+                    <th className="py-2 px-2 w-[13%] text-center font-semibold">{L.unit}</th>
+                    <th className="py-2 px-2 w-[17%] text-right font-semibold">{L.unitPrice}</th>
+                    <th className="py-2 px-0 w-[18%] text-right font-semibold">{L.total}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {section.items.map((item) => (
-                    <tr key={item.id} data-track-section={`item:${item.id}`} className="border-b last:border-0" style={{ borderBottomColor: '#e4e4e7' }}>
+                    <tr key={item.id} data-track-section={`item:${item.id}`} className={`border-b last:border-0 ${INK}`} style={{ borderBottomColor: RULE }}>
                       <td className="py-3 px-0 text-base">{item.description}</td>
                       <td className="py-3 px-2 text-base text-center tabular-nums">{item.quantity}</td>
-                      <td className="py-3 px-2 text-base text-center">{item.unit ?? ''}</td>
+                      <td className={`py-3 px-2 text-base text-center ${SECONDARY}`}>{item.unit ?? ''}</td>
                       <td className="py-3 px-2 text-base text-right tabular-nums">
                         {formatMoney(item.unit_price, data.currency_code)}
                       </td>
@@ -339,56 +358,49 @@ export function EstimateDocumentModern({
                 </tbody>
               </table>
             </div>
-
-            {/* Section subtotal */}
-            <div className="flex justify-end items-center gap-3 px-8 sm:px-12 py-3">
-              <span className="text-sm text-muted-foreground select-none">{L.sectionSubtotal}</span>
-              <span className="text-sm font-semibold tabular-nums">
-                {formatMoney(section.subtotal, data.currency_code)}
-              </span>
-            </div>
           </div>
         ))}
       </div>
 
-      {/* Totals — hero grand total, hairline separators, generous margin */}
-      <div data-track-section="totals" className="px-8 sm:px-12 py-8 border-t" style={{ borderTopColor: '#e4e4e7' }}>
+      {/* Totals — hairline rows, then the total as ONE row under a 2px brand rule
+          (label left, amount right), then the Payment box. Order matches the PDF:
+          Subtotal → Discount → Tax → Total → Payment box. */}
+      <div data-track-section="totals" className="px-8 sm:px-12 pt-8 pb-8">
         <div className="flex justify-end">
-          <div className="w-full max-w-sm space-y-3">
-            <div className="flex justify-between text-base">
-              <span className="text-muted-foreground select-none">{L.subtotal}</span>
-              <span className="tabular-nums font-medium">{fmt(data.subtotal)}</span>
+          <div className="w-full sm:max-w-sm">
+            <div className="flex justify-between text-base py-2 border-b" style={{ borderBottomColor: RULE }}>
+              <span className={`${SECONDARY} select-none`}>{L.subtotal}</span>
+              <span className={`tabular-nums font-medium ${INK}`}>{fmt(data.subtotal)}</span>
             </div>
 
             {data.discount_amount > 0 && (
-              <div className="flex justify-between text-base">
-                <span className="text-muted-foreground select-none">
+              <div className="flex justify-between text-base py-2 border-b" style={{ borderBottomColor: RULE }}>
+                <span className={`${SECONDARY} select-none`}>
                   {L.discount}
                   {isPercentageDiscount(data.discount_type) ? ` (${formatPercent(data.discount_value)})` : ''}
                 </span>
-                <span className="tabular-nums font-medium">-{fmt(data.discount_amount)}</span>
+                <span className={`tabular-nums font-medium ${INK}`}>-{fmt(data.discount_amount)}</span>
               </div>
             )}
 
             {data.tax_amount > 0 && (
-              <div className="flex justify-between text-base">
-                <span className="text-muted-foreground select-none">
+              <div className="flex justify-between text-base py-2 border-b" style={{ borderBottomColor: RULE }}>
+                <span className={`${SECONDARY} select-none`}>
                   {L.tax} ({formatPercent(data.tax_rate * 100)})
                 </span>
-                <span className="tabular-nums font-medium">{fmt(data.tax_amount)}</span>
+                <span className={`tabular-nums font-medium ${INK}`}>{fmt(data.tax_amount)}</span>
               </div>
             )}
 
-            {/* Grand total — large standalone "hero" number; the thick brand rule above it
-                separates the line items from the total. Order matches the PDF:
-                Subtotal → Discount → Tax → Total → Deposit → Balance Due. */}
-            <div className="pt-6 mt-3 border-t-2" style={{ borderTopColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-2">
-                {L.grandTotal}
-              </p>
-              <p className="text-4xl sm:text-5xl font-bold tabular-nums" style={{ color: brandText }}>
+            <div
+              data-testid="modern-total-row"
+              className="mt-3 flex items-end justify-between gap-4 border-t-2 pt-3"
+              style={{ borderTopColor: brandText }}
+            >
+              <span className={`${EYEBROW} pb-1`}>{L.grandTotal}</span>
+              <span className="text-3xl sm:text-4xl font-extrabold tracking-tight tabular-nums" style={{ color: brandText }}>
                 {fmt(data.total)}
-              </p>
+              </span>
             </div>
 
             {/* Payment — deposit due now and the balance, apart from the price
@@ -396,21 +408,19 @@ export function EstimateDocumentModern({
                 rails of the lines above. */}
             {dep.showDeposit && (
               <div data-testid="totals-payment-box" className="mt-4 -mx-3 space-y-1 rounded-lg bg-muted/50 px-3 py-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
-                  {L.payment}
-                </p>
+                <p className={EYEBROW}>{L.payment}</p>
                 <div className="flex justify-between text-base">
-                  <span className="text-muted-foreground select-none">
+                  <span className={`${SECONDARY} select-none`}>
                     {L.depositRequired}
                     {data.deposit_type === 'percent' && data.deposit_value
                       ? ` (${formatPercent(data.deposit_value)})`
                       : ''}
                   </span>
-                  <span className="tabular-nums font-medium">{fmt(dep.depositAmount)}</span>
+                  <span className={`tabular-nums font-medium ${INK}`}>{fmt(dep.depositAmount)}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-base font-semibold select-none">{L.balanceDue}</span>
-                  <span className="text-base font-semibold tabular-nums">{fmt(dep.balanceDue)}</span>
+                  <span className={`text-base font-semibold select-none ${INK}`}>{L.balanceDue}</span>
+                  <span className={`text-base font-semibold tabular-nums ${INK}`}>{fmt(dep.balanceDue)}</span>
                 </div>
               </div>
             )}
@@ -420,56 +430,56 @@ export function EstimateDocumentModern({
 
       {/* Terms — each block only when filled */}
       {hasTerms && (
-        <div data-track-section="terms" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50 space-y-6">
+        <div data-track-section="terms" className="px-8 sm:px-12 pb-8 pt-2 border-t border-[#e4e4e7] space-y-6">
           {hasCompanyTerms && (
-            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
+            <div>
               <p
                 className="text-xs font-semibold uppercase tracking-widest select-none mb-1.5"
                 style={{ color: brandText }}
               >
                 {L.estimateTerms}
               </p>
-              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+              <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
                 {companyTerms!.text}
               </p>
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'payment_terms') && data.payment_terms != null && (
-            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
+            <div>
+              <p className={`${EYEBROW} mb-1.5`}>
                 {L.paymentTerms}
               </p>
-              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+              <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
                 {data.payment_terms}
               </p>
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'timeline') && data.timeline != null && (
-            <div data-track-section="timeline" className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
+            <div data-track-section="timeline">
+              <p className={`${EYEBROW} mb-1.5`}>
                 {L.timeline}
               </p>
-              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+              <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
                 {data.timeline}
               </p>
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'warranty_terms') && data.warranty_terms != null && (
-            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
+            <div>
+              <p className={`${EYEBROW} mb-1.5`}>
                 {L.warranty}
               </p>
-              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+              <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
                 {data.warranty_terms}
               </p>
             </div>
           )}
           {isSectionVisible(resolvedSettings, 'notes') && data.notes != null && (
-            <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none mb-1.5">
+            <div>
+              <p className={`${EYEBROW} mb-1.5`}>
                 {L.notes}
               </p>
-              <p className="text-base text-muted-foreground whitespace-pre-line leading-relaxed">
+              <p className={`text-base ${SECONDARY} whitespace-pre-line leading-relaxed`}>
                 {data.notes}
               </p>
             </div>
@@ -481,9 +491,9 @@ export function EstimateDocumentModern({
           presentation_settings key exists for it per CONTEXT.md's locked
           rule — Pitfall 3). Position: Terms -> Signature -> Photos. */}
       {data.signature && (
-        <div data-track-section="signature" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
-          <div className="border-l-2 pl-4" style={{ borderLeftColor: brandColor }}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+        <div data-track-section="signature" className="px-8 sm:px-12 pb-8 pt-2 border-t border-[#e4e4e7]">
+          <div>
+            <p className={`${EYEBROW} mb-3`}>
               {L.signedBy}
             </p>
             <div className="flex items-start gap-4">
@@ -494,8 +504,8 @@ export function EstimateDocumentModern({
                 className="h-16 w-auto max-w-[240px] object-contain"
               />
               <div>
-                <p className="text-base font-semibold">{data.signature.signerName}</p>
-                <p className="text-base text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
+                <p className={`text-base font-semibold ${INK}`}>{data.signature.signerName}</p>
+                <p className={`text-base ${SECONDARY}`}>{formatDate(data.signature.signedAt, lang)}</p>
               </div>
             </div>
           </div>
@@ -505,18 +515,18 @@ export function EstimateDocumentModern({
       {/* Prepared-by — rendered only when the caller supplies it. Position
           matches the Modern PDF's block order: Signature -> Prepared-by -> Photos. */}
       {preparedBy && (
-        <div data-track-section="prepared-by" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1.5 select-none">
+        <div data-track-section="prepared-by" className="px-8 sm:px-12 pb-8 pt-2 border-t border-[#e4e4e7]">
+          <p className={`${EYEBROW} mb-1.5`}>
             {L.preparedBy}
           </p>
-          <p className="text-base text-muted-foreground">{preparedBy}</p>
+          <p className={`text-base ${SECONDARY}`}>{preparedBy}</p>
         </div>
       )}
 
       {/* Attached photos — conditional on non-empty array + SENDHUB-04 resolver gate */}
       {isSectionVisible(resolvedSettings, 'photos') && data.attachedPhotos && data.attachedPhotos.length > 0 && (
-        <div data-track-section="photos" className="px-8 sm:px-12 pb-8 pt-2 border-t border-border/50">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
+        <div data-track-section="photos" className="px-8 sm:px-12 pb-8 pt-2 border-t border-[#e4e4e7]">
+          <p className={`${EYEBROW} mb-3`}>
             {L.photos}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -533,7 +543,7 @@ export function EstimateDocumentModern({
                   ) : null}
                 </div>
                 {photo.caption && (
-                  <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">{photo.caption}</p>
+                  <p className={`mt-1.5 text-xs ${SECONDARY} line-clamp-2`}>{photo.caption}</p>
                 )}
               </div>
             ))}
