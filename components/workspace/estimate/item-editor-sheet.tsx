@@ -37,6 +37,8 @@ interface ItemEditorSheetProps {
    *  autosave maps a temp- id to its server uuid, so the caller passes the
    *  item's position instead; keying by id would remount mid-typing. */
   editorKey?: string
+  /** 'bottom' on phones; 'right' as the desktop Details drawer. */
+  side?: 'bottom' | 'right'
   onClose: () => void
   onUpdate: (field: ItemEditorField, value: string | number | boolean | null) => void
   onSelectPriceBookItem?: (item: PriceBookItem) => void
@@ -68,6 +70,7 @@ export function ItemEditorSheet({
   item,
   isNew = false,
   editorKey,
+  side = 'bottom',
   onClose,
   onUpdate,
   onSelectPriceBookItem,
@@ -83,10 +86,14 @@ export function ItemEditorSheet({
   return (
     <Sheet open={item !== null} onOpenChange={(open) => { if (!open) onClose() }}>
       <SheetContent
-        side="bottom"
+        side={side}
         showCloseButton={false}
         data-testid="item-editor-sheet"
-        className="max-h-[90dvh] gap-0 overflow-y-auto p-0"
+        className={
+          side === 'bottom'
+            ? 'max-h-[90dvh] gap-0 overflow-y-auto p-0'
+            : 'w-full gap-0 overflow-y-auto p-0 sm:max-w-md'
+        }
         onOpenAutoFocus={(event) => {
           // A new item opens with its description focused; an existing one
           // must not pop the keyboard over the fields.
@@ -110,6 +117,7 @@ export function ItemEditorSheet({
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onAddAnother={onAddAnother}
+            side={side}
             currencyCode={currencyCode}
             unitOptions={unitOptions ?? DEFAULT_UNIT_OPTIONS}
             priceBookItems={priceBookItems}
@@ -130,6 +138,7 @@ function ItemEditorBody({
   onDelete,
   onDuplicate,
   onAddAnother,
+  side,
   currencyCode,
   unitOptions,
   priceBookItems,
@@ -177,8 +186,10 @@ function ItemEditorBody({
   return (
     <div className="flex flex-col">
       {/* Header: grabber, title, Done */}
-      <div className="sticky top-0 z-10 bg-[var(--glass-bg-strong)] px-4 pt-2 pb-3">
-        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" aria-hidden />
+      <div className={cn('sticky top-0 z-10 bg-[var(--glass-bg-strong)] px-4 pb-3', side === 'bottom' ? 'pt-2' : 'pt-4')}>
+        {side === 'bottom' && (
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" aria-hidden />
+        )}
         <div className="flex items-center justify-between gap-3">
           <SheetTitle className="text-base">{isNew ? t('New item') : t('Edit item')}</SheetTitle>
           <Button size="sm" onClick={onClose} className="rounded-full px-4">

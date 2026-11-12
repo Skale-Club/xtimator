@@ -41,6 +41,8 @@ interface ItemSummaryRowProps {
   currencyCode?: string
   /** Opens the item editor. Omitted (read-only) → the row is not interactive. */
   onOpen?: () => void
+  /** The estimate charges tax, so a non-taxed line is worth tagging. */
+  showTaxState?: boolean
   /** dnd-kit sortable wiring. Listeners go on the whole row: a long press
    *  starts a drag (TouchSensor delay), a tap opens the editor. */
   dragProps?: Record<string, unknown>
@@ -52,13 +54,14 @@ export function ItemSummaryRow({
   item,
   currencyCode = DEFAULT_CURRENCY_CODE,
   onOpen,
+  showTaxState = true,
   dragProps,
   sortableRef,
   style,
 }: ItemSummaryRowProps): JSX.Element {
   const { t } = useTranslation()
   const hasDiscount = (item.discount ?? 0) !== 0
-  const notTaxed = item.taxable === false
+  const notTaxed = showTaxState && item.taxable === false
   const description = item.description.trim()
 
   return (

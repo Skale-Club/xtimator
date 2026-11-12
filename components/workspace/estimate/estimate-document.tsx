@@ -209,7 +209,7 @@ const INLINE_INPUT_CLS =
 const EDIT_FIELD_CLS =
   'h-8 w-full rounded-md border border-transparent bg-transparent px-2 text-base tabular-nums outline-none transition-colors group-hover:border-border hover:border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/15 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15'
 const EDIT_DESC_FIELD_CLS =
-  'h-8 w-full rounded-md border border-transparent bg-transparent px-[3px] text-base outline-none transition-colors group-hover:border-border hover:border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/15'
+  'min-h-8 w-full rounded-md border border-transparent bg-transparent px-[3px] py-[3px] text-base leading-6 outline-none transition-colors group-hover:border-border hover:border-zinc-300 focus:border-primary focus:ring-2 focus:ring-primary/15 break-words'
 const EDIT_CELL = 'py-1.5 px-1 align-middle'
 const EDIT_TH_PX = 'px-[13px]'
 const INLINE_TEXTAREA_CLS =
@@ -302,6 +302,10 @@ function SortableDocumentItemRow({
   isDiscountDraft,
   onAddDiscountDraft,
   onRemoveDiscountDraft,
+  showTaxCol,
+  onEnterNext,
+  onDuplicate,
+  onOpenDetails,
 }: {
   item: DocumentItem
   sectionId: string
@@ -313,6 +317,14 @@ function SortableDocumentItemRow({
   /** Whether the Disc. column currently renders (mirrors DocumentSectionBlock's
    *  showDiscountCol so th/td counts always match). */
   showDiscountCol: boolean
+  /** Tax column: only when the estimate charges tax (see DocumentSectionBlock). */
+  showTaxCol: boolean
+  /** Enter in qty / price / discount: go to the next line's description,
+   *  adding a line after the last one. */
+  onEnterNext: () => void
+  onDuplicate: () => void
+  /** Opens the shared item editor as a side drawer (rarely used fields). */
+  onOpenDetails?: () => void
   /** Whether this row's id is in the section's discountDraftIds set — reveals
    *  the Disc. column even while the value is still 0. */
   isDiscountDraft: boolean
@@ -321,6 +333,7 @@ function SortableDocumentItemRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
+  const { t: tUi } = useTranslation()
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -342,12 +355,30 @@ function SortableDocumentItemRow({
       data-page-block-id={`${sectionId}-rows-${item.id}`}
       data-item-id={item.id}
       className="border-b border-border/50 group even:bg-muted/40"
+      onKeyDown={(e) => {
+        // Enter in a number field (qty, price, discount) moves on to the next
+        // line, like a spreadsheet. The description field keeps its own Enter.
+        const target = e.target as HTMLElement
+        if (
+          e.key === 'Enter' &&
+          !e.shiftKey &&
+          target instanceof HTMLInputElement &&
+          target.inputMode !== '' &&
+          !target.closest('[data-desc-cell]')
+        ) {
+          e.preventDefault()
+          target.blur()
+          onEnterNext()
+        }
+      }}
     >
       {/* drag handle + row-actions kebab — the shared edit gutter: handle at
           4px, ⋮ at 20px, text from 40px (= the document's sm:px-10 margin).
           The section header and "Add item" use the same columns. */}
       <td className="py-1.5 pl-1 pr-0 w-9 align-middle">
-        <div className="flex items-center gap-0.5">
+        {/* Handle and menu show on row hover (mouse) or keyboard focus; on
+            touch screens, which cannot hover, they stay visible. */}
+        <div className="flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
           <span
             className="cursor-grab inline-flex items-center text-muted-foreground/30 group-hover:text-muted-foreground/60"
             {...listeners}
@@ -386,6 +417,10 @@ function SortableDocumentItemRow({
                   {L.removeDiscount}
                 </DropdownMenuItem>
               )}
+              {onOpenDetails && (
+                <DropdownMenuItem onClick={onOpenDetails}>{tUi('Details')}</DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={onDuplicate}>{tUi('Duplicate')}</DropdownMenuItem>
               <DropdownMenuItem
                 variant="destructive"
                 onClick={() =>
@@ -399,8 +434,10 @@ function SortableDocumentItemRow({
         </div>
       </td>
       {/* description — pl-0 + the input's own p-1 puts the text at 40px */}
-      <td className={showConfidenceDot ? 'py-1.5 pl-0 pr-1 align-middle relative' : 'py-1.5 pl-0 pr-1 align-middle'}>
+      <td data-desc-cell className={showConfidenceDot ? 'py-1.5 pl-0 pr-1 align-middle relative' : 'py-1.5 pl-0 pr-1 align-middle'}>
         <PriceBookCombobox
+          // Wraps and grows instead of cutting a long description at one line.
+          multiline
           value={item.description}
           onChange={(next) =>
             dispatch({
@@ -513,6 +550,7 @@ function SortableDocumentItemRow({
           />
         </td>
       )}
+      {showTaxCol && (
       <td className={`${EDIT_CELL} w-14`}>
         {/* A 32px box like the fields, so the switch sits on the row's centre line. */}
         <div className="flex h-8 items-center justify-center">
@@ -532,6 +570,7 @@ function SortableDocumentItemRow({
         />
         </div>
       </td>
+      )}
       {/* total */}
       <td className="py-1.5 pl-1 pr-6 sm:pr-10 w-36 text-right text-base tabular-nums font-medium align-middle whitespace-nowrap">
         {formatMoney(item.total, currencyCode)}
@@ -549,10 +588,12 @@ function SortableItemSummaryRow({
   item,
   currencyCode,
   onOpen,
+  showTaxState,
 }: {
   item: DocumentItem
   currencyCode: string
   onOpen: () => void
+  showTaxState?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -569,6 +610,7 @@ function SortableItemSummaryRow({
       item={item}
       currencyCode={currencyCode}
       onOpen={onOpen}
+      showTaxState={showTaxState}
       dragProps={{ ...attributes, ...listeners }}
       sortableRef={setNodeRef}
       style={style}
@@ -593,9 +635,27 @@ function EditOnlyWrapper({
   return wrap ? <div className={className}>{children}</div> : <>{children}</>
 }
 
+/** A document line as the reducer's item (Duplicate / Undo insert a copy). */
+function toEditorItem(item: DocumentItem): EditorItem {
+  return { ...item, sort_order: item.sort_order ?? 0, price_source: item.price_source ?? null }
+}
+
+/** Focus a desktop row's description once React has rendered it (a timer,
+ *  not requestAnimationFrame, which stalls while the tab is in the background). */
+function focusRowDescription(itemId: string) {
+  setTimeout(() => {
+    document
+      .querySelector<HTMLElement>(
+        `tr[data-item-id="${itemId}"] [data-desc-cell] textarea, tr[data-item-id="${itemId}"] [data-desc-cell] input`,
+      )
+      ?.focus()
+  }, 30)
+}
+
 /** Below Tailwind's sm breakpoint the item list is the mobile summary list. */
 function isMobileViewport(): boolean {
-  return typeof window !== 'undefined' && !window.matchMedia('(min-width: 640px)').matches
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return !window.matchMedia('(min-width: 640px)').matches
 }
 
 // ---------------------------------------------------------------------------
@@ -615,6 +675,7 @@ function DocumentSectionBlock({
   priceBookItems = [],
   showSectionSubtotal = true,
   onOpenItem,
+  showTaxCol = true,
 }: {
   section: DocumentSection
   dispatch?: React.Dispatch<EstimateAction>
@@ -631,6 +692,8 @@ function DocumentSectionBlock({
   showSectionSubtotal?: boolean
   /** Edit mode, mobile: opens the item editor sheet (owned by EstimateDocument). */
   onOpenItem?: OpenItemEditor
+  /** Edit mode, desktop: the Tax column renders only when the estimate charges tax. */
+  showTaxCol?: boolean
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -664,6 +727,18 @@ function DocumentSectionBlock({
   }
   function removeDiscountDraft(itemId: string) {
     setDiscountDraftIds((ids) => ids.filter((id) => id !== itemId))
+  }
+
+  function handleEnterNext(index: number) {
+    if (!dispatch) return
+    const next = section.items[index + 1]
+    if (next) {
+      focusRowDescription(next.id)
+      return
+    }
+    const itemId = 'temp-' + crypto.randomUUID()
+    dispatch({ type: 'ADD_ITEM', sectionId: section.id, itemId })
+    focusRowDescription(itemId)
   }
 
   function handleItemDragEnd(event: DragEndEvent) {
@@ -772,6 +847,7 @@ function DocumentSectionBlock({
                   item={item}
                   currencyCode={currencyCode}
                   onOpen={() => onOpenItem?.(section.id, item.id)}
+                  showTaxState={showTaxCol}
                 />
               ))}
             </SortableContext>
@@ -824,12 +900,12 @@ function DocumentSectionBlock({
                     {/* Disc. stays hidden until a row has (or drafts) a
                         discount — see showDiscountCol above. */}
                     {showDiscountCol && <th className={`py-2 ${EDIT_TH_PX} w-24 text-right font-medium`}>{L.lineDiscount}</th>}
-                    <th className="py-2 px-1 w-14 text-center font-medium">{L.taxable}</th>
+                    {showTaxCol && <th className="py-2 px-1 w-14 text-center font-medium">{L.taxable}</th>}
                     <th className="py-2 pl-1 pr-6 sm:pr-10 w-36 text-right font-medium">{L.total}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {section.items.map((item) => (
+                  {section.items.map((item, index) => (
                     <SortableDocumentItemRow
                       key={item.id}
                       item={item}
@@ -843,6 +919,17 @@ function DocumentSectionBlock({
                       isDiscountDraft={validDiscountDraftIds.includes(item.id)}
                       onAddDiscountDraft={addDiscountDraft}
                       onRemoveDiscountDraft={removeDiscountDraft}
+                      showTaxCol={showTaxCol}
+                      onEnterNext={() => handleEnterNext(index)}
+                      onDuplicate={() =>
+                        dispatch({
+                          type: 'INSERT_ITEM',
+                          sectionId: section.id,
+                          index: index + 1,
+                          item: toEditorItem(item),
+                        })
+                      }
+                      onOpenDetails={onOpenItem ? () => onOpenItem(section.id, item.id) : undefined}
                     />
                   ))}
                 </tbody>
@@ -941,6 +1028,7 @@ function SortableDocumentSection({
   lang,
   priceBookItems,
   onOpenItem,
+  showTaxCol,
 }: {
   section: DocumentSection
   dispatch: React.Dispatch<EstimateAction>
@@ -952,6 +1040,7 @@ function SortableDocumentSection({
   lang: EstimateLanguage
   priceBookItems: PriceBookItem[]
   onOpenItem?: OpenItemEditor
+  showTaxCol?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id })
@@ -975,6 +1064,7 @@ function SortableDocumentSection({
         dragHandleProps={listeners}
         priceBookItems={priceBookItems}
         onOpenItem={onOpenItem}
+        showTaxCol={showTaxCol}
       />
     </div>
   )
@@ -1667,8 +1757,11 @@ export function EstimateDocument({
   const [mobileTopOpen, setMobileTopOpen] = useState(false)
   const foldMobileTop = isEditable && !mobileTopOpen
   const [itemEditor, setItemEditor] = useState<
-    { sectionIndex: number; itemIndex: number; isNew: boolean } | null
+    { sectionIndex: number; itemIndex: number; isNew: boolean; side: 'bottom' | 'right' } | null
   >(null)
+  // The per-line Tax column only means something when the estimate charges
+  // tax; with no tax it is hidden (the switch stays in the item Details).
+  const estimateChargesTax = (data.tax_rate ?? 0) > 0 || (data.tax_amount ?? 0) > 0
   const sectionsRef = useRef(data.sections)
   sectionsRef.current = data.sections
 
@@ -1678,15 +1771,12 @@ export function EstimateDocument({
     const existing = data.sections[sectionIndex].items.findIndex((i) => i.id === itemId)
     // A just-added item is not in `data` yet (same tick): it is appended last.
     const itemIndex = existing === -1 ? data.sections[sectionIndex].items.length : existing
-    setItemEditor({ sectionIndex, itemIndex, isNew })
+    // Phones get the bottom sheet; wider screens (desktop "Details") a side drawer.
+    setItemEditor({ sectionIndex, itemIndex, isNew, side: isMobileViewport() ? 'bottom' : 'right' })
   }
 
   const editorSection = itemEditor ? data.sections[itemEditor.sectionIndex] : undefined
   const editorItem = itemEditor ? editorSection?.items[itemEditor.itemIndex] ?? null : null
-
-  function toEditorItem(item: DocumentItem): EditorItem {
-    return { ...item, sort_order: item.sort_order ?? 0, price_source: item.price_source ?? null }
-  }
 
   function handleDeleteEditorItem() {
     if (!dispatch || !itemEditor || !editorSection || !editorItem) return
@@ -1727,7 +1817,7 @@ export function EstimateDocument({
     const itemId = 'temp-' + crypto.randomUUID()
     dispatch({ type: 'ADD_ITEM', sectionId: editorSection.id, itemId })
     setItemEditor({
-      sectionIndex: itemEditor.sectionIndex,
+      ...itemEditor,
       itemIndex: editorSection.items.length,
       isNew: true,
     })
@@ -2052,6 +2142,7 @@ export function EstimateDocument({
                   lang={lang}
                   priceBookItems={priceBookItems}
                   onOpenItem={openItemEditor}
+                  showTaxCol={estimateChargesTax}
                 />
               ))}
             </SortableContext>
@@ -2079,6 +2170,7 @@ export function EstimateDocument({
         <ItemEditorSheet
           item={editorItem}
           isNew={itemEditor?.isNew}
+          side={itemEditor?.side}
           editorKey={itemEditor ? `${itemEditor.sectionIndex}:${itemEditor.itemIndex}` : undefined}
           onClose={() => {
             // A new line closed without any content is dropped, so tapping
@@ -2119,29 +2211,12 @@ export function EstimateDocument({
       {/* Add section / details — edit mode only */}
       {isEditable && dispatch && (
         <div className="px-6 sm:px-10 py-3 border-t border-dashed border-border/50 flex items-center gap-2">
-          {/* Phones: a plain row like "Add item" ("+" in the gutter, label on
-              the 24px rail); sm+: the tinted pill. */}
+          {/* A plain row like "Add item": the "+" hangs in the gutter so the
+              label starts on the text rail (24px phones, 40px sm+). */}
           <button
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
-            className="sm:hidden -ml-[22px] text-sm font-medium flex items-center gap-1.5 py-1.5 select-none"
+            className="-ml-[22px] text-sm font-medium flex items-center gap-1.5 py-1.5 select-none hover:underline underline-offset-4"
             style={{ color: brandText }}
-          >
-            <Plus className="h-4 w-4" />
-            {L.addSection}
-          </button>
-          <button
-            onClick={() => dispatch({ type: 'ADD_SECTION' })}
-            className="hidden sm:flex text-sm font-medium items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors select-none"
-            style={{
-              color: brandText,
-              backgroundColor: `${brandColor}1A`,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = `${brandColor}33`
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = `${brandColor}1A`
-            }}
           >
             <Plus className="h-4 w-4" />
             {L.addSection}
