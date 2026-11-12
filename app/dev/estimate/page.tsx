@@ -121,11 +121,30 @@ function devItemsReducer(sections: Sections, action: EstimateAction): Sections {
   }
 }
 
+type DevTotals = Pick<EstimateDocumentData, 'discount_type' | 'discount_value' | 'tax_rate' | 'deposit_type' | 'deposit_value'>
+
+function devTotalsReducer(t: DevTotals, action: EstimateAction): DevTotals {
+  switch (action.type) {
+    case 'UPDATE_DISCOUNT': return { ...t, discount_type: action.discount_type, discount_value: action.discount_value }
+    case 'UPDATE_TAX_RATE': return { ...t, tax_rate: action.tax_rate }
+    case 'UPDATE_DEPOSIT': return { ...t, deposit_type: action.deposit_type as DevTotals['deposit_type'], deposit_value: action.deposit_value }
+    default: return t
+  }
+}
+
 function DevEditableDocument() {
-  const [sections, dispatch] = useReducer(devItemsReducer, DATA.sections)
+  const [sections, dispatchItems] = useReducer(devItemsReducer, DATA.sections)
+  const [totals, dispatchTotals] = useReducer(devTotalsReducer, {
+    discount_type: null, discount_value: 0, tax_rate: 0, deposit_type: 'none', deposit_value: null,
+  } as DevTotals)
+  const dispatch = (action: EstimateAction) => { dispatchItems(action); dispatchTotals(action) }
   const subtotal = sections.reduce((n, s) => n + s.subtotal, 0)
-  const data = { ...DATA, sections, subtotal, total: subtotal, balance_due: subtotal }
-  return <EstimateDocument mode="edit" {...COMMON} data={data} dispatch={dispatch} projectId="demo" companyDefaults={{ tax_rate: 0 } as never} />
+  const discount_amount = totals.discount_type === 'fixed' ? totals.discount_value : totals.discount_type ? subtotal * totals.discount_value / 100 : 0
+  const tax_amount = Math.round((subtotal - discount_amount) * totals.tax_rate * 100) / 100
+  const total = subtotal - discount_amount + tax_amount
+  const deposit = totals.deposit_type === 'amount' ? (totals.deposit_value ?? 0) : totals.deposit_type === 'percent' ? Math.round(total * (totals.deposit_value ?? 0)) / 100 : 0
+  const data = { ...DATA, ...totals, sections, subtotal, discount_amount, tax_amount, total, deposit, balance_due: total - deposit }
+  return <EstimateDocument mode="edit" {...COMMON} data={data} dispatch={dispatch} projectId="demo" companyDefaults={{ tax_rate: 0.0825 } as never} />
 }
 
 export default function EstimatePreview() {

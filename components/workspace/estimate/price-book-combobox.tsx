@@ -58,6 +58,20 @@ const Field = forwardRef<HTMLInputElement | HTMLTextAreaElement, FieldProps & { 
     useLayoutEffect(() => {
       if (multiline) autoGrow(innerRef.current)
     }, [multiline, props.value])
+    // Re-fit when the field's WIDTH changes too (a table column appearing, a
+    // window resize): otherwise the old height cuts the wrapped text off.
+    useLayoutEffect(() => {
+      const el = innerRef.current
+      if (!multiline || !el || typeof ResizeObserver === 'undefined') return
+      let lastWidth = el.clientWidth
+      const observer = new ResizeObserver(() => {
+        if (el.clientWidth === lastWidth) return
+        lastWidth = el.clientWidth
+        autoGrow(el)
+      })
+      observer.observe(el)
+      return () => observer.disconnect()
+    }, [multiline])
     if (!multiline) {
       return <input ref={ref as React.Ref<HTMLInputElement>} onChange={onChange} {...props} />
     }

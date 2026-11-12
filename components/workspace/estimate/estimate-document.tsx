@@ -47,7 +47,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Calendar } from '@/components/ui/calendar'
-import { formatMoney } from '@/lib/money/currency'
+import { formatMoney, getCurrencySymbol } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { formatPhoneForDisplay } from '@/lib/phone/format'
@@ -1074,41 +1074,280 @@ function SortableDocumentSection({
 // DocumentTotals
 // ---------------------------------------------------------------------------
 
-// Edit-mode totals rows share three columns so every row lines up:
-//   [label (flex-1) ... controls]  [amount, fixed width, right-aligned]
-// Below sm the controls group takes its own line and the amount wraps under it.
-const TOTALS_ROW = 'flex flex-wrap sm:flex-nowrap items-center justify-between gap-x-2 gap-y-1 text-base'
-const TOTALS_CONTROLS = 'flex items-center gap-2 w-full sm:w-auto sm:flex-1 min-w-0'
-const TOTALS_SELECT = 'h-8 data-[size=default]:h-8 w-[104px] shrink-0 rounded-md border-zinc-200 bg-white text-sm shadow-none focus:ring-2 focus:ring-primary/15'
-const TOTALS_FIELD = 'h-8 w-20 shrink-0 rounded-md border border-zinc-200 bg-white px-2 text-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15'
+// (Inside the paper only --card/--muted/--foreground are pinned light, so
+// fields use bg-card, never bg-background, which follows the app theme.)
+// Edit-mode totals: one three-column grid so every row reads on ONE line on
+// every width: label | control (same width for all) | amount (right rail).
+// The old layout let controls and amounts share the right edge, so on a phone
+// the amount dropped to its own line under the control.
+const TOTALS_GRID =
+  'grid grid-cols-[minmax(0,1fr)_6.5rem_minmax(5.5rem,auto)] items-center gap-x-3 min-h-10 text-base'
+const TOTALS_FIELD_BOX =
+  'flex h-9 w-full items-center gap-1 rounded-md bg-muted/70 pl-2 pr-1 text-sm transition-colors focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/30'
 
-/** The amount column of a totals row. Always rendered (empty when there is no
- *  amount) so the controls of every row end on the same line. */
-function TotalsAmount({ children, className }: { children: React.ReactNode; className?: string }) {
-  // min-w (not w): the column keeps its alignment width but grows leftwards for a 6-figure amount
-  // instead of clipping it (e.g. "-$299,999.99" is wider than 6rem).
+/** Numeric value with an optional % / $ unit toggle inside one field.
+ *  An empty or zero value on blur calls onClear (the row goes back to its
+ *  "+ Discount" / "+ Deposit" link). */
+function UnitValueField({
+  value,
+  unit,
+  otherUnit,
+  onValue,
+  onUnit,
+  onClear,
+  autoFocus,
+  ariaLabel,
+  testId,
+}: {
+  value: number
+  /** Shown in the field: '%' or a currency symbol. */
+  unit: string
+  /** When set, tapping the unit switches to it. */
+  otherUnit?: string
+  onValue: (v: number) => void
+  onUnit?: () => void
+  onClear?: () => void
+  autoFocus?: boolean
+  ariaLabel: string
+  testId?: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus()
+  }, [autoFocus])
+  const shown = draft ?? (value ? String(Math.round(value * 100) / 100) : '')
+
   return (
-    <span className={`shrink-0 ml-auto min-w-24 text-right tabular-nums font-medium ${children == null ? 'hidden sm:block' : ''} ${className ?? ''}`}>
-      {children}
-    </span>
+    <div ref={boxRef} className={TOTALS_FIELD_BOX} data-testid={testId}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        value={shown}
+        placeholder="0"
+        aria-label={ariaLabel}
+        onFocus={() => setDraft(shown)}
+        onChange={(e) => {
+          const raw = e.target.value.replace(',', '.').replace(/[^0-9.]/g, '')
+          setDraft(raw)
+          onValue(parseFloat(raw) || 0)
+        }}
+        onBlur={(e) => {
+          setDraft(null)
+          // Leaving for the unit toggle inside the same field is not leaving.
+          if (boxRef.current?.contains(e.relatedTarget as Node | null)) return
+          if (onClear && !(parseFloat(shown) > 0)) onClear()
+        }}
+        className="min-w-0 flex-1 bg-transparent text-right tabular-nums outline-none placeholder:text-muted-foreground/60"
+      />
+      {otherUnit && onUnit ? (
+        <button
+          type="button"
+          onClick={onUnit}
+          aria-label={`${unit} → ${otherUnit}`}
+          className="flex h-7 min-w-7 items-center justify-center gap-0.5 rounded px-1 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+        >
+          {unit}
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      ) : (
+        <span className="pr-1 text-muted-foreground">{unit}</span>
+      )}
+    </div>
   )
 }
 
-/** A percentage field the same size as the other totals controls. */
-function PercentField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function EditableTotals({
+  data,
+  dispatch,
+  brandText,
+  L,
+  defaultTaxRate,
+}: {
+  data: EstimateDocumentData
+  dispatch: React.Dispatch<EstimateAction>
+  brandText: string
+  L: DocLabels
+  defaultTaxRate?: number
+}) {
+  const { t } = useTranslation()
+  const fmt = (v: number) => formatMoney(v, data.currency_code)
+  const currency = getCurrencySymbol(data.currency_code)
+  const taxPercent = Math.round(data.tax_rate * 10000) / 100
+  const hasTaxDefault = defaultTaxRate !== undefined
+  // Compare at 4-decimal precision (DB stores NUMERIC(5,4)) to avoid float noise.
+  const isTaxOverridden =
+    Math.round(data.tax_rate * 10000) !== Math.round((defaultTaxRate ?? 0) * 10000)
+  const discountActive = data.discount_type != null
+  const depositActive = (data.deposit_type ?? 'none') !== 'none'
+  // Which field to focus right after its "+" link was used.
+  const [focusKey, setFocusKey] = useState<'discount' | 'deposit' | null>(null)
+
+  const discountIsPct = data.discount_type !== 'fixed'
+  const depositIsPct = data.deposit_type !== 'amount'
+
   return (
-    <label className={`${TOTALS_FIELD} flex shrink-0 cursor-text items-center justify-end gap-0.5`}>
-      <input
-        type="number"
-        inputMode="decimal"
-        step="0.01"
-        min="0"
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className="min-w-0 w-full bg-transparent p-0 text-right tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      />
-      <span className="text-muted-foreground">%</span>
-    </label>
+    <div data-page-block-id="totals" data-track-section="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
+      <div className="w-full max-w-sm">
+        {/* Subtotal */}
+        <div className={TOTALS_GRID}>
+          <span className="text-muted-foreground select-none">{L.subtotal}</span>
+          <span aria-hidden />
+          <span className="text-right tabular-nums font-medium">{fmt(data.subtotal)}</span>
+        </div>
+
+        {/* Discount — only once added */}
+        {discountActive && (
+          <div data-testid="totals-discount-row" className={TOTALS_GRID}>
+            <span className="text-muted-foreground select-none">{L.discount}</span>
+            <UnitValueField
+              value={data.discount_value}
+              unit={discountIsPct ? '%' : currency}
+              otherUnit={discountIsPct ? currency : '%'}
+              autoFocus={focusKey === 'discount'}
+              ariaLabel={L.discount}
+              onValue={(v) =>
+                dispatch({ type: 'UPDATE_DISCOUNT', discount_type: data.discount_type, discount_value: v })
+              }
+              onUnit={() =>
+                dispatch({
+                  type: 'UPDATE_DISCOUNT',
+                  discount_type: discountIsPct ? 'fixed' : 'percentage',
+                  discount_value: data.discount_value,
+                })
+              }
+              onClear={() => {
+                setFocusKey(null)
+                dispatch({ type: 'UPDATE_DISCOUNT', discount_type: null, discount_value: 0 })
+              }}
+            />
+            <span className="text-right tabular-nums font-medium">
+              {data.discount_amount > 0 ? `-${fmt(data.discount_amount)}` : fmt(0)}
+            </span>
+          </div>
+        )}
+
+        {/* Tax — "Default" / "Reset to default" as a caption on its own line
+            under the label (the label column is too narrow to hold it). */}
+        <div data-testid="totals-tax-row" className={TOTALS_GRID}>
+          <span className="text-muted-foreground select-none">{L.tax}</span>
+          <UnitValueField
+            value={taxPercent}
+            unit="%"
+            ariaLabel={L.tax}
+            onValue={(pct) => dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })}
+          />
+          <span className="text-right tabular-nums font-medium">{fmt(data.tax_amount)}</span>
+          {hasTaxDefault && (
+            <span className="col-span-3 -mt-1 pb-1 text-xs select-none">
+              {isTaxOverridden ? (
+                <button
+                  type="button"
+                  onClick={() => dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })}
+                  className="inline-flex items-center gap-1 font-medium transition-colors hover:underline"
+                  style={{ color: brandText }}
+                >
+                  <RotateCcw className="size-3" />
+                  {L.resetToDefault}
+                </button>
+              ) : (
+                <span className="text-muted-foreground/80">{L.usingDefault}</span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* Grand total — the one emphasized row; a size down on phones */}
+        <div
+          className="mt-2 flex items-baseline justify-between gap-3 border-t-2 pt-3"
+          style={{ borderTopColor: brandText }}
+        >
+          <span className="text-2xl sm:text-3xl font-extrabold select-none">{L.grandTotal}</span>
+          <span className="text-2xl sm:text-3xl font-extrabold tabular-nums" style={{ color: brandText }}>
+            {fmt(data.total)}
+          </span>
+        </div>
+
+        {/* Payment — deposit and balance due, apart from the price. -mx-3/px-3
+            keeps the rows on the same rails as the lines above. */}
+        {depositActive && (
+          <div data-testid="totals-payment-box" className="mt-4 -mx-3 rounded-lg bg-muted/50 px-3 py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground select-none">
+              {t('Payment')}
+            </p>
+            <div data-testid="totals-deposit-row" className={TOTALS_GRID}>
+              <span className="text-muted-foreground select-none">{L.deposit}</span>
+              <UnitValueField
+                value={data.deposit_value ?? 0}
+                unit={depositIsPct ? '%' : currency}
+                otherUnit={depositIsPct ? currency : '%'}
+                autoFocus={focusKey === 'deposit'}
+                ariaLabel={L.deposit}
+                onValue={(v) =>
+                  dispatch({
+                    type: 'UPDATE_DEPOSIT',
+                    deposit_type: depositIsPct ? 'percent' : 'amount',
+                    deposit_value: v,
+                  })
+                }
+                onUnit={() =>
+                  dispatch({
+                    type: 'UPDATE_DEPOSIT',
+                    deposit_type: depositIsPct ? 'amount' : 'percent',
+                    deposit_value: data.deposit_value ?? 0,
+                  })
+                }
+                onClear={() => {
+                  setFocusKey(null)
+                  dispatch({ type: 'UPDATE_DEPOSIT', deposit_type: 'none', deposit_value: null })
+                }}
+              />
+              <span className="text-right tabular-nums font-medium">{fmt(data.deposit)}</span>
+            </div>
+            <div className={TOTALS_GRID}>
+              <span className="col-span-2 font-semibold select-none">{L.balanceDue}</span>
+              <span className="text-right tabular-nums font-semibold">{fmt(data.balance_due)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Add what is not in use yet */}
+        {(!discountActive || !depositActive) && (
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+            {!discountActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusKey('discount')
+                  dispatch({ type: 'UPDATE_DISCOUNT', discount_type: 'percentage', discount_value: 0 })
+                }}
+                className="flex items-center gap-1 py-1 text-sm font-medium select-none hover:underline underline-offset-4"
+                style={{ color: brandText }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {L.discount}
+              </button>
+            )}
+            {!depositActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFocusKey('deposit')
+                  dispatch({ type: 'UPDATE_DEPOSIT', deposit_type: 'percent', deposit_value: 0 })
+                }}
+                className="flex items-center gap-1 py-1 text-sm font-medium select-none hover:underline underline-offset-4"
+                style={{ color: brandText }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {L.deposit}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1128,14 +1367,18 @@ function DocumentTotals({
   /** R4 — company default tax rate (fraction); undefined when no default applies. */
   defaultTaxRate?: number
 }) {
+  if (isEditable && dispatch) {
+    return (
+      <EditableTotals
+        data={data}
+        dispatch={dispatch}
+        brandText={brandText}
+        L={L}
+        defaultTaxRate={defaultTaxRate}
+      />
+    )
+  }
   const fmt = (v: number) => formatMoney(v, data.currency_code)
-  const taxPercent = Math.round(data.tax_rate * 10000) / 100
-  const hasTaxDefault = defaultTaxRate !== undefined
-  // Compare at 4-decimal precision (DB stores NUMERIC(5,4)) to avoid float noise.
-  const isTaxOverridden =
-    Math.round(data.tax_rate * 10000) !== Math.round((defaultTaxRate ?? 0) * 10000)
-  const discountTypeVal = data.discount_type ?? 'none'
-  const depositTypeVal = data.deposit_type ?? 'none'
   // PUI-02 (GUARD-03): view-mode deposit/balance-due READ the persisted server row
   // (total, balance_due, deposit_type) through the shared seam — never recompute.
   const dep = deriveDepositDisplay({
@@ -1147,8 +1390,7 @@ function DocumentTotals({
 
   return (
     <div data-page-block-id="totals" data-track-section="totals" className="flex justify-end px-6 sm:px-10 py-6 border-t border-border/50">
-      {/* Edit mode is wider: label | controls | amount columns need the room. */}
-      <div className={`w-full ${isEditable && dispatch ? 'max-w-sm' : 'max-w-xs'} space-y-2`}>
+      <div className={`w-full max-w-xs space-y-2`}>
         {/* Subtotal */}
         <div className="flex justify-between text-base">
           <span className="text-muted-foreground select-none">{L.subtotal}</span>
@@ -1156,66 +1398,7 @@ function DocumentTotals({
         </div>
 
         {/* Discount */}
-        {isEditable && dispatch ? (
-          <div data-testid="totals-discount-row" className={TOTALS_ROW}>
-            <div className={TOTALS_CONTROLS}>
-              <span className="flex-1 text-muted-foreground whitespace-nowrap select-none">{L.discount}</span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Select
-                  value={discountTypeVal}
-                  onValueChange={(val) => {
-                    const type = val === 'none' ? null : val
-                    dispatch({
-                      type: 'UPDATE_DISCOUNT',
-                      discount_type: type,
-                      discount_value: type ? data.discount_value : 0,
-                    })
-                  }}
-                >
-                  <SelectTrigger className={TOTALS_SELECT}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{L.discountNone}</SelectItem>
-                    <SelectItem value="percentage">{L.discountPct}</SelectItem>
-                    <SelectItem value="fixed">{L.discountFixed}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {data.discount_type && (
-                  data.discount_type === 'fixed' ? (
-                    <MoneyInput
-                      symbolPlacement="beside"
-                      value={data.discount_value}
-                      currencyCode={data.currency_code}
-                      onValueChange={(value) =>
-                        dispatch({
-                          type: 'UPDATE_DISCOUNT',
-                          discount_type: data.discount_type,
-                          discount_value: value,
-                        })
-                      }
-                      className={TOTALS_FIELD}
-                    />
-                  ) : (
-                    <PercentField
-                      value={data.discount_value}
-                      onChange={(v) =>
-                        dispatch({
-                          type: 'UPDATE_DISCOUNT',
-                          discount_type: data.discount_type,
-                          discount_value: v,
-                        })
-                      }
-                    />
-                  )
-                )}
-              </div>
-            </div>
-            <TotalsAmount className="text-destructive">
-              {data.discount_amount > 0 ? `-${fmt(data.discount_amount)}` : null}
-            </TotalsAmount>
-          </div>
-        ) : data.discount_amount > 0 ? (
+        {data.discount_amount > 0 ? (
           <div className="flex justify-between text-base">
             <span className="text-muted-foreground select-none">
               {L.discount}
@@ -1227,30 +1410,8 @@ function DocumentTotals({
           </div>
         ) : null}
 
-        {/* Tax — the Default/Customized marker sits beside the label, on the row. */}
-        {isEditable && dispatch ? (
-          <div data-testid="totals-tax-row" className={TOTALS_ROW}>
-            <div className={TOTALS_CONTROLS}>
-              <span className="flex flex-1 items-center gap-2 min-w-0 select-none">
-                <span className="text-muted-foreground shrink-0">{L.tax}</span>
-                {hasTaxDefault && (
-                  <DefaultStateIndicator
-                    isOverridden={isTaxOverridden}
-                    onReset={() =>
-                      dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: defaultTaxRate ?? 0 })
-                    }
-                    L={L}
-                  />
-                )}
-              </span>
-              <PercentField
-                value={taxPercent}
-                onChange={(pct) => dispatch({ type: 'UPDATE_TAX_RATE', tax_rate: pct / 100 })}
-              />
-            </div>
-            <TotalsAmount>{fmt(data.tax_amount)}</TotalsAmount>
-          </div>
-        ) : data.tax_amount > 0 ? (
+        {/* Tax */}
+        {data.tax_amount > 0 ? (
           <div className="flex justify-between text-base">
             <span className="text-muted-foreground select-none">
               {L.tax} ({formatPercent(data.tax_rate * 100)})
@@ -1270,66 +1431,8 @@ function DocumentTotals({
           </span>
         </div>
 
-        {/* Deposit — none/percent/amount. Preview only; server recomputes on save (GUARD-03). */}
-        {isEditable && dispatch ? (
-          <div data-testid="totals-deposit-row" className={`${TOTALS_ROW} pt-2`}>
-            <div className={TOTALS_CONTROLS}>
-              <span className="flex-1 text-muted-foreground whitespace-nowrap select-none">{L.deposit}</span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Select
-                  value={depositTypeVal}
-                  onValueChange={(val) =>
-                    dispatch({
-                      type: 'UPDATE_DEPOSIT',
-                      deposit_type: val,
-                      deposit_value: val === 'none' ? null : (data.deposit_value ?? 0),
-                    })
-                  }
-                >
-                  <SelectTrigger className={TOTALS_SELECT}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{L.depositNone}</SelectItem>
-                    <SelectItem value="percent">{L.depositPct}</SelectItem>
-                    <SelectItem value="amount">{L.depositAmount}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {depositTypeVal !== 'none' && (
-                  depositTypeVal === 'amount' ? (
-                    <MoneyInput
-                      symbolPlacement="beside"
-                      value={data.deposit_value ?? 0}
-                      currencyCode={data.currency_code}
-                      onValueChange={(value) =>
-                        dispatch({
-                          type: 'UPDATE_DEPOSIT',
-                          deposit_type: 'amount',
-                          deposit_value: value,
-                        })
-                      }
-                      className={TOTALS_FIELD}
-                    />
-                  ) : (
-                    <PercentField
-                      value={data.deposit_value ?? 0}
-                      onChange={(v) =>
-                        dispatch({
-                          type: 'UPDATE_DEPOSIT',
-                          deposit_type: 'percent',
-                          deposit_value: v,
-                        })
-                      }
-                    />
-                  )
-                )}
-              </div>
-            </div>
-            <TotalsAmount className="text-muted-foreground">
-              {data.deposit > 0 ? `-${fmt(data.deposit)}` : null}
-            </TotalsAmount>
-          </div>
-        ) : dep.showDeposit ? (
+        {/* Deposit (view) */}
+        {dep.showDeposit ? (
           /* VIEW-MODE deposit row (PUI-02) — persisted-read, never recompute. */
           <div className="flex justify-between text-base pt-2">
             <span className="text-muted-foreground select-none">{L.depositRequired}</span>
@@ -1338,11 +1441,11 @@ function DocumentTotals({
         ) : null}
 
         {/* Balance Due — only when a deposit is set (edit: type !== none; view: persisted deposit via deriveDepositDisplay). */}
-        {(isEditable && dispatch ? depositTypeVal !== 'none' : dep.showDeposit) && (
+        {dep.showDeposit && (
           <div className="flex justify-between items-baseline">
             <span className="text-base font-semibold text-muted-foreground select-none">{L.balanceDue}</span>
             <span className="text-base font-semibold tabular-nums">
-              {fmt(isEditable && dispatch ? data.balance_due : dep.balanceDue)}
+              {fmt(dep.balanceDue)}
             </span>
           </div>
         )}
@@ -2215,10 +2318,10 @@ export function EstimateDocument({
               label starts on the text rail (24px phones, 40px sm+). */}
           <button
             onClick={() => dispatch({ type: 'ADD_SECTION' })}
-            className="-ml-[22px] text-sm font-medium flex items-center gap-1.5 py-1.5 select-none hover:underline underline-offset-4"
+            className="-ml-[18px] text-sm font-medium flex items-center gap-1 py-1.5 select-none hover:underline underline-offset-4"
             style={{ color: brandText }}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             {L.addSection}
           </button>
           {/* Phase 162-04 (DOCUX-01) — the Add-details popover trigger is
