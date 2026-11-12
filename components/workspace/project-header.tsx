@@ -6,7 +6,6 @@ import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot } from './estimate-version-context'
 import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-header-button'
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
-import { PageBreadcrumb } from '@/components/app-shell/page-breadcrumb'
 import { ViewModeToggle } from '@/components/workspace/view-mode-toggle'
 import { EngagementButton } from '@/components/workspace/estimate/engagement-button'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -26,9 +25,9 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
     [project.name],
   )
 
-  // Feed the global breadcrumb for the desktop top bar. On mobile the same
-  // trail renders in-page above the title (PageBreadcrumb); the mobile header
-  // only ever shows the app name.
+  // Feed the global breadcrumb for the desktop top bar. Mobile shows no trail:
+  // the bottom bar's Projects tab (active here) and the system back already
+  // lead back, and the mobile header only ever shows the app name.
   useBreadcrumb(breadcrumbItems)
 
   return (
@@ -36,7 +35,6 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
     // flush (project-workspace.tsx: pt-0), so this pb-5 is the whole gap; it
     // used to be 12px here + 24px of content padding = 36px vs 16px on top.
     <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] px-5 py-5 md:px-6">
-      <PageBreadcrumb items={breadcrumbItems} className="mb-2" />
       {/* items-start on mobile so a 2-line wrapped title (ProjectTitle line-clamp-2)
           keeps the action button anchored to the top instead of floating mid-title;
           sm+ stays center-aligned with the single-line title. */}

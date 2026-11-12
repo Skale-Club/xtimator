@@ -3,8 +3,8 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 /**
- * The mobile header always shows the app name; page context (Projects / name,
- * Clients / name) renders in-page above the title, mobile only.
+ * The mobile header always shows the app name and never a page breadcrumb or
+ * title. Mobile shows no page trail at all (the bottom bar leads back).
  */
 
 vi.mock('@/lib/i18n/use-translation', () => ({
@@ -21,32 +21,7 @@ vi.mock('@/components/app-shell/language-toggle', () => ({ LanguageToggle: () =>
 vi.mock('@/components/app-shell/mobile-account-menu', () => ({ MobileAccountMenu: () => null }))
 vi.mock('@/components/ui/app-icon', () => ({ AppIcon: () => null }))
 
-const { PageBreadcrumb } = await import('@/components/app-shell/page-breadcrumb')
 const { MobileHeader } = await import('@/components/app-shell/mobile-header')
-
-describe('PageBreadcrumb', () => {
-  it('links the parent and marks the last item as the current page', () => {
-    render(
-      <PageBreadcrumb
-        items={[
-          { label: 'Projects', href: '/projects' },
-          { label: 'Biweekly Home Cleaning' },
-        ]}
-      />,
-    )
-    const nav = screen.getByTestId('page-breadcrumb')
-    expect(nav.className).toContain('md:hidden')
-    expect(screen.getByRole('link', { name: 'Projects' }).getAttribute('href')).toBe('/projects')
-    const current = screen.getByText('Biweekly Home Cleaning')
-    expect(current.getAttribute('aria-current')).toBe('page')
-    expect(current.closest('a')).toBeNull()
-  })
-
-  it('renders nothing without items', () => {
-    const { container } = render(<PageBreadcrumb items={[]} />)
-    expect(container.innerHTML).toBe('')
-  })
-})
 
 describe('MobileHeader', () => {
   it('always shows the app name and no page breadcrumb', () => {

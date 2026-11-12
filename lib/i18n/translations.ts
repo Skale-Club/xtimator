@@ -50,7 +50,6 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Theme': 'Tema',
     'Light': 'Claro',
     'Dark': 'Escuro',
-    'Breadcrumb': 'Caminho',
     // Mobile bottom-bar short labels (nav-items.ts shortLabel)
     'New': 'Novo',
     'Prices': 'Preços',
@@ -497,7 +496,6 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Theme': 'Tema',
     'Light': 'Claro',
     'Dark': 'Oscuro',
-    'Breadcrumb': 'Ruta',
     // Mobile bottom-bar short labels (nav-items.ts shortLabel)
     'New': 'Nuevo',
     'Prices': 'Precios',
