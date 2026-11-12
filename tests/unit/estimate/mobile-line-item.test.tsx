@@ -151,6 +151,20 @@ describe('ItemEditorSheet', () => {
     expect(props.onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('a new line offers Add another (once it has a description) instead of Duplicate', () => {
+    const onAddAnother = vi.fn()
+    renderSheet({ isNew: true, item: makeItem({ description: '' }), onAddAnother })
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add another' })).toHaveProperty('disabled', true)
+  })
+
+  it('Add another calls its handler when the line has a description', () => {
+    const onAddAnother = vi.fn()
+    renderSheet({ isNew: true, onAddAnother })
+    fireEvent.click(screen.getByRole('button', { name: 'Add another' }))
+    expect(onAddAnother).toHaveBeenCalledTimes(1)
+  })
+
   it('titles a just-added line "New item"', () => {
     renderSheet({ isNew: true, item: makeItem({ description: '' }) })
     expect(screen.getByText('New item')).toBeTruthy()

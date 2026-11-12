@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { ChevronDown, Copy, Minus, Plus, Trash2 } from 'lucide-react'
 import {
   Sheet,
@@ -42,6 +42,9 @@ interface ItemEditorSheetProps {
   onSelectPriceBookItem?: (item: PriceBookItem) => void
   onDelete: () => void
   onDuplicate: () => void
+  /** New items only: keep this line and open a fresh one in the same section,
+   *  for entering several lines in a row. */
+  onAddAnother?: () => void
   currencyCode?: string
   unitOptions?: string[]
   priceBookItems?: PriceBookItem[]
@@ -70,6 +73,7 @@ export function ItemEditorSheet({
   onSelectPriceBookItem,
   onDelete,
   onDuplicate,
+  onAddAnother,
   currencyCode = DEFAULT_CURRENCY_CODE,
   unitOptions,
   priceBookItems = [],
@@ -84,12 +88,11 @@ export function ItemEditorSheet({
         data-testid="item-editor-sheet"
         className="max-h-[90dvh] gap-0 overflow-y-auto p-0"
         onOpenAutoFocus={(event) => {
-          // Only a brand-new item jumps straight into typing (its description);
-          // opening an existing one must not pop the keyboard over the fields.
+          // A new item opens with its description focused; an existing one
+          // must not pop the keyboard over the fields.
           event.preventDefault()
           if (!isNew) return
-          const content = event.currentTarget as HTMLElement | null
-          content
+          ;(event.currentTarget as HTMLElement | null)
             ?.querySelector<HTMLElement>('[data-item-description] textarea, [data-item-description] input')
             ?.focus()
         }}
@@ -106,6 +109,7 @@ export function ItemEditorSheet({
             onSelectPriceBookItem={onSelectPriceBookItem}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
+            onAddAnother={onAddAnother}
             currencyCode={currencyCode}
             unitOptions={unitOptions ?? DEFAULT_UNIT_OPTIONS}
             priceBookItems={priceBookItems}
@@ -125,6 +129,7 @@ function ItemEditorBody({
   onSelectPriceBookItem,
   onDelete,
   onDuplicate,
+  onAddAnother,
   currencyCode,
   unitOptions,
   priceBookItems,
@@ -146,6 +151,22 @@ function ItemEditorBody({
   const [otherUnitOpen, setOtherUnitOpen] = useState(item.unit !== null && !unitIsChip)
   // The current unit always has a chip, even when it is a custom one.
   const chips = item.unit && !unitIsChip && !otherUnitOpen ? [...chipUnits, item.unit] : chipUnits
+
+  // "Add another" swaps in a new line while the sheet stays open (the body
+  // remounts per item, see editorKey); focus its description so typing goes
+  // on. The first open is handled by onOpenAutoFocus. The short delay lets
+  // the dialog's focus scope settle after the clicked button re-renders.
+  const descriptionRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!isNew) return
+    const timer = setTimeout(() => {
+      const field = descriptionRef.current?.querySelector<HTMLElement>('textarea, input')
+      if (field && document.activeElement !== field) field.focus()
+    }, 50)
+    return () => clearTimeout(timer)
+    // Mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
   function stepQuantity(delta: number) {
@@ -173,7 +194,7 @@ function ItemEditorBody({
         {/* Description, with price book search */}
         <div className="flex flex-col gap-1.5">
           <span className={FIELD_LABEL}>{t('Description')}</span>
-          <div className={FIELD_BOX} data-item-description>
+          <div ref={descriptionRef} className={FIELD_BOX} data-item-description>
             <PriceBookCombobox
               value={item.description}
               onChange={(next) => onUpdate('description', next)}
@@ -364,10 +385,24 @@ function ItemEditorBody({
             <Trash2 className="h-4 w-4" />
             {t('Delete')}
           </Button>
-          <Button type="button" variant="outline" onClick={onDuplicate} className="h-11 gap-2">
-            <Copy className="h-4 w-4" />
-            {t('Duplicate')}
-          </Button>
+          {isNew && onAddAnother ? (
+            // A new line: the natural next step is the next line, not a copy.
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onAddAnother}
+              disabled={!item.description.trim()}
+              className="h-11 gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              {t('Add another')}
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" onClick={onDuplicate} className="h-11 gap-2">
+              <Copy className="h-4 w-4" />
+              {t('Duplicate')}
+            </Button>
+          )}
         </div>
       </div>
     </div>

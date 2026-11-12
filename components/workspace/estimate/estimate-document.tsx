@@ -22,7 +22,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, MoreVertical, Plus, RotateCcw, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, GripVertical, MoreVertical, Plus, RotateCcw, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
@@ -578,6 +578,20 @@ function SortableItemSummaryRow({
 
 /** Opens the mobile item editor for one item of one section. */
 type OpenItemEditor = (sectionId: string, itemId: string, isNew?: boolean) => void
+
+/** A div in edit mode, nothing in view mode: the share page and the public
+ *  DOM stay byte-identical while the editor can fold the document top. */
+function EditOnlyWrapper({
+  wrap,
+  className,
+  children,
+}: {
+  wrap: boolean
+  className?: string
+  children: React.ReactNode
+}) {
+  return wrap ? <div className={className}>{children}</div> : <>{children}</>
+}
 
 /** Below Tailwind's sm breakpoint the item list is the mobile summary list. */
 function isMobileViewport(): boolean {
@@ -1648,6 +1662,10 @@ export function EstimateDocument({
   // so an id-based target would vanish mid-typing. The sheet is modal, so
   // nothing can reorder sections or items underneath it.
   const { t: tUi } = useTranslation()
+  // Phones, edit mode: the document top (company, title band, project/client,
+  // summary) folds into one compact card so the line items start near the top.
+  const [mobileTopOpen, setMobileTopOpen] = useState(false)
+  const foldMobileTop = isEditable && !mobileTopOpen
   const [itemEditor, setItemEditor] = useState<
     { sectionIndex: number; itemIndex: number; isNew: boolean } | null
   >(null)
@@ -1703,6 +1721,18 @@ export function EstimateDocument({
     toast.success(tUi('Item duplicated'))
   }
 
+  function handleAddAnotherItem() {
+    if (!dispatch || !itemEditor || !editorSection) return
+    // The line being entered is the section's last; the next one goes after it.
+    const itemId = 'temp-' + crypto.randomUUID()
+    dispatch({ type: 'ADD_ITEM', sectionId: editorSection.id, itemId })
+    setItemEditor({
+      sectionIndex: itemEditor.sectionIndex,
+      itemIndex: editorSection.items.length,
+      isNew: true,
+    })
+  }
+
   const companyAddr = company ? formatAddress(company) : null
   const clientAddr = client ? formatAddress(client) : null
   // hasTerms wraps the terms container; each individual TermsBlock also
@@ -1751,6 +1781,43 @@ export function EstimateDocument({
         color: 'hsl(240 10% 3.9%)',
       } as React.CSSProperties}
     >
+      {/* Phones, edit mode: compact card standing in for the folded top. */}
+      {isEditable && !mobileTopOpen && (
+        <button
+          type="button"
+          onClick={() => setMobileTopOpen(true)}
+          data-testid="mobile-doc-top-compact"
+          className="sm:hidden w-full px-6 py-4 text-left border-b border-border"
+          style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
+        >
+          <span className="block text-xs font-semibold uppercase tracking-widest text-muted-foreground select-none">
+            {L.project}
+          </span>
+          <span className="mt-1 block line-clamp-2 text-lg font-bold leading-snug">{projectName}</span>
+          <span className="mt-1 flex flex-wrap gap-x-1.5 text-sm text-muted-foreground">
+            {[
+              client?.name,
+              formatDate(data.estimate_date ?? estimateCreatedAt, lang),
+              `#${data.estimate_number || defaultEstimateNumber}`,
+            ]
+              .filter(Boolean)
+              .map((part, i) => (
+                <span key={i} className="whitespace-nowrap">
+                  {i > 0 && <span aria-hidden className="mr-1.5">·</span>}
+                  {part}
+                </span>
+              ))}
+          </span>
+          <span className="mt-2 flex items-center gap-1 text-sm font-medium" style={{ color: brandText }}>
+            {tUi('Show estimate details')}
+            <ChevronDown className="h-4 w-4" />
+          </span>
+        </button>
+      )}
+
+      {/* The document top. Folded on phones while editing (see the compact card
+          above); always shown on sm+ and in view mode (share page, PDF). */}
+      <EditOnlyWrapper wrap={isEditable} className={foldMobileTop ? 'hidden sm:block' : undefined}>
       {/* Company header — only when company provided (share/view mode + editor) */}
       {company && (
         <div
@@ -1944,6 +2011,21 @@ export function EstimateDocument({
         </div>
       )}
 
+        {isEditable && mobileTopOpen && (
+          <div className="sm:hidden px-6 py-3 border-b border-border/50">
+            <button
+              type="button"
+              onClick={() => setMobileTopOpen(false)}
+              className="flex items-center gap-1 text-sm font-medium"
+              style={{ color: brandText }}
+            >
+              {tUi('Hide estimate details')}
+              <ChevronUp className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </EditOnlyWrapper>
+
       {/* Sections */}
       <div data-track-section="line-items" className="divide-y divide-border">
         {isEditable && dispatch ? (
@@ -2027,6 +2109,7 @@ export function EstimateDocument({
           }}
           onDelete={handleDeleteEditorItem}
           onDuplicate={handleDuplicateEditorItem}
+          onAddAnother={handleAddAnotherItem}
           currencyCode={data.currency_code}
           unitOptions={resolveUnitOptions(lang, editorItem?.unit ?? null)}
           priceBookItems={priceBookItems}
