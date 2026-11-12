@@ -119,7 +119,7 @@ export function ClientResponseControl({
               // Icon-only on phones: with Photos and Share the pill is wider than a
               // 360px screen and Share would scroll out of view. Stays readable to
               // screen readers via the aria-label above.
-              <span className="max-sm:sr-only">{t('Record answer')}</span>
+              <span className="max-sm:sr-only">{t('Client response')}</span>
             )}
           </Button>
         </DropdownMenuTrigger>

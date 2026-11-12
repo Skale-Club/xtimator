@@ -1694,12 +1694,14 @@ export function EstimateDocument({
       {company && (
         <div
           data-track-section="header"
-          className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 ${SECTION_PX} py-4 sm:py-6 border-b border-border`}
+          // Logo stays to the right of the company info at every width (it
+          // used to drop below it on phones via flex-col).
+          className={`flex flex-row items-start justify-between gap-4 ${SECTION_PX} py-4 sm:py-6 border-b border-border`}
           style={{ borderTopWidth: 3, borderTopStyle: 'solid', borderTopColor: brandColor }}
         >
           {/* LEFT — company info (Quick-260526-jo4) */}
-          <div className="min-w-0">
-            <p className="font-bold text-2xl leading-tight">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-2xl leading-tight break-words">
               {company.name}
             </p>
             {company.owner_name && (
@@ -1731,7 +1733,7 @@ export function EstimateDocument({
                 alt={company.name}
                 width={64}
                 height={64}
-                className="rounded object-contain"
+                className="h-12 w-12 rounded object-contain sm:h-16 sm:w-16"
                 unoptimized
               />
             </div>

@@ -22,7 +22,6 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Estimate debug': 'Depurar orçamento',
     // Client response (manual accept/decline)
     'Client response': 'Resposta do cliente',
-    'Record answer': 'Registrar resposta',
     'Got the answer by phone or in person? Record it here.': 'O cliente respondeu por telefone ou pessoalmente? Registre aqui.',
     'Signed online': 'Assinado online',
     'Mark as accepted': 'Marcar como aceito',
@@ -51,6 +50,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Theme': 'Tema',
     'Light': 'Claro',
     'Dark': 'Escuro',
+    'Breadcrumb': 'Caminho',
     // Mobile bottom-bar short labels (nav-items.ts shortLabel)
     'New': 'Novo',
     'Prices': 'Preços',
@@ -469,7 +469,6 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Estimate debug': 'Depurar presupuesto',
     // Client response (manual accept/decline)
     'Client response': 'Respuesta del cliente',
-    'Record answer': 'Registrar respuesta',
     'Got the answer by phone or in person? Record it here.': '¿El cliente respondió por teléfono o en persona? Regístralo aquí.',
     'Signed online': 'Firmado en línea',
     'Mark as accepted': 'Marcar como aceptado',
@@ -498,6 +497,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Theme': 'Tema',
     'Light': 'Claro',
     'Dark': 'Oscuro',
+    'Breadcrumb': 'Ruta',
     // Mobile bottom-bar short labels (nav-items.ts shortLabel)
     'New': 'Nuevo',
     'Prices': 'Precios',

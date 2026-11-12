@@ -884,14 +884,19 @@ export function EstimateEditor({
       onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen((open) => !open)}
       settingsButtonRef={settingsGearRef}
       leading={leading}
+      // Only once there can be an answer: after the estimate was shared, or
+      // when an answer / signature already exists. Before that the button had
+      // nothing to record and just crowded the pill.
       responseControl={
-        <ClientResponseControl
-          clientResponse={state.client_response}
-          respondedAt={state.responded_at}
-          signedOnline={state.hasSignature}
-          disabled={state.isDirty || saveStatus === 'saving'}
-          onRecord={handleRecordClientResponse}
-        />
+        state.sent_at || state.client_response || state.hasSignature ? (
+          <ClientResponseControl
+            clientResponse={state.client_response}
+            respondedAt={state.responded_at}
+            signedOnline={state.hasSignature}
+            disabled={state.isDirty || saveStatus === 'saving'}
+            onRecord={handleRecordClientResponse}
+          />
+        ) : undefined
       }
     />
   )
