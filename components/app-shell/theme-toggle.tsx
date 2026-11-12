@@ -8,6 +8,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { saveThemePreference } from '@/lib/actions/theme'
+import { useTranslation } from '@/lib/i18n/use-translation'
+import { cn } from '@/lib/utils'
 
 type Theme = 'dark' | 'light' | 'system'
 
@@ -41,17 +43,19 @@ function persist(next: Theme, setTheme: (v: Theme) => void) {
 
 /**
  * One-click light↔dark toggle.
- * Primary surface: Topbar (desktop) and MobileHeader (mobile).
+ * Primary surface: Topbar (desktop). On mobile the theme lives in the
+ * account menu (ThemeSegmentedPicker inside MobileAccountMenu).
  */
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const mounted = useHydrated()
 
   const current = (mounted ? theme : 'dark') as Theme
-  const Icon = current === 'light' ? Sun : Moon
+  const isLight = current === 'light'
+  const Icon = isLight ? Sun : Moon
 
   function toggle() {
-    const next: Theme = current === 'light' ? 'dark' : 'light'
+    const next: Theme = isLight ? 'dark' : 'light'
     persist(next, setTheme as (v: Theme) => void)
   }
 
@@ -104,5 +108,48 @@ export function ThemeToggleRadioGroup() {
         </div>
       ))}
     </RadioGroup>
+  )
+}
+
+/**
+ * Compact three-icon picker (light / dark / system) for the mobile account
+ * menu. Plain buttons, not menu items, so a tap changes the theme without
+ * closing the dropdown. Before hydration nothing is highlighted.
+ */
+export function ThemeSegmentedPicker() {
+  const { theme, setTheme } = useTheme()
+  const mounted = useHydrated()
+  const { t } = useTranslation()
+  const current = mounted ? (theme as Theme) : null
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t('Theme')}
+      data-testid="theme-picker"
+      className="inline-flex items-center gap-0.5 rounded-md bg-muted/60 p-0.5"
+    >
+      {ITEMS.map(({ value, label, Icon }) => {
+        const selected = current === value
+        return (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={t(label)}
+            onClick={() => persist(value, setTheme as (v: Theme) => void)}
+            className={cn(
+              'inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-[calc(var(--radius-md)-2px)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              selected
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </button>
+        )
+      })}
+    </div>
   )
 }

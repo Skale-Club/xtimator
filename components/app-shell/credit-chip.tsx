@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Coins } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { usageBandClass } from '@/lib/billing/usage-color'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -75,5 +76,43 @@ export function CreditChip({
       </span>
       <span className="hidden text-xs lg:inline">{t('used')}</span>
     </Link>
+  )
+}
+
+/**
+ * Mobile account-menu row: the same data as CreditChip, laid out for a
+ * dropdown ("Credits  1,397 · 12% used" on one line, a full-width bar under
+ * it). Shows the balance and the percentage together. Same null rule as the
+ * chip: no live credit lot → balance only, no bar.
+ */
+export function CreditMenuRow({
+  percentUsed,
+  balance,
+}: {
+  percentUsed: number | null
+  balance?: number
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <DropdownMenuItem asChild className="cursor-pointer">
+      <Link
+        href="/settings/billing"
+        data-testid="credit-menu-row"
+        className="flex flex-col items-stretch gap-1.5"
+      >
+        <span className="flex items-center gap-2">
+          <Coins className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{t('Credits')}</span>
+          <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+            {formatCredits(balance ?? 0)}
+            {percentUsed === null ? ` ${t('credits')}` : ` · ${percentUsed}% ${t('used')}`}
+          </span>
+        </span>
+        {percentUsed !== null && (
+          <Progress value={percentUsed} className={cn('h-1.5 w-full', usageBandClass(percentUsed))} />
+        )}
+      </Link>
+    </DropdownMenuItem>
   )
 }

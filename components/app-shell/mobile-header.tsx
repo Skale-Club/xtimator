@@ -4,9 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Bell } from 'lucide-react'
 import { AppIcon } from '@/components/ui/app-icon'
-import { ThemeToggle } from '@/components/app-shell/theme-toggle'
 import { LanguageToggle } from '@/components/app-shell/language-toggle'
-import { CreditChip } from '@/components/app-shell/credit-chip'
 import { MobileAccountMenu } from '@/components/app-shell/mobile-account-menu'
 import { useCurrentBreadcrumbs } from '@/components/app-shell/breadcrumb-context'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -41,7 +39,7 @@ interface MobileHeaderProps {
   userName?: string | null
   /** At least one Academy course is visible (server-computed). */
   academyAvailable?: boolean
-  /** Company credit state; chip renders whenever present. */
+  /** Company credit state; shown as the Credits row in the account menu. */
   credits?: { percentUsed: number | null; balance: number }
 }
 
@@ -119,12 +117,10 @@ export function MobileHeader({
         ) : null}
       </div>
 
-      {/* Right: same actions as desktop topbar */}
+      {/* Right: language + notifications + account. Credits and the theme
+          toggle live inside the account menu on mobile (no room up here). */}
       <div className="flex items-center gap-1 shrink-0 ml-2">
         <LanguageToggle />
-        {credits && (
-          <CreditChip percentUsed={credits.percentUsed} balance={credits.balance} compact />
-        )}
         <Link
           href="/notifications"
           aria-label={t('Notifications')}
@@ -132,7 +128,6 @@ export function MobileHeader({
         >
           <Bell className="h-4 w-4" />
         </Link>
-        <ThemeToggle />
         {navUser && (
           <MobileAccountMenu
             navUser={navUser}
@@ -142,6 +137,7 @@ export function MobileHeader({
             userName={userName}
             isDemo={isDemo}
             academyAvailable={academyAvailable}
+            credits={credits}
           />
         )}
       </div>

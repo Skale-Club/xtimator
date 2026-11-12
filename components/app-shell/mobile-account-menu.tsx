@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Settings, Trash2, LogOut, HelpCircle, GraduationCap } from 'lucide-react'
+import { Settings, Trash2, LogOut, HelpCircle, GraduationCap, SunMoon } from 'lucide-react'
+import { ThemeSegmentedPicker } from '@/components/app-shell/theme-toggle'
+import { CreditMenuRow } from '@/components/app-shell/credit-chip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenuItem,
@@ -30,6 +32,8 @@ interface MobileAccountMenuProps {
   isDemo?: boolean
   /** At least one Academy course is visible (server-computed); adds "Academy" below App Tour. */
   academyAvailable?: boolean
+  /** Company credit state; the Credits row renders whenever present. */
+  credits?: { percentUsed: number | null; balance: number }
 }
 
 /**
@@ -39,7 +43,8 @@ interface MobileAccountMenuProps {
  * Renders <CompanySelector> (Companies switcher + Add new company) with a custom
  * avatar trigger and an accountMenuSlot mirroring the desktop slot built in
  * Sidebar (user name/email header + Install app + Settings + Trash + App Tour +
- * Sign Out).
+ * Sign Out). Mobile-only extras: the Credits row and the theme picker, which
+ * the desktop keeps in its topbar but the narrow mobile header has no room for.
  * The company switch itself is handled entirely inside CompanySelector via the
  * existing `switchActiveCompany` server action — not reimplemented here.
  */
@@ -51,6 +56,7 @@ export function MobileAccountMenu({
   userName,
   isDemo,
   academyAvailable,
+  credits,
 }: MobileAccountMenuProps) {
   const { t } = useTranslation()
   const { setShowWelcome, setIsReviewMode } = useTourContext()
@@ -85,6 +91,13 @@ export function MobileAccountMenu({
       <div className="px-2 py-2">
         {userName && <p className="text-sm font-medium truncate">{userName}</p>}
         <p className="text-xs text-muted-foreground truncate">{navUser.email}</p>
+      </div>
+      <DropdownMenuSeparator />
+      {credits && <CreditMenuRow percentUsed={credits.percentUsed} balance={credits.balance} />}
+      <div data-testid="theme-menu-row" className="flex items-center gap-2 px-2 py-1.5 text-sm">
+        <SunMoon className="h-4 w-4 text-muted-foreground" />
+        <span className="flex-1">{t('Theme')}</span>
+        <ThemeSegmentedPicker />
       </div>
       <DropdownMenuSeparator />
       <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />

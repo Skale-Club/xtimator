@@ -38,7 +38,7 @@ describe('computeUsagePercent (CREDITUI-03)', () => {
 /**
  * CREDITFIX-01 (current milestone) — the cycleGrant fed into this pure
  * formula is no longer the STATIC configured monthlyCreditGrant; callers now
- * compute it from getCycleGrantedCredits(companyId) (actual credit_ledger
+ * compute it from getLiveGrantedCredits(companyId) (actual credit_ledger
  * 'grant'/'topup' rows this UTC month), via `cycleGrant = max(grantedThisCycle,
  * balance)`. computeUsagePercent's formula itself is UNCHANGED (still pure,
  * still clamped) — these tests document the two bugs that model fixes,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { openModalParam } from '@/lib/utils/modal-url'
 import { NAV_ITEMS } from './nav-items'
@@ -73,10 +73,12 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
         // The primary CTA keeps a regular 20px icon slot so its label sits on the
         // same line as the others; the brand circle hangs off that slot's bottom
         // edge and rises past the bar's top border, floating over the content.
+        // No ring: a background-colored ring read as a black outline over the
+        // content above the bar. A plain, larger "+" replaces the folder icon.
         const iconEl = item.primary ? (
           <span className="relative h-5 w-5">
-            <span className="absolute bottom-0 left-1/2 flex h-12 w-12 -translate-x-1/2 items-center justify-center rounded-[var(--radius-full)] bg-[image:var(--gradient-brand)] text-primary-foreground shadow-md ring-4 ring-background">
-              <Icon className="h-5 w-5" />
+            <span className="absolute bottom-0 left-1/2 flex h-12 w-12 -translate-x-1/2 items-center justify-center rounded-[var(--radius-full)] bg-[image:var(--gradient-brand)] text-primary-foreground shadow-md">
+              <Plus className="h-6 w-6" strokeWidth={2.5} />
             </span>
           </span>
         ) : (
@@ -84,7 +86,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
         )
         const labelEl = (
           <span className="text-[10px] font-medium leading-none mt-1 max-w-[64px] truncate">
-            {t(item.label)}
+            {t(item.shortLabel ?? item.label)}
           </span>
         )
         // Active-page indicator: a rounded blue (system primary) bar below the

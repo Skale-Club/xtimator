@@ -5,7 +5,7 @@ import { getActiveCompany, getMembershipCompanies } from '@/lib/queries/active-c
 import { requireServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
-import { getCycleGrantedCredits } from '@/lib/queries/credits'
+import { getLiveGrantedCredits } from '@/lib/queries/credits'
 import { getSupportModeSession } from '@/lib/auth/support-mode'
 import { SupportModeBanner } from '@/components/admin/support-mode-banner'
 import { Sidebar } from '@/components/app-shell/sidebar'
@@ -78,7 +78,7 @@ export default async function AppShellLayout({
       const [{ data: adminAuthUser }, branding, supportGrantedThisCycle] = await Promise.all([
         svc.auth.admin.getUserById(supportSession.adminUserId),
         brandingPromise,
-        getCycleGrantedCredits(supportSession.companyId),
+        getLiveGrantedCredits(supportSession.companyId),
       ])
       const adminEmail = adminAuthUser.user?.email ?? ''
       const navUser = { email: adminEmail, avatarUrl: null }
@@ -93,9 +93,10 @@ export default async function AppShellLayout({
       // UTC cycle (credit_ledger 'grant'/'topup' rows), not the static
       // configured monthlyCreditGrant — a company that never received its
       // full grant this cycle no longer renders a false high percentage, and
-      // a mid-cycle top-up no longer clamps to a permanent 0%. When nothing
-      // was granted this cycle, percentUsed is null (no valid denominator) —
-      // Topbar/MobileHeader still render the chip and fall back to the balance.
+      // a mid-cycle top-up no longer clamps to a permanent 0%. The denominator
+      // sums every live lot (signup/adjust included), so it is 0 only when the
+      // company has no live lot; then percentUsed is null and the chip falls
+      // back to the balance.
       const supportBalance = supportCompany.credit_balance ?? 0
       const supportPercentUsed =
         supportGrantedThisCycle === 0
@@ -207,7 +208,7 @@ export default async function AppShellLayout({
       // monthlyCreditGrant, which lied whenever the ledger and the config
       // disagreed (a company that never received its full grant this cycle,
       // or one that topped up mid-cycle).
-      getCycleGrantedCredits(activeCompanyId),
+      getLiveGrantedCredits(activeCompanyId),
       // SEED-055 Phase D: credits-are-the-only-wall state. Inert (active) while
       // enforcement is OFF; fails open on a read error.
       getPaywallContext(activeCompanyId),
@@ -218,7 +219,7 @@ export default async function AppShellLayout({
   const isAdmin = !!adminRow.data
 
   const balance = billingRow.data?.credit_balance ?? 0
-  // When nothing has been granted this cycle, there's no valid denominator —
+  // Only with no live credit lot at all is there no valid denominator —
   // percentUsed is null and the chip falls back to showing the balance.
   const percentUsed =
     grantedThisCycle === 0

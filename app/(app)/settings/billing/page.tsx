@@ -8,7 +8,7 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getBillingData } from '@/lib/queries/billing'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
-import { getCreditOverview, getCycleGrantedCredits, getLiveCreditLots } from '@/lib/queries/credits'
+import { getCreditOverview, getLiveGrantedCredits, getLiveCreditLots } from '@/lib/queries/credits'
 import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
@@ -75,9 +75,9 @@ export default async function BillingPage() {
     getCreditOverview(company.id),
     getBillingConfig(),
     getStripeDisplayPrices(),
-    // SEED-055 Phase E: `granted` of the live monthly + top-up lots - the usage
+    // `granted` of every live lot (signup, monthly, topup, adjust) - the usage
     // bar's denominator (see computeUsagePercent below).
-    getCycleGrantedCredits(company.id),
+    getLiveGrantedCredits(company.id),
     // SEED-055 Phase E: the balance split by live lot, with expiry dates.
     getLiveCreditLots(company.id),
   ])
@@ -86,11 +86,10 @@ export default async function BillingPage() {
     redirect('/onboarding')
   }
 
-  // The denominator is what the live monthly + top-up lots were actually
-  // GRANTED (not the static config amount), so a top-up raises it instead of
-  // clamping the bar to 0%. With no live monthly/top-up lot
-  // (grantedThisCycle === 0) there's no valid denominator - percentUsed is
-  // null and the UI renders the raw balance instead of a misleading bar.
+  // The denominator is what the live lots were actually GRANTED (not the
+  // static config amount), so a top-up raises it instead of clamping the bar
+  // to 0%. Only with no live lot at all (grantedThisCycle === 0) is there no
+  // valid denominator - percentUsed is null and the UI renders the raw balance.
   const percentUsed =
     grantedThisCycle === 0
       ? null

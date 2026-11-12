@@ -54,3 +54,23 @@ describe('navigation feedback', () => {
     expect(screen.getByRole('link', { name: 'Price Book' }).getAttribute('aria-current')).toBe('page')
   })
 })
+
+describe('bottom bar labels and primary button', () => {
+  it('shows short labels on the bar but keeps the full accessible names', () => {
+    render(<BottomNav />)
+    const prices = screen.getByRole('link', { name: 'Price Book' })
+    expect(prices.textContent).toContain('Prices')
+    expect(prices.textContent).not.toContain('Price Book')
+    const create = screen.getByRole('button', { name: 'New Xtimate' })
+    expect(create.textContent).toContain('New')
+    expect(create.textContent).not.toContain('Xtimate')
+  })
+
+  it('draws the primary button as a plain plus with no outline ring', () => {
+    render(<BottomNav />)
+    const create = screen.getByRole('button', { name: 'New Xtimate' })
+    expect(create.querySelector('svg.lucide-plus')).toBeTruthy()
+    expect(create.querySelector('svg.lucide-folder-plus')).toBeNull()
+    expect(create.innerHTML).not.toContain('ring-background')
+  })
+})

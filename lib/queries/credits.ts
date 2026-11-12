@@ -39,33 +39,38 @@ export interface CreditOverview {
 const OWNER_SAFE_LEDGER_COLUMNS = 'operation_type, delta_credits, reason, created_at'
 
 /**
- * SEED-055 Phase E - the topbar chip / usage bar denominator: what the company
- * was GRANTED in its live paid lots. Sums `granted` over the company's live
- * (`expires_at > now`) `monthly` lot plus its live `topup` lots, so a mid-cycle
- * top-up correctly raises the denominator. Signup / adjust lots are excluded
- * (they are not part of a billing cycle), and expired lots drop out on their
- * own at the cycle boundary - no UTC-calendar-month assumption any more.
+ * The topbar chip / usage bar denominator: what the company was GRANTED in its
+ * live credit lots. Sums `granted` over every lot that has not expired
+ * (`expires_at` NULL or in the future), whatever its source: signup, monthly,
+ * topup or adjust. A mid-cycle top-up raises the denominator, and expired lots
+ * drop out on their own at the cycle boundary.
  *
- * With no live monthly/topup lot this returns 0, and callers fall back to the
- * raw balance instead of a percentage (unchanged behaviour).
+ * Signup and adjust lots used to be excluded, so a company living on those
+ * (no monthly/topup lot yet) got 0 here and lost its bar; now every company
+ * with credits has a valid denominator. 0 only when there is no live lot.
+ *
+ * Expiry is filtered in JS (a company has a handful of lots) to keep the query
+ * a plain eq() with no or() filter.
  *
  * Service client (mirrors getCreditOverview). Never throws - returns 0 on any
  * failure so a transient read error degrades to "no bar".
  */
-export async function getCycleGrantedCredits(companyId: string): Promise<number> {
+export async function getLiveGrantedCredits(companyId: string): Promise<number> {
   try {
     const svc = requireServiceClient()
     const { data, error } = await svc
       .from('credit_lots')
-      .select('granted')
+      .select('granted, expires_at')
       .eq('company_id', companyId)
-      .in('source', ['monthly', 'topup'])
-      .gt('expires_at', new Date().toISOString())
 
     if (error || !data) return 0
 
-    return (data as { granted: number }[]).reduce(
-      (sum, row) => sum + (row.granted ?? 0),
+    const now = Date.now()
+    return (data as { granted: number | null; expires_at: string | null }[]).reduce(
+      (sum, row) =>
+        row.expires_at === null || new Date(row.expires_at).getTime() > now
+          ? sum + (row.granted ?? 0)
+          : sum,
       0
     )
   } catch {

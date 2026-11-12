@@ -3,9 +3,11 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 /**
- * The credit chip must render on both the desktop topbar and the mobile
- * header whenever credit data is present: a bar when percentUsed is a number,
- * the balance otherwise. Credits are the only unit shown ("estimates" never).
+ * The credit chip must render on the desktop topbar whenever credit data is
+ * present: a bar when percentUsed is a number, the balance otherwise. Credits
+ * are the only unit shown ("estimates" never). On mobile the credits live in
+ * the account menu (see mobile-account-menu.test.tsx); the header only hands
+ * the data down.
  */
 
 vi.mock('@/lib/i18n/use-translation', () => ({
@@ -25,9 +27,17 @@ vi.mock('next/link', () => ({
 vi.mock('@/components/app-shell/breadcrumb-context', () => ({
   useCurrentBreadcrumbs: () => [],
 }))
-vi.mock('@/components/app-shell/theme-toggle', () => ({ ThemeToggle: () => null }))
+vi.mock('@/components/app-shell/theme-toggle', () => ({
+  ThemeToggle: () => <button aria-label="Toggle theme" />,
+}))
 vi.mock('@/components/app-shell/language-toggle', () => ({ LanguageToggle: () => null }))
-vi.mock('@/components/app-shell/mobile-account-menu', () => ({ MobileAccountMenu: () => null }))
+const accountMenuProps = vi.hoisted(() => ({ last: null as null | Record<string, unknown> }))
+vi.mock('@/components/app-shell/mobile-account-menu', () => ({
+  MobileAccountMenu: (props: Record<string, unknown>) => {
+    accountMenuProps.last = props
+    return null
+  },
+}))
 vi.mock('@/components/notifications/notification-bell', () => ({ NotificationBell: () => null }))
 vi.mock('@/components/ui/app-icon', () => ({ AppIcon: () => null }))
 vi.mock('@/components/tour/contextual-tooltip', () => ({
@@ -41,9 +51,6 @@ const { MobileHeader } = await import('@/components/app-shell/mobile-header')
 const surfaces = [
   ['Topbar', (c: { percentUsed: number | null; balance: number }) => (
     <Topbar company={{ id: 'c1' }} userId="u1" credits={c} />
-  )],
-  ['MobileHeader', (c: { percentUsed: number | null; balance: number }) => (
-    <MobileHeader credits={c} />
   )],
 ] as const
 
@@ -74,6 +81,19 @@ describe.each(surfaces)('%s credit chip', (_name, mount) => {
       expect(chip?.getAttribute('aria-label') ?? '').not.toMatch(/estimate/i)
       unmount()
     }
+  })
+})
+
+describe('MobileHeader credits', () => {
+  it('keeps the chip and the theme toggle out of the header and hands credits to the account menu', () => {
+    const credits = { percentUsed: 42, balance: 5800 }
+    const { container } = render(
+      <MobileHeader credits={credits} navUser={{ email: 'a@b.co', avatarUrl: null }} />,
+    )
+    expect(container.querySelector('a[href="/settings/billing"]')).toBeNull()
+    expect(container.querySelector('[data-slot="progress"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Toggle theme"]')).toBeNull()
+    expect(accountMenuProps.last?.credits).toEqual(credits)
   })
 })
 
