@@ -8,7 +8,7 @@ export const GOOGLE_PLAY_PACKAGE = 'com.xtimator.app'
 export const GOOGLE_PLAY_URL = `https://play.google.com/store/apps/details?id=${GOOGLE_PLAY_PACKAGE}`
 
 /** Where a store badge sits; it becomes the install campaign in Play Console. */
-export type StoreBadgePlacement = 'hero' | 'final_cta' | 'footer' | 'site_footer'
+export type StoreBadgePlacement = 'app_section' | 'footer' | 'site_footer'
 
 /**
  * Store URL with a Play install referrer, so Play Console attributes installs

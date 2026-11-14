@@ -5,6 +5,20 @@ import { cn } from '@/lib/utils'
 import { readTwaCookieClient } from '@/lib/pwa/twa-signal'
 import { googlePlayUrl, isAppleMobileDevice, type StoreBadgePlacement } from '@/lib/store-links'
 
+/**
+ * Whether store promotion should show: false inside the Android app (TWA) and
+ * on iOS. Starts from the server's decision and re-checks after mount.
+ */
+export function useStoreBadgeVisible(initialVisible = true): boolean {
+  const [visible, setVisible] = useState(initialVisible)
+  useEffect(() => {
+    if (readTwaCookieClient() || isAppleMobileDevice(navigator.userAgent, navigator.maxTouchPoints)) {
+      setVisible(false)
+    }
+  }, [])
+  return visible
+}
+
 interface GooglePlayBadgeProps {
   placement: StoreBadgePlacement
   /**
@@ -24,14 +38,7 @@ interface GooglePlayBadgeProps {
  * recolouring or redrawing it, so size it by height only.
  */
 export function GooglePlayBadge({ placement, initialVisible = true, className }: GooglePlayBadgeProps) {
-  const [visible, setVisible] = useState(initialVisible)
-
-  useEffect(() => {
-    if (readTwaCookieClient() || isAppleMobileDevice(navigator.userAgent, navigator.maxTouchPoints)) {
-      setVisible(false)
-    }
-  }, [])
-
+  const visible = useStoreBadgeVisible(initialVisible)
   if (!visible) return null
 
   return (
@@ -52,7 +59,7 @@ export function GooglePlayBadge({ placement, initialVisible = true, className }:
         alt="Get it on Google Play"
         width={646}
         height={250}
-        loading={placement === 'hero' ? 'eager' : 'lazy'}
+        loading="lazy"
         decoding="async"
         className="h-full w-auto"
       />

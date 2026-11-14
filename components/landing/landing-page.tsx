@@ -7,6 +7,7 @@ import { HeroSection } from '@/components/landing/hero-section'
 import { TrustBar } from '@/components/landing/trust-bar'
 import { LandingFooter } from '@/components/landing/landing-footer'
 import { TopNav } from '@/components/landing/top-nav'
+import { GetTheAppSection } from '@/components/landing/get-the-app-section'
 
 const AuthDialog = dynamic(() =>
   import('@/components/landing/auth-dialog').then((module) => module.AuthDialog),
@@ -94,7 +95,6 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true 
               heroBackgroundVideoUrl: content.heroBackgroundVideoUrl ?? null,
             }}
             onOpenAuth={openAuth}
-            showStoreBadge={showStoreBadge}
           />
           <TrustBar />
         </div>
@@ -110,10 +110,14 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true 
           <FeaturesSection features={content.features} />
         </div>
 
+        {/* The Android app gets its own band, apart from the sign-up CTAs. It
+            renders nothing inside the Android app itself or on iOS. */}
+        <GetTheAppSection initialVisible={showStoreBadge} />
+
         {/* Natural-height final CTA + footer. */}
         <div className="relative flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
-          <FinalCtaSection onOpenAuth={openAuth} showStoreBadge={showStoreBadge} />
+          <FinalCtaSection onOpenAuth={openAuth} />
           <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} showStoreBadge={showStoreBadge} />
         </div>
       </div>

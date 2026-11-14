@@ -3,7 +3,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { GooglePlayBadge } from '@/components/landing/google-play-badge'
 
 type HeroContent = {
   heroHeadline: string
@@ -20,16 +19,7 @@ type HeroContent = {
   heroBackgroundVideoUrl?: string | null
 }
 
-export function HeroSection({
-  content,
-  onOpenAuth,
-  showStoreBadge = true,
-}: {
-  content: HeroContent
-  onOpenAuth?: (mode: 'login' | 'signup') => void
-  /** Server decision for the Google Play badge (false inside the TWA and on iOS). */
-  showStoreBadge?: boolean
-}) {
+export function HeroSection({ content, onOpenAuth }: { content: HeroContent; onOpenAuth?: (mode: 'login' | 'signup') => void }) {
   const hasImage = !!content.heroImageUrl
   const bgType = content.heroBackgroundType ?? 'none'
 
@@ -268,14 +258,6 @@ export function HeroSection({
                 <Link href="/demo/entry">See Demo</Link>
               </Button>
             </div>
-            {/* Secondary to the sign-up CTA: a quiet line under the buttons, aligned
-                with them (centred on a phone, left from sm up like the column). */}
-            {showStoreBadge && (
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span>Also on Android</span>
-                <GooglePlayBadge placement="hero" className="h-[60px]" />
-              </div>
-            )}
           </div>
 
           {/* Right (lg+) / below (< lg, phone + all iPad sizes): image */}

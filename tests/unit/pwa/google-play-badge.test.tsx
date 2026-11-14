@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { GooglePlayBadge } from '@/components/landing/google-play-badge'
+import { GetTheAppSection } from '@/components/landing/get-the-app-section'
 import { GOOGLE_PLAY_URL, googlePlayUrl, isAppleMobileDevice } from '@/lib/store-links'
 import { softwareApplicationSchema } from '@/lib/seo/structured-data'
 
@@ -28,11 +29,11 @@ describe('store links', () => {
   })
 
   it('adds a Play install referrer per placement', () => {
-    const url = new URL(googlePlayUrl('hero'))
+    const url = new URL(googlePlayUrl('app_section'))
     expect(url.searchParams.get('id')).toBe('com.xtimator.app')
     const referrer = new URLSearchParams(url.searchParams.get('referrer') ?? '')
     expect(referrer.get('utm_source')).toBe('xtimator.com')
-    expect(referrer.get('utm_campaign')).toBe('hero')
+    expect(referrer.get('utm_campaign')).toBe('app_section')
   })
 
   it('recognises iPhone, iPad and iPadOS-as-Mac, but not a real Mac or Android', () => {
@@ -62,18 +63,38 @@ describe('<GooglePlayBadge>', () => {
 
   it('is hidden inside the Android app (TWA cookie)', () => {
     document.cookie = 'xt_twa=1; path=/'
-    render(<GooglePlayBadge placement="hero" />)
+    render(<GooglePlayBadge placement="app_section" />)
     expect(screen.queryByRole('link', { name: 'Get it on Google Play' })).toBeNull()
   })
 
   it('is hidden on iOS, including iPadOS reporting a Mac user agent', () => {
     setNavigator(MAC_UA, 5)
-    render(<GooglePlayBadge placement="hero" />)
+    render(<GooglePlayBadge placement="app_section" />)
     expect(screen.queryByRole('link', { name: 'Get it on Google Play' })).toBeNull()
   })
 
   it('renders nothing when the server already decided to hide it', () => {
-    render(<GooglePlayBadge placement="final_cta" initialVisible={false} />)
+    render(<GooglePlayBadge placement="site_footer" initialVisible={false} />)
     expect(screen.queryByRole('link', { name: 'Get it on Google Play' })).toBeNull()
+  })
+})
+
+describe('<GetTheAppSection>', () => {
+  it('shows the Android app band with the badge', () => {
+    setNavigator(ANDROID_UA)
+    render(<GetTheAppSection />)
+    expect(screen.getByRole('heading', { name: 'Your estimates, in your pocket' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Get it on Google Play' }).getAttribute('href')).toBe(googlePlayUrl('app_section'))
+  })
+
+  it('renders nothing inside the Android app or on iOS', () => {
+    document.cookie = 'xt_twa=1; path=/'
+    const { container } = render(<GetTheAppSection />)
+    expect(container.innerHTML).toBe('')
+    cleanup()
+    document.cookie = 'xt_twa=; Max-Age=0; path=/'
+    setNavigator(IPHONE_UA)
+    const again = render(<GetTheAppSection />)
+    expect(again.container.innerHTML).toBe('')
   })
 })
