@@ -24,8 +24,8 @@ export default async function RootPage() {
   // The Google Play badge is pointless inside the Android app itself (TWA) and
   // on iPhone/iPad (no iOS app). The badge re-checks in the browser, which also
   // catches iPadOS Safari reporting a Mac user agent.
-  const [isTwa, requestHeaders] = await Promise.all([isTwaRequest(), headers()])
-  const showStoreBadge = !isTwa && !isAppleMobileDevice(requestHeaders.get('user-agent'))
+  const [isTwa, userAgent] = await Promise.all([isTwaRequest(), readUserAgent()])
+  const showStoreBadge = !isTwa && !isAppleMobileDevice(userAgent)
 
   return (
     <>
@@ -68,4 +68,13 @@ export default async function RootPage() {
       </Suspense>
     </>
   )
+}
+
+/** The request's User-Agent, or null outside a request scope (never throws). */
+async function readUserAgent(): Promise<string | null> {
+  try {
+    return (await headers()).get('user-agent')
+  } catch {
+    return null
+  }
 }
