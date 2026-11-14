@@ -5,6 +5,9 @@ import { notFound, useSearchParams } from 'next/navigation'
 import { ProjectList } from '@/components/dashboard/project-list'
 import { ClientList } from '@/components/clients/client-list'
 import { PriceBookList } from '@/components/price-book/price-book-list'
+import { ClientHeader } from '@/components/clients/client-header'
+import { ClientInfoGrid } from '@/components/clients/client-info-grid'
+import { ClientProjectsSection } from '@/components/clients/client-projects-section'
 import { ListCard, ListPage } from '@/components/ui/list-page'
 import DashboardLoading from '@/app/(app)/dashboard/loading'
 import ProjectsLoading from '@/app/(app)/projects/loading'
@@ -44,15 +47,17 @@ function sampleProjects(): ProjectWithClient[] {
   }))
 }
 
-const CLIENTS: ClientDetail[] = CLIENT_NAMES.map((name, i) => ({
+const CLIENTS: Array<ClientDetail & { total_value: number; last_activity_at: string | null }> = CLIENT_NAMES.map((name, i) => ({
   id: `c${i}`,
   name,
   email: `${name.split(' ')[0].toLowerCase()}@example.com`,
-  phone: null,
+  phone: i % 3 === 2 ? null : `+1617555${String(100 + i).padStart(4, '0')}`,
   logo_url: null,
   created_at: new Date(Date.UTC(2026, 9, 1 + i)).toISOString(),
   project_count: (i * 3) % 7,
-  address: null, city: null, state: null, zip: null, notes: null, preferred_language: null,
+  total_value: ((i * 3) % 7) * 1375,
+  last_activity_at: (i * 3) % 7 ? new Date(Date.UTC(2026, 10, 1 + (i % 12))).toISOString() : null,
+  address: null, city: i % 4 === 3 ? null : ['Boston', 'Winchester', 'Cambridge'][i % 3], state: i % 4 === 3 ? null : 'MA', zip: null, notes: null, preferred_language: null,
 }))
 
 const FOLDERS: PriceBookFolder[] = [
@@ -94,7 +99,7 @@ function Preview() {
   // md:ml-[213px] stands in for the app sidebar (213px from 768px up), so widths match the real shell.
   return <main className="min-h-dvh space-y-4 bg-background p-4 sm:p-6 md:ml-[213px]">
     <nav className="flex flex-wrap gap-2 text-xs">
-      {['projects', 'clients', 'pricebook', 'sk-dashboard', 'sk-projects', 'sk-clients', 'sk-pricebook'].map((v) => (
+      {['projects', 'clients', 'client', 'pricebook', 'sk-dashboard', 'sk-projects', 'sk-clients', 'sk-pricebook'].map((v) => (
         <a key={v} href={`?view=${v}`} className={`rounded border px-2 py-1 ${v === view ? 'border-primary text-primary' : ''}`}>{v}</a>
       ))}
       {view === 'projects' && <>
@@ -106,8 +111,9 @@ function Preview() {
         </button>
       </>}
     </nav>
-    {/* Clients uses the same ListPage frame as its real page; the Price Book draws its own panel. */}
-    {view === 'clients' ? <ListPage><ClientList clients={CLIENTS} companyId="demo" /></ListPage>
+    {/* Clients and the Price Book draw their own panel, like their real pages. */}
+    {view === 'clients' ? <div className="w-full space-y-4 p-4 sm:p-6"><ClientList clients={CLIENTS} companyId="demo" currencyCode="USD" /></div>
+      : view === 'client' ? <ClientPageFixture />
       : view === 'pricebook' ? <div className="w-full space-y-4 p-4 sm:p-6"><PriceBookList items={ITEMS} folders={FOLDERS} companyId="demo" currencyCode="USD" /></div>
         : view === 'sk-dashboard' ? <DashboardLoading />
           : view === 'sk-projects' ? <ProjectsLoading />
@@ -115,4 +121,22 @@ function Preview() {
               : view === 'sk-pricebook' ? <PriceBookLoading />
                 : <ListCard><ProjectList projects={projects} /></ListCard>}
   </main>
+}
+
+/** The client page with fixture data (the real page needs a signed-in company). */
+function ClientPageFixture() {
+  const client = { ...CLIENTS[1], phone: '+16175550105', address: '12 Oak Street', city: 'Winchester', state: 'MA', zip: '01890', notes: 'Prefers morning appointments and low-odor cleaning products.', preferred_language: 'en' }
+  const projects = [
+    { id: 'p1', name: 'Kitchen Update Budget Estimate', project_type: 'Remodel', status: 'sent', total: 2412, created_at: '2026-11-09T12:00:00Z' },
+    { id: 'p2', name: 'Bathroom Repaint', project_type: 'Painting', status: 'draft', total: 1621, created_at: '2026-10-20T12:00:00Z' },
+  ]
+  return (
+    <div className="space-y-4 p-4 sm:p-6">
+      <ClientHeader client={client} companyId="demo" currencyCode="USD" totalValue={4033} activeCount={2} lastActivityAt={projects[0].created_at} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <ClientProjectsSection clientId={client.id} clientName={client.name} projects={projects as never} currencyCode="USD" />
+        <div className="lg:sticky lg:top-4"><ClientInfoGrid client={client} /></div>
+      </div>
+    </div>
+  )
 }

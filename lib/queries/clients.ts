@@ -20,6 +20,16 @@ export interface ClientDetail extends ClientWithCount {
   preferred_language: string | null
 }
 
+/** Per-client activity the Clients list shows, derived from the client's projects. */
+export interface ClientStats {
+  /** Sum of the projects' estimate totals (same figure as the client page's Total value). */
+  total_value: number
+  /** created_at of the client's newest project, or null with no project. */
+  last_activity_at: string | null
+}
+
+export type ClientListItem = ClientDetail & ClientStats
+
 export async function getClients(
   supabase: SupabaseClient,
   companyId: string
@@ -33,7 +43,7 @@ export async function getClients(
 export async function getClientsForEditing(
   supabase: SupabaseClient,
   companyId: string,
-): Promise<ClientDetail[]> {
+): Promise<ClientListItem[]> {
   return loadClientsWithCounts<Omit<ClientDetail, 'project_count'>>(
     supabase, companyId,
     'id, name, email, phone, logo_url, created_at, address, city, state, zip, notes, preferred_language',
@@ -44,7 +54,7 @@ async function loadClientsWithCounts<T extends Omit<ClientWithCount, 'project_co
   supabase: SupabaseClient,
   companyId: string,
   columns: string,
-): Promise<Array<T & { project_count: number }>> {
+): Promise<Array<T & { project_count: number } & ClientStats>> {
   // Both queries only filter by companyId and are independent — run them in
   // parallel instead of clients-then-projects in series (one fewer round-trip
   // on the clients list page).
@@ -56,23 +66,32 @@ async function loadClientsWithCounts<T extends Omit<ClientWithCount, 'project_co
       .order('name'),
     supabase
       .from('projects')
-      .select('client_id')
+      .select('client_id, total, created_at')
       .eq('company_id', companyId),
   ])
 
   if (!clients || clients.length === 0) return []
 
-  const countMap = new Map<string, number>()
-  for (const p of projects ?? []) {
-    if (p.client_id) {
-      countMap.set(p.client_id, (countMap.get(p.client_id) ?? 0) + 1)
-    }
+  // One pass over the company's projects: count, total value and newest date per client.
+  const statsMap = new Map<string, { count: number; total: number; last: string | null }>()
+  for (const p of (projects ?? []) as Array<{ client_id: string | null; total?: number | null; created_at?: string | null }>) {
+    if (!p.client_id) continue
+    const s = statsMap.get(p.client_id) ?? { count: 0, total: 0, last: null }
+    s.count += 1
+    s.total += Number(p.total ?? 0) || 0
+    if (p.created_at && (!s.last || p.created_at > s.last)) s.last = p.created_at
+    statsMap.set(p.client_id, s)
   }
 
-  return (clients as unknown as T[]).map((c) => ({
-    ...c,
-    project_count: countMap.get(c.id) ?? 0,
-  }))
+  return (clients as unknown as T[]).map((c) => {
+    const s = statsMap.get(c.id)
+    return {
+      ...c,
+      project_count: s?.count ?? 0,
+      total_value: s?.total ?? 0,
+      last_activity_at: s?.last ?? null,
+    }
+  })
 }
 
 export async function getClientById(

@@ -5,7 +5,6 @@ import { FolderOpen } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge'
-import { ClientNewProjectButton } from '@/components/clients/client-new-project-button'
 import { formatMoney } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -82,18 +81,16 @@ export function ClientProjectsSection({
   ]
 
   return (
-    // Card's own py-6 would stack on top of this padding; p-4 on a phone keeps
-    // the same 16px gutter as the cards above it.
-    <Card variant="glass" className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold tracking-tight">{t('Projects')}</h2>
-          <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
-            {projects.length}
-          </span>
-        </div>
-        <ClientNewProjectButton clientId={clientId} clientName={clientName} />
-      </div>
+    // Same glass panel as the header, without backdrop blur (blurred tall
+    // panels froze scrolling on phones). New Project lives in the page header.
+    <section
+      aria-labelledby="client-projects-heading"
+      className="min-w-0 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-glass)] sm:p-5"
+    >
+      <h2 id="client-projects-heading" className="mb-1 flex items-baseline gap-2 text-lg font-semibold tracking-tight">
+        {t('Projects')}
+        <span className="text-sm font-normal text-muted-foreground tabular-nums">{projects.length}</span>
+      </h2>
 
       <DataTable<ClientProjectRow>
         data={projects}
@@ -139,7 +136,7 @@ export function ClientProjectsSection({
           <ClientProjectCard key={project.id} project={project} currencyCode={currencyCode} />
         )}
       />
-    </Card>
+    </section>
   )
 }
 

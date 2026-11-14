@@ -55,7 +55,7 @@ describe('getClients', () => {
     const supabase = createMockSupabase({ clients: [detail], projects: [{ client_id: 'c1' }] })
     const clients = await getClientsForEditing(supabase, 'company-1')
 
-    expect(clients).toEqual([{ ...detail, project_count: 1 }])
+    expect(clients).toEqual([{ ...detail, project_count: 1, total_value: 0, last_activity_at: null }])
     expect(supabase.from).toHaveBeenCalledTimes(2)
     const clientQuery = vi.mocked(supabase.from).mock.results[0].value
     expect(clientQuery.select).toHaveBeenCalledWith(expect.stringContaining('preferred_language'))
@@ -81,6 +81,26 @@ describe('getClients', () => {
     expect(clients).toHaveLength(1)
     expect(clients[0].project_count).toBe(2)
     expect(clients[0].name).toBe('Alice')
+  })
+})
+
+describe('client stats for the list', () => {
+  it('sums project totals and keeps the newest project date per client', async () => {
+    const supabase = createMockSupabase({
+      clients: [
+        { id: 'c1', name: 'Alice', email: null, phone: null, logo_url: null, created_at: '2026-01-01' },
+        { id: 'c2', name: 'Bob', email: null, phone: null, logo_url: null, created_at: '2026-01-01' },
+      ],
+      projects: [
+        { client_id: 'c1', total: 1000, created_at: '2026-10-01T00:00:00Z' },
+        { client_id: 'c1', total: 250.5, created_at: '2026-11-09T00:00:00Z' },
+        { client_id: 'c1', total: null, created_at: '2026-09-01T00:00:00Z' },
+        { client_id: null, total: 999, created_at: '2026-11-10T00:00:00Z' },
+      ],
+    })
+    const [alice, bob] = await getClientsForEditing(supabase, 'company-1')
+    expect(alice).toMatchObject({ project_count: 3, total_value: 1250.5, last_activity_at: '2026-11-09T00:00:00Z' })
+    expect(bob).toMatchObject({ project_count: 0, total_value: 0, last_activity_at: null })
   })
 })
 

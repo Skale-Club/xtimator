@@ -2,9 +2,16 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,21 +58,26 @@ export function ClientDetailActions({ client, companyId }: ClientDetailActionsPr
 
   return (
     <>
-      <div className="flex gap-2 shrink-0">
-        <Button variant="outline" size="sm" onClick={() => setSheetOpen(true)}>
-          <Pencil className="h-4 w-4 mr-1" />
-          {t('Edit')}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-          onClick={() => setDeleteDialogOpen(true)}
-        >
-          <Trash2 className="h-4 w-4 mr-1" />
-          {t('Delete')}
-        </Button>
-      </div>
+      {/* Edit and Delete behind one ⋯: the header's visible buttons are for
+          reaching the client (call, message, email) and starting a project. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" className="size-9 shrink-0 rounded-lg" aria-label={`${t('Client actions')}: ${client.name}`}>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setSheetOpen(true)}>
+            <Pencil className="h-4 w-4" />
+            {t('Edit client')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteDialogOpen(true)}>
+            <Trash2 className="h-4 w-4" />
+            {t('Delete client')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <ClientSheet
         open={sheetOpen}

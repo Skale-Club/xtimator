@@ -96,17 +96,6 @@ const mockClients: ClientDetail[] = [
 ]
 
 describe('ClientList', () => {
-  it('opens editing immediately with all saved fields and no browser request', () => {
-    render(<ClientList clients={mockClients} companyId="c1" />)
-    fireEvent.keyDown(screen.getAllByRole('button', { name: 'Actions: Acme Corp' })[0], { key: 'Enter' })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
-
-    expect(screen.getByTestId('client-sheet')).toBeTruthy()
-    expect(screen.getByText('123 Main Street')).toBeTruthy()
-    expect(screen.getByText('Existing client notes')).toBeTruthy()
-    expect(createBrowserClientMock).not.toHaveBeenCalled()
-  })
-
   it('does not refresh the page when cancelling the editor', () => {
     render(<ClientList clients={mockClients} companyId="c1" />)
     fireEvent.click(screen.getByRole('button', { name: 'Add Client' }))
@@ -124,7 +113,6 @@ describe('ClientList', () => {
 
   it('renders client names when clients provided', () => {
     render(<ClientList clients={mockClients} companyId="c1" />)
-    // Both desktop table and mobile cards render, so use getAllByText
     expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Beta LLC').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Gamma Inc').length).toBeGreaterThan(0)
@@ -158,30 +146,54 @@ describe('ClientList', () => {
     expect(screen.getByText('No clients match your search')).toBeDefined()
   })
 
-  it('delete dialog shows project count warning when client has projects', () => {
+  it('renders each client once and links the whole row to the client page', () => {
     render(<ClientList clients={mockClients} companyId="c1" />)
+    const links = screen.getAllByRole('link', { name: 'Acme Corp' })
+    expect(links).toHaveLength(1)
+    expect(links[0].getAttribute('href')).toBe('/clients/1')
+  })
 
-    // Find and click the delete option for Acme Corp (which has 3 projects)
-    // The desktop table has dropdown menus - we need to open one
-    const menuButtons = screen.getAllByRole('button')
-    // Find a menu trigger button (the MoreHorizontal icon buttons)
-    const dropdownTriggers = menuButtons.filter(
-      (btn) => btn.getAttribute('data-state') !== undefined || btn.className.includes('h-8 w-8')
-    )
+  it('shows a summary with the client count and the estimate total', () => {
+    const withStats = mockClients.map((c, i) => ({ ...c, total_value: [1200, 0, 300][i], last_activity_at: null }))
+    render(<ClientList clients={withStats} companyId="c1" />)
+    const summary = screen.getByTestId('clients-summary').textContent ?? ''
+    expect(summary).toContain('3 clients')
+    expect(summary).toContain('in estimates')
+  })
 
-    // Click the first dropdown trigger (Acme Corp row)
-    if (dropdownTriggers.length > 0) {
-      fireEvent.click(dropdownTriggers[0])
-    }
+  it('offers call for clients with a phone and email for clients with only an email', () => {
+    const clients = [
+      { ...mockClients[0], phone: '+16175550105' },
+      { ...mockClients[1], phone: null },
+    ]
+    render(<ClientList clients={clients} companyId="c1" />)
+    expect(screen.getByRole('link', { name: 'Call Acme Corp' }).getAttribute('href')).toBe('tel:+16175550105')
+    expect(screen.getByRole('link', { name: 'Email Beta LLC' }).getAttribute('href')).toBe('mailto:hello@beta.com')
+    expect(screen.queryByRole('link', { name: 'Call Beta LLC' })).toBeNull()
+    // US numbers read without the +1
+    expect(screen.getByText('(617) 555-0105')).toBeDefined()
+  })
 
-    // Look for Delete option in the dropdown
-    const deleteOption = screen.queryAllByText('Delete')
-    if (deleteOption.length > 0) {
-      fireEvent.click(deleteOption[0])
-    }
+  it('sorts by recent activity by default and by highest total on request', () => {
+    const clients = [
+      { ...mockClients[0], total_value: 100, last_activity_at: '2026-09-01T00:00:00Z' },
+      { ...mockClients[1], total_value: 900, last_activity_at: '2026-11-01T00:00:00Z' },
+      { ...mockClients[2], total_value: 500, last_activity_at: null },
+    ]
+    render(<ClientList clients={clients} companyId="c1" />)
+    const names = () => screen.getAllByRole('link').filter((l) => l.getAttribute('href')?.startsWith('/clients/')).map((l) => l.textContent)
+    expect(names()).toEqual(['Beta LLC', 'Acme Corp', 'Gamma Inc'])
+    const trigger = screen.getByRole('button', { name: /^Sort:/ })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Highest total' }))
+    expect(names()).toEqual(['Beta LLC', 'Gamma Inc', 'Acme Corp'])
+  })
 
-    // Now the AlertDialog should be open with the project count warning
-    const warningText = screen.queryByText(/has 3 project\(s\)/i)
-    expect(warningText).toBeDefined()
+  it('search also matches the city', () => {
+    const clients = [{ ...mockClients[0], city: 'Winchester' }, mockClients[1]]
+    render(<ClientList clients={clients} companyId="c1" />)
+    fireEvent.change(screen.getByPlaceholderText('Search clients...'), { target: { value: 'winch' } })
+    expect(screen.getByText('Acme Corp')).toBeDefined()
+    expect(screen.queryByText('Beta LLC')).toBeNull()
   })
 })
