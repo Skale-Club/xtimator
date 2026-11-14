@@ -2,14 +2,17 @@
 
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
+import { GooglePlayBadge } from '@/components/landing/google-play-badge'
 
 interface LandingFooterProps {
   appName: string
   logoUrl: string | null
   onOpenAuth?: (mode: 'login' | 'signup') => void
+  /** Server decision for the Google Play badge (false inside the TWA and on iOS). */
+  showStoreBadge?: boolean
 }
 
-export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterProps) {
+export function LandingFooter({ appName, logoUrl, onOpenAuth, showStoreBadge = true }: LandingFooterProps) {
 
   return (
     // pb env(safe-area-inset-bottom): keeps the footer clear of the iOS home
@@ -25,6 +28,9 @@ export function LandingFooter({ appName, logoUrl, onOpenAuth }: LandingFooterPro
             <p className="mt-2 sm:mt-6 max-w-xs text-[13px] leading-relaxed text-muted-foreground sm:text-sm">
               AI-powered estimates for service businesses that quote on site. Built for speed, designed for pros.
             </p>
+            {showStoreBadge && (
+              <GooglePlayBadge placement="footer" className="-ml-[9px] mt-3 h-[52px] sm:mt-5" />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-6 sm:contents">

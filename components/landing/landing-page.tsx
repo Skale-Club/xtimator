@@ -31,9 +31,11 @@ interface LandingPageProps {
   content: LandingContent
   branding: { appName: string; logoUrl: string | null }
   navUser?: { email: string; avatarUrl: string | null } | null
+  /** Server decision for the Google Play badge (false inside the TWA and on iOS). */
+  showStoreBadge?: boolean
 }
 
-export function LandingPage({ content, branding, navUser }: LandingPageProps) {
+export function LandingPage({ content, branding, navUser, showStoreBadge = true }: LandingPageProps) {
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup')
   // SEAT-04: the invite-accept route sends logged-out visitors here with a
@@ -92,6 +94,7 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
               heroBackgroundVideoUrl: content.heroBackgroundVideoUrl ?? null,
             }}
             onOpenAuth={openAuth}
+            showStoreBadge={showStoreBadge}
           />
           <TrustBar />
         </div>
@@ -110,8 +113,8 @@ export function LandingPage({ content, branding, navUser }: LandingPageProps) {
         {/* Natural-height final CTA + footer. */}
         <div className="relative flex flex-col pb-3 sm:pb-0">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 gradient-hero" />
-          <FinalCtaSection onOpenAuth={openAuth} />
-          <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} />
+          <FinalCtaSection onOpenAuth={openAuth} showStoreBadge={showStoreBadge} />
+          <LandingFooter appName={branding.appName} logoUrl={branding.logoUrl} onOpenAuth={openAuth} showStoreBadge={showStoreBadge} />
         </div>
       </div>
 

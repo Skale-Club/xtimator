@@ -1,4 +1,5 @@
 import { canonicalUrl } from '@/lib/seo/metadata'
+import { GOOGLE_PLAY_URL } from '@/lib/store-links'
 
 type BrandSchemaInput = {
   name: string
@@ -38,7 +39,9 @@ export function softwareApplicationSchema({ name, description }: BrandSchemaInpu
     description,
     url: canonicalUrl('/'),
     applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web',
+    // Web app plus the Android app on Google Play (the same product in a TWA).
+    operatingSystem: 'Web, Android',
+    installUrl: GOOGLE_PLAY_URL,
     offers: {
       '@type': 'Offer',
       price: '0',

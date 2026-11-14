@@ -3,13 +3,16 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { GooglePlayBadge } from '@/components/landing/google-play-badge'
 import { motion, useReducedMotion } from 'framer-motion'
 
 interface FinalCtaSectionProps {
   onOpenAuth?: (mode: 'login' | 'signup') => void
+  /** Server decision for the Google Play badge (false inside the TWA and on iOS). */
+  showStoreBadge?: boolean
 }
 
-export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
+export function FinalCtaSection({ onOpenAuth, showStoreBadge = true }: FinalCtaSectionProps) {
   const reduce = useReducedMotion()
   return (
     <section className="relative isolate bg-transparent py-16">
@@ -37,19 +40,26 @@ export function FinalCtaSection({ onOpenAuth }: FinalCtaSectionProps) {
             </p>
           </div>
 
-          <div className="relative z-10 mt-4 flex shrink-0 flex-col gap-2 sm:mt-10 sm:flex-row sm:gap-4 lg:mt-0">
-            <Button variant="primary" size="lg" className="cta-glow h-10 text-sm font-semibold sm:h-14 sm:text-lg sm:min-w-44" onClick={() => onOpenAuth?.('signup')}>
-              Start
-              <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="h-9 text-sm px-1 font-semibold sm:h-14 sm:text-lg sm:px-6 border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
-            >
-              <Link href="/demo/entry">See Demo</Link>
-            </Button>
+          {/* Buttons, then the store badge on its own line under them (the badge PNG
+              carries Google's clear space, so it never lines up with the buttons). */}
+          <div className="relative z-10 mt-4 flex shrink-0 flex-col items-center gap-3 sm:mt-10 sm:items-start lg:mt-0 lg:items-end">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:gap-4">
+              <Button variant="primary" size="lg" className="cta-glow h-10 text-sm font-semibold sm:h-14 sm:text-lg sm:min-w-44" onClick={() => onOpenAuth?.('signup')}>
+                Start
+                <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="h-9 text-sm px-1 font-semibold sm:h-14 sm:text-lg sm:px-6 border-white/10 bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-w-40"
+              >
+                <Link href="/demo/entry">See Demo</Link>
+              </Button>
+            </div>
+            {showStoreBadge && (
+              <GooglePlayBadge placement="final_cta" className="h-[60px]" />
+            )}
           </div>
         </motion.div>
       </div>

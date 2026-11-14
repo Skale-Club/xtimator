@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
+import { GooglePlayBadge } from '@/components/landing/google-play-badge'
 
 /**
  * Reusable site footer — mirrors the landing LandingFooter visually but uses
@@ -47,6 +48,8 @@ export function SiteFooter({ branding }: SiteFooterProps) {
               AI-powered estimates for service businesses that quote on site.
               Built for speed, designed for pros.
             </p>
+            {/* Hidden in the Android app and on iOS by the badge itself. */}
+            <GooglePlayBadge placement="site_footer" className="-ml-[9px] mt-5 h-[52px]" />
           </div>
 
           <div>

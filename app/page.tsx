@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { headers } from 'next/headers'
 import { getBranding } from '@/lib/platform-config'
 import { LandingPage } from '@/components/landing/landing-page'
 import { JsonLd } from '@/components/seo/json-ld'
@@ -9,6 +10,8 @@ import {
   softwareApplicationSchema,
   websiteSchema,
 } from '@/lib/seo/structured-data'
+import { isTwaRequest } from '@/lib/pwa/twa-context'
+import { isAppleMobileDevice } from '@/lib/store-links'
 
 // Landing media is admin-managed in Supabase. The Docker build intentionally
 // has no service-role secret, so prerendering here bakes the media-free fallback
@@ -18,6 +21,11 @@ export const dynamic = 'force-dynamic'
 export default async function RootPage() {
   const branding = await getBranding()
   const landingContent = branding.landingContent
+  // The Google Play badge is pointless inside the Android app itself (TWA) and
+  // on iPhone/iPad (no iOS app). The badge re-checks in the browser, which also
+  // catches iPadOS Safari reporting a Mac user agent.
+  const [isTwa, requestHeaders] = await Promise.all([isTwaRequest(), headers()])
+  const showStoreBadge = !isTwa && !isAppleMobileDevice(requestHeaders.get('user-agent'))
 
   return (
     <>
@@ -55,6 +63,7 @@ export default async function RootPage() {
         <LandingPage
           content={landingContent}
           branding={{ appName: branding.appName, logoUrl: branding.logoUrl }}
+          showStoreBadge={showStoreBadge}
         />
       </Suspense>
     </>

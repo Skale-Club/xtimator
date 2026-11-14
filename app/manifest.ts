@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { getBranding } from '@/lib/platform-config'
+import { GOOGLE_PLAY_PACKAGE, GOOGLE_PLAY_URL } from '@/lib/store-links'
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   let b: Awaited<ReturnType<typeof getBranding>>
@@ -40,6 +41,11 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     display: 'standalone',
     background_color: '#0a0a0f',
     theme_color: SYSTEM_COLORS.primary,
+    // The Android app (TWA) on Google Play. prefer_related_applications stays
+    // false so browsers keep offering the web install; declaring the app lets
+    // navigator.getInstalledRelatedApps() report it on Android Chrome later.
+    related_applications: [{ platform: 'play', url: GOOGLE_PLAY_URL, id: GOOGLE_PLAY_PACKAGE }],
+    prefer_related_applications: false,
     // Every icon is the real brand mark on a dark background:
     // - the "any" tile is the dynamic /icon route (app/icon.tsx), which
     //   composites the DB favicon/logo over #0a0a0f and re-renders when the
