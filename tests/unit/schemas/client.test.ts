@@ -30,6 +30,21 @@ describe('clientSchema', () => {
     expect(result.success).toBe(true)
   })
 
+  it('trims pasted email whitespace and normalizes the domain without changing the mailbox', () => {
+    const result = clientSchema.parse({ name: ' Alice ', email: '  Alice+Jobs@EXAMPLE.COM  ' })
+    expect(result.name).toBe('Alice')
+    expect(result.email).toBe('Alice+Jobs@example.com')
+  })
+
+  it('accepts a whitespace-only optional email but rejects whitespace inside an address', () => {
+    expect(clientSchema.parse({ name: 'Alice', email: '   ' }).email).toBe('')
+    expect(clientSchema.safeParse({ name: 'Alice', email: 'alice smith@example.com' }).success).toBe(false)
+  })
+
+  it('rejects a whitespace-only name', () => {
+    expect(clientSchema.safeParse({ name: '   ' }).success).toBe(false)
+  })
+
   it('all optional fields can be empty strings', () => {
     const result = clientSchema.safeParse({
       name: 'Test',

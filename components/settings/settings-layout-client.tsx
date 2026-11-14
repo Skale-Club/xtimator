@@ -25,7 +25,7 @@ export function SettingsLayoutClient({ children, isDemo }: { children: ReactNode
         <SettingsNavStrip isDemo={isDemo} />
       </div>
 
-      <aside className="sticky top-0 hidden h-[calc(100dvh-4rem)] w-56 shrink-0 self-start overflow-y-auto scrollbar-none border-r border-border px-3 py-8 md:block">
+      <aside className="sticky top-0 hidden h-[calc(100dvh-4rem)] w-56 shrink-0 self-start overflow-y-auto border-r border-border px-3 py-8 md:block">
         <SettingsNav isDemo={isDemo} />
       </aside>
 

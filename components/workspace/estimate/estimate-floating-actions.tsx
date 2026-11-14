@@ -64,7 +64,7 @@ function Pill({ children }: { children: ReactNode }) {
       style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
     >
       <div className="absolute bottom-0 left-1/2 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 justify-center">
-        <div className="pointer-events-auto inline-flex max-w-full items-center gap-2 overflow-x-auto scrollbar-none rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
+        <div className="pointer-events-auto inline-flex max-w-full items-center gap-2 overflow-x-auto rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
           {children}
         </div>
       </div>

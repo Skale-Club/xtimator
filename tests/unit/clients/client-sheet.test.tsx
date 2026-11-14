@@ -36,6 +36,27 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ClientSheet', () => {
+  it('normalizes pasted email on blur and submits the cleaned address', async () => {
+    render(<ClientSheet open client={client} companyId="company-one" onOpenChange={() => {}} />)
+    const email = screen.getByPlaceholderText('Email address')
+    fireEvent.change(email, { target: { value: '  Alice+Jobs@EXAMPLE.COM  ' } })
+    fireEvent.blur(email)
+    expect((email as HTMLInputElement).value).toBe('Alice+Jobs@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Update Client' }))
+    await waitFor(() => expect(updateClient).toHaveBeenCalledWith(client.id, expect.objectContaining({ email: 'Alice+Jobs@example.com' })))
+  })
+
+  it('keeps an invalid email visible for correction and prevents saving', async () => {
+    render(<ClientSheet open client={client} companyId="company-one" onOpenChange={() => {}} />)
+    const email = screen.getByPlaceholderText('Email address')
+    fireEvent.change(email, { target: { value: 'alice smith@example.com' } })
+    fireEvent.blur(email)
+    fireEvent.click(screen.getByRole('button', { name: 'Update Client' }))
+    await waitFor(() => expect(screen.getByText('Invalid email')).toBeTruthy())
+    expect((email as HTMLInputElement).value).toBe('alice smith@example.com')
+    expect(updateClient).not.toHaveBeenCalled()
+  })
+
   it('opens with saved values and discards cancelled changes without refreshing', () => {
     const onOpenChange = vi.fn()
     const props = { open: true, client, companyId: 'company-one', onOpenChange }
@@ -87,6 +108,9 @@ describe('ClientSheet', () => {
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('new-client'))
     expect(refresh).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onOpenChange).not.toHaveBeenCalled()
     await act(async () => { finishLink() })
     expect(onOpenChange).toHaveBeenCalledWith(false)

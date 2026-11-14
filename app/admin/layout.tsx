@@ -52,15 +52,15 @@ export default async function AdminLayout({
         <span>Super Admin Mode - {ctx.email}</span>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <AdminNav
           appName={branding.appName}
           logoUrl={branding.logoUrl}
           adminEmail={ctx.email}
         />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <AdminTopbar adminEmail={ctx.email} />
-          <main className="flex-1 overflow-y-auto px-8 py-8">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-8 py-8">
             <Suspense>{children}</Suspense>
           </main>
         </div>

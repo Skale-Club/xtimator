@@ -124,7 +124,7 @@ export function SettingsNavStrip({ isDemo }: { isDemo?: boolean }) {
   return (
     <nav
       aria-label={t('Settings')}
-      className="flex gap-1.5 overflow-x-auto scrollbar-none px-4 py-2.5"
+      className="flex gap-1.5 overflow-x-auto px-4 py-2.5"
     >
       {groups.flatMap((g) => g.items).map(({ value, label, Icon, href }) => {
         const isActive = active === value

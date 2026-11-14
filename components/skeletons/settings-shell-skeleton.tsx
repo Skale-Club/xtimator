@@ -18,7 +18,7 @@ export function SettingsShellSkeleton({ children }: { children: ReactNode }) {
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1 flex-row items-start">
         <div className="sticky top-0 shrink-0 self-start h-[calc(100vh-4rem)] overflow-y-auto w-52">
-          <aside className="shrink-0 border-border bg-background h-full w-full flex flex-col overflow-y-auto scrollbar-none border-r px-3 pt-8 pb-0">
+          <aside className="shrink-0 border-border bg-background h-full w-full flex flex-col overflow-y-auto border-r px-3 pt-8 pb-0">
             <div className="flex-1">
               <SettingsSubnavSkeleton />
             </div>

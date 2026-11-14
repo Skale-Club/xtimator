@@ -49,6 +49,23 @@ function setup(initial = '') {
 }
 
 describe('PhoneInput — country-code paste tolerance', () => {
+  it('forwards field focus and validation attributes to the telephone input', () => {
+    const onBlur = vi.fn()
+    const inputRef = vi.fn()
+    const { container } = render(<PhoneInput value="" onChange={() => {}} onBlur={onBlur} ref={inputRef} aria-invalid aria-describedby="phone-error" />)
+    const input = container.querySelector('input[type="tel"]') as HTMLInputElement
+    expect(inputRef).toHaveBeenCalledWith(input)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe('phone-error')
+    fireEvent.blur(input)
+    expect(onBlur).toHaveBeenCalledOnce()
+  })
+
+  it('leaves Enter available to the form unless an explicit handler was supplied', () => {
+    const { input } = setup()
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(true)
+  })
+
   it('bare paste WITH dial code (no +) drops the dial instead of truncating', () => {
     const { input, onChange } = setup()
     fireEvent.change(input, { target: { value: '15082058040' } })

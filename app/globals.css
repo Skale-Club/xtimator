@@ -192,6 +192,9 @@
        line up exactly. Fits the company-selector row (avatar h-6 + py-1.5). */
     --app-rail-footer-h: 53px;
     --background: 0 0% 100%;
+    --scrollbar-thumb: 240 4% 52%;
+    --scrollbar-thumb-hover: 240 4% 44%;
+    --scrollbar-thumb-active: 240 4% 36%;
     /* Stage behind the estimate document "paper" (share page). */
     --doc-stage: 240 5% 93%;
     --doc-stage-pad: 1rem;
@@ -234,6 +237,9 @@
 
   .dark {
     --background: 240 10% 3.9%;
+    --scrollbar-thumb: 240 4% 48%;
+    --scrollbar-thumb-hover: 240 4% 58%;
+    --scrollbar-thumb-active: 240 4% 66%;
     /* Stage behind the estimate document "paper" (share page). */
     --doc-stage: 240 10% 3.9%;
     --doc-stage-pad: 0px;
@@ -276,6 +282,9 @@
   /* --- Phase 8: Scoped dark themes for /admin/* and /(auth)/* (does not affect main app) --- */
   [data-theme="admin-dark"],
   [data-theme="dark-auth"] {
+    --scrollbar-thumb: 240 4% 48%;
+    --scrollbar-thumb-hover: 240 4% 58%;
+    --scrollbar-thumb-active: 240 4% 66%;
     --background: 240 6% 6%;
     --foreground: 0 0% 98%;
     --card: 240 4% 11%;
@@ -318,6 +327,9 @@
      brand colors cascade into gradient-brand + gradient-hero on the share page
      (RESEARCH G6 + G7). Falls back to --system-primary when tenant has none. */
   [data-theme="light"] {
+    --scrollbar-thumb: 240 4% 52%;
+    --scrollbar-thumb-hover: 240 4% 44%;
+    --scrollbar-thumb-active: 240 4% 36%;
     --background: 0 0% 100%;
     /* Stage behind the estimate document "paper" (share page): dark, so the
        white paper stands out. Text drawn directly on it uses light colors. */
@@ -357,6 +369,90 @@
     --danger: 0 84% 60%;
     --danger-foreground: 0 0% 100%;
     --danger-muted: 0 93% 94%;
+  }
+}
+
+@layer base {
+  /* Firefox fallback; Chromium and WebKit use the native 10px lane below. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
+  }
+
+  [data-slot="scroll-area-thumb"] {
+    background-color: hsl(var(--scrollbar-thumb));
+  }
+  [data-slot="scroll-area-thumb"]:hover {
+    background-color: hsl(var(--scrollbar-thumb-hover));
+  }
+  [data-slot="scroll-area-thumb"]:active {
+    background-color: hsl(var(--scrollbar-thumb-active));
+  }
+
+  /* Firefox accepts some WebKit selectors for compatibility; keep its
+     standard scrollbar styling instead of opting into the WebKit reset. */
+  @supports selector(::-webkit-scrollbar) and (not (-moz-appearance: none)) {
+    * {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+
+    *::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: 9999px;
+      background-color: hsl(var(--scrollbar-thumb));
+      background-clip: padding-box;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: hsl(var(--scrollbar-thumb-hover));
+    }
+    *::-webkit-scrollbar-thumb:active {
+      background-color: hsl(var(--scrollbar-thumb-active));
+    }
+    *::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+
+  @media (forced-colors: active) {
+    * {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+    *::-webkit-scrollbar {
+      width: auto;
+      height: auto;
+    }
+    [data-slot="scroll-area-scrollbar"] {
+      background-color: Canvas;
+    }
+    [data-slot="scroll-area-thumb"],
+    [data-slot="scroll-area-thumb"]:hover,
+    [data-slot="scroll-area-thumb"]:active {
+      background-color: ButtonText;
+    }
+    *::-webkit-scrollbar-track,
+    *::-webkit-scrollbar-corner {
+      background-color: Canvas;
+    }
+    *::-webkit-scrollbar-thumb,
+    *::-webkit-scrollbar-thumb:hover,
+    *::-webkit-scrollbar-thumb:active {
+      border-color: Canvas;
+      background-color: ButtonText;
+    }
   }
 }
 
@@ -591,15 +687,6 @@
    (bg-[var(--glass-bg)], backdrop-blur-[var(--glass-blur)]) in components,
    or apply these shorthand utilities. */
 @layer utilities {
-  /* Hide scrollbar across browsers (used by horizontal tab strips, chip rows). */
-  .scrollbar-none {
-    scrollbar-width: none;       /* Firefox */
-    -ms-overflow-style: none;    /* IE/Edge large */
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;               /* Chrome/Safari/Edge */
-  }
-
   .gradient-brand   { background-image: var(--gradient-brand); }
   .gradient-hero    { background-image: var(--gradient-hero); }
   .gradient-success { background-image: var(--gradient-success); }

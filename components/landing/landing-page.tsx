@@ -75,8 +75,7 @@ export function LandingPage({ content, branding, navUser, showStoreBadge = true 
       {/* Scrollable shell — overflow lives here, not on the outer wrapper */}
       <div
         data-testid="landing-shell"
-        className="h-[100dvh] overflow-y-scroll overflow-x-hidden scroll-smooth overscroll-none [&::-webkit-scrollbar]:hidden"
-        style={{ scrollbarWidth: 'none' }}
+        className="h-[100dvh] overflow-y-auto overflow-x-hidden scroll-smooth overscroll-none"
       >
         {/* Hero + trust bar follow their content height. Desktop hero height is
             viewport-aware but capped in globals.css, so tall screens never turn

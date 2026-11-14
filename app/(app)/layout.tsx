@@ -119,7 +119,7 @@ export default async function AppShellLayout({
                 isAdmin={true}
                 user={{ email: adminEmail, name: supportCompany.owner_name ?? null }}
               />
-              <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <Topbar
                   company={supportCompany}
                   userId={supportSession.adminUserId}
@@ -137,7 +137,7 @@ export default async function AppShellLayout({
                   credits={{ percentUsed: supportPercentUsed, balance: supportBalance }}
                 />
                 <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
-                <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+                <main className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
                   {children}
                 </main>
               </div>
@@ -248,7 +248,7 @@ export default async function AppShellLayout({
             user={{ email: navUser.email, name: company.owner_name ?? null }}
             academyAvailable={academyAvailable}
           />
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <Topbar
               company={company}
               userId={claims.sub as string}
@@ -270,7 +270,7 @@ export default async function AppShellLayout({
             {paywall.state !== 'active' && (
               <PaywallBanner state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
             )}
-            <main className="flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               {children}
             </main>
           </div>

@@ -120,7 +120,7 @@ function parseIncoming(value: string): ParseResult {
   return { countryCode: 'US', localNumber: '' }
 }
 
-export interface PhoneInputProps {
+export interface PhoneInputProps extends Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'type' | 'onKeyDown'> {
   value: string
   onChange: (value: string) => void
   onEnter?: () => void
@@ -144,6 +144,7 @@ export function PhoneInput({
   disabled,
   autoFocus,
   className,
+  ...inputProps
 }: PhoneInputProps) {
   const initial = parseIncoming(value ?? '')
   const [countryCode, setCountryCode] = useState(initial.countryCode)
@@ -271,6 +272,7 @@ export function PhoneInput({
       </Popover>
 
       <Input
+        {...inputProps}
         id={id}
         name={name}
         type="tel"
@@ -280,11 +282,11 @@ export function PhoneInput({
         autoFocus={autoFocus}
         disabled={disabled}
         placeholder={placeholder ?? country.format.replace(/#/g, '0')}
-        className="min-h-[44px] flex-1"
+        className="min-h-[44px] min-w-0 flex-1"
         value={localNumber}
         onChange={handleNumberChange}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+          if (onEnter && e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault()
             onEnter?.()
           }

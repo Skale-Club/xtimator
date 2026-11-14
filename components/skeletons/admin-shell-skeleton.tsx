@@ -19,10 +19,10 @@ export function AdminShellSkeleton({ children }: { children: ReactNode }) {
         <Skeleton className="h-3 w-72 animate-pulse bg-[var(--glass-bg)]" />
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <AdminSubnavSkeleton />
 
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Topbar skeleton */}
           <div className="flex items-center justify-between border-b border-border px-6 py-3">
             <div className="flex items-center gap-3">
@@ -35,7 +35,7 @@ export function AdminShellSkeleton({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <main className="flex-1 overflow-y-auto px-8 py-8">{children}</main>
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-8 py-8">{children}</main>
         </div>
       </div>
     </div>

@@ -43,7 +43,7 @@ export function SubNav({ items, activeValue, onSelect, className, collapsed, alw
       className={cn(
         alwaysVertical
           ? 'flex flex-col gap-1'
-          : 'flex flex-row gap-1 overflow-x-auto scrollbar-none md:flex-col md:overflow-x-visible',
+          : 'flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-x-visible',
         className,
       )}
     >

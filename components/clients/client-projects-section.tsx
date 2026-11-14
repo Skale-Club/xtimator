@@ -87,12 +87,13 @@ export function ClientProjectsSection({
       aria-labelledby="client-projects-heading"
       className="min-w-0 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-4 shadow-[var(--shadow-glass)] sm:p-5"
     >
-      <h2 id="client-projects-heading" className="mb-1 flex items-baseline gap-2 text-lg font-semibold tracking-tight">
-        {t('Projects')}
-        <span className="text-sm font-normal text-muted-foreground tabular-nums">{projects.length}</span>
-      </h2>
-
       <DataTable<ClientProjectRow>
+        title={
+          <h2 id="client-projects-heading" className="flex items-baseline gap-2 text-lg font-semibold tracking-tight">
+            {t('Projects')}
+            <span className="text-sm font-normal text-muted-foreground tabular-nums">{projects.length}</span>
+          </h2>
+        }
         data={projects}
         columns={columns}
         getRowKey={(project) => project.id}

@@ -1,12 +1,11 @@
 'use client'
 
-import { useRef } from 'react'
-import { Camera } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { Camera, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { prepareClientPhoto } from '@/lib/clients/prepare-photo'
-
 
 interface ClientLogoUploaderProps {
   preview: string | null
@@ -15,14 +14,14 @@ interface ClientLogoUploaderProps {
   onRemove: () => void
 }
 
-export function ClientLogoUploader({
-  preview,
-  clientInitial,
-  onFileSelect,
-  onRemove,
-}: ClientLogoUploaderProps) {
+export function ClientLogoUploader({ preview, clientInitial, onFileSelect, onRemove }: ClientLogoUploaderProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const ownedObjectUrlRef = useRef<string | null>(null)
+
+  useEffect(() => () => {
+    if (ownedObjectUrlRef.current) URL.revokeObjectURL(ownedObjectUrlRef.current)
+  }, [])
 
   function handleClick() {
     inputRef.current?.click()
@@ -32,7 +31,7 @@ export function ClientLogoUploader({
     const picked = e.target.files?.[0]
     if (!picked) return
 
-    // Reset input so the same file can be re-selected
+    // Reset input so the same file can be re-selected.
     e.target.value = ''
 
     // Large phone photos are resized in the browser to fit the 2 MB limit.
@@ -42,28 +41,43 @@ export function ClientLogoUploader({
       return
     }
 
+    if (ownedObjectUrlRef.current) URL.revokeObjectURL(ownedObjectUrlRef.current)
     const objectUrl = URL.createObjectURL(prepared.file)
+    ownedObjectUrlRef.current = objectUrl
     onFileSelect(prepared.file, objectUrl)
   }
 
+  function handleRemove() {
+    if (ownedObjectUrlRef.current) {
+      URL.revokeObjectURL(ownedObjectUrlRef.current)
+      ownedObjectUrlRef.current = null
+    }
+    onRemove()
+  }
+
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1">
       <button
         type="button"
-        aria-label={t('Upload client photo or logo')}
+        aria-label={t(preview ? 'Change photo' : 'Add photo')}
+        title={t(preview ? 'Change photo' : 'Add photo')}
         onClick={handleClick}
-        className="cursor-pointer"
+        className="group inline-flex h-11 shrink-0 cursor-pointer items-center gap-2.5 rounded-lg text-sm font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
-        <Avatar className="h-16 w-16">
-          {preview ? (
-            <AvatarImage src={preview} alt={t('Client logo preview')} />
-          ) : null}
-          <AvatarFallback className="bg-muted text-lg">
-            {preview ? null : clientInitial ? clientInitial.toUpperCase() : (
-              <Camera className="h-5 w-5 text-muted-foreground" />
-            )}
-          </AvatarFallback>
-        </Avatar>
+        <span className="relative shrink-0">
+          <Avatar className="size-11 border border-border">
+            {preview ? <AvatarImage src={preview} alt={t('Client logo preview')} /> : null}
+            <AvatarFallback className="bg-muted text-base">
+              {preview ? null : clientInitial ? clientInitial.toUpperCase() : (
+                <Camera className="h-5 w-5 text-muted-foreground" />
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <span className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-muted-foreground group-hover:text-primary">
+            <Camera aria-hidden="true" className="size-3" />
+          </span>
+        </span>
+        <span className="hidden sm:inline">{t(preview ? 'Change photo' : 'Add photo')}</span>
       </button>
 
       <input
@@ -75,25 +89,16 @@ export function ClientLogoUploader({
       />
 
       {preview ? (
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={handleClick}
-            className="px-2 py-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            {t('Change')}
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="px-2 py-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            {t('Remove')}
-          </button>
-        </div>
-      ) : (
-        <span className="text-sm text-muted-foreground">{t('Photo or logo')}</span>
-      )}
+        <button
+          type="button"
+          aria-label={t('Remove photo')}
+          title={t('Remove photo')}
+          onClick={handleRemove}
+          className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   )
 }
