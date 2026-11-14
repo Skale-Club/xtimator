@@ -72,6 +72,10 @@ interface PriceBookItemDialogProps {
   item: PriceBookItem | null
   currencyCode: string
   folders: PriceBookFolder[]
+  /** Category a NEW service starts in (the one the list is filtered to). */
+  defaultFolderId?: string | null
+  /** Shown as a Delete action while editing; the list owns the confirmation. */
+  onDelete?: (item: PriceBookItem) => void
 }
 
 const EMPTY_FORM: PriceBookItemFormValues = {
@@ -130,6 +134,8 @@ export function PriceBookItemDialog({
   item,
   currencyCode,
   folders,
+  defaultFolderId = null,
+  onDelete,
 }: PriceBookItemDialogProps) {
   const router = useRouter()
   const { t } = useTranslation()
@@ -176,7 +182,7 @@ export function PriceBookItemDialog({
         area_sizes: (item.area_sizes as AreaSize[]) ?? null,
       })
     } else {
-      form.reset(EMPTY_FORM)
+      form.reset({ ...EMPTY_FORM, folder_id: defaultFolderId })
     }
     queueMicrotask(() => {
       setUnit(parseUnit(item?.unit ?? ''))
@@ -198,7 +204,7 @@ export function PriceBookItemDialog({
         }
       })
     }
-  }, [item, open, form])
+  }, [item, open, form, defaultFolderId])
 
   function applyUnit(patch: Partial<UnitParts>) {
     const next = { ...unit, ...patch }
@@ -760,6 +766,18 @@ export function PriceBookItemDialog({
                 ? isEditing ? t('Updating...') : t('Adding...')
                 : isEditing ? t('Update Service') : t('Add Service')}
             </Button>
+            {item && onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="-mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={isPending}
+                onClick={() => onDelete(item)}
+                data-testid="price-book-dialog-delete"
+              >
+                {t('Delete service')}
+              </Button>
+            )}
           </form>
         </Form>
       </DialogContent>

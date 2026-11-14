@@ -106,9 +106,9 @@ function Preview() {
         </button>
       </>}
     </nav>
-    {/* Clients and Price Book use the same ListPage frame as their real pages. */}
+    {/* Clients uses the same ListPage frame as its real page; the Price Book draws its own panel. */}
     {view === 'clients' ? <ListPage><ClientList clients={CLIENTS} companyId="demo" /></ListPage>
-      : view === 'pricebook' ? <ListPage><PriceBookList items={ITEMS} folders={FOLDERS} companyId="demo" currencyCode="USD" /></ListPage>
+      : view === 'pricebook' ? <div className="w-full space-y-4 p-4 sm:p-6"><PriceBookList items={ITEMS} folders={FOLDERS} companyId="demo" currencyCode="USD" /></div>
         : view === 'sk-dashboard' ? <DashboardLoading />
           : view === 'sk-projects' ? <ProjectsLoading />
             : view === 'sk-clients' ? <ClientsLoading />

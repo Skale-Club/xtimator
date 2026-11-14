@@ -6,7 +6,6 @@ import { getPriceBookItems, getFolders } from '@/lib/queries/price-book'
 import { seedIndustryPriceBook } from '@/lib/price-book-seed'
 import { PriceBookList } from '@/components/price-book/price-book-list'
 import { UndoImportBanner } from '@/components/price-book/UndoImportBanner'
-import { ListPage } from '@/components/ui/list-page'
 
 export const metadata = { title: 'Price Book' }
 
@@ -34,13 +33,16 @@ export default async function PriceBookPage() {
     ])
   }
 
+  // No ListPage card: the list draws its own panel on desktop and goes flat,
+  // full width, on a phone.
   return (
-    <ListPage above={<UndoImportBanner />}>
+    <div className="w-full space-y-4 p-4 sm:p-6">
+      <UndoImportBanner />
       <PriceBookList
         items={items}
         folders={folders}
         currencyCode={company.currency_code}
       />
-    </ListPage>
+    </div>
   )
 }

@@ -22,10 +22,17 @@ export function ListPage({ children, above, className }: {
   )
 }
 
-/** Just the card, for a list that lives inside another page (dashboard "Recent projects"). */
+/**
+ * Just the card, for a list that lives inside another page (dashboard "Recent projects").
+ *
+ * No backdrop blur: the card sits on the plain page background, so the blur
+ * drew nothing, yet a blurred element as tall as a long list inside the
+ * scrolling <main> made phones (Android WebView/TWA) redraw it every frame and
+ * the list stuttered or froze while scrolling.
+ */
 export function ListCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <Card variant="glass" className={cn('p-4 sm:p-6', className)}>
+    <Card variant="glass" className={cn('p-4 backdrop-blur-none sm:p-6', className)}>
       {children}
     </Card>
   )

@@ -40,8 +40,13 @@ vi.mock('@/lib/actions/price-book', () => ({
 }))
 
 vi.mock('@/components/price-book/price-book-item-dialog', () => ({
-  PriceBookItemDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="price-book-dialog">Dialog Open</div> : null,
+  PriceBookItemDialog: ({ open, item, onDelete, defaultFolderId }: any) =>
+    open ? (
+      <div data-testid="price-book-dialog" data-default-folder={defaultFolderId ?? ''}>
+        Dialog Open{item ? `: ${item.name}` : ''}
+        {item && onDelete && <button onClick={() => onDelete(item)}>Delete from dialog</button>}
+      </div>
+    ) : null,
 }))
 
 vi.mock('@/components/price-book/import-wizard', () => ({
@@ -126,8 +131,9 @@ describe('PriceBookList', () => {
 
   it('renders folder section header for each folder + Uncategorized for null-folder items', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // Folder name appears in header
-    expect(screen.getByText('Labor')).toBeDefined()
+    // Each category is a named section with a heading (the name also appears in the category column)
+    expect(within(screen.getByRole('region', { name: 'Labor' })).getByRole('heading', { name: /Labor/ })).toBeDefined()
+    expect(screen.getByRole('region', { name: 'Uncategorized' })).toBeDefined()
     // Virtual Uncategorized section for items with folder_id === null — confirmed via testid
     expect(screen.getByTestId('adjust-btn-folder-uncategorized')).toBeDefined()
     // and label appears somewhere in the DOM
@@ -136,8 +142,7 @@ describe('PriceBookList', () => {
 
   it('items in same folder render in folder section', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // Item names render in both desktop Table and mobile Card list (responsive split),
-    // so use getAllByText to tolerate the duplicated DOM (same pattern as client-list.test.tsx).
+    // One row element per service on every screen.
     expect(screen.getAllByText('General Labor').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Supervisor').length).toBeGreaterThan(0)
     expect(screen.getAllByText('PVC Pipe 2in').length).toBeGreaterThan(0)
@@ -178,36 +183,35 @@ describe('PriceBookList', () => {
     expect(screen.getByTestId('price-book-dialog')).toBeDefined()
   })
 
-  // Helper: Radix DropdownMenu uses pointerdown to open (jsdom needs this explicit trigger)
-  function openDropdown(triggerEl: Element) {
-    fireEvent.pointerDown(triggerEl, { button: 0, ctrlKey: false })
-    fireEvent.pointerUp(triggerEl, { button: 0 })
-    fireEvent.click(triggerEl)
-  }
-
-  it('edit dialog opens when Edit selected from dropdown', () => {
+  it('tapping a service row opens the editor for that service', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    const buttons = screen.getAllByRole('button')
-    const dropdownTriggers = buttons.filter((b) => b.className.includes('h-8 w-8'))
-    expect(dropdownTriggers.length).toBeGreaterThan(0)
-    openDropdown(dropdownTriggers[0])
-
-    const editItems = screen.getAllByText('Edit')
-    fireEvent.click(editItems[0])
-
-    expect(screen.getByTestId('price-book-dialog')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: /^General Labor/ }))
+    expect(screen.getByTestId('price-book-dialog').textContent).toContain('General Labor')
   })
 
-  it('delete AlertDialog appears when Delete selected from dropdown', () => {
+  it('Delete inside the editor opens the delete confirmation', async () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    const buttons = screen.getAllByRole('button')
-    const dropdownTriggers = buttons.filter((b) => b.className.includes('h-8 w-8'))
-    openDropdown(dropdownTriggers[0])
+    fireEvent.click(screen.getByRole('button', { name: /^Supervisor/ }))
+    fireEvent.click(screen.getByText('Delete from dialog'))
+    expect(screen.queryByTestId('price-book-dialog')).toBeNull()
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText('Delete Item')).toBeDefined()
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Delete$/ }))
+    await waitFor(() => expect(mockDelete).toHaveBeenCalledWith('2'))
+  })
 
-    const deleteItems = screen.getAllByText('Delete')
-    fireEvent.click(deleteItems[0])
+  it('while selecting, tapping a row toggles it instead of opening the editor', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByLabelText('Select General Labor'))
+    fireEvent.click(screen.getByRole('button', { name: /^Supervisor/ }))
+    expect(screen.queryByTestId('price-book-dialog')).toBeNull()
+    expect(document.body.textContent).toContain('2 selected')
+  })
 
-    expect(screen.getByText('Delete Item')).toBeDefined()
+  it('renders each service once (no duplicated table + card trees)', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.getAllByLabelText('Select General Labor')).toHaveLength(1)
+    expect(screen.getAllByText('General Labor')).toHaveLength(1)
   })
 
   it('Import CSV button renders in header', () => {
@@ -298,8 +302,7 @@ describe('Select-all icon button (quick-260718-s8a)', () => {
 
   it('partial selection completes to all instead of deselecting', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
-    // Check a single row first (row checkboxes render twice: table + mobile cards)
-    fireEvent.click(screen.getAllByLabelText('Select General Labor')[0])
+    fireEvent.click(screen.getByLabelText('Select General Labor'))
     expect(document.body.textContent).toContain('1 selected')
     fireEvent.click(screen.getByTestId('select-all-folder-folder-labor'))
     expect(document.body.textContent).toContain('2 selected')
@@ -379,5 +382,42 @@ describe('Adjust % button per folder', () => {
     render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
     fireEvent.click(screen.getByTestId('adjust-btn-folder-uncategorized'))
     expect(screen.getByText('Bulk Adjust: Uncategorized')).toBeDefined()
+  })
+})
+
+describe('Category filter', () => {
+  it('lists All plus every category with its count, and a summary line', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    expect(screen.getByTestId('category-filter-all').textContent).toContain('3')
+    expect(screen.getByTestId('category-filter-folder-labor').textContent).toContain('2')
+    expect(screen.getByTestId('category-filter-uncategorized').textContent).toContain('1')
+    expect(screen.getByTestId('price-book-summary').textContent).toContain('3 services')
+    expect(screen.getByTestId('price-book-summary').textContent).toContain('1 category')
+  })
+
+  it('selecting a category shows only its services, and new services start in it', () => {
+    render(<PriceBookList items={mockItems} folders={mockFolders} companyId="c1" />)
+    fireEvent.click(screen.getByTestId('category-filter-folder-labor'))
+    expect(screen.getByText('General Labor')).toBeDefined()
+    expect(screen.queryByText('PVC Pipe 2in')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Add Service/i }))
+    expect(screen.getByTestId('price-book-dialog').getAttribute('data-default-folder')).toBe('folder-labor')
+  })
+
+  it('an empty category shows only when selected, with an add button', () => {
+    const folders = [...mockFolders, { id: 'folder-empty', company_id: 'c1', name: 'Roofing', sort_order: 1, created_at: '2026-01-01' }]
+    render(<PriceBookList items={mockItems} folders={folders} companyId="c1" />)
+    expect(screen.queryByRole('region', { name: 'Roofing' })).toBeNull()
+    fireEvent.click(screen.getByTestId('category-filter-folder-empty'))
+    expect(screen.getByRole('region', { name: 'Roofing' })).toBeDefined()
+    expect(screen.getByText('No services in this category yet.')).toBeDefined()
+  })
+
+  it('shows a category filter box once there are many categories', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ id: `f${i}`, company_id: 'c1', name: `Trade ${i}`, sort_order: i, created_at: '2026-01-01' }))
+    render(<PriceBookList items={mockItems} folders={many} companyId="c1" />)
+    fireEvent.change(screen.getByLabelText('Filter categories'), { target: { value: 'Trade 3' } })
+    expect(screen.getByTestId('category-filter-f3')).toBeDefined()
+    expect(screen.queryByTestId('category-filter-f4')).toBeNull()
   })
 })
