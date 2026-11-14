@@ -445,7 +445,7 @@ export function PriceBookList({
           same content flat on the page, so the list gets the full width. No
           backdrop blur anywhere: a blurred element as tall as the list inside
           the scrolling <main> froze scrolling on phones. */}
-      <div className="md:rounded-[var(--radius-lg)] md:border md:border-[var(--glass-border)] md:bg-card md:shadow-sm">
+      <div className="md:rounded-[var(--radius-lg)] md:border md:border-[var(--glass-border)] md:bg-[var(--glass-bg)] md:shadow-[var(--shadow-glass)]">
         {/* Header */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-3 md:border-b md:border-[var(--glass-border)] md:px-5 md:py-4">
           <div className="min-w-0 flex-1">
