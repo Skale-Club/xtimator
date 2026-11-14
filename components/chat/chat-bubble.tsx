@@ -11,9 +11,9 @@
  * closed, it renders only the launcher button.
  *
  * Layout: the launcher can be dragged anywhere and snaps to the nearer side.
- * Phone = a centred popup over a dimmed page (z-[60], above the z-50 bottom
- * nav), fixed in place; desktop = a card that opens beside the launcher and
- * drags by its header. The launcher hides while the panel is open. The panel stays MOUNTED after first open (hidden via CSS)
+ * Phone = a compact floating window; desktop = a card beside the launcher.
+ * Both drag by the header and resize from the top or lower corner, inside the
+ * visible viewport (including when the keyboard opens). The panel stays mounted
  * so an in-flight stream / draft survives close→reopen.
  *
  * Entitlement: the server layout passes chatEnabled (getEntitlements(tier)) —
@@ -25,6 +25,8 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } fr
 import Link from 'next/link'
 import {
   MessageSquare,
+  Minus,
+  Grip,
   X,
   Plus,
   History,
@@ -33,9 +35,12 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { UIMessage } from 'ai'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { Button } from '@/components/ui/button'
+import { AppIcon } from '@/components/ui/app-icon'
+import { useChatPanel } from '@/hooks/use-chat-panel'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,19 +97,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), Math.max(min, max))
 }
 
-// Desktop panel size, matching lg:w-[400px] lg:h-[min(640px,calc(100dvh-6rem))].
-const PANEL_W_PX = 400
-function panelHeight() {
-  return Math.min(640, window.innerHeight - 96)
-}
-function clampPanel(x: number, y: number) {
-  return {
-    x: clamp(x, 8, window.innerWidth - PANEL_W_PX - 8),
-    y: clamp(y, 8, window.innerHeight - panelHeight() - 8),
-  }
-}
-
-export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
+export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; logoUrl?: string | null }) {
   const isTwa = useIsTwa()
   const { t } = useTranslation()
   const [spot, setSpot] = useState<BubbleSpot | null>(null)
@@ -117,6 +110,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
   useEffect(() => { setSpot(readSpot()) }, [])
 
   function onPointerDown(event: PointerEvent<HTMLButtonElement>) {
+    if (drag.current) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     const rect = event.currentTarget.getBoundingClientRect()
     drag.current = {
@@ -157,7 +151,8 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
     try { window.localStorage.setItem(SPOT_KEY, JSON.stringify(next)) } catch { /* not remembered, still moved */ }
   }
 
-  function onPointerCancel() {
+  function onPointerCancel(event: PointerEvent<HTMLButtonElement>) {
+    if (drag.current?.id !== event.pointerId) return
     drag.current = null
     setDragAt(null)
   }
@@ -175,63 +170,23 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           bottom: `clamp(8px, ${spot.bottom}px, calc(100dvh - ${BUBBLE_PX + 8}px))`,
         }
       : undefined
-  // ── Panel position (desktop only; on a phone the panel is full screen) ──
-  // It opens beside wherever the bubble sits and can be dragged by its header.
   const launcherRef = useRef<HTMLButtonElement>(null)
-  const [isDesktop, setIsDesktop] = useState(false)
-  const [panelAt, setPanelAt] = useState<{ x: number; y: number } | null>(null)
-  const [panelDragging, setPanelDragging] = useState(false)
-  const panelDrag = useRef<{ id: number; dx: number; dy: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const panel = useChatPanel()
+  const panelStyle: CSSProperties & { '--chat-panel-height': string } = {
+    left: panel.rect.x, top: panel.rect.y, width: panel.rect.width, height: panel.rect.height,
+    '--chat-panel-height': `${panel.rect.height}px`,
+  }
+
+  function hidePanel() {
+    setOpen(false)
+    // Return keyboard focus to the launcher after React mounts it again.
+    requestAnimationFrame(() => launcherRef.current?.focus({ preventScroll: true }))
+  }
 
   useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return // jsdom and very old browsers
-    const mq = window.matchMedia('(min-width: 1024px)')
-    const sync = () => setIsDesktop(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  // Keeps a dragged panel on screen when the window shrinks.
-  useEffect(() => {
-    if (!panelAt) return
-    const onResize = () => setPanelAt((at) => (at ? clampPanel(at.x, at.y) : at))
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [panelAt])
-
-  function placePanelNearBubble() {
-    const rect = launcherRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const onLeft = rect.left + rect.width / 2 < window.innerWidth / 2
-    // Same side edge as the bubble, bottoms lined up: the card grows out of it.
-    setPanelAt(clampPanel(onLeft ? rect.left : rect.right - PANEL_W_PX, rect.bottom - panelHeight()))
-  }
-
-  function onHeaderPointerDown(event: PointerEvent<HTMLElement>) {
-    if (!isDesktop || !panelAt) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    // The header's own buttons (new chat, history, close) keep working.
-    if ((event.target as Element).closest('button, a, [role=menuitem]')) return
-    panelDrag.current = { id: event.pointerId, dx: event.clientX - panelAt.x, dy: event.clientY - panelAt.y }
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setPanelDragging(true)
-  }
-
-  function onHeaderPointerMove(event: PointerEvent<HTMLElement>) {
-    const d = panelDrag.current
-    if (!d || d.id !== event.pointerId) return
-    setPanelAt(clampPanel(event.clientX - d.dx, event.clientY - d.dy))
-  }
-
-  function onHeaderPointerEnd(event: PointerEvent<HTMLElement>) {
-    if (panelDrag.current?.id !== event.pointerId) return
-    panelDrag.current = null
-    setPanelDragging(false)
-  }
-
-  const panelStyle: CSSProperties | undefined =
-    isDesktop && panelAt ? { left: panelAt.x, top: panelAt.y, right: 'auto', bottom: 'auto' } : undefined
+    if (open) panelRef.current?.focus({ preventScroll: true })
+  }, [open])
 
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -262,6 +217,8 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
         }
       }
       setLoadedOnce(true)
+    } catch {
+      toast.error(t('Could not load conversations. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -275,6 +232,8 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
       if (th) {
         setThread((s) => ({ id: th.id, messages: th.messages, votes: th.votes, key: s.key + 1 }))
       }
+    } catch {
+      toast.error(t('Could not load conversations. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -304,7 +263,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           type="button"
           onClick={() => {
             if (swallowClick.current) { swallowClick.current = false; return }
-            placePanelNearBubble()
+            panel.place(launcherRef.current?.getBoundingClientRect())
             void openPanel()
           }}
           ref={launcherRef}
@@ -312,6 +271,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
+          onLostPointerCapture={onPointerCancel}
           aria-label={t('Open chat assistant')}
           data-hide-on-keyboard
           title={t('Drag to move')}
@@ -330,46 +290,56 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
               : 'cursor-grab transition-[transform,box-shadow] hover:scale-105 active:scale-95',
           )}
         >
-          <MessageSquare className="h-5 w-5" />
+          <MessageSquare className="pointer-events-none h-5 w-5" aria-hidden="true" />
         </button>
       )}
 
-      {/* Phone: dim the page behind the popup. A tap on it does nothing, so a stray
-          touch never closes the chat (only the X does); desktop has no backdrop. */}
-      {mounted && open && <div aria-hidden className="fixed inset-0 z-[59] bg-black/60 backdrop-blur-[2px] lg:hidden" />}
+      {/* The workspace stays visible and usable around this non-modal window. */}
+      {mounted && open && <div aria-hidden className="pointer-events-none fixed inset-0 z-[59] bg-black/15 lg:hidden" />}
 
       {mounted && (
         <div
+          ref={panelRef}
+          data-chat-panel
           role="dialog"
-          aria-label={t('Chat assistant')}
+          aria-label="Xtimator AI"
+          aria-modal={false}
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && !event.defaultPrevented) {
+              event.preventDefault()
+              hidePanel()
+            }
+          }}
           style={panelStyle}
           className={cn(
-            'fixed z-[60] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl',
-            // Phone: a popup with side margins, centred in the part of the screen
-            // the keyboard leaves visible (lib/visual-viewport.ts), fixed in place.
-            'inset-x-5 mx-auto max-w-md top-[calc(var(--app-vv-top,0px)+var(--app-vvh,100dvh)/2)] -translate-y-1/2',
-            'h-[min(42rem,calc(var(--app-vvh,100dvh)-1.5rem))]',
-            // Desktop: a card that opens beside the bubble and drags by its header.
-            'lg:inset-x-auto lg:mx-0 lg:max-w-none lg:top-auto lg:translate-y-0 lg:bottom-6 lg:right-6',
-            'lg:h-[min(640px,calc(100dvh-6rem))] lg:w-[400px]',
+            'fixed z-[60] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl outline-none',
             open ? 'flex' : 'hidden',
           )}
         >
-          {/* Header — the drag handle on desktop */}
+          <button
+            type="button"
+            aria-label={t('Resize chat height')}
+            title={t('Drag to resize. Use arrow keys for smaller adjustments.')}
+            {...panel.handlers('top')}
+            className="flex h-6 w-full shrink-0 touch-none cursor-ns-resize select-none items-center justify-center hover:bg-muted/60 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+          >
+            <span className="h-1 w-10 rounded-full bg-muted-foreground/35" />
+          </button>
+          {/* Dragging and resizing have separate targets; scrolling messages is safe. */}
           <header
-            onPointerDown={onHeaderPointerDown}
-            onPointerMove={onHeaderPointerMove}
-            onPointerUp={onHeaderPointerEnd}
-            onPointerCancel={onHeaderPointerEnd}
+            {...panel.handlers('move')}
+            tabIndex={0}
+            aria-label={t('Move chat window')}
+            title={t('Drag to move')}
             className={cn(
-              'flex items-center gap-1 border-b border-border py-2 pl-4 pr-2',
-              'lg:touch-none lg:select-none',
-              panelDragging ? 'lg:cursor-grabbing' : 'lg:cursor-grab',
+              'flex min-w-0 shrink-0 touch-none select-none items-center gap-0.5 border-b border-border px-2 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
+              panel.gestureKind === 'move' ? 'cursor-grabbing' : 'cursor-grab',
             )}
           >
-            <MessageSquare className="mr-1 h-4 w-4 text-primary" />
-            <h2 className="flex-1 truncate text-sm font-semibold tracking-tight">
-              {t('Assistant')}
+            <AppIcon logoUrl={logoUrl} className="pointer-events-none mr-1 h-6 w-6 shrink-0" />
+            <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold tracking-tight sm:text-sm">
+              Xtimator AI
             </h2>
 
             {chatEnabled && (
@@ -379,8 +349,10 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                   size="icon"
                   variant="ghost"
                   onClick={newChat}
+                  disabled={loading}
                   aria-label={t('New chat')}
-                  className="h-10 w-10"
+                  title={t('New chat')}
+                  className="h-10 w-10 shrink-0"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -391,13 +363,15 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
                       type="button"
                       size="icon"
                       variant="ghost"
+                      disabled={loading}
                       aria-label={t('Chat history')}
-                      className="h-10 w-10"
+                      title={t('Chat history')}
+                      className="h-10 w-10 shrink-0"
                     >
                       <History className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
+                  <DropdownMenuContent align="end" className="max-h-[min(20rem,var(--radix-dropdown-menu-content-available-height))] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto">
                     {conversations.length === 0 ? (
                       <DropdownMenuItem disabled>{t('No conversations yet.')}</DropdownMenuItem>
                     ) : (
@@ -434,9 +408,21 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
               type="button"
               size="icon"
               variant="ghost"
-              onClick={() => setOpen(false)}
+              onClick={hidePanel}
+              aria-label={t('Minimize chat')}
+              title={t('Minimize chat')}
+              className="h-10 w-10 shrink-0"
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={hidePanel}
               aria-label={t('Close chat')}
-              className="h-10 w-10"
+              title={t('Close chat')}
+              className="h-10 w-10 shrink-0"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -444,7 +430,7 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
 
           {/* Body */}
           {!chatEnabled ? (
-            <div className="flex flex-1 items-center justify-center p-6">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-4">
               <div className="flex max-w-xs flex-col items-center gap-3 text-center">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                   <Sparkles className="h-5 w-5 text-primary" />
@@ -478,6 +464,17 @@ export function ChatBubble({ chatEnabled }: { chatEnabled: boolean }) {
               onConversationCreated={onConversationCreated}
             />
           )}
+          <div className="relative h-3 shrink-0">
+            <button
+              type="button"
+              aria-label={t('Resize chat window')}
+              title={t('Drag to resize. Use arrow keys for smaller adjustments.')}
+              {...panel.handlers('corner')}
+              className="absolute bottom-0 right-0 flex h-6 w-6 touch-none cursor-nwse-resize select-none items-center justify-center rounded-tl-lg text-muted-foreground/60 hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+            >
+              <Grip className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       )}
     </>

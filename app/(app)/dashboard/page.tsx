@@ -8,7 +8,7 @@ import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-cli
 import { ProjectList } from '@/components/dashboard/project-list'
 import { ListCard } from '@/components/ui/list-page'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
-import { T } from '@/components/i18n/t'
+import { DashboardWelcome } from '@/components/dashboard/dashboard-welcome'
 import { cookies } from 'next/headers'
 import { getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { WHATSAPP_WELCOME_COOKIE, buildFirstEstimateLink } from '@/lib/whatsapp/welcome-card'
@@ -31,27 +31,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="pb-12">
-      {/* Hero zone — gradient-hero radial backdrop, display headline + primary CTA */}
-      <section className="relative isolate px-4 py-6 sm:px-6">
-        {/* Gradient extends -top-16 to bleed under the glass topbar — backdrop-blur fuses the two surfaces.
-            Bottom mask fades the gradient to alpha 0 so it dissolves smoothly into the page bg
-            (instead of cutting off with a visible edge). */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-16 inset-x-0 bottom-0 -z-10 gradient-hero
-                     [mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]
-                     [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent_100%)]"
-        />
-        <h1 className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-3">
-          <T>Dashboard</T>
-        </h1>
-        <p className="text-3xl font-semibold tracking-tight">
-          <T text={`Welcome back, ${firstName}`} />
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground max-w-xl">
-          <T>Track active projects, monitor estimate health, and start new work.</T>
-        </p>
-      </section>
+      <DashboardWelcome firstName={firstName} />
 
       <Suspense fallback={null}>
         <WhatsAppWelcome />

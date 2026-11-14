@@ -281,7 +281,7 @@ export default async function AppShellLayout({
           {/* SEED-055: chat is on every plan (credits meter it), so `chatEnabled` is
               always true. The prop goes away together with chat-upgrade-prompt.tsx
               once chat-bubble.tsx is free to edit. */}
-          {!isDemo && <ChatBubble chatEnabled={true} />}
+          {!isDemo && <ChatBubble chatEnabled={true} logoUrl={branding.logoUrl} />}
           <NewProjectDialog />
           <EstimateCreationPopup />
           <BackgroundGenerationWatcher />

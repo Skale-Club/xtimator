@@ -492,7 +492,7 @@ function PaginationBar({
   const cell = 'flex size-9 items-center justify-center rounded-lg text-sm transition-colors md:size-8'
 
   return (
-    <div className="flex items-center justify-between gap-4 pt-1">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-1">
       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
         {from}–{to} {ofLabel} {totalItems}
       </span>
@@ -507,28 +507,33 @@ function PaginationBar({
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        {pages.map((p, i) =>
-          p === 'ellipsis' ? (
-            <span key={`ellipsis-${i}`} className={cn(cell, 'text-muted-foreground')}>
-              …
-            </span>
-          ) : (
-            <button
-              type="button"
-              key={p}
-              onClick={() => onPageChange(p)}
-              className={cn(
-                cell,
-                p === page
-                  ? 'bg-primary font-medium text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-              )}
-              aria-current={p === page ? 'page' : undefined}
-            >
-              {p}
-            </button>
-          )
-        )}
+        {/* The full page strip can exceed the phone card's content width.
+            Keep every page reachable through Previous/Next on small screens. */}
+        <span className="px-2 text-xs tabular-nums md:hidden">{page} / {totalPages}</span>
+        <div className="hidden items-center gap-1 md:flex">
+          {pages.map((p, i) =>
+            p === 'ellipsis' ? (
+              <span key={`ellipsis-${i}`} className={cn(cell, 'text-muted-foreground')}>
+                …
+              </span>
+            ) : (
+              <button
+                type="button"
+                key={p}
+                onClick={() => onPageChange(p)}
+                className={cn(
+                  cell,
+                  p === page
+                    ? 'bg-primary font-medium text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                )}
+                aria-current={p === page ? 'page' : undefined}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
 
         <button
           type="button"

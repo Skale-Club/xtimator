@@ -28,6 +28,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { ArrowUpRight, Sparkles } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
   createChatConversation,
@@ -41,9 +42,9 @@ import { ChatComposer } from '@/components/chat/chat-composer'
 /** Empty-state starter prompts (Vercel AI Chatbot "suggested actions" pattern).
  *  Each maps onto one of the route's neutral tools so the first turn lands well. */
 const SUGGESTIONS = [
-  'Show my recent estimates',
-  'What services do I offer?',
-  'Create an estimate for a new job',
+  { label: 'Create an estimate', prompt: 'Create an estimate for a new job' },
+  { label: 'Recent estimates', prompt: 'Show my recent estimates' },
+  { label: 'My services', prompt: 'What services do I offer?' },
 ]
 
 /** Map a transport error body onto owner-facing copy (the route's 403/429 JSON). */
@@ -83,6 +84,8 @@ export function ChatThread({
   const { t } = useTranslation()
   const [activeId, setActiveId] = useState<string | null>(conversationId)
   const [votes, setVotes] = useState<Record<string, boolean>>(initialVotes)
+  const [preparing, setPreparing] = useState(false)
+  const preparingRef = useRef(false)
 
   const { messages, sendMessage, status, stop, regenerate } = useChat({
     id: activeId ?? undefined,
@@ -100,9 +103,11 @@ export function ChatThread({
   // the user is pinned near the bottom — never yank them back mid-scrollback.
   const scrollRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
-  const endRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (pinnedRef.current) endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollRef.current
+    if (el && pinnedRef.current) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
   }, [messages, status])
 
   function onScroll() {
@@ -114,33 +119,37 @@ export function ChatThread({
   // 'error' must NOT count as busy — a failed turn would otherwise lock the
   // composer forever (no way back to 'ready' without a new send).
   const streaming = status === 'submitted' || status === 'streaming'
-  const busy = streaming
+  const busy = streaming || preparing
 
   async function submit(raw: string) {
     const value = raw.trim()
-    if (!value || busy) return
+    if (!value || busy || preparingRef.current) return
+    preparingRef.current = true
+    setPreparing(true)
 
-    // Pre-create the conversation on the first turn of a new chat so the id rides
-    // with the send (no duplicate conversation from the route's onFinish). The
-    // first message doubles as the conversation title.
-    let convId = activeId
-    if (!convId) {
-      const conv = await createChatConversation(value)
-      if (conv) {
-        convId = conv.id
-        setActiveId(conv.id)
-        if (embedded) {
-          onConversationCreated?.(conv.id)
-        } else {
-          router.replace(`/chat/${conv.id}`)
+    try {
+      // Pre-create the conversation on the first turn so the id rides with the
+      // send. Gate all entry points while creating it, including starter prompts.
+      let convId = activeId
+      if (!convId) {
+        const conv = await createChatConversation(value)
+        if (conv) {
+          convId = conv.id
+          setActiveId(conv.id)
+          if (embedded) {
+            onConversationCreated?.(conv.id)
+          } else {
+            router.replace(`/chat/${conv.id}`)
+          }
         }
       }
-    }
 
-    // Full-array default send — do NOT override the request to send only the last.
-    // conversationId goes in per-send options: the transport body above still holds
-    // the PRE-create activeId (state hasn't re-rendered yet on the first turn).
-    sendMessage({ text: value }, { body: { conversationId: convId } })
+      // Per-send options carry the just-created id before the transport re-renders.
+      sendMessage({ text: value }, { body: { conversationId: convId } })
+    } finally {
+      preparingRef.current = false
+      setPreparing(false)
+    }
   }
 
   // ── Message actions (AI-chatbot parity) ────────────────────────────────────
@@ -175,25 +184,40 @@ export function ChatThread({
   const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* Messages */}
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+        role="log"
+        aria-label={t('Conversation')}
+        aria-busy={streaming}
+        className="min-h-0 min-w-0 flex-1 space-y-5 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-5 sm:px-5"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-sm text-muted-foreground">
-            <p>{t('Ask me to generate an estimate or look something up.')}</p>
-            <div className="flex flex-wrap justify-center gap-2">
+          <div className="mx-auto flex min-h-full w-full max-w-md flex-col items-center justify-center gap-4 py-4 text-center">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-semibold tracking-tight">{t('Xtimator AI')}</h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {t('Describe a job. Let’s build your estimate.')}
+              </p>
+            </div>
+            <div className="flex w-full flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (
                 <button
-                  key={s}
+                  key={s.prompt}
                   type="button"
-                  onClick={() => void submit(t(s))}
-                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+                  onClick={() => void submit(t(s.prompt)).catch(() => {
+                    toast.error(t('Could not send the message. Please try again.'))
+                  })}
+                  disabled={busy}
+                  className="inline-flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-xs text-foreground transition-colors hover:border-primary/30 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
-                  {t(s)}
+                  {t(s.label)}
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </button>
               ))}
             </div>
@@ -213,12 +237,11 @@ export function ChatThread({
             />
           ))
         )}
-        <div ref={endRef} />
       </div>
 
       {/* CHAT_COMPOSER_SEAM — the multimodal composer (text + audio + photo). */}
       <ChatComposer
-        onSend={(value) => void submit(value)}
+        onSend={submit}
         busy={busy}
         streaming={streaming}
         onStop={() => void stop()}

@@ -92,20 +92,21 @@ export function ChatMessage({
 
   if (editing) {
     return (
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex min-w-0 flex-col items-end gap-2">
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
               e.preventDefault()
               saveEdit()
             }
             if (e.key === 'Escape') setEditing(false)
           }}
-          enterKeyHint="send"
+          enterKeyHint="enter"
           aria-label={t('Edit message')}
-          className="max-h-40 min-h-[60px] w-full max-w-[88%] resize-none md:max-w-[75%]"
+          rows={3}
+          className="max-h-48 min-h-[84px] w-full min-w-0 max-w-[94%] resize-none overflow-y-auto text-base [overflow-wrap:anywhere] sm:text-sm md:max-w-[85%]"
           autoFocus
         />
         <div className="flex gap-2">
@@ -121,7 +122,7 @@ export function ChatMessage({
   }
 
   return (
-    <div className={cn('group flex flex-col gap-2', isUser ? 'items-end' : 'items-start')}>
+    <div className={cn('group flex min-w-0 flex-col gap-1.5', isUser ? 'items-end' : 'items-start')}>
       {message.parts.map((part, i) => {
         if (part.type === 'text') {
           const partText = (part as { text?: string }).text ?? ''
@@ -129,17 +130,16 @@ export function ChatMessage({
             <div
               key={i}
               className={cn(
-                // 88% on phones: the popup is only ~290px wide inside, 75% left a big gutter.
-                'max-w-[88%] rounded-2xl px-3 py-2 text-sm break-words md:max-w-[75%]',
+                'min-w-0 rounded-2xl px-3.5 py-3 text-sm leading-relaxed [overflow-wrap:anywhere]',
                 isUser
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-card text-foreground border border-border',
+                  ? 'max-w-[90%] rounded-br-md bg-primary text-primary-foreground md:max-w-[85%]'
+                  : 'w-full max-w-full rounded-bl-md border border-border bg-card text-foreground',
               )}
             >
               {isUser ? (
                 <span className="whitespace-pre-wrap">{partText}</span>
               ) : (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
+                <div className="prose prose-sm dark:prose-invert min-w-0 max-w-none leading-relaxed [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overscroll-x-contain [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:overscroll-x-contain [&_a]:break-all">
                   <Markdown remarkPlugins={[remarkGfm]}>{partText}</Markdown>
                 </div>
               )}
@@ -148,7 +148,11 @@ export function ChatMessage({
         }
 
         if (isToolPart(part.type)) {
-          return <ChatToolPart key={i} part={part as unknown as ChatToolPartShape} />
+          return (
+            <div key={i} className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain [overflow-wrap:anywhere]">
+              <ChatToolPart part={part as unknown as ChatToolPartShape} />
+            </div>
+          )
         }
 
         return null
@@ -158,8 +162,8 @@ export function ChatMessage({
       {!busy && (isUser ? !!onEdit : text.length > 0) && (
         <div
           className={cn(
-            'flex items-center gap-0.5 text-muted-foreground',
-            'opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100',
+            'flex max-w-full flex-wrap items-center gap-0.5 text-muted-foreground',
+            'opacity-100 transition-opacity md:opacity-60 md:group-hover:opacity-100 md:focus-within:opacity-100',
           )}
         >
           {isUser ? (
@@ -169,7 +173,7 @@ export function ChatMessage({
               variant="ghost"
               onClick={startEdit}
               aria-label={t('Edit message')}
-              className="h-9 w-9 md:h-7 md:w-7"
+              className="h-11 w-11 rounded-xl md:h-8 md:w-8"
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -181,7 +185,7 @@ export function ChatMessage({
                 variant="ghost"
                 onClick={() => void copy()}
                 aria-label={t('Copy message')}
-                className="h-9 w-9 md:h-7 md:w-7"
+                className="h-11 w-11 rounded-xl md:h-8 md:w-8"
               >
                 <Copy className="h-3.5 w-3.5" />
               </Button>
@@ -193,7 +197,8 @@ export function ChatMessage({
                     variant="ghost"
                     onClick={() => onVote(message.id, true)}
                     aria-label={t('Good response')}
-                    className={cn('h-9 w-9 md:h-7 md:w-7', vote === true && 'text-primary')}
+                    aria-pressed={vote === true}
+                    className={cn('h-11 w-11 rounded-xl md:h-8 md:w-8', vote === true && 'bg-primary/10 text-primary')}
                   >
                     <ThumbsUp className="h-3.5 w-3.5" />
                   </Button>
@@ -203,7 +208,8 @@ export function ChatMessage({
                     variant="ghost"
                     onClick={() => onVote(message.id, false)}
                     aria-label={t('Bad response')}
-                    className={cn('h-9 w-9 md:h-7 md:w-7', vote === false && 'text-destructive')}
+                    aria-pressed={vote === false}
+                    className={cn('h-11 w-11 rounded-xl md:h-8 md:w-8', vote === false && 'bg-destructive/10 text-destructive')}
                   >
                     <ThumbsDown className="h-3.5 w-3.5" />
                   </Button>
@@ -216,7 +222,7 @@ export function ChatMessage({
                   variant="ghost"
                   onClick={() => onRegenerate(message.id)}
                   aria-label={t('Regenerate response')}
-                  className="h-9 w-9 md:h-7 md:w-7"
+                  className="h-11 w-11 rounded-xl md:h-8 md:w-8"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>

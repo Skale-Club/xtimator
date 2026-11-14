@@ -21,7 +21,8 @@ import type { PriceBookFolder, PriceBookItem } from '@/lib/queries/price-book'
  * Dev-only check for the shared list toolbar without signing in: the real
  * Recent projects, Clients and Price Book lists with sample rows
  * (?view=projects|clients|pricebook), and their loading skeletons (?view=sk-…). "Delete newest 2" shrinks the project
- * data the way a delete does, to check the page clamp. Nothing imports this.
+ * data the way a delete does, to check the page clamp. ?stress=1 supplies twelve
+ * pages to exercise pagination at phone widths. Nothing imports this.
  */
 const STATUSES = ['draft', 'estimate_ready', 'sent', 'estimate_ready', 'draft', 'sent'] as const
 const NAMES = [
@@ -31,10 +32,10 @@ const NAMES = [
 ]
 const CLIENT_NAMES = ['Ava Thompson', 'Ben Carter', 'Dana Lopez', 'Evan Brooks', 'Fiona Park', 'Grace Kim']
 
-function sampleProjects(): ProjectWithClient[] {
-  return NAMES.map((name, i) => ({
+function sampleProjects(stress = false): ProjectWithClient[] {
+  return Array.from({ length: stress ? 120 : NAMES.length }, (_, i) => ({
     id: `p${i + 1}`,
-    name,
+    name: stress ? `Project ${i + 1} — ${NAMES[i % NAMES.length]}` : NAMES[i],
     project_type: i % 2 ? 'Plumbing' : 'Remodel',
     // No 'paid' rows on purpose: the Paid tab must show a recoverable empty state.
     status: STATUSES[i % STATUSES.length],
@@ -94,10 +95,14 @@ export default function DataTablePreview() {
 }
 
 function Preview() {
-  const view = useSearchParams().get('view') ?? 'projects'
-  const [projects, setProjects] = useState(sampleProjects)
+  const params = useSearchParams()
+  const view = params.get('view') ?? 'projects'
+  const stress = params.get('stress') === '1'
+  const [projects, setProjects] = useState(() => sampleProjects(stress))
   // md:ml-[213px] stands in for the app sidebar (213px from 768px up), so widths match the real shell.
-  return <main className="min-h-dvh space-y-4 bg-background p-4 sm:p-6 md:ml-[213px]">
+  // Match the independently scrolling app main: a document-only overflow check
+  // misses the sideways scroll that leaves the app header and bottom nav still.
+  return <div className="flex h-dvh overflow-hidden"><main className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto bg-background p-4 sm:p-6 md:ml-[213px]">
     <nav className="flex flex-wrap gap-2 text-xs">
       {['projects', 'clients', 'client', 'pricebook', 'sk-dashboard', 'sk-projects', 'sk-clients', 'sk-pricebook'].map((v) => (
         <a key={v} href={`?view=${v}`} className={`rounded border px-2 py-1 ${v === view ? 'border-primary text-primary' : ''}`}>{v}</a>
@@ -106,7 +111,7 @@ function Preview() {
         <button type="button" className="rounded border px-2 py-1" onClick={() => setProjects(p => [...p].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(2))}>
           Delete newest 2
         </button>
-        <button type="button" className="rounded border px-2 py-1" onClick={() => setProjects(sampleProjects())}>
+        <button type="button" className="rounded border px-2 py-1" onClick={() => setProjects(sampleProjects(stress))}>
           Reset data ({projects.length} rows)
         </button>
       </>}
@@ -120,7 +125,7 @@ function Preview() {
             : view === 'sk-clients' ? <ClientsLoading />
               : view === 'sk-pricebook' ? <PriceBookLoading />
                 : <ListCard><ProjectList projects={projects} /></ListCard>}
-  </main>
+  </main></div>
 }
 
 /** The client page with fixture data (the real page needs a signed-in company). */

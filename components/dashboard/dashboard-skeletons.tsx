@@ -13,12 +13,12 @@ export function StatCardsSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 px-4 sm:gap-4 sm:px-6 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2.5 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-3.5 sm:p-5">
-          <div className="flex min-h-8 items-center gap-2.5">
-            <Skeleton className="size-8 shrink-0 rounded-lg" />
-            <Skeleton className="h-3 w-20" />
+        <div key={i} className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-2.5 sm:gap-2.5 sm:p-5">
+          <div className="flex min-h-6 items-center gap-2 sm:min-h-8 sm:gap-2.5">
+            <Skeleton className="size-6 shrink-0 rounded-lg sm:size-8" />
+            <Skeleton className="h-3 w-20 max-w-full" />
           </div>
-          <Skeleton className="h-7 w-16" />
+          <Skeleton className="ml-auto h-6 w-16 sm:h-7" />
         </div>
       ))}
     </div>

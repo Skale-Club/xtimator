@@ -1,6 +1,6 @@
 'use client'
 
-import { notFound } from 'next/navigation'
+import { notFound, useSearchParams } from 'next/navigation'
 import { CheckCircle, Clock, DollarSign, FolderOpen } from 'lucide-react'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { StatCards } from '@/components/dashboard/stat-cards'
@@ -12,6 +12,11 @@ import { StatCards } from '@/components/dashboard/stat-cards'
  */
 export default function StatCardsPreview() {
   if (process.env.NODE_ENV === 'production') notFound()
+  return <StatCardsFixture />
+}
+
+function StatCardsFixture() {
+  const stress = useSearchParams().get('stress') === '1'
   const stats = { totalProjects: 7, pendingEstimates: 22, acceptedEstimates: 0, totalRevenue: 0 }
   return <main className="min-h-dvh space-y-8 bg-background py-8">
     <section className="space-y-3">
@@ -27,5 +32,14 @@ export default function StatCardsPreview() {
         <StatCard icon={DollarSign} label="Receita total" value="$128,450" index={3} tone="violet" />
       </div>
     </section>
+    {stress && (
+      <section className="space-y-3">
+        <h2 className="px-6 text-sm font-semibold text-muted-foreground">Long labels and complete amounts</h2>
+        <div className="grid grid-cols-2 gap-3 px-4 sm:gap-4 sm:px-6 lg:grid-cols-4" data-testid="long-stat-cards">
+          <StatCard icon={Clock} label="Estimativas pendentes de aprovação" value={123456789012} tone="amber" />
+          <StatCard icon={DollarSign} label="Receita total dos projetos aceitos" value="$1,234,567,890" tone="violet" />
+        </div>
+      </section>
+    )}
   </main>
 }

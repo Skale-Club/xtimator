@@ -1,6 +1,7 @@
 import { onboardingTranslations } from './onboarding-translations'
 import { billingTranslations } from './billing-translations'
 import { clientTranslations } from './client-translations'
+import { chatTranslations } from './chat-translations'
 
 type TranslationDict = Record<string, string>
 
@@ -9,6 +10,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...onboardingTranslations.pt,
     ...billingTranslations.pt,
     ...clientTranslations.pt,
+    ...chatTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -481,6 +483,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...onboardingTranslations.es,
     ...billingTranslations.es,
     ...clientTranslations.es,
+    ...chatTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

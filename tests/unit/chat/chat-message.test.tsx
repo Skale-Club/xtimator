@@ -152,6 +152,28 @@ describe('ChatMessage action row (AI-chatbot parity)', () => {
     expect(onEdit).not.toHaveBeenCalled()
   })
 
+  it('keeps Enter for multiline edits and saves with Cmd+Enter', () => {
+    const onEdit = vi.fn()
+    const { getByLabelText, container } = render(<ChatMessage message={user} onEdit={onEdit} />)
+    fireEvent.click(getByLabelText('Edit message'))
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'First task\nSecond task' } })
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    fireEvent(textarea, enter)
+    expect(enter.defaultPrevented).toBe(false)
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true, isComposing: true })
+    expect(onEdit).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true })
+    expect(onEdit).toHaveBeenCalledWith('m1', 'First task\nSecond task')
+  })
+
+  it('exposes the selected vote to assistive technology', () => {
+    const { getByLabelText } = render(<ChatMessage message={assistant} onVote={vi.fn()} vote={false} />)
+    expect(getByLabelText('Good response').getAttribute('aria-pressed')).toBe('false')
+    expect(getByLabelText('Bad response').getAttribute('aria-pressed')).toBe('true')
+  })
+
   it('suppresses the action row while the thread is busy (mid-stream)', () => {
     const { queryByLabelText } = render(
       <ChatMessage message={assistant} onVote={vi.fn()} busy={true} />,
