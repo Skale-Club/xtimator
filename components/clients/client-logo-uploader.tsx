@@ -5,9 +5,8 @@ import { Camera } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { prepareClientPhoto } from '@/lib/clients/prepare-photo'
 
-const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
-const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
 
 interface ClientLogoUploaderProps {
   preview: string | null
@@ -29,32 +28,29 @@ export function ClientLogoUploader({
     inputRef.current?.click()
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0]
+    if (!picked) return
 
     // Reset input so the same file can be re-selected
     e.target.value = ''
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error(t('Unsupported image format. Please upload a PNG or JPG file.'))
+    // Large phone photos are resized in the browser to fit the 2 MB limit.
+    const prepared = await prepareClientPhoto(picked)
+    if ('error' in prepared) {
+      toast.error(t(prepared.error))
       return
     }
 
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error(t('Logo must be under 2MB. Please choose a smaller file.'))
-      return
-    }
-
-    const objectUrl = URL.createObjectURL(file)
-    onFileSelect(file, objectUrl)
+    const objectUrl = URL.createObjectURL(prepared.file)
+    onFileSelect(prepared.file, objectUrl)
   }
 
   return (
     <div className="flex flex-col items-center gap-2">
       <button
         type="button"
-        aria-label={t('Upload client logo')}
+        aria-label={t('Upload client photo or logo')}
         onClick={handleClick}
         className="cursor-pointer"
       >
@@ -73,7 +69,7 @@ export function ClientLogoUploader({
       <input
         ref={inputRef}
         type="file"
-        accept=".png,.jpg,.jpeg"
+        accept="image/png,image/jpeg,image/webp"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -96,7 +92,7 @@ export function ClientLogoUploader({
           </button>
         </div>
       ) : (
-        <span className="text-sm text-muted-foreground">{t('Upload Logo')}</span>
+        <span className="text-sm text-muted-foreground">{t('Photo or logo')}</span>
       )}
     </div>
   )

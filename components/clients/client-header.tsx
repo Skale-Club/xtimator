@@ -1,10 +1,10 @@
 'use client'
 
 import { Phone, MessageSquare, Mail } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { ClientAvatarUpload } from '@/components/clients/client-avatar-upload'
 import { ClientDetailActions } from '@/components/clients/client-detail-actions'
 import { ClientNewProjectButton } from '@/components/clients/client-new-project-button'
-import { initialsOf, formatShortDate, localeFor } from '@/components/clients/client-list'
+import { formatShortDate, localeFor } from '@/components/clients/client-list'
 import { formatMoney } from '@/lib/money/currency'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -51,10 +51,7 @@ export function ClientHeader({ client, companyId, currencyCode, totalValue, acti
     >
       <div className="flex flex-col gap-4 p-4 sm:p-6 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar className="size-14 shrink-0 gradient-brand sm:size-16">
-            {client.logo_url && <AvatarImage src={client.logo_url} alt="" />}
-            <AvatarFallback className="bg-transparent text-lg font-semibold text-white">{initialsOf(client.name)}</AvatarFallback>
-          </Avatar>
+          <ClientAvatarUpload clientId={client.id} clientName={client.name} logoUrl={client.logo_url} className="size-14 sm:size-16" />
           <div className="min-w-0 flex-1">
             <h1 className="break-words text-[clamp(22px,3vw,32px)] font-semibold leading-tight tracking-[-0.02em]">{client.name}</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">

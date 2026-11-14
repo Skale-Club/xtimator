@@ -138,7 +138,9 @@ export async function uploadClientLogoAction(clientId: string, formData: FormDat
   // assertWritable() + getActiveCompanyId() company-membership check above is
   // the sole authorization gate for this object.
   const storage = serverStorage(supabase)
-  const path = `${company.id}/clients/${clientId}/logo.webp`
+  // A new file name per upload: the asset proxy serves stored images with long
+  // cache lifetimes, so overwriting logo.webp kept showing the old photo.
+  const path = `${company.id}/clients/${clientId}/logo-${Date.now()}.webp`
   let url: string
   try {
     const webpBuffer = await convertImageToWebp(file)

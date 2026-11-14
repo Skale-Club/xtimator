@@ -296,9 +296,11 @@ describe('lib/actions/client.ts', () => {
 
     const result = (await uploadClientLogoAction(CLIENT_ID, fd)) as { data: { url: string } }
 
-    const expected = `/storage/logos/${COMPANY_ID}/clients/${CLIENT_ID}/logo.webp`
-    expect(result.data.url).toBe(expected)
-    expect(lastPayload('clients').logo_url).toBe(expected)
+    // A fresh file name per upload (cache-busting): logo-<timestamp>.webp
+    const prefix = `/storage/logos/${COMPANY_ID}/clients/${CLIENT_ID}/logo-`
+    expect(result.data.url.startsWith(prefix)).toBe(true)
+    expect(result.data.url.slice(prefix.length)).toMatch(/^\d+\.webp$/)
+    expect(lastPayload('clients').logo_url).toBe(result.data.url)
     expectSameOrigin(result.data.url)
     expect(storageMocks.getPublicUrl).not.toHaveBeenCalled()
   })
