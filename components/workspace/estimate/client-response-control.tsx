@@ -33,6 +33,8 @@ interface ClientResponseControlProps {
   /** Unsaved edits / save in flight: marking would lock content mid-save. */
   disabled?: boolean
   onRecord: (response: ClientResponseValue) => Promise<void>
+  /** Keep the "Client response" label visible on phones (the status sheet has room). */
+  alwaysShowLabel?: boolean
 }
 
 function shortDate(iso: string | null): string {
@@ -53,6 +55,7 @@ export function ClientResponseControl({
   signedOnline,
   disabled,
   onRecord,
+  alwaysShowLabel = false,
 }: ClientResponseControlProps) {
   const { t } = useTranslation()
   const [pending, setPending] = useState<ClientResponseValue | 'clear' | null>(null)
@@ -119,7 +122,7 @@ export function ClientResponseControl({
               // Icon-only on phones: with Photos and Share the pill is wider than a
               // 360px screen and Share would scroll out of view. Stays readable to
               // screen readers via the aria-label above.
-              <span className="max-sm:sr-only">{t('Client response')}</span>
+              <span className={alwaysShowLabel ? undefined : 'max-sm:sr-only'}>{t('Client response')}</span>
             )}
           </Button>
         </DropdownMenuTrigger>

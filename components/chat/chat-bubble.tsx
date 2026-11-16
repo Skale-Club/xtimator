@@ -267,6 +267,7 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
             void openPanel()
           }}
           ref={launcherRef}
+          data-shell="chat-launcher"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

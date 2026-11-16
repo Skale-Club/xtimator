@@ -53,6 +53,7 @@ export function BottomNav({ isDemo }: { isDemo?: boolean }) {
   return (
     <nav
       data-testid="bottom-nav"
+      data-shell="bottom-nav"
       // pb: full safe-area inset left a ~34px dead strip under the buttons on
       // iOS PWA, making them float far above the screen base. Subtract 14px so
       // the bar hugs the base while still clearing the home indicator; max()

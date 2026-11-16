@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { History, Info } from 'lucide-react'
@@ -45,6 +46,10 @@ import { usePaginatedPreview } from './use-paginated-preview'
 import { PaginatedPreview } from './paginated-preview'
 import { DEFAULT_EDIT_LABELS, type EditLabels } from './preview-template/editable'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
+import { useEditorFrameContext } from '@/components/workspace/editor-frame/context'
+import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
+import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
+import { formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
   hasEstimateBeenSentOrViewed,
   type PresentationSettings,
@@ -256,6 +261,13 @@ export function EstimateEditor({
 }: EstimateEditorProps) {
   const router = useRouter()
   const { t } = useTranslation()
+  // Which frame is drawn around the document (components/workspace/editor-frame).
+  // v2: the actions live in the docked bar (portalled into the workspace's
+  // mount point) and the status sheet replaces the pill's response control.
+  // No provider (unit tests, /dev fixtures) means v1: the floating pill.
+  const { frame, dockEl } = useEditorFrameContext()
+  const [statusOpen, setStatusOpen] = useState(false)
+  const openStatus = useCallback(() => setStatusOpen(true), [])
   // Platform-admin debug sheet (AI record of this estimate). Closed by default.
   const [debugOpen, setDebugOpen] = useState(false)
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -829,6 +841,20 @@ export function EstimateEditor({
   handleVersionChangeRef.current = handleVersionChange
 
   const slotSaveStatus = saveStatus === 'dirty' ? 'idle' : (saveStatus as 'idle' | 'saving' | 'saved' | 'error')
+  // v2 top bar: "Try again" on a failed save. Not offered when a retry cannot
+  // help: read-only content, or a conflict waiting for the user's choice (the
+  // conflict toast owns that decision).
+  // Through a ref (like handleVersionChangeRef above): runSave's identity changes
+  // between renders, and an unstable callback in the slot effect's deps would
+  // republish the slot on every render, which re-renders this component: a loop.
+  const runSaveRef = useRef(runSave)
+  runSaveRef.current = runSave
+  const retrySave = useCallback(() => { void runSaveRef.current() }, [])
+  const canRetrySave = !isContentReadOnly && !conflictPending
+  const estimateNumber = formatEstimateNumber({
+    estimate_number: state.estimate_number,
+    estimate_seq: state.estimate_seq,
+  })
 
   useEffect(() => {
     setSlot({
@@ -847,6 +873,16 @@ export function EstimateEditor({
       lastViewedAt: engagementFields.last_viewed_at,
       sentAt: state.sent_at,
       hasPassword: engagementFields.share_password_hash != null,
+      total: state.total,
+      currencyCode: state.currency_code,
+      estimateNumber,
+      createdAt: estimate.created_at,
+      clientResponse: state.client_response,
+      respondedAt: state.responded_at,
+      hasSignature: state.hasSignature,
+      isLocked: isCurrent && locked,
+      onRetrySave: canRetrySave ? retrySave : undefined,
+      onOpenStatus: openStatus,
     })
     return () => setSlot(null)
   }, [
@@ -864,6 +900,18 @@ export function EstimateEditor({
     engagementFields.last_viewed_at,
     engagementFields.share_password_hash,
     state.sent_at,
+    state.total,
+    state.currency_code,
+    estimateNumber,
+    estimate.created_at,
+    state.client_response,
+    state.responded_at,
+    state.hasSignature,
+    isCurrent,
+    locked,
+    canRetrySave,
+    retrySave,
+    openStatus,
   ])
 
   // -------------------------------------------------------------------------
@@ -992,7 +1040,8 @@ export function EstimateEditor({
             editLabels={editLabels}
             // The action bar lives inside the sheet column here, so it centres
             // on the page; "Add section" leads it. Zoom has its own corner box.
-            bottomBar={(leading) => floatingActions(leading)}
+            // v2: the actions are in the docked bar, outside the sheet column.
+            bottomBar={frame === 'v2' ? undefined : (leading) => floatingActions(leading)}
           />
         ) : (
           <EstimateDocument
@@ -1062,7 +1111,42 @@ export function EstimateEditor({
           "Edit with AI" is the one AI entry point for an existing estimate) and
           Link Client moved into the gear panel below. A wide pill overflowed the
           preview horizontally and made the whole document rock side to side. */}
-      {viewMode !== 'page' && floatingActions()}
+      {frame !== 'v2' && viewMode !== 'page' && floatingActions()}
+
+      {/* Editor frame v2: the same actions, docked. The pill's "Client response"
+          control moved into the status sheet (opened from the top bar's chip). */}
+      {frame === 'v2' && isCurrent && dockEl &&
+        createPortal(
+          <EditorDock
+            projectId={projectId}
+            saving={slotSaveStatus === 'saving'}
+            locked={isContentReadOnly}
+            onShare={handleSend}
+            onOpenPhotos={onOpenPhotos}
+            onOpenSettings={gearDisabled ? undefined : () => setSettingsOpen((open) => !open)}
+            settingsButtonRef={settingsGearRef}
+            onOpenDebug={isPlatformAdmin ? () => setDebugOpen(true) : undefined}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+          />,
+          dockEl,
+        )}
+      {frame === 'v2' && (
+        <EstimateStatusSheet
+          open={statusOpen}
+          onOpenChange={setStatusOpen}
+          estimateId={state.id}
+          createdAt={estimate.created_at}
+          sentAt={state.sent_at}
+          viewCount={engagementFields.view_count}
+          lastViewedAt={engagementFields.last_viewed_at}
+          clientResponse={state.client_response}
+          respondedAt={state.responded_at}
+          signedOnline={state.hasSignature}
+          recordDisabled={!isCurrent || state.isDirty || saveStatus === 'saving'}
+          onRecord={handleRecordClientResponse}
+        />
+      )}
 
       {/* Platform-admin only; outside the document stage, so never part of the page view,
           the share page, a PDF or a message. */}

@@ -31,6 +31,24 @@ export interface VersionSlot {
   /** null = never sent — the header hides the whole chip in that case. */
   sentAt?: string | null
   hasPassword?: boolean
+  /** Editor frame v2 (components/workspace/editor-frame) — what the top bar
+   *  shows. Same optional-field convention: undefined until the editor's first
+   *  setSlot() call, and always undefined when no estimate is on screen. */
+  total?: number
+  currencyCode?: string
+  /** Already formatted (formatEstimateNumber). */
+  estimateNumber?: string
+  createdAt?: string
+  clientResponse?: string | null
+  respondedAt?: string | null
+  hasSignature?: boolean
+  /** Content lock on the CURRENT version: delivered, answered or signed. */
+  isLocked?: boolean
+  /** Retries a failed save. Undefined when a retry cannot help (read-only
+   *  content, or a save conflict waiting for the user's choice). */
+  onRetrySave?: () => void
+  /** Opens the status sheet (timeline, client response, engagement). */
+  onOpenStatus?: () => void
 }
 
 interface EstimateVersionCtx {

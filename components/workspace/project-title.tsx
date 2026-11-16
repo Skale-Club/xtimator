@@ -11,15 +11,18 @@ interface ProjectTitleProps {
   projectId: string
   initialName: string
   onRenameSuccess?: (name: string) => void
+  /** 'compact' is the editor top bar's one-line title. */
+  size?: 'display' | 'compact'
 }
 
-export function ProjectTitle({ projectId, initialName, onRenameSuccess }: ProjectTitleProps) {
+export function ProjectTitle({ projectId, initialName, onRenameSuccess, size = 'display' }: ProjectTitleProps) {
   const [name, setName] = useState(initialName)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(initialName)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const { t } = useTranslation()
+  const compact = size === 'compact'
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Focus + select-all when entering edit mode
@@ -98,7 +101,7 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
         disabled={isPending}
         maxLength={200}
         aria-label={t('Project name')}
-        className="text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] bg-transparent border-b border-border focus:border-primary focus:outline-none w-full disabled:opacity-60"
+        className={`${compact ? 'text-[16.5px] md:text-[19px] font-semibold tracking-[-0.01em] leading-tight' : 'text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15]'} bg-transparent border-b border-border focus:border-primary focus:outline-none w-full disabled:opacity-60`}
       />
     )
   }
@@ -110,17 +113,17 @@ export function ProjectTitle({ projectId, initialName, onRenameSuccess }: Projec
           (no hover on mobile) and hover-revealed on desktop. */}
       <h1
         onClick={enterEdit}
-        className="min-w-0 line-clamp-3 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] cursor-pointer"
+        className={compact ? 'min-w-0 truncate text-[16.5px] md:text-[19px] font-semibold tracking-[-0.01em] leading-tight cursor-pointer' : 'min-w-0 line-clamp-3 break-words sm:line-clamp-1 text-[clamp(22px,5.5vw,40px)] font-semibold tracking-[-0.02em] leading-[1.15] cursor-pointer'}
       >
         {name}
       </h1>
       <button
         type="button"
         onClick={enterEdit}
-        className="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+        className={`inline-flex items-center justify-center rounded-md ${compact ? 'p-1' : 'p-1.5'} text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-60 sm:opacity-0 sm:group-hover:opacity-100 shrink-0`}
         aria-label={t('Rename project')}
       >
-        <Pencil className="h-4 w-4" />
+        <Pencil className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
       </button>
     </div>
   )

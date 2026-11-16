@@ -38,6 +38,7 @@ export function MobileHeader({
   return (
     <header
       data-testid="mobile-header"
+      data-shell="mobile-header"
       className="@container/mh sticky top-0 z-40 flex items-center justify-between glass border-b border-[var(--glass-border)] px-4 pb-3 pt-[calc(env(safe-area-inset-top,_0px)_+_0.75rem)] md:hidden"
     >
       {/* Left: the app name, fixed on every page. Page context (breadcrumbs,

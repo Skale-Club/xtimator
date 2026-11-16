@@ -6,6 +6,9 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ProjectHeader } from './project-header'
+import { EditorTopBar } from '@/components/workspace/editor-frame/editor-top-bar'
+import { EditorFrameProvider } from '@/components/workspace/editor-frame/context'
+import { useEditorFrame } from '@/components/workspace/editor-frame/frame'
 import { OverviewTab } from './overview-tab'
 import { PhotosTab } from './photos/photos-tab'
 import { ClientTab } from './client-tab'
@@ -82,6 +85,8 @@ export function ProjectWorkspace({
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(initial)
   const [photosOpen, setPhotosOpen] = useState(false)
+  const frame = useEditorFrame()
+  const [dockEl, setDockEl] = useState<HTMLDivElement | null>(null)
   const [, startTabTransition] = useTransition()
 
   // Sync state when searchParams.tab changes (e.g., redirect from /capture)
@@ -109,6 +114,91 @@ export function ProjectWorkspace({
     })
   }
 
+  const tabContent = (
+    <>
+      {activeTab === 'client' && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => handleSelect('overview')}
+          className="mb-4 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t('Back to estimate')}
+        </Button>
+      )}
+      {activeTab === 'overview' && (
+        <OverviewTab
+          project={project}
+          companyId={project.company_id}
+          companyBrandColor={companyBrandColor}
+          company={company}
+          companyDefaults={companyDefaults}
+          currentEstimate={currentEstimate}
+          allVersions={allVersions}
+          issuedInvoices={issuedInvoices}
+          paymentsEnabled={paymentsEnabled}
+          recordings={recordings}
+          photos={photos}
+          priceBookItems={priceBookItems}
+          companyName={companyName}
+          ownerName={ownerName}
+          estimateTemplate={estimateTemplate}
+          estimateTemplateId={estimateTemplateId}
+          preparedBy={preparedBy}
+          smsDeliveryEnabled={smsDeliveryEnabled}
+          whatsappEnabled={whatsappEnabled}
+          isPlatformAdmin={isPlatformAdmin}
+          onOpenPhotos={() => setPhotosOpen(true)}
+        />
+      )}
+      {activeTab === 'client' && (
+        <div className="space-y-4">
+          <ClientTab project={project} />
+        </div>
+      )}
+    </>
+  )
+
+  const photosDialog = (
+    <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
+      {/* grid-cols-[minmax(0,1fr)]: DialogContent is a grid whose implicit column
+          sizes to its content, so the photo grid / drop-zone buttons used to
+          stretch the dialog wider than the screen. p-4 on a phone gives the
+          photos the room back. */}
+      <DialogContent className="w-[calc(100%-2rem)] max-w-3xl max-h-[85dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto p-4 sm:p-6">
+        <DialogHeader>
+          <DialogTitle>{t('Photos')}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t('View and manage photos captured for this project.')}
+          </DialogDescription>
+        </DialogHeader>
+        <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
+      </DialogContent>
+    </Dialog>
+  )
+
+  if (frame === 'v2') {
+    return (
+      <EditorFrameProvider frame="v2" dockEl={dockEl}>
+        <div data-editor-frame="v2" className="flex min-h-full flex-col">
+          <EditorTopBar project={project} />
+          <div className="min-w-0 flex-1 px-3 pt-3 pb-5 sm:px-5 md:px-6 md:pt-5">{tabContent}</div>
+          {photosDialog}
+          {/* Dock mount point: sticks to the bottom of the scroll area. The estimate
+              editor portals its actions in here (it owns the handlers). Empty when
+              no estimate is on screen, so it collapses. */}
+          <div
+            ref={setDockEl}
+            data-editor-dock
+            data-hide-on-keyboard
+            className="sticky bottom-0 z-30 empty:hidden"
+          />
+        </div>
+      </EditorFrameProvider>
+    )
+  }
+
   return (
     /*
      * Single-column workspace at ALL breakpoints. The old sub-sidebar rail
@@ -126,64 +216,10 @@ export function ProjectWorkspace({
         {/* pt-0: the header's own pb-5 is the gap above the content (top and
             bottom of the title block match). */}
         <div className="px-5 pt-0 pb-6 md:px-6">
-        {activeTab === 'client' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleSelect('overview')}
-            className="mb-4 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t('Back to estimate')}
-          </Button>
-        )}
-        {activeTab === 'overview' && (
-          <OverviewTab
-            project={project}
-            companyId={project.company_id}
-            companyBrandColor={companyBrandColor}
-            company={company}
-            companyDefaults={companyDefaults}
-            currentEstimate={currentEstimate}
-            allVersions={allVersions}
-            issuedInvoices={issuedInvoices}
-            paymentsEnabled={paymentsEnabled}
-            recordings={recordings}
-            photos={photos}
-            priceBookItems={priceBookItems}
-            companyName={companyName}
-            ownerName={ownerName}
-            estimateTemplate={estimateTemplate}
-            estimateTemplateId={estimateTemplateId}
-            preparedBy={preparedBy}
-            smsDeliveryEnabled={smsDeliveryEnabled}
-            whatsappEnabled={whatsappEnabled}
-            isPlatformAdmin={isPlatformAdmin}
-            onOpenPhotos={() => setPhotosOpen(true)}
-          />
-        )}
-        {activeTab === 'client' && (
-          <div className="space-y-4">
-            <ClientTab project={project} />
-          </div>
-        )}
+        {tabContent}
         </div>
 
-        <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
-          {/* grid-cols-[minmax(0,1fr)]: DialogContent is a grid whose implicit column
-              sizes to its content, so the photo grid / drop-zone buttons used to
-              stretch the dialog wider than the screen. p-4 on a phone gives the
-              photos the room back. */}
-          <DialogContent className="w-[calc(100%-2rem)] max-w-3xl max-h-[85dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle>{t('Photos')}</DialogTitle>
-              <DialogDescription className="sr-only">
-                {t('View and manage photos captured for this project.')}
-              </DialogDescription>
-            </DialogHeader>
-            <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
-          </DialogContent>
-        </Dialog>
+        {photosDialog}
 
         {/* Bottom clearance spacer — lives INSIDE the flex-row's containing block
             (same one the sticky rail and sticky floating action bar use), paired
