@@ -107,6 +107,8 @@ describe('useRefineFlow', () => {
     expect(diff.added).toEqual([{ description: 'Install crown molding', unit_price: 25 }])
     expect(diff.removed).toEqual([{ description: 'Haul debris' }])
     expect(diff.fields.summary).toEqual({ old: 'Old summary', new: 'New summary' })
+    // Line subtotal: 100 + 50 before, 140 + 3 * 25 after.
+    expect(result.current.review!.totals).toEqual({ before: 150, after: 215, label: 'subtotal' })
     off()
   })
 

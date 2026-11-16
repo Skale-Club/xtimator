@@ -80,6 +80,9 @@ interface EstimateLanguageSelectorProps {
   /** Compact mode: drop the "Estimate language:" label (globe + select only),
    * for tight spots like the dialog header. */
   compact?: boolean
+  /** 'sentence': "Estimate in <flag> Language" as running text with a borderless
+   * trigger (popup header). 'default' keeps the boxed select. */
+  variant?: 'default' | 'sentence'
 }
 
 export function EstimateLanguageSelector({
@@ -87,8 +90,37 @@ export function EstimateLanguageSelector({
   onChange,
   hint,
   compact = false,
+  variant = 'default',
 }: EstimateLanguageSelectorProps) {
   const { t } = useTranslation()
+  if (variant === 'sentence') {
+    return (
+      <div className="flex items-center gap-1 text-[13px] leading-none">
+        <span className="text-muted-foreground">{t('Estimate in')}</span>
+        <Select value={value} onValueChange={(v) => onChange(v as EstimateLanguage)}>
+          <SelectTrigger
+            size="sm"
+            aria-label={t('Estimate language')}
+            className="h-9 w-auto min-w-0 gap-1.5 rounded-md border-0 bg-transparent px-1.5 text-[13px] font-medium text-primary shadow-none hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent [&_svg:not([class*='text-'])]:text-primary"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.entries(LANGUAGE_LABELS) as [EstimateLanguage, string][]).map(
+              ([lang, label]) => (
+                <SelectItem key={lang} value={lang} className="text-xs">
+                  <span className="flex items-center gap-2">
+                    <LanguageFlag lang={lang} />
+                    {label}
+                  </span>
+                </SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center gap-2">

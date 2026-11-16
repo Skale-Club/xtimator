@@ -370,6 +370,34 @@
     --danger-foreground: 0 0% 100%;
     --danger-muted: 0 93% 94%;
   }
+
+  /* New Xtimate popup only: blue-tinted tokens scoped to the popup surface
+     (components/projects/new-project-dialog.tsx). Light is the base; dark
+     mirrors how the app selects dark (.dark on <html>). Globals stay untouched. */
+  .nx-surface {
+    --background: 0 0% 100%;
+    --muted: 222 55% 96%;
+    --accent: 222 55% 96%;
+    --border: 222 36% 88%;
+    --input: 222 36% 88%;
+    --foreground: 226 45% 10%;
+    --muted-foreground: 224 18% 38%;
+    background-image: radial-gradient(120% 70% at 50% 0%, hsl(var(--primary) / 0.09), transparent 62%);
+  }
+  .dark .nx-surface,
+  [data-theme="admin-dark"] .nx-surface,
+  [data-theme="dark-auth"] .nx-surface {
+    --background: 226 32% 9.5%;
+    --card: 226 32% 9.5%;
+    --popover: 225 30% 15%;
+    --muted: 225 30% 15%;
+    --accent: 225 30% 15%;
+    --border: 225 28% 22%;
+    --input: 225 28% 22%;
+    --foreground: 220 40% 98%;
+    --muted-foreground: 222 22% 72%;
+    background-image: radial-gradient(120% 70% at 50% 0%, hsl(var(--primary) / 0.2), transparent 62%);
+  }
 }
 
 @layer base {
@@ -913,6 +941,17 @@ html[data-keyboard='open'] [data-slot='sheet-content']:is([data-side='left'], [d
   top: var(--app-vv-top, 0px);
   bottom: auto;
   height: var(--app-vvh, 100dvh);
+}
+/* New Xtimate / Edit with AI popup (components/projects/new-project-dialog.tsx):
+   on phones it is a bottom sheet, so while the keyboard is up it sits on top of
+   it (bottom: --app-kb) instead of being centred like other dialogs. The extra
+   class beats the generic dialog rule above. From sm up the generic rule applies. */
+@media (max-width: 639px) {
+  html[data-keyboard='open'] [data-slot='dialog-content'].nx-surface {
+    top: auto;
+    bottom: var(--app-kb, 0px);
+    max-height: calc(var(--app-vvh, 100dvh) - 1rem);
+  }
 }
 /* Keyboard-height scroll room at the end of the page, so content that fits
    the screen exactly can still scroll up above the keyboard (body is a flex

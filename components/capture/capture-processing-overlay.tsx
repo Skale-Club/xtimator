@@ -199,8 +199,13 @@ export function CaptureProcessingOverlay({
       aria-label={t('Estimate progress')}
     >
       <div
-        className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-        style={{ width: `${Math.round(fraction * 1000) / 10}%` }}
+        className={`h-full rounded-full transition-[width] duration-500 ease-out ${layout === 'popup' ? '' : 'bg-primary'}`}
+        style={{
+          width: `${Math.round(fraction * 1000) / 10}%`,
+          ...(layout === 'popup'
+            ? { backgroundImage: 'linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)))' }
+            : null),
+        }}
         data-testid="capture-progress-fill"
       />
     </div>
@@ -220,7 +225,11 @@ export function CaptureProcessingOverlay({
         <button
           type="button"
           onClick={onContinueInBackground}
-          className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+          className={
+            layout === 'popup'
+              ? 'h-12 w-full rounded-full bg-primary/10 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/15'
+              : 'text-xs font-medium text-primary underline-offset-4 hover:underline'
+          }
           data-testid="capture-continue-in-background"
         >
           {t('Continue in the background')}
@@ -235,12 +244,12 @@ export function CaptureProcessingOverlay({
     // at the bottom, only the checklist scrolls on short screens.
     return (
       <div className={containerClass} data-testid="capture-processing-overlay">
-        <div className="shrink-0 space-y-4 px-4 pt-5 pb-4">
+        <div className="shrink-0 space-y-4 px-5 pt-3 pb-4">
           {header}
           {bar}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{checklist}</div>
-        {footer && <div className="shrink-0 space-y-2 border-t px-4 py-3 text-center">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{checklist}</div>
+        {footer && <div className="shrink-0 space-y-2.5 border-t border-border px-5 pt-3 pb-5 text-center">{footer}</div>}
       </div>
     )
   }

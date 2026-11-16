@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { getEstimateByIdAction } from '@/lib/actions/estimate'
 import { showBillingBlockToast } from '@/lib/billing/block-toast'
 import { requestRefine, type RefineInput } from '@/lib/capture/refine-client'
-import { mergeRefinement, type MergeCurrentContent, type RefineDiff } from '@/lib/estimate/refine-merge'
+import { mergeRefinement, sectionsSubtotal, type MergeCurrentContent, type RefineDiff } from '@/lib/estimate/refine-merge'
 import { getRefineEditor, storePendingRefinement } from '@/lib/estimate/refine-bridge'
 import type { EditorSection, RefinementPayload } from '@/components/workspace/estimate/use-estimate-reducer'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -25,6 +25,12 @@ export interface RefineReviewState {
   diff: RefineDiff
   instruction: string
   currencyCode: string
+  /**
+   * Line-items subtotal before and after the merge. Only the subtotal: the tax
+   * rate and global discount are not available here, so a grand total would be
+   * wrong. Absent when the numbers cannot be compared.
+   */
+  totals?: { before: number; after: number; label: 'total' | 'subtotal' }
 }
 
 interface Options {
@@ -114,8 +120,18 @@ export function useRefineFlow({ estimateId, projectId, onDone, onApplied }: Opti
           current = persisted.content
           currencyCode = persisted.currencyCode
         }
-        const { diff } = mergeRefinement(current, result.refined)
-        setReview({ refined: result.refined, diff, instruction: result.instruction, currencyCode })
+        const { diff, mergedSections } = mergeRefinement(current, result.refined)
+        setReview({
+          refined: result.refined,
+          diff,
+          instruction: result.instruction,
+          currencyCode,
+          totals: {
+            before: sectionsSubtotal(current.sections),
+            after: sectionsSubtotal(mergedSections),
+            label: 'subtotal',
+          },
+        })
         setPhase('review')
       } catch {
         toast.error(t('Something went wrong. Please try again.'))

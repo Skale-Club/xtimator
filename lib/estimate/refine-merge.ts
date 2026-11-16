@@ -283,6 +283,24 @@ function sectionSubtotal(items: EditorItem[]): number {
   return items.reduce((sum, i) => sum + i.total, 0)
 }
 
+/**
+ * Line-items subtotal (quantity * unit price at cent precision, minus the line
+ * discount), computed the same way buildMergedItem derives a line total. Reads
+ * quantity/unit_price/discount rather than the stored `total`, so a current row
+ * and a merged row are always measured the same way. Excludes global discount
+ * and tax, which the refine flow has no data for.
+ */
+export function sectionsSubtotal(sections: Array<{ items: Array<{ quantity: number; unit_price: number; discount?: number | null }> }>): number {
+  let cents = 0
+  for (const section of sections) {
+    for (const item of section.items) {
+      const line = Math.round(item.quantity * item.unit_price * 100) / 100 - (item.discount ?? 0)
+      cents += Math.round(line * 100)
+    }
+  }
+  return cents / 100
+}
+
 // ---------------------------------------------------------------------------
 // mergeRefinement
 // ---------------------------------------------------------------------------
