@@ -796,7 +796,7 @@ export function PaginatedPreview({
             Zero height so it adds no space under the last page. */}
         <div
           className="pointer-events-none sticky z-40 h-0"
-          style={{ width: LETTER_WIDTH_PX * zoom, bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+          style={{ width: LETTER_WIDTH_PX * zoom, bottom: 'calc(1rem + env(safe-area-inset-bottom) + var(--editor-dock-h, 0px))' }}
         >
           <div className="absolute bottom-0 right-0">{zoomControl}</div>
         </div>

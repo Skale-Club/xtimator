@@ -13,7 +13,7 @@ import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { getWhatsAppAccountStatus } from '@/lib/whatsapp/account-registry'
 import { ProjectWorkspace } from '@/components/workspace/project-workspace'
-import { ProjectHeader } from '@/components/workspace/project-header'
+import { WorkspaceSkeletonFrame, LegacyFrameOnly } from '@/components/workspace/editor-frame/workspace-skeleton-frame'
 import { ProjectPageShell } from '@/components/workspace/project-page-shell'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
@@ -268,11 +268,7 @@ async function ProjectTabs({
 
 function ProjectWorkspaceSkeleton({ project }: { project: Awaited<ReturnType<typeof getProjectById>> & {} }) {
   return (
-    <div className="relative flex min-h-full flex-row gap-0 items-start">
-      {/* Content column — real header renders instantly while tabs stream */}
-      <div className="min-w-0 flex-1">
-        <ProjectHeader project={project} />
-
+    <WorkspaceSkeletonFrame project={project}>
         {/* Content skeleton — mirrors OverviewTab → EstimateEditor document */}
         <div className="px-5 py-6 md:px-6 space-y-4">
         <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -329,6 +325,7 @@ function ProjectWorkspaceSkeleton({ project }: { project: Awaited<ReturnType<typ
         {/* Floating action bar skeleton — mirrors EstimateFloatingActions pill
             (fixed + viewport-centered on desktop, matching Pill's positioning
             so nothing jumps on hydration) */}
+        <LegacyFrameOnly>
         <div className="fixed inset-x-0 bottom-2 z-40 hidden lg:flex justify-center pointer-events-none">
           <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 shadow-xl backdrop-blur">
             <Skeleton className="h-7 w-24 rounded-full" />
@@ -336,8 +333,8 @@ function ProjectWorkspaceSkeleton({ project }: { project: Awaited<ReturnType<typ
             <Skeleton className="h-7 w-28 rounded-full" />
           </div>
         </div>
+        </LegacyFrameOnly>
         </div>
-      </div>
-    </div>
+    </WorkspaceSkeletonFrame>
   )
 }

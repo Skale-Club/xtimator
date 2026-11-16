@@ -137,7 +137,7 @@ export default async function AppShellLayout({
                   credits={{ percentUsed: supportPercentUsed, balance: supportBalance }}
                 />
                 <SupportModeBanner companyName={supportCompany.name} adminEmail={adminEmail} />
-                <main className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+                <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
                   {children}
                 </main>
               </div>
@@ -270,7 +270,7 @@ export default async function AppShellLayout({
             {paywall.state !== 'active' && (
               <PaywallBanner state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
             )}
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
+            <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               {children}
             </main>
           </div>
