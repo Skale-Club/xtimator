@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeRefinement, matchUnchangedLines, type MergeCurrentContent } from '@/lib/estimate/refine-merge'
+import { mergeRefinement, matchUnchangedLines, sectionsSubtotal, type MergeCurrentContent } from '@/lib/estimate/refine-merge'
 import type { EditorItem, EditorSection, RefinementPayload } from '@/components/workspace/estimate/use-estimate-reducer'
 
 // Phase 170 Plan 01 (REFINE-01/02) — closes audit § G2/G3.
@@ -607,5 +607,20 @@ describe('matchUnchangedLines', () => {
       { description: 'Trim', quantity: 1, unit_price: 6 },
     ]
     expect(matchUnchangedLines(cur, ref)).toEqual([0, -1, -1])
+  })
+})
+
+describe('sectionsSubtotal', () => {
+  it('sums quantity * unit_price minus the line discount, at cent precision', () => {
+    expect(
+      sectionsSubtotal([
+        { items: [{ quantity: 3, unit_price: 0.1 }, { quantity: 2, unit_price: 10, discount: 5 }] },
+        { items: [{ quantity: 1, unit_price: 100 }] },
+      ])
+    ).toBe(115.3)
+  })
+
+  it('is 0 for no sections', () => {
+    expect(sectionsSubtotal([])).toBe(0)
   })
 })

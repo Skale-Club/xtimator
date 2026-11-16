@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { X } from 'lucide-react'
@@ -20,10 +20,10 @@ import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { uploadViaTicket } from '@/lib/storage/browser-upload'
 import { savePendingCapture, getPendingCapture, deletePendingCapture, isAvailable as isBlobStoreAvailable, type PendingCapture } from '@/lib/capture/blob-store'
-import { getSupportedAudioMimeType } from '@/lib/utils/media-format'
+import { getSupportedAudioMimeType, formatDuration } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
-import { Camera, Sparkles, Pause, Play } from 'lucide-react'
+import { Camera, Mic, Plus, Sparkles, Pause, Play, Square, Trash2 } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -45,6 +45,7 @@ import { canOfferPushNow, enableBrowserPush } from '@/lib/notifications/push-cli
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { useRefineFlow } from '@/components/capture/use-refine-flow'
 import { RefineReview } from '@/components/capture/refine-review'
+import { RefineWorking } from '@/components/capture/refine-working'
 import { REFINE_MAX_PHOTOS } from '@/lib/capture/refine-client'
 import {
   AlertDialog,
@@ -148,6 +149,25 @@ const SUPPORTS_PAUSE =
   typeof window !== 'undefined' &&
   typeof MediaRecorder !== 'undefined' &&
   typeof MediaRecorder.prototype.pause === 'function'
+
+/**
+ * What recorder.onstop should do with a finished take. Pure so the discard rule
+ * is testable without a real MediaRecorder: a discarded take must never reach
+ * the pipeline, IndexedDB or the "too short" toast.
+ */
+export type RecorderStopAction = 'discard' | 'too-short' | 'keep-for-refine' | 'run-pipeline'
+export function resolveRecorderStop(opts: {
+  discarded: boolean
+  refineMode: boolean
+  blobSize: number
+  elapsedMs: number
+}): RecorderStopAction {
+  if (opts.discarded) return 'discard'
+  if (opts.refineMode) {
+    return opts.blobSize === 0 || opts.elapsedMs < MIN_RECORDING_MS ? 'too-short' : 'keep-for-refine'
+  }
+  return 'run-pipeline'
+}
 
 // 260707-lyq (P4 Wave 2): pollJob (hooks/use-job-status.ts) rethrows a signal-abort
 // as a plain Error with message 'Aborted' — NOT a DOMException named 'AbortError'.
@@ -410,6 +430,12 @@ export function CaptureRecorder({
   const accumulatedMsRef = useRef<number>(0)
   const segmentStartRef = useRef<number | null>(null)
   const warnedRef = useRef<boolean>(false)
+  // Set by Discard just before MediaRecorder.stop(): recorder.onstop reads it
+  // (via resolveRecorderStop) to drop the take instead of dispatching it.
+  const discardedRef = useRef(false)
+  // Popup composer (isHorizontal): needs-details is an inline card, not a panel.
+  const inlineNeedsDetailsRef = useRef(false)
+  inlineNeedsDetailsRef.current = variant === 'popup' && mode === undefined
   const abortControllerRef = useRef<AbortController>(new AbortController())
   const photoInputRef = useRef<HTMLInputElement>(null)
   // Wall-clock elapsed mirror (RESEARCH Pattern 4 / 260707-grq): runPipeline reads
@@ -887,6 +913,10 @@ export function CaptureRecorder({
         questions: outcome.questions,
         fallbackMessage: vagueMessage,
       })
+      // The popup composer shows the questions inline above the text box, so
+      // go straight back to it. The legacy route keeps the panel (and its
+      // "Record again" button) instead.
+      if (inlineNeedsDetailsRef.current) setStage('idle')
       setAudioBlob(null)
       recordingIdRef.current = null
       attemptIdRef.current = null
@@ -947,8 +977,8 @@ export function CaptureRecorder({
   // Handle photo file selection. Each accepted file gets an immediate
   // 'uploading' thumbnail placeholder that flips to 'done' (with its Photo) or
   // 'error'. Enforces the MAX_PHOTOS hard cap with a toast on overflow.
-  const handlePhotoFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+  // Shared by the file input and by drag-and-drop onto the composer.
+  const addPhotoFiles = useCallback(async (files: ArrayLike<File> | null | undefined) => {
     if (!files || files.length === 0) return
 
     const images = Array.from(files).filter(f => f.type.startsWith('image/'))
@@ -1034,6 +1064,11 @@ export function CaptureRecorder({
 
     if (photoInputRef.current) photoInputRef.current.value = ''
   }, [projectId, t])
+
+  const handlePhotoFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => addPhotoFiles(e.target.files),
+    [addPhotoFiles],
+  )
 
   // Remove a photo from the strip; revoke its preview URL and best-effort
   // delete the server-side row/file once it was successfully created.
@@ -1315,6 +1350,7 @@ export function CaptureRecorder({
     accumulatedMsRef.current = 0
     setIsPaused(false)
     warnedRef.current = false
+    discardedRef.current = false
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -1344,13 +1380,22 @@ export function CaptureRecorder({
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
-        // Refine mode: keep the take for the "Preview changes" submit. No IDB
+        const action = resolveRecorderStop({
+          discarded: discardedRef.current,
+          refineMode: refineModeRef.current,
+          blobSize: blob.size,
+          elapsedMs: elapsedMsRef.current,
+        })
+        discardedRef.current = false
+        // Discarded by the user: no blob kept, nothing persisted or dispatched, no toast.
+        if (action === 'discard') return
+        // Refine mode: keep the take for the "See changes" submit. No IDB
         // persist (its resume path generates) and no pipeline dispatch.
-        if (refineModeRef.current) {
-          if (blob.size === 0 || elapsedMsRef.current < MIN_RECORDING_MS) {
-            toast.error(t('Recording too short — please record at least a few seconds describing the job.'))
-            return
-          }
+        if (action === 'too-short') {
+          toast.error(t('Recording too short — please record at least a few seconds describing the job.'))
+          return
+        }
+        if (action === 'keep-for-refine') {
           setAudioBlob(blob)
           return
         }
@@ -1410,13 +1455,40 @@ export function CaptureRecorder({
   }, [tick, runPipeline])
 
   const handleToggleRecording = useCallback(() => {
-    // design-decision: no in-recording cancel — see plan 18-02 acceptance
     if (isRecording) {
       stopRecording()
     } else {
       startRecording()
     }
   }, [isRecording, startRecording, stopRecording])
+
+  // Throw the take away: stop the recorder and release the microphone like
+  // stopRecording, but flag the take first so recorder.onstop drops it. Unlike
+  // stopRecording this leaves `stage` alone (nothing is dispatched).
+  const discardRecording = useCallback(() => {
+    const rec = mediaRecorderRef.current
+    if (!rec || rec.state === 'inactive') return
+    discardedRef.current = true
+    rec.stop()
+    if (tickIntervalRef.current) {
+      clearInterval(tickIntervalRef.current)
+      tickIntervalRef.current = null
+    }
+    streamRef.current?.getTracks().forEach(tr => tr.stop())
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+    chunksRef.current = []
+    accumulatedMsRef.current = 0
+    segmentStartRef.current = null
+    elapsedMsRef.current = 0
+    setElapsedMs(0)
+    setAnalyser(null)
+    setIsRecording(false)
+    setIsPaused(false)
+    toast(t('Recording discarded'))
+  }, [t])
 
   // Create a blank estimate then navigate — used by "Edit manually" so the user
   // lands on the EstimateEditor instead of the empty-state card (which has a
@@ -1501,21 +1573,17 @@ export function CaptureRecorder({
         <RefineReview
           diff={refine.review.diff}
           currencyCode={refine.review.currencyCode}
+          totals={refine.review.totals}
           applying={refine.phase === 'applying'}
           onApply={() => void refine.apply()}
           onDiscard={refine.discard}
         />
       ) : showRecorderUI && refineMode && refineBusy ? (
-        <div className="flex flex-1 min-h-[260px] flex-col items-center justify-center gap-3 p-6" data-testid="refine-busy">
-          <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
-          <p className="text-sm text-muted-foreground">
-            {refine.phase === 'saving' ? t('Saving your latest edits...') : t('Working out the changes...')}
-          </p>
-        </div>
+        <RefineWorking phase={refine.phase === 'saving' ? 'saving' : 'refining'} />
       ) : showRecorderUI ? (
         <>
           {refineMode && (
-            <p className="px-4 pt-3 text-xs text-muted-foreground" data-testid="refine-mode-hint">
+            <p className="mx-5 mt-1 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] text-muted-foreground" data-testid="refine-mode-hint">
               {t('This will update the current estimate. You review the changes before they are applied.')}
             </p>
           )}
@@ -1549,6 +1617,7 @@ export function CaptureRecorder({
             progress={progress}
             onToggle={handleToggleRecording}
             onPause={isPaused ? resumeRecording : pauseRecording}
+            onDiscard={discardRecording}
             // Multi-modal props
             descriptionText={descriptionText}
             setDescriptionText={setDescriptionText}
@@ -1558,6 +1627,7 @@ export function CaptureRecorder({
             onRemovePhoto={handleRemovePhoto}
             photoInputRef={photoInputRef}
             onPhotoFileChange={handlePhotoFileChange}
+            onPhotoFiles={addPhotoFiles}
             hasAnyInput={hasAnyInput}
             onGenerate={refineMode ? handleRefineSubmit : handleGenerate}
             refineMode={refineMode}
@@ -1572,6 +1642,7 @@ export function CaptureRecorder({
             // Horizontal layout: popup with no mode lock
             isHorizontal={isPopup && mode === undefined}
             onStartBlank={onStartBlank}
+            needsDetails={inlineNeedsDetailsRef.current ? needsDetailsInfo : null}
           />
         </>
       ) : isPopup ? (
@@ -1582,12 +1653,13 @@ export function CaptureRecorder({
         // tall). `overflow-y-auto` keeps a tall photos-mode checklist inside
         // the Dialog's max-height on short phones.
         // flex-col so the processing view can pin its header/footer and the
-        // failure / needs-details panels are centered in the dialog body.
+        // failure panel spans the dialog body. (Needs-details never lands here:
+        // the popup composer shows it inline, see inlineNeedsDetailsRef.)
         <div className="relative flex flex-1 min-h-[260px] flex-col overflow-y-auto">
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
-          {!failedAt && !needsDetailsInfo && (
+          {!failedAt && (
             <CaptureProcessingOverlay
               layout="popup"
               stage={stage}
@@ -1606,31 +1678,14 @@ export function CaptureRecorder({
             />
           )}
           {failedAt && (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <div className="w-full max-w-md">
-                <CaptureFailure
-                  errorMessage={errorMessage ?? t('Something went wrong')}
-                  retriesUsed={retriesUsed}
-                  onRetry={hasAnyInput ? handleRetry : undefined}
-                  onEditManually={handleEditManually}
-                  billingBlock={billingBlock ?? undefined}
-                />
-              </div>
-            </div>
-          )}
-          {/* QUICK-psh-02: needs-details panel — mutually exclusive with the
-              overlay/failure surfaces above (failedAt never coincides with a
-              needs_details outcome). */}
-          {!failedAt && needsDetailsInfo && (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <div className="w-full max-w-md">
-                <CaptureNeedsDetails
-                  reason={needsDetailsInfo.reason}
-                  questions={needsDetailsInfo.questions}
-                  fallbackMessage={needsDetailsInfo.fallbackMessage}
-                  onRecordAgain={handleNeedsDetailsRecordAgain}
-                />
-              </div>
+            <div className="flex flex-1 flex-col">
+              <CaptureFailure
+                errorMessage={errorMessage ?? t('Something went wrong')}
+                retriesUsed={retriesUsed}
+                onRetry={hasAnyInput ? handleRetry : undefined}
+                onEditManually={handleEditManually}
+                billingBlock={billingBlock ?? undefined}
+              />
             </div>
           )}
         </div>
@@ -1700,8 +1755,11 @@ export function CaptureRecorder({
   )
 }
 
-// RecorderBody — the visual recorder (waveform + timer + ring + mic button + inputs)
-interface RecorderBodyProps {
+
+// RecorderBody — the visual recorder (waveform + timer + mic button + inputs).
+// The popup composer (isHorizontal) and the stacked layout are separate
+// components so each keeps its own hooks.
+export interface RecorderBodyProps {
   analyser: AnalyserNode | null
   isRecording: boolean
   // 260707-ru5: pause state (popup-only feature — see onPause below)
@@ -1711,8 +1769,10 @@ interface RecorderBodyProps {
   progress: number
   onToggle: () => void
   // 260707-ru5: toggles pause/resume — resumeRecording when isPaused, else
-  // pauseRecording. Only rendered (isHorizontal FAB bar) when SUPPORTS_PAUSE.
+  // pauseRecording. Only rendered in the popup dock when SUPPORTS_PAUSE.
   onPause: () => void
+  // Throws the current take away (popup dock, recording view).
+  onDiscard?: () => void
   // Multi-modal props
   descriptionText: string
   setDescriptionText: React.Dispatch<React.SetStateAction<string>>
@@ -1722,6 +1782,8 @@ interface RecorderBodyProps {
   onRemovePhoto: (id: string) => void
   photoInputRef: React.RefObject<HTMLInputElement | null>
   onPhotoFileChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>
+  // Image files dropped onto the popup composer; same path as the file input.
+  onPhotoFiles?: (files: ArrayLike<File>) => Promise<void>
   hasAnyInput: boolean
   onGenerate: () => Promise<void>
   // Refine mode (Edit with AI on an existing estimate)
@@ -1734,236 +1796,365 @@ interface RecorderBodyProps {
   setEstimateLanguage: (lang: EstimateLanguage) => void
   // Single-modality lock — undefined renders the unified layout
   mode?: CaptureMode
-  // Horizontal 2-column layout (popup + unified mode)
+  // Popup composer (popup + unified mode)
   isHorizontal: boolean
   onStartBlank?: () => Promise<void>
+  // Popup composer: the AI's follow-up questions from a needs-details outcome,
+  // shown as an inline card above the text box until the next attempt starts.
+  needsDetails?: { reason?: string; questions?: string[]; fallbackMessage: string } | null
 }
 
-function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorClass, progress, onToggle, onPause, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoItems, onRemovePhoto, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, refineMode = false, hasAudio = false, onClearAudio, onRegenerate, estimateLanguage, setEstimateLanguage, mode, isHorizontal, onStartBlank }: RecorderBodyProps) {
+export function RecorderBody(props: RecorderBodyProps) {
+  return props.isHorizontal ? <PopupBody {...props} /> : <StackedBody {...props} />
+}
+
+const PRIMARY_GRADIENT = { backgroundImage: 'linear-gradient(135deg, hsl(219 92% 65%), hsl(228 84% 54%))' }
+const ROUND_BUTTON =
+  'relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/15 disabled:pointer-events-none disabled:opacity-50 sm:h-[50px] sm:w-[50px]'
+const PRIMARY_BUTTON =
+  'relative flex h-14 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-[18px] text-base font-semibold text-white shadow-[0_10px_24px_-10px_hsl(224_86%_50%/0.8)] transition-opacity hover:opacity-90 sm:h-[50px] sm:text-[15px]'
+const TIP_ROTATE_MS = 4200
+const TEXTAREA_MAX_PX = 172
+
+// SSR-safe matchMedia subscription (false on the server and where matchMedia is missing).
+function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {}
+      const list = window.matchMedia(query)
+      list.addEventListener('change', onChange)
+      return () => list.removeEventListener('change', onChange)
+    },
+    () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false),
+    () => false,
+  )
+}
+
+function PopupBody({
+  analyser, isRecording, isPaused, elapsedMs, onToggle, onPause, onDiscard,
+  descriptionText, setDescriptionText, isUploadingPhotos, photoItems, onRemovePhoto,
+  photoInputRef, onPhotoFileChange, onPhotoFiles, hasAnyInput, onGenerate,
+  refineMode = false, hasAudio = false, onClearAudio, onRegenerate, onStartBlank, needsDetails,
+}: RecorderBodyProps) {
   const { t } = useTranslation()
+  const isSm = useMediaQuery('(min-width: 640px)')
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [tipIndex, setTipIndex] = useState(0)
 
-  // Unified layout — responsive: stacked on mobile, 2-column on sm+
-  if (isHorizontal) {
-    // For the mobile popup redesign: immersive glassmorphism layout.
-    // Layout is a plain flex column (canvas -> photo strip -> action bar) so
-    // no region can sit on top of another. The canvas, strip and bar used to
-    // be absolutely positioned with fixed offsets (pb-32, bottom-[88px],
-    // pb-[196px]) that assumed a single row of photos and a tall dialog: a
-    // second row of thumbnails covered the textarea and the recording
-    // waveform, and on short screens the "Listening..." pill was clipped.
-    return (
-      <div className="flex flex-col flex-1 relative overflow-hidden bg-background">
+  const needsShown = !!needsDetails && !isRecording
+  const hasText = descriptionText.trim().length > 0
+  const photoCount = photoItems.length
+  const maxPhotos = refineMode ? REFINE_MAX_PHOTOS : MAX_PHOTOS
 
-        {/* Canvas: the textarea when idle, the recording view on top of it
-            while recording. It owns all the space above the photo strip and
-            the action bar, so the recording view only ever covers the canvas.
-            Its minimum height is what the recording view needs (pill + timer
-            + waveform) and no more, so recording shows no dead band above the
-            pill, and the popup does not change height when recording starts
-            (the record button stays under the thumb). */}
-        <div className="relative flex flex-col flex-1 min-h-[220px]">
-          <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-4">
+  // Grow with the content up to TEXTAREA_MAX_PX, then scroll. Re-run when the
+  // textarea remounts after a recording.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_PX)}px`
+  }, [descriptionText, isRecording])
+
+  // Rotate the dictation tips while actually recording; reduced motion pins the first.
+  useEffect(() => {
+    if (!isRecording || isPaused || reducedMotion) return
+    const id = setInterval(() => setTipIndex((i) => (i + 1) % 4), TIP_ROTATE_MS)
+    return () => clearInterval(id)
+  }, [isRecording, isPaused, reducedMotion])
+
+  const tips = [
+    t('Say the measurements: length, area, quantity'),
+    t('Mention materials and brands, if the client has a preference'),
+    t('Mention the deadline and any difficult access'),
+    t('Say what the client will provide'),
+  ]
+
+  const placeholder = refineMode
+    ? t('What do you want to change in this estimate?')
+    : needsShown
+      ? t('Answer here or tap to talk...')
+      : isSm
+        ? t('Describe the job, or drop photos here...')
+        : t('Talk or type the job...')
+
+  // The camera while recording: pause first (the picker can interrupt the mic
+  // on iOS), tell the person, then open the picker. Without pause support the
+  // button is disabled while recording.
+  const openPhotoPicker = () => {
+    if (isRecording) {
+      if (!SUPPORTS_PAUSE) return
+      if (!isPaused) {
+        onPause()
+        toast(t('Recording paused while you pick photos'))
+      }
+    }
+    photoInputRef.current?.click()
+  }
+  const cameraDisabled = isUploadingPhotos || photoCount >= MAX_PHOTOS || (isRecording && !SUPPORTS_PAUSE)
+  const canAddTile = !cameraDisabled && photoCount < maxPhotos
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && hasAnyInput && !isRecording) {
+      e.preventDefault()
+      void onGenerate()
+    }
+  }
+
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+  const dropProps = onPhotoFiles
+    ? {
+        onDragOver: (e: React.DragEvent) => { if (hasFiles(e)) { e.preventDefault(); setDragging(true) } },
+        onDragLeave: () => setDragging(false),
+        onDrop: (e: React.DragEvent) => {
+          if (!hasFiles(e)) return
+          e.preventDefault()
+          setDragging(false)
+          void onPhotoFiles(e.dataTransfer.files)
+        },
+      }
+    : {}
+
+  const carry: string[] = []
+  if (hasText) carry.push(t('the typed text'))
+  if (photoCount > 0) carry.push(`${photoCount} ${photoCount === 1 ? t('photo') : t('photos')}`)
+
+  const strip = photoCount > 0 && (
+    <PhotoThumbnailGrid
+      items={photoItems}
+      onRemove={onRemovePhoto}
+      singleRow
+      max={maxPhotos}
+      onAdd={canAddTile ? openPhotoPicker : undefined}
+    />
+  )
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className={cn(
+          'relative flex min-h-[196px] flex-1 flex-col gap-2.5 overflow-y-auto px-5 pt-1 pb-0.5 transition-colors sm:min-h-[214px]',
+          dragging && 'bg-primary/5',
+        )}
+        {...dropProps}
+      >
+        {isRecording ? (
+          <>
+            <div className="flex items-center justify-between pt-1">
+              <div
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold uppercase leading-none tracking-[0.09em]',
+                  isPaused ? 'bg-amber-500/15 text-amber-500' : 'bg-red-500/10 text-red-500',
+                )}
+                data-testid="capture-recording-status"
+              >
+                <span
+                  className={cn('h-[7px] w-[7px] rounded-full bg-current', !isPaused && 'motion-safe:animate-pulse')}
+                  aria-hidden
+                />
+                {isPaused ? t('Paused') : t('Listening')}
+              </div>
+              <button
+                type="button"
+                onClick={onDiscard}
+                className="inline-flex items-center gap-1.5 px-1 py-2.5 text-[13px] font-medium leading-none text-muted-foreground transition-colors hover:text-foreground"
+                data-testid="capture-discard"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+                {t('Discard')}
+              </button>
+            </div>
+            <div className="flex items-baseline justify-center gap-2.5">
+              <CaptureTimer
+                elapsedMs={elapsedMs}
+                className={cn('text-[46px] font-semibold leading-none tracking-[-0.025em] sm:text-[52px]', isPaused && 'text-muted-foreground')}
+              />
+              <small className="text-[13px] tabular-nums text-muted-foreground">
+                {t('max.')} {formatDuration(HARD_CAP_MS / 1000)}
+              </small>
+            </div>
+            <div className="w-full shrink-0">
+              <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={isSm ? 60 : 52} />
+            </div>
+            <p className="m-0 min-h-[18px] text-center text-[13px] text-muted-foreground">
+              <b className="mr-1.5 font-semibold text-primary">{t('Tip')}</b>
+              <span>{tips[reducedMotion ? 0 : tipIndex]}</span>
+            </p>
+            {carry.length > 0 && (
+              <p className="m-0 text-center text-[12.5px] text-muted-foreground/80">
+                {t('Goes with the recording:')} {carry.join(` ${t('and')} `)}
+              </p>
+            )}
+            {strip}
+          </>
+        ) : (
+          <>
+            {needsDetails && (
+              <CaptureNeedsDetails
+                variant="inline"
+                reason={needsDetails.reason}
+                questions={needsDetails.questions}
+                fallbackMessage={needsDetails.fallbackMessage}
+              />
+            )}
             <textarea
+              ref={textareaRef}
               value={descriptionText}
-              onChange={e => setDescriptionText(e.target.value)}
-              placeholder={t('Describe the job here...')}
-              className="flex-1 min-h-[96px] w-full resize-none border-none bg-transparent text-base sm:text-lg placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 leading-relaxed"
+              onChange={(e) => setDescriptionText(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder={placeholder}
+              rows={2}
+              className="block min-h-[62px] max-h-[172px] w-full flex-none resize-none overflow-y-auto border-0 bg-transparent py-1.5 text-[17px] leading-[1.45] caret-primary outline-none placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0 sm:min-h-24"
               data-testid="capture-description"
             />
-            {refineMode && !isRecording && (
-              <div className="mt-3 flex shrink-0 flex-wrap items-center gap-2 text-xs">
-                {hasAudio && (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-primary"
-                    data-testid="refine-voice-chip"
+            {refineMode && hasAudio && (
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className="inline-flex items-center gap-2 rounded-full bg-primary/10 py-1.5 pl-3 pr-1.5 text-[13px] font-medium leading-none text-primary"
+                  data-testid="refine-voice-chip"
+                >
+                  <Mic className="h-3.5 w-3.5" aria-hidden />
+                  {t('Voice note')}
+                  <button
+                    type="button"
+                    onClick={onClearAudio}
+                    aria-label={t('Remove voice note')}
+                    className="flex h-6 w-6 items-center justify-center rounded-full opacity-80 transition-opacity hover:opacity-100"
                   >
-                    {t('Voice note ready')}
-                    <button
-                      type="button"
-                      onClick={onClearAudio}
-                      aria-label={t('Remove voice note')}
-                      className="opacity-70 hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </span>
+              </div>
+            )}
+            {!needsShown && refineMode && (
+              <div className="mt-auto flex flex-col text-[13px] text-muted-foreground">
                 <button
                   type="button"
                   onClick={onRegenerate}
                   disabled={!hasAnyInput}
-                  className="text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50 disabled:no-underline"
+                  className="pt-2 pb-1.5 text-left leading-snug disabled:opacity-50"
                   data-testid="regenerate-from-scratch-btn"
                 >
-                  {t('Regenerate from scratch')}
+                  {t('Prefer to redo everything?')}{' '}
+                  <span className="font-medium text-primary">{t('Regenerate from scratch')}</span>
                 </button>
               </div>
             )}
-            {onStartBlank && !descriptionText.trim() && !isRecording && (
-              <div className="mt-4 flex shrink-0 justify-center">
+            {!needsShown && !refineMode && onStartBlank && !hasText && (
+              <div className="mt-auto flex flex-col text-[13px] text-muted-foreground">
+                <span>{t('It helps to mention the job, the measurements and the materials.')}</span>
                 <button
                   type="button"
                   onClick={onStartBlank}
-                  className="text-xs sm:text-sm text-center text-muted-foreground/80 hover:text-foreground transition-colors py-2 px-4 rounded-full bg-muted/20 hover:bg-muted/40"
+                  className="pt-2 pb-1.5 text-left leading-snug"
                   data-testid="start-from-scratch-btn"
                 >
-                  {t('Or start with a blank estimate')}
+                  {t('Prefer to build it by hand?')} <span className="font-medium text-primary">{t('Start blank')}</span>
                 </button>
               </div>
             )}
-          </div>
+            {strip}
+          </>
+        )}
+      </div>
 
-          {/* Recording view — 260707-ru5: the recording screen and the idle
-              canvas are ONE surface (same bg-background, no backdrop-blur);
-              the glass action bar below is the shared anchor across both
-              states. Pill, timer and waveform are centered as one group and
-              the view scrolls instead of clipping on very short screens. */}
-          {isRecording && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center overflow-y-auto bg-background px-6 py-3 animate-in fade-in duration-300">
-              {/* Ambient brand glow — depth without shapes. Centered and fully
-                  faded before the view's edges, so it never ends in a hard line
-                  above the photo strip. */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_65%)]"
-              />
-              <div className="my-auto flex w-full max-w-md flex-col items-center gap-4">
-                {/* Status pill — 260707-o7a: no live caption (transcription is
-                    Whisper, server-side); a REC-style pill. Paused reads as
-                    static amber. */}
-                <div
-                  className={cn(
-                    'flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em]',
-                    isPaused
-                      ? 'border-amber-500/25 bg-amber-500/10 text-amber-500'
-                      : 'border-red-500/20 bg-red-500/10 text-red-500'
-                  )}
-                  data-testid="capture-recording-status"
-                >
-                  <span className="relative flex h-1.5 w-1.5">
-                    {!isPaused && (
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70 motion-reduce:hidden" />
-                    )}
-                    <span className={cn('relative inline-flex h-1.5 w-1.5 rounded-full', isPaused ? 'bg-amber-500' : 'bg-red-500')} />
-                  </span>
-                  {isPaused ? t('Paused') : t('Listening...')}
-                </div>
-                {/* CaptureTimer is rendered directly (no nested <p>); paused dims it. */}
-                <CaptureTimer elapsedMs={elapsedMs} className={cn('leading-none', isPaused && 'text-muted-foreground')} />
-                <div className="w-full">
-                  <WaveformVisualizer analyser={analyser} isRecording={isRecording && !isPaused} height={72} />
-                </div>
-              </div>
-            </div>
+      <div className="flex shrink-0 items-center gap-2.5 px-4 pt-2.5 pb-1.5 sm:px-5 sm:pb-5">
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={onPhotoFileChange}
+        />
+        <button
+          type="button"
+          className={ROUND_BUTTON}
+          onClick={openPhotoPicker}
+          disabled={cameraDisabled}
+          aria-label={t('Add photos')}
+          data-testid="capture-add-photos"
+        >
+          {isUploadingPhotos ? <LoadingDots /> : <Camera className="h-[22px] w-[22px]" aria-hidden />}
+          {photoCount > 0 && (
+            <span className="absolute -right-[3px] -top-[3px] min-w-[21px] rounded-full border-2 border-background bg-primary px-1 text-center text-[11px] font-semibold leading-[17px] tabular-nums text-primary-foreground">
+              {photoCount}
+            </span>
           )}
-        </div>
+        </button>
 
-        {/* Photo thumbnails — one scrollable row in the layout flow, so a
-            growing count never covers the canvas or the action bar. */}
-        {photoItems.length > 0 && (
-          <div className="shrink-0 px-4">
-            <PhotoThumbnailGrid items={photoItems} onRemove={onRemovePhoto} singleRow />
-          </div>
+        {isRecording && SUPPORTS_PAUSE && (
+          <button
+            type="button"
+            className={ROUND_BUTTON}
+            onClick={onPause}
+            aria-label={isPaused ? t('Resume recording') : t('Pause recording')}
+            data-testid="capture-pause"
+          >
+            {isPaused ? <Play className="h-[22px] w-[22px] fill-current" aria-hidden /> : <Pause className="h-[22px] w-[22px] fill-current" aria-hidden />}
+          </button>
+        )}
+        {!isRecording && hasAnyInput && (
+          <button
+            type="button"
+            className={ROUND_BUTTON}
+            onClick={onToggle}
+            aria-label={t('Record audio')}
+            data-testid="capture-mic"
+          >
+            <Mic className="h-[22px] w-[22px]" aria-hidden />
+          </button>
         )}
 
-        {/* Glassmorphism bottom action bar. pt-6 leaves room for the record
-            button, which rises above the bar. */}
-        <div className="relative z-30 shrink-0 px-4 pb-4 pt-6">
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={onPhotoFileChange}
-          />
-          {/* Three-column grid (1fr auto 1fr): the record button sits on the
-              bar's true center whatever the widths of the side controls (the
-              old flex row pushed it off-center next to the wider Generate). */}
-          <div className="rounded-full bg-background/60 backdrop-blur-xl border border-border shadow-lg p-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 sm:gap-2">
-
-            {/* Left: Camera when idle. During recording, when SUPPORTS_PAUSE
-                is available, the SAME footprint (h-12 w-12 rounded-full)
-                becomes the Pause/Resume control — no reflow of the bar's
-                geometry. Without pause support, Camera stays as-is (the
-                pre-existing binary UX). */}
-            {isRecording && SUPPORTS_PAUSE ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="justify-self-start rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0"
-                onClick={onPause}
-                aria-label={isPaused ? t('Resume recording') : t('Pause recording')}
-                data-testid="capture-pause"
-              >
-                {isPaused ? <Play className="h-6 w-6 fill-current" /> : <Pause className="h-6 w-6 fill-current" />}
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="justify-self-start rounded-full h-12 w-12 hover:bg-foreground/5 text-muted-foreground hover:text-foreground shrink-0 relative"
-                onClick={() => photoInputRef.current?.click()}
-                disabled={isUploadingPhotos || photoItems.length >= MAX_PHOTOS}
-                data-testid="capture-add-photos"
-              >
-                {isUploadingPhotos ? <LoadingDots /> : <Camera className="h-6 w-6" />}
-                {photoItems.length > 0 && (
-                  <span className="absolute top-1 right-1 h-4 w-4 bg-primary text-[10px] font-bold text-primary-foreground rounded-full flex items-center justify-center">
-                    {photoItems.length}
-                  </span>
-                )}
-              </Button>
-            )}
-
-            {/* Center: FAB — glass+REC-dot idle / gradient-danger stop+halo
-                recording / same stop dimmed (no halo) while paused. Replaces
-                the dated animate-pulse mic icon with a classic REC button. */}
-            <div className="flex justify-center">
-               <button
-                  type="button"
-                  onClick={onToggle}
-                  className={cn(
-                    "h-16 w-16 -mt-6 rounded-full flex items-center justify-center transition-all shadow-xl border-4 border-background",
-                    isRecording
-                      ? cn("gradient-danger text-white relative", isPaused && "opacity-80")
-                      : "bg-background/80 backdrop-blur-xl ring-1 ring-border hover:bg-background group"
-                  )}
-                  aria-label={isRecording ? t('Stop recording') : t('Start recording')}
-                  data-testid="capture-mic"
-               >
-                  {isRecording ? (
-                    <>
-                      {!isPaused && (
-                        <span className="absolute inset-0 rounded-full bg-red-500/30 animate-ping motion-reduce:hidden" />
-                      )}
-                      <span className="h-6 w-6 rounded-[6px] bg-white" />
-                    </>
-                  ) : (
-                    <span className="h-7 w-7 rounded-full gradient-danger shadow-[0_0_16px_rgba(239,68,68,0.35)] transition-transform group-hover:scale-110" />
-                  )}
-               </button>
-            </div>
-
-            {/* Right: Generate */}
-            <Button
-               size="default"
-               className="justify-self-end rounded-full h-12 px-4 sm:px-5 font-medium shrink-0 bg-primary/90 hover:bg-primary transition-colors text-sm"
-               onClick={onGenerate}
-               disabled={!hasAnyInput || isRecording}
-               data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
-            >
-               <span className="mr-1">{refineMode ? t('Preview changes') : t('Generate')}</span>
-               <Sparkles className="h-4 w-4" />
-            </Button>
-
-          </div>
-        </div>
+        {isRecording ? (
+          <button
+            type="button"
+            className={PRIMARY_BUTTON}
+            style={PRIMARY_GRADIENT}
+            onClick={onToggle}
+            aria-label={t('Stop recording')}
+            data-testid="capture-mic"
+          >
+            <Square className="h-[18px] w-[18px] fill-current" aria-hidden />
+            {refineMode ? t('Finish recording') : t('Stop and generate')}
+          </button>
+        ) : hasAnyInput ? (
+          <button
+            type="button"
+            className={PRIMARY_BUTTON}
+            style={PRIMARY_GRADIENT}
+            onClick={() => void onGenerate()}
+            data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
+          >
+            <Sparkles className="h-[18px] w-[18px]" aria-hidden />
+            {refineMode ? t('See changes') : t('Generate estimate')}
+            <span className="ml-1 hidden rounded-md border border-white/40 px-[7px] py-[5px] text-[11.5px] font-medium leading-none text-white/90 sm:inline" aria-hidden>
+              Ctrl ↵
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={cn(PRIMARY_BUTTON, 'after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:shadow-[0_0_0_7px_hsl(224_86%_60%/0.25)] motion-safe:after:animate-pulse')}
+            style={PRIMARY_GRADIENT}
+            onClick={onToggle}
+            aria-label={t('Start recording')}
+            data-testid="capture-mic"
+          >
+            <Mic className="h-5 w-5" aria-hidden />
+            <span className="sm:hidden">{needsShown ? t('Tap to answer') : t('Tap to talk')}</span>
+            <span className="hidden sm:inline">{needsShown ? t('Click to answer') : t('Click to talk')}</span>
+          </button>
+        )}
       </div>
-    )
-  }
+    </div>
+  )
+}
 
-  // Stacked layout — single-mode popup (audio | text | photos) or legacy fullscreen route
+// Stacked layout — single-mode popup (audio | text | photos) or legacy fullscreen route
+function StackedBody({ analyser, isRecording, elapsedMs, ringColorClass, progress, onToggle, descriptionText, setDescriptionText, uploadedPhotos, isUploadingPhotos, photoInputRef, onPhotoFileChange, hasAnyInput, onGenerate, refineMode = false, estimateLanguage, setEstimateLanguage, mode }: RecorderBodyProps) {
+  const { t } = useTranslation()
   return (
     <div className="flex-1 flex flex-col overflow-y-auto min-h-0">
       {/* PRIMARY ACTION: glass card with waveform + timer + ring-wrapped mic */}
@@ -2052,20 +2243,41 @@ function RecorderBody({ analyser, isRecording, isPaused, elapsedMs, ringColorCla
       )}
     </div>
   )
+
 }
 
 // PhotoThumbnailGrid — per-photo thumbnail strip with uploading / error overlays
 // and a remove (×) button. Renders nothing when there are no items.
 // singleRow: one horizontally scrolling row (used inside the popup layout,
-// where a wrapping grid would grow and push into the regions around it).
-export function PhotoThumbnailGrid({ items, onRemove, singleRow = false }: { items: PhotoItem[]; onRemove: (id: string) => void; singleRow?: boolean }) {
+// where a wrapping grid would grow and push into the regions around it). It
+// draws 64px tiles with a 32px remove hit area and, when `onAdd` is given and
+// the cap is not reached, a trailing "add" tile with an n/max counter.
+export function PhotoThumbnailGrid({
+  items,
+  onRemove,
+  singleRow = false,
+  onAdd,
+  max = MAX_PHOTOS,
+}: {
+  items: PhotoItem[]
+  onRemove: (id: string) => void
+  singleRow?: boolean
+  onAdd?: () => void
+  max?: number
+}) {
   const { t } = useTranslation()
   if (items.length === 0) return null
   return (
-    <div className={cn('shrink-0', singleRow ? 'py-1' : 'border-t px-3 py-2.5')} data-testid="capture-photo-grid">
-      <div className={cn('flex gap-2', singleRow ? 'flex-nowrap overflow-x-auto' : 'flex-wrap')}>
+    <div className={cn('shrink-0', singleRow ? 'py-0.5' : 'border-t px-3 py-2.5')} data-testid="capture-photo-grid">
+      <div className={cn('flex gap-2', singleRow ? 'flex-nowrap overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap')}>
         {items.map(item => (
-          <div key={item.id} className="relative h-14 w-14 shrink-0 rounded-md overflow-hidden border border-border bg-muted/30 group">
+          <div
+            key={item.id}
+            className={cn(
+              'relative shrink-0 overflow-hidden border border-border bg-muted/30 group',
+              singleRow ? 'h-16 w-16 rounded-[14px]' : 'h-14 w-14 rounded-md',
+            )}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
             {item.status === 'uploading' && (
@@ -2078,17 +2290,43 @@ export function PhotoThumbnailGrid({ items, onRemove, singleRow = false }: { ite
                 <X className="h-4 w-4 text-destructive-foreground" />
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              aria-label={t('Remove photo')}
-              className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 hover:bg-background flex items-center justify-center shadow"
-              data-testid="capture-remove-photo"
-            >
-              <X className="h-3 w-3" />
-            </button>
+            {singleRow ? (
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                aria-label={t('Remove photo')}
+                className="absolute right-0 top-0 flex h-8 w-8 items-start justify-end p-[3px]"
+                data-testid="capture-remove-photo"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-foreground/70 text-background">
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                aria-label={t('Remove photo')}
+                className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-background/80 hover:bg-background flex items-center justify-center shadow"
+                data-testid="capture-remove-photo"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         ))}
+        {singleRow && onAdd && items.length < max && (
+          <button
+            type="button"
+            onClick={onAdd}
+            aria-label={t('Add photos')}
+            className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[14px] border-[1.5px] border-dashed border-primary/50 text-[11px] font-medium leading-none tabular-nums text-primary transition-colors hover:bg-primary/5"
+            data-testid="capture-add-photo-tile"
+          >
+            <Plus className="h-[18px] w-[18px]" aria-hidden />
+            <span>{items.length}/{max}</span>
+          </button>
+        )}
       </div>
     </div>
   )

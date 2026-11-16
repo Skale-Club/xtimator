@@ -99,7 +99,8 @@ describe('CaptureRecorder refine mode', () => {
   it('shows the update-the-current-estimate copy and a Preview changes button', () => {
     renderRecorder({ refineEstimateId: 'est-1' })
     expect(screen.getByTestId('refine-mode-hint')).toHaveTextContent('update the current estimate')
-    expect(screen.getByTestId('refine-preview-btn')).toHaveTextContent('Preview changes')
+    fireEvent.change(screen.getByTestId('capture-description'), { target: { value: 'raise the paint price' } })
+    expect(screen.getByTestId('refine-preview-btn')).toHaveTextContent('See changes')
     expect(screen.queryByTestId('generate-estimate-btn')).toBeNull()
   })
 
@@ -116,9 +117,10 @@ describe('CaptureRecorder refine mode', () => {
     expect(startRecordingPipeline).not.toHaveBeenCalled()
   })
 
-  it('Preview changes is disabled with no input', () => {
+  it('See changes is not rendered with no input (the dock offers to talk instead)', () => {
     renderRecorder({ refineEstimateId: 'est-1' })
-    expect(screen.getByTestId('refine-preview-btn')).toBeDisabled()
+    expect(screen.queryByTestId('refine-preview-btn')).toBeNull()
+    expect(screen.getByTestId('capture-mic')).toHaveAttribute('aria-label', 'Start recording')
   })
 
   it('without a current estimate keeps today\'s generate behavior', async () => {

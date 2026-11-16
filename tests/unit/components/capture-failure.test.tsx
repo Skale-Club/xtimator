@@ -84,7 +84,9 @@ describe('REC-02: CaptureFailure', () => {
         onEditManually={() => {}}
       />
     )
-    expect(screen.getByTestId('capture-retry').textContent).toContain('__t(Retry)__')
+    expect(screen.getByTestId('capture-retry').textContent).toMatch(/^__t\(Retry\)__/)
+    expect(screen.getByText('__t(Could not generate the estimate)__')).toBeTruthy()
+    expect(screen.getByText(/2 __t\(attempts left\)__/)).toBeTruthy()
     expect(
       screen.getByTestId('capture-edit-manually').textContent
     ).toContain('__t(Edit manually)__')

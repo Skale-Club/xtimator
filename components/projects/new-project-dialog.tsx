@@ -13,6 +13,7 @@ import {
 import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { cn } from '@/lib/utils'
 import { X } from 'lucide-react'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { useLanguage, ScopedLanguageProvider } from '@/lib/i18n/language-context'
@@ -51,9 +52,89 @@ export function editEstimateHref(
   return `?${params.toString()}`
 }
 
+interface NewXtimateFrameProps {
+  open: boolean
+  onClose: () => void
+  title: React.ReactNode
+  description: React.ReactNode
+  estimateLanguage: EstimateLanguage
+  setEstimateLanguage: (l: EstimateLanguage) => void
+  children: React.ReactNode
+}
+
+/**
+ * Presentational shell of the New Xtimate / Edit with AI popup: bottom sheet on
+ * phones, 560px dialog from sm up. Exported so a dev fixture can render it
+ * without the wizard.
+ *
+ * - `nx-surface` re-tints the theme tokens inside the popup only (globals.css).
+ * - No backdrop blur / glass on the surface: blur inside a tall scrolling
+ *   surface froze phones. The soft top glow is a plain background-image.
+ * - Keyboard: the primitive's visual-viewport rules (globals.css, keyed on
+ *   html[data-keyboard]) keep dialogs centred in the visible area; the
+ *   `nx-surface` override there anchors the phone sheet on top of the keyboard.
+ */
+export function NewXtimateFrame({
+  open,
+  onClose,
+  title,
+  description,
+  estimateLanguage,
+  setEstimateLanguage,
+  children,
+}: NewXtimateFrameProps) {
+  const { t } = useTranslation()
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          'nx-surface flex flex-col gap-0 overflow-hidden border-border bg-background p-0 backdrop-blur-none',
+          // Phones: bottom sheet (full width, square bottom, safe-area padding).
+          'top-auto bottom-0 left-0 max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none pb-[env(safe-area-inset-bottom)]',
+          // sm and up: centred 560px dialog.
+          'sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-[560px] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:pb-0',
+        )}
+      >
+        {/* Decorative grab handle (phones only); the sheet has no drag gesture. */}
+        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
+        {/* Scope the language to this popup only — selecting a language re-skins
+            the popup + the estimate, never the rest of the app. */}
+        <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
+          <DialogHeader className="shrink-0 flex flex-row items-start justify-between gap-3 pl-5 pr-3 pt-3 pb-1 text-left">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">
+                {title}
+              </DialogTitle>
+              <EstimateLanguageSelector
+                value={estimateLanguage}
+                onChange={setEstimateLanguage}
+                variant="sentence"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t('Close')}
+              // 40px hit area around a 36px round visual.
+              className="group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none"
+            >
+              <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
+                <X className="h-4 w-4" />
+              </span>
+            </button>
+            <DialogDescription className="sr-only">{description}</DialogDescription>
+          </DialogHeader>
+
+          {children}
+        </ScopedLanguageProvider>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function NewProjectDialogInner() {
   const searchParams = useSearchParams()
-  const { t } = useTranslation()
   const { language: appLanguage } = useLanguage()
   const [estimateLanguage, setEstimateLanguage] = useState<EstimateLanguage>(
     appLanguage === 'pt' || appLanguage === 'es' ? appLanguage : 'en'
@@ -68,57 +149,29 @@ function NewProjectDialogInner() {
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent
-        showCloseButton={false}
-        className="p-0 gap-0 sm:max-w-xl max-h-[85dvh] flex flex-col overflow-hidden"
-      >
-        {/* Scope the language to this popup only — selecting a language re-skins
-            the popup + the estimate, never the rest of the app. */}
-        <ScopedLanguageProvider language={estimateLanguage} setLanguage={setEstimateLanguage}>
-          <DialogHeader className="px-4 py-3 border-b shrink-0 flex flex-row items-center justify-between gap-2 text-left">
-            <DialogTitle className="text-base font-semibold whitespace-nowrap">
-              {editProjectId ? <T>Edit with AI</T> : <T>New Xtimate</T>}
-            </DialogTitle>
-            {/* Selector + close button share one items-center row so the X is
-                vertically aligned with the language selector. */}
-            <div className="flex items-center gap-1.5">
-              <EstimateLanguageSelector
-                value={estimateLanguage}
-                onChange={setEstimateLanguage}
-                compact
-              />
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t('Close')}
-                // size-10 gives a 40px tap target (the glyph stays 16px); -mr-2 keeps the
-                // glyph on the header's px-4 gutter.
-                className="-mr-2 flex size-10 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <DialogDescription className="sr-only">
-              {editProjectId ? (
-                <T>Record audio, type, or upload photos to update the current estimate.</T>
-              ) : (
-                <T>Record audio, type, or upload photos to generate an estimate.</T>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {isOpen && (
-            <NewProjectWizard
-              onComplete={onClose}
-              editProjectId={editProjectId}
-              estimateLanguage={estimateLanguage}
-              setEstimateLanguage={setEstimateLanguage}
-            />
-          )}
-        </ScopedLanguageProvider>
-      </DialogContent>
-    </Dialog>
+    <NewXtimateFrame
+      open={isOpen}
+      onClose={onClose}
+      title={editProjectId ? <T>Edit with AI</T> : <T>New Xtimate</T>}
+      description={
+        editProjectId ? (
+          <T>Record audio, type, or upload photos to update the current estimate.</T>
+        ) : (
+          <T>Record audio, type, or upload photos to generate an estimate.</T>
+        )
+      }
+      estimateLanguage={estimateLanguage}
+      setEstimateLanguage={setEstimateLanguage}
+    >
+      {isOpen && (
+        <NewProjectWizard
+          onComplete={onClose}
+          editProjectId={editProjectId}
+          estimateLanguage={estimateLanguage}
+          setEstimateLanguage={setEstimateLanguage}
+        />
+      )}
+    </NewXtimateFrame>
   )
 }
 

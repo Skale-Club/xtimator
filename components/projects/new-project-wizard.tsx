@@ -28,7 +28,7 @@ const CaptureRecorder = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex min-h-[260px] items-center justify-center py-16">
         <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
       </div>
     ),
@@ -178,7 +178,7 @@ export function NewProjectWizard({
 
   if (isCreating || !project) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex min-h-[260px] items-center justify-center py-16">
         <LoadingDots className="text-muted-foreground" dotClassName="h-2.5 w-2.5" />
       </div>
     )

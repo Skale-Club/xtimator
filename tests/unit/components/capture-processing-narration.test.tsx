@@ -242,6 +242,25 @@ describe('CaptureProcessingOverlay: checklist (260927)', () => {
     expect(onContinue).toHaveBeenCalledOnce()
   })
 
+  it('popup layout: the continue button is a full-width secondary button and the bar is a gradient', () => {
+    render(
+      <CaptureProcessingOverlay
+        stage="generating"
+        mode="text"
+        layout="popup"
+        completedSteps={['save_recording']}
+        activeStep="generate_estimate"
+        activeStepStartedAt={ago(10)}
+        showLeaveHint
+        onContinueInBackground={() => {}}
+      />
+    )
+    const btn = screen.getByTestId('capture-continue-in-background')
+    expect(btn.className).toContain('w-full')
+    expect(btn.className).toContain('bg-primary/10')
+    expect(screen.getByTestId('capture-progress-fill').style.backgroundImage).toContain('linear-gradient')
+  })
+
   it('never claims leaving is safe before the capture is dispatched', () => {
     render(
       <CaptureProcessingOverlay
