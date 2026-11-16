@@ -12,9 +12,6 @@ import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EstimateEditor } from './estimate-editor'
-// Phase 163-04 (SENDHUB-01/-06): the format-first hub replaces the retired
-// channel-first dialog. Same dialog-open state slot, same prop shape + 2
-// new optional props (companySlug, whatsappEnabled) threaded below.
 import { SendHubDialog } from '@/components/workspace/send/send-hub-dialog'
 import {
   popStoredClientSuggestion,
@@ -78,6 +75,7 @@ interface EstimateTabProps {
   estimateTemplateId: EstimateTemplateId
   /** Phase 185 (PGMODE-03) — forwarded to EstimateEditor. */
   preparedBy: string | null
+  /** @deprecated The Share sheet no longer sends in-app; accepted so parents keep compiling, ignored. */
   smsDeliveryEnabled?: boolean
   /**
    * Phase 163-04 (SENDHUB-01): company slug for buildEstimatePublicPath in the
@@ -88,13 +86,7 @@ interface EstimateTabProps {
    * real URLs.
    */
   companySlug?: string | null
-  /**
-   * Phase 163 (SENDHUB): server-resolved WhatsApp availability (tier
-   * entitlement ∧ active account-registry status), threaded down from the
-   * project page and forwarded to the Send hub so WhatsApp actions hide when
-   * the channel is unavailable. Optional; when the parent omits it the hub
-   * defaults to showing the buttons.
-   */
+  /** @deprecated The Share sheet has no WhatsApp action; accepted so parents keep compiling, ignored. */
   whatsappEnabled?: boolean
   /** Server-resolved platform-admin flag, forwarded to the editor (estimate debug tool). */
   isPlatformAdmin?: boolean
@@ -123,9 +115,7 @@ export function EstimateTab({
   estimateTemplate,
   estimateTemplateId,
   preparedBy,
-  smsDeliveryEnabled,
   companySlug,
-  whatsappEnabled,
   isPlatformAdmin = false,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
@@ -341,13 +331,12 @@ export function EstimateTab({
           projectName={projectName}
           companyName={companyName}
           companySlug={companySlug ?? null}
-          clientEmail={client?.email ?? null}
-          clientPhone={client?.phone ?? null}
+          companyLogoUrl={company.logo_url ?? null}
           clientName={client?.name ?? ''}
           ownerName={ownerName}
           estimateTemplate={estimateTemplate}
-          smsDeliveryEnabled={smsDeliveryEnabled ?? false}
-          whatsappEnabled={whatsappEnabled}
+          viewCount={currentEstimate.view_count}
+          lastViewedAt={currentEstimate.last_viewed_at}
         />
       </>
     )

@@ -1,17 +1,10 @@
 // components/workspace/send/send-hub-dialog.tsx
-// Send hub, preview-first: Xtimator never dispatches email/SMS/WhatsApp itself.
-// The owner sends from their OWN apps so client replies land where they
-// already talk to the client (we rarely have reliable client contact data,
-// and an in-app send would orphan the reply thread). The hub therefore:
-//   1. heroes the online estimate (webview) with the full URL + a visible
-//      Copy button,
-//   2. pairs Download PDF with a single Share menu (wa.me / mailto: / sms: /
-//      native share sheet) whose intents open the user's own app with the
-//      message + link pre-filled,
-//   3. keeps the copy-ready formatted message visible + editable inline.
-// The old in-app dispatch routes (/send, /send-sms) are no
-// longer called from here, and the Mark-as-sent button was dropped from the
-// hub (markAsSentAction still exists server-side for other callers).
+// "Share estimate" sheet. Xtimator never sends the estimate itself: the owner copies the link or the message and sends it from their OWN apps, so
+// the client's reply lands where they already talk to the client. Two blocks:
+//   1. the online estimate: readable link, whether the client opened it, Copy
+//      link (primary), Open, and the optional password;
+//   2. the ready message, always visible and editable in place.
+// Download PDF is a plain text button at the end.
 
 'use client'
 
@@ -27,34 +20,20 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Check,
-  Copy,
-  Download,
-  ExternalLink,
-  Lock,
-  LockOpen,
-  Mail,
-  MessageSquare,
-  RotateCcw,
-  Send,
-  Share2,
-} from 'lucide-react'
-import { LanguageFlagChip } from './language-flag-chip'
+import { Check, Copy, Download, Eye, Lock, LockOpen, X } from 'lucide-react'
 import { logDeliveryAction, setEstimateSharePassword } from '@/lib/actions/estimate'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
   resolveTemplate,
   buildMessageBreakdown,
 } from '@/lib/utils/estimate-template'
 import { formatCurrency } from '@/lib/utils/format'
+import { relativeTime } from '@/lib/utils/relative-time'
+import { getInitials } from '@/lib/utils/avatar'
+import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { EstimateTemplate } from '@/lib/utils/estimate-template'
@@ -68,28 +47,40 @@ export interface SendHubDialogProps {
   /**
    * Company slug -- needed by buildEstimatePublicPath to construct the friendly
    * Phase 160 URL. Falls back to the legacy /estimate/{share_token} path when
-   * null/undefined (matches buildShareLink today).
+   * null/undefined.
    */
   companySlug?: string | null
-  /** Pre-fills the mailto: recipient when the client has an email on file. */
-  clientEmail: string | null
-  /** Pre-fills the wa.me / sms: recipient when the client has a phone on file. */
-  clientPhone: string | null
+  /** Company logo for the miniature of the client page; initials when absent. */
+  companyLogoUrl?: string | null
   clientName: string
   ownerName: string
   estimateTemplate: EstimateTemplate
-  /**
-   * @deprecated In-app SMS dispatch was removed from the hub -- sharing goes
-   * through the user's own apps now. Accepted so existing parents keep
-   * compiling; ignored.
-   */
-  smsDeliveryEnabled?: boolean
-  /**
-   * @deprecated In-app WhatsApp dispatch was removed from the hub -- wa.me
-   * share intents need no account entitlement. Accepted so existing parents
-   * keep compiling; ignored.
-   */
-  whatsappEnabled?: boolean
+  /** How many times the client opened the link (same counter as the Insights chip). */
+  viewCount?: number
+  /** ISO time of the last open (same value as the Insights chip). */
+  lastViewedAt?: string | null
+}
+
+// Primary / secondary / text buttons of the sheet (blue palette of the
+// `nx-surface` popups).
+const PRIMARY_STYLE = {
+  backgroundImage: 'linear-gradient(135deg, hsl(219 92% 65%), hsl(228 84% 54%))',
+} as const
+const PRIMARY_BTN =
+  'h-[50px] rounded-full px-5 text-[15px] font-semibold text-white shadow-none hover:text-white'
+const SECONDARY_BTN =
+  'rounded-full bg-primary/10 font-semibold text-primary shadow-none hover:bg-primary/15 hover:text-primary hover:translate-y-0'
+const TEXT_BTN =
+  'cursor-pointer rounded text-primary font-medium focus-visible:outline-2 focus-visible:outline-primary'
+const LABEL =
+  'text-[11.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'
+
+function shortDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 export function SendHubDialog({
@@ -99,12 +90,14 @@ export function SendHubDialog({
   projectName,
   companyName,
   companySlug,
-  clientEmail,
-  clientPhone,
+  companyLogoUrl,
   clientName,
   ownerName,
   estimateTemplate,
+  viewCount,
+  lastViewedAt,
 }: SendHubDialogProps) {
+  const { t } = useTranslation()
   const [urlCopied, setUrlCopied] = useState(false)
   // Edited message draft, tagged with the estimate id it belongs to so a
   // dialog reused for another estimate falls back to that estimate's
@@ -130,8 +123,9 @@ export function SendHubDialog({
       : publicPath
   }
 
-  // The copy-ready formatted message, same recipe the retired PlainTextSheet
-  // used. Always visible + editable in the block below.
+  // Readable form of the link: no protocol.
+  const displayUrl = buildAbsoluteUrl().replace(/^https?:\/\//, '')
+
   const resolvedSettings = resolvePresentationSettings(
     (estimate as { presentation_settings?: unknown }).presentation_settings,
   )
@@ -146,13 +140,11 @@ export function SendHubDialog({
   const messageText =
     draft?.id === estimate.id ? draft.text : generatedText
 
-  /** What the share intents carry: the visible message plus the link. */
-  function buildShareText(): string {
-    return `${messageText}\n\n${buildAbsoluteUrl()}`
-  }
+  const totalLabel = formatCurrency(estimate.total, estimate.currency_code)
+  const numberLabel = formatEstimateNumber(estimate)
 
   // ---------------------------------------------------------------------------
-  // Online Estimate: pure client-side URL affordances (no network dispatch).
+  // Online estimate: pure client-side URL affordances (no network dispatch).
   // logDeliveryAction is fire-and-forget -- copy/open success is what matters
   // to the user, and a log-write failure must NEVER trigger an error toast.
   // ---------------------------------------------------------------------------
@@ -160,7 +152,7 @@ export function SendHubDialog({
     try {
       await navigator.clipboard.writeText(buildAbsoluteUrl())
       setUrlCopied(true)
-      toast.success('Link copied')
+      toast.success(t('Link copied'))
       setTimeout(() => setUrlCopied(false), 2000)
       void logDeliveryAction({
         estimateId: estimate!.id,
@@ -168,7 +160,7 @@ export function SendHubDialog({
         channel: 'copy',
       })
     } catch {
-      toast.error('Failed to copy link')
+      toast.error(t('Failed to copy link'))
     }
   }
 
@@ -180,49 +172,6 @@ export function SendHubDialog({
         format: 'online_link',
         channel: 'open',
       })
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Share intents: open the USER'S OWN app with the message + link pre-filled.
-  // Nothing is dispatched by Xtimator, so nothing is logged as a delivery.
-  // ---------------------------------------------------------------------------
-  function shareWhatsapp() {
-    // wa.me wants digits only (E.164 without the +). Without a phone the
-    // no-recipient variant opens WhatsApp's own contact picker.
-    const digits = (clientPhone ?? '').replace(/\D/g, '')
-    const url = digits
-      ? `https://wa.me/${digits}?text=${encodeURIComponent(buildShareText())}`
-      : `https://wa.me/?text=${encodeURIComponent(buildShareText())}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-
-  function shareEmail() {
-    const subject = encodeURIComponent(`Your estimate from ${companyName}`)
-    const body = encodeURIComponent(buildShareText())
-    // location.href (not window.open) so no blank tab is left behind when the
-    // OS hands the mailto: off to the mail client.
-    window.location.href = `mailto:${clientEmail ?? ''}?subject=${subject}&body=${body}`
-  }
-
-  function shareSms() {
-    // The `?&body` form is the one both iOS and Android accept.
-    const digits = (clientPhone ?? '').replace(/[^\d+]/g, '')
-    window.location.href = `sms:${digits}?&body=${encodeURIComponent(buildShareText())}`
-  }
-
-  const canNativeShare =
-    typeof navigator !== 'undefined' && typeof navigator.share === 'function'
-
-  async function shareNative() {
-    try {
-      await navigator.share({
-        title: `Estimate from ${companyName}`,
-        text: messageText,
-        url: buildAbsoluteUrl(),
-      })
-    } catch {
-      // User dismissed the share sheet -- not an error.
     }
   }
 
@@ -245,127 +194,258 @@ export function SendHubDialog({
     )
   }
 
+  // What the owner sees about the link's life: the answer, else the opens.
+  const accepted = estimate.client_response === 'accepted'
+  const declined = estimate.client_response === 'declined'
+  const opens = viewCount ?? 0
+  let status: { text: string; tone: 'ok' | 'on' | 'idle' }
+  if (accepted) {
+    status = {
+      text: `${t('Accepted on')} ${shortDate(estimate.responded_at)}`.trim(),
+      tone: 'ok',
+    }
+  } else if (declined) {
+    status = {
+      text: `${t('Declined on')} ${shortDate(estimate.responded_at)}`.trim(),
+      tone: 'idle',
+    }
+  } else if (opens > 0) {
+    status = {
+      text: `${t('Opened')} ${opens} ${opens === 1 ? t('time') : t('times')}${
+        lastViewedAt ? ` · ${relativeTime(lastViewedAt)}` : ''
+      }`,
+      tone: 'on',
+    }
+  } else {
+    status = { text: t('Not opened yet'), tone: 'idle' }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto overflow-x-hidden">
-        <DialogHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
-            <div className="flex min-w-0 items-center gap-2">
-              <DialogTitle className="truncate">Share estimate</DialogTitle>
-              {/* Display-only language chip; there is NO picker
-                  (language is locked at generation time). */}
-              <LanguageFlagChip lang={estimate.language} />
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          'nx-surface flex flex-col gap-0 overflow-hidden border-border bg-background p-0 backdrop-blur-none',
+          // Phones: bottom sheet (full width, square bottom, safe-area padding).
+          'top-auto bottom-0 left-0 max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none pb-[env(safe-area-inset-bottom)]',
+          // sm and up: centred 580px dialog.
+          'sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-[580px] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:pb-0',
+        )}
+      >
+        {/* Decorative grab handle (phones only); the sheet has no drag gesture. */}
+        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
+
+        <DialogHeader className="flex shrink-0 flex-row items-start justify-between gap-3 pl-5 pr-3 pt-3 pb-1 text-left sm:pl-6 sm:pr-4 sm:pt-5">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">
+              {t('Share estimate')}
+            </DialogTitle>
+            <div className="flex min-w-0 items-center gap-2 text-[13.5px] text-muted-foreground">
+              {clientName && (
+                <span
+                  aria-hidden="true"
+                  className="flex size-[26px] shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10.5px] font-semibold text-primary"
+                >
+                  {getInitials(clientName)}
+                </span>
+              )}
+              <span className="min-w-0 truncate">
+                {clientName && <b className="font-semibold text-foreground">{clientName}</b>}
+                {clientName && ' · '}
+                {[totalLabel, numberLabel].filter(Boolean).join(' · ')}
+              </span>
             </div>
           </div>
-          <DialogDescription>
-            Copy the link or message and send it from your own apps.
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label={t('Close')}
+            // 40px hit area around a 36px round visual.
+            className="group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none"
+          >
+            <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
+              <X className="h-4 w-4" />
+            </span>
+          </button>
+          <DialogDescription className="sr-only">
+            {t('Copy the link or the message and send it from your own apps.')}
           </DialogDescription>
         </DialogHeader>
 
-        {/* --- Hero: the online estimate (webview) is THE action; Download
-            PDF sits right below it as THE secondary action.
-            min-w-0: the full URL is one unbreakable "word" -- without it the
-            grid track inflates to the URL's min-content width and every row
-            overflows the dialog. --- */}
-        <div
-          data-testid="send-hub-card-online-link"
-          className="flex min-w-0 flex-col gap-2"
-        >
-          <Button variant="primary" size="lg" onClick={handleOpenUrl}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Open Online Estimate
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 truncate rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs text-muted-foreground">
-              {buildAbsoluteUrl()}
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-              onClick={() => void handleCopyUrl()}
-            >
-              {urlCopied ? (
-                <Check className="mr-2 h-3.5 w-3.5" />
-              ) : (
-                <Copy className="mr-2 h-3.5 w-3.5" />
-              )}
-              {urlCopied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-          {/* Download PDF + Share side by side: PDF is the secondary action,
-              Share bundles the intents (WhatsApp / Email / SMS / native share
-              sheet) that open the user's own app with message + link. */}
-          <div className="flex gap-2">
-            <Button
-              data-testid="send-hub-card-pdf"
-              variant="outline"
-              className="flex-1"
-              onClick={handleDownloadPdf}
-            >
-              <Download className="mr-2 h-4 w-4" /> Download PDF
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex-1">
-                  <Share2 className="mr-2 h-4 w-4" /> Share
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={shareWhatsapp}>
-                  <Send className="mr-2 h-4 w-4" /> WhatsApp
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={shareEmail}>
-                  <Mail className="mr-2 h-4 w-4" /> Email
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={shareSms}>
-                  <MessageSquare className="mr-2 h-4 w-4" /> SMS
-                </DropdownMenuItem>
-                {canNativeShare && (
-                  <DropdownMenuItem onClick={() => void shareNative()}>
-                    <Share2 className="mr-2 h-4 w-4" /> More options
-                  </DropdownMenuItem>
+        <div className="flex min-h-0 flex-1 flex-col gap-[22px] overflow-y-auto px-5 pt-3.5 pb-5 sm:px-6 sm:pt-4 sm:pb-6">
+          {/* --- Block 1: the online estimate --- */}
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <p className={cn(LABEL, 'whitespace-nowrap')}>{t('Online estimate')}</p>
+              <p
+                data-testid="send-hub-status"
+                className={cn(
+                  'flex min-w-0 items-center gap-1.5 text-[12.5px]',
+                  status.tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    status.tone === 'ok' && 'bg-emerald-500',
+                    status.tone === 'on' && 'bg-primary',
+                    status.tone === 'idle' && 'bg-muted-foreground/60',
+                  )}
+                />
+                <span className="truncate">{status.text}</span>
+              </p>
+            </div>
+
+            <div
+              data-testid="send-hub-card-online-link"
+              className="flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-border bg-muted sm:flex-row"
+            >
+              <ClientPageMiniature
+                companyName={companyName}
+                companyLogoUrl={companyLogoUrl ?? null}
+                numberLabel={numberLabel}
+                title={projectName}
+                clientName={clientName}
+                totalLabel={totalLabel}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-3 p-3.5">
+                <p
+                  data-testid="send-hub-url"
+                  className="m-0 truncate text-[14.5px] leading-snug font-medium text-foreground sm:overflow-visible sm:whitespace-normal sm:[overflow-wrap:anywhere]"
+                >
+                  {displayUrl}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => void handleCopyUrl()}
+                    style={PRIMARY_STYLE}
+                    className={cn(PRIMARY_BTN, 'min-w-0 flex-1')}
+                  >
+                    {urlCopied ? <Check className="size-[18px]" /> : <Copy className="size-[18px]" />}
+                    {urlCopied ? t('Link copied') : t('Copy link')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={handleOpenUrl}
+                    className={cn(SECONDARY_BTN, 'h-[50px] shrink-0 px-[18px] text-[14.5px]')}
+                  >
+                    <Eye className="size-[18px]" />
+                    {t('Open')}
+                  </Button>
+                </div>
+                {urlCopied && (
+                  <p className="m-0 text-[12.5px] text-muted-foreground">
+                    {t('Paste it where you already talk to the client.')}
+                  </p>
+                )}
+                {/* Keyed by estimate.id so switching estimates/versions remounts
+                    fresh local state instead of carrying over the previous
+                    estimate's editing state. */}
+                <SharePasswordControl
+                  key={estimate.id}
+                  estimateId={estimate.id}
+                  initiallyProtected={!!estimate.share_password_hash}
+                />
+              </div>
+            </div>
           </div>
+
+          {/* --- Block 2: the ready message, always visible + editable --- */}
+          <MessageTextBlock
+            estimateId={estimate.id}
+            value={messageText}
+            edited={messageText !== generatedText}
+            linkUrl={buildAbsoluteUrl()}
+            onChange={(text) => setDraft({ id: estimate.id, text })}
+            onReset={() => setDraft(null)}
+          />
+
+          <button
+            type="button"
+            data-testid="send-hub-card-pdf"
+            onClick={handleDownloadPdf}
+            className={cn(
+              TEXT_BTN,
+              '-mt-1.5 inline-flex items-center gap-2 self-center rounded-full px-4 py-2.5 text-sm font-semibold hover:bg-primary/10',
+            )}
+          >
+            <Download className="size-[18px]" />
+            {t('Download PDF')}
+          </button>
         </div>
-
-        {/* --- Phase 193-02: optional password lock on the share link. Keyed
-            by estimate.id so switching estimates/versions remounts fresh
-            local state instead of carrying over the previous estimate's
-            editing state (same reasoning as `draft?.id === estimate.id`
-            above for the message block). --- */}
-        <SharePasswordControl
-          key={estimate.id}
-          estimateId={estimate.id}
-          initiallyProtected={!!estimate.share_password_hash}
-        />
-
-        {/* --- Copy-ready message: always visible + editable inline. Share
-            intents above carry this text (plus the link). --- */}
-        <MessageTextBlock
-          estimateId={estimate.id}
-          value={messageText}
-          onChange={(text) => setDraft({ id: estimate!.id, text })}
-          onReset={() => setDraft(null)}
-        />
       </DialogContent>
     </Dialog>
   )
 }
 
 // -----------------------------------------------------------------------------
+// ClientPageMiniature: a picture of the public client page, shown from sm up.
+// The white card is always light, like the real public page, so literal light
+// colours are intentional here.
+// -----------------------------------------------------------------------------
+function ClientPageMiniature({
+  companyName,
+  companyLogoUrl,
+  numberLabel,
+  title,
+  clientName,
+  totalLabel,
+}: {
+  companyName: string
+  companyLogoUrl: string | null
+  numberLabel: string
+  title: string
+  clientName: string
+  totalLabel: string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div
+      aria-hidden="true"
+      className="hidden w-[214px] shrink-0 items-end justify-start pt-5 pl-[18px] sm:flex"
+      style={{
+        backgroundImage:
+          'linear-gradient(160deg, hsl(var(--primary) / 0.3), hsl(var(--primary) / 0.08))',
+      }}
+    >
+      <div className="flex w-[196px] flex-col gap-[3px] rounded-tl-xl bg-white px-3.5 pt-3 pb-3.5 text-[#0f172a] shadow-[0_-6px_24px_-8px_hsl(228_50%_10%/0.5)]">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          {companyLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- decorative miniature of a user-uploaded logo
+            <img src={companyLogoUrl} alt="" className="size-[18px] rounded-[5px] object-cover" />
+          ) : (
+            <span className="flex size-[18px] items-center justify-center rounded-[5px] bg-[#0f172a] text-[7px] font-bold text-white">
+              {getInitials(companyName)}
+            </span>
+          )}
+          <b className="truncate text-[10px] font-semibold leading-none">{companyName}</b>
+        </div>
+        <small className="text-[7.5px] font-semibold uppercase tracking-[0.08em] text-[#8a94a6]">
+          {t('Estimate')} {numberLabel}
+        </small>
+        <strong className="line-clamp-2 text-[13px] leading-tight font-bold tracking-tight">{title}</strong>
+        {clientName && <span className="truncate text-[9.5px] text-[#475569]">{clientName}</span>}
+        <div className="mt-1.5 flex items-baseline justify-between border-t border-[#e6eaf1] pt-1.5">
+          <span className="text-[9px] text-[#475569]">{t('Total')}</span>
+          <b className="text-[15px] leading-none font-bold text-[hsl(224_80%_45%)]">{totalLabel}</b>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// -----------------------------------------------------------------------------
 // SharePasswordControl: Phase 193-02 — set/remove a password on the share
-// link. Local optimistic state (mirrors urlCopied above); router.refresh()
-// after a successful save re-runs the project page's server components so
-// the header's Insights chip lock badge (components/workspace/estimate/
-// engagement-button.tsx, already wired to estimate.share_password_hash)
-// picks up the change without a full reload.
+// link. Local optimistic state; router.refresh() after a successful save
+// re-runs the project page's server components so the header's Insights chip
+// lock badge (components/workspace/estimate/engagement-button.tsx, already
+// wired to estimate.share_password_hash) picks up the change without a full
+// reload.
 // -----------------------------------------------------------------------------
 // Exported (only) so tests/unit/estimate/share-password-control.test.tsx can
 // exercise the toggle/set/remove behavior directly without assembling the
-// full SendHubDialog estimate/company fixture -- SendHubDialog itself still
-// only ever renders it inline above, never imports it from elsewhere.
+// full SendHubDialog estimate/company fixture.
 export function SharePasswordControl({
   estimateId,
   initiallyProtected,
@@ -374,6 +454,7 @@ export function SharePasswordControl({
   initiallyProtected: boolean
 }) {
   const router = useRouter()
+  const { t } = useTranslation()
   const [isProtected, setIsProtected] = useState(initiallyProtected)
   const [editing, setEditing] = useState(false)
   const [password, setPassword] = useState('')
@@ -389,10 +470,10 @@ export function SharePasswordControl({
       setIsProtected(true)
       setEditing(false)
       setPassword('')
-      toast.success('Password set')
+      toast.success(t('Password set'))
       router.refresh()
     } else {
-      setError(result.error ?? 'Failed to set password')
+      setError(result.error ?? t('Failed to update the estimate password.'))
     }
   }
 
@@ -403,54 +484,29 @@ export function SharePasswordControl({
     setSaving(false)
     if (result.success) {
       setIsProtected(false)
-      toast.success('Password removed')
+      toast.success(t('Password removed'))
       router.refresh()
     } else {
-      setError(result.error ?? 'Failed to remove password')
+      setError(result.error ?? t('Failed to update the estimate password.'))
     }
   }
 
+  function cancelEditing() {
+    setEditing(false)
+    setPassword('')
+    setError(null)
+  }
+
   return (
-    <div
-      data-testid="send-hub-share-password"
-      className="flex flex-col gap-2 rounded-md border border-input p-3"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {isProtected ? (
-            <>
-              <Lock className="h-3.5 w-3.5" />
-              <span>Password protected</span>
-            </>
-          ) : (
-            <>
-              <LockOpen className="h-3.5 w-3.5" />
-              <span>Anyone with the link can view</span>
-            </>
-          )}
-        </div>
-        {isProtected ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={saving}
-            onClick={() => void handleRemovePassword()}
-          >
-            Remove
-          </Button>
-        ) : (
-          <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)}>
-            {editing ? 'Cancel' : 'Protect with password'}
-          </Button>
-        )}
-      </div>
-      {editing && !isProtected && (
+    <div data-testid="send-hub-share-password" className="flex min-w-0 flex-col gap-2">
+      {editing && !isProtected ? (
         <div className="flex items-center gap-2">
           <Input
             type="password"
             autoComplete="new-password"
             enterKeyHint="done"
-            placeholder="Set a password"
+            placeholder={t('Set a password')}
+            aria-label={t('Set a password')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => {
@@ -460,46 +516,100 @@ export function SharePasswordControl({
                 void handleSetPassword()
               }
             }}
-            className="h-8 text-sm"
+            // 16px text: below that iOS Safari zooms the page on focus.
+            className="h-11 min-w-0 flex-1 rounded-xl bg-background text-base"
           />
           <Button
-            size="sm"
+            variant="ghost"
             disabled={saving || password.trim().length < 4}
             onClick={() => void handleSetPassword()}
+            className={cn(SECONDARY_BTN, 'h-10 shrink-0 px-3.5 text-[13.5px]')}
           >
-            Save
+            {t('Save')}
+          </Button>
+          <Button
+            variant="ghost"
+            aria-label={t('Cancel')}
+            onClick={cancelEditing}
+            className={cn(SECONDARY_BTN, 'size-10 shrink-0 p-0')}
+          >
+            <X className="size-4" />
           </Button>
         </div>
+      ) : (
+        <div
+          className={cn(
+            'flex min-h-9 items-center gap-2 text-[13.5px] text-muted-foreground',
+            isProtected && 'text-foreground/80',
+          )}
+        >
+          {isProtected ? (
+            <Lock aria-hidden="true" className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <LockOpen aria-hidden="true" className="size-4 shrink-0" />
+          )}
+          <span className="min-w-0 flex-1 leading-tight">
+            {isProtected ? t('Password protected') : t('No password')}
+          </span>
+          {isProtected ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleRemovePassword()}
+              className={cn(TEXT_BTN, 'shrink-0 whitespace-nowrap py-2 text-[13.5px] disabled:opacity-50')}
+            >
+              {t('Remove')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className={cn(TEXT_BTN, 'shrink-0 whitespace-nowrap py-2 text-[13.5px]')}
+            >
+              {t('Add password')}
+            </button>
+          )}
+        </div>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {isProtected && (
+        <p className="-mt-1 text-[12.5px] text-muted-foreground">
+          {t('Remember to send the password to the client through another channel.')}
+        </p>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }
 
 // -----------------------------------------------------------------------------
 // MessageTextBlock: the formatted plain-text message, always visible in the
-// hub. Controlled by the parent so the share intents carry edits. Copy copies
-// the (possibly edited) text and logs a plain_text/copy delivery row; Reset
-// restores the generated template output.
+// hub and editable in place. Copy copies the (possibly edited) text followed by
+// the public link and logs a plain_text/copy delivery row; Restore brings back
+// the generated template output.
 // -----------------------------------------------------------------------------
 function MessageTextBlock({
   estimateId,
   value,
+  edited,
+  linkUrl,
   onChange,
   onReset,
 }: {
   estimateId: string
   value: string
+  edited: boolean
+  linkUrl: string
   onChange: (text: string) => void
   onReset: () => void
 }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(value)
+      await navigator.clipboard.writeText(`${value}\n\n${linkUrl}`)
       setCopied(true)
-      toast.success('Message copied')
+      toast.success(t('Message copied'))
       setTimeout(() => setCopied(false), 2000)
       // Fire-and-forget delivery log -- a log-write failure must never
       // surface a toast, the copy already succeeded.
@@ -509,41 +619,52 @@ function MessageTextBlock({
         channel: 'copy',
       })
     } catch {
-      toast.error('Failed to copy message')
+      toast.error(t('Failed to copy message'))
     }
   }
 
   return (
-    <div data-testid="send-hub-card-plain-text" className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">
-          Copy-ready message
+    <div data-testid="send-hub-card-plain-text" className="flex min-w-0 flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className={cn(LABEL, 'flex items-center gap-2')}>
+          {t('Ready message')}
+          {edited && (
+            <span
+              data-testid="send-hub-edited-tag"
+              className="rounded-full bg-amber-500/15 px-2 py-1 text-[10.5px] font-semibold normal-case tracking-[0.04em] text-amber-700 dark:text-amber-400"
+            >
+              {t('Edited')}
+            </span>
+          )}
         </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="Reset message"
-            onClick={onReset}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => void handleCopy()}>
-            {copied ? (
-              <Check className="mr-2 h-3.5 w-3.5" />
-            ) : (
-              <Copy className="mr-2 h-3.5 w-3.5" />
-            )}
-            {copied ? 'Copied!' : 'Copy'}
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          onClick={() => void handleCopy()}
+          className={cn(SECONDARY_BTN, 'h-10 px-3.5 text-[13.5px]')}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? t('Copied!') : t('Copy')}
+        </Button>
       </div>
-      <Textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={7}
-        className="resize-none font-mono text-xs"
-      />
+      <div className="rounded-2xl border border-border bg-muted px-4 py-3.5">
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={t('Ready message')}
+          className="h-[168px] min-h-0 resize-none rounded-none border-0 bg-transparent p-0 text-[15px] leading-normal shadow-none [field-sizing:fixed] focus-visible:shadow-none sm:h-[150px]"
+        />
+      </div>
+      <p className="m-0 text-[12.5px] text-muted-foreground">
+        {t('The estimate link goes at the end of the copied message.')}
+        {edited && (
+          <>
+            {' '}
+            <button type="button" onClick={onReset} className={cn(TEXT_BTN, 'text-[12.5px]')}>
+              {t('Restore the original text')}
+            </button>
+          </>
+        )}
+      </p>
     </div>
   )
 }

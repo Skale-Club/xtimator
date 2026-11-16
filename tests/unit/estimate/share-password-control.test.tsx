@@ -24,10 +24,10 @@ beforeEach(() => {
 })
 
 describe('SharePasswordControl', () => {
-  it('unprotected: shows "Anyone with the link can view" and a "Protect with password" toggle', () => {
+  it('unprotected: shows "No password" and a "Add password" toggle', () => {
     render(<SharePasswordControl estimateId="est_1" initiallyProtected={false} />)
-    expect(screen.getByText('Anyone with the link can view')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Protect with password' })).toBeTruthy()
+    expect(screen.getByText('No password')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add password' })).toBeTruthy()
   })
 
   it('protected: shows "Password protected" and a "Remove" button, no set-password field', () => {
@@ -35,13 +35,22 @@ describe('SharePasswordControl', () => {
     expect(screen.getByText('Password protected')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy()
     expect(screen.queryByPlaceholderText('Set a password')).toBeNull()
+    expect(screen.getByText('Remember to send the password to the client through another channel.')).toBeTruthy()
+  })
+
+  it('cancelling the editor goes back to the unprotected line without saving', () => {
+    render(<SharePasswordControl estimateId="est_1" initiallyProtected={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByText('No password')).toBeTruthy()
+    expect(mockSetEstimateSharePassword).not.toHaveBeenCalled()
   })
 
   it('setting a password: calls setEstimateSharePassword, flips to protected, and refreshes the router', async () => {
     mockSetEstimateSharePassword.mockResolvedValue({ success: true })
     render(<SharePasswordControl estimateId="est_1" initiallyProtected={false} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Protect with password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add password' }))
     fireEvent.change(screen.getByPlaceholderText('Set a password'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -52,7 +61,7 @@ describe('SharePasswordControl', () => {
 
   it('the Save button stays disabled below the 4-char minimum', () => {
     render(<SharePasswordControl estimateId="est_1" initiallyProtected={false} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Protect with password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add password' }))
     fireEvent.change(screen.getByPlaceholderText('Set a password'), { target: { value: 'ab' } })
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
   })
@@ -61,12 +70,12 @@ describe('SharePasswordControl', () => {
     mockSetEstimateSharePassword.mockResolvedValue({ success: false, error: 'Failed to update the estimate password.' })
     render(<SharePasswordControl estimateId="est_1" initiallyProtected={false} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Protect with password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add password' }))
     fireEvent.change(screen.getByPlaceholderText('Set a password'), { target: { value: 'secret123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(screen.getByText('Failed to update the estimate password.')).toBeTruthy())
-    expect(screen.getByText('Anyone with the link can view')).toBeTruthy()
+    expect(screen.queryByText('Password protected')).toBeNull()
     expect(mockRefresh).not.toHaveBeenCalled()
   })
 
@@ -76,7 +85,7 @@ describe('SharePasswordControl', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
 
-    await waitFor(() => expect(screen.getByText('Anyone with the link can view')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No password')).toBeTruthy())
     expect(mockSetEstimateSharePassword).toHaveBeenCalledWith('est_1', null)
     expect(mockRefresh).toHaveBeenCalled()
   })

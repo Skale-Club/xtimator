@@ -155,16 +155,16 @@ describe('D-04/D-05/D-07/D-15: tenant WhatsApp surface guard', () => {
     expect(violations).toEqual([])
   })
 
-  it('estimate send hub still exists and the WhatsApp-to-client route is removed', () => {
-    // The Send hub and WhatsApp send API must remain intact
+  it('estimate send hub still exists, has no WhatsApp surface, and the WhatsApp-to-client route is removed', () => {
     expect(existsSync(resolve(ROOT, 'app/(app)/projects/[id]/page.tsx'))).toBe(true)
     // The bot's number never messages the end client: the send-whatsapp route is gone.
     expect(existsSync(resolve(ROOT, 'app/api/estimates/[id]/send-whatsapp/route.ts'))).toBe(false)
-    // The hub still offers the owner's own WhatsApp (wa.me share intent).
+    // The Share sheet only copies the link / message; it opens no WhatsApp intent.
     const hubFile = resolve(ROOT, 'components/workspace/send/send-hub-dialog.tsx')
-    if (existsSync(hubFile)) {
-      expect(readFileSync(hubFile, 'utf8')).toMatch(/whatsapp/i)
-    }
+    expect(existsSync(hubFile)).toBe(true)
+    const hub = readFileSync(hubFile, 'utf8')
+    expect(hub).not.toMatch(/whatsapp/i)
+    expect(hub).not.toMatch(/wa\.me/)
   })
 
   it('admin conversation components still compile (admin-only path)', () => {
