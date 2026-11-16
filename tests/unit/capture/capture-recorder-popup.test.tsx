@@ -219,6 +219,28 @@ describe('Composer', () => {
     expect(screen.queryByTestId('start-from-scratch-btn')).toBeNull()
   })
 
+  it('Start blank shows a loader at once and drops it when creation fails', async () => {
+    let finish: (ok: boolean) => void = () => {}
+    const onStartBlank = vi.fn(() => new Promise<boolean>((resolve) => { finish = resolve }))
+    renderPopup({ onStartBlank })
+    const btn = screen.getByTestId('start-from-scratch-btn')
+    fireEvent.click(btn)
+    expect(await screen.findByText('Opening a blank estimate...')).toBeInTheDocument()
+    expect(btn).toBeDisabled()
+    fireEvent.click(btn)
+    expect(onStartBlank).toHaveBeenCalledTimes(1)
+    await act(async () => { finish(false) })
+    expect(screen.queryByText('Opening a blank estimate...')).toBeNull()
+    expect(screen.getByTestId('start-from-scratch-btn')).not.toBeDisabled()
+  })
+
+  it('Start blank keeps the loader after success (the page is about to change)', async () => {
+    renderPopup({ onStartBlank: vi.fn(async () => true) })
+    fireEvent.click(screen.getByTestId('start-from-scratch-btn'))
+    await act(async () => {})
+    expect(screen.getByText('Opening a blank estimate...')).toBeInTheDocument()
+  })
+
   it('Ctrl+Enter in the textarea triggers generate when there is input', async () => {
     renderPopup()
     const ta = screen.getByTestId('capture-description')

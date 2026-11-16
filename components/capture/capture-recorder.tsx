@@ -23,7 +23,7 @@ import { savePendingCapture, getPendingCapture, deletePendingCapture, isAvailabl
 import { getSupportedAudioMimeType, formatDuration } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
-import { Camera, Mic, Plus, Sparkles, Pause, Play, Square, Trash2 } from 'lucide-react'
+import { Camera, Loader2, Mic, Plus, Sparkles, Pause, Play, Square, Trash2 } from 'lucide-react'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import { WaveformVisualizer } from '@/components/workspace/audio/waveform-visualizer'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -275,7 +275,8 @@ interface CaptureRecorderProps {
    * The parent creates a blank estimate and navigates to the editor directly,
    * bypassing AI generation. Only passed in new-project mode (not edit mode).
    */
-  onStartBlank?: () => Promise<void>
+  /** Resolves false when the blank estimate could not be created (the caller already toasted). */
+  onStartBlank?: () => Promise<boolean | void>
   /**
    * Edit-with-AI REFINE mode. When set (the project already has a current
    * estimate) the typed text / voice note / photos are sent to
@@ -1798,7 +1799,8 @@ export interface RecorderBodyProps {
   mode?: CaptureMode
   // Popup composer (popup + unified mode)
   isHorizontal: boolean
-  onStartBlank?: () => Promise<void>
+  /** Resolves false when the blank estimate could not be created (the caller already toasted). */
+  onStartBlank?: () => Promise<boolean | void>
   // Popup composer: the AI's follow-up questions from a needs-details outcome,
   // shown as an inline card above the text box until the next attempt starts.
   needsDetails?: { reason?: string; questions?: string[]; fallbackMessage: string } | null
@@ -1842,6 +1844,18 @@ function PopupBody({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [dragging, setDragging] = useState(false)
   const [tipIndex, setTipIndex] = useState(0)
+  // Creating the blank estimate and navigating takes a moment; show it at once
+  // and keep it until the page changes (success unmounts this popup).
+  const [startingBlank, setStartingBlank] = useState(false)
+  async function handleStartBlank() {
+    if (!onStartBlank || startingBlank) return
+    setStartingBlank(true)
+    try {
+      if ((await onStartBlank()) === false) setStartingBlank(false)
+    } catch {
+      setStartingBlank(false)
+    }
+  }
 
   const needsShown = !!needsDetails && !isRecording
   const hasText = descriptionText.trim().length > 0
@@ -2046,11 +2060,22 @@ function PopupBody({
                 <span>{t('It helps to mention the job, the measurements and the materials.')}</span>
                 <button
                   type="button"
-                  onClick={onStartBlank}
-                  className="pt-2 pb-1.5 text-left leading-snug"
+                  onClick={() => void handleStartBlank()}
+                  disabled={startingBlank}
+                  aria-busy={startingBlank}
+                  className="pt-2 pb-1.5 text-left leading-snug disabled:cursor-wait"
                   data-testid="start-from-scratch-btn"
                 >
-                  {t('Prefer to build it by hand?')} <span className="font-medium text-primary">{t('Start blank')}</span>
+                  {startingBlank ? (
+                    <span className="inline-flex items-center gap-2 font-medium text-primary">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      {t('Opening a blank estimate...')}
+                    </span>
+                  ) : (
+                    <>
+                      {t('Prefer to build it by hand?')} <span className="font-medium text-primary">{t('Start blank')}</span>
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -2127,7 +2152,9 @@ function PopupBody({
             onClick={() => void onGenerate()}
             data-testid={refineMode ? 'refine-preview-btn' : 'generate-estimate-btn'}
           >
-            <Sparkles className="h-[18px] w-[18px]" aria-hidden />
+            {/* Sparkles draws its star well inside the viewBox, so it needs a
+                larger box than the mic to look the same size. */}
+            <Sparkles className="h-[22px] w-[22px] shrink-0" aria-hidden />
             {refineMode ? t('See changes') : t('Generate estimate')}
             <span className="ml-1 hidden rounded-md border border-white/40 px-[7px] py-[5px] text-[11.5px] font-medium leading-none text-white/90 sm:inline" aria-hidden>
               Ctrl ↵

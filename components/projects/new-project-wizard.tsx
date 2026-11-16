@@ -163,17 +163,20 @@ export function NewProjectWizard({
     // with router.push and drops the navigation in Next.js App Router.
   }
 
-  async function handleStartBlank() {
-    if (!project) return
+  // Returns false when no blank estimate was created, so the popup can drop its loader.
+  async function handleStartBlank(): Promise<boolean> {
+    if (!project) return false
     const result = await createBlankEstimate(project.id)
-    clearDraftProjectId()
     if ('error' in result || !result.data) {
-      if (showBillingBlockToast((result as { code?: unknown }).code, router, t)) return
-      toast.error((result as { error?: string }).error ?? 'Failed to create estimate')
-      return
+      if (!showBillingBlockToast((result as { code?: unknown }).code, router, t)) {
+        toast.error((result as { error?: string }).error ?? 'Failed to create estimate')
+      }
+      return false
     }
+    clearDraftProjectId()
     router.push(`/projects/${project.id}?tab=estimate&estimate=${result.data.estimateId}`)
     router.refresh()
+    return true
   }
 
   if (isCreating || !project) {

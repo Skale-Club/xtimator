@@ -77,6 +77,7 @@ export const captureTranslations: Record<'pt' | 'es', Dict> = {
     'Quantity': 'Quantidade',
     'Also updated': 'Também atualizado',
     'Apply changes': 'Aplicar mudanças',
+    'Opening a blank estimate...': 'Abrindo um orçamento em branco…',
   },
   es: {
     // Shell
@@ -148,5 +149,6 @@ export const captureTranslations: Record<'pt' | 'es', Dict> = {
     'Quantity': 'Cantidad',
     'Also updated': 'También actualizado',
     'Apply changes': 'Aplicar cambios',
+    'Opening a blank estimate...': 'Abriendo un presupuesto en blanco…',
   },
 }
