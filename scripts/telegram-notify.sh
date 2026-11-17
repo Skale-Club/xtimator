@@ -48,10 +48,11 @@ fi
 # Only the BODY is escaped. The TITLE is written by us and intentionally
 # contains <b>…</b>; no caller puts markup in a body.
 # '&' MUST be substituted first, or it would re-escape the '&' of &lt;/&gt;.
+BODY="${BODY//\\n/$'\n'}"
 esc_body=$(printf '%s' "${BODY}" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
 
 # printf '%b' expands the \n the caller wrote into REAL newlines.
-text=$(printf '%b' "${TITLE}\n\n${esc_body}")
+text=$(printf '%s\n\n%s' "${TITLE}" "${esc_body}")
 
 # Transport: a JSON body, not -d/--data-urlencode form fields.
 #
