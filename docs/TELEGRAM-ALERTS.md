@@ -4,9 +4,50 @@ Xtimator reports what the operator needs to know to a Telegram chat: the site
 going down, scheduled jobs going quiet, the AI pipeline failing, money moving,
 and any burst of server errors.
 
-Bot: **@xtimatoroppsbot** ("Xtimator | Opps"), created for this project alone.
-Don't share it with another project — a shared bot means a shared chat, and a
-shared chat is one you eventually mute.
+Operations alerts may use the shared Skale operations bot and destination. Every
+message identifies **Xtimator**. Configure the same operations token/chat in the
+app and GitHub Actions; credentials are never stored in this document. The blog
+editorial bot (`lib/blog/telegram.ts`) remains separate, as do customer WhatsApp,
+SMS and email notifications.
+
+## Message contract
+
+Operator-facing titles and fact labels are Portuguese:
+
+| Prefix | Meaning |
+| --- | --- |
+| 🔴 Crítico | Failed operation or unavailable application |
+| 🟠 Atenção | Warning, degraded dependency, cancellation or skipped deployment |
+| 🔵 Informação | Start/progress and business events (signup/payment) |
+| 🟢 Resolvido | Verified deployment or observed recovery |
+
+Messages contain the app name, short title, blank-line-separated facts and, for
+Actions, the short commit SHA where available and run URL. In-app diagnostic
+context is retained verbatim (including original source titles and provider
+errors); it can be English. Existing Sentry severity, per-kind gates, thresholds,
+Redis dedupe and transition-only probe delivery are unchanged. Legacy `icon`
+hints cannot override the severity prefix. Both transports still use escaped
+Telegram HTML. No message is sent by the offline unit tests.
+
+## Sender inventory
+
+- `scripts/telegram-notify.sh`: used only by `build-deploy.yml` (start, outcome,
+  blocked test gate) and `uptime-probe.yml` (availability/cron transitions).
+- `notifyOps` in `lib/observability/ops-alert.ts`: AI provider clients; quota;
+  WhatsApp sender-link conflicts; Stripe and Connect billing events; credit
+  ledger/auto top-up; signup; Inngest generation, transcription, vision,
+  watchdog, reconciliation, monthly grants and DB cron failures; cron cleanup
+  routes; server error-spike monitoring. All use the central formatter.
+- `lib/telegram/client.ts` also serves the admin integration connection test
+  and admin template preview sends. Template previews deliberately render the
+  selected template rather than rewriting its content as an incident.
+- `lib/blog/telegram.ts` owns its own editorial transport/configuration and is
+  outside the operations migration.
+
+The build/deploy job retains its original test-success gate and manual override.
+A separate notification-only job reports a failed/cancelled gate. A missing
+Coolify credential is reported as a warning rather than verified success. A
+failure notice does not assume which version production currently serves.
 
 ## Setting it up
 
@@ -39,9 +80,9 @@ a group with Topics enabled and you want alerts in a specific topic.
 
 | Alert | Layer | Source | When |
 | --- | --- | --- | --- |
-| 🚨 Xtimator is DOWN / ✅ back UP | 1 | GitHub Actions | `/api/health/live` fails 3× (~5 min) |
-| ⚠️ Crons have gone quiet / ✅ running again | 1 | GitHub Actions | a job misses its heartbeat window |
-| 🚀 Deploy succeeded / 🚨 Deploy FAILED | 1 | GitHub Actions | every deploy |
+| 🔴 Falha de disponibilidade / 🟢 Serviço recuperado | 1 | GitHub Actions | `/api/health/live` fails 3× (~5 min) |
+| 🟠 Tarefas atrasadas / 🟢 Tarefas recuperadas | 1 | GitHub Actions | a job misses its heartbeat window |
+| 🔵 Build iniciado / 🟢 Deploy verificado / 🔴 Falha | 1 | GitHub Actions | every deploy |
 | Estimate generation / transcription / photo analysis failed | 2 | app | per failure, deduped |
 | Generation pipeline stuck | 2 | app | `pipeline-watchdog`, every 10 min |
 | Scheduled cron job failed | 2 | app | the route ran and threw |

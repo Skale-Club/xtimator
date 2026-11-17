@@ -77,6 +77,18 @@ jobs:
         with:
           ref: ${{ env.DEPLOY_SHA }}
 
+      - name: Notify Telegram (build started)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/telegram-notify.sh \
+            "🔵 Informação | <b>Xtimator — Build iniciado</b>" \
+            "Commit: ${DEPLOY_SHA:0:7}\n\nConstrução da imagem iniciada.\n\nExecução: $RUN_URL"
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
@@ -234,15 +246,22 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          if [ -z "${COOLIFY_TOKEN:-}" ]; then
+            bash scripts/telegram-notify.sh \
+              "🟠 Atenção | <b>Xtimator — Deploy não executado</b>" \
+              "Commit: ${DEPLOY_SHA:0:7}\n\nImagem criada; credencial do Coolify ausente. Produção não verificada.\n\nExecução: $RUN_URL"
+            exit 0
+          fi
           # First line only: a commit body is unbounded and Telegram's
           # sendMessage caps at 4096 characters.
-          subject=$(printf '%s' "${COMMIT_MSG:-(no commit message)}" | head -n1)
+          subject=$(printf '%s' "${COMMIT_MSG:-(sem mensagem de commit)}" | head -n1)
           bash scripts/telegram-notify.sh \
-            "🚀 <b>Xtimator deployed</b>" \
-            "${DEPLOY_SHA:0:7} $subject\n\nImage pushed to GHCR, Coolify rolled it out, and Inngest re-synced against the new container.\n\n$RUN_URL"
+            "🟢 Resolvido | <b>Xtimator — Deploy verificado</b>" \
+            "Commit: ${DEPLOY_SHA:0:7} — $subject\n\nNova versão confirmada em produção; Inngest sincronizado.\n\nExecução: $RUN_URL"
 
       - name: Notify Telegram (deploy FAILED)
         if: failure()
@@ -254,7 +273,30 @@ jobs:
           COMMIT_MSG: ${{ github.event.workflow_run.head_commit.message }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          subject=$(printf '%s' "${COMMIT_MSG:-(no commit message)}" | head -n1)
+          subject=$(printf '%s' "${COMMIT_MSG:-(sem mensagem de commit)}" | head -n1)
           bash scripts/telegram-notify.sh \
-            "🚨 <b>Xtimator deploy FAILED</b>" \
-            "${DEPLOY_SHA:0:7} $subject\n\nProduction is still serving the PREVIOUS image — Coolify only cuts traffic over to a healthy container — so this is not an outage, but the change did not ship.\n\n$RUN_URL"
+            "🔴 Crítico | <b>Xtimator — Build ou deploy falhou</b>" \
+            "Commit: ${DEPLOY_SHA:0:7} — $subject\n\nA publicação não foi concluída. Consulte a etapa que falhou; a versão em produção precisa ser verificada.\n\nExecução: $RUN_URL"
+
+  notify-test-gate:
+    name: Notify blocked release
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - name: Notify Telegram (test gate)
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_THREAD_ID: ${{ vars.TELEGRAM_THREAD_ID }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          title="🔴 Crítico | <b>Xtimator — Testes falharam</b>"
+          [ "$CONCLUSION" != "cancelled" ] || title="🟠 Atenção | <b>Xtimator — Testes cancelados</b>"
+          bash scripts/telegram-notify.sh "$title" \
+            "Commit: ${DEPLOY_SHA:0:7}\n\nBuild e deploy bloqueados pela verificação de testes.\n\nEstado: $CONCLUSION\n\nExecução: $RUN_URL"

@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *  - never-throw (tg)→ sendTelegramMessage rejects: notifyOps resolves, Sentry still called.
  *  - never-throw (st)→ captureMessage throws: notifyOps resolves, Telegram still called.
  *  - dormant         → sendTelegramMessage rejects '[Telegram] not configured': resolves.
- *  - severity default→ no severity: captureMessage level 'warning', ⚠️ emoji in message.
+ *  - severity default→ no severity: captureMessage level 'warning', 🟠 emoji in message.
  *  - toggle gate     → isTelegramAlertEnabled false: Sentry still called, Telegram NOT called
  *                      (Phase 175 PLAT-02); true: both still called (regression guard); the
  *                      toggle check itself rejecting: notifyOps still resolves, Sentry still called.
@@ -67,17 +67,17 @@ describe('formatOpsMessage', () => {
       severity: 'error',
     })
     expect(out).toContain('🔴')
-    expect(out).toContain('<b>AI primary down</b>')
+    expect(out).toContain('Crítico | <b>Xtimator — IA operando com alternativa</b>')
     expect(out).toContain('boom')
   })
 
-  it('defaults to the ⚠️ warning emoji when severity is absent', () => {
+  it('defaults to the 🟠 warning emoji when severity is absent', () => {
     const out = formatOpsMessage({
       kind: 'ai_fallback',
       title: 'Heads up',
       message: 'degraded',
     })
-    expect(out).toContain('⚠️')
+    expect(out).toContain('🟠')
     expect(out).not.toContain('🔴')
   })
 
@@ -91,7 +91,7 @@ describe('formatOpsMessage', () => {
     expect(out).toContain('&lt;script&gt;')
   })
 
-  it('renders an icon override and one labelled line per non-empty field, escaped', () => {
+  it('uses informational severity instead of a legacy icon and one labelled line per non-empty field, escaped', () => {
     const out = formatOpsMessage({
       kind: 'tenant_signup',
       title: 'New tenant signup',
@@ -99,7 +99,7 @@ describe('formatOpsMessage', () => {
       icon: '🎉',
       fields: [['Company', 'Smith & Sons'], ['Phone', null], ['Email', '  '], ['Company ID', 'abc']],
     })
-    expect(out).toBe('🎉 <b>New tenant signup</b>\n\n<b>Company:</b> Smith &amp; Sons\n<b>Company ID:</b> abc')
+    expect(out).toBe('🔵 Informação | <b>Xtimator — Novo cadastro</b>\n\n<b>Contexto:</b> New tenant signup\n\n<b>Empresa:</b> Smith &amp; Sons\n<b>ID da empresa:</b> abc')
   })
 })
 
@@ -223,14 +223,14 @@ describe('notifyOps', () => {
     expect(captureMessageMock).toHaveBeenCalledTimes(1)
   })
 
-  it('defaults severity to warning — captureMessage level warning and ⚠️ emoji sent to Telegram', async () => {
+  it('defaults severity to warning — captureMessage level warning and 🟠 emoji sent to Telegram', async () => {
     await notifyOps({ kind: 'ai_fallback', title: 't', message: 'm' })
 
     const [, opts] = captureMessageMock.mock.calls[0] as [string, { level: string }]
     expect(opts.level).toBe('warning')
 
     const sentText = sendTelegramMessageMock.mock.calls[0][0] as string
-    expect(sentText).toContain('⚠️')
+    expect(sentText).toContain('🟠')
   })
 
   it('toggle gate false — Sentry still fires, Telegram is NOT sent (Phase 175 PLAT-02)', async () => {

@@ -9,7 +9,10 @@
 # this script runs on GitHub's infrastructure instead, so it survives the
 # container, the host, and Hetzner.
 #
-#   bash scripts/telegram-notify.sh "<b>Title</b>" "Body, \n for newlines"
+#   bash scripts/telegram-notify.sh "🔵 Informação | <b>Xtimator — Build iniciado</b>" "Commit: abc1234\n\nExecução: URL"
+#
+# Callers own the Portuguese severity/title and labelled facts. This transport
+# preserves HTML escaping, topic routing and never-fail delivery semantics.
 #
 # Reads TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID (repo secrets) and the optional
 # TELEGRAM_THREAD_ID (repo variable, only for a group with Topics enabled).
@@ -39,7 +42,7 @@ fi
 #
 # i.e. a commit message reading "fix: 5<10" would silently kill the alert. This
 # is not hypothetical — it was reproduced against the live bot while building
-# this. Mirrors the esc() in formatOpsMessage() in lib/observability/ops-alert.ts,
+# this. Mirrors the esc() in formatOpsMessage() in lib/observability/ops-message.ts,
 # which escapes for the same reason on the in-app side.
 #
 # Only the BODY is escaped. The TITLE is written by us and intentionally

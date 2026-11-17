@@ -21,38 +21,8 @@ import { isTelegramAlertEnabled } from '@/lib/observability/platform-preferences
  * Company-agnostic: alerts carry only the kind/title/message — never a companyId.
  */
 
-export type OpsAlert = {
-  kind: string
-  title: string
-  message: string
-  severity?: 'warning' | 'error'
-  dedupeKey?: string
-  suppressWindowSec?: number
-  /** Overrides the severity emoji, e.g. a neutral icon for a non-problem event like a signup. */
-  icon?: string
-  /** Labelled facts rendered one per line under the message; empty values are skipped. */
-  fields?: Array<[label: string, value: string | null | undefined]>
-}
-
-/**
- * Render an alert to the Telegram HTML payload: a severity emoji + <b>title</b>
- * on line one, then the message. Titles/messages are internal, but error strings
- * can contain '<', '>' or '&', so we do the minimal HTML escaping Telegram's
- * parse_mode: 'HTML' requires to avoid a malformed-entity send failure.
- */
-export function formatOpsMessage(alert: OpsAlert): string {
-  const emoji = alert.icon ?? (alert.severity === 'error' ? '🔴' : '⚠️')
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const lines = [`${emoji} <b>${esc(alert.title)}</b>`]
-  if (alert.message) lines.push(esc(alert.message))
-  const fields = (alert.fields ?? []).filter(([, value]) => value != null && String(value).trim() !== '')
-  if (fields.length > 0) {
-    lines.push('')
-    for (const [label, value] of fields) lines.push(`<b>${esc(label)}:</b> ${esc(String(value))}`)
-  }
-  return lines.join('\n')
-}
+import { formatOpsMessage, type OpsAlert } from './ops-message'
+export { formatOpsMessage, type OpsAlert } from './ops-message'
 
 export async function notifyOps(alert: OpsAlert): Promise<void> {
   try {

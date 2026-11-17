@@ -78,7 +78,7 @@ jobs:
 
           if [ "${FORCE_FAILURE:-false}" = "true" ]; then
             echo "Forced failure requested via workflow_dispatch."
-            echo "detail=Forced failure (workflow_dispatch test), not a real outage." >> "$GITHUB_OUTPUT"
+            echo "detail=Falha simulada pelo workflow_dispatch; não é uma indisponibilidade real." >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -118,10 +118,8 @@ jobs:
 
           if [ "$live_code" != "200" ]; then
             echo "::error::Liveness probe failed after 3 attempts (last HTTP $live_code)."
-            # ASCII only: this string is machine-generated and travels through a
-            # shell, the GitHub API and Telegram. Non-ASCII survives all three
-            # when every hop is UTF-8, and silently degrades when one is not.
-            echo "detail=/api/health/live did not return 200 after 3 attempts (up to ~5 min: 3 x ${PROBE_TIMEOUT}s timeout plus two 15s waits). Last status: HTTP $live_code. That endpoint makes zero external calls, so this is the Node process not answering HTTP at all - not a database or storage problem." >> "$GITHUB_OUTPUT"
+            # Diagnostic facts are UTF-8 across Actions, GitHub and Telegram.
+            echo "detail=/api/health/live sem HTTP 200 após 3 tentativas (limite de ${PROBE_TIMEOUT}s por tentativa). Último estado: HTTP $live_code. O processo Node não responde; este endpoint não acessa dependências externas." >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -135,7 +133,7 @@ jobs:
           if [ "$deep_code" != "200" ]; then
             echo "::error::Readiness probe failed (HTTP $deep_code)."
             {
-              echo "detail=/api/health/live is OK (the process is alive) but /api/health returned HTTP $deep_code - a downstream dependency (Supabase DB or storage) is failing."
+              echo "detail=Processo disponível; /api/health retornou HTTP $deep_code. Verifique banco de dados e armazenamento."
               echo "body<<XEOF"
               echo "$body"
               echo "XEOF"
@@ -199,9 +197,13 @@ jobs:
           DETAIL: ${{ steps.probe.outputs.detail }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          title="🔴 Crítico | <b>Xtimator — Falha de disponibilidade</b>"
+          case "$DETAIL" in
+            *"Processo disponível;"*) title="🟠 Atenção | <b>Xtimator — Dependência degradada</b>" ;;
+          esac
           bash scripts/telegram-notify.sh \
-            "🚨 <b>Xtimator is DOWN</b>" \
-            "$DETAIL\n\nChecked from GitHub Actions, outside the server — so this alert survives the app, the container and the host being gone.\n\n$RUN_URL"
+            "$title" \
+            "Detalhes: $DETAIL\n\nVerificação externa pelo GitHub Actions.\n\nExecução: $RUN_URL"
 
       - name: Close the outage issue on recovery
         id: recovery
@@ -230,8 +232,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           bash scripts/telegram-notify.sh \
-            "✅ <b>Xtimator is back UP</b>" \
-            "${SITE_URL} is answering healthy again.\n\n$RUN_URL"
+            "🟢 Resolvido | <b>Xtimator — Serviço recuperado</b>" \
+            "Site: ${SITE_URL}\n\nDisponibilidade e dependências verificadas novamente.\n\nExecução: $RUN_URL"
 
   # ── Deadman for the scheduled jobs ────────────────────────────────────────
   # Scheduling lives in the skale-cron crontab on the Coolify VPS: every
@@ -276,7 +278,7 @@ jobs:
             exit 0
           fi
 
-          summary=$(jq -r '[.jobs[] | select(.stale) | "\(.job): last success \(if .ageMinutes == null then "never" else "\(.ageMinutes) min ago" end) (expected every \(.schedule), stale after \(.staleAfterMinutes) min)"] | join("\n")' /tmp/crons.json)
+          summary=$(jq -r '[.jobs[] | select(.stale) | "\(.job): último sucesso \(if .ageMinutes == null then "nunca" else "há \(.ageMinutes) min" end) (agenda \(.schedule), atraso após \(.staleAfterMinutes) min)"] | join("\n")' /tmp/crons.json)
           echo "::warning::Stale cron heartbeats detected."
           echo "$summary"
           echo "stale=true" >> "$GITHUB_OUTPUT"
@@ -343,8 +345,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           bash scripts/telegram-notify.sh \
-            "⚠️ <b>Xtimator crons have gone quiet</b>" \
-            "$SUMMARY\n\nThe app is UP — this is the schedule, not the site. Scheduling lives in the skale-cron crontab on the Coolify VPS.\n\n$RUN_URL"
+            "🟠 Atenção | <b>Xtimator — Tarefas atrasadas</b>" \
+            "Tarefas: $SUMMARY\n\nSite disponível. Verifique o agendamento skale-cron no servidor Coolify.\n\nExecução: $RUN_URL"
 
       - name: Push cron recovery to Telegram
         if: steps.state.outputs.recovered == 'true'
@@ -356,5 +358,5 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           bash scripts/telegram-notify.sh \
-            "✅ <b>Xtimator crons are running again</b>" \
-            "Every scheduled job has reported a fresh heartbeat.\n\n$RUN_URL"
+            "🟢 Resolvido | <b>Xtimator — Tarefas recuperadas</b>" \
+            "Todas as tarefas agendadas registraram execução recente.\n\nExecução: $RUN_URL"
