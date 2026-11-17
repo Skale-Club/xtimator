@@ -33,3 +33,14 @@ export async function getPublicContractSummary(estimateId: string): Promise<Cont
 export async function recordChangeOrderView(token: string): Promise<void> {
   void token
 }
+
+/**
+ * Same shape as getChangeOrderByShareToken, loaded by id with the service
+ * client, for the PDF route AFTER it has authorized the caller (owner session
+ * of the same company, or the matching share token). Never expose it to a
+ * caller that has not been authorized.
+ */
+export async function getChangeOrderDocumentById(id: string): Promise<PublicChangeOrderData | null> {
+  void id
+  return null
+}
