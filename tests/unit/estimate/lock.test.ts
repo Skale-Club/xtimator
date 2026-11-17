@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 
-// TRUST-01 (Phase 164 Plan 01): shared, pure "is this estimate locked from
-// further edits" predicate. Plan 02 imports this for the freeze guards
-// (saveEstimate + refine route). Mirrors presentation-settings.test.ts's
-// style: plain object literals, hand-computed goldens, no mocking.
+// Lock-at-acceptance: an estimate is locked only once the client has ANSWERED
+// it (accepted or declined; a signature sets client_response). Sending alone
+// does not lock. Plain object literals, hand-computed goldens, no mocking.
 describe('isEstimateLocked', () => {
   it('returns false for null', () => {
     expect(isEstimateLocked(null)).toBe(false)
@@ -18,15 +17,23 @@ describe('isEstimateLocked', () => {
     expect(isEstimateLocked({ sent_at: null, client_response: null })).toBe(false)
   })
 
-  it('returns true when sent_at is set (client_response still null)', () => {
+  it('returns false when sent_at is set but the client has not answered (stays editable)', () => {
     expect(
       isEstimateLocked({ sent_at: '2026-07-01T00:00:00Z', client_response: null })
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  it('returns true when client_response is set (sent_at still null — sign sets client_response via respondToEstimate)', () => {
+  it('returns false when only client_response is passed and it is null', () => {
+    expect(isEstimateLocked({ client_response: null })).toBe(false)
+  })
+
+  it('returns true when the client accepted (a signature sets client_response)', () => {
+    expect(isEstimateLocked({ sent_at: null, client_response: 'accepted' })).toBe(true)
+  })
+
+  it('returns true when the client declined', () => {
     expect(
-      isEstimateLocked({ sent_at: null, client_response: 'accepted' })
+      isEstimateLocked({ sent_at: '2026-07-01T00:00:00Z', client_response: 'declined' })
     ).toBe(true)
   })
 

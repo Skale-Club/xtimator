@@ -137,7 +137,8 @@ export async function POST(
     // -------------------------------------------------------------------------
     // TRUST-02 (Phase 164 Plan 02) — freeze-on-send/sign guard. Same lock
     // coverage as saveEstimate (lib/actions/estimate.ts): reject when
-    // isEstimateLocked({sent_at, client_response}) is true OR an
+    // isEstimateLocked({client_response}) is true (answered: lock-at-acceptance,
+    // a merely SENT estimate stays editable) OR an
     // estimate_signatures row exists (Opus blocker #1 — sign/route.ts inserts
     // the signature BEFORE respondToEstimate and SWALLOWS a respond failure,
     // so a signed estimate can have client_response still null). Placed

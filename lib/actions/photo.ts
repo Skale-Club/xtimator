@@ -220,8 +220,8 @@ export async function deletePhoto(photoId: string) {
   // change what a signed estimate's share page/PDF renders. Block deletion
   // when ANY estimate this photo is currently attached to is locked/signed,
   // using the SAME two-part predicate as assertPhotoMutationAllowed
-  // (lib/actions/estimate-photo.ts): isEstimateLocked (sent_at/
-  // client_response) OR an existing estimate_signatures row (the sign route
+  // (lib/actions/estimate-photo.ts): isEstimateLocked (client_response;
+  // lock-at-acceptance, sending alone does not lock) OR an existing estimate_signatures row (the sign route
   // inserts the signature BEFORE respondToEstimate and swallows a respond
   // failure, so a signature can exist while client_response is still null).
   const { data: attachedRows } = await supabase
@@ -234,7 +234,7 @@ export async function deletePhoto(photoId: string) {
 
     const { data: estimate } = await supabase
       .from('estimates')
-      .select('sent_at, client_response')
+      .select('client_response')
       .eq('id', estimateId)
       .single()
 

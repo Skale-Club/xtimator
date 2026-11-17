@@ -138,6 +138,7 @@ function SlotProbe() {
       data-locked={String(slot.isLocked)}
       data-retry={slot.onRetrySave ? 'yes' : 'no'}
       data-status={slot.onOpenStatus ? 'yes' : 'no'}
+      data-reopen={slot.onReopen ? 'yes' : 'no'}
     />
   )
 }
@@ -204,6 +205,29 @@ describe('EstimateEditor in the v2 frame', () => {
     expect(slot.getAttribute('data-locked')).toBe('true')
     expect(slot.getAttribute('data-retry')).toBe('no')
     expect((screen.getByTestId('edit-with-ai-btn') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('offers "Revise and reopen" only for a declined estimate without a signature', async () => {
+    const { recordClientResponse } = await import('@/lib/actions/estimate-response')
+    vi.mocked(recordClientResponse).mockResolvedValue({
+      success: true,
+      data: { client_response: null, responded_at: null, updated_at: '2026-01-03T00:00:00.000Z' },
+    } as never)
+    const { unmount } = render(
+      <Harness
+        frame="v2"
+        estimate={buildEstimate({ client_response: 'declined', responded_at: '2026-01-02T00:00:00.000Z' })}
+      />,
+    )
+    expect(screen.getByTestId('slot').getAttribute('data-reopen')).toBe('yes')
+    unmount()
+    render(
+      <Harness
+        frame="v2"
+        estimate={buildEstimate({ client_response: 'accepted', responded_at: '2026-01-02T00:00:00.000Z' })}
+      />,
+    )
+    expect(screen.getByTestId('slot').getAttribute('data-reopen')).toBe('no')
   })
 
   it('keeps the floating pill and no dock in the v1 frame', () => {

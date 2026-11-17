@@ -286,6 +286,11 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Call': 'Ligar',
     'Contact': 'Contato',
     'Decline estimate': 'Recusar orçamento',
+    'This estimate was just updated. Review the latest version before signing.':
+      'Este orçamento acabou de ser atualizado. Revise a versão mais recente antes de assinar.',
+    'Load latest version': 'Carregar a versão mais recente',
+    'A newer version of this estimate exists. Ask {company} for the latest link.':
+      'Existe uma versão mais nova deste orçamento. Peça a {company} o link mais recente.',
     'Decline this estimate?': 'Recusar este orçamento?',
     'Yes, decline': 'Sim, recusar',
     'Keep reviewing': 'Continuar revisando',
@@ -762,6 +767,11 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     'Call': 'Llamar',
     'Contact': 'Contacto',
     'Decline estimate': 'Rechazar presupuesto',
+    'This estimate was just updated. Review the latest version before signing.':
+      'Este presupuesto acaba de actualizarse. Revise la versión más reciente antes de firmar.',
+    'Load latest version': 'Cargar la versión más reciente',
+    'A newer version of this estimate exists. Ask {company} for the latest link.':
+      'Existe una versión más nueva de este presupuesto. Pida a {company} el enlace más reciente.',
     'Decline this estimate?': '¿Rechazar este presupuesto?',
     'Yes, decline': 'Sí, rechazar',
     'Keep reviewing': 'Seguir revisando',

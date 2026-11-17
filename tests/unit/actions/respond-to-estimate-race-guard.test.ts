@@ -37,10 +37,12 @@ const ESTIMATE_ROW = {
   project_id: 'proj_1',
   company_id: 'co_1',
   client_response: null,
+  is_current: true,
   estimate_number: 'EST-100',
   client_name: 'Alice',
 }
 
+let estimateRowOverride: Record<string, unknown> = {}
 let conditionalUpdateResult: { data: unknown; error: unknown }
 let signatureEnabled = true
 let estimateUpdateCalled = false
@@ -57,7 +59,7 @@ function configureSupabase() {
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: ESTIMATE_ROW, error: null }),
+            single: vi.fn().mockResolvedValue({ data: { ...ESTIMATE_ROW, ...estimateRowOverride }, error: null }),
           }),
         }),
         update: vi.fn().mockImplementation(() => {
@@ -107,6 +109,7 @@ function configureSupabase() {
 beforeEach(() => {
   vi.clearAllMocks()
   conditionalUpdateResult = { data: [{ id: 'est_1' }], error: null }
+  estimateRowOverride = {}
   signatureEnabled = true
   configureSupabase()
 })
@@ -192,5 +195,23 @@ describe('respondToEstimate — gated by companies.digital_signature_enabled', (
   it('flag ON still allows declined', async () => {
     const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
     expect(await respondToEstimate('tok_1', 'declined')).toEqual({ success: true })
+  })
+})
+
+describe('respondToEstimate — lock-at-acceptance: a superseded version cannot be answered', () => {
+  it('refuses to decline a superseded (is_current = false) estimate before any write', async () => {
+    estimateRowOverride = { is_current: false }
+    const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+
+    const result = await respondToEstimate('tok_1', 'declined')
+
+    expect(result).toEqual({
+      success: false,
+      error: 'A newer version of this estimate exists',
+    })
+    expect(estimateUpdateCalled).toBe(false)
+    expect(projectUpdateCalled).toBe(false)
+    expect(activityInsertCalled).toBe(false)
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 })

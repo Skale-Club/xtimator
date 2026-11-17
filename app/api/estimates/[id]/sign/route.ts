@@ -21,6 +21,12 @@ interface SignRequestBody {
   signerName: string
   signerEmail?: string
   signatureData: string
+  /**
+   * The estimate's `updated_at` exactly as the public page rendered it. Signing
+   * is only accepted against that exact content (lock-at-acceptance: a sent
+   * estimate stays editable, so the client must sign what they actually saw).
+   */
+  contentVersion?: unknown
 }
 
 // TRUST-01: select('*') here (not the old minimal column list) because the
@@ -35,6 +41,7 @@ type SignEstimateRow = SnapshotSourceEstimate & {
   project_id: string
   share_token: string
   client_response: string | null
+  is_current: boolean
   updated_at: string
 }
 
@@ -49,10 +56,12 @@ interface SignRpcResult {
 // supabase/migrations/20260729000002_sign_estimate_atomic.sql's header for
 // the full P0001-P0008 registry shared across this codebase's atomic RPCs —
 // P0001-P0005 belong to OTHER functions; these three are this RPC's alone,
-// so matching on rpcError.code here is unambiguous).
+// so matching on rpcError.code here is unambiguous). P0009 was added by
+// 20261116000001_lock_at_acceptance.sql: the estimate is a superseded version.
 const SIGN_RPC_NOT_FOUND = 'P0006'
 const SIGN_RPC_CONFLICT = 'P0007'
 const SIGN_RPC_ALREADY_RESPONDED = 'P0008'
+const SIGN_RPC_NOT_CURRENT = 'P0009'
 
 // Security-hardening S2 (audit finding a — SSRF + unbounded row size):
 // signatureData used to be stored as ANY string, including an
@@ -91,6 +100,14 @@ function validateSignatureData(value: unknown): string | null {
 }
 
 const SIGNER_EMAIL_RE = /^\S+@\S+\.\S+$/
+
+/** True when both values are valid timestamps for the SAME instant (formats may differ). */
+function sameInstant(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const ta = Date.parse(a)
+  const tb = Date.parse(b)
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb
+}
 
 /** Returns the trimmed email (or null when absent/blank), or `undefined` to signal "invalid — 400". */
 function validateSignerEmail(raw: unknown): string | null | undefined {
@@ -152,7 +169,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { token, signerName, signerEmail, signatureData } = body
+    const { token, signerName, signerEmail, signatureData, contentVersion } = body
 
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 })
 
@@ -212,6 +229,19 @@ export async function POST(
       return NextResponse.json({ error: 'Digital signature not enabled' }, { status: 403 })
     }
 
+    // Lock-at-acceptance. A superseded version can no longer be signed through
+    // its old link, and a sent estimate may have been edited since the client
+    // loaded the page: the client must sign exactly the content they saw, so the
+    // version they send must still be the live one. Both checks run before any
+    // snapshot is built; sign_estimate_atomic re-checks both under its row lock.
+    if (estimate.is_current === false) {
+      return NextResponse.json({ error: 'estimate_superseded' }, { status: 409 })
+    }
+    if (!sameInstant(contentVersion, estimate.updated_at)) {
+      return NextResponse.json({ error: 'estimate_updated' }, { status: 409 })
+    }
+    const expectedUpdatedAt = contentVersion as string
+
     // Captured outside the attemptSign closure below: TS narrowing of a
     // captured outer `const` does not survive into a nested function
     // (the closure could in principle run after further reassignment), so
@@ -234,8 +264,7 @@ export async function POST(
     // evidence is the exact bug this phase kills, so a content-load or
     // serialization failure aborts the signing request entirely rather than
     // inserting a signature without a snapshot. Wrapped in a function so the
-    // estimate_conflict retry path (below) can re-run the WHOLE
-    // read+build+RPC sequence against a freshly re-read row.
+    // read+build+RPC sequence stays in one place.
     async function attemptSign(estimateRow: SignEstimateRow): Promise<AttemptOutcome> {
       const { data: sectionsData, error: sectionsError } = await supabase
         .from('estimate_sections')
@@ -289,7 +318,7 @@ export async function POST(
       const { data: rpcData, error: rpcError } = await supabase.rpc('sign_estimate_atomic', {
         p_estimate_id: estimateRow.id,
         p_share_token: token,
-        p_expected_updated_at: estimateRow.updated_at,
+        p_expected_updated_at: expectedUpdatedAt,
         p_signer_name: trimmedName,
         p_signer_email: signerEmailValue,
         p_signature_data: signatureData,
@@ -307,28 +336,9 @@ export async function POST(
       return { kind: 'success', result: rpcData as SignRpcResult }
     }
 
-    let outcome = await attemptSign(estimate)
-
-    if (outcome.kind === 'rpc_error' && outcome.code === SIGN_RPC_CONFLICT) {
-      // Security-hardening S2 (audit finding b3 — torn snapshot): the RPC's
-      // compare-and-set tripped, meaning the estimate changed between our
-      // read above and the RPC call. Re-read the row fresh (id + share_token
-      // must still match) and rebuild the ENTIRE snapshot from scratch
-      // before retrying ONCE. A second conflict means the estimate is being
-      // edited fast enough that we give up rather than retry forever.
-      const { data: freshEstimateData } = await supabase
-        .from('estimates')
-        .select('*')
-        .eq('id', id)
-        .eq('share_token', token)
-        .single()
-
-      if (!freshEstimateData) {
-        return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
-      }
-
-      outcome = await attemptSign(freshEstimateData as unknown as SignEstimateRow)
-    }
+    // No retry on a version conflict: re-reading and re-signing would sign
+    // content the client never saw. The client reloads the page instead.
+    const outcome = await attemptSign(estimate)
 
     if (outcome.kind === 'load_error') {
       return NextResponse.json(
@@ -347,13 +357,10 @@ export async function POST(
         return NextResponse.json({ error: 'Estimate already responded to' }, { status: 409 })
       }
       if (outcome.code === SIGN_RPC_CONFLICT) {
-        return NextResponse.json(
-          {
-            error:
-              'This estimate was changed elsewhere while you were signing. Please reload and try again.',
-          },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: 'estimate_updated' }, { status: 409 })
+      }
+      if (outcome.code === SIGN_RPC_NOT_CURRENT) {
+        return NextResponse.json({ error: 'estimate_superseded' }, { status: 409 })
       }
       console.error('Sign RPC error:', outcome.code)
       return NextResponse.json({ error: 'Failed to save signature' }, { status: 500 })

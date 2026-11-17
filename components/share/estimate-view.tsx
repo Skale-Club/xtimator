@@ -139,6 +139,10 @@ function EstimateViewInner({
   const [signerEmail, setSignerEmail] = useState('')
   const [signatureData, setSignatureData] = useState<string | null>(null)
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false)
+  // Lock-at-acceptance: a sent estimate stays editable until the client answers,
+  // so the sign endpoint can refuse with 409. 'updated' = the content changed
+  // after this page loaded (reload to review); 'superseded' = a newer version exists.
+  const [signNotice, setSignNotice] = useState<'updated' | 'superseded' | null>(null)
 
   // Phase 193-01 — scoped to the rendered document surface only (not the
   // whole page: the proposal bar, invoice cards, etc. live outside it), so
@@ -151,7 +155,11 @@ function EstimateViewInner({
   // When off, the contractor records the response inside the app and this page
   // renders no accept/decline UI at all. When on, Accept means sign.
   const approvalEnabled = company.digital_signature_enabled === true
-  const canRespond = approvalEnabled && !responded
+  // A superseded version (the business issued a newer one) can no longer be
+  // answered through its old link; an answered one keeps rendering as before.
+  const isSuperseded = estimate.is_current === false
+  const canRespond = approvalEnabled && !responded && !isSuperseded
+  const showSupersededNotice = isSuperseded && !responded
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation (stored brand color never mutated):
   const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white
@@ -360,10 +368,24 @@ function EstimateViewInner({
           signerName: signerName.trim(),
           signerEmail: signerEmail.trim() || undefined,
           signatureData,
+          contentVersion: estimate.updated_at,
         }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
+        if (res.status === 409 && body.error === 'estimate_updated') {
+          setSignNotice('updated')
+          setShowSignaturePad(false)
+          // The notice sits above the document; the client is usually at the bottom.
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+          return
+        }
+        if (res.status === 409 && body.error === 'estimate_superseded') {
+          setSignNotice('superseded')
+          setShowSignaturePad(false)
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+          return
+        }
         throw new Error(body.error ?? 'Failed to submit signature')
       }
       // sign_estimate_atomic already committed client_response='accepted' as
@@ -419,6 +441,30 @@ function EstimateViewInner({
       />
 
       <div className="space-y-4 pt-4">
+        {signNotice === 'updated' && !responded && (
+          <div
+            role="alert"
+            data-testid="estimate-updated-notice"
+            className="mx-auto flex max-w-4xl flex-col items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900 sm:flex-row sm:justify-between sm:text-left"
+          >
+            <p>{t('This estimate was just updated. Review the latest version before signing.')}</p>
+            <Button size="sm" onClick={() => window.location.reload()}>
+              {t('Load latest version')}
+            </Button>
+          </div>
+        )}
+        {(showSupersededNotice || (signNotice === 'superseded' && !responded)) && (
+          <div
+            role="alert"
+            data-testid="estimate-superseded-notice"
+            className="mx-auto max-w-4xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900"
+          >
+            {t('A newer version of this estimate exists. Ask {company} for the latest link.').replace(
+              '{company}',
+              company.name
+            )}
+          </div>
+        )}
         {/* Document body — registry-resolved templateId selects Classic vs Modern.
             Wrapped in a ref'd div (not the outer page) so use-estimate-tracking's
             click/section/heatmap coordinates are measured against the rendered

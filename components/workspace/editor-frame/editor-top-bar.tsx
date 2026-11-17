@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Check, ChevronLeft, Lock } from 'lucide-react'
+import { AlertCircle, ChevronLeft, Eye, Lock, XCircle } from 'lucide-react'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot, type VersionSlot } from '@/components/workspace/estimate-version-context'
@@ -10,13 +10,17 @@ import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { formatCurrency } from '@/lib/utils/format'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
-import { EstimateStatusChip } from './estimate-status'
+import { EstimateStatusChip, deriveEstimateStatus } from './estimate-status'
 
+/** Same horizontal padding as the workspace content column below the bar. */
+const GUTTER = 'px-3 sm:px-5 md:px-6'
+
+/** Only while saving or when a save failed; idle/saved/dirty render nothing. */
 function SaveState({ slot }: { slot: VersionSlot }) {
   const { t } = useTranslation()
   if (slot.isReadOnly) return null
 
-  let body: ReactNode
+  let body: ReactNode = null
   if (slot.saveStatus === 'saving') {
     body = <span className="text-muted-foreground">{t('Saving…')}</span>
   } else if (slot.saveStatus === 'error') {
@@ -37,16 +41,8 @@ function SaveState({ slot }: { slot: VersionSlot }) {
         )}
       </>
     )
-  } else if (slot.isDirty) {
-    body = <span className="text-muted-foreground">{t('Unsaved changes')}</span>
-  } else {
-    body = (
-      <span className="inline-flex items-center gap-1 text-muted-foreground">
-        <Check className="size-[15px]" aria-hidden />
-        {t('Saved')}
-      </span>
-    )
   }
+  if (!body) return null
 
   return (
     <span aria-live="polite" className="inline-flex items-center gap-2 whitespace-nowrap text-[12.5px] font-medium">
@@ -55,7 +51,14 @@ function SaveState({ slot }: { slot: VersionSlot }) {
   )
 }
 
+/** Drafts show no chip at all. */
 function StatusChip({ slot }: { slot: VersionSlot }) {
+  const status = deriveEstimateStatus({
+    sentAt: slot.sentAt,
+    viewCount: slot.viewCount,
+    clientResponse: slot.clientResponse,
+  })
+  if (status === 'draft') return null
   return (
     <EstimateStatusChip
       sentAt={slot.sentAt}
@@ -67,33 +70,60 @@ function StatusChip({ slot }: { slot: VersionSlot }) {
   )
 }
 
+const BANNER_BUTTON =
+  'min-h-8 shrink-0 whitespace-nowrap rounded-full bg-background px-3 text-[13px] font-semibold text-primary'
+
+function SentNotice() {
+  const { t } = useTranslation()
+  return (
+    <div
+      data-testid="editor-sent-notice"
+      className={cn('flex items-center gap-2.5 bg-primary/10 py-2 text-[12.5px] text-muted-foreground sm:text-[13px]', GUTTER)}
+    >
+      <Eye className="size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <b className="font-semibold text-foreground">{t('Shared with the client.')}</b>{' '}
+        {t('Changes you make show up on their link.')}
+      </span>
+    </div>
+  )
+}
+
 function LockBanner({ slot }: { slot: VersionSlot }) {
   const { t } = useTranslation()
-  const lead =
-    slot.clientResponse === 'accepted'
-      ? t('Estimate accepted.')
-      : slot.clientResponse === 'declined'
-        ? t('Estimate declined.')
-        : t('Shared with the client.')
+  const accepted = slot.clientResponse === 'accepted'
+  const declined = slot.clientResponse === 'declined'
+
+  const Icon = declined ? XCircle : Lock
+  const tone = accepted
+    ? 'bg-[hsl(var(--success)/0.15)]'
+    : declined
+      ? 'bg-[hsl(var(--destructive-text)/0.12)]'
+      : 'bg-muted/60'
+  const lead = accepted ? t('Estimate accepted.') : declined ? t('Estimate declined.') : t('Estimate locked.')
+  const rest = accepted
+    ? t('This is the contract and it can’t be edited.')
+    : declined
+      ? t('Revise it and reopen it so the client can answer again.')
+      : null
+
+  const showReopen = declined && !!slot.onReopen
+  const action = showReopen ? slot.onReopen : slot.onOpenStatus
+  const actionLabel = showReopen ? t('Revise and reopen') : t('See status')
+
   return (
     <div
       data-testid="editor-lock-banner"
-      className={cn(
-        'flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-muted-foreground md:px-5',
-        slot.clientResponse === 'accepted' ? 'bg-[hsl(var(--success)/0.15)]' : 'bg-muted/60',
-      )}
+      className={cn('flex items-center gap-2.5 py-2.5 text-[13px] text-muted-foreground', GUTTER, tone)}
     >
-      <Lock className="size-4 shrink-0" aria-hidden />
+      <Icon className="size-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1">
-        <b className="font-semibold text-foreground">{lead}</b> {t('The content is locked.')}
+        <b className="font-semibold text-foreground">{lead}</b>
+        {rest ? <> {rest}</> : null}
       </span>
-      {slot.onOpenStatus && (
-        <button
-          type="button"
-          onClick={slot.onOpenStatus}
-          className="h-8 shrink-0 whitespace-nowrap rounded-full bg-background px-3 text-[13px] font-semibold text-primary"
-        >
-          {t('See status')}
+      {action && (
+        <button type="button" onClick={action} className={BANNER_BUTTON}>
+          {actionLabel}
         </button>
       )}
     </div>
@@ -105,6 +135,10 @@ function LockBanner({ slot }: { slot: VersionSlot }) {
  * save state. Drop-in replacement for ProjectHeader. `slot` is null while no
  * estimate is on screen (loading skeleton, client tab): then only back + name
  * + client render.
+ *
+ * Every row uses the workspace content gutter so title, client line and chip
+ * share one left edge with the document below. On phones the back link is a
+ * text row above the title; on desktop the global breadcrumb replaces it.
  */
 export function EditorTopBar({ project }: { project: ProjectDetail }) {
   const { slot } = useEstimateVersionSlot()
@@ -121,21 +155,38 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
   useBreadcrumb(breadcrumbItems)
 
   const subtitle = [project.client?.name, slot?.estimateNumber].filter(Boolean).join(' · ')
+  const hasTotal = typeof slot?.total === 'number'
+
+  const sentNotice =
+    !!slot &&
+    !slot.isLocked &&
+    deriveEstimateStatus({ sentAt: slot.sentAt, viewCount: slot.viewCount, clientResponse: slot.clientResponse }) === 'sent'
 
   return (
     <header
       data-testid="editor-top-bar"
       className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm [-webkit-backdrop-filter:blur(4px)] pt-[env(safe-area-inset-top,0px)] md:pt-0"
     >
-      <div className="flex items-center gap-1.5 py-2 pl-1.5 pr-3 md:py-2.5 md:pl-3 md:pr-5">
+      {/* Row A (phones): back link, save state, status chip */}
+      <div className={cn('flex min-h-[34px] items-center justify-between md:hidden', GUTTER)}>
         <Link
           href="/projects"
           aria-label={t('Back to projects')}
-          className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="-ml-[5px] inline-flex min-h-[34px] items-center pr-3 text-[13.5px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ChevronLeft size={22} aria-hidden />
+          <ChevronLeft size={18} aria-hidden />
+          {t('Projects')}
         </Link>
+        {slot && (
+          <div data-testid="editor-top-bar-row-a" className="flex items-center gap-2">
+            <SaveState slot={slot} />
+            <StatusChip slot={slot} />
+          </div>
+        )}
+      </div>
 
+      {/* Row B: title, (desktop) save state + chip, total */}
+      <div className={cn('flex items-center justify-between gap-3 pb-0.5 pt-1 md:py-2.5', GUTTER)}>
         <div className="min-w-0 flex-1">
           <ProjectTitle
             size="compact"
@@ -143,43 +194,36 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
             initialName={project.name}
             onRenameSuccess={slot?.onProjectRenamed}
           />
-          {subtitle && <p className="truncate text-[12.5px] text-muted-foreground">{subtitle}</p>}
         </div>
-
         {slot && (
-          <div data-testid="editor-top-bar-inline" className="mr-4 hidden shrink-0 items-center gap-2.5 md:flex">
-            <StatusChip slot={slot} />
+          <div data-testid="editor-top-bar-inline" className="ml-auto mr-4 hidden shrink-0 items-center gap-2.5 md:flex">
             <SaveState slot={slot} />
+            <StatusChip slot={slot} />
           </div>
         )}
-
-        {typeof slot?.total === 'number' && (
-          <div className="flex shrink-0 flex-col items-end">
-            <span className="text-[10.5px] font-medium uppercase leading-none tracking-[0.06em] text-muted-foreground">
-              {t('Total')}
-            </span>
-            <span
-              data-testid="editor-top-bar-total"
-              className="text-[17px] font-bold leading-tight tracking-tight tabular-nums md:text-xl"
-            >
-              {formatCurrency(slot.total, slot.currencyCode)}
-            </span>
-          </div>
+        {hasTotal && slot && (
+          <span
+            data-testid="editor-top-bar-total"
+            className="shrink-0 text-[17px] font-bold leading-tight tracking-tight tabular-nums md:text-xl"
+          >
+            {formatCurrency(slot.total as number, slot.currencyCode)}
+          </span>
         )}
       </div>
 
-      {slot && (
-        <div
-          data-testid="editor-top-bar-row2"
-          className="flex min-h-7 items-center gap-2 pb-2 pl-[52px] pr-3 md:hidden"
-        >
-          <StatusChip slot={slot} />
-          <span className="ml-auto">
-            <SaveState slot={slot} />
-          </span>
+      {/* Row C: client and number, total label */}
+      {(subtitle || hasTotal) && (
+        <div className={cn('mt-0.5 flex justify-between gap-3 pb-2', GUTTER)}>
+          <p className="min-w-0 truncate text-[12.5px] text-muted-foreground">{subtitle}</p>
+          {hasTotal && (
+            <span className="whitespace-nowrap text-[10.5px] font-medium uppercase leading-[1.6] tracking-[0.06em] text-muted-foreground">
+              {t('Total')}
+            </span>
+          )}
         </div>
       )}
 
+      {sentNotice && <SentNotice />}
       {slot?.isLocked && <LockBanner slot={slot} />}
     </header>
   )

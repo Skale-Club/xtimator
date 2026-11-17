@@ -49,6 +49,10 @@ export interface VersionSlot {
   onRetrySave?: () => void
   /** Opens the status sheet (timeline, client response, engagement). */
   onOpenStatus?: () => void
+  /** Declined estimate only: clears the client's answer (kept in the activity
+   *  history) so the content is editable again and the client can answer
+   *  again on the same link. Undefined when reopening does not apply. */
+  onReopen?: () => void
 }
 
 interface EstimateVersionCtx {

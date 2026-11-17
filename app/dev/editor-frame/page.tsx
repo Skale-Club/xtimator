@@ -31,7 +31,13 @@ const PROJECT = {
   client: { id: 'dev-client', name: 'Ava Thompson' },
 } as unknown as ProjectDetail
 
-function sampleSlot(state: FixtureState, onOpenStatus: () => void, viewMode: EstimateViewMode, setViewMode: (m: EstimateViewMode) => void): VersionSlot {
+function sampleSlot(
+  state: FixtureState,
+  onOpenStatus: () => void,
+  onReopen: () => void,
+  viewMode: EstimateViewMode,
+  setViewMode: (m: EstimateViewMode) => void,
+): VersionSlot {
   const answered = state === 'accepted' || state === 'declined'
   const shared = state === 'sent' || answered
   return {
@@ -59,18 +65,31 @@ function sampleSlot(state: FixtureState, onOpenStatus: () => void, viewMode: Est
     isLocked: answered,
     onRetrySave: state === 'error' ? () => {} : undefined,
     onOpenStatus,
+    onReopen: state === 'declined' ? onReopen : undefined,
   }
 }
 
-function Frame({ state }: { state: FixtureState }) {
+function Frame({ state: urlState }: { state: FixtureState }) {
   const { setSlot, slot } = useEstimateVersionSlot()
   const [statusOpen, setStatusOpen] = useState(false)
   const [viewMode, setViewMode] = useState<EstimateViewMode>('width')
+  // "Revise and reopen" on the declined fixture moves it to the sent state
+  // locally, like the real editor does after the server clears the answer.
+  const [override, setOverride] = useState<{ from: FixtureState; to: FixtureState } | null>(null)
+  const state = override && override.from === urlState ? override.to : urlState
 
   useEffect(() => {
-    setSlot(sampleSlot(state, () => setStatusOpen(true), viewMode, setViewMode))
+    setSlot(
+      sampleSlot(
+        state,
+        () => setStatusOpen(true),
+        () => setOverride({ from: urlState, to: 'sent' }),
+        viewMode,
+        setViewMode,
+      ),
+    )
     return () => setSlot(null)
-  }, [state, viewMode, setSlot])
+  }, [state, urlState, viewMode, setSlot])
 
   const answered = state === 'accepted' || state === 'declined'
   const shared = state === 'sent' || answered
@@ -85,7 +104,7 @@ function Frame({ state }: { state: FixtureState }) {
             <a
               key={s}
               href={`?state=${s}`}
-              className={`rounded border bg-background px-2 py-1 ${s === state ? 'border-primary text-primary' : ''}`}
+              className={`rounded border bg-background px-2 py-1 ${s === urlState ? 'border-primary text-primary' : ''}`}
             >
               {s}
             </a>

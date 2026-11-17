@@ -9,6 +9,7 @@ type Dict = Record<string, string>
 
 export const editorTranslations: Record<'pt' | 'es', Dict> = {
   pt: {
+    'The client has already answered this estimate, so it can no longer be edited.': 'O cliente já respondeu este orçamento, então ele não pode mais ser editado.',
     // Top bar
     'Back to projects': 'Voltar para projetos',
     'Not saved': 'Não salvo',
@@ -21,8 +22,12 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Estimate accepted.': 'Orçamento aceito.',
     'Estimate declined.': 'Orçamento recusado.',
     'Shared with the client.': 'Compartilhado com o cliente.',
-    'The content is locked.': 'O conteúdo está travado.',
     'See status': 'Ver situação',
+    'Changes you make show up on their link.': 'O que você mudar aparece no link do cliente.',
+    'This is the contract and it can’t be edited.': 'É o contrato e não pode mais ser editado.',
+    'Revise it and reopen it so the client can answer again.': 'Revise e reabra para o cliente responder de novo.',
+    'Revise and reopen': 'Revisar e reabrir',
+    'Estimate locked.': 'Orçamento travado.',
     // Dock
     'Options': 'Ajustes',
     'AI edit': 'Editar IA',
@@ -37,6 +42,7 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
       'Ainda não foi compartilhado. A resposta do cliente aparece aqui depois que você compartilhar o orçamento.',
   },
   es: {
+    'The client has already answered this estimate, so it can no longer be edited.': 'El cliente ya respondió este presupuesto, así que ya no se puede editar.',
     // Top bar
     'Back to projects': 'Volver a proyectos',
     'Not saved': 'No guardado',
@@ -49,8 +55,12 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Estimate accepted.': 'Presupuesto aceptado.',
     'Estimate declined.': 'Presupuesto rechazado.',
     'Shared with the client.': 'Compartido con el cliente.',
-    'The content is locked.': 'El contenido está bloqueado.',
     'See status': 'Ver estado',
+    'Changes you make show up on their link.': 'Lo que cambies aparece en el enlace del cliente.',
+    'This is the contract and it can’t be edited.': 'Es el contrato y ya no se puede editar.',
+    'Revise it and reopen it so the client can answer again.': 'Revísalo y reábrelo para que el cliente responda de nuevo.',
+    'Revise and reopen': 'Revisar y reabrir',
+    'Estimate locked.': 'Presupuesto bloqueado.',
     // Dock
     'Options': 'Ajustes',
     'AI edit': 'Editar IA',

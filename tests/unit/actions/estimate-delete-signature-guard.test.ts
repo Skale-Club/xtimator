@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * Fix-pack F1 (finding #10): widened to the SAME two-part predicate
  * lib/actions/estimate-photo.ts's assertPhotoMutationAllowed uses —
- * isEstimateLocked({sent_at, client_response}) OR an existing
+ * isEstimateLocked({client_response}) (lock-at-acceptance) OR an existing
  * estimate_signatures row — so a sent-but-unsigned estimate (delivered, but
  * not yet responded to) can no longer have whole sections/items deleted
  * through these actions either. The error string now matches the photo
@@ -206,8 +206,8 @@ describe('deleteEstimateSection — signature pre-check', () => {
   // entirely — only the signature branch above was guarded — even though
   // saveEstimate's own freeze-on-send guard already blocks the equivalent
   // content edit. Mirrors estimate-photo-lock-guard.test.ts's identical case.
-  it('rejects with a friendly error BEFORE deleting when the parent estimate is sent but not yet responded to (no signature)', async () => {
-    estimateLockRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+  it('rejects with a friendly error BEFORE deleting when the parent estimate was declined (no signature)', async () => {
+    estimateLockRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { deleteEstimateSection } = await import('@/lib/actions/estimate')
 
     const result = await deleteEstimateSection('sec_1')
@@ -227,14 +227,24 @@ describe('deleteEstimateItem — signature pre-check', () => {
     expect(itemDeleteAttempted).toBe(true)
   })
 
-  it('rejects with a friendly error BEFORE deleting when the parent estimate is sent but not yet responded to (no signature)', async () => {
-    estimateLockRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+  it('rejects with a friendly error BEFORE deleting when the parent estimate was declined (no signature)', async () => {
+    estimateLockRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { deleteEstimateItem } = await import('@/lib/actions/estimate')
 
     const result = await deleteEstimateItem('item_1')
 
     expect(result.error).toMatch(/locked/i)
     expect(itemDeleteAttempted).toBe(false)
+  })
+
+  it('deletes normally when the parent estimate is sent but not yet answered (lock-at-acceptance)', async () => {
+    estimateLockRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+    const { deleteEstimateItem } = await import('@/lib/actions/estimate')
+
+    const result = await deleteEstimateItem('item_1')
+
+    expect(result.error).toBeUndefined()
+    expect(itemDeleteAttempted).toBe(true)
   })
 
   it('rejects with a friendly error BEFORE deleting when the parent estimate has a signature', async () => {
