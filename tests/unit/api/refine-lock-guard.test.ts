@@ -122,8 +122,8 @@ describe('TRUST-02: refine route freeze-on-send/sign guard', () => {
     })
   })
 
-  it('rejects a refine when sent_at is set (4xx, code carries estimate_locked, no paid call)', async () => {
-    mockGetEstimateById.mockResolvedValue({ ...BASE_ESTIMATE, sent_at: '2026-07-17T00:00:00.000Z' })
+  it('rejects a refine when the client declined (4xx, code carries estimate_locked, no paid call)', async () => {
+    mockGetEstimateById.mockResolvedValue({ ...BASE_ESTIMATE, sent_at: '2026-07-17T00:00:00.000Z', client_response: 'declined' })
 
     const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
 
@@ -156,6 +156,15 @@ describe('TRUST-02: refine route freeze-on-send/sign guard', () => {
     expect(body.code).toContain('estimate_locked')
     expect(mockIngestMultimodal).not.toHaveBeenCalled()
     expect(mockCheckCredits).not.toHaveBeenCalled()
+  })
+
+  it('a sent-but-unanswered estimate proceeds (lock-at-acceptance: sending does not lock)', async () => {
+    mockGetEstimateById.mockResolvedValue({ ...BASE_ESTIMATE, sent_at: '2026-07-17T00:00:00.000Z' })
+
+    const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(mockIngestMultimodal).toHaveBeenCalledOnce()
   })
 
   it('an unlocked (draft) estimate proceeds through the credit gate + ingestion as before', async () => {

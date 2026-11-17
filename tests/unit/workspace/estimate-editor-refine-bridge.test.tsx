@@ -293,9 +293,16 @@ describe('EstimateEditor refine bridge', () => {
     first.unmount()
 
     mockSaveEstimate.mockReset()
-    renderEditor({ sent_at: '2026-01-02T00:00:00.000Z' })
+    renderEditor({ client_response: 'declined' })
     expect(await applyRefinement(refined)).toBe('blocked')
     expect(mockSaveEstimate).not.toHaveBeenCalled()
+  })
+
+  it('apply still saves on a sent-but-unanswered estimate (lock-at-acceptance)', async () => {
+    mockSaveEstimate.mockResolvedValue(successResult())
+    renderEditor({ sent_at: '2026-01-02T00:00:00.000Z' })
+    expect(await applyRefinement(refined)).not.toBe('blocked')
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
   })
 
   it('applies and saves a handed-off refinement once on mount', async () => {

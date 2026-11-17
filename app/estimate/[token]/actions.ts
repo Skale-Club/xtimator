@@ -148,7 +148,7 @@ export async function respondToEstimate(
   // Look up estimate
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, client_response, estimate_number, client_name')
+    .select('id, project_id, company_id, client_response, is_current, estimate_number, client_name')
     .eq('share_token', token)
     .single()
 
@@ -161,12 +161,19 @@ export async function respondToEstimate(
     project_id: string
     company_id: string
     client_response: string | null
+    is_current: boolean
     estimate_number?: string | null
     client_name?: string | null
   }
 
   const denied = (await assertWritable()) ?? await assertCompanyWritable(est.company_id)
   if (denied) return { success: false, error: denied.error }
+
+  // Lock-at-acceptance: a superseded version can no longer be answered through
+  // its old public link (the business has issued a newer one).
+  if (est.is_current === false) {
+    return { success: false, error: 'A newer version of this estimate exists' }
+  }
 
   if (est.client_response) {
     return { success: false, error: 'This estimate has already been responded to' }

@@ -20,6 +20,18 @@ vi.mock('@/app/estimate/[token]/actions', () => ({
   logEstimateView: vi.fn(),
 }))
 vi.mock('@/hooks/use-estimate-tracking', () => ({ useEstimateTracking: () => {} }))
+// jsdom has no canvas: a stub pad that can set the signer name and a signature.
+vi.mock('@/components/share/signature-pad', () => ({
+  SignaturePad: (props: {
+    onSignerNameChange: (v: string) => void
+    onSignatureChange: (v: string | null) => void
+  }) => (
+    <div>
+      <button type="button" onClick={() => props.onSignerNameChange('Jane Doe')}>stub-name</button>
+      <button type="button" onClick={() => props.onSignatureChange('data:image/png;base64,AAAA')}>stub-draw</button>
+    </div>
+  ),
+}))
 
 import { EstimateView } from '@/components/share/estimate-view'
 
@@ -37,6 +49,8 @@ function buildEstimate(over: Record<string, unknown> = {}, companyOver: Record<s
     created_at: '2026-01-01T00:00:00Z',
     responded_at: null,
     client_response: null,
+    is_current: true,
+    updated_at: '2026-01-05T10:00:00.123456+00:00',
     summary: 'Job summary',
     notes: null,
     timeline: null,
@@ -247,7 +261,7 @@ describe('EstimateView — proposal bar', () => {
     expect(header.textContent).toContain('EST-77')
     expect(header.textContent).toContain('March 5, 2026')
     expect(within(header).getByLabelText('Call').getAttribute('href')).toBe('tel:(555) 123-4567')
-    expect(within(header).getByLabelText('WhatsApp').getAttribute('href')).toBe('https://wa.me/15551234567')
+    expect(within(header).getByLabelText('Text message').getAttribute('href')).toBe('sms:+15551234567')
     expect(within(header).getByLabelText('Email').getAttribute('href')).toBe('mailto:a@b.co')
   })
 
@@ -256,7 +270,91 @@ describe('EstimateView — proposal bar', () => {
     await screen.findByText('Job summary', {}, SLOW)
     const header = screen.getByTestId('proposal-bar')
     expect(within(header).queryByLabelText('Call')).toBeNull()
-    expect(within(header).queryByLabelText('WhatsApp')).toBeNull()
+    expect(within(header).queryByLabelText('Text message')).toBeNull()
     expect(within(header).queryByLabelText('Email')).toBeNull()
   })
+})
+
+// ---------------------------------------------------------------------------
+// Lock-at-acceptance: sign against the exact content loaded; superseded links
+// cannot be answered
+// ---------------------------------------------------------------------------
+
+describe('EstimateView — lock-at-acceptance', () => {
+  const signedOn = { digital_signature_enabled: true }
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('a superseded estimate with no response shows the newer-version notice and no accept/decline controls', async () => {
+    const { container } = renderView({ is_current: false }, signedOn)
+    await screen.findByText('Job summary', {}, SLOW)
+    expect(screen.getByTestId('estimate-superseded-notice').textContent).toMatch(
+      /newer version of this estimate exists\. Ask Acme for the latest link/i
+    )
+    expect(screen.queryByRole('button', { name: /accept/i })).toBeNull()
+    expect(screen.queryByTestId('mobile-accept-bar')).toBeNull()
+    expect(container.querySelector('[data-testid="decline-confirm"]')).toBeNull()
+  })
+
+  it('a superseded estimate that was already answered renders as before (no notice)', async () => {
+    renderView(
+      { is_current: false, client_response: 'accepted', responded_at: '2026-01-06T00:00:00Z' },
+      signedOn,
+      { alreadyResponded: true }
+    )
+    await screen.findByText('Job summary', {}, SLOW)
+    expect(screen.queryByTestId('estimate-superseded-notice')).toBeNull()
+    expect(screen.getByTestId('response-status')).toBeTruthy()
+  })
+
+  async function openSignatureAndSubmit() {
+    fireEvent.click(await screen.findByRole('button', { name: /^accept$/i }, SLOW))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'stub-name' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'stub-draw' }))
+    const submit = within(dialog).getByRole('button', { name: /sign & accept estimate/i })
+    await waitFor(() => expect((submit as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(submit)
+  }
+
+  it('sends the rendered updated_at as contentVersion in the sign POST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true }) })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    renderView({}, signedOn)
+    await openSignatureAndSubmit()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/estimates/e1/sign')
+    expect(JSON.parse((init as RequestInit).body as string).contentVersion).toBe(
+      '2026-01-05T10:00:00.123456+00:00'
+    )
+  }, 20_000)
+
+  it('409 estimate_updated closes the dialog and shows a reload notice', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'estimate_updated' }),
+    }) as unknown as typeof fetch
+    renderView({}, signedOn)
+    await openSignatureAndSubmit()
+    const notice = await screen.findByTestId('estimate-updated-notice')
+    expect(notice.textContent).toMatch(/just updated\. Review the latest version before signing/i)
+    expect(within(notice).getByRole('button', { name: /load latest version/i })).toBeTruthy()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  }, 20_000)
+
+  it('409 estimate_superseded shows the newer-version notice', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'estimate_superseded' }),
+    }) as unknown as typeof fetch
+    renderView({}, signedOn)
+    await openSignatureAndSubmit()
+    expect((await screen.findByTestId('estimate-superseded-notice')).textContent).toMatch(/Ask Acme/)
+  }, 20_000)
 })

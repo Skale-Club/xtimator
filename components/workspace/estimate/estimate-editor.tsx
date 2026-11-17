@@ -285,7 +285,7 @@ export function EstimateEditor({
   // The floating bar's gear: the desktop settings popover opens anchored to it.
   const settingsGearRef = useRef<HTMLButtonElement>(null)
   // Phase 164 Plan 02 (TRUST-02) — stale-tab latch (Opus warning #3 / audit
-  // B6): the CLIENT's own sent_at/client_response/hasSignature can be stale
+  // B6): the CLIENT's own client_response/hasSignature can be stale
   // (another tab/session locked this estimate after THIS tab last loaded it).
   // When the SERVER rejects a save with 'estimate_locked', this latches true
   // so the autosave effect stops re-firing on every keystroke (a plain toast
@@ -369,12 +369,12 @@ export function EstimateEditor({
 
   const isCurrent = state.is_current
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
-  // route): sent_at OR client_response OR an existing signature row (the
+  // route): client_response (accepted or declined) OR an existing signature row (the
   // signed-but-unresponded window — see lib/estimate/lock.ts) OR the latch
   // above once the server has told us so.
   const locked =
     lockedByServer ||
-    isEstimateLocked({ sent_at: state.sent_at, client_response: state.client_response }) ||
+    isEstimateLocked({ client_response: state.client_response }) ||
     state.hasSignature
   // Content lock ≠ display-preferences lock (164-02 PRESENTATION CARVE-OUT):
   // the document/autosave/nav-guards gate on isContentReadOnly, but the gear
@@ -440,7 +440,7 @@ export function EstimateEditor({
       if (result.error === 'estimate_locked') {
         setLockedByServer(true)
         toast.error(
-          t('This estimate was delivered to the client and is now locked. Create a new version to keep editing.')
+          t('The client has already answered this estimate, so it can no longer be edited.')
         )
         return false
       }
@@ -704,6 +704,9 @@ export function EstimateEditor({
     [dispatch, router]
   )
 
+  const recordResponseRef = useRef(handleRecordClientResponse)
+  recordResponseRef.current = handleRecordClientResponse
+
   const handleRenameProject = useCallback(async (name: string) => {
     const result = await renameProjectAction(projectId, name)
     if (result.error) {
@@ -825,7 +828,7 @@ export function EstimateEditor({
     dispatch({ type: 'INIT', estimate: result.data })
     setSaveStatus('idle')
     // The latch is scoped to the PREVIOUS version's server rejection — the
-    // freshly loaded version recomputes `locked` from its own sent_at/
+    // freshly loaded version recomputes `locked` from its own
     // client_response/hasSignature, so stale-latch carryover would wrongly
     // lock a version that isn't actually locked. Same reasoning applies to
     // the conflict/not-current latches (Phase 165 Plan 02) — both are scoped
@@ -850,6 +853,11 @@ export function EstimateEditor({
   const runSaveRef = useRef(runSave)
   runSaveRef.current = runSave
   const retrySave = useCallback(() => { void runSaveRef.current() }, [])
+  // Declined estimate: "Revise and reopen" clears the answer (the decline stays
+  // in the activity history) so the content unlocks and the client can answer
+  // again on the same link. Same ref pattern as runSave above.
+  const reopenEstimate = useCallback(() => { void recordResponseRef.current(null) }, [])
+  const canReopen = isCurrent && state.client_response === 'declined' && !state.hasSignature
   const canRetrySave = !isContentReadOnly && !conflictPending
   const estimateNumber = formatEstimateNumber({
     estimate_number: state.estimate_number,
@@ -883,6 +891,7 @@ export function EstimateEditor({
       isLocked: isCurrent && locked,
       onRetrySave: canRetrySave ? retrySave : undefined,
       onOpenStatus: openStatus,
+      onReopen: canReopen ? reopenEstimate : undefined,
     })
     return () => setSlot(null)
   }, [
@@ -912,6 +921,8 @@ export function EstimateEditor({
     canRetrySave,
     retrySave,
     openStatus,
+    canReopen,
+    reopenEstimate,
   ])
 
   // -------------------------------------------------------------------------

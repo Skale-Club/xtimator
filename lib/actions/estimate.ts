@@ -592,7 +592,8 @@ export async function createBlankEstimate(projectId: string) {
 //
 // Fix-pack F1 (finding #10): widened from a signature-only check to the SAME
 // two-part predicate lib/actions/estimate-photo.ts's assertPhotoMutationAllowed
-// uses — isEstimateLocked({sent_at, client_response}) OR an existing
+// uses — isEstimateLocked({client_response}) (lock-at-acceptance: a sent estimate stays
+// editable until answered) OR an existing
 // estimate_signatures row. Previously a sent-but-unsigned estimate (delivered
 // to the client, saveEstimate's own freeze-on-send guard already blocks
 // editing it) could still have whole sections/items deleted through THESE two
@@ -620,7 +621,7 @@ async function assertEstimateContentDeleteAllowed(
 ): Promise<string | null> {
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('sent_at, client_response')
+    .select('client_response')
     .eq('id', estimateId)
     .single()
 

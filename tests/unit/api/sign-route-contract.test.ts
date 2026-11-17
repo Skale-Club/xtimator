@@ -10,9 +10,11 @@ import { canonicalJsonStringify } from '@/lib/estimate/signed-snapshot'
  *     only a data:image/png;base64,... URL whose decoded bytes start with the
  *     PNG magic number and stay under the size cap is accepted.
  *   - signerEmail validation (optional, format + length bounded).
- *   - sign_estimate_atomic RPC error-code mapping, including the
- *     estimate_conflict retry-once-then-409 path (audit finding b3 — torn
- *     snapshot).
+ *   - sign_estimate_atomic RPC error-code mapping. Lock-at-acceptance: the
+ *     client must send the content version (updated_at) it rendered; a
+ *     mismatch, a missing version or a P0007 conflict is a 409 estimate_updated
+ *     with NO re-read-and-retry (that would sign unseen content), and a
+ *     superseded version is a 409 estimate_superseded.
  *
  * Mirrors the mocking style of tests/unit/api/refine-lock-guard.test.ts /
  * tests/unit/api/refine-route-contract.test.ts: mock the service boundaries
@@ -42,11 +44,15 @@ vi.mock('@/lib/estimate/notify-response', () => ({
 
 import { POST } from '@/app/api/estimates/[id]/sign/route'
 
-function jsonRequest(body: unknown): Request {
+// The content version the (simulated) public page rendered: matches estimateRow().updated_at.
+const PAGE_VERSION = '2026-07-29T00:00:00.000Z'
+
+// Pass `contentVersion: undefined` to simulate a client that sends none.
+function jsonRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/api/estimates/est-1/sign', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ contentVersion: PAGE_VERSION, ...body }),
   })
 }
 
@@ -64,6 +70,7 @@ function estimateRow(overrides: Record<string, unknown> = {}) {
     project_id: 'proj-1',
     share_token: 'share-token-abc',
     client_response: null,
+    is_current: true,
     updated_at: '2026-07-29T00:00:00.000Z',
     summary: 'Kitchen remodel',
     notes: null,
@@ -389,33 +396,7 @@ describe('sign_estimate_atomic RPC error-code mapping', () => {
     expect(supabase.__rpcMock).toHaveBeenCalledOnce()
   })
 
-  it('estimate_conflict (P0007) once, then success on retry: re-reads the estimate and rebuilds before the second RPC call', async () => {
-    const staleRow = estimateRow({ updated_at: '2026-07-29T00:00:00.000Z' })
-    const freshRow = estimateRow({ updated_at: '2026-07-29T00:05:00.000Z', summary: 'Updated summary' })
-    const supabase = buildSupabase({
-      estimateRows: [staleRow, freshRow],
-      rpcHandler: (_params, callIndex) =>
-        callIndex === 0
-          ? { data: null, error: { code: 'P0007', message: 'estimate_conflict' } }
-          : { data: RPC_SUCCESS_RESULT, error: null },
-    })
-    mockRequireServiceClient.mockReturnValue(supabase)
-
-    const res = await POST(
-      jsonRequest({ token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }),
-      PARAMS
-    )
-
-    expect(res.status).toBe(200)
-    expect(supabase.__rpcMock).toHaveBeenCalledTimes(2)
-    // The retry re-read's updated_at (freshRow's) is what the SECOND rpc call
-    // must carry as p_expected_updated_at — proving the retry rebuilt from a
-    // fresh read rather than replaying the first attempt's stale value.
-    const secondCallParams = supabase.__rpcMock.mock.calls[1][1]
-    expect(secondCallParams.p_expected_updated_at).toBe(freshRow.updated_at)
-  })
-
-  it('estimate_conflict (P0007) twice -> gives up with 409, exactly two RPC attempts', async () => {
+  it('estimate_conflict (P0007) -> 409 estimate_updated and NO retry (a retry would sign unseen content)', async () => {
     const supabase = buildSupabase({
       estimateRows: [estimateRow(), estimateRow({ updated_at: '2026-07-29T00:05:00.000Z' })],
       rpcHandler: () => ({ data: null, error: { code: 'P0007', message: 'estimate_conflict' } }),
@@ -428,7 +409,29 @@ describe('sign_estimate_atomic RPC error-code mapping', () => {
     )
 
     expect(res.status).toBe(409)
-    expect(supabase.__rpcMock).toHaveBeenCalledTimes(2)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).toHaveBeenCalledOnce()
+    // Only the initial estimate read: the route must not re-read to retry.
+    const estimateReads = supabase.__fromMock.mock.calls.filter(([t]: [string]) => t === 'estimates')
+    expect(estimateReads).toHaveLength(1)
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('estimate_not_current (P0009) -> 409 estimate_superseded', async () => {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow()],
+      rpcHandler: () => ({ data: null, error: { code: 'P0009', message: 'estimate_not_current' } }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(
+      jsonRequest({ token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }),
+      PARAMS
+    )
+
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_superseded' })
+    expect(supabase.__rpcMock).toHaveBeenCalledOnce()
   })
 
   it('success fires the post-RPC accept notification exactly once, with the RPC result fields', async () => {
@@ -472,6 +475,57 @@ describe('sign_estimate_atomic RPC error-code mapping', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ success: true })
+  })
+})
+
+describe('lock-at-acceptance: signing exactly the content the client loaded', () => {
+  function configure(rowOverrides: Record<string, unknown> = {}) {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow(rowOverrides)],
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+    return supabase
+  }
+  const BASE = { token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }
+
+  it('passes the CLIENT version (not a fresh read) as p_expected_updated_at', async () => {
+    const supabase = configure()
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(200)
+    const [, rpcParams] = supabase.__rpcMock.mock.calls[0]
+    expect(rpcParams.p_expected_updated_at).toBe(PAGE_VERSION)
+  })
+
+  it('a sent estimate edited after the page loaded -> 409 estimate_updated, nothing signed', async () => {
+    const supabase = configure({ updated_at: '2026-07-29T00:05:00.000Z' })
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a missing contentVersion -> 409 estimate_updated, nothing signed', async () => {
+    const supabase = configure()
+    const res = await POST(jsonRequest({ ...BASE, contentVersion: undefined }), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('compares versions as instants: a different timestamp format for the same moment is accepted', async () => {
+    const supabase = configure({ updated_at: '2026-07-29T00:00:00+00:00' })
+    const res = await POST(jsonRequest({ ...BASE, contentVersion: '2026-07-29T00:00:00.000Z' }), PARAMS)
+    expect(res.status).toBe(200)
+    expect(supabase.__rpcMock).toHaveBeenCalledOnce()
+  })
+
+  it('a superseded version (is_current = false) -> 409 estimate_superseded, nothing signed', async () => {
+    const supabase = configure({ is_current: false })
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_superseded' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
   })
 })
 

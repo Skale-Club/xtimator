@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * estimate_photos — silently changing what a signed estimate's share
  * page/PDF renders after delivery. This drives the new pre-delete guard: for
  * EVERY estimate the photo is currently attached to, block when
- * isEstimateLocked(sent_at/client_response) OR an estimate_signatures row
+ * isEstimateLocked(client_response; lock-at-acceptance, sent alone does not lock) OR an estimate_signatures row
  * exists (mirrors assertPhotoMutationAllowed's two-part predicate exactly,
  * including its error message).
  *
@@ -116,9 +116,9 @@ beforeEach(() => {
 })
 
 describe('deletePhoto — lock guard (fix-pack F2, finding #9)', () => {
-  it('rejects when the photo is attached to a sent (locked) estimate', async () => {
+  it('rejects when the photo is attached to a declined (locked) estimate', async () => {
     attachedRows = [{ estimate_id: 'est_1' }]
-    estimateRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+    estimateRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { deletePhoto } = await import('@/lib/actions/photo')
 
     const result = await deletePhoto('photo_1')
@@ -153,7 +153,7 @@ describe('deletePhoto — lock guard (fix-pack F2, finding #9)', () => {
 
   it('uses the SAME error message the estimate-photo guard uses', async () => {
     attachedRows = [{ estimate_id: 'est_1' }]
-    estimateRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+    estimateRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { deletePhoto } = await import('@/lib/actions/photo')
 
     const result = await deletePhoto('photo_1')
@@ -161,6 +161,17 @@ describe('deletePhoto — lock guard (fix-pack F2, finding #9)', () => {
     expect(result.error).toBe(
       'Estimate has been delivered and is locked; create a new version to make changes'
     )
+  })
+
+  it('allows deleting a photo attached to a sent-but-unanswered estimate (lock-at-acceptance)', async () => {
+    attachedRows = [{ estimate_id: 'est_1' }]
+    estimateRow = { sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+    const { deletePhoto } = await import('@/lib/actions/photo')
+
+    const result = await deletePhoto('photo_1')
+
+    expect(result.error).toBeUndefined()
+    expect(photoRowDeleteCalled).toBe(true)
   })
 
   it('allows deleting a photo attached only to a draft (unlocked, unsigned) estimate', async () => {

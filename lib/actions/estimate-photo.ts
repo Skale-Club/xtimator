@@ -34,7 +34,7 @@ async function getAuthContext() {
  * estimate would silently change what the client-facing share page/PDF
  * renders after delivery. Mirrors the two-part check in
  * app/api/estimates/[id]/refine/route.ts: isEstimateLocked covers
- * sent_at/client_response, and the separate estimate_signatures lookup
+ * client_response (lock-at-acceptance: sending alone does not lock), and the separate estimate_signatures lookup
  * covers the signed-but-unresponded window (sign/route.ts inserts the
  * signature BEFORE respondToEstimate and swallows a respond failure, so a
  * signature can exist while client_response is still null).
@@ -45,7 +45,7 @@ async function assertPhotoMutationAllowed(
 ): Promise<{ error: string } | { estimate: { project_id: string | null } | null }> {
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('project_id, sent_at, client_response')
+    .select('project_id, client_response')
     .eq('id', estimateId)
     .single()
 

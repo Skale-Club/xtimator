@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * owner could change the attached photo set on a signed estimate and the
  * client-facing signed share page/PDF would change after delivery. This
  * mirrors the two-part check in app/api/estimates/[id]/refine/route.ts:
- * isEstimateLocked({sent_at, client_response}) OR an existing
+ * isEstimateLocked({client_response}) (lock-at-acceptance) OR an existing
  * estimate_signatures row (the sign route inserts the signature BEFORE
  * respondToEstimate and swallows a respond failure, so a signature can exist
  * while client_response is still null).
@@ -116,8 +116,8 @@ beforeEach(() => {
 })
 
 describe('addPhotoToEstimate — lock guard', () => {
-  it('rejects on a sent (locked) estimate', async () => {
-    estimateRow = { project_id: 'proj_1', sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+  it('rejects on a declined (locked) estimate', async () => {
+    estimateRow = { project_id: 'proj_1', sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { addPhotoToEstimate } = await import('@/lib/actions/estimate-photo')
 
     const result = await addPhotoToEstimate('est_1', 'photo_1')
@@ -147,6 +147,16 @@ describe('addPhotoToEstimate — lock guard', () => {
     expect(photoInsertCalled).toBe(false)
   })
 
+  it('allows attaching a photo to a sent-but-unanswered estimate (lock-at-acceptance)', async () => {
+    estimateRow = { project_id: 'proj_1', sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+    const { addPhotoToEstimate } = await import('@/lib/actions/estimate-photo')
+
+    const result = await addPhotoToEstimate('est_1', 'photo_1')
+
+    expect(result.error).toBeUndefined()
+    expect(photoInsertCalled).toBe(true)
+  })
+
   it('allows attaching a photo to a draft estimate (unlocked, unsigned)', async () => {
     const { addPhotoToEstimate } = await import('@/lib/actions/estimate-photo')
 
@@ -159,8 +169,8 @@ describe('addPhotoToEstimate — lock guard', () => {
 })
 
 describe('removePhotoFromEstimate — lock guard', () => {
-  it('rejects on a locked estimate', async () => {
-    estimateRow = { project_id: 'proj_1', sent_at: '2026-07-01T00:00:00.000Z', client_response: null }
+  it('rejects on a locked (declined) estimate', async () => {
+    estimateRow = { project_id: 'proj_1', sent_at: '2026-07-01T00:00:00.000Z', client_response: 'declined' }
     const { removePhotoFromEstimate } = await import('@/lib/actions/estimate-photo')
 
     const result = await removePhotoFromEstimate('est_1', 'photo_1')
