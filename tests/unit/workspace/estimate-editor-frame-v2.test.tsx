@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { EstimateEditor } from '@/components/workspace/estimate/estimate-editor'
 import {
   EstimateVersionProvider,
@@ -36,6 +36,16 @@ vi.mock('@/lib/actions/estimate', () => ({
 vi.mock('@/lib/actions/estimate-photo', () => ({ removePhotoFromEstimate: vi.fn() }))
 vi.mock('@/lib/actions/project', () => ({ renameProjectAction: vi.fn() }))
 vi.mock('@/lib/actions/estimate-response', () => ({ recordClientResponse: vi.fn() }))
+// The contract card of an accepted estimate loads its summary on mount.
+vi.mock('@/lib/actions/change-order', () => ({
+  createChangeOrder: vi.fn(),
+  getChangeOrderAction: vi.fn(),
+  saveChangeOrder: vi.fn(),
+  deleteChangeOrder: vi.fn(),
+  markChangeOrderShared: vi.fn(),
+  recordChangeOrderResponse: vi.fn(),
+  getContractSummaryAction: vi.fn(),
+}))
 vi.mock('@/components/projects/new-project-dialog', () => ({
   editEstimateHref: () => '/edit',
 }))
@@ -175,6 +185,27 @@ function Harness({ frame, estimate }: { frame: 'v1' | 'v2'; estimate: EstimateWi
   )
 }
 
+const ACCEPTED = { client_response: 'accepted', responded_at: '2026-01-02T00:00:00.000Z' }
+
+beforeEach(async () => {
+  const actions = await import('@/lib/actions/change-order')
+  vi.mocked(actions.getContractSummaryAction).mockResolvedValue({
+    data: {
+      estimateId: 'est-1',
+      currencyCode: 'USD',
+      estimateNumber: '0007',
+      acceptedAt: '2026-01-02T00:00:00.000Z',
+      signedOnline: false,
+      baseTotal: 1250,
+      changeOrders: [],
+      approvedTotal: 0,
+      pendingTotal: 0,
+      contractTotal: 1250,
+    },
+  } as never)
+  vi.mocked(actions.createChangeOrder).mockResolvedValue({ data: { id: 'co-1', number: 1 } } as never)
+})
+
 describe('EstimateEditor in the v2 frame', () => {
   it('portals the docked actions into the mount and drops the floating pill', () => {
     render(<Harness frame="v2" estimate={buildEstimate()} />)
@@ -194,7 +225,7 @@ describe('EstimateEditor in the v2 frame', () => {
     expect(slot.getAttribute('data-status')).toBe('yes')
   })
 
-  it('marks an answered estimate as locked, offers no retry and disables Edit with AI', () => {
+  it('marks an answered estimate as locked, offers no retry and swaps Edit with AI for New change order', () => {
     render(
       <Harness
         frame="v2"
@@ -204,6 +235,18 @@ describe('EstimateEditor in the v2 frame', () => {
     const slot = screen.getByTestId('slot')
     expect(slot.getAttribute('data-locked')).toBe('true')
     expect(slot.getAttribute('data-retry')).toBe('no')
+    // Accepted: the dock's primary is New change order and the disabled AI button is left out.
+    expect(screen.queryByTestId('edit-with-ai-btn')).toBeNull()
+    expect(screen.getByTestId('new-change-order-btn')).toBeTruthy()
+  })
+
+  it('keeps Edit with AI visible but disabled on a declined estimate', () => {
+    render(
+      <Harness
+        frame="v2"
+        estimate={buildEstimate({ client_response: 'declined', responded_at: '2026-01-02T00:00:00.000Z' })}
+      />,
+    )
     expect((screen.getByTestId('edit-with-ai-btn') as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -234,5 +277,44 @@ describe('EstimateEditor in the v2 frame', () => {
     render(<Harness frame="v1" estimate={buildEstimate()} />)
     expect(screen.getByTestId('legacy-pill')).toBeTruthy()
     expect(screen.queryByTestId('editor-dock')).toBeNull()
+  })
+  describe('change orders on an accepted estimate', () => {
+    it('shows the contract card and a "New change order" primary, with Share moved to Send', async () => {
+      render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
+      expect(await screen.findByTestId('contract-card')).toBeTruthy()
+      const mount = screen.getByTestId('dock-mount')
+      expect(mount.querySelector('[data-testid="new-change-order-btn"]')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+    })
+
+    it('the dock primary creates a change order for the current estimate', async () => {
+      const { createChangeOrder } = await import('@/lib/actions/change-order')
+      render(<Harness frame="v2" estimate={buildEstimate(ACCEPTED)} />)
+      await screen.findByTestId('contract-card')
+      fireEvent.click(screen.getByTestId('new-change-order-btn'))
+      await waitFor(() => expect(createChangeOrder).toHaveBeenCalledWith('est-1'))
+    })
+
+    it('shows neither the card nor the primary before the estimate is accepted', () => {
+      render(<Harness frame="v2" estimate={buildEstimate()} />)
+      expect(screen.queryByTestId('contract-card')).toBeNull()
+      expect(screen.queryByTestId('contract-card-loading')).toBeNull()
+      expect(screen.queryByTestId('new-change-order-btn')).toBeNull()
+      expect(screen.getByRole('button', { name: /Share/ })).toBeTruthy()
+    })
+
+    it('shows neither for an accepted version that is no longer current', () => {
+      render(<Harness frame="v2" estimate={buildEstimate({ ...ACCEPTED, is_current: false })} />)
+      expect(screen.queryByTestId('contract-card')).toBeNull()
+      expect(screen.queryByTestId('contract-card-loading')).toBeNull()
+      expect(screen.queryByTestId('new-change-order-btn')).toBeNull()
+    })
+
+    it('does not show the card in the v1 frame', () => {
+      render(<Harness frame="v1" estimate={buildEstimate(ACCEPTED)} />)
+      expect(screen.queryByTestId('contract-card')).toBeNull()
+      expect(screen.queryByTestId('contract-card-loading')).toBeNull()
+    })
   })
 })

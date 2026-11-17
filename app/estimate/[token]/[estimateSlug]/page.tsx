@@ -9,6 +9,7 @@ import {
 } from '@/lib/queries/share'
 import { parsePublicSlugParam } from '@/lib/estimate/public-url'
 import { logEstimateView } from '@/app/estimate/[token]/actions'
+import { loadPublicContract } from '@/app/estimate/[token]/contract-links'
 import { EstimateView } from '@/components/share/estimate-view'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
@@ -126,6 +127,11 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
   })
 
   const alreadyResponded = !!data.estimate.client_response
+  // Change orders + contract total, only for an accepted estimate.
+  const { contract, contractLinks } = await loadPublicContract(
+    data.estimate.id,
+    data.estimate.client_response
+  )
   const branding = await getBranding()
   const headersList = await headers()
   // PUBURL-06: the x-white-label custom-domain header has NO live producer
@@ -158,6 +164,8 @@ export default async function FriendlySharePage({ params }: FriendlySharePagePro
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}
           ownerPreview={ownerPreview}
+          contract={contract}
+          contractLinks={contractLinks}
         />
       </main>
     </div>

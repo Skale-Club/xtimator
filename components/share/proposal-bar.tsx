@@ -30,6 +30,11 @@ interface ProposalBarProps {
   onAccept: () => void
   /** Optional trailing slot, e.g. the language chip. */
   trailing?: ReactNode
+  /** Replaces the "Estimate #{number} · {date}" subtitle (already translated),
+   *  e.g. the change order page says "Change order SK-1045-CO1". */
+  subtitle?: string
+  /** Replaces the "Total" caption above the amount (already translated). */
+  totalLabel?: string
 }
 
 /**
@@ -49,6 +54,8 @@ export function ProposalBar({
   showAccept,
   onAccept,
   trailing,
+  subtitle,
+  totalLabel,
 }: ProposalBarProps) {
   const { t } = useTranslation()
   const sms = phone ? smsNumber(phone) : ''
@@ -77,7 +84,7 @@ export function ProposalBar({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">{companyName}</p>
             <p className="hidden truncate text-xs leading-tight text-muted-foreground sm:block">
-              {t('Estimate')} #{estimateNumber} · {estimateDate}
+              {subtitle ?? `${t('Estimate')} #${estimateNumber} · ${estimateDate}`}
             </p>
           </div>
         </div>
@@ -89,7 +96,7 @@ export function ProposalBar({
             instead of squeezed to one letter at 360px. */}
         <div className={`shrink-0 text-right ${showAccept ? 'hidden sm:block' : ''}`}>
           <p className="hidden text-[11px] leading-none text-muted-foreground sm:block">
-            {t('Total')}
+            {totalLabel ?? t('Total')}
           </p>
           <p
             data-testid="proposal-bar-total"

@@ -25,6 +25,8 @@ import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { SignaturePad } from '@/components/share/signature-pad'
 import { ProposalBar } from '@/components/share/proposal-bar'
+import { ContractSection } from '@/components/share/contract-section'
+import type { ContractSummary } from '@/lib/change-orders/types'
 import { formatDate, formatEstimateNumber } from '@/lib/estimate/document/format'
 import { useEstimateTracking } from '@/hooks/use-estimate-tracking'
 import type {
@@ -101,6 +103,10 @@ interface EstimateViewProps {
   /** The owner (or a teammate) is previewing their own link: show a banner and
    *  skip engagement tracking so the visit never reaches Insights. */
   ownerPreview?: boolean
+  /** Accepted estimates only: the change orders and contract total. */
+  contract?: ContractSummary | null
+  /** change order id -> public path, resolved server-side (the summary rows carry no token). */
+  contractLinks?: Record<string, string>
 }
 
 // Pre-launch audit fix: an anonymous client's browser has no prior
@@ -127,6 +133,8 @@ function EstimateViewInner({
   whiteLabelMode = false,
   preparedBy = null,
   ownerPreview = false,
+  contract = null,
+  contractLinks = {},
 }: EstimateViewProps) {
   const { t } = useTranslation()
   const [responding, setResponding] = useState(false)
@@ -507,6 +515,11 @@ function EstimateViewInner({
             />
           )}
         </div>
+
+        {/* Change orders + contract total: only ever passed for an accepted estimate. */}
+        {contract && contract.changeOrders.length > 0 && (
+          <ContractSection contract={contract} links={contractLinks} />
+        )}
 
         {/* Response status. Online approval ON: compact confirmation. OFF: only a
             small neutral line when the contractor already recorded a response

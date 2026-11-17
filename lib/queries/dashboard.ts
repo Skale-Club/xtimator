@@ -32,6 +32,7 @@ export async function getDashboardStats(
     { count: pendingEstimates },
     { count: acceptedEstimates },
     { data: acceptedData },
+    { data: changeOrderData },
   ] = await Promise.all([
     // Total active projects (exclude archived + trashed; mirrors /projects "Active" view
     // filter from getProjectsForListPage in lib/queries/project.ts).
@@ -65,12 +66,28 @@ export async function getDashboardStats(
       .eq('company_id', companyId)
       .eq('is_current', true)
       .eq('client_response', 'accepted'),
+    // Approved change orders of accepted, current estimates: they raise the
+    // contract, so they count as revenue. Counts above are NOT affected (a
+    // change order is not an estimate). The inner join restricts root rows to
+    // change orders whose parent estimate is still the accepted current one.
+    supabase
+      .from('change_orders')
+      .select('total, estimates!inner(id)')
+      .eq('company_id', companyId)
+      .eq('client_response', 'accepted')
+      .eq('estimates.is_current', true)
+      .eq('estimates.client_response', 'accepted'),
   ])
 
-  const totalRevenue = (acceptedData ?? []).reduce(
+  const estimateRevenue = (acceptedData ?? []).reduce(
     (sum, row) => sum + (Number(row.total) || 0),
     0
   )
+  const changeOrderRevenue = ((changeOrderData ?? []) as Array<{ total: number | string | null }>).reduce(
+    (sum, row) => sum + (Number(row.total) || 0),
+    0
+  )
+  const totalRevenue = Math.round((estimateRevenue + changeOrderRevenue) * 100) / 100
 
   return {
     totalProjects: totalProjects ?? 0,

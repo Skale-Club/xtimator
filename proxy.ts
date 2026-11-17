@@ -39,6 +39,10 @@ const PUBLIC_EXACT_ROUTES = ['/', '/callback'] as const
 
 const TELEGRAM_BLOG_WEBHOOK = '/api/blog/telegram/webhook'
 
+/** Token-authenticated client endpoints (exact shapes only, uuid ids). */
+const PUBLIC_SIGNING_ROUTE =
+  /^\/api\/(?:estimates\/[0-9a-f-]{36}\/sign|change-orders\/[0-9a-f-]{36}\/(?:sign|pdf))$/i
+
 const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
 export function isPublicRoute(pathname: string): boolean {
@@ -104,6 +108,14 @@ export function isPublicRoute(pathname: string): boolean {
   // the login page instead of the RFC-9728-compliant 401 + WWW-Authenticate
   // challenge the MCP spec expects, breaking the OAuth discovery flow entirely.
   if (pathname === '/api/mcp' || pathname.startsWith('/api/mcp/')) {
+    return true
+  }
+  // The client signs from the public page with no session: these handlers
+  // authenticate the request themselves with the share token in the body (sign)
+  // or the ?token= query / an owner session (change order PDF). Without this
+  // exemption an anonymous POST to /api/estimates/{id}/sign got a 307 to
+  // /?auth=login, so online signing never reached the route.
+  if (PUBLIC_SIGNING_ROUTE.test(pathname)) {
     return true
   }
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
