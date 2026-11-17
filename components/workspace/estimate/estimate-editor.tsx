@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { History, Info } from 'lucide-react'
+import { History, Info, Plus } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -49,6 +49,7 @@ import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-
 import { useEditorFrameContext } from '@/components/workspace/editor-frame/context'
 import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
 import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
+import { ContractCard, useCreateChangeOrder } from '@/components/workspace/change-orders/contract-card'
 import { formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
   hasEstimateBeenSentOrViewed,
@@ -368,6 +369,11 @@ export function EstimateEditor({
   const engagementFields = estimate
 
   const isCurrent = state.is_current
+  // An accepted, current estimate is the contract: the card above the document
+  // lists its change orders and the dock offers "New change order". One create
+  // control feeds both so they share a single busy state.
+  const showContract = frame === 'v2' && isCurrent && state.client_response === 'accepted'
+  const createChangeOrderControl = useCreateChangeOrder(state.id, projectId)
   // Lock coverage mirrors the server guard exactly (saveEstimate / refine
   // route): client_response (accepted or declined) OR an existing signature row (the
   // signed-but-unresponded window — see lib/estimate/lock.ts) OR the latch
@@ -962,6 +968,15 @@ export function EstimateEditor({
 
   return (
     <div className="space-y-3">
+      {showContract && (
+        <ContractCard
+          estimateId={state.id}
+          projectId={projectId}
+          refreshKey={state.updated_at}
+          createControl={createChangeOrderControl}
+        />
+      )}
+
       {/* The delivered-and-locked banner that used to render here was removed
           — the lock still applies (editor read-only, server guard, toast on a
           rejected save); "Create new version" lives in the header actions. */}
@@ -1139,6 +1154,17 @@ export function EstimateEditor({
             onOpenDebug={isPlatformAdmin ? () => setDebugOpen(true) : undefined}
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
+            primary={
+              showContract
+                ? {
+                    label: t('New change order'),
+                    icon: <Plus size={18} />,
+                    onClick: createChangeOrderControl.create,
+                    busy: createChangeOrderControl.creating,
+                    testId: 'new-change-order-btn',
+                  }
+                : undefined
+            }
           />,
           dockEl,
         )}

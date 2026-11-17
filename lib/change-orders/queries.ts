@@ -1,10 +1,126 @@
 /**
  * Read paths for change orders that run on the server outside server actions
- * (server components, route handlers). CONTRACT STUBS: signatures are final
- * (see lib/change-orders/types.ts); bodies are implemented by the
- * database/server work package.
+ * (server components, route handlers). Signatures are the contract in
+ * lib/change-orders/types.ts; everything here uses the SERVICE client, so
+ * callers must already be authorized (a share token, or the PDF route's check).
  */
+import 'server-only'
+import { headers } from 'next/headers'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { assertCompanyWritable } from '@/lib/demo/guard'
+import { isOwnerVisit } from '@/lib/estimates/owner-visit'
+import { resolveClientIp } from '@/lib/http/client-ip'
+import { rateLimit } from '@/lib/ratelimit'
+import { loadPublicContractSummary, resolveEstimateNumber } from './contract'
+import { loadChangeOrder } from './load'
 import type { ContractSummary, PublicChangeOrderData } from './types'
+
+async function loadPublicData(
+  supabase: SupabaseClient,
+  by: { id: string } | { token: string },
+): Promise<PublicChangeOrderData | null> {
+  const changeOrder = await loadChangeOrder(supabase, by)
+  if (!changeOrder) return null
+
+  const { data: estimateData } = await supabase
+    .from('estimates')
+    .select(
+      'id, project_id, share_token, public_slug_token, estimate_number, estimate_seq, version, responded_at, language',
+    )
+    .eq('id', changeOrder.estimate_id)
+    .maybeSingle()
+  if (!estimateData) return null
+  const estimate = estimateData as {
+    id: string
+    project_id: string
+    share_token: string
+    public_slug_token: string | null
+    estimate_number: string | null
+    estimate_seq: number | null
+    version: number | null
+    responded_at: string | null
+    language: string | null
+  }
+
+  const [{ data: projectData }, { data: companyData }, contract] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('name, client:clients(name)')
+      .eq('id', estimate.project_id)
+      .maybeSingle(),
+    supabase
+      .from('companies')
+      .select(
+        'id, name, slug, logo_url, phone, email, brand_primary_color, digital_signature_enabled',
+      )
+      .eq('id', changeOrder.company_id)
+      .maybeSingle(),
+    loadPublicContractSummary(supabase, estimate.id, { allowEmpty: true }),
+  ])
+  if (!companyData) return null
+
+  const project = projectData as { name: string | null; client: { name: string | null } | { name: string | null }[] | null } | null
+  const clientRel = Array.isArray(project?.client) ? project?.client[0] : project?.client
+  const company = companyData as {
+    id: string
+    name: string
+    slug: string | null
+    logo_url: string | null
+    phone: string | null
+    email: string | null
+    brand_primary_color: string | null
+    digital_signature_enabled: boolean | null
+  }
+
+  const estimateNumber = resolveEstimateNumber(estimate)
+
+  return {
+    changeOrder,
+    company: {
+      id: company.id,
+      name: company.name,
+      logo_url: company.logo_url ?? null,
+      phone: company.phone ?? null,
+      email: company.email ?? null,
+      brand_primary_color: company.brand_primary_color ?? null,
+      digital_signature_enabled: company.digital_signature_enabled === true,
+    },
+    estimate: {
+      id: estimate.id,
+      estimateNumber,
+      projectName: project?.name ?? '',
+      clientName: clientRel?.name ?? null,
+      acceptedAt: estimate.responded_at,
+      publicPath: buildEstimatePublicPath(
+        { slug: company.slug ?? null, name: company.name },
+        {
+          id: estimate.id,
+          public_slug_token: estimate.public_slug_token,
+          share_token: estimate.share_token,
+          project_name: project?.name ?? null,
+        },
+      ),
+      language: estimate.language ?? 'en',
+    },
+    // Public contract card: drafts excluded. The current change order is always
+    // part of the page data itself, so an unlisted one never breaks the view.
+    contract:
+      contract ?? {
+        estimateId: estimate.id,
+        currencyCode: changeOrder.currency_code,
+        estimateNumber,
+        acceptedAt: estimate.responded_at,
+        signedOnline: false,
+        baseTotal: 0,
+        changeOrders: [],
+        approvedTotal: 0,
+        pendingTotal: 0,
+        contractTotal: 0,
+      },
+  }
+}
 
 /**
  * Client page data by share token (service client: the client is anonymous).
@@ -12,8 +128,8 @@ import type { ContractSummary, PublicChangeOrderData } from './types'
  * parent estimate is gone.
  */
 export async function getChangeOrderByShareToken(token: string): Promise<PublicChangeOrderData | null> {
-  void token
-  return null
+  if (typeof token !== 'string' || !token) return null
+  return loadPublicData(requireServiceClient(), { token })
 }
 
 /**
@@ -22,8 +138,8 @@ export async function getChangeOrderByShareToken(token: string): Promise<PublicC
  * orders worth showing.
  */
 export async function getPublicContractSummary(estimateId: string): Promise<ContractSummary | null> {
-  void estimateId
-  return null
+  if (typeof estimateId !== 'string' || !estimateId) return null
+  return loadPublicContractSummary(requireServiceClient(), estimateId)
 }
 
 /**
@@ -31,7 +147,35 @@ export async function getPublicContractSummary(estimateId: string): Promise<Cont
  * without restamping updated_at. Fire-and-forget; never throws.
  */
 export async function recordChangeOrderView(token: string): Promise<void> {
-  void token
+  try {
+    if (typeof token !== 'string' || !token) return
+
+    let ip: string | null = null
+    try {
+      ip = resolveClientIp(await headers())
+    } catch {
+      ip = null
+    }
+    const rl = await rateLimit('trackEstimatePerMinute', ip ?? 'no-ip')
+    if (!rl.allowed) return
+
+    const supabase = requireServiceClient()
+    const { data } = await supabase
+      .from('change_orders')
+      .select('id, company_id')
+      .eq('share_token', token)
+      .maybeSingle()
+    if (!data) return
+    const row = data as { id: string; company_id: string }
+
+    if (await assertCompanyWritable(row.company_id)) return
+    // The owner previewing their own link is not a client view.
+    if (await isOwnerVisit(row.company_id)) return
+
+    await supabase.rpc('bump_change_order_view', { p_token: token })
+  } catch (err) {
+    console.warn('[change-orders] recordChangeOrderView failed:', err)
+  }
 }
 
 /**
@@ -41,6 +185,6 @@ export async function recordChangeOrderView(token: string): Promise<void> {
  * caller that has not been authorized.
  */
 export async function getChangeOrderDocumentById(id: string): Promise<PublicChangeOrderData | null> {
-  void id
-  return null
+  if (typeof id !== 'string' || !id) return null
+  return loadPublicData(requireServiceClient(), { id })
 }

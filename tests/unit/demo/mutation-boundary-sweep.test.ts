@@ -614,6 +614,18 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     READ_REASON,
     ['GET'],
   ),
+  // Change order PDF: a pure read (loads the document and renders it), authorized
+  // by the share token or a same-company session; writes nothing.
+  ...excepted(
+    'app/api/change-orders/[id]/pdf/route.ts',
+    'read-only',
+    READ_AUTHORITY,
+    READ_REASON,
+    ['GET'],
+  ),
+  // Change order online signature: public, share-token gated; demo guard runs
+  // right after the token lookup and before the RPC that writes.
+  ...guarded('app/api/change-orders/[id]/sign/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/refine/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/send-sms/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/estimates/[id]/send/route.ts', 'demoGuardResponse', ['POST']),
@@ -705,6 +717,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...excepted('app/api/whoami/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted('app/demo/entry/route.ts', 'auth-entry', AUTH_AUTHORITY, AUTH_REASON, ['GET']),
 
+  ...guarded('app/change-order/[token]/actions.ts', 'assertWritable', ['declineChangeOrder']),
   ...guarded('app/estimate/[token]/actions.ts', 'assertWritable', [
     'logEstimateView',
     'respondToEstimate',
@@ -832,6 +845,17 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   // Reads the caller's memberships and sets a signed httpOnly cookie on the
   // caller's own browser (owner previews are not counted as client views).
   ...excepted('lib/actions/owner-device.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['markOwnerDevice']),
+  ...guarded('lib/actions/change-order.ts', 'assertWritable', [
+    'createChangeOrder',
+    'deleteChangeOrder',
+    'markChangeOrderShared',
+    'recordChangeOrderResponse',
+    'saveChangeOrder',
+  ]),
+  ...excepted('lib/actions/change-order.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'getChangeOrderAction',
+    'getContractSummaryAction',
+  ]),
   ...guarded('lib/actions/custom-domain.ts', 'assertWritable', ['saveCustomDomain']),
   ...guarded('lib/actions/document-blocks.ts', 'assertWritable', ['updateDocumentBlocks']),
   ...guarded('lib/actions/estimate-photo.ts', 'assertWritable', [

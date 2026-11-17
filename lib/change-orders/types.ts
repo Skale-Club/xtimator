@@ -72,7 +72,7 @@ export interface ChangeOrder {
   view_count: number
   responded_at: string | null
   client_response: ChangeOrderResponse | null
-  /** Copied from the parent estimate at creation (percent, e.g. 6.25). */
+  /** Copied from the parent estimate at creation. A FRACTION, like estimates.tax_rate (0.0625 = 6.25%). */
   tax_rate: number
   subtotal: number
   tax_amount: number
@@ -168,6 +168,12 @@ export interface SaveChangeOrderInput {
 
 export type ActionResult<T> = { data: T; error?: undefined } | { data?: undefined; error: string; conflict?: boolean }
 
+/** "6.25%" from a fractional rate (0.0625). Trailing zeros dropped. */
+export function formatTaxRatePercent(rate: number): string {
+  const pct = Math.round((Number(rate) || 0) * 1_000_000) / 10_000
+  return `${pct}%`
+}
+
 /** "SK-1045-CO2". */
 export function formatChangeOrderNumber(estimateNumber: string, number: number): string {
   return `${estimateNumber}-CO${number}`
@@ -187,7 +193,8 @@ export function computeChangeOrderTotals(
     if (it.taxable) taxable += line
   }
   subtotal = round(subtotal)
-  const tax_amount = round((taxable * (Number(taxRate) || 0)) / 100)
+  // taxRate is a fraction (0.0625 = 6.25%), the same unit as estimates.tax_rate.
+  const tax_amount = round(taxable * (Number(taxRate) || 0))
   return { subtotal, tax_amount, total: round(subtotal + tax_amount) }
 }
 

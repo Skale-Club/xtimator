@@ -1,13 +1,14 @@
 'use client'
 
-import { forwardRef, type ReactNode, type Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Bug, Camera, Settings, Share2, Sparkles } from 'lucide-react'
+import { Bug, Camera, Loader2, Settings, Share2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { editEstimateHref } from '@/components/projects/new-project-dialog'
 import type { EstimateViewMode } from '@/components/workspace/estimate/estimate-floating-actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
+import { DockButton } from './dock-button'
 
 export interface EditorDockProps {
   projectId: string
@@ -25,36 +26,20 @@ export interface EditorDockProps {
   onOpenDebug?: () => void
   viewMode: EstimateViewMode
   onViewModeChange: (mode: EstimateViewMode) => void
+  /**
+   * Replaces Share as the big primary button (an accepted estimate offers "New
+   * change order"). Share then moves to a secondary dock button labelled "Send".
+   * Absent: today's layout.
+   */
+  primary?: {
+    label: string
+    icon: ReactNode
+    onClick: () => void
+    /** Spinner and disabled while the action runs. */
+    busy?: boolean
+    testId?: string
+  }
 }
-
-interface DockButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
-  icon: ReactNode
-  tone?: 'default' | 'ai'
-  children: ReactNode
-}
-
-const DockButton = forwardRef<HTMLButtonElement, DockButtonProps>(function DockButton(
-  { icon, tone = 'default', className, children, ...rest },
-  ref,
-) {
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className={cn(
-        'flex h-[52px] min-w-[54px] flex-none flex-col items-center justify-center gap-1 rounded-[14px] text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40 md:h-[42px] md:flex-row md:gap-2 md:rounded-full md:bg-muted md:px-3.5 md:text-[13.5px] md:text-foreground',
-        tone === 'ai' && 'text-primary md:bg-primary/10 md:text-primary',
-        className,
-      )}
-      {...rest}
-    >
-      <span aria-hidden className="grid size-5 place-items-center">
-        {icon}
-      </span>
-      <span className="leading-none">{children}</span>
-    </button>
-  )
-})
 
 function EditWithAiButton({ projectId, locked }: { projectId: string; locked: boolean }) {
   const { t } = useTranslation()
@@ -90,6 +75,7 @@ export function EditorDock({
   onOpenDebug,
   viewMode,
   onViewModeChange,
+  primary,
 }: EditorDockProps) {
   const { t } = useTranslation()
 
@@ -147,16 +133,39 @@ export function EditorDock({
           {t('Photos')}
         </DockButton>
       )}
-      <EditWithAiButton projectId={projectId} locked={locked} />
+      {/* With a primary override (accepted estimate) the content is locked and
+          "Edit with AI" could only be disabled: leave it out so the phone row fits. */}
+      {!primary && <EditWithAiButton projectId={projectId} locked={locked} />}
 
-      <Button
-        onClick={onShare}
-        disabled={saving}
-        className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
-      >
-        <Share2 size={18} aria-hidden />
-        {t('Share')}
-      </Button>
+      {primary ? (
+        <>
+          <DockButton icon={<Share2 size={20} />} onClick={onShare} disabled={saving}>
+            {t('Send')}
+          </DockButton>
+          <Button
+            onClick={primary.onClick}
+            disabled={primary.busy}
+            data-testid={primary.testId}
+            // Phones: the label may wrap to two lines and the icon steps aside.
+            className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 whitespace-normal rounded-full px-3 text-[15px] font-semibold max-sm:text-[13px] max-sm:leading-tight md:h-[42px] md:flex-none md:px-5 md:text-sm"
+          >
+            <span aria-hidden className="max-sm:hidden">
+              {primary.busy ? <Loader2 size={18} className="animate-spin" /> : primary.icon}
+            </span>
+            {primary.busy && <Loader2 size={16} className="animate-spin sm:hidden" aria-hidden />}
+            {primary.label}
+          </Button>
+        </>
+      ) : (
+        <Button
+          onClick={onShare}
+          disabled={saving}
+          className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
+        >
+          <Share2 size={18} aria-hidden />
+          {t('Share')}
+        </Button>
+      )}
     </div>
   )
 }

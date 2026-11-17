@@ -18,7 +18,7 @@ export const PUBLIC_STATIC_ROUTES = [
 
 export const PRIVATE_ROUTE_PREFIXES = [
   '/admin', '/api', '/callback', '/capture', '/chat', '/clients', '/dashboard',
-  '/demo', '/estimate', '/invite', '/notifications', '/oauth', '/offline',
+  '/change-order', '/demo', '/estimate', '/invite', '/notifications', '/oauth', '/offline',
   '/onboarding', '/price-book', '/projects', '/settings', '/update-password',
   '/whatsapp',
 ] as const

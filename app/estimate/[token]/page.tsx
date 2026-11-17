@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { headers, cookies } from 'next/headers'
 import { getEstimateByShareToken, getShareLinkState, getShareLockCheck } from '@/lib/queries/share'
 import { logEstimateView } from './actions'
+import { loadPublicContract } from './contract-links'
 import { EstimateView } from '@/components/share/estimate-view'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { EstimateUnlockForm } from '@/components/share/estimate-unlock-form'
@@ -115,6 +116,11 @@ export default async function SharePage({ params }: SharePageProps) {
   })
 
   const alreadyResponded = !!data.estimate.client_response
+  // Change orders + contract total, only for an accepted estimate.
+  const { contract, contractLinks } = await loadPublicContract(
+    data.estimate.id,
+    data.estimate.client_response
+  )
   const branding = await getBranding()
   const headersList = await headers()
   const isWhiteLabel = headersList.get('x-white-label') === '1'
@@ -145,6 +151,8 @@ export default async function SharePage({ params }: SharePageProps) {
           appName={branding.appName}
           whiteLabelMode={isWhiteLabel}
           ownerPreview={ownerPreview}
+          contract={contract}
+          contractLinks={contractLinks}
         />
       </main>
     </div>
