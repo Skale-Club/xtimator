@@ -416,7 +416,9 @@ function EstimateViewInner({
       }
     >
       {ownerPreview && (
-        <div className="mx-auto mt-2 max-w-4xl rounded-md border border-border bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
+        // Flat band glued to the top of the proposal bar, same width and bleed
+        // as the bar (no rounded corners, no floating gap above it).
+        <div className="-mx-4 border-b border-border bg-muted px-4 py-2 text-center text-xs text-muted-foreground sm:mx-0">
           {t("You're viewing your own estimate. This visit isn't counted in Insights.")}
         </div>
       )}

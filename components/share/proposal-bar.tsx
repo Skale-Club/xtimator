@@ -1,15 +1,16 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { CheckCircle, Mail, Phone } from 'lucide-react'
+import { CheckCircle, Mail, MessageSquare, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
-/** Digits-only phone for wa.me. A bare 10-digit number is a US number, so the
- *  country code is prepended (wa.me requires one). */
-export function whatsappDigits(phone: string): string {
+/** Phone number for an `sms:` link, in E.164 form. A bare 10-digit number is
+ *  a US number, so +1 is prepended; anything else keeps its own digits. */
+export function smsNumber(phone: string): string {
   const digits = phone.replace(/\D/g, '')
-  return digits.length === 10 ? `1${digits}` : digits
+  if (!digits) return ''
+  return `+${digits.length === 10 ? `1${digits}` : digits}`
 }
 
 interface ProposalBarProps {
@@ -31,14 +32,6 @@ interface ProposalBarProps {
   trailing?: ReactNode
 }
 
-function WhatsAppIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
-      <path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.38A9.9 9.9 0 1 0 12.04 2Zm0 18.1a8.2 8.2 0 0 1-4.18-1.14l-.3-.18-3.1.82.83-3.02-.2-.31a8.2 8.2 0 1 1 6.95 3.83Zm4.5-6.14c-.25-.12-1.46-.72-1.69-.8-.22-.08-.39-.12-.55.12-.17.25-.63.8-.77.96-.14.17-.28.19-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.1-.5.11-.11.25-.28.37-.42.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47c-.17 0-.43.06-.66.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.55c.12.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.52.59.19 1.12.16 1.54.1.47-.07 1.46-.6 1.66-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.17-.47-.29Z" />
-    </svg>
-  )
-}
-
 /**
  * Sticky header of the public estimate page. Sits above the document, shows
  * who sent it, the estimate number/date and total, the company's contact
@@ -58,7 +51,7 @@ export function ProposalBar({
   trailing,
 }: ProposalBarProps) {
   const { t } = useTranslation()
-  const waDigits = phone ? whatsappDigits(phone) : ''
+  const sms = phone ? smsNumber(phone) : ''
 
   // With the Accept button present, mobile keeps only name + total + Call + Accept.
   const collapseOnMobile = showAccept ? 'hidden sm:inline-flex' : ''
@@ -113,15 +106,13 @@ export function ProposalBar({
               <Phone className="h-4 w-4" />
             </a>
           )}
-          {phone && waDigits && (
+          {sms && (
             <a
-              href={`https://wa.me/${waDigits}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="WhatsApp"
+              href={`sms:${sms}`}
+              aria-label={t('Text message')}
               className={`${iconBtn} ${collapseOnMobile}`}
             >
-              <WhatsAppIcon className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" />
             </a>
           )}
           {email && (

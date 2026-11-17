@@ -261,7 +261,7 @@ describe('EstimateView — proposal bar', () => {
     expect(header.textContent).toContain('EST-77')
     expect(header.textContent).toContain('March 5, 2026')
     expect(within(header).getByLabelText('Call').getAttribute('href')).toBe('tel:(555) 123-4567')
-    expect(within(header).getByLabelText('WhatsApp').getAttribute('href')).toBe('https://wa.me/15551234567')
+    expect(within(header).getByLabelText('Text message').getAttribute('href')).toBe('sms:+15551234567')
     expect(within(header).getByLabelText('Email').getAttribute('href')).toBe('mailto:a@b.co')
   })
 
@@ -270,7 +270,7 @@ describe('EstimateView — proposal bar', () => {
     await screen.findByText('Job summary', {}, SLOW)
     const header = screen.getByTestId('proposal-bar')
     expect(within(header).queryByLabelText('Call')).toBeNull()
-    expect(within(header).queryByLabelText('WhatsApp')).toBeNull()
+    expect(within(header).queryByLabelText('Text message')).toBeNull()
     expect(within(header).queryByLabelText('Email')).toBeNull()
   })
 })
