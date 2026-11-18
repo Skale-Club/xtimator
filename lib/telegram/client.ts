@@ -15,6 +15,9 @@ import { getTelegramConfig, type TelegramDestination } from '@/lib/platform-conf
  * Never import from a client component.
  */
 export async function sendTelegramMessage(text: string, destination: TelegramDestination = 'ops'): Promise<void> {
+  if (destination === 'leads' && process.env.NODE_ENV !== 'production') {
+    throw new Error('[Telegram] Leads delivery is production-only')
+  }
   const config = destination === 'leads' ? await getTelegramConfig('leads') : await getTelegramConfig()
   if (!config) {
     throw new Error(

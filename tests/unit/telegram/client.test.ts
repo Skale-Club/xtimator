@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * lib/telegram/client.ts — the server-only outbound Telegram client for the
@@ -31,11 +31,20 @@ const TEST_TOKEN = '000000000:TEST_PLACEHOLDER_TOKEN'
 const TEST_CHAT_ID = '123456789'
 
 beforeEach(() => {
+  vi.stubEnv('NODE_ENV', 'production')
   fetchMock.mockReset()
   getTelegramConfigMock.mockReset()
 })
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('sendTelegramMessage', () => {
+  it.each(['development', 'test'])('blocks Leads delivery in %s before configuration or network IO', async mode => {
+    vi.stubEnv('NODE_ENV', mode)
+    await expect(sendTelegramMessage('New signup', 'leads')).rejects.toThrow(/production-only/)
+    expect(getTelegramConfigMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
   it('uses the dedicated Leads configuration with the existing shared bot', async () => {
     getTelegramConfigMock.mockResolvedValueOnce({ botToken: TEST_TOKEN, chatId: '-100987654' })
     fetchMock.mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 }))
