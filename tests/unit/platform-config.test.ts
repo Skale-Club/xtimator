@@ -41,6 +41,34 @@ describe('lib/platform-config (ADMIN-05, R-04)', () => {
     vi.restoreAllMocks()
   })
 
+  it('resolves separate Ops and Leads destinations using the same encrypted integration token', async () => {
+    const { encrypt } = await import('@/lib/crypto/aes')
+    const blob = encrypt('test-shared-telegram-token')
+    const service = await import('@/lib/supabase/service')
+    const mocked = service.createServiceClient as unknown as ReturnType<typeof vi.fn>
+    mocked.mockReturnValue(makeClient({ data: {
+      ciphertext: blob.ciphertext, iv: blob.iv, auth_tag: blob.authTag,
+      metadata: { chat_id: '-100123456', leads_chat_id: ' -100987654 ' },
+    }, error: null }))
+    const { getTelegramConfig } = await import('@/lib/platform-config')
+    expect(await getTelegramConfig()).toEqual({ botToken: 'test-shared-telegram-token', chatId: '-100123456' })
+    expect(await getTelegramConfig('leads')).toEqual({ botToken: 'test-shared-telegram-token', chatId: '-100987654' })
+  })
+
+  it.each([undefined, '', ' ', '100987654', '@sales', '-0', '-100123456', ' -100123456 '])('rejects absent, invalid or Ops-shared Leads destination (%s)', async leads => {
+    const { encrypt } = await import('@/lib/crypto/aes')
+    const blob = encrypt('test-shared-telegram-token')
+    const service = await import('@/lib/supabase/service')
+    const mocked = service.createServiceClient as unknown as ReturnType<typeof vi.fn>
+    mocked.mockReturnValue(makeClient({ data: {
+      ciphertext: blob.ciphertext, iv: blob.iv, auth_tag: blob.authTag,
+      metadata: { chat_id: '-100123456', leads_chat_id: leads },
+    }, error: null }))
+    const { getTelegramConfig } = await import('@/lib/platform-config')
+    expect(await getTelegramConfig('leads')).toBeNull()
+    expect(await getTelegramConfig()).toEqual({ botToken: 'test-shared-telegram-token', chatId: '-100123456' })
+  })
+
   it('getBranding() maps DB columns to camelCase Branding', async () => {
     const serviceModule = await import('@/lib/supabase/service')
     const mocked = serviceModule.createServiceClient as unknown as ReturnType<typeof vi.fn>

@@ -63,7 +63,10 @@ export async function notifyOps(alert: OpsAlert): Promise<void> {
     try {
       const telegramEnabled = await isTelegramAlertEnabled(alert.kind)
       if (telegramEnabled) {
-        await sendTelegramMessage(formatOpsMessage(alert))
+        // Signup contacts belong only in the dedicated Leads group. All other
+        // platform alerts retain the existing default technical Ops route.
+        if (alert.kind === 'tenant_signup') await sendTelegramMessage(formatOpsMessage(alert), 'leads')
+        else await sendTelegramMessage(formatOpsMessage(alert))
       }
     } catch {
       // Swallow: dormant/erroring Telegram (or a toggle-check hiccup) must not throw out of notifyOps.

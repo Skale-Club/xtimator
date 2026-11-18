@@ -22,7 +22,7 @@ vi.stubGlobal('fetch', fetchMock)
 // consume the stubbed fetch and leave the real Telegram call with an undefined response).
 const getTelegramConfigMock = vi.fn()
 vi.mock('@/lib/platform-config', () => ({
-  getTelegramConfig: () => getTelegramConfigMock(),
+  getTelegramConfig: (...args: unknown[]) => getTelegramConfigMock(...args),
 }))
 
 import { sendTelegramMessage } from '@/lib/telegram/client'
@@ -36,6 +36,23 @@ beforeEach(() => {
 })
 
 describe('sendTelegramMessage', () => {
+  it('uses the dedicated Leads configuration with the existing shared bot', async () => {
+    getTelegramConfigMock.mockResolvedValueOnce({ botToken: TEST_TOKEN, chatId: '-100987654' })
+    fetchMock.mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 }))
+    await sendTelegramMessage('New signup', 'leads')
+    expect(getTelegramConfigMock).toHaveBeenCalledWith('leads')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).chat_id).toBe('-100987654')
+    expect(fetchMock.mock.calls[0][0]).toBe(`https://api.telegram.org/bot${TEST_TOKEN}/sendMessage`)
+  })
+
+  it('never falls back to Ops or sends when Leads configuration is unavailable', async () => {
+    getTelegramConfigMock.mockImplementation(async (destination?: string) => destination === 'leads'
+      ? null : { botToken: TEST_TOKEN, chatId: '-100123456' })
+    await expect(sendTelegramMessage('New signup', 'leads')).rejects.toThrow(/not configured/i)
+    expect(getTelegramConfigMock.mock.calls).toEqual([['leads']])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('posts to the Telegram sendMessage API with the token, chat_id, text, and HTML parse_mode', async () => {
     getTelegramConfigMock.mockResolvedValueOnce({
       botToken: TEST_TOKEN,
@@ -44,6 +61,7 @@ describe('sendTelegramMessage', () => {
     fetchMock.mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 }))
 
     await sendTelegramMessage('Hello ops')
+    expect(getTelegramConfigMock).toHaveBeenCalledWith()
 
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, opts] = fetchMock.mock.calls[0]

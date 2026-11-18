@@ -104,6 +104,23 @@ describe('formatOpsMessage', () => {
 })
 
 describe('notifyOps', () => {
+  it('routes tenant signups only to Leads while preserving default Ops for technical faults', async () => {
+    const signup = { kind: 'tenant_signup', title: 'New tenant', message: 'Business contact' }
+    await notifyOps(signup)
+    expect(sendTelegramMessageMock.mock.calls).toEqual([[formatOpsMessage(signup), 'leads']])
+    sendTelegramMessageMock.mockClear()
+    const fault = { kind: 'ai_fallback', title: 'Provider fault', message: 'Technical diagnostic' }
+    await notifyOps(fault)
+    expect(sendTelegramMessageMock.mock.calls).toEqual([[formatOpsMessage(fault)]])
+  })
+
+  it('keeps signup non-blocking when the dedicated Leads group is unconfigured', async () => {
+    sendTelegramMessageMock.mockRejectedValue(new Error('[Telegram] not configured'))
+    await expect(notifyOps({ kind: 'tenant_signup', title: 'Signup', message: '' })).resolves.toBeUndefined()
+    expect(sendTelegramMessageMock).toHaveBeenCalledWith(expect.any(String), 'leads')
+    expect(captureMessageMock).toHaveBeenCalledOnce()
+  })
+
   it('fans out to BOTH Sentry and Telegram (no dedupeKey)', async () => {
     await notifyOps({
       kind: 'ai_fallback',
