@@ -42,6 +42,8 @@ export interface LiveCaseResult {
   ok: boolean
   error?: string
   rubric: RubricResult | null
+  /** Synthetic canary output retained for scope/quantity review; never customer data. */
+  output?: EstimateOutput
   latencyMs: number
   costUsd: number | null
   /** Present in two-step mode. */
@@ -100,7 +102,8 @@ async function callTool(
   if (choice?.finish_reason === 'length') throw new Error('truncated (finish_reason length)')
   const raw = choice?.message?.tool_calls?.find((t) => t.function?.name === toolName)?.function?.arguments
   if (!raw) throw new Error(`no ${toolName} tool call`)
-  return { args: JSON.parse(raw), costUsd: typeof json.usage?.cost === 'number' ? json.usage.cost : null }
+  const cost = json.usage?.cost
+  return { args: JSON.parse(raw), costUsd: typeof cost === 'number' && Number.isFinite(cost) && cost >= 0 ? cost : null }
 }
 
 export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<LiveCaseResult> {
@@ -165,14 +168,16 @@ export async function runLiveCase(c: GoldenCase, opts: LiveOptions): Promise<Liv
       },
       'create_estimate',
     )
-    costUsd = estimated.costUsd === null && costUsd === null ? null : (costUsd ?? 0) + (estimated.costUsd ?? 0)
+    // A missing step cost is unknown, not a free call or a complete total.
+    costUsd = estimated.costUsd === null || (opts.twoStep && planInfo?.costUsd == null)
+      ? null : (costUsd ?? 0) + estimated.costUsd
 
     const normalized = normalizeOutput(estimated.args as Record<string, unknown>)
     if (!normalized.ok) {
       return { id: c.id, ok: false, error: `schema: ${normalized.error.message.slice(0, 200)}`, rubric: null, latencyMs: Date.now() - started, costUsd, plan: planInfo }
     }
     const output: EstimateOutput = normalized.value
-    return { id: c.id, ok: true, rubric: scoreAgainstRubric(c, output), latencyMs: Date.now() - started, costUsd, plan: planInfo }
+    return { id: c.id, ok: true, output, rubric: scoreAgainstRubric(c, output), latencyMs: Date.now() - started, costUsd, plan: planInfo }
   } catch (err) {
     return { id: c.id, ok: false, error: err instanceof Error ? err.message : String(err), rubric: null, latencyMs: Date.now() - started, costUsd, plan: planInfo }
   }

@@ -31,6 +31,7 @@ describe('runLiveCase (stubbed network)', () => {
     expect(result.ok).toBe(true)
     expect(result.rubric!.score).toBeGreaterThanOrEqual(90)
     expect(result.costUsd).toBe(0.01)
+    expect(result.output?.sections).toMatchObject(painting.reference.sections)
     expect(calls).toHaveLength(1)
 
     const body = calls[0] as { model: string; messages: Array<{ role: string; content: string }>; tool_choice: unknown }
@@ -72,6 +73,7 @@ describe('runLiveCase (stubbed network)', () => {
     const result = await runLiveCase(painting, { apiKey: 'test', fetchImpl, twoStep: true })
     expect(result.ok).toBe(true)
     expect(result.plan?.usable).toBe(false)
+    expect(result.costUsd).toBeNull()
     expect((calls[1].messages as Array<{ content: string }>)[1].content).not.toContain('<scope_plan>')
   })
 
@@ -91,6 +93,17 @@ describe('runLiveCase (stubbed network)', () => {
     const result = await runLiveCase(painting, { apiKey: 'test', fetchImpl })
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/^schema:/)
+  })
+
+  it('keeps missing or invalid provider costs unknown', async () => {
+    for (const cost of [undefined, -1, Infinity]) {
+      const { fetchImpl } = stubFetch(() => ({
+        ...toolResponse('create_estimate', painting.reference), usage: { cost },
+      }))
+      const result = await runLiveCase(painting, { apiKey: 'test', fetchImpl })
+      expect(result.ok).toBe(true)
+      expect(result.costUsd).toBeNull()
+    }
   })
 
   it('a truncated answer is a failure', async () => {

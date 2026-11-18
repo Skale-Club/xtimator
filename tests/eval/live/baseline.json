@@ -1,5 +1,5 @@
 {
   "single": null,
   "twoStep": null,
-  "note": "Mean rubric score of the last accepted live run (tests/eval/live/golden-live.test.ts). null = no baseline yet: the first live run only reports. Once set, a run whose mean falls more than 5 points below it fails. Update it deliberately after an intended prompt or playbook change."
+  "note": "Mean rubric score of the last accepted live run. A null baseline marks a calibration run. Every selected case still needs valid output and a rubric score. Once set, a run whose mean falls more than 5 points below the baseline fails. Update it deliberately after an intended prompt or playbook change."
 }

@@ -18,13 +18,13 @@ on:
         type: boolean
         default: false
       model:
-        description: "Estimator model (blank = anthropic/claude-sonnet-5)"
+        description: "Estimator model (blank = anthropic/claude-sonnet-5.5)"
         type: string
         default: ""
       max_cases:
         description: "Hard cap on the number of cases (cost control)"
         type: string
-        default: "20"
+        default: "18"
       cases:
         description: "Comma-separated case ids (blank = all, up to max_cases)"
         type: string
@@ -52,6 +52,13 @@ jobs:
 
       - run: npm install --no-audit --no-fund
 
+      # Fail before paid requests unless the dedicated key has a non-resetting
+      # provider-side total limit within the owner's approved USD 5 budget.
+      - name: Verify the evaluation key spending cap
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY_EVAL }}
+        run: node scripts/verify-eval-budget.mjs
+
       - name: Run the live golden set
         env:
           EVAL_LIVE: "1"
@@ -77,13 +84,20 @@ jobs:
               const lines = [
                 "## Live golden set (" + s.mode + ", " + s.model + ")",
                 "",
-                "Mean **" + s.mean + "** over " + s.cases + " cases, median latency " + (s.medianLatencyMs / 1000).toFixed(1) + "s, cost $" + s.totalCostUsd,
+                "Mean **" + s.mean + "** over " + s.cases + " cases, median latency " + (s.medianLatencyMs / 1000).toFixed(1) + "s, reported cost " + (s.totalCostUsd == null ? "unknown" : "$" + s.totalCostUsd),
+                "A first run without an accepted baseline is calibration, not public-launch approval.",
                 s.failed.length ? "Failed: " + s.failed.join(", ") : "",
                 "",
                 "| case | score | latency | cost |",
                 "| --- | --- | --- | --- |",
-                ...r.results.map((x) => "| " + x.id + " | " + (x.rubric ? x.rubric.score : "failed") + " | " + (x.latencyMs / 1000).toFixed(1) + "s | $" + (x.costUsd || 0).toFixed(4) + " |"),
+                ...r.results.map((x) => "| " + x.id + " | " + (x.rubric ? x.rubric.score : "failed") + " | " + (x.latencyMs / 1000).toFixed(1) + "s | " + (x.costUsd == null ? "unknown" : "$" + x.costUsd.toFixed(4)) + " |"),
               ];
               console.log(lines.join("\n"));
+              const evidence = JSON.stringify(r.results, null, 2);
+              if (Buffer.byteLength(evidence) <= 700000) {
+                console.log("\n<details><summary>Synthetic outputs and rubric findings for manual review</summary>\n\n```json\n" + evidence + "\n```\n</details>");
+              } else {
+                console.log("\nSynthetic output evidence exceeds the summary size limit; use the live test log for the full JSON report.");
+              }
             ' "${{ runner.temp }}/eval-live.json" >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -71,9 +71,25 @@ async function activate(opts: {
 }
 async function snapshot() {
   return {
-    estimates: (await db.query('SELECT id,version,is_current,generation_staged FROM estimates ORDER BY id')).rows,
-    project: (await db.query('SELECT total,status,project_type,name,client_id FROM projects')).rows,
-    photos: (await db.query('SELECT * FROM estimate_photos ORDER BY estimate_id')).rows,
+    estimates: (await db.query<{
+      id: string
+      version: number | null
+      is_current: boolean
+      generation_staged: boolean
+    }>('SELECT id,version,is_current,generation_staged FROM estimates ORDER BY id')).rows,
+    project: (await db.query<{
+      total: string | null
+      status: string | null
+      project_type: string | null
+      name: string | null
+      client_id: string | null
+    }>('SELECT total,status,project_type,name,client_id FROM projects')).rows,
+    photos: (await db.query<{
+      estimate_id: string | null
+      photo_id: string | null
+      company_id: string | null
+      sort_order: number | null
+    }>('SELECT * FROM estimate_photos ORDER BY estimate_id')).rows,
   }
 }
 async function failProjectWrites() {
@@ -163,7 +179,10 @@ describe('real PostgreSQL activation and recovery transactions', () => {
       {estimate_seq:1},{estimate_seq:2},
     ])
     await db.query('INSERT INTO estimates(id,company_id,project_id,estimate_seq) VALUES(gen_random_uuid(),$1,$2,40)',[company,project])
-    const next = await db.query('INSERT INTO estimates(id,company_id,project_id) VALUES(gen_random_uuid(),$1,$2) RETURNING estimate_seq',[company,project])
+    const next = await db.query<{ estimate_seq: number }>(
+      'INSERT INTO estimates(id,company_id,project_id) VALUES(gen_random_uuid(),$1,$2) RETURNING estimate_seq',
+      [company,project],
+    )
     expect(next.rows[0].estimate_seq).toBe(41)
   })
   it('links a unique normalized client in the activation transaction', async () => {

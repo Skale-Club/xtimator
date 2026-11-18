@@ -73,8 +73,34 @@ notes, not a certification of accuracy. No checkbox claims a review occurred.
 
 These batches overlap and must not be added as a unique test count. Targeted
 Node tests use one worker on the Surface; typical module-heavy batches take
-about 45 seconds. Full CI, scoped typecheck, browser/real-device checks, live AI
-calibration, credit policy, webhook probes and public rollout remain pending.
+about 45 seconds. GitHub Test run 44405363257 passed on exact candidate
+0a90d20b: scoped application typecheck and both complete unit/eval passes. Its
+non-blocking whole-repository check exposed ten new test-fixture typing errors;
+the follow-up supplies explicit SQL row types and a complete editor fixture.
+Browser/real-device checks, live AI calibration, credit policy, webhook probes
+and public rollout remain pending.
+
+## Controlled live evaluation
+
+The owner approved an initial run of at most 18 synthetic cases and USD 5 total.
+Use only repository secret `OPENROUTER_API_KEY_EVAL`, a dedicated OpenRouter
+generation key with a provider-side total limit at most USD 5 and no reset.
+Register it manually with `gh secret set`; never paste it into chat. The manual
+workflow checks current key metadata before any paid call and rejects missing,
+unlimited, resetting, exhausted or management keys. No platform/customer key or
+database is used. Run only one mode for the initial authorized batch.
+
+The canary retains normalized synthetic outputs and rubric findings for manual
+scope/quantity review. Missing provider cost is unknown, never zero. Failed,
+empty or schema-invalid outcomes cannot pass simply because the accepted
+baseline is absent. An initial baseline-free run is calibration, not launch
+approval; broad rubric quantity tolerance is insufficient for the 30-case gate.
+Reconcile provider spending separately from reported response costs before
+setting commercial credits. This harness does not exercise actual capture,
+transcription, production persistence, customer debits or public/PDF surfaces.
+
+Both iPhone and Android are available according to the owner. Their actual
+Safari/Chrome recording, interruption/recovery and camera sessions are pending.
 
 ## Release and rollback
 
@@ -83,7 +109,7 @@ calibration, credit policy, webhook probes and public rollout remain pending.
 2. Audit duplicate-current/tenant mismatches on production read-only. Confirm
    migration names are absent/present as expected and take an appropriate schema
    rollback reference before applying the additive migration, with owner approval.
-3. Apply both migrations to production before shipping their dependent code.
+3. Apply all three migrations to production before shipping their dependent code.
    Verify service-only grants and PostgREST schema reload. Never deploy first.
 4. After an approved release, verify exact health SHA, Inngest sync and a
    controlled workflow. Do not expand public access before the XTM-69 gates.
