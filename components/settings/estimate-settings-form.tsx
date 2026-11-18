@@ -83,8 +83,9 @@ function initialValues(company: CompanySettings): Values {
     // Absent key = system default: summary and photos on, text blocks on when
     // the company has the text, the rest off.
     blockSummary: blocks.summary ?? true,
-    blockPayment: blocks.payment_terms ?? hasText(company.default_payment_terms),
-    blockWarranty: blocks.warranty_terms ?? hasText(company.default_warranty_terms),
+    // Off unless the owner switched them on (having the text is not enough).
+    blockPayment: blocks.payment_terms === true && hasText(company.default_payment_terms),
+    blockWarranty: blocks.warranty_terms === true && hasText(company.default_warranty_terms),
     blockTimeline: blocks.timeline ?? false,
     blockNotes: blocks.notes ?? false,
     blockPhotos: blocks.photos ?? true,

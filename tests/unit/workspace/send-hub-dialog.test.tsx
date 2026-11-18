@@ -44,11 +44,11 @@ describe('SendHubDialog component contract', () => {
     expect(source).not.toMatch(/smsDeliveryEnabled|whatsappEnabled/)
   })
 
-  it('uses the same bottom-sheet / dialog surface as the New Xtimate popup', () => {
+  it('uses the shared bottom sheet (draggable on phones) with the New Xtimate surface', () => {
+    expect(source).toContain('BottomSheetContent')
     expect(source).toContain('nx-surface')
-    expect(source).toContain('rounded-t-[28px]')
     expect(source).toContain('sm:max-w-[580px]')
-    expect(source).toContain('backdrop-blur-none')
+    expect(source).toContain('data-sheet-drag')
   })
 
   it('routes every visible string through t()', () => {

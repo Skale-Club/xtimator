@@ -63,11 +63,18 @@ describe('warning-free CI contracts', () => {
       ...walk('app'),
       ...walk('components'),
       ...walk('tests'),
-    ].filter((file) => file.endsWith('.tsx') && file !== 'components/ui/dialog.tsx')
+    ].filter(
+      (file) =>
+        file.endsWith('.tsx') &&
+        // The primitives themselves: their callers pass the description.
+        file !== 'components/ui/dialog.tsx' &&
+        file !== 'components/ui/bottom-sheet.tsx',
+    )
 
     const missing = files.flatMap((file) => {
       const source = read(file)
-      const contents = source.match(/<DialogContent(?:\s|>)/g)?.length ?? 0
+      // BottomSheetContent (components/ui/bottom-sheet.tsx) is a DialogContent too.
+      const contents = source.match(/<(?:DialogContent|BottomSheetContent)(?:\s|>)/g)?.length ?? 0
       const descriptions = source.match(/<DialogDescription(?:\s|>)/g)?.length ?? 0
       return descriptions < contents ? [`${file}: ${contents - descriptions} missing`] : []
     })

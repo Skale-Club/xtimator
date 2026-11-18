@@ -66,12 +66,11 @@ describe('ClientPicker (DOCUX-02, DOCUX-03)', () => {
     expect(svgs.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders button variant — Button rounded-full ghost UserPlus trigger (mirrors LinkClientButton)', () => {
+  it('renders button variant — full-width row trigger for the Estimate options panel', () => {
     render(<ClientPicker projectId="p1" currentClientId={null} variant="button" />)
-    const button = screen.getByRole('button', { name: /link client/i })
-    expect(button.className).toContain('rounded-full')
-    expect(button.className).toContain('gap-1.5')
-    expect(button.className).toContain('text-foreground')
+    const button = screen.getByRole('button', { name: /link a client/i })
+    expect(button.className).toContain('w-full')
+    expect(button.textContent).toContain('Link a client')
     // UserPlus icon
     expect(button.querySelector('svg')).toBeTruthy()
   })
@@ -103,7 +102,7 @@ describe('ClientPicker (DOCUX-02, DOCUX-03)', () => {
 
   it('dispatches linkProjectToClient(projectId, clientId) on client selection (mocked)', async () => {
     render(<ClientPicker projectId="project-1" currentClientId={null} variant="button" />)
-    fireEvent.click(screen.getByRole('button', { name: /link client/i }))
+    fireEvent.click(screen.getByRole('button', { name: /link a client/i }))
     // Wait for popover portal + fetch resolution
     const acme = await screen.findByText('Acme')
     // cmdk items respond to click; the closest cmdk item wrapper carries onSelect
@@ -141,7 +140,7 @@ describe('ClientPicker (DOCUX-02, DOCUX-03)', () => {
 
   it('search filters clients by name OR email (case-insensitive)', async () => {
     render(<ClientPicker projectId="p1" currentClientId={null} variant="button" />)
-    fireEvent.click(screen.getByRole('button', { name: /link client/i }))
+    fireEvent.click(screen.getByRole('button', { name: /link a client/i }))
     // All three clients present initially
     await screen.findByText('Bravo')
     expect(screen.getByText('Acme')).toBeTruthy()
@@ -160,7 +159,7 @@ describe('ClientPicker (DOCUX-02, DOCUX-03)', () => {
   it('CommandEmpty renders "No clients found." when filtered list is empty', async () => {
     mockClientsFetch([])
     render(<ClientPicker projectId="p1" currentClientId={null} variant="button" />)
-    fireEvent.click(screen.getByRole('button', { name: /link client/i }))
+    fireEvent.click(screen.getByRole('button', { name: /link a client/i }))
     await screen.findByText('No clients found.')
   })
 

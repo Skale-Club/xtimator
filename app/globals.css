@@ -6,6 +6,11 @@
    camera flash (Upload photos), and speech-bubble typing dots (Describe the
    job). Gated at render time by the admin "Card background animations" toggle
    and by prefers-reduced-motion inside each component. */
+/* Bottom sheet slide-up on open (components/ui/bottom-sheet.tsx, phones only). */
+@keyframes bottom-sheet-in {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
 @keyframes bar-pulse {
   0%, 100% { transform: scaleY(1); }
   50% { transform: scaleY(0.25); }
@@ -942,12 +947,12 @@ html[data-keyboard='open'] [data-slot='sheet-content']:is([data-side='left'], [d
   bottom: auto;
   height: var(--app-vvh, 100dvh);
 }
-/* New Xtimate / Edit with AI popup (components/projects/new-project-dialog.tsx):
-   on phones it is a bottom sheet, so while the keyboard is up it sits on top of
+/* Bottom sheets (components/ui/bottom-sheet.tsx, data-bottom-sheet): on phones
+   they are pinned to the bottom, so while the keyboard is up they sit on top of
    it (bottom: --app-kb) instead of being centred like other dialogs. The extra
-   class beats the generic dialog rule above. From sm up the generic rule applies. */
+   attribute beats the generic dialog rule above. From sm up the generic rule applies. */
 @media (max-width: 639px) {
-  html[data-keyboard='open'] [data-slot='dialog-content'].nx-surface {
+  html[data-keyboard='open'] [data-slot='dialog-content'][data-bottom-sheet] {
     top: auto;
     bottom: var(--app-kb, 0px);
     max-height: calc(var(--app-vvh, 100dvh) - 1rem);

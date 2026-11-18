@@ -8,6 +8,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { SheetGrabber } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { MoneyInput } from '@/components/ui/money-input'
 import { Switch } from '@/components/ui/switch'
@@ -186,10 +187,12 @@ function ItemEditorBody({
   return (
     <div className="flex flex-col">
       {/* Header: grabber, title, Done */}
-      <div className={cn('sticky top-0 z-10 bg-[var(--glass-bg-strong)] px-4 pb-3', side === 'bottom' ? 'pt-2' : 'pt-4')}>
-        {side === 'bottom' && (
-          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" aria-hidden />
-        )}
+      <div
+        data-sheet-drag={side === 'bottom' ? '' : undefined}
+        className={cn('sticky top-0 z-10 bg-[var(--glass-bg-strong)] px-4 pb-3', side === 'bottom' ? 'touch-none pt-0' : 'pt-4')}
+      >
+        {/* Drag the handle or this header down to close (phones). */}
+        {side === 'bottom' && <SheetGrabber alwaysVisible className="mb-1" />}
         <div className="flex items-center justify-between gap-3">
           <SheetTitle className="text-base">{isNew ? t('New item') : t('Edit item')}</SheetTitle>
           <Button size="sm" onClick={onClose} className="rounded-full px-4">

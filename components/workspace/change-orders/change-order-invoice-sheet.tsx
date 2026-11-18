@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Receipt } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils/format'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { cn } from '@/lib/utils'
 import type { ChangeOrderActions } from './change-order-actions'
 
 const PRIMARY_STYLE = {
@@ -65,17 +65,8 @@ export function ChangeOrderInvoiceSheet({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
-      <DialogContent
-        showCloseButton={false}
-        data-testid="change-order-invoice-sheet"
-        className={cn(
-          'nx-surface flex flex-col gap-0 overflow-hidden border-border bg-background p-0 backdrop-blur-none',
-          'top-auto bottom-0 left-0 max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none pb-[env(safe-area-inset-bottom)]',
-          'sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-[440px] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:pb-0',
-        )}
-      >
-        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
-        <DialogHeader className="shrink-0 px-5 pt-3 pb-1 text-left sm:px-6 sm:pt-5">
+      <BottomSheetContent data-testid="change-order-invoice-sheet" className="nx-surface" desktopClassName="sm:max-w-[440px]">
+        <DialogHeader data-sheet-drag="" className="shrink-0 touch-none px-5 pt-1 pb-1 text-left sm:px-6 sm:pt-5">
           <DialogTitle className="inline-flex items-center gap-2 text-[19px] leading-tight font-semibold tracking-tight">
             <Receipt className="size-5 text-primary" aria-hidden />
             {t('Invoice')}
@@ -105,7 +96,7 @@ export function ChangeOrderInvoiceSheet({
             {t('Send invoice')}
           </Button>
         </div>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

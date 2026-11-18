@@ -167,7 +167,7 @@ export function RefineReview({ diff, currencyCode, totals, applying = false, onA
         )}
       </div>
 
-      <div className="flex shrink-0 gap-2.5 px-4 pt-2.5 pb-1.5 sm:px-5 sm:pb-5">
+      <div className="flex shrink-0 gap-2.5 px-4 pt-2.5 pb-4 sm:px-5 sm:pb-5">
         <button
           type="button"
           onClick={onDiscard}

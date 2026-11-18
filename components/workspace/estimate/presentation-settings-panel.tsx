@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useEffect, type ReactNode, type JSX, type RefObject } from 'react'
-import { Eye, DollarSign, Percent } from 'lucide-react'
+import { Eye, ChevronRight } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from '@/components/ui/popover'
 import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { RadioGroup } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
@@ -28,13 +29,17 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import Link from 'next/link'
 
 // ---------------------------------------------------------------------------
-// Phase 162-04 (DOCUX-01) — The gear-triggered Presentation Settings Panel.
-// GUARD-03 discipline: every control calls onChange(nextPresentationSettings)
-// with a plain PresentationSettings object. The caller (estimate-editor.tsx)
-// converts that into a single presentation-settings dispatch. The panel does
-// not dispatch reducer actions for the typed tax/discount/deposit columns
-// and does not import from the totals engine (grep-verified in the plan's
-// acceptance criteria).
+// Phase 162-04 (DOCUX-01) — The gear-triggered Presentation Settings Panel
+// ("Estimate options"). GUARD-03 discipline: every control calls
+// onChange(nextPresentationSettings) with a plain PresentationSettings object.
+// The caller (estimate-editor.tsx) converts that into a single
+// presentation-settings dispatch. The panel does not dispatch reducer actions
+// for the typed tax/discount/deposit columns and does not import from the
+// totals engine.
+//
+// Layout: a popover over the dock's gear from 768px up; below that the app's
+// bottom sheet (components/ui/bottom-sheet.tsx), which drags to close. The
+// body is the same in both: grouped cards (Client, Pricing, Document blocks).
 // ---------------------------------------------------------------------------
 
 const DESKTOP_BREAKPOINT = '(min-width: 768px)'
@@ -99,6 +104,7 @@ export function PresentationSettingsPanel(
   props: PresentationSettingsPanelProps,
 ): JSX.Element {
   const isDesktop = useIsDesktop()
+  const { t } = useTranslation()
   const body = <PanelBody {...props} />
 
   if (isDesktop) {
@@ -112,33 +118,55 @@ export function PresentationSettingsPanel(
           side="top"
           sideOffset={12}
           collisionPadding={16}
-          className="w-[360px] p-0"
+          // Taller than most screens with every block listed: it scrolls inside.
+          className="flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[380px] flex-col overflow-hidden p-0"
           onInteractOutside={(event) => {
             if (props.anchorRef?.current?.contains(event.target as Node)) event.preventDefault()
           }}
         >
-          {body}
+          <p className="shrink-0 px-5 pt-4 pb-1 text-[17px] font-semibold tracking-tight">
+            {t('Estimate options')}
+          </p>
+          <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
         </PopoverContent>
       </Popover>
     )
   }
+
+  // Phones and small tablets: the app's bottom sheet (drag the handle or the
+  // header down to close).
   return (
-    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="max-h-[85vh] overflow-y-auto p-0"
-      >
-        {/* Radix Sheet is built on Dialog; screen-reader users still need a
-             title + description even though we present the panel visually as
-             a bottom sheet with no header chrome. */}
-        <SheetTitle className="sr-only">Presentation settings</SheetTitle>
-        <SheetDescription className="sr-only">
-          Pricing, document section visibility, and client presentation
-          overrides for this estimate.
-        </SheetDescription>
-        {body}
-      </SheetContent>
-    </Sheet>
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <BottomSheetContent data-testid="presentation-settings-sheet" desktopClassName="sm:max-w-[440px]">
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pt-4"
+        >
+          <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">
+            {t('Estimate options')}
+          </DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} />
+          <DialogDescription className="sr-only">
+            {t('Pricing and the blocks shown on this estimate.')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{body}</div>
+      </BottomSheetContent>
+    </Dialog>
+  )
+}
+
+/** A titled group: a small-caps legend over one rounded card with divided rows. */
+function Group({ label, children }: { label: string; children: ReactNode }): JSX.Element {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </legend>
+      <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-muted/40">
+        {children}
+      </div>
+    </fieldset>
   )
 }
 
@@ -182,10 +210,10 @@ function PanelBody({
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="flex flex-col gap-5 px-4 pt-2 pb-5">
       {estimateSentOrViewed && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-1.5">
-          <Eye className="h-4 w-4 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          <Eye className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             {t(
               'This estimate has already been seen by the client. Changes here will affect the next view.',
@@ -194,25 +222,17 @@ function PanelBody({
         </div>
       )}
 
-      {/* --- Client --- */}
+      {/* --- Client (only while none is linked) --- */}
       {clientSlot && (
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {t('Client')}
-          </legend>
-          <div className="flex items-center justify-start">{clientSlot}</div>
-        </fieldset>
+        <Group label={t('Client')}>
+          <div className="p-1">{clientSlot}</div>
+        </Group>
       )}
 
       {/* --- Pricing --- */}
-      <fieldset className="space-y-3">
-        <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {t('Pricing')}
-        </legend>
-
-        {/* Tax */}
-        <div className="space-y-1.5">
-          <Label className="text-sm">{t('Tax')}</Label>
+      <Group label={t('Pricing')}>
+        <div className="space-y-2 px-3.5 py-3">
+          <Label className="text-sm font-medium">{t('Tax')}</Label>
           <RadioGroup
             value={resolved.tax.mode}
             onValueChange={(mode) => {
@@ -254,17 +274,13 @@ function PanelBody({
                   },
                 })
               }}
-              className="h-8"
+              className="h-10"
             />
           )}
         </div>
 
-        {/* Discount */}
-        <div className="space-y-1.5">
-          <Label className="text-sm flex items-center gap-1">
-            <Percent className="h-3.5 w-3.5" />
-            {t('Discount')}
-          </Label>
+        <div className="space-y-2 px-3.5 py-3">
+          <Label className="text-sm font-medium">{t('Discount')}</Label>
           <RadioGroup
             value={
               !resolved.discount.enabled
@@ -285,11 +301,7 @@ function PanelBody({
             className={SEGMENTED_GROUP}
           >
             <RadioOption id="disc-none" value="none" label={t('None')} />
-            <RadioOption
-              id="disc-percent"
-              value="percent"
-              label={t('Percent')}
-            />
+            <RadioOption id="disc-percent" value="percent" label={t('Percent')} />
             <RadioOption id="disc-amount" value="amount" label={t('Amount')} />
           </RadioGroup>
           {resolved.discount.enabled && (
@@ -307,17 +319,13 @@ function PanelBody({
                   },
                 })
               }
-              className="h-8"
+              className="h-10"
             />
           )}
         </div>
 
-        {/* Deposit */}
-        <div className="space-y-1.5">
-          <Label className="text-sm flex items-center gap-1">
-            <DollarSign className="h-3.5 w-3.5" />
-            {t('Deposit')}
-          </Label>
+        <div className="space-y-2 px-3.5 py-3">
+          <Label className="text-sm font-medium">{t('Deposit')}</Label>
           <RadioGroup
             value={
               !resolved.deposit.enabled
@@ -356,55 +364,43 @@ function PanelBody({
                   },
                 })
               }
-              className="h-8"
+              className="h-10"
             />
           )}
         </div>
-      </fieldset>
+      </Group>
 
-      {/* --- Document blocks (SEED-056) --- */}
-      <fieldset className="space-y-2">
-        <legend className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {t('Document blocks')}
-        </legend>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-          {blockKeys.map((key) => {
-            const visible = isSectionVisible(resolved, key)
-            return (
-              <div
-                key={key}
-                className="flex items-center justify-between gap-2"
+      {/* --- Document blocks (SEED-056): one row per block; the switch is the state. --- */}
+      <div className="flex flex-col gap-2">
+        <Group label={t('Document blocks')}>
+          {blockKeys.map((key) => (
+            <div key={key} className="flex min-h-12 items-center justify-between gap-3 px-3.5 py-1.5">
+              <Label
+                htmlFor={`section-${key}`}
+                className="min-w-0 flex-1 cursor-pointer py-2 text-[15px] font-normal"
               >
-                <div className="min-w-0">
-                  <Label htmlFor={`section-${key}`} className="text-sm">
-                    {sectionLabels[key]}
-                  </Label>
-                  {key !== 'sections' && (
-                    <p className="text-xs text-muted-foreground" data-testid={`section-hint-${key}`}>
-                      {visible ? t('Shown on this estimate') : t('Hidden on this estimate')}
-                    </p>
-                  )}
-                </div>
-                <Switch
-                  id={`section-${key}`}
-                  checked={visible}
-                  onCheckedChange={(checked) =>
-                    patch({
-                      sections: { ...resolved.sections, [key]: checked },
-                    })
-                  }
-                />
-              </div>
-            )
-          })}
-        </div>
+                {sectionLabels[key]}
+              </Label>
+              <Switch
+                id={`section-${key}`}
+                checked={isSectionVisible(resolved, key)}
+                onCheckedChange={(checked) =>
+                  patch({
+                    sections: { ...resolved.sections, [key]: checked },
+                  })
+                }
+              />
+            </div>
+          ))}
+        </Group>
         <Link
           href="/settings/estimates"
-          className="inline-block pt-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-0.5 self-start px-1 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
           {t('Change defaults for new estimates in Settings')}
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
-      </fieldset>
+      </div>
     </div>
   )
 }
@@ -415,7 +411,7 @@ function PanelBody({
  * options read as plain text. Each segment is still a Radix radio item
  * (role="radio", arrow-key navigation) whose text is its accessible name.
  */
-const SEGMENTED_GROUP = 'grid grid-flow-col auto-cols-fr gap-1 rounded-lg border border-border bg-muted p-1'
+const SEGMENTED_GROUP = 'grid grid-flow-col auto-cols-fr gap-1 rounded-xl border border-border bg-background p-1'
 
 function RadioOption({
   id,
@@ -430,7 +426,7 @@ function RadioOption({
     <RadioGroupPrimitive.Item
       id={id}
       value={value}
-      className="h-7 cursor-pointer rounded-md px-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-background/60 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-sm"
+      className="h-9 cursor-pointer rounded-lg px-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-sm"
     >
       {label}
     </RadioGroupPrimitive.Item>

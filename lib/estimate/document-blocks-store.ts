@@ -27,15 +27,17 @@ export async function mergeDocumentBlocks(
 
 /**
  * The block flag that should follow a text edit:
- *  - text became non-empty (was empty)  -> true  (typing text turns the block on)
- *  - text is empty                      -> false
- *  - text unchanged and non-empty       -> undefined (leave the owner's switch alone)
+ *  - text is empty      -> false (no text, no block)
+ *  - text is non-empty  -> undefined (leave the owner's switch alone)
+ *
+ * Typing text used to turn the block on by itself; since 2026-11-18 the
+ * payment / warranty blocks are off until the owner switches them on.
  */
 export function blockFlagForTextChange(
   previous: string | null | undefined,
   next: string | null | undefined,
 ): boolean | undefined {
+  void previous
   if (!hasText(next)) return false
-  if (!hasText(previous)) return true
   return undefined
 }

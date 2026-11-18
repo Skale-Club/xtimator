@@ -168,11 +168,12 @@ export function ProjectsPageShell({
           }
           emptyActionLabel={status === 'active' && !clientId ? 'Create project' : undefined}
           emptyActionHref={status === 'active' && !clientId ? '?modal=new-project' : undefined}
-          renderActions={(project) => (
+          renderActions={(project, extra) => (
             <ProjectRowActions
               projectId={project.id}
               projectName={project.name}
               status={status}
+              clientAction={extra?.clientAction}
             />
           )}
         />

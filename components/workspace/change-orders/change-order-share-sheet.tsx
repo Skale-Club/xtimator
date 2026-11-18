@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Check, Copy, Eye, X } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency } from '@/lib/utils/format'
@@ -135,19 +136,9 @@ export function ChangeOrderShareSheet({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className={cn(
-          'nx-surface flex flex-col gap-0 overflow-hidden border-border bg-background p-0 backdrop-blur-none',
-          // Phones: bottom sheet (full width, square bottom, safe-area padding).
-          'top-auto bottom-0 left-0 max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none pb-[env(safe-area-inset-bottom)]',
-          // sm and up: centred dialog.
-          'sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-[560px] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:pb-0',
-        )}
-      >
-        <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
+      <BottomSheetContent className="nx-surface" desktopClassName="sm:max-w-[560px]">
 
-        <DialogHeader className="flex shrink-0 flex-row items-start justify-between gap-3 pl-5 pr-3 pt-3 pb-1 text-left sm:pl-6 sm:pr-4 sm:pt-5">
+        <DialogHeader data-sheet-drag="" className="flex shrink-0 touch-none flex-row items-start justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pl-6 sm:pr-4 sm:pt-5">
           <div className="flex min-w-0 flex-col gap-1.5">
             <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Share change order')}</DialogTitle>
             <p className="min-w-0 truncate text-[13.5px] text-muted-foreground">
@@ -228,7 +219,7 @@ export function ChangeOrderShareSheet({
             </p>
           </div>
         </div>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

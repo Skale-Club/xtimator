@@ -24,13 +24,16 @@ import {
 import { deleteProjectAction, duplicateProjectAction } from '@/lib/actions/project'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { ProjectClientMenuAction } from '@/components/projects/project-table'
 
 interface ProjectActionsProps {
   projectId: string
   projectName: string
+  /** Phone card only: link or change the client from the menu. */
+  clientAction?: ProjectClientMenuAction
 }
 
-export function ProjectActions({ projectId, projectName }: ProjectActionsProps) {
+export function ProjectActions({ projectId, projectName, clientAction }: ProjectActionsProps) {
   const { t } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, startDeleteTransition] = useTransition()
@@ -69,6 +72,12 @@ export function ProjectActions({ projectId, projectName }: ProjectActionsProps) 
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {clientAction && (
+            <>
+              <DropdownMenuItem onSelect={clientAction.onSelect}>{clientAction.label}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem asChild>
             <Link href={`/projects/${projectId}`}>{t('View')}</Link>
           </DropdownMenuItem>

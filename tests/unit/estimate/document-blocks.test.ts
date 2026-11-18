@@ -54,12 +54,16 @@ describe('resolveDocumentBlocks: system defaults (company document_blocks NULL)'
     expect(blocks.notes).toBe(false)
   })
 
-  it('payment / warranty / fine print turn on when the company has the text', () => {
+  it('payment / warranty stay off even with text until the company switches them on', () => {
     const blocks = resolveDocumentBlocks(null, full)
-    expect(blocks.payment_terms).toBe(true)
-    expect(blocks.warranty_terms).toBe(true)
+    expect(blocks.payment_terms).toBe(false)
+    expect(blocks.warranty_terms).toBe(false)
+    // The fine print keeps its own switch (estimate_terms_enabled).
     expect(blocks.estimate_terms).toBe(true)
-    // ...but timeline / notes / valid_until still need an explicit opt-in.
+    const optedIn = resolveDocumentBlocks({ payment_terms: true, warranty_terms: true }, full)
+    expect(optedIn.payment_terms).toBe(true)
+    expect(optedIn.warranty_terms).toBe(true)
+    // ...and timeline / notes / valid_until need an explicit opt-in too.
     expect(blocks.timeline).toBe(false)
     expect(blocks.notes).toBe(false)
     expect(blocks.valid_until).toBe(false)

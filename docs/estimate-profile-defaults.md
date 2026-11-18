@@ -87,6 +87,12 @@ and copied into `estimates.presentation_settings.sections`. Legacy rows keep
 render unchanged. `estimate_terms` (absent => visible) and `valid_until`
 (absent => hidden) are the two section keys added by this work.
 
+Since 2026-11-18 every optional text block starts **off** for new estimates:
+Payment Terms and Warranty need the company's switch on (`document_blocks`
+key `true`) as well as the text; saving new text no longer switches the block
+on by itself. Timeline, Notes and Valid until were already opt-in. A key
+already stored as `true` keeps its block on.
+
 ## Known gaps (carried forward, not fixed here)
 
 - `default_payment_terms` / `default_warranty_terms` are deliberately not given

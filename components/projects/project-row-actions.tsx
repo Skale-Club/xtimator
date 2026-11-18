@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -28,14 +29,17 @@ import {
 } from '@/lib/actions/project'
 import type { ProjectListStatus } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import type { ProjectClientMenuAction } from '@/components/projects/project-table'
 
 interface Props {
   projectId: string
   projectName: string
   status: ProjectListStatus
+  /** Phone card only: link or change the client from the menu. */
+  clientAction?: ProjectClientMenuAction
 }
 
-export function ProjectRowActions({ projectId, projectName, status }: Props) {
+export function ProjectRowActions({ projectId, projectName, status, clientAction }: Props) {
   const router = useRouter()
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -71,6 +75,12 @@ export function ProjectRowActions({ projectId, projectName, status }: Props) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {clientAction && (
+            <>
+              <DropdownMenuItem onSelect={clientAction.onSelect}>{clientAction.label}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {status === 'active' && (
             <>
               <DropdownMenuItem

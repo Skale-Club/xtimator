@@ -326,7 +326,8 @@ describe('generateEstimateForProject', () => {
     expect(payload.notes).toBe('Access via alley')
   })
 
-  it('SEED-056: materialises presentation_settings at creation (summary on for AI, configured text on, rest off) and valid_until', async () => {
+  it('SEED-056: materialises presentation_settings at creation (summary on for AI, everything else off, even payment / warranty with text) and valid_until', async () => {
+    // 2026-11-18: payment / warranty blocks start off until the company switches them on.
     const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
       companyExtra: { default_validity_days: 14 },
     })
@@ -341,8 +342,8 @@ describe('generateEstimateForProject', () => {
     expect(payload.presentation_settings.sections).toEqual({
       summary: true,
       sections: true,
-      payment_terms: true,
-      warranty_terms: true,
+      payment_terms: false,
+      warranty_terms: false,
       timeline: false,
       notes: false,
       photos: true,

@@ -30,7 +30,7 @@ const PRIMARY_CLASS =
   'inline-flex h-14 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-full px-5 text-base font-semibold text-white shadow-[0_10px_24px_-10px_hsl(224_86%_50%/0.8)] transition-opacity hover:opacity-90 sm:h-[50px] sm:text-[15px]'
 const SECONDARY_CLASS =
   'inline-flex h-14 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-primary/10 px-5 text-[15px] font-semibold text-primary transition-colors hover:bg-primary/15 sm:h-[50px]'
-const DOCK_CLASS = 'flex gap-2.5 px-4 pt-2.5 pb-1.5 sm:px-5 sm:pb-5'
+const DOCK_CLASS = 'flex gap-2.5 px-4 pt-2.5 pb-4 sm:px-5 sm:pb-5'
 
 // Full-width centered panel (icon, title, reason); the actions are docked at
 // the bottom of the component, where the thumb is in the popup.

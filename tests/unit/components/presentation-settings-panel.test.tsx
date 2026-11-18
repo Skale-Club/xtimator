@@ -127,15 +127,17 @@ describe('PresentationSettingsPanel (DOCUX-01)', () => {
     expect(sheet).toBeNull()
   })
 
-  it('responsive branch — renders Sheet side="bottom" when window is <768px', async () => {
+  it('responsive branch — renders the app bottom sheet when window is <768px', async () => {
     mockMatchMedia(false)
     await renderPanel()
     const popover = document.querySelector('[data-slot="popover-content"]')
-    const sheet = document.querySelector('[data-slot="sheet-content"]')
+    const sheet = document.querySelector('[data-slot="dialog-content"][data-bottom-sheet]')
     expect(sheet).not.toBeNull()
     expect(popover).toBeNull()
-    // Sheet must be pinned to the bottom edge (side="bottom" → inset-x-0 bottom-0).
+    // Pinned to the bottom edge on phones, with a real drag handle and a titled header.
     expect(sheet!.className).toContain('bottom-0')
+    expect(screen.getByTestId('sheet-grabber')).toBeTruthy()
+    expect(screen.getByText('Estimate options')).toBeTruthy()
   })
 
   it('dispatches UPDATE_PRESENTATION_SETTINGS on section-visibility Switch toggle', async () => {
@@ -300,10 +302,12 @@ describe('PresentationSettingsPanel — document blocks (SEED-056)', () => {
     expect(document.getElementById('section-valid_until')).not.toBeNull()
   })
 
-  it('hints say whether a block is shown or hidden on this estimate', async () => {
+  it('each block row is its label and a switch whose state is the visibility (no hint text)', async () => {
     await renderPanel({ settings: { sections: { payment_terms: false } } })
-    expect(screen.getByTestId('section-hint-payment_terms').textContent).toBe('Hidden on this estimate')
-    expect(screen.getByTestId('section-hint-summary').textContent).toBe('Shown on this estimate')
+    expect(document.getElementById('section-payment_terms')!.getAttribute('data-state')).toBe('unchecked')
+    expect(document.getElementById('section-summary')!.getAttribute('data-state')).toBe('checked')
+    expect(screen.queryByText('Hidden on this estimate')).toBeNull()
+    expect(screen.queryByText('Shown on this estimate')).toBeNull()
   })
 
   it('turning on the fine print writes sections.estimate_terms', async () => {
@@ -321,7 +325,7 @@ describe('PresentationSettingsPanel — document blocks (SEED-056)', () => {
   it('valid_until starts off for a legacy (NULL) estimate and can be turned on', async () => {
     const onChange = vi.fn()
     await renderPanel({ hasValidUntil: true, onChange })
-    expect(screen.getByTestId('section-hint-valid_until').textContent).toBe('Hidden on this estimate')
+    expect(document.getElementById('section-valid_until')!.getAttribute('data-state')).toBe('unchecked')
     fireEvent.click(document.getElementById('section-valid_until')!)
     const payload = onChange.mock.calls[0][0] as PresentationSettings
     expect(payload.sections?.valid_until).toBe(true)

@@ -4,7 +4,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { ProjectHeader } from './project-header'
 import { EditorTopBar } from '@/components/workspace/editor-frame/editor-top-bar'
 import { EditorFrameProvider } from '@/components/workspace/editor-frame/context'
@@ -162,19 +163,24 @@ export function ProjectWorkspace({
 
   const photosDialog = (
     <Dialog open={photosOpen} onOpenChange={setPhotosOpen}>
-      {/* grid-cols-[minmax(0,1fr)]: DialogContent is a grid whose implicit column
-          sizes to its content, so the photo grid / drop-zone buttons used to
-          stretch the dialog wider than the screen. p-4 on a phone gives the
-          photos the room back. */}
-      <DialogContent className="w-[calc(100%-2rem)] max-w-3xl max-h-[85dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto p-4 sm:p-6">
-        <DialogHeader>
-          <DialogTitle>{t('Photos')}</DialogTitle>
+      {/* Same bottom sheet as Share / New Xtimate on phones (drag the handle or
+          header down to close); centred 768px card from sm up. */}
+      <BottomSheetContent className="nx-surface" desktopClassName="sm:max-w-3xl">
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pl-6 sm:pr-4 sm:pt-5"
+        >
+          <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Photos')}</DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} />
           <DialogDescription className="sr-only">
             {t('View and manage photos captured for this project.')}
           </DialogDescription>
         </DialogHeader>
-        <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
-      </DialogContent>
+        {/* min-w-0: the photo grid / drop-zone buttons must not widen the sheet. */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-6">
+          <PhotosTab projectId={project.id} companyId={project.company_id} initialPhotos={photos} />
+        </div>
+      </BottomSheetContent>
     </Dialog>
   )
 

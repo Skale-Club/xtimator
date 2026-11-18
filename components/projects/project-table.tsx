@@ -27,9 +27,16 @@ export interface ProjectTableRow {
   paid_at?: string | null
 }
 
+/** Extra item the phone card asks the row menu to show (link or change the
+ *  client), since the card itself only opens the project. */
+export interface ProjectClientMenuAction {
+  label: string
+  onSelect: () => void
+}
+
 interface ProjectTableProps<TProject extends ProjectTableRow> {
   projects: TProject[]
-  renderActions: (project: TProject) => ReactNode
+  renderActions: (project: TProject, extra?: { clientAction?: ProjectClientMenuAction }) => ReactNode
   searchPlaceholder?: string
   /** Client-side status tabs; the first one ("All") shows everything. */
   statusTabs?: ReadonlyArray<{ value: string; label: string }>
@@ -239,7 +246,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
       key: 'actions',
       header: actionsHeader ?? t('Actions'),
       className: 'w-[50px]',
-      cell: renderActions,
+      cell: (project) => renderActions(project),
     },
   ]
 
@@ -321,8 +328,6 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             project={project}
             renderActions={renderActions}
             fallbackCurrencyCode={fallbackCurrencyCode}
-            companyId={companyId}
-            onEditClient={companyId ? handleEditClient : undefined}
             onCreateNew={companyId ? () => setCreateClientForProjectId(project.id) : undefined}
           />
         )}
@@ -355,17 +360,24 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
   project,
   renderActions,
   fallbackCurrencyCode,
-  companyId,
-  onEditClient,
   onCreateNew,
 }: {
   project: TProject
-  renderActions: (project: TProject) => ReactNode
+  renderActions: ProjectTableProps<TProject>['renderActions']
   fallbackCurrencyCode?: unknown
-  companyId?: string
-  onEditClient?: (clientId: string) => void
   onCreateNew?: () => void
 }) {
+  const { t } = useTranslation()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  // The whole card opens the project. Linking or changing the client lives in
+  // the row menu: a tappable client link in the meta line used to swallow taps
+  // meant for the card (its padded hit area reached into the title line).
+  const clientAction: ProjectClientMenuAction = {
+    label: project.client ? t('Change client') : t('Add client'),
+    // After the menu has closed and handed focus back, or the picker would
+    // read that focus move as an outside interaction and close at once.
+    onSelect: () => window.setTimeout(() => setPickerOpen(true), 60),
+  }
   return (
     <div className="relative flex items-center gap-2 border-b border-border/50 py-3 last:border-0">
       <Link href={`/projects/${project.id}`} className="absolute inset-0" aria-hidden tabIndex={-1} />
@@ -375,22 +387,17 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
           <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
           {/* nowrap: the date must never break across two lines on a 360px phone */}
           <span className="shrink-0 whitespace-nowrap">
             {formatDate(project.created_at, { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
-          <span className="shrink-0 text-muted-foreground/30">·</span>
-          {/* z-10 lifts the picker above the card's full-bleed overlay Link */}
-          <div className="relative z-10 min-w-0">
-            <ProjectClientCell
-              projectId={project.id}
-              client={project.client}
-              companyId={companyId}
-              onEditClient={onEditClient}
-              onCreateNew={onCreateNew}
-            />
-          </div>
+          {project.client && (
+            <>
+              <span className="shrink-0 text-muted-foreground/30">·</span>
+              <span className="min-w-0 truncate">{project.client.name}</span>
+            </>
+          )}
         </div>
       </div>
       <span className="shrink-0 font-semibold text-sm">
@@ -399,7 +406,16 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
           maximumFractionDigits: 0,
         })}
       </span>
-      <div className="shrink-0 relative z-10">{renderActions(project)}</div>
+      <div className="shrink-0 relative z-10">{renderActions(project, { clientAction })}</div>
+      <ClientPicker
+        projectId={project.id}
+        currentClientId={project.client?.id ?? null}
+        variant="anchor"
+        align="start"
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onCreateNew={onCreateNew}
+      />
     </div>
   )
 }

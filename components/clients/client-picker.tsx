@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, UserPlus, X } from 'lucide-react'
+import { ChevronRight, Pencil, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { linkProjectToClient, unlinkProjectFromClient } from '@/lib/actions/project'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
@@ -39,7 +40,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 // or capabilities must land as first-class props with their own tests.
 // ---------------------------------------------------------------------------
 
-export type ClientPickerVariant = 'card' | 'button' | 'inline' | 'billTo' | 'cell'
+export type ClientPickerVariant = 'card' | 'button' | 'inline' | 'billTo' | 'cell' | 'anchor'
 
 export interface ClientPickerProps {
   projectId: string
@@ -59,6 +60,11 @@ export interface ClientPickerProps {
    *  reads as "outside" to the parent layer and collapses it mid-selection. */
   modal?: boolean
   className?: string
+  /** Controlled open state. Used by the `anchor` variant, which has no
+   *  trigger of its own: something else (a menu item) opens it, and the popover
+   *  hangs off the bottom edge of the picker's relatively positioned parent. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 interface ClientSearchItem {
@@ -72,7 +78,12 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
   const { t } = useTranslation()
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = props.open ?? uncontrolledOpen
+  const setOpen = (next: boolean) => {
+    if (props.open === undefined) setUncontrolledOpen(next)
+    props.onOpenChange?.(next)
+  }
   const [search, setSearch] = useState('')
 
   function handleLink(clientId: string): void {
@@ -109,6 +120,9 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
   // -------------------------------------------------------------------------
   let trigger: React.JSX.Element
   switch (props.variant) {
+    case 'anchor':
+      trigger = <PopoverAnchor aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-0" />
+      break
     case 'card':
       trigger = (
         <Card variant="glass">
@@ -137,15 +151,17 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
     case 'button':
       trigger = (
         <PopoverTrigger asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="rounded-full gap-1.5 text-foreground"
-            aria-label={t('Link Client')}
+          {/* A full-width row: it sits in the Estimate options panel's Client card. */}
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <UserPlus className="h-3.5 w-3.5" />
-            {t('Link Client')}
-          </Button>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <UserPlus className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1 text-[15px] font-medium text-foreground">{t('Link a client')}</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
         </PopoverTrigger>
       )
       break

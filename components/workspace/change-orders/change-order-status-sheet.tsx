@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { CheckCircle2, Undo2, XCircle } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetContent } from '@/components/ui/bottom-sheet'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,16 +106,8 @@ export function ChangeOrderStatusSheet({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          showCloseButton={false}
-          className={cn(
-            'flex flex-col gap-0 overflow-hidden border-border bg-background p-0 backdrop-blur-none',
-            'top-auto bottom-0 left-0 max-h-[92dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none pb-[env(safe-area-inset-bottom)]',
-            'sm:top-[50%] sm:bottom-auto sm:left-[50%] sm:max-h-[85dvh] sm:max-w-[440px] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[28px] sm:pb-0',
-          )}
-        >
-          <div aria-hidden="true" className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border sm:hidden" />
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
+        <BottomSheetContent desktopClassName="sm:max-w-[440px]">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-2 pb-5 sm:pt-5">
             <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">
               {t('Change order status')}
             </DialogTitle>
@@ -166,7 +159,7 @@ export function ChangeOrderStatusSheet({
               </div>
             )}
           </div>
-        </DialogContent>
+        </BottomSheetContent>
       </Dialog>
 
       <AlertDialog open={pending !== null} onOpenChange={(o) => !o && !busy && setPending(null)}>

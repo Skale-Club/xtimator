@@ -70,7 +70,8 @@ describe('EstimateSettingsForm save order', () => {
     expect(calls.indexOf('terms:end')).toBeLessThan(blocksStart)
     expect(calls.indexOf('terms:start')).toBeGreaterThan(calls.indexOf('defaults:end'))
     expect(updateDocumentBlocks).toHaveBeenCalledWith(
-      expect.objectContaining({ timeline: true, payment_terms: true, warranty_terms: false })
+      // Payment terms stay off until the owner switches them on (2026-11-18), even with text.
+      expect.objectContaining({ timeline: true, payment_terms: false, warranty_terms: false })
     )
   })
 })

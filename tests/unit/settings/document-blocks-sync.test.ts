@@ -52,9 +52,10 @@ const lastBlocks = () =>
   [...updates].reverse().find((u) => 'document_blocks' in u)?.document_blocks as Record<string, boolean> | undefined
 
 describe('blockFlagForTextChange', () => {
-  it('empty -> text turns on, text -> empty turns off, unchanged leaves it alone', () => {
-    expect(blockFlagForTextChange(null, '50% upfront')).toBe(true)
-    expect(blockFlagForTextChange('', ' x ')).toBe(true)
+  it('text -> empty turns off; new or unchanged text leaves the switch alone', () => {
+    // Typing text no longer switches the block on: the owner does (2026-11-18).
+    expect(blockFlagForTextChange(null, '50% upfront')).toBeUndefined()
+    expect(blockFlagForTextChange('', ' x ')).toBeUndefined()
     expect(blockFlagForTextChange('old', '')).toBe(false)
     expect(blockFlagForTextChange(null, '   ')).toBe(false)
     expect(blockFlagForTextChange('same', 'same')).toBeUndefined()
@@ -62,15 +63,15 @@ describe('blockFlagForTextChange', () => {
 })
 
 describe('updateDefaults keeps document_blocks in step with the terms text', () => {
-  it('new payment text sets payment_terms true and preserves the other keys', async () => {
+  it('new payment text does not switch the block on; empty warranty switches it off; other keys kept', async () => {
     const res = await updateDefaults({ ...base, defaultPaymentTerms: '50% upfront', defaultWarrantyTerms: '' })
     expect(res).toEqual({ success: true })
-    expect(lastBlocks()).toEqual({ timeline: true, notes: false, summary: true, payment_terms: true, warranty_terms: false })
+    expect(lastBlocks()).toEqual({ timeline: true, notes: false, summary: true, warranty_terms: false })
   })
 
-  it('new warranty text sets warranty_terms true', async () => {
+  it('new warranty text leaves warranty_terms unset (off by default)', async () => {
     await updateDefaults({ ...base, defaultPaymentTerms: '', defaultWarrantyTerms: '2 years' })
-    expect(lastBlocks()?.warranty_terms).toBe(true)
+    expect(lastBlocks()?.warranty_terms).toBeUndefined()
   })
 
   it('clearing the text sets the flag false', async () => {
@@ -91,7 +92,7 @@ describe('updateDefaults keeps document_blocks in step with the terms text', () 
   it('works when document_blocks is NULL', async () => {
     row.document_blocks = null
     await updateDefaults({ ...base, defaultPaymentTerms: 'Net 15', defaultWarrantyTerms: '' })
-    expect(lastBlocks()).toEqual({ payment_terms: true, warranty_terms: false })
+    expect(lastBlocks()).toEqual({ warranty_terms: false })
   })
 })
 

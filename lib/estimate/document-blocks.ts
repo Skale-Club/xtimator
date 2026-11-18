@@ -89,8 +89,9 @@ export function documentBlocksContext(
  *
  *  - summary: AI estimates only; the company switch ("AI summary") can turn it
  *    off globally. Blank manual estimates never start with a summary.
- *  - payment_terms / warranty_terms: on iff the company has text AND has not
- *    switched the block off.
+ *  - payment_terms / warranty_terms: on iff the company has text AND switched
+ *    the block on (2026-11-18: off by default, owner decision; having the text
+ *    is no longer enough).
  *  - estimate_terms: on iff the company enabled its fine print AND has not
  *    switched the block off.
  *  - timeline / notes / valid_until: off unless the company opted in.
@@ -103,8 +104,8 @@ export function resolveDocumentBlocks(
   const blocks = parseDocumentBlocks(raw)
   return {
     summary: ctx.isAiEstimate && blocks.summary !== false,
-    payment_terms: ctx.hasPaymentText && blocks.payment_terms !== false,
-    warranty_terms: ctx.hasWarrantyText && blocks.warranty_terms !== false,
+    payment_terms: ctx.hasPaymentText && blocks.payment_terms === true,
+    warranty_terms: ctx.hasWarrantyText && blocks.warranty_terms === true,
     timeline: blocks.timeline === true,
     notes: blocks.notes === true,
     photos: blocks.photos !== false,

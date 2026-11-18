@@ -36,8 +36,8 @@ export function ProjectList({ projects }: ProjectListProps) {
       statusTabs={STATUS_TABS}
       emptyActionLabel="New Project"
       emptyActionHref="/projects/new"
-      renderActions={(project) => (
-        <ProjectActions projectId={project.id} projectName={project.name} />
+      renderActions={(project, extra) => (
+        <ProjectActions projectId={project.id} projectName={project.name} clientAction={extra?.clientAction} />
       )}
     />
   )
