@@ -33,6 +33,7 @@ beforeAll(async () => {
   `)
   await db.exec(readFileSync('supabase/migrations/20261118000001_atomic_estimate_activation.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/20261118000002_estimate_sequence_lock.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/20261118000003_scope_vague_discard.sql', 'utf8'))
   await db.exec('CREATE TRIGGER test_estimate_seq BEFORE INSERT ON estimates FOR EACH ROW EXECUTE FUNCTION public.set_estimate_seq()')
   await db.exec(`
     CREATE FUNCTION reject_test_project_write() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -79,7 +80,7 @@ async function failProjectWrites() {
   await db.exec('CREATE TRIGGER test_project_failure BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION reject_test_project_write()')
 }
 async function discard(status = 'draft') {
-  await db.query('SELECT public.discard_vague_estimate($1,$2,$3)',[project,newId,status])
+  await db.query('SELECT public.discard_vague_estimate($1,$2,$3,$4)',[company,project,newId,status])
 }
 
 describe('real PostgreSQL activation and recovery transactions', () => {
@@ -201,6 +202,14 @@ describe('real PostgreSQL activation and recovery transactions', () => {
     await activate()
     await expect(discard()).rejects.toThrow('estimate_is_not_vague')
     expect((await snapshot()).estimates.find(e=>e.id===newId)?.is_current).toBe(true)
+  })
+  it('requires the trusted tenant even if project and estimate IDs match another company', async () => {
+    await db.query('UPDATE estimates SET total=0 WHERE id=$1',[newId])
+    await activate()
+    const before = await snapshot()
+    await expect(db.query('SELECT public.discard_vague_estimate($1,$2,$3)',[otherCompany,project,newId]))
+      .rejects.toThrow('generation_project_not_found')
+    expect(await snapshot()).toEqual(before)
   })
   it('discards a vague version and restores the previous committed usable draft; replay is harmless', async () => {
     await db.query('UPDATE estimates SET total=0 WHERE id=$1',[newId])

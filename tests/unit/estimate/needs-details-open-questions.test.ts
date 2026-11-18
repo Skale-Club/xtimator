@@ -67,7 +67,7 @@ describe('default adapter finalize: needs-details source', () => {
     expect(Object.prototype.hasOwnProperty.call(out, 'estimateId')).toBe(true)
     expect(out.estimateId).toBeUndefined()
     expect(out.needsDetails).toBe(true)
-    expect(revertVagueEstimate).toHaveBeenCalledWith(client, 'p', 'deleted-est', 'awaiting_details')
+    expect(revertVagueEstimate).toHaveBeenCalledWith(client, 'p', 'deleted-est', 'c', 'awaiting_details')
   })
 
   it('falls back to the classification call when the estimator raised none', async () => {

@@ -32,48 +32,16 @@ vi.mock('@/lib/estimate/quality/revert', () => ({
   revertVagueEstimate: (...args: unknown[]) => revertVagueEstimateMock(...args),
 }))
 
-// --- Mocks for Tests B and D (makeDefaultAdapter finalize) ---
-
-// Track the Supabase calls to verify SMART-03 behavior
-let updateCalls: Array<{ table: string; values: Record<string, unknown>; eqChain: Array<[string, unknown]> }> = []
-let revertCallsForDefault: Array<[string, string, string | null]> = []
-
-const revertMockForDefault = vi.fn().mockImplementation(async (_supabase, projectId, estimateId) => {
-  revertCallsForDefault.push([_supabase, projectId, estimateId])
-})
-
-vi.mock('@/lib/estimate/quality/revert', () => ({
-  revertVagueEstimate: (...args: unknown[]) => {
-    // Dual-purpose mock — both Test A and Tests B/D use this
-    revertVagueEstimateMock(...args)
-    revertMockForDefault(...args)
-  },
-}))
-
 // Build a chainable Supabase mock that records update+eq chains
 function makeSupabaseMock() {
-  const eqCalls: Array<[string, unknown]> = []
-
-  const eqChainable: Record<string, unknown> = {}
-  const eqFn = vi.fn().mockImplementation((col: string, val: unknown) => {
-    eqCalls.push([col, val])
-    return eqChainable
-  })
-  eqChainable.eq = eqFn
-  // Make it thenable so await resolves
-  eqChainable.then = (resolve: (v: unknown) => void) => resolve({ error: null })
-
-  const updateFn = vi.fn().mockImplementation((values: Record<string, unknown>) => {
-    return eqChainable
-  })
-
-  // Track update calls through closure
+  const projectFilters = vi.fn().mockReturnThis()
+  const updateProject = vi.fn(() => ({
+    eq: projectFilters,
+    then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
+  }))
+  const companyFilters = vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null }) })
   const fromFn = vi.fn().mockImplementation((table: string) => {
-    // QUICK-psh-01: default.ts finalize also reads recordings/photos/companies
-    // (via Promise.allSettled) for the needs-details enrichment call — these
-    // three tables just need to resolve harmlessly (buildNeedsDetails itself
-    // never throws, so its own AI-call failure in this test env is already
-    // safe; this only prevents the SUPABASE reads from rejecting).
+    // Finalize reads recordings, photos and company industry for needs-details.
     if (table === 'recordings' || table === 'photos') {
       return {
         select: vi.fn().mockReturnValue({
@@ -84,36 +52,18 @@ function makeSupabaseMock() {
       }
     }
     if (table === 'companies') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-          }),
-        }),
-      }
+      return { select: () => ({ eq: companyFilters }) }
     }
-    return {
-      update: (values: Record<string, unknown>) => {
-        updateCalls.push({ table, values, eqChain: eqCalls })
-        return updateFn(values)
-      },
-      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-      select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
-    }
+    if (table === 'projects') return { update: updateProject }
+    throw new Error(`Unexpected table ${table}`)
   })
 
-  return { from: fromFn }
+  return { client: { from: fromFn }, updateProject, projectFilters, companyFilters }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  updateCalls = []
-  revertCallsForDefault = []
-  requireServiceClientMock.mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-    }),
-  })
+  requireServiceClientMock.mockReturnValue({})
 })
 
 describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
@@ -149,21 +99,22 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
     expect(result.prompts).toBeUndefined()
     expect(result.qualityHints![0]).toMatch(/too vague or incomplete/i)
     expect(result.qualityHints![0]).not.toMatch(/previous/i)
-    // revertVagueEstimate called (best-effort)
-    expect(revertVagueEstimateMock).toHaveBeenCalled()
+    expect(revertVagueEstimateMock).toHaveBeenCalledExactlyOnceWith(
+      requireServiceClientMock.mock.results[0].value, 'project-1', 'est-1', 'company-1',
+    )
   })
 
   /**
    * Test B — SMART-03/04: default adapter finalize handles the vague-after-refine
    * path.
    */
-  it('SMART-03/04: default adapter finalize writes awaiting_details and returns needsDetails', async () => {
+  it('SMART-03/04: finalizing calls the atomic discard with awaiting_details and returns needsDetails', async () => {
     const { makeDefaultAdapter } = await import('@/lib/estimate/adapters/default')
 
     const supabaseMock = makeSupabaseMock()
     const adapter = makeDefaultAdapter({
       companyId: 'company-SECRET',
-      supabase: supabaseMock as never,
+      supabase: supabaseMock.client as never,
     })
 
     const state = {
@@ -178,6 +129,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       failure: undefined,
       refineAttempts: 1,
       needsDetails: undefined,
+      openQuestions: ['Which walls need painting?'],
     }
 
     const result = await adapter.finalize(state as never)
@@ -185,8 +137,12 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
     // SMART-04: returns needsDetails: true
     expect(result.needsDetails).toBe(true)
 
-    // SMART-03: update called with awaiting_details
-    expect(supabaseMock.from).toHaveBeenCalledWith('projects')
+    expect(revertVagueEstimateMock).toHaveBeenCalledExactlyOnceWith(
+      supabaseMock.client, 'project-1', 'est-1', 'company-SECRET', 'awaiting_details',
+    )
+    expect(supabaseMock.updateProject).toHaveBeenCalledExactlyOnceWith({
+      needs_details: expect.objectContaining({ questions: ['Which walls need painting?'] }),
+    })
   })
 
   /**
@@ -199,7 +155,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       const { makeDefaultAdapter } = await import('@/lib/estimate/adapters/default')
       const adapter = makeDefaultAdapter({
         companyId: 'company-1',
-        supabase: makeSupabaseMock() as never,
+        supabase: makeSupabaseMock().client as never,
       })
       const result = await adapter.finalize({
         companyId: 'company-1',
@@ -208,6 +164,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
         estimateId: 'est-1',
         isVague: true,
         refineAttempts,
+        openQuestions: ['Which walls need painting?'],
       } as never)
       expect(result.needsDetails).toBe(true)
       expect(result.estimateId).toBeUndefined()
@@ -237,50 +194,12 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
   it('QA-02 closure isolation: default adapter finalize uses closure companyId, not state.companyId', async () => {
     const { makeDefaultAdapter } = await import('@/lib/estimate/adapters/default')
 
-    // Create TWO adapters with different companyIds to verify closure isolation
-    const eqCalls: Array<[string, unknown]> = []
-
-    const eqChainable: Record<string, unknown> = {}
-    const eqFn = vi.fn().mockImplementation((col: string, val: unknown) => {
-      eqCalls.push([col, val])
-      return eqChainable
-    })
-    eqChainable.eq = eqFn
-    eqChainable.then = (res: (v: unknown) => void) => res({ error: null })
-
-    const supabaseMock = {
-      // QUICK-psh-01: see the comment in makeSupabaseMock() above — finalize
-      // also reads recordings/photos/companies for the needs-details enrichment.
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'recordings' || table === 'photos') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockResolvedValue({ data: [] }),
-              }),
-            }),
-          }
-        }
-        if (table === 'companies') {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({ data: null }),
-              }),
-            }),
-          }
-        }
-        return {
-          update: vi.fn().mockReturnValue(eqChainable),
-          delete: () => ({ eq: vi.fn().mockResolvedValue({ error: null }) }),
-        }
-      }),
-    }
+    const supabaseMock = makeSupabaseMock()
 
     const CLOSURE_COMPANY = 'company-CLOSURE-VALUE'
     const adapter = makeDefaultAdapter({
       companyId: CLOSURE_COMPANY,
-      supabase: supabaseMock as never,
+      supabase: supabaseMock.client as never,
     })
 
     const state = {
@@ -295,6 +214,7 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
       failure: undefined,
       refineAttempts: 1,
       needsDetails: undefined,
+      openQuestions: ['Which walls need painting?'],
     }
 
     const result = await adapter.finalize(state as never)
@@ -302,10 +222,12 @@ describe('Phase 96 — auto-refine isolation (SMART-01/03/04, QA-02)', () => {
     // Must return needsDetails: true (vague-after-refine path)
     expect(result.needsDetails).toBe(true)
 
-    // The .eq('company_id', ...) call must use the CLOSURE value, not state.companyId
-    const companyIdEq = eqCalls.find(([col]) => col === 'company_id')
-    expect(companyIdEq).toBeDefined()
-    expect(companyIdEq![1]).toBe(CLOSURE_COMPANY)
-    expect(companyIdEq![1]).not.toBe(state.companyId)
+    expect(revertVagueEstimateMock).toHaveBeenCalledExactlyOnceWith(
+      supabaseMock.client, state.projectId, state.estimateId, CLOSURE_COMPANY, 'awaiting_details',
+    )
+    expect(supabaseMock.companyFilters).toHaveBeenCalledExactlyOnceWith('id', CLOSURE_COMPANY)
+    expect(supabaseMock.projectFilters.mock.calls).toEqual([
+      ['id', state.projectId], ['company_id', CLOSURE_COMPANY],
+    ])
   })
 })

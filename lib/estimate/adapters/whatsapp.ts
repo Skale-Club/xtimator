@@ -417,7 +417,7 @@ export function makeWhatsAppAdapter({
         // --- askDetails (vague) ------------------------------------------------
         // Remove the $0 estimate and revert the project to draft so the next
         // inbound message regenerates cleanly against the same project.
-        await revertVagueEstimate(supabase, projectId, estimateId ?? null)
+        await revertVagueEstimate(supabase, projectId, estimateId ?? null, companyId)
 
         // HARD-07: derive expiry from the durable graph-entry timestamp (replay-safe);
         // fall back to Date.now() so direct invokers (unit tests) without requestedAt still work.

@@ -181,7 +181,7 @@ describe('failed targeted refine pass', () => {
 
     await expect(run(a)).rejects.toThrow('onError reached')
 
-    expect(revert).toHaveBeenCalledOnce()
+    expect(revert).toHaveBeenCalledExactlyOnceWith(expect.anything(), 'pr', 'e1', 'co')
     expect(generateMock).toHaveBeenCalledOnce()
     expect(onError).toHaveBeenCalledOnce()
     expect(finalize).not.toHaveBeenCalled()

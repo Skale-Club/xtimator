@@ -24,7 +24,7 @@ export interface Estimate {
   valid_until?: string | null
   /**
    * SEED-057: the AI's assumptions / exclusions / open questions and structure
-   * verdict (estimates.ai_meta, JSONB). OWNER-ONLY: read it through parseAiMeta,
+   * verdict (estimates.ai_meta, JSONB). ADMIN-ONLY: read it through parseAiMeta,
    * and never render it on a client surface (the share loaders strip it).
    */
   ai_meta?: unknown

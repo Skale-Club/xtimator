@@ -5,10 +5,9 @@
 //   assumptions / exclusions / open_questions / scope_confidence   (Phase A)
 //   quality: structure score + the findings behind it              (Phase D)
 //
-// PLATFORM-ADMIN ONLY (debug tool). Nothing in here may reach a client surface
-// (share page, PDF, WhatsApp, plain-text message) or a non-admin browser: the
-// project page strips ai_meta for everyone but platform admins, and the estimate
-// debug dialog is its only reader.
+// Raw metadata is PLATFORM-ADMIN ONLY (debug tool). It never reaches client
+// documents/messages or a non-admin browser. The authenticated workspace may
+// receive a bounded, separately whitelisted owner-review summary; see owner-review.ts.
 //
 // Pure helpers, no I/O. `parseAiMeta` is tolerant: it is fed whatever JSONB a
 // row holds (including rows written by a future version) and never throws.

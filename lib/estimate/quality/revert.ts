@@ -19,10 +19,12 @@ export async function revertVagueEstimate(
   supabase: SupabaseClient,
   projectId: string,
   estimateId: string | null,
+  companyId: string,
   status: 'draft' | 'awaiting_details' = 'draft',
 ): Promise<void> {
   if (!estimateId) return
   const { error } = await supabase.rpc('discard_vague_estimate', {
+    p_company_id: companyId,
     p_project_id: projectId,
     p_estimate_id: estimateId,
     p_status: status,

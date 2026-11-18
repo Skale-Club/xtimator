@@ -78,9 +78,10 @@ describe('buildAskDetailsMessage', () => {
 describe('revertVagueEstimate', () => {
   it('discards the estimate transactionally with draft as the fallback status', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: null })
-    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1')
+    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1', 'company-1')
 
     expect(rpc).toHaveBeenCalledExactlyOnceWith('discard_vague_estimate', {
+      p_company_id: 'company-1',
       p_project_id: 'proj-1',
       p_estimate_id: 'est-1',
       p_status: 'draft',
@@ -89,9 +90,10 @@ describe('revertVagueEstimate', () => {
 
   it('passes the final-vague awaiting_details status to the same transaction', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: null })
-    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1', 'awaiting_details')
+    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1', 'company-1', 'awaiting_details')
 
     expect(rpc).toHaveBeenCalledExactlyOnceWith('discard_vague_estimate', {
+      p_company_id: 'company-1',
       p_project_id: 'proj-1',
       p_estimate_id: 'est-1',
       p_status: 'awaiting_details',
@@ -101,13 +103,14 @@ describe('revertVagueEstimate', () => {
   it('surfaces a returned RPC error to the caller', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: { message: 'discard rejected' } })
 
-    await expect(revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1')).rejects.toThrow('Failed to discard vague estimate')
+    await expect(revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1', 'company-1'))
+      .rejects.toThrow('Failed to discard vague estimate')
   })
 
   it('leaves the project alone when there is no estimate ID', async () => {
     const rpc = vi.fn()
 
-    await revertVagueEstimate({ rpc } as never, 'proj-1', null)
+    await revertVagueEstimate({ rpc } as never, 'proj-1', null, 'company-1')
 
     expect(rpc).not.toHaveBeenCalled()
   })

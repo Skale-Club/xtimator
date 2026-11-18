@@ -53,7 +53,7 @@ export function makeDefaultAdapter({ companyId, supabase }: {
       if (state.isVague) {
         // Discard and recourse state commit together. A database failure must
         // surface to the job rather than announce that details were requested.
-        await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null, 'awaiting_details')
+        await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null, companyId, 'awaiting_details')
 
         // QUICK-psh-01: classify WHY + generate clarifying questions at THIS
         // single final-vague terminal (autoRefine's intermediate revert never

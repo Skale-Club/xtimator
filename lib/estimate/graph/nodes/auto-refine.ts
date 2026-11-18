@@ -114,7 +114,7 @@ export const autoRefineNode = async (
   // retry would incorrectly carry a stale needs_details from its first (never
   // shown) vague pass.
   try {
-    await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
+    await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null, state.companyId)
   } catch (err) {
     console.error('[estimate-graph] failed to discard vague draft:', err)
     return { failure: { reason: 'generation_failed' } }
