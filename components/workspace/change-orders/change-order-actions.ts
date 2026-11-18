@@ -6,6 +6,7 @@ import {
   recordChangeOrderResponse,
   saveChangeOrder,
 } from '@/lib/actions/change-order'
+import { invoiceChangeOrder } from '@/lib/actions/invoice'
 
 /**
  * What the change order UI calls on the server. Components take this as an
@@ -19,6 +20,7 @@ export interface ChangeOrderActions {
   deleteChangeOrder: typeof deleteChangeOrder
   markChangeOrderShared: typeof markChangeOrderShared
   recordChangeOrderResponse: typeof recordChangeOrderResponse
+  invoiceChangeOrder: typeof invoiceChangeOrder
 }
 
 export const realChangeOrderActions: ChangeOrderActions = {
@@ -28,6 +30,7 @@ export const realChangeOrderActions: ChangeOrderActions = {
   deleteChangeOrder,
   markChangeOrderShared,
   recordChangeOrderResponse,
+  invoiceChangeOrder,
 }
 
 export function changeOrderHref(projectId: string, changeOrderId: string): string {

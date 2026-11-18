@@ -12,7 +12,11 @@ export interface InvoiceRow {
   id: string
   estimate_id: string
   company_id: string
-  kind: 'deposit' | 'balance' | 'full'
+  kind: 'deposit' | 'balance' | 'full' | 'change_order'
+  /** Set only for kind change_order (delivery 3 of XTM-CONTRACT-CO-01). */
+  change_order_id: string | null
+  /** The billed change order's number (Change order #N), else null. */
+  change_order_number: number | null
   amount_cents: number
   currency_code: string
   status: 'draft' | 'open' | 'paid' | 'void' | 'uncollectible'
@@ -34,10 +38,18 @@ export async function getInvoicesByEstimateId(
   const { data } = await supabase
     .from('invoices')
     .select(
-      'id, estimate_id, company_id, kind, amount_cents, currency_code, status, stripe_invoice_id, hosted_invoice_url, invoice_pdf_url, paid_at, created_at',
+      'id, estimate_id, company_id, kind, change_order_id, amount_cents, currency_code, status, stripe_invoice_id, hosted_invoice_url, invoice_pdf_url, paid_at, created_at, change_order:change_orders(number)',
     )
     .eq('estimate_id', estimateId)
     .order('created_at', { ascending: false })
 
-  return (data ?? []) as InvoiceRow[]
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+    const { change_order, ...rest } = row as Record<string, unknown> & { change_order?: unknown }
+    const co = (Array.isArray(change_order) ? change_order[0] : change_order) as { number?: number } | null | undefined
+    return {
+      ...(rest as Omit<InvoiceRow, 'change_order_id' | 'change_order_number'>),
+      change_order_id: (rest.change_order_id as string | null | undefined) ?? null,
+      change_order_number: co?.number ?? null,
+    }
+  })
 }

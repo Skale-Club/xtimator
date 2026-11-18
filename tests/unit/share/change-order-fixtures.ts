@@ -80,12 +80,14 @@ export function buildChangeOrderData(
           sent_at: changeOrder.sent_at,
           responded_at: changeOrder.responded_at,
           view_count: 0,
+          invoice_status: null,
         },
       ],
       approvedTotal: changeOrder.status === 'accepted' ? changeOrder.total : 0,
       pendingTotal: changeOrder.status === 'sent' ? changeOrder.total : 0,
       contractTotal: 10000 + (changeOrder.status === 'accepted' ? changeOrder.total : 0),
     },
+    invoice: null,
     ...dataOver,
   }
 }

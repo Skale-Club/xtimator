@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
-import { ChangeOrderEditor } from '@/components/workspace/change-orders/change-order-editor'
+import { ChangeOrderEditor, type ChangeOrderEditorProps } from '@/components/workspace/change-orders/change-order-editor'
 import type { ChangeOrderActions } from '@/components/workspace/change-orders/change-order-actions'
 import type { ChangeOrder, ContractSummary } from '@/lib/change-orders/types'
 
@@ -10,10 +10,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, refresh }),
 }))
 const toastError = vi.fn()
+const toastSuccess = vi.fn()
 vi.mock('sonner', () => ({
   toast: {
     error: (...a: unknown[]) => toastError(...a),
-    success: vi.fn(),
+    success: (...a: unknown[]) => toastSuccess(...a),
     dismiss: vi.fn(),
   },
 }))
@@ -99,24 +100,38 @@ function fakeActions(over: Partial<ChangeOrderActions> = {}): ChangeOrderActions
     recordChangeOrderResponse: vi.fn().mockResolvedValue({
       data: { client_response: null, responded_at: null, updated_at: '2026-11-16T09:00:00.000Z' },
     }),
+    invoiceChangeOrder: vi.fn().mockResolvedValue({ data: { invoiceId: 'inv-1' } }),
     ...over,
   } as ChangeOrderActions
 }
 
-function Editor({ co, actions }: { co: ChangeOrder; actions: ChangeOrderActions }) {
+function Editor({
+  co,
+  actions,
+  invoicing,
+}: {
+  co: ChangeOrder
+  actions: ChangeOrderActions
+  invoicing?: ChangeOrderEditorProps['invoicing']
+}) {
   return (
     <ChangeOrderEditor
       changeOrder={co}
       contract={CONTRACT}
       project={{ id: 'proj-1', name: 'Two-bedroom repaint', clientName: 'Ava Thompson' }}
       company={{ name: 'Acme Co', logo_url: null, phone: null, digital_signature_enabled: true }}
+      invoicing={invoicing}
       actions={actions}
     />
   )
 }
 
-function renderEditor(co: ChangeOrder, actions: ChangeOrderActions = fakeActions()) {
-  const view = render(<Editor co={co} actions={actions} />)
+function renderEditor(
+  co: ChangeOrder,
+  actions: ChangeOrderActions = fakeActions(),
+  invoicing?: ChangeOrderEditorProps['invoicing'],
+) {
+  const view = render(<Editor co={co} actions={actions} invoicing={invoicing} />)
   return { actions, ...view }
 }
 
@@ -306,5 +321,107 @@ describe('ChangeOrderEditor', () => {
     first.unmount()
     renderEditor(buildChangeOrder({ status: 'sent', sent_at: '2026-11-16T09:00:00.000Z', view_count: 2 }))
     expect(screen.getByTestId('change-order-status-chip').textContent).toContain('Sent · viewed 2×')
+  })
+})
+
+describe('ChangeOrderEditor - invoicing', () => {
+  const approved = (over: Partial<ChangeOrder> = {}) =>
+    buildChangeOrder({
+      status: 'accepted',
+      client_response: 'accepted',
+      responded_at: '2026-11-16T15:00:00.000Z',
+      sent_at: '2026-11-16T09:00:00.000Z',
+      total: 515,
+      subtotal: 515,
+      items: [
+        { id: 'i1', change_order_id: 'co-1', description: 'Extra work', quantity: 1, unit: null, unit_price: 515, amount: 515, taxable: false, sort_order: 0 },
+      ] as ChangeOrder['items'],
+      ...over,
+    })
+  const INVOICE = {
+    id: 'inv-1',
+    status: 'open' as const,
+    amount_cents: 51500,
+    currency_code: 'USD',
+    hosted_invoice_url: 'https://invoice.stripe.com/i/test',
+    paid_at: null,
+  }
+
+  it('shows the Invoice button only for approved + payments + positive + no invoice', () => {
+    const ok = renderEditor(approved(), fakeActions(), { paymentsEnabled: true, invoice: null })
+    expect(screen.getByTestId('change-order-invoice')).toBeTruthy()
+    ok.unmount()
+
+    const noPayments = renderEditor(approved(), fakeActions(), { paymentsEnabled: false, invoice: null })
+    expect(screen.queryByTestId('change-order-invoice')).toBeNull()
+    noPayments.unmount()
+
+    const draft = renderEditor(buildChangeOrder({ total: 515 }), fakeActions(), { paymentsEnabled: true, invoice: null })
+    expect(screen.queryByTestId('change-order-invoice')).toBeNull()
+    draft.unmount()
+
+    const hasInvoice = renderEditor(approved(), fakeActions(), { paymentsEnabled: true, invoice: INVOICE })
+    expect(screen.queryByTestId('change-order-invoice')).toBeNull()
+    hasInvoice.unmount()
+
+    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', change_order_id: 'co-1', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, amount: -100, taxable: false, sort_order: 0 }] as ChangeOrder['items'] }), fakeActions(), { paymentsEnabled: true, invoice: null })
+    expect(screen.queryByTestId('change-order-invoice')).toBeNull()
+  })
+
+  it('confirms the amount and sends the invoice, then refreshes', async () => {
+    const { actions } = renderEditor(approved(), fakeActions(), { paymentsEnabled: true, invoice: null })
+    fireEvent.click(screen.getByTestId('change-order-invoice'))
+    expect(screen.getByTestId('change-order-invoice-amount').textContent).toBe('$515.00')
+    expect(screen.getByText('Invoice for change order #2')).toBeTruthy()
+    expect(screen.getByText('The client gets a Stripe invoice by email, due in 7 days.')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('change-order-invoice-send'))
+    })
+    expect(actions.invoiceChangeOrder).toHaveBeenCalledWith('co-1')
+    expect(toastSuccess).toHaveBeenCalledWith('Invoice sent')
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it('toasts the server error and does not refresh', async () => {
+    const actions = fakeActions({ invoiceChangeOrder: vi.fn().mockResolvedValue({ error: 'Stripe is not connected' }) })
+    renderEditor(approved(), actions, { paymentsEnabled: true, invoice: null })
+    fireEvent.click(screen.getByTestId('change-order-invoice'))
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('change-order-invoice-send'))
+    })
+    expect(toastError).toHaveBeenCalledWith('Stripe is not connected')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('shows a compact invoice row with a View invoice link instead of the button', () => {
+    renderEditor(approved(), fakeActions(), { paymentsEnabled: true, invoice: INVOICE })
+    const row = screen.getByTestId('change-order-invoice-row')
+    expect(row.textContent).toContain('$515.00')
+    expect(row.textContent).toContain('Open')
+    expect((within(row).getByRole('link', { name: 'View invoice' }) as HTMLAnchorElement).href).toBe('https://invoice.stripe.com/i/test')
+  })
+
+  it('shows Paid for a paid invoice', () => {
+    renderEditor(approved(), fakeActions(), { paymentsEnabled: true, invoice: { ...INVOICE, status: 'paid', paid_at: '2026-11-17T10:00:00.000Z' } })
+    expect(screen.getByTestId('change-order-invoice-row').textContent).toContain('Paid')
+  })
+
+  it('shows a one-line note for an approved credit', () => {
+    renderEditor(approved({ total: -100, subtotal: -100, items: [{ id: 'i2', change_order_id: 'co-1', description: 'Skip a coat', quantity: 1, unit: null, unit_price: -100, amount: -100, taxable: false, sort_order: 0 }] as ChangeOrder['items'] }), fakeActions(), { paymentsEnabled: true, invoice: null })
+    expect(screen.getByTestId('change-order-credit-note').textContent).toBe('Credits are applied to the balance invoice.')
+  })
+
+  it('leaves drafts, sent and declined change orders alone', () => {
+    const first = renderEditor(buildChangeOrder(), fakeActions(), { paymentsEnabled: true, invoice: null })
+    expect(screen.queryByTestId('change-order-credit-note')).toBeNull()
+    expect(screen.getByTestId('change-order-share')).toBeTruthy()
+    first.unmount()
+    renderEditor(
+      buildChangeOrder({ status: 'declined', client_response: 'declined', total: 50, responded_at: '2026-11-16T15:00:00.000Z', sent_at: '2026-11-16T09:00:00.000Z' }),
+      fakeActions(),
+      { paymentsEnabled: true, invoice: null },
+    )
+    expect(screen.queryByTestId('change-order-invoice')).toBeNull()
   })
 })

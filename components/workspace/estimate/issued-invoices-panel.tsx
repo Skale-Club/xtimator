@@ -14,6 +14,7 @@ const KIND_LABELS: Record<InvoiceRow['kind'], string> = {
   full: 'Full',
   deposit: 'Deposit',
   balance: 'Balance',
+  change_order: 'Change order',
 }
 
 const STATUS_LABELS: Record<InvoiceRow['status'], string> = {
@@ -58,7 +59,9 @@ export function IssuedInvoicesPanel({ invoices }: IssuedInvoicesPanelProps) {
                     {t('Invoice issued')}: {formatMinorUnits(inv.amount_cents, inv.currency_code)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {t(KIND_LABELS[inv.kind])}
+                    {inv.kind === 'change_order' && inv.change_order_number != null
+                      ? `${t('Change order')} #${inv.change_order_number}`
+                      : t(KIND_LABELS[inv.kind])}
                     {' · '}
                     <span
                       className={

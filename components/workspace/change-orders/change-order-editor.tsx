@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { FileText, Minus, Plus, Share2, Trash2 } from 'lucide-react'
+import { FileText, Minus, Plus, Receipt, Share2, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,10 +26,13 @@ import {
   formatTaxRatePercent,
   type ChangeOrder,
   type ChangeOrderResponse,
+  type ChangeOrderInvoice,
   type ContractSummary,
 } from '@/lib/change-orders/types'
 import { realChangeOrderActions, type ChangeOrderActions } from './change-order-actions'
 import { ChangeOrderShareSheet } from './change-order-share-sheet'
+import { ChangeOrderInvoiceSheet } from './change-order-invoice-sheet'
+import { ChangeOrderInvoiceRow } from './change-order-invoice-row'
 import { ChangeOrderStatusSheet } from './change-order-status-sheet'
 import { ChangeOrderTopBar, CO_GUTTER, type CoSaveStatus } from './change-order-top-bar'
 import {
@@ -58,6 +61,11 @@ export interface ChangeOrderEditorProps {
   contract: ContractSummary | null
   project: { id: string; name: string; clientName: string | null }
   company: ChangeOrderEditorCompany
+  /**
+   * Invoicing of this change order on its own: whether the company can take
+   * payments, and its live invoice (open or paid) when there is one.
+   */
+  invoicing?: { paymentsEnabled: boolean; invoice: ChangeOrderInvoice | null }
   /** Defaults to the real server actions; tests and the dev fixture inject fakes. */
   actions?: Partial<ChangeOrderActions>
 }
@@ -93,7 +101,7 @@ const PAPER_INPUT =
  * action bar. Autosaves 1.5 s after the last edit with compare-and-set on
  * updated_at. Read-only as soon as the client answered or signed.
  */
-export function ChangeOrderEditor({ changeOrder, contract, project, company, actions }: ChangeOrderEditorProps) {
+export function ChangeOrderEditor({ changeOrder, contract, project, company, invoicing, actions }: ChangeOrderEditorProps) {
   const router = useRouter()
   const { t } = useTranslation()
   const api = useMemo<ChangeOrderActions>(() => ({ ...realChangeOrderActions, ...actions }), [actions])
@@ -278,6 +286,7 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, act
   // ---- Handlers -----------------------------------------------------------
   const [statusOpen, setStatusOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [busy, setBusy] = useState<'delete' | 'reopen' | null>(null)
 
@@ -321,6 +330,13 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, act
       setBusy(null)
     }
   }, [handleRecord])
+
+  const invoice = invoicing?.invoice ?? null
+  const approved = meta.client_response === 'accepted'
+  const canInvoice = approved && !!invoicing?.paymentsEnabled && totals.total > 0 && !invoice
+  const creditNote = approved && totals.total < 0
+
+  const handleInvoiced = useCallback(() => router.refresh(), [router])
 
   const neverShared = status === 'draft' && !meta.sent_at && meta.view_count === 0
   const canDelete = neverShared && !locked
@@ -566,6 +582,16 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, act
               )}
             </div>
           </article>
+          {invoice && (
+            <div className="mt-3">
+              <ChangeOrderInvoiceRow invoice={invoice} />
+            </div>
+          )}
+          {creditNote && (
+            <p data-testid="change-order-credit-note" className="mx-auto mt-3 w-full max-w-3xl text-[13px] text-muted-foreground">
+              {t('Credits are applied to the balance invoice.')}
+            </p>
+          )}
         </div>
       </div>
 
@@ -584,15 +610,36 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, act
               {t('Delete')}
             </DockButton>
           )}
-          <Button
-            onClick={() => void handleShare()}
-            disabled={saveStatus === 'saving'}
-            data-testid="change-order-share"
-            className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
-          >
-            <Share2 size={18} aria-hidden />
-            {t('Share')}
-          </Button>
+          {canInvoice ? (
+            <>
+              <DockButton
+                icon={<Share2 size={20} />}
+                onClick={() => void handleShare()}
+                disabled={saveStatus === 'saving'}
+                data-testid="change-order-share"
+              >
+                {t('Share')}
+              </DockButton>
+              <Button
+                onClick={() => setInvoiceOpen(true)}
+                data-testid="change-order-invoice"
+                className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
+              >
+                <Receipt size={18} aria-hidden />
+                {t('Invoice')}
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={() => void handleShare()}
+              disabled={saveStatus === 'saving'}
+              data-testid="change-order-share"
+              className="ml-1.5 h-[50px] min-w-0 flex-1 gap-2 rounded-full px-3 text-[15px] font-semibold md:h-[42px] md:flex-none md:px-5 md:text-sm"
+            >
+              <Share2 size={18} aria-hidden />
+              {t('Share')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -625,6 +672,17 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, act
         alreadyShared={!!meta.sent_at}
         markShared={(id) => apiRef.current.markChangeOrderShared(id)}
         onShared={handleShared}
+      />
+
+      <ChangeOrderInvoiceSheet
+        open={invoiceOpen}
+        onOpenChange={setInvoiceOpen}
+        changeOrderId={changeOrder.id}
+        number={changeOrder.number}
+        total={totals.total}
+        currencyCode={currency}
+        invoiceChangeOrder={(id) => apiRef.current.invoiceChangeOrder(id)}
+        onSent={handleInvoiced}
       />
 
       <AlertDialog open={deleteOpen} onOpenChange={(o) => busy !== 'delete' && setDeleteOpen(o)}>

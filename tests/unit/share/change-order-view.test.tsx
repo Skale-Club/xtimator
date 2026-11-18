@@ -228,3 +228,40 @@ describe('ChangeOrderView - answered states', () => {
     expect(screen.queryByTestId('approved-signature')).toBeNull()
   })
 })
+
+describe('ChangeOrderView - invoice', () => {
+  const invoice = {
+    id: 'inv-1',
+    status: 'open' as const,
+    amount_cents: 51500,
+    currency_code: 'USD',
+    hosted_invoice_url: 'https://invoice.stripe.com/i/test',
+    paid_at: null,
+  }
+  const approvedOver = { status: 'accepted' as const, client_response: 'accepted' as const, responded_at: '2026-02-03T15:00:00Z' }
+
+  it('shows a Pay invoice card with the amount for an open invoice', () => {
+    renderView(approvedOver, {}, {}, { invoice })
+    const card = screen.getByTestId('change-order-pay-invoice')
+    expect(card.textContent).toContain('$515.00')
+    const link = within(card).getByRole('link', { name: /Pay invoice/ }) as HTMLAnchorElement
+    expect(link.href).toBe('https://invoice.stripe.com/i/test')
+    expect(link.target).toBe('_blank')
+    expect(link.rel).toContain('noopener')
+  })
+
+  it('shows a Paid line once paid, and no pay card', () => {
+    renderView(approvedOver, {}, {}, { invoice: { ...invoice, status: 'paid', paid_at: '2026-02-04T10:00:00Z' } })
+    expect(screen.getByTestId('change-order-invoice-paid').textContent).toContain('Paid')
+    expect(screen.queryByTestId('change-order-pay-invoice')).toBeNull()
+  })
+
+  it('shows nothing without an invoice, or an open one without a hosted link', () => {
+    const first = renderView(approvedOver, {}, {}, { invoice: null })
+    expect(screen.queryByTestId('change-order-pay-invoice')).toBeNull()
+    expect(screen.queryByTestId('change-order-invoice-paid')).toBeNull()
+    first.unmount()
+    renderView(approvedOver, {}, {}, { invoice: { ...invoice, hosted_invoice_url: null } })
+    expect(screen.queryByTestId('change-order-pay-invoice')).toBeNull()
+  })
+})

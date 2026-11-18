@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
+  ChangeOrderInvoiceStatus,
   ChangeOrderResponse,
   ChangeOrderStatus,
   ContractChangeOrderRow,
@@ -52,6 +53,8 @@ export interface ContractChangeOrderInput {
   sent_at: string | null
   responded_at: string | null
   view_count: number
+  /** Status of the change order's own live invoice, if any. */
+  invoice_status?: ChangeOrderInvoiceStatus | null
 }
 
 export function buildContractSummary(
@@ -78,6 +81,7 @@ export function buildContractSummary(
       sent_at: co.sent_at,
       responded_at: co.responded_at,
       view_count: co.view_count ?? 0,
+      invoice_status: co.invoice_status ?? null,
     }
   })
 
@@ -128,7 +132,7 @@ async function loadContract(
   const estimate = estimateData as ContractEstimateRow | null
   if (!estimate || estimate.is_current !== true || estimate.client_response !== 'accepted') return null
 
-  const [{ data: signatureData }, { data: coData }] = await Promise.all([
+  const [{ data: signatureData }, { data: coData }, { data: invoiceData }] = await Promise.all([
     supabase
       .from('estimate_signatures')
       .select('signed_total')
@@ -141,7 +145,19 @@ async function loadContract(
       .select(CONTRACT_CO_COLUMNS)
       .eq('estimate_id', estimateId)
       .order('number', { ascending: true }),
+    supabase
+      .from('invoices')
+      .select('change_order_id, status')
+      .eq('estimate_id', estimateId)
+      .not('change_order_id', 'is', null)
+      .in('status', ['open', 'paid']),
   ])
+
+  const invoiceStatusByCo = new Map<string, ChangeOrderInvoiceStatus>()
+  for (const row of (invoiceData ?? []) as Array<{ change_order_id: string; status: string }>) {
+    const prev = invoiceStatusByCo.get(row.change_order_id)
+    if (prev !== 'paid') invoiceStatusByCo.set(row.change_order_id, row.status === 'paid' ? 'paid' : 'open')
+  }
 
   const signature = signatureData as { signed_total: number | string | null } | null
   const signedTotal = signature?.signed_total != null ? Number(signature.signed_total) : null
@@ -165,6 +181,7 @@ async function loadContract(
       sent_at: (row.sent_at as string | null) ?? null,
       responded_at: (row.responded_at as string | null) ?? null,
       view_count: Number(row.view_count) || 0,
+      invoice_status: invoiceStatusByCo.get(row.id as string) ?? null,
     })),
     { includeDrafts },
   )

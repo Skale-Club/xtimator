@@ -15,7 +15,41 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
 import { loadPublicContractSummary, resolveEstimateNumber } from './contract'
 import { loadChangeOrder } from './load'
-import type { ContractSummary, PublicChangeOrderData } from './types'
+import type { ChangeOrderInvoice, ContractSummary, PublicChangeOrderData } from './types'
+
+/**
+ * The change order's own live invoice (open or paid), safe fields only: never
+ * the Stripe customer or invoice ids. Paid wins over a newer open one.
+ */
+export async function loadChangeOrderInvoice(
+  supabase: SupabaseClient,
+  changeOrderId: string,
+): Promise<ChangeOrderInvoice | null> {
+  const { data } = await supabase
+    .from('invoices')
+    .select('id, status, amount_cents, currency_code, hosted_invoice_url, paid_at, created_at')
+    .eq('change_order_id', changeOrderId)
+    .in('status', ['open', 'paid'])
+    .order('created_at', { ascending: false })
+  const rows = (data ?? []) as Array<{
+    id: string
+    status: 'open' | 'paid'
+    amount_cents: number
+    currency_code: string
+    hosted_invoice_url: string | null
+    paid_at: string | null
+  }>
+  const row = rows.find((r) => r.status === 'paid') ?? rows[0]
+  if (!row) return null
+  return {
+    id: row.id,
+    status: row.status,
+    amount_cents: row.amount_cents,
+    currency_code: row.currency_code,
+    hosted_invoice_url: row.hosted_invoice_url ?? null,
+    paid_at: row.paid_at ?? null,
+  }
+}
 
 async function loadPublicData(
   supabase: SupabaseClient,
@@ -60,6 +94,7 @@ async function loadPublicData(
     loadPublicContractSummary(supabase, estimate.id, { allowEmpty: true }),
   ])
   if (!companyData) return null
+  const invoice = await loadChangeOrderInvoice(supabase, changeOrder.id)
 
   const project = projectData as { name: string | null; client: { name: string | null } | { name: string | null }[] | null } | null
   const clientRel = Array.isArray(project?.client) ? project?.client[0] : project?.client
@@ -119,6 +154,7 @@ async function loadPublicData(
         pendingTotal: 0,
         contractTotal: 0,
       },
+    invoice,
   }
 }
 

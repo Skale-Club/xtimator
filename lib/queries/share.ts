@@ -62,7 +62,7 @@ export interface ShareEstimateData {
      */
     invoices: {
       id: string
-      kind: string
+      kind: 'deposit' | 'balance' | 'full' | 'change_order' | string
       amount_cents: number
       currency_code: string
       status: string
