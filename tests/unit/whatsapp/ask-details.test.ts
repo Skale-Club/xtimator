@@ -12,8 +12,7 @@ import {
  *     line items in any section.
  *   - buildAskDetailsMessage: localized (pt/en/es) prompt mentioning the 4
  *     examples (service type, area, materials, deadline).
- *   - revertVagueEstimate: deletes the $0 estimate (cascade) and reverts the
- *     project to draft / total 0.
+ *   - revertVagueEstimate: submits the vague draft to the atomic discard RPC.
  */
 
 describe('isVagueEstimate', () => {
@@ -77,43 +76,39 @@ describe('buildAskDetailsMessage', () => {
 })
 
 describe('revertVagueEstimate', () => {
-  function makeSupabase() {
-    const estimatesEq = vi.fn().mockResolvedValue({ error: null })
-    const estimatesDelete = vi.fn().mockReturnValue({ eq: estimatesEq })
-    const projectsEq = vi.fn().mockResolvedValue({ error: null })
-    const projectsUpdate = vi.fn().mockReturnValue({ eq: projectsEq })
-    const from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'estimates') return { delete: estimatesDelete }
-      if (table === 'projects') return { update: projectsUpdate }
-      return {}
+  it('discards the estimate transactionally with draft as the fallback status', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null })
+    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1')
+
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('discard_vague_estimate', {
+      p_project_id: 'proj-1',
+      p_estimate_id: 'est-1',
+      p_status: 'draft',
     })
-    return {
-      client: { from } as never,
-      from,
-      estimatesDelete,
-      estimatesEq,
-      projectsUpdate,
-      projectsEq,
-    }
-  }
-
-  it('deletes the estimate and reverts the project to draft / total 0', async () => {
-    const s = makeSupabase()
-    await revertVagueEstimate(s.client, 'proj-1', 'est-1')
-
-    expect(s.from).toHaveBeenCalledWith('estimates')
-    expect(s.estimatesEq).toHaveBeenCalledWith('id', 'est-1')
-    expect(s.from).toHaveBeenCalledWith('projects')
-    expect(s.projectsUpdate).toHaveBeenCalledWith({ status: 'draft', total: 0 })
-    expect(s.projectsEq).toHaveBeenCalledWith('id', 'proj-1')
   })
 
-  it('skips estimate delete when estimateId is null but still reverts project', async () => {
-    const s = makeSupabase()
-    await revertVagueEstimate(s.client, 'proj-1', null)
+  it('passes the final-vague awaiting_details status to the same transaction', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null })
+    await revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1', 'awaiting_details')
 
-    expect(s.estimatesDelete).not.toHaveBeenCalled()
-    expect(s.projectsUpdate).toHaveBeenCalledWith({ status: 'draft', total: 0 })
-    expect(s.projectsEq).toHaveBeenCalledWith('id', 'proj-1')
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('discard_vague_estimate', {
+      p_project_id: 'proj-1',
+      p_estimate_id: 'est-1',
+      p_status: 'awaiting_details',
+    })
+  })
+
+  it('surfaces a returned RPC error to the caller', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: { message: 'discard rejected' } })
+
+    await expect(revertVagueEstimate({ rpc } as never, 'proj-1', 'est-1')).rejects.toThrow('Failed to discard vague estimate')
+  })
+
+  it('leaves the project alone when there is no estimate ID', async () => {
+    const rpc = vi.fn()
+
+    await revertVagueEstimate({ rpc } as never, 'proj-1', null)
+
+    expect(rpc).not.toHaveBeenCalled()
   })
 })

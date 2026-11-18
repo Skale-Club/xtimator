@@ -5,13 +5,15 @@ import { revalidatePath } from 'next/cache'
 import { getEstimateById } from '@/lib/queries/estimate'
 import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { stripOwnerOnlyEstimate } from '@/lib/estimate/ai-meta'
+import { buildOwnerEstimateReview } from '@/lib/estimate/owner-review'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import { DEFAULT_CURRENCY_CODE, normalizeCurrencyCode } from '@/lib/money/currency'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { shareLinkExpiryFromNow } from '@/lib/estimates/share-link'
 import { dispatchXphereSync } from '@/lib/integrations/xphere/dispatch'
 import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-totals'
-import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
+import { requireServiceClient } from '@/lib/supabase/service'
+import { persistEstimateVersion } from '@/lib/services/persist-estimate-version'
 import {
   saveEstimateSchema,
   presentationSettingsSchema,
@@ -427,16 +429,24 @@ export async function createBlankEstimate(projectId: string) {
   const { supabase, company, claims } = ctx
   const companyId = company.id as string
 
+  // Validate scope through the authenticated client before using the service
+  // client to stage a version (its table writes bypass tenant RLS).
+  const { data: writableProject, error: projectError } = await supabase
+    .from('projects').select('id').eq('id', projectId).eq('company_id', companyId).maybeSingle()
+  if (projectError || !writableProject) return { error: 'Project not found' }
+
   // Idempotency guard — the lazy auto-create path (EstimateTab) may fire more
   // than once (React strict-mode double-invoke, double navigation). If a current
   // estimate already exists for this project, return it instead of creating a
   // duplicate blank that would shove the existing one into version history.
-  const { data: current } = await supabase
+  const { data: current, error: currentError } = await supabase
     .from('estimates')
     .select('id')
     .eq('project_id', projectId)
+    .eq('company_id', companyId)
     .eq('is_current', true)
     .maybeSingle()
+  if (currentError) return { error: 'Failed to read current estimate' }
   if (current?.id) {
     return { data: { estimateId: current.id as string } }
   }
@@ -445,32 +455,6 @@ export async function createBlankEstimate(projectId: string) {
   // one above is a read and stays allowed.
   const billingDenied = await billingCreateDenied(ctx.company.id)
   if (billingDenied) return billingDenied
-
-  // Version carry-forward (Quick-260704-pt2) — capture the currently-current
-  // estimate's id before flipping it, so its attached photos can be copied
-  // onto the new version below.
-  const { data: previousCurrent } = await supabase
-    .from('estimates')
-    .select('id')
-    .eq('project_id', projectId)
-    .eq('is_current', true)
-    .maybeSingle()
-
-  // Mark existing estimates as not current
-  await supabase
-    .from('estimates')
-    .update({ is_current: false })
-    .eq('project_id', projectId)
-
-  // Get next version number
-  const { data: existingEstimates } = await supabase
-    .from('estimates')
-    .select('version')
-    .eq('project_id', projectId)
-    .order('version', { ascending: false })
-    .limit(1)
-
-  const nextVersion = (existingEstimates?.[0]?.version ?? 0) + 1
 
   // Company defaults
   const taxRate = Number(company.default_tax_rate) || 0
@@ -485,78 +469,50 @@ export async function createBlankEstimate(projectId: string) {
   )
   const validUntil = computeValidUntil(null, company.default_validity_days)
 
-  // Insert estimate
-  const { data: estimate, error: estimateError } = await supabase
-    .from('estimates')
-    .insert({
-      project_id: projectId,
-      company_id: companyId,
-      currency_code: normalizeCurrencyCode(company.currency_code ?? DEFAULT_CURRENCY_CODE),
-      version: nextVersion,
-      is_current: true,
-      status: 'draft',
-      workflow_status: 'draft',
-      tax_rate: taxRate,
-      payment_terms: paymentTerms,
-      warranty_terms: warrantyTerms,
-      presentation_settings: presentationSettings,
-      valid_until: validUntil,
-      subtotal: 0,
-      discount_value: 0,
-      discount_amount: 0,
-      tax_amount: 0,
-      total: 0,
-      created_by_user_id: claims.sub,
+  let estimateId: string
+  let nextVersion = 1
+  let stagedId: string | undefined
+  try {
+    // Use the same transaction as AI generation so two blank creators, or a
+    // blank creator racing generation, can never replace a winner's version.
+    estimateId = await persistEstimateVersion(requireServiceClient(), {
+      companyId,
+      projectId,
+      previousCurrentId: null,
+      keepExisting: true,
+      aiMeta: null,
+      projectUpdate: { status: 'draft', total: 0 },
+      onInserted: id => { stagedId = id },
+      onCommitted: version => { nextVersion = version },
+      estimateRow: {
+        project_id: projectId,
+        company_id: companyId,
+        currency_code: normalizeCurrencyCode(company.currency_code ?? DEFAULT_CURRENCY_CODE),
+        version: 1,
+        status: 'draft',
+        workflow_status: 'draft',
+        tax_rate: taxRate,
+        payment_terms: paymentTerms,
+        warranty_terms: warrantyTerms,
+        presentation_settings: presentationSettings,
+        valid_until: validUntil,
+        subtotal: 0,
+        discount_value: 0,
+        discount_amount: 0,
+        tax_amount: 0,
+        total: 0,
+        created_by_user_id: claims.sub,
+      },
+      calculatedSections: [{
+        title: 'General', subtotal: 0,
+        items: [{ description: '', quantity: 1, unit: 'each', unit_price: 0, total: 0 }],
+      }],
     })
-    .select('id')
-    .single()
-
-  if (estimateError || !estimate) {
+  } catch (err) {
+    console.error('[createBlankEstimate] atomic creation failed:', err)
     return { error: 'Failed to create estimate' }
   }
-
-  const estimateId = estimate.id as string
-
-  // Insert default section
-  const { data: section, error: sectionError } = await supabase
-    .from('estimate_sections')
-    .insert({
-      estimate_id: estimateId,
-      company_id: companyId,
-      title: 'General',
-      sort_order: 0,
-      subtotal: 0,
-    })
-    .select('id')
-    .single()
-
-  if (sectionError || !section) {
-    return { error: 'Failed to create default section' }
-  }
-
-  // Insert default item
-  const { error: itemError } = await supabase
-    .from('estimate_items')
-    .insert({
-      section_id: section.id,
-      company_id: companyId,
-      description: '',
-      quantity: 1,
-      unit: 'each',
-      unit_price: 0,
-      total: 0,
-      sort_order: 0,
-    })
-
-  if (itemError) {
-    return { error: 'Failed to create default item' }
-  }
-
-  // Version carry-forward — copy the previous current version's attached
-  // photos onto the new version (independent rows, own remove lifecycle).
-  if (previousCurrent?.id) {
-    await copyEstimatePhotos(supabase, previousCurrent.id, estimateId, companyId)
-  }
+  if (estimateId !== stagedId) return { data: { estimateId } }
 
   // Log activity
   await supabase.from('estimate_activity').insert({
@@ -849,7 +805,8 @@ export async function getEstimateByIdAction(
   if (!estimate) return { error: 'Estimate not found' }
 
   // ai_meta is the platform-admin debug tool's data; never hand it to a non-admin browser.
-  return { data: (await isPlatformAdmin()) ? estimate : stripOwnerOnlyEstimate(estimate) }
+  const safe = (await isPlatformAdmin()) ? estimate : stripOwnerOnlyEstimate(estimate)
+  return { data: { ...safe, owner_review: buildOwnerEstimateReview(estimate) } }
 }
 
 // ---------------------------------------------------------------------------

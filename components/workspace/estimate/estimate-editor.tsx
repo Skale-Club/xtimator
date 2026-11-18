@@ -23,6 +23,8 @@ import { useEstimateReducer, type EstimateEditorState } from './use-estimate-red
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { EstimateDebugDialog } from './estimate-debug-dialog'
+import { OwnerReviewSummary } from './owner-review-summary'
+import { editEstimateHref } from '@/lib/estimate/creation-href'
 import {
   registerRefineEditor,
   consumePendingRefinement,
@@ -966,8 +968,30 @@ export function EstimateEditor({
     />
   )
 
+  const ownerReview = (() => {
+    const items = state.sections.flatMap(section => section.items).filter(item => item.description.trim())
+    const lowConfidenceLines = items.filter(item => !item.isManuallyEdited && item.confidence === 'low').length
+    const unpricedLines = items.filter(item => !Number.isFinite(item.unit_price) || item.unit_price <= 0).length
+    const saved = state.owner_review
+    if (!saved && !lowConfidenceLines && !unpricedLines) return null
+    return {
+      questions: saved?.questions ?? [], assumptions: saved?.assumptions ?? [],
+      needsReview: !!saved?.needsReview || !!lowConfidenceLines || !!unpricedLines,
+      lowConfidenceLines, unpricedLines,
+    }
+  })()
+
   return (
     <div className="space-y-3">
+      {!isContentReadOnly && (
+        <OwnerReviewSummary
+          review={ownerReview}
+          onReview={() => router.push(editEstimateHref(
+            window.location.search, projectId,
+            ownerReview?.questions.map(q => `Q: ${q}\nA: `).join('\n\n'),
+          ), { scroll: false })}
+        />
+      )}
       {showContract && (
         <ContractCard
           estimateId={state.id}

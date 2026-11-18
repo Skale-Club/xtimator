@@ -253,7 +253,16 @@ function makeSupabaseMock() {
     }
   })
 
-  return { fromMock, captured, projectsUpdateSpy }
+  const rpc = vi.fn(async (name: string, args: {
+    p_estimate_id: string
+    p_project_update?: Record<string, unknown>
+  }) => {
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    if (args.p_project_update) projectsUpdateSpy(args.p_project_update)
+    return { data: { estimate_id: args.p_estimate_id, version: 1 }, error: null }
+  })
+
+  return { fromMock, rpc, captured, projectsUpdateSpy }
 }
 
 function setupDefaults() {
@@ -285,8 +294,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
   })
 
   it('Test 1 (insertion order): persisted subtotal/total reflect the researched price (research ran BEFORE totals)', async () => {
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -301,8 +310,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
     researchMock.mockRejectedValue(new Error('research boom'))
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -313,8 +322,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
   })
 
   it('Test 3 (region/currency/companyId): orchestrator receives client city+state, currencyCode, the companyId param', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -335,8 +344,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
     clientRegion = { city: null, state: null }
     companyRegion = { city: 'Dallas', state: 'TX' }
     try {
-      const { fromMock } = makeSupabaseMock()
-      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+      const { fromMock, rpc } = makeSupabaseMock()
+      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
       await generateEstimateForProject('company-1', 'project-1')
 
@@ -356,8 +365,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
       flaggedUnpriced: 1,
     }))
 
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -368,8 +377,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
 
   it('Test 4b (no flag): projects.status stays estimate_ready', async () => {
     // Default research mock: re-tags to $180, flaggedUnpriced 0.
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -385,8 +394,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
       flaggedUnpriced: 1,
     }))
 
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -419,8 +428,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
         flaggedUnpriced: 0,
       }))
       const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
-      const { fromMock } = makeSupabaseMock()
-      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+      const { fromMock, rpc } = makeSupabaseMock()
+      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
       await generateEstimateForProject('company-1', 'project-1')
 
@@ -456,8 +465,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
     }))
 
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -500,8 +509,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
       flaggedUnpriced: 0,
     }))
 
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -535,8 +544,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
       flaggedUnpriced: 0,
     }))
 
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -551,8 +560,8 @@ describe('generateEstimateForProject — price research wire (108-04)', () => {
     // Same shape as the Test 1 baseline (researched to $180) — proves the AIREL-04
     // wiring is a strict no-op on a normal, in-bounds estimate.
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
-    const { fromMock, captured } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, captured } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 

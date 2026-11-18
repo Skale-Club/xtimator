@@ -105,6 +105,7 @@ export async function recordClientResponse(
     .update({ client_response: response, responded_at: respondedAt })
     .eq('id', est.id)
     .eq('company_id', companyId)
+    .eq('is_current', true)
     .select('id, updated_at')
 
   if (updateError || !updatedRows || updatedRows.length === 0) {

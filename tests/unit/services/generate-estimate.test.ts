@@ -75,25 +75,18 @@ function makeSupabaseMock({
   projectName = 'Untitled project — 5/5/2026',
   hasClient = true,
   existingClients = [] as Array<{ id: string; name: string }>,
-  clientIdUpdateError = null as { message: string } | null,
+  activatedClientId,
+  itemInsertError = null,
   companyExtra = {} as Record<string, unknown>,
 }: {
   projectName?: string
   hasClient?: boolean
   existingClients?: Array<{ id: string; name: string }>
-  clientIdUpdateError?: { message: string } | null
+  activatedClientId?: string | null
+  itemInsertError?: { message: string } | null
+  companyExtra?: Record<string, unknown>
 } = {}) {
-  const updateSpy = vi.fn().mockImplementation((payload: Record<string, unknown>) => {
-    // When updating client_id (auto-link path), respect the configurable error.
-    if (clientIdUpdateError && payload && 'client_id' in payload) {
-      return {
-        eq: vi.fn().mockResolvedValue({ error: clientIdUpdateError }),
-      }
-    }
-    return {
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    }
-  })
+  const directProjectUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 
   // QUICK-mv1-01: hoisted so tests can assert estimate_activity rows
   // (e.g. trade_mismatch_detected) across from('estimate_activity') calls.
@@ -114,6 +107,7 @@ function makeSupabaseMock({
         name: projectName,
         project_type: 'General',
         target_budget: null,
+        client_id: hasClient ? 'client-existing' : null,
         client: hasClient
           ? { name: 'Smith', email: null, phone: null, address: null, city: null, state: null, zip: null }
           : null,
@@ -136,7 +130,7 @@ function makeSupabaseMock({
             }),
           }
         }),
-        update: updateSpy,
+        update: directProjectUpdate,
       }
     }
 
@@ -176,7 +170,7 @@ function makeSupabaseMock({
     if (table === 'clients') {
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockResolvedValue({ data: existingClients, error: null }),
+          eq: vi.fn().mockResolvedValue({ data: existingClients, count: existingClients.length, error: null }),
         }),
       }
     }
@@ -185,11 +179,7 @@ function makeSupabaseMock({
       return {
         delete: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-        }),
-        update: vi.fn().mockReturnValue({
-          // chainable: the service demotes other versions with .eq().neq()
-          eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })),
+          then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
         }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'id') {
@@ -228,7 +218,7 @@ function makeSupabaseMock({
     }
 
     if (table === 'estimate_items') {
-      return { insert: vi.fn().mockResolvedValue({ error: null }) }
+      return { insert: vi.fn().mockResolvedValue({ error: itemInsertError }) }
     }
 
     if (table === 'estimate_activity') {
@@ -242,7 +232,19 @@ function makeSupabaseMock({
     }
   })
 
-  return { fromMock, updateSpy, activityInsertSpy, estimatesInsertSpy }
+  const rpc = vi.fn(async (name: string, args: {
+    p_estimate_id: string
+    p_project_update?: Record<string, unknown>
+  }) => {
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    const proposedClient = args.p_project_update?.client_id
+    const client_id = activatedClientId === undefined
+      ? (typeof proposedClient === 'string' ? proposedClient : null)
+      : activatedClientId
+    return { data: { estimate_id: args.p_estimate_id, version: 1, client_id }, error: null }
+  })
+
+  return { fromMock, rpc, directProjectUpdate, activityInsertSpy, estimatesInsertSpy }
 }
 
 function setupDefaults() {
@@ -267,8 +269,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('returns estimateId and version on success', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -278,8 +280,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('persists a public_slug_token on every newly created estimate (PUBURL-01)', async () => {
-    const { fromMock, estimatesInsertSpy } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, estimatesInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -289,8 +291,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('SEED-056: payment / warranty are always the company text, never what the model wrote; timeline / notes are discarded while their blocks are off', async () => {
-    const { fromMock, estimatesInsertSpy } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, estimatesInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     generateEstimateMock.mockResolvedValue({
       ...DEFAULT_AI_OUTPUT,
       payment_terms: 'Invented: 50% upfront',
@@ -311,10 +313,10 @@ describe('generateEstimateForProject', () => {
   })
 
   it('SEED-056: timeline / notes are kept when the company turned those blocks on', async () => {
-    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+    const { fromMock, rpc, estimatesInsertSpy } = makeSupabaseMock({
       companyExtra: { document_blocks: { timeline: true, notes: true } },
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     generateEstimateMock.mockResolvedValue({ ...DEFAULT_AI_OUTPUT, timeline: '2 weeks', notes: 'Access via alley' })
 
     await generateEstimateForProject('company-1', 'project-1')
@@ -328,10 +330,10 @@ describe('generateEstimateForProject', () => {
 
   it('SEED-056: materialises presentation_settings at creation (summary on for AI, everything else off, even payment / warranty with text) and valid_until', async () => {
     // 2026-11-18: payment / warranty blocks start off until the company switches them on.
-    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+    const { fromMock, rpc, estimatesInsertSpy } = makeSupabaseMock({
       companyExtra: { default_validity_days: 14 },
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -354,10 +356,10 @@ describe('generateEstimateForProject', () => {
   })
 
   it('SEED-056: a company with no payment / warranty text and "AI summary" off starts with a bare document', async () => {
-    const { fromMock, estimatesInsertSpy } = makeSupabaseMock({
+    const { fromMock, rpc, estimatesInsertSpy } = makeSupabaseMock({
       companyExtra: { default_payment_terms: null, default_warranty_terms: null, document_blocks: { summary: false } },
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -374,8 +376,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('calls generateEstimate with correct input fields', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -386,8 +388,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('reports sections to the journal as the model drafts them, rate-limited (260927)', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     const now = vi.spyOn(Date, 'now')
     generateEstimateMock.mockImplementation(async (input: { onDraftProgress?: (p: unknown) => void }) => {
       now.mockReturnValue(10_000)
@@ -418,17 +420,18 @@ describe('generateEstimateForProject', () => {
   })
 
   it('does not ask the provider to stream when there is no attempt to report into', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     await generateEstimateForProject('company-1', 'project-1')
     const input = generateEstimateMock.mock.calls[0][0] as { onDraftProgress?: unknown }
     expect(input.onDraftProgress).toBeUndefined()
   })
 
   it('throws when project not found', async () => {
-    const { fromMock } = makeSupabaseMock()
+    const { fromMock, rpc } = makeSupabaseMock()
     // Override projects table to return null
     vi.mocked(requireServiceClient).mockReturnValue({
+      rpc,
       from: vi.fn().mockImplementation((table: string) => {
         if (table === 'projects') {
           return {
@@ -449,8 +452,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('throws when no transcripts and no photos', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectRecordings).mockResolvedValue([])
     vi.mocked(getProjectPhotos).mockResolvedValue([])
 
@@ -460,8 +463,8 @@ describe('generateEstimateForProject', () => {
   })
 
   it('accepts photos-only input (no transcript)', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectRecordings).mockResolvedValue([])
     vi.mocked(getProjectPhotos).mockResolvedValue([
       { id: 'photo-1', ai_description: 'Kitchen with damaged cabinets' } as never,
@@ -475,8 +478,8 @@ describe('generateEstimateForProject', () => {
     // The prompt builder only consumes photos WITH ai_description — a project
     // whose only inputs are unanalyzed photos would generate a context-free
     // estimate. The precondition must match what the prompt actually gets.
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectRecordings).mockResolvedValue([])
     vi.mocked(getProjectPhotos).mockResolvedValue([
       { id: 'photo-1', ai_description: null } as never,
@@ -488,34 +491,28 @@ describe('generateEstimateForProject', () => {
   })
 
   it('patches placeholder project name from AI suggestion', async () => {
-    const { fromMock, updateSpy } = makeSupabaseMock({
+    const { fromMock, rpc } = makeSupabaseMock({
       projectName: 'Untitled project — 5/5/2026',
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
-    const nameUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'name' in (args[0] as object)
-    )
-    expect(nameUpdate).toBeDefined()
-    expect((nameUpdate![0] as { name: string }).name).toBe('Smith Kitchen Reno')
+    expect(rpc.mock.calls[0]?.[1].p_project_update).toMatchObject({
+      name: 'Smith Kitchen Reno',
+      expected_name: 'Untitled project — 5/5/2026',
+    })
   })
 
   it('preserves user-edited project name', async () => {
-    const { fromMock, updateSpy } = makeSupabaseMock({
+    const { fromMock, rpc } = makeSupabaseMock({
       projectName: 'Smith Bathroom — Phase 2',
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
-    const nameUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'name' in (args[0] as object)
-    )
-    expect(nameUpdate).toBeUndefined()
+    expect(rpc.mock.calls[0]?.[1].p_project_update).not.toHaveProperty('name')
   })
 
   it('returns clientSuggestion when AI detects name and project has no client', async () => {
@@ -528,8 +525,8 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock } = makeSupabaseMock({ hasClient: false })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock({ hasClient: false })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
     expect(result.clientSuggestion).not.toBeNull()
@@ -548,14 +545,14 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock } = makeSupabaseMock({ hasClient: true })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock({ hasClient: true })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
     expect(result.clientSuggestion).toBeNull()
   })
 
-  it('auto-links matched client when AI detects existing name and project has no client', async () => {
+  it('reports an automatic client link only after activation confirms it', async () => {
     generateEstimateMock.mockResolvedValue({
       ...DEFAULT_AI_OUTPUT,
       suggested_client_name: 'Johnson',
@@ -565,11 +562,11 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock, updateSpy } = makeSupabaseMock({
+    const { fromMock, rpc, directProjectUpdate } = makeSupabaseMock({
       hasClient: false,
       existingClients: [{ id: 'client-99', name: 'Johnson' }],
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -579,43 +576,68 @@ describe('generateEstimateForProject', () => {
     expect(result.clientSuggestion!.matchedClientName).toBe('Johnson')
     expect(result.clientSuggestion!.autoLinked).toBe(true)
 
-    const clientIdUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'client_id' in (args[0] as object)
-    )
-    expect(clientIdUpdate).toBeDefined()
-    expect((clientIdUpdate![0] as { client_id: string }).client_id).toBe('client-99')
+    expect(rpc.mock.calls[0]?.[1].p_project_update).toMatchObject({
+      client_id: 'client-99',
+      detected_client_name: 'Johnson',
+    })
+    expect(directProjectUpdate).not.toHaveBeenCalled()
   })
 
-  it('falls back to autoLinked:false when project update errors', async () => {
+  it.each([null, 'manually-linked-client'])(
+    'keeps the suggestion unlinked when activation confirms a different client (%j)',
+    async (activatedClientId) => {
+      generateEstimateMock.mockResolvedValue({ ...DEFAULT_AI_OUTPUT, suggested_client_name: 'Johnson' })
+      const { fromMock, rpc, directProjectUpdate } = makeSupabaseMock({
+        hasClient: false,
+        existingClients: [{ id: 'client-99', name: 'Johnson' }],
+        activatedClientId,
+      })
+      vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
+
+      const result = await generateEstimateForProject('company-1', 'project-1')
+
+      expect(result.clientSuggestion).toMatchObject({
+        detectedName: 'Johnson', matchedClientId: 'client-99', matchedClientName: 'Johnson', autoLinked: false,
+      })
+      expect(rpc.mock.calls[0]?.[1].p_project_update).toHaveProperty('client_id', 'client-99')
+      expect(directProjectUpdate).not.toHaveBeenCalled()
+    },
+  )
+
+  it('saves without a client link when normalized names are ambiguous', async () => {
     generateEstimateMock.mockResolvedValue({
       ...DEFAULT_AI_OUTPUT,
       suggested_client_name: 'Johnson',
     })
-    vi.mocked(getAIProvider).mockResolvedValue({
-      generateEstimate: generateEstimateMock,
-      refineEstimate: vi.fn(),
-    })
-
-    const { fromMock } = makeSupabaseMock({
+    const { fromMock, rpc, directProjectUpdate } = makeSupabaseMock({
       hasClient: false,
-      existingClients: [{ id: 'client-99', name: 'Johnson' }],
-      clientIdUpdateError: { message: 'boom' },
+      existingClients: [
+        { id: 'client-1', name: 'Johnson' },
+        { id: 'client-2', name: '  JOHNSON., ' },
+      ],
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
-
-    // Silence the expected console.warn from the auto-link failure path.
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
-    expect(result.clientSuggestion).not.toBeNull()
-    expect(result.clientSuggestion!.detectedName).toBe('Johnson')
-    expect(result.clientSuggestion!.matchedClientId).toBe('client-99')
-    expect(result.clientSuggestion!.matchedClientName).toBe('Johnson')
-    expect(result.clientSuggestion!.autoLinked).toBe(false)
+    expect(result.clientSuggestion).toMatchObject({ detectedName: 'Johnson', matchedClientId: null, autoLinked: false })
+    expect(rpc.mock.calls[0]?.[1].p_project_update).not.toHaveProperty('client_id')
+    expect(directProjectUpdate).not.toHaveBeenCalled()
+  })
 
-    warnSpy.mockRestore()
+  it('leaves the client untouched when estimate items cannot be saved', async () => {
+    generateEstimateMock.mockResolvedValue({ ...DEFAULT_AI_OUTPUT, suggested_client_name: 'Johnson' })
+    const { fromMock, rpc, directProjectUpdate } = makeSupabaseMock({
+      hasClient: false,
+      existingClients: [{ id: 'client-99', name: 'Johnson' }],
+      itemInsertError: { message: 'item insert failed' },
+    })
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
+
+    await expect(generateEstimateForProject('company-1', 'project-1')).rejects.toThrow('Failed to save estimate items')
+
+    expect(rpc).not.toHaveBeenCalled()
+    expect(directProjectUpdate).not.toHaveBeenCalled()
   })
 
   // QUICK-mv1-01 — zero side effects on discarded (vague) generations + detected_trade
@@ -646,24 +668,16 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock, updateSpy, activityInsertSpy } = makeSupabaseMock({
+    const { fromMock, rpc, activityInsertSpy } = makeSupabaseMock({
       projectName: 'Untitled project — 5/5/2026',
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
-    const nameUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'name' in (args[0] as object)
-    )
-    expect(nameUpdate).toBeUndefined()
-
-    const typeUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'project_type' in (args[0] as object)
-    )
-    expect(typeUpdate).toBeUndefined()
+    const projectUpdate = rpc.mock.calls[0]?.[1].p_project_update
+    expect(projectUpdate).not.toHaveProperty('name')
+    expect(projectUpdate).not.toHaveProperty('project_type')
 
     const mismatchInsert = activityInsertSpy.mock.calls.find(
       (args: unknown[]) =>
@@ -682,17 +696,12 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock, updateSpy } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
-    const typeUpdate = updateSpy.mock.calls.find(
-      (args: unknown[]) =>
-        args[0] && typeof args[0] === 'object' && 'project_type' in (args[0] as object)
-    )
-    expect(typeUpdate).toBeDefined()
-    expect((typeUpdate![0] as { project_type: string }).project_type).toBe('cleaning')
+    expect(rpc.mock.calls[0]?.[1].p_project_update).toHaveProperty('project_type', 'cleaning')
   })
 
   it('logs trade_mismatch_detected when detected_trade differs from company.industry', async () => {
@@ -706,8 +715,8 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock, activityInsertSpy } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, activityInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -732,8 +741,8 @@ describe('generateEstimateForProject', () => {
       refineEstimate: vi.fn(),
     })
 
-    const { fromMock, activityInsertSpy } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc, activityInsertSpy } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 

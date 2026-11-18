@@ -148,7 +148,7 @@ export async function getEstimateByShareToken(
     .eq('share_token', token)
     .single()
 
-  if (!estimateData) return null
+  if (!estimateData || estimateData.generation_staged === true) return null
 
   // Security: expired share links serve NO data (no PII built or returned).
   // The page distinguishes "expired" from "missing" via getShareLinkState().
@@ -426,7 +426,7 @@ export async function getEstimateByPublicToken(
     .eq('public_slug_token', shortToken)
     .single()
 
-  if (!estimateData) return null
+  if (!estimateData || estimateData.generation_staged === true) return null
 
   const shareExpiresAt =
     (estimateData as { share_expires_at?: string | null }).share_expires_at ?? null

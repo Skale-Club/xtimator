@@ -144,7 +144,9 @@ export function computeEstimateTotals(
           ? Math.round((item.cost as number) * (1 + (item.markup_pct as number) / 100) * 100) / 100
           : item.unit_price ?? 0
       const lineGross = Math.round(item.quantity * effectiveUnitPrice * 100) / 100
-      const lineDiscount = item.discount ?? 0   // DORMANT: default 0 → lineNet == lineGross (Phase 131)
+      const requestedLineDiscount = item.discount ?? 0
+      const lineDiscount = Math.min(Math.max(0, lineGross), Math.max(0,
+        Number.isFinite(requestedLineDiscount) ? Math.round(requestedLineDiscount * 100) / 100 : 0))
       const lineNet = lineGross - lineDiscount
       // Return the resolved unit_price so persistence + downstream read it. No-op when no markup
       // (effectiveUnitPrice === item.unit_price) → byte-identical retrocompat.
@@ -162,12 +164,16 @@ export function computeEstimateTotals(
   // (byte-identical retrocompat). FOLLOW-UP: a per-company discount-timing (before/after-tax)
   // config is not read here — only before-tax is implemented; wire an after-tax branch when a
   // companies.* timing flag is cheaply available (see REQUIREMENTS.md DISC-02).
-  const discGlobal =
+  const requestedGlobalDiscount =
     discountType === 'amount'
       ? Math.round((discountValue ?? 0) * 100) / 100
       : discountType === 'percent'
         ? Math.round(subtotal * ((discountValue ?? 0) / 100) * 100) / 100
         : 0
+  // Discounts reduce the sale price; malformed/legacy values cannot create
+  // negative taxable bases or a discount larger than the work being sold.
+  const discGlobal = Math.min(Math.max(0, subtotal), Math.max(0,
+    Number.isFinite(requestedGlobalDiscount) ? requestedGlobalDiscount : 0))
 
   let taxAmount: number
   if (!isTaxConfig(taxConfig)) {
@@ -204,7 +210,11 @@ export function computeEstimateTotals(
       subtotal > 0 ? Math.round(discGlobal * (taxableSubtotal / subtotal) * 100) / 100 : 0
 
     // WI-2: safeTaxRate coerces a negative/non-finite rate to 0 (no-op on a valid rate).
-    taxAmount = Math.round((taxableSubtotal - proratedDisc) * safeTaxRate * 100) / 100
+    // Use cents before applying the rate, matching the category and charge
+    // engines. Dollar subtraction can put an exact half-cent just below its
+    // rounding boundary (e.g. 149.99 at 50%).
+    const taxableBaseCents = Math.max(0, Math.round(taxableSubtotal * 100) - Math.round(proratedDisc * 100))
+    taxAmount = Math.round(taxableBaseCents * safeTaxRate) / 100
   } else {
     // TAX-03 ACTIVE: accumulate each taxable item's lineNet into its category base, then
     // sum base × resolved rate. Non-taxable items (taxable === false) accrue ZERO base.
@@ -218,13 +228,29 @@ export function computeEstimateTotals(
       }
     }
 
-    // DISC-02 PRORATION: distribute disc_global across each category's taxable base by its share
-    // of the taxable subtotal, subtracting it BEFORE multiplying by the rate (discount-before-tax).
-    // When the taxable subtotal is 0, prorate nothing (avoid /0).
-    const taxableSubtotal = Object.values(categoryBase).reduce((sum, b) => sum + b, 0)
+    // Match the flat path: only the taxable share of the GLOBAL discount
+    // reduces taxable bases. Allocate that share in integer cents, distributing
+    // residual pennies deterministically so splitting categories cannot lose a
+    // cent of discount or change tax when every category has the same rate.
+    const categories = Object.entries(categoryBase).sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, base]) => ({ category, cents: Math.round(base * 100), discount: 0, remainder: 0 }))
+    const taxableCents = categories.reduce((sum, c) => sum + c.cents, 0)
+    const subtotalCents = Math.round(subtotal * 100)
+    const taxableDiscountCents = subtotalCents > 0
+      ? Math.round(Math.round(discGlobal * 100) * taxableCents / subtotalCents) : 0
+    if (taxableCents > 0) {
+      for (const c of categories) {
+        const share = taxableDiscountCents * c.cents / taxableCents
+        c.discount = Math.floor(share)
+        c.remainder = share - c.discount
+      }
+      const residual = taxableDiscountCents - categories.reduce((sum, c) => sum + c.discount, 0)
+      const remainderOrder = [...categories].sort((a, b) => b.remainder - a.remainder || a.category.localeCompare(b.category))
+      for (let i = 0; i < residual; i++) remainderOrder[i].discount++
+    }
 
-    let rawTax = 0
-    for (const [category, base] of Object.entries(categoryBase)) {
+    let rawTaxCents = 0
+    for (const { category, cents, discount } of categories) {
       const categoryRate = (taxConfig.rates as Record<string, number | undefined>)[category]
       // Resolution: per-category rate → config.default_rate → option taxRate (no silent escape).
       const rate =
@@ -236,15 +262,10 @@ export function computeEstimateTotals(
       // WI-2: coerce the RESOLVED rate (a malformed negative category rate or default_rate) to
       // 0 so a category never contributes negative tax. Valid rates (>=0 finite) pass unchanged.
       const safeRate = Number.isFinite(rate) && rate >= 0 ? rate : 0
-      const proratedDisc =
-        taxableSubtotal > 0
-          ? Math.round(discGlobal * (base / taxableSubtotal) * 100) / 100
-          : 0
-      const discountedBase = base - proratedDisc
-      rawTax += discountedBase * safeRate
+      rawTaxCents += Math.max(0, cents - discount) * safeRate
     }
     // SAME Math.round(x*100)/100 discipline as the flat path for byte-consistency.
-    taxAmount = Math.round(rawTax * 100) / 100
+    taxAmount = Math.round(rawTaxCents) / 100
   }
 
   // Pre-launch audit fix: floor grandTotal at 0, mirroring the existing

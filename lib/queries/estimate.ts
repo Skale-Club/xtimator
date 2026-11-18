@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature'
 import { applySignedCompanyTermsValue } from '@/lib/estimate/signed-snapshot'
 import type { DocumentSignature } from '@/lib/estimate/document/model'
+import type { OwnerEstimateReview } from '@/lib/estimate/owner-review'
 
 export interface Estimate {
   id: string
@@ -27,6 +28,8 @@ export interface Estimate {
    * and never render it on a client surface (the share loaders strip it).
    */
   ai_meta?: unknown
+  /** Sanitized authenticated-workspace summary; never serialized to clients. */
+  owner_review?: OwnerEstimateReview | null
   is_current: boolean
   share_token: string
   /** Phase 160 (PUBURL-01/03): second, independent friendly-URL token. NULL until backfilled. */
@@ -138,7 +141,8 @@ export async function getProjectEstimates(
     .eq('project_id', projectId)
     .order('version', { ascending: false })
 
-  return (data ?? []) as Estimate[]
+  // Staging is internal, including rows left by an interrupted failed save.
+  return (data ?? []).filter(row => row.generation_staged !== true) as Estimate[]
 }
 
 export async function getCurrentEstimate(
@@ -152,7 +156,7 @@ export async function getCurrentEstimate(
     .eq('is_current', true)
     .single()
 
-  if (!estimate) return null
+  if (!estimate || estimate.generation_staged === true) return null
 
   return fetchEstimateWithSections(supabase, estimate as Estimate)
 }
@@ -167,7 +171,7 @@ export async function getEstimateById(
     .eq('id', estimateId)
     .single()
 
-  if (!estimate) return null
+  if (!estimate || estimate.generation_staged === true) return null
 
   return fetchEstimateWithSections(supabase, estimate as Estimate)
 }

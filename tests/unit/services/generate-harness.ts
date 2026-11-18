@@ -29,6 +29,14 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
   const projectUpdates: Array<Record<string, unknown>> = []
   let estimateCall = 0
   let itemCall = 0
+  const rpc = vi.fn(async (name: string, args: {
+    p_estimate_id: string
+    p_project_update?: Record<string, unknown>
+  }) => {
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    if (args.p_project_update) projectUpdates.push(args.p_project_update)
+    return { data: { estimate_id: args.p_estimate_id, version: 1 }, error: null }
+  })
 
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'projects') {
@@ -100,8 +108,11 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
     }
     if (table === 'estimates') {
       return {
-        delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnThis(), is: vi.fn().mockReturnThis() }),
-        update: vi.fn().mockReturnValue({ eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })) }),
+        delete: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnThis(),
+          is: vi.fn().mockReturnThis(),
+          then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
+        }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols === 'id') {
             return {
@@ -156,5 +167,5 @@ export function makeServiceMock(opts: HarnessOptions = {}) {
     }
   })
 
-  return { from, estimateInserts, itemInserts, projectUpdates }
+  return { from, rpc, estimateInserts, itemInserts, projectUpdates }
 }

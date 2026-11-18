@@ -28,12 +28,21 @@ export const assessNode = async (
     projectId: state.projectId,
   })
 
-  const supabase = requireServiceClient()
-  const { data: est } = await supabase
-    .from('estimates')
-    .select('total, sections:estimate_sections(items:estimate_items(id))')
-    .eq('id', state.estimateId!)
-    .single()
-  const vague = isVagueEstimate(est as VagueCheckEstimate | null)
-  return { isVague: vague }
+  try {
+    const supabase = requireServiceClient()
+    const { data: est, error } = await supabase
+      .from('estimates')
+      .select('total, sections:estimate_sections(items:estimate_items(id))')
+      .eq('id', state.estimateId!)
+      .eq('company_id', state.companyId)
+      .eq('project_id', state.projectId)
+      .single()
+    if (error || !est) throw new Error('Failed to read generated estimate', { cause: error })
+    return { isVague: isVagueEstimate(est as VagueCheckEstimate) }
+  } catch (err) {
+    // A database failure says nothing about scope quality. In particular, it
+    // must never enter the destructive vague-draft discard/refine path.
+    console.error('[estimate-graph] assessment read failed:', err)
+    return { isVague: undefined, failure: { reason: 'generation_failed' } }
+  }
 }

@@ -51,19 +51,9 @@ export function makeDefaultAdapter({ companyId, supabase }: {
       // never be delivered as completed. Success path (isVague=false) is a no-op —
       // the HTTP/poll layer surfaces the estimate via job output.
       if (state.isVague) {
-        // Best-effort revert of the $0 estimate + reset project to draft.
-        try {
-          await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
-        } catch {
-          // non-fatal
-        }
-        // Persist the awaiting_details signal for the web UI (SMART-03).
-        // projects.status is unconstrained TEXT — no migration needed (Pitfall 2).
-        await supabase
-          .from('projects')
-          .update({ status: 'awaiting_details' })
-          .eq('id', state.projectId)
-          .eq('company_id', companyId)  // companyId from closure (QA-02), NOT state
+        // Discard and recourse state commit together. A database failure must
+        // surface to the job rather than announce that details were requested.
+        await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null, 'awaiting_details')
 
         // QUICK-psh-01: classify WHY + generate clarifying questions at THIS
         // single final-vague terminal (autoRefine's intermediate revert never

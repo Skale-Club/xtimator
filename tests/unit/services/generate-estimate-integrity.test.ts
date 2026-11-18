@@ -49,9 +49,7 @@ const OUTPUT: EstimateOutput = {
   ],
 }
 
-type Call = { op: 'update' | 'delete'; row?: unknown; filters: Array<[string, string, unknown]> }
-
-/** Wraps the harness client so every estimates update/delete is recorded in order. */
+/** Wraps the harness client so staged-row cleanup filters are recorded. */
 function arrange(mockOpts: Parameters<typeof makeServiceMock>[0] = {}) {
   generateEstimateMock.mockResolvedValue(OUTPUT)
   researchMock.mockImplementation(async (sections: unknown) => ({ sections, flaggedUnpriced: 0 }))
@@ -62,27 +60,19 @@ function arrange(mockOpts: Parameters<typeof makeServiceMock>[0] = {}) {
   vi.mocked(getProjectRecordings).mockResolvedValue([{ id: 'r', transcript: 'Repaint the walls.' } as never])
   vi.mocked(getProjectPhotos).mockResolvedValue([])
   const mock = makeServiceMock(mockOpts)
-  const calls: Call[] = []
-  const record = (op: Call['op'], row?: unknown) => {
-    const call: Call = { op, row, filters: [] }
-    calls.push(call)
-    const chain: Record<string, unknown> = {}
-    for (const f of ['eq', 'neq', 'is']) {
-      chain[f] = (...args: unknown[]) => {
-        call.filters.push([f, String(args[0]), args[1]])
-        return chain
-      }
-    }
-    chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve)
-    return chain
-  }
+  const cleanupFilters = vi.fn().mockReturnThis()
+  const deleteEstimate = vi.fn(() => ({
+    eq: cleanupFilters,
+    is: cleanupFilters,
+    then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
+  }))
   const from = (table: string) => {
     const t = mock.from(table)
     if (table !== 'estimates') return t
-    return { ...t, update: (row: unknown) => record('update', row), delete: () => record('delete') }
+    return { ...t, delete: deleteEstimate }
   }
-  vi.mocked(requireServiceClient).mockReturnValue({ from } as never)
-  return { ...mock, calls }
+  vi.mocked(requireServiceClient).mockReturnValue({ from, rpc: mock.rpc } as never)
+  return { ...mock, deleteEstimate, cleanupFilters }
 }
 
 describe('generateEstimateForProject - integrity', () => {
@@ -114,31 +104,29 @@ describe('generateEstimateForProject - integrity', () => {
     expect(phaseMock.mock.calls.every((c) => c[0].inputType === 'recording')).toBe(true)
   })
 
-  it('happy path: inserts non-current, then demotes others and promotes the new row last', async () => {
+  it('activates the staged version together with its project metadata', async () => {
     const mock = arrange()
     await generateEstimateForProject('company-1', 'project-1')
 
     expect(mock.estimateInserts[0].is_current).toBe(false)
-    const updates = mock.calls.filter((c) => c.op === 'update')
-    expect(updates).toHaveLength(2)
-    expect(updates[0].row).toEqual({ is_current: false })
-    expect(updates[0].filters).toEqual([
-      ['eq', 'project_id', 'project-1'],
-      ['neq', 'id', 'estimate-1'],
-    ])
-    expect(updates[1].row).toEqual({ is_current: true })
-    expect(updates[1].filters).toEqual([['eq', 'id', 'estimate-1']])
-    expect(mock.calls.some((c) => c.op === 'delete' && c.filters.some(([, k]) => k === 'id'))).toBe(false)
+    expect(mock.rpc).toHaveBeenCalledOnce()
+    expect(mock.rpc).toHaveBeenCalledWith('activate_estimate_version', expect.objectContaining({
+      p_company_id: 'company-1',
+      p_project_id: 'project-1',
+      p_estimate_id: 'estimate-1',
+      p_project_update: expect.objectContaining({ total: 200, status: 'estimate_ready' }),
+    }))
+    expect(mock.cleanupFilters).not.toHaveBeenCalledWith('id', 'estimate-1')
   })
 
   it('a failed items insert deletes the new row, keeps the previous version current and rethrows', async () => {
     const mock = arrange({ itemInsertErrors: [{ code: 'XX000', message: 'boom' }] })
     await expect(generateEstimateForProject('company-1', 'project-1')).rejects.toThrow('Failed to save estimate items')
 
-    const del = mock.calls.filter((c) => c.op === 'delete' && c.filters.some(([, k]) => k === 'id'))
-    expect(del).toHaveLength(1)
-    expect(del[0].filters).toEqual([['eq', 'id', 'estimate-1']])
-    // No current-pointer change ever happened: the previous version stays current.
-    expect(mock.calls.filter((c) => c.op === 'update')).toHaveLength(0)
+    expect(mock.cleanupFilters).toHaveBeenCalledWith('id', 'estimate-1')
+    expect(mock.cleanupFilters).toHaveBeenCalledWith('company_id', 'company-1')
+    expect(mock.cleanupFilters).toHaveBeenCalledWith('project_id', 'project-1')
+    expect(mock.cleanupFilters).toHaveBeenCalledWith('is_current', false)
+    expect(mock.rpc).not.toHaveBeenCalled()
   })
 })

@@ -9,6 +9,14 @@ type Dict = Record<string, string>
 
 export const editorTranslations: Record<'pt' | 'es', Dict> = {
   pt: {
+    // Generated-draft review summary
+    'Review before sending': 'Confira antes de enviar',
+    'Questions, assumptions, and confidence flags come from the generated draft.': 'As perguntas, suposições e indicações de confiança vêm do rascunho gerado.',
+    'Check the current estimate and make any needed changes before sending.': 'Confira o orçamento atual e faça os ajustes necessários antes de enviar.',
+    'Low-confidence items': 'Itens com baixa confiança',
+    'Items without a price': 'Itens sem preço',
+    'Open questions': 'Perguntas em aberto',
+    'Assumptions': 'Suposições',
     'The client has already answered this estimate, so it can no longer be edited.': 'O cliente já respondeu este orçamento, então ele não pode mais ser editado.',
     // Top bar
     'Back to projects': 'Voltar para projetos',
@@ -66,6 +74,14 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Change defaults for new estimates in Settings': 'Mudar o padrão dos novos orçamentos em Configurações',
   },
   es: {
+    // Generated-draft review summary
+    'Review before sending': 'Revisa antes de enviar',
+    'Questions, assumptions, and confidence flags come from the generated draft.': 'Las preguntas, suposiciones e indicadores de confianza vienen del borrador generado.',
+    'Check the current estimate and make any needed changes before sending.': 'Revisa el presupuesto actual y haz los ajustes necesarios antes de enviarlo.',
+    'Low-confidence items': 'Partidas con baja confianza',
+    'Items without a price': 'Partidas sin precio',
+    'Open questions': 'Preguntas pendientes',
+    'Assumptions': 'Suposiciones',
     'The client has already answered this estimate, so it can no longer be edited.': 'El cliente ya respondió este presupuesto, así que ya no se puede editar.',
     // Top bar
     'Back to projects': 'Volver a proyectos',

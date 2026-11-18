@@ -47,6 +47,10 @@ vi.mock('@/lib/billing/credit-ledger', () => ({
 }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
+    rpc: async (name: string) => {
+      if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+      return { data: { estimate_id: 'blank-estimate', version: 1 }, error: null }
+    },
     from: (table: string) =>
       table === 'companies'
         ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: companyRow, error: null }) }) }) }
@@ -63,17 +67,26 @@ vi.mock('@/lib/supabase/service', () => ({
                 }),
               }),
             }
-          : { select: () => ({ eq: async () => ({ count: 3, error: null }) }) },
+          : table === 'estimates'
+            ? chain({ data: { id: 'blank-estimate' }, error: null })
+            : table === 'estimate_sections'
+              ? chain({ data: [{ id: 'blank-section' }], error: null })
+              : table === 'estimate_items'
+                ? chain({ error: null })
+                : { select: () => ({ eq: async () => ({ count: 3, error: null }) }) },
   }),
   createServiceClient: () => null,
 }))
 
 // ---- action-module dependencies ---------------------------------------------
 /** A chainable, awaitable stand-in for a supabase query builder. */
-function chain(result: unknown): unknown {
+function chain(result: unknown, selectedId?: string): unknown {
   const p: unknown = new Proxy(function () {}, {
     get(_t, prop) {
       if (prop === 'then') return (res: (v: unknown) => unknown) => Promise.resolve(result).then(res)
+      if (prop === 'select' && selectedId) {
+        return (columns: string) => columns === 'id' ? chain({ data: { id: selectedId }, error: null }) : p
+      }
       return () => p
     },
     apply: () => p,
@@ -87,7 +100,7 @@ vi.mock('@/lib/supabase/server', () => ({
     from: (table: string) =>
       table === 'companies'
         ? chain({ data: { id: 'co-1', currency_code: 'USD', default_tax_rate: 0 }, error: null })
-        : chain({ data: null, error: null }),
+        : chain({ data: null, error: null }, table === 'projects' ? 'p1' : undefined),
   }),
 }))
 vi.mock('@/lib/queries/active-company', () => ({

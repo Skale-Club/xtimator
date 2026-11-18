@@ -7,6 +7,7 @@ import type { DocumentSignature } from '@/lib/estimate/document/model'
 import { DEFAULT_CURRENCY_CODE } from '@/lib/money/currency'
 import type { PresentationSettings } from '@/lib/estimate/presentation-settings'
 import { mergeRefinement } from '@/lib/estimate/refine-merge'
+import type { OwnerEstimateReview } from '@/lib/estimate/owner-review'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +44,8 @@ export interface EditorSection {
 }
 
 export interface EstimateEditorState {
+  /** Server-sanitized generation flags for this loaded version only. */
+  owner_review?: OwnerEstimateReview | null
   id: string
   currency_code: string
   is_current: boolean
@@ -359,6 +362,7 @@ function initState(estimate: EstimateWithSections | null): EstimateEditorState {
 
   return {
     id: estimate.id,
+    owner_review: estimate.owner_review ?? null,
     currency_code: estimate.currency_code ?? DEFAULT_CURRENCY_CODE,
     is_current: estimate.is_current,
     version: estimate.version,

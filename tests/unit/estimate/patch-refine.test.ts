@@ -12,8 +12,7 @@ vi.mock('@/lib/estimate/quality/revert', () => ({ revertVagueEstimate: vi.fn() }
 const refineMock = vi.fn()
 vi.mock('@/lib/estimate/graph/nodes/refine', () => ({ makeRefineNode: () => (s: unknown) => refineMock(s) }))
 
-type Call = { table: string; op: string; payload?: unknown; filters: Array<[string, string, unknown]> }
-const calls: Call[] = []
+const rpc = vi.fn()
 const assessTotals: number[] = []
 
 // The draft the patch node loads from the database.
@@ -36,52 +35,26 @@ const draftRow = {
 }
 
 function builder(table: string) {
-  const call: Call = { table, op: 'select', filters: [] }
-  const b: Record<string, unknown> = {}
-  b.select = vi.fn(() => b)
-  b.delete = vi.fn(() => {
-    call.op = 'delete'
-    calls.push(call)
-    return b
-  })
-  b.update = vi.fn((payload: unknown) => {
-    call.op = 'update'
-    call.payload = payload
-    calls.push(call)
-    return b
-  })
-  for (const f of ['eq', 'neq']) {
-    b[f] = vi.fn((col: string, val: unknown) => {
-      call.filters.push([f, col, val])
-      return b
-    })
+  const query = {
+    select() { return this },
+    eq() { return this },
+    async single() {
+      if (table === 'estimates') {
+        const total = assessTotals.shift() ?? 1234
+        return { data: { id: 'e1', total, sections: total > 0 ? [{ items: [{ id: 'i1' }] }] : [] }, error: null }
+      }
+      if (table === 'companies') return { data: { industry: null }, error: null }
+      return { data: null, error: null }
+    },
+    async maybeSingle() {
+      if (table === 'estimates') return { data: draftRow, error: null }
+      if (table === 'projects') return { data: { status: 'estimate_ready', project_type: null }, error: null }
+      return { data: null, error: null }
+    },
   }
-  b.single = vi.fn(async () => {
-    if (table === 'estimates') {
-      const total = assessTotals.length > 0 ? assessTotals.shift()! : 1234
-      return { data: { id: 'e1', total, sections: total > 0 ? [{ items: [{ id: 'i1' }] }] : [] }, error: null }
-    }
-    if (table === 'companies') return { data: { industry: null }, error: null }
-    return { data: null, error: null }
-  })
-  b.maybeSingle = vi.fn(async () => {
-    if (table === 'estimates') {
-      // The patch node's draft load carries the section tree; recover-draft reads id + total.
-      return { data: call.filters.length > 0 && wantsTree ? draftRow : { id: 'e1', total: 1234 }, error: null }
-    }
-    if (table === 'projects') return { data: { status: 'estimate_ready', project_type: null }, error: null }
-    return { data: null, error: null }
-  })
-  b.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: null, error: null }).then(resolve)
-  const origSelect = b.select as (...a: unknown[]) => unknown
-  b.select = vi.fn((cols?: unknown) => {
-    wantsTree = typeof cols === 'string' && cols.includes('estimate_sections')
-    return origSelect(cols)
-  })
-  return b
+  return query
 }
-let wantsTree = false
-vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: () => ({ from: (t: string) => builder(t) }) }))
+vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: () => ({ from: builder, rpc }) }))
 
 import { buildEstimateGraph } from '@/lib/estimate/graph'
 import type { ChannelAdapter } from '@/lib/estimate/graph/types'
@@ -138,9 +111,8 @@ const run = (a: ChannelAdapter, opts?: Parameters<typeof buildEstimateGraph>[1])
 beforeEach(() => {
   generateMock.mockReset()
   refineMock.mockReset()
-  calls.length = 0
+  rpc.mockReset().mockResolvedValue({ data: { estimate_id: 'e1', version: 1 }, error: null })
   assessTotals.length = 0
-  wantsTree = false
   vi.unstubAllEnvs()
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -323,7 +295,7 @@ describe('graph: flag ON + persistence hook', () => {
     expect(finalize).toHaveBeenCalledOnce()
     expect(out.estimateId).toBe('e1')
     expect(out.patchOutcome).toBe('rejected')
-    expect(calls.filter((c) => c.op === 'update' || c.op === 'delete')).toHaveLength(0)
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -365,23 +337,27 @@ describe('regenerate that scores WORSE keeps the first draft (always on)', () =>
     expect(generateMock).toHaveBeenCalledTimes(2)
     expect(finalize).toHaveBeenCalledOnce()
     expect(out.estimateId).toBe('e1')
-    const del = calls.find((c) => c.table === 'estimates' && c.op === 'delete')!
-    expect(del.filters).toEqual(expect.arrayContaining([['eq', 'id', 'e2'], ['eq', 'company_id', 'co']]))
-    const restore = calls.find((c) => c.table === 'estimates' && c.op === 'update' && (c.payload as { is_current: boolean }).is_current === true)!
-    expect(restore.filters).toEqual(expect.arrayContaining([['eq', 'id', 'e1']]))
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('activate_estimate_version', expect.objectContaining({
+      p_company_id: 'co',
+      p_project_id: 'pr',
+      p_estimate_id: 'e1',
+      p_previous_estimate_id: 'e2',
+      p_discard_estimate_id: 'e2',
+      p_restore: true,
+    }))
   })
 
   it('a better or equal second pass still replaces the first (today)', async () => {
     for (const second of [60, 40]) {
       generateMock.mockReset()
-      calls.length = 0
+      rpc.mockClear()
       generateMock
         .mockResolvedValueOnce({ ...lowDraft, structure: { score: 40, band: 'refine', hints: ['x'] } })
         .mockResolvedValueOnce({ ...lowDraft, estimateId: 'e2', structure: { score: second, band: second >= 50 ? 'review' : 'refine', hints: [] } })
       const { a } = adapter()
       const out = await run(a)
       expect(out.estimateId).toBe('e2')
-      expect(calls.some((c) => c.op === 'delete')).toBe(false)
+      expect(rpc).not.toHaveBeenCalled()
     }
   })
 

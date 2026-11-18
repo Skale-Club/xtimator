@@ -48,6 +48,7 @@ export function checkVagueAfterAssessEdge(
   state: EstimateStateType,
   opts: { patchAvailable?: boolean } = {}
 ): string {
+  if (state.failure) return 'onError'
   // SEED-057 D: a targeted pass that came back VAGUE must not leave the project without a
   // current estimate (finalize would delete it and flip to awaiting_details): fall back to
   // the first draft, which was good enough to deliver.

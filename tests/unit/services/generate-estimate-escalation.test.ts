@@ -76,7 +76,7 @@ describe('generateEstimateForProject - Opus escalation (Phase 4g)', () => {
     vi.mocked(getProjectRecordings).mockResolvedValue([{ id: 'r', transcript: 'Re-roof the house, about two thousand square feet.' } as never])
     vi.mocked(getProjectPhotos).mockResolvedValue([])
     mock = makeServiceMock({ company: { industry: 'painting' } })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
     vi.spyOn(console, 'info').mockImplementation(() => {})
   })
   afterEach(() => {

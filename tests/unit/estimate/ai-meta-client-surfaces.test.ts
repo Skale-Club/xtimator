@@ -6,7 +6,7 @@
 // modern), both PDFs, the WhatsApp message or the plain-text message.
 //
 // Two layers:
-//   1. behavioural: the public share loaders strip ai_meta and the per-line
+//   1. behavioural: the public share loaders strip ai_meta, owner_review, and the per-line
 //      columns before the row is spread into a CLIENT component's props (the
 //      page serialises props into the browser, so rendering is not the only leak);
 //   2. static: no client-facing source file so much as mentions an owner-only field.
@@ -38,6 +38,13 @@ const ESTIMATE: AnyRow = {
     assumptions: ['SECRET-ASSUMPTION'],
     open_questions: [{ question: 'SECRET-QUESTION', impact: 'high' }],
     quality: { score: 40, band: 'refine', findings: ['SECRET-FINDING'] },
+  },
+  owner_review: {
+    questions: ['OWNER-REVIEW-QUESTION'],
+    assumptions: ['OWNER-REVIEW-ASSUMPTION'],
+    needsReview: true,
+    lowConfidenceLines: 1,
+    unpricedLines: 0,
   },
 }
 const SECTION: AnyRow = { id: 's1', estimate_id: 'e1', title: 'Work', sort_order: 0, subtotal: 100 }
@@ -96,14 +103,16 @@ function installMock() {
 
 describe('strip helpers', () => {
   it('remove only the owner-only fields', () => {
-    expect(stripOwnerOnlyEstimate({ id: 'e', ai_meta: { v: 1 }, summary: 's' })).toEqual({ id: 'e', summary: 's' })
+    expect(stripOwnerOnlyEstimate({ id: 'e', ai_meta: { v: 1 }, owner_review: ESTIMATE.owner_review, summary: 's' }))
+      .toEqual({ id: 'e', summary: 's' })
     expect(stripOwnerOnlyItem({ id: 'i', confidence: 'low', basis: 'b', optional: true, unit_price: 5 })).toEqual({ id: 'i', unit_price: 5 })
   })
 
   it('never mutate their input', () => {
-    const row = { id: 'e', ai_meta: { v: 1 } }
+    const row = { id: 'e', ai_meta: { v: 1 }, owner_review: ESTIMATE.owner_review }
     stripOwnerOnlyEstimate(row)
     expect(row).toHaveProperty('ai_meta')
+    expect(row).toHaveProperty('owner_review')
   })
 })
 
@@ -117,11 +126,12 @@ describe('public share loaders never hand owner-only AI data to the page', () =>
     const data = await load()
     expect(data).not.toBeNull()
     const serialised = JSON.stringify(data)
-    for (const secret of ['SECRET-ASSUMPTION', 'SECRET-QUESTION', 'SECRET-FINDING', 'SECRET-BASIS', 'ai_meta']) {
+    for (const secret of ['SECRET-ASSUMPTION', 'SECRET-QUESTION', 'SECRET-FINDING', 'SECRET-BASIS', 'ai_meta', 'owner_review', 'OWNER-REVIEW-QUESTION', 'OWNER-REVIEW-ASSUMPTION']) {
       expect(serialised, secret).not.toContain(secret)
     }
     const estimate = (data as { estimate: AnyRow }).estimate
     expect(estimate).not.toHaveProperty('ai_meta')
+    expect(estimate).not.toHaveProperty('owner_review')
     const items = (estimate.sections as Array<{ items: AnyRow[] }>).flatMap((s) => s.items)
     expect(items.length).toBeGreaterThan(0)
     for (const item of items) {
@@ -174,6 +184,8 @@ const CLIENT_FACING = [
 // key so an unrelated English word in a comment does not trip it.
 const OWNER_ONLY = [
   /\bai_meta\b/,
+  /\bowner_review\b/,
+  /\bOwnerReviewSummary\b/,
   /\bparseAiMeta\b/,
   /\bopen_questions\b/,
   /\bAiInsightsPanel\b/,
@@ -219,7 +231,8 @@ describe('ai_meta never reaches a non-admin browser from the project page', () =
     expect(source).toContain("from '@/lib/auth/platform-admin'")
     expect(source).toContain('isPlatformAdmin()')
     expect(source).toContain('stripOwnerOnlyEstimate(currentEstimateRaw)')
-    expect(source).toContain('allVersionsRaw.map(stripOwnerOnlyEstimate)')
+    expect(source).toContain('stripOwnerOnlyEstimate(estimate)')
+    expect(source).toContain('owner_review: buildOwnerEstimateReview(currentEstimateRaw)')
     expect(source).toContain('isPlatformAdmin={viewerIsPlatformAdmin}')
   })
 

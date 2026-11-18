@@ -9,10 +9,9 @@
  *   2. insert sections and items in two round-trips (items carry the per-line AI fields, retried
  *      without them in the pre-migration window); any failure deletes the new row (children
  *      cascade) and rethrows, so the previous version is untouched;
- *   3. swap is_current: demote every other version, then promote the new one. The previous
- *      current version is never demoted before the new one is fully saved, so a project is never
- *      left without a current estimate;
- *   4. carry the previous current version's photos over.
+ *   3. atomically activate the staged version, carry photos forward and update
+ *      project state. The database checks the previous current version under lock.
+ *      A missing RPC fails closed; deploy the migration before this caller.
  *
  * Throws 'Failed to save estimate' / 'Failed to save estimate section' / 'Failed to save estimate
  * items' exactly as generation always did.
@@ -20,7 +19,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { computeEstimateTotals } from '@/lib/estimate/compute-totals'
 import { isMissingColumnError, type AiMeta } from '@/lib/estimate/ai-meta'
-import { copyEstimatePhotos } from '@/lib/queries/estimate-photo'
 
 /** estimate_items columns added by SEED-057 (see the estimator-intelligence migration). */
 const ITEM_AI_COLUMNS = ['confidence', 'basis', 'optional'] as const
@@ -38,6 +36,21 @@ export interface PersistEstimateVersionArgs {
   calculatedSections: CalculatedSections
   /** The version being replaced; its photos are copied onto the new one. Null when there is none. */
   previousCurrentId: string | null
+  /** Project fields committed in the SAME transaction as version activation. */
+  projectUpdate?: {
+    status?: string
+    total?: number
+    name?: string
+    expected_name?: string
+    project_type?: string | null
+    client_id?: string
+    detected_client_name?: string
+  }
+  /** Manual blank creation returns the existing version if another writer won. */
+  keepExisting?: boolean
+  /** Version numbers are allocated under the database lock, never by a stale read. */
+  onCommitted?: (version: number) => void
+  onActivated?: (result: { estimateId: string; clientId: string | null }) => void
   /** Called right after the estimate row exists (before children), e.g. to tag observability with the id. */
   onInserted?: (estimateId: string) => void
 }
@@ -47,7 +60,10 @@ export async function persistEstimateVersion(
   args: PersistEstimateVersionArgs
 ): Promise<string> {
   const { companyId, projectId, calculatedSections, aiMeta } = args
-  const estimateRow = { ...args.estimateRow, is_current: false }
+  const estimateRow = {
+    ...args.estimateRow, company_id: companyId, project_id: projectId,
+    is_current: false, generation_staged: true,
+  }
 
   let { data: estimate, error: estimateError } = await supabase
     .from('estimates')
@@ -70,9 +86,19 @@ export async function persistEstimateVersion(
   const estimateId = estimate.id as string
   args.onInserted?.(estimateId)
 
-  // A failure anywhere in the child inserts must not leave a half-written
-  // estimate behind: delete the new row (sections/items cascade via their FKs)
-  // and rethrow the same error. The previous version is still current.
+  // Only discard our non-current staging row. A lost RPC response may arrive
+  // AFTER activation committed, so cleanup must never delete a current version.
+  const cleanup = async () => {
+    try {
+      const { error } = await supabase.from('estimates').delete()
+        .eq('id', estimateId).eq('company_id', companyId)
+        .eq('project_id', projectId).eq('is_current', false).eq('generation_staged', true)
+      if (error) console.error('[persist-estimate-version] staging cleanup failed:', error)
+    } catch (err) {
+      console.error('[persist-estimate-version] staging cleanup failed:', err)
+    }
+  }
+
   try {
     // Insert sections and items in exactly two round-trips (was 2×S sequential).
     // 1) Bulk-insert every section, RETURNING ids in insertion order.
@@ -159,28 +185,53 @@ export async function persistEstimateVersion(
       }
     }
   } catch (err) {
-    try {
-      await supabase.from('estimates').delete().eq('id', estimateId)
-    } catch (cleanupErr) {
-      console.error('[generate-estimate] cleanup of partial estimate failed:', cleanupErr)
-    }
+    await cleanup()
     throw err
   }
 
-  // Everything is saved: swap the current pointer. Demote the other versions
-  // first, then promote the new one (no unique index on is_current exists).
-  await supabase
-    .from('estimates')
-    .update({ is_current: false })
-    .eq('project_id', projectId)
-    .neq('id', estimateId)
-  await supabase.from('estimates').update({ is_current: true }).eq('id', estimateId)
-
-  // Version carry-forward — copy the previous current version's attached
-  // photos onto the new version (independent rows, own remove lifecycle).
-  if (args.previousCurrentId) {
-    await copyEstimatePhotos(supabase, args.previousCurrentId, estimateId, companyId)
+  const confirmCommit = async (): Promise<number | null> => {
+    try {
+      const { data: saved, error } = await supabase.from('estimates')
+        .select('id, version, is_current, generation_staged')
+        .eq('id', estimateId).eq('company_id', companyId).eq('project_id', projectId)
+        .maybeSingle()
+      return !error && saved?.id === estimateId && saved.is_current === true &&
+        saved.generation_staged === false && typeof saved.version === 'number'
+        ? saved.version : null
+    } catch { return null }
   }
 
-  return estimateId
+  try {
+    const { data, error } = await supabase.rpc('activate_estimate_version', {
+      p_company_id: companyId,
+      p_project_id: projectId,
+      p_estimate_id: estimateId,
+      p_previous_estimate_id: args.previousCurrentId,
+      p_project_update: args.projectUpdate ?? {},
+      p_discard_estimate_id: null,
+      p_restore: false,
+      p_keep_existing: args.keepExisting ?? false,
+    })
+    const committed = data as { estimate_id?: string; version?: number; client_id?: string | null } | null
+    if (error || !committed?.estimate_id || typeof committed.version !== 'number') {
+      throw new Error('Failed to activate estimate version', { cause: error })
+    }
+    if (committed.estimate_id !== estimateId) await cleanup()
+    args.onCommitted?.(committed.version)
+    args.onActivated?.({ estimateId: committed.estimate_id, clientId: committed.client_id ?? null })
+    return committed.estimate_id
+  } catch (err) {
+    // A response can be lost after commit. Cleanup may itself wait for an
+    // in-flight transaction, so confirm both before and after conditional cleanup.
+    let committedVersion = await confirmCommit()
+    if (committedVersion === null) {
+      await cleanup()
+      committedVersion = await confirmCommit()
+    }
+    if (committedVersion !== null) {
+      args.onCommitted?.(committedVersion)
+      return estimateId
+    }
+    throw err
+  }
 }

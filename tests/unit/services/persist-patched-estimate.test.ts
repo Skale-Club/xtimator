@@ -4,8 +4,6 @@ import type { EstimateSectionOutput } from '@/lib/ai/types'
 // Phase 4d persistence hook: a patched draft becomes a NEW version through the shared write path.
 vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: vi.fn() }))
 vi.mock('@/lib/estimate/public-url', () => ({ generatePublicSlugToken: vi.fn().mockReturnValue('new-slug') }))
-const copyPhotos = vi.fn()
-vi.mock('@/lib/queries/estimate-photo', () => ({ copyEstimatePhotos: (...a: unknown[]) => copyPhotos(...a) }))
 
 import { persistPatchedEstimate } from '@/lib/services/persist-patched-estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -49,6 +47,10 @@ function makeDb(opts: { base?: unknown; itemsError?: boolean; sectionsError?: bo
   const log: Array<{ table: string; op: string; payload?: unknown; filters?: unknown[] }> = []
   const inserts: Array<Record<string, unknown>> = []
   const itemRows: Array<Array<Record<string, unknown>>> = []
+  const rpc = vi.fn(async (name: string, input: { p_estimate_id: string }) => {
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    return { data: { estimate_id: input.p_estimate_id, version: inserts[0].version as number }, error: null }
+  })
   const from = vi.fn((table: string) => {
     if (table === 'estimates') {
       return {
@@ -65,17 +67,20 @@ function makeDb(opts: { base?: unknown; itemsError?: boolean; sectionsError?: bo
           log.push({ table, op: 'insert', payload: row })
           return { select: () => ({ single: async () => ({ data: { id: 'est-new' }, error: null }) }) }
         },
-        update: (row: Record<string, unknown>) => {
+        delete: () => {
           const filters: unknown[] = []
-          const c: Record<string, unknown> = {}
-          c.eq = (k: string, v: unknown) => (filters.push(['eq', k, v]), c)
-          c.neq = (k: string, v: unknown) => (filters.push(['neq', k, v]), c)
-          c.then = (res: (v: unknown) => unknown) => (log.push({ table, op: 'update', payload: row, filters }), Promise.resolve({ error: null }).then(res))
-          return c
+          const chain = {
+            eq(key: string, value: unknown) {
+              filters.push([key, value])
+              return this
+            },
+            then: (resolve: (value: { error: null }) => unknown) => {
+              log.push({ table, op: 'delete', filters })
+              return Promise.resolve({ error: null }).then(resolve)
+            },
+          }
+          return chain
         },
-        delete: () => ({
-          eq: async (k: string, v: unknown) => (log.push({ table, op: 'delete', filters: [k, v] }), { error: null }),
-        }),
       }
     }
     if (table === 'companies') {
@@ -100,13 +105,10 @@ function makeDb(opts: { base?: unknown; itemsError?: boolean; sectionsError?: bo
         },
       }
     }
-    if (table === 'projects') {
-      return { update: (row: unknown) => ({ eq: async () => (log.push({ table, op: 'update', payload: row }), { error: null }) }) }
-    }
     throw new Error(`unexpected table ${table}`)
   })
-  vi.mocked(requireServiceClient).mockReturnValue({ from } as never)
-  return { log, inserts, itemRows }
+  vi.mocked(requireServiceClient).mockReturnValue({ from, rpc } as never)
+  return { log, inserts, itemRows, rpc }
 }
 
 describe('persistPatchedEstimate', () => {
@@ -161,30 +163,34 @@ describe('persistPatchedEstimate', () => {
     expect((db.inserts[0].ai_meta as Record<string, unknown>).quality).toBeUndefined()
   })
 
-  it('swaps is_current safely: insert non-current, demote the others, then promote; photos follow', async () => {
+  it('activates with the base version to carry forward and the project metadata to commit', async () => {
     const db = makeDb()
     await persistPatchedEstimate(args())
-    const ops = db.log.filter((l) => l.table === 'estimates').map((l) => `${l.op}:${JSON.stringify(l.payload && (l.payload as Record<string, unknown>).is_current)}`)
-    expect(ops).toEqual(['insert:false', 'update:false', 'update:true'])
-    const demote = db.log.find((l) => l.op === 'update' && (l.payload as Record<string, unknown>).is_current === false)!
-    expect(demote.filters).toContainEqual(['neq', 'id', 'est-new'])
-    expect(copyPhotos).toHaveBeenCalledWith(expect.anything(), 'est-base', 'est-new', 'company-1')
-    expect(db.log).toContainEqual({ table: 'projects', op: 'update', payload: { total: 160, status: 'estimate_ready' } })
+    expect(db.rpc).toHaveBeenCalledExactlyOnceWith('activate_estimate_version', expect.objectContaining({
+      p_company_id: 'company-1',
+      p_project_id: 'project-1',
+      p_estimate_id: 'est-new',
+      p_previous_estimate_id: 'est-base',
+      p_project_update: { total: 160, status: 'estimate_ready' },
+    }))
   })
 
   it('a failed items insert deletes the new row, returns null and never touches is_current', async () => {
     const db = makeDb({ itemsError: true })
     expect(await persistPatchedEstimate(args())).toBeNull()
-    expect(db.log).toContainEqual({ table: 'estimates', op: 'delete', filters: ['id', 'est-new'] })
-    expect(db.log.some((l) => l.op === 'update')).toBe(false)
-    expect(copyPhotos).not.toHaveBeenCalled()
+    expect(db.log).toContainEqual({
+      table: 'estimates',
+      op: 'delete',
+      filters: expect.arrayContaining([['id', 'est-new'], ['is_current', false]]),
+    })
+    expect(db.rpc).not.toHaveBeenCalled()
   })
 
   it('a failed sections insert also cleans up and keeps the base current', async () => {
     const db = makeDb({ sectionsError: true })
     expect(await persistPatchedEstimate(args())).toBeNull()
     expect(db.log.some((l) => l.op === 'delete')).toBe(true)
-    expect(db.log.some((l) => l.op === 'update')).toBe(false)
+    expect(db.rpc).not.toHaveBeenCalled()
   })
 
   it('an unreadable base estimate writes nothing', async () => {
@@ -205,8 +211,9 @@ describe('persistPatchedEstimate', () => {
       },
     ]
     await persistPatchedEstimate({ ...args(), patched: { summary: 'S', sections: unpriced } })
-    const upd = db.log.find((l) => l.table === 'projects' && l.op === 'update')!
-    expect(upd.payload).toMatchObject({ status: 'awaiting_details' })
+    expect(db.rpc).toHaveBeenCalledWith('activate_estimate_version', expect.objectContaining({
+      p_project_update: expect.objectContaining({ status: 'awaiting_details' }),
+    }))
   })
 
   it('sets the project to awaiting_details when the patched total exceeds the value cap', async () => {
@@ -217,7 +224,8 @@ describe('persistPatchedEstimate', () => {
     } finally {
       vi.unstubAllEnvs()
     }
-    const upd = db.log.find((l) => l.table === 'projects' && l.op === 'update')!
-    expect(upd.payload).toMatchObject({ total: 160, status: 'awaiting_details' })
+    expect(db.rpc).toHaveBeenCalledWith('activate_estimate_version', expect.objectContaining({
+      p_project_update: { total: 160, status: 'awaiting_details' },
+    }))
   })
 })

@@ -48,11 +48,13 @@ let signatureEnabled = true
 let estimateUpdateCalled = false
 let projectUpdateCalled = false
 let activityInsertCalled = false
+const estimateUpdateEqs: Array<[string, unknown]> = []
 
 function configureSupabase() {
   projectUpdateCalled = false
   activityInsertCalled = false
   estimateUpdateCalled = false
+  estimateUpdateEqs.length = 0
 
   fromImpl.mockImplementation((table: string) => {
     if (table === 'estimates') {
@@ -65,10 +67,12 @@ function configureSupabase() {
         update: vi.fn().mockImplementation(() => {
           estimateUpdateCalled = true
           return {
-            eq: vi.fn().mockReturnValue({
-              is: vi.fn().mockReturnValue({
-                select: vi.fn().mockResolvedValue(conditionalUpdateResult),
-              }),
+            eq(column: string, value: unknown) {
+              estimateUpdateEqs.push([column, value])
+              return this
+            },
+            is: vi.fn().mockReturnValue({
+              select: vi.fn().mockResolvedValue(conditionalUpdateResult),
             }),
           }
         }),
@@ -121,6 +125,7 @@ describe('respondToEstimate — conditional-atomic update closes the sign-vs-dec
     const result = await respondToEstimate('tok_1', 'declined')
 
     expect(result).toEqual({ success: true })
+    expect(estimateUpdateEqs).toContainEqual(['is_current', true])
     expect(projectUpdateCalled).toBe(true)
     expect(activityInsertCalled).toBe(true)
     expect(mockNotify).toHaveBeenCalledOnce()

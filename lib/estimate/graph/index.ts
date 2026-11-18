@@ -78,9 +78,9 @@ export function buildEstimateGraph(
     .addConditionalEdges(
       'assess',
       (s) => checkVagueAfterAssessEdge(s, { patchAvailable: !!persistPatch }),
-      ['finalize', 'autoRefine', 'recoverDraft', 'patchRefine']
+      ['finalize', 'autoRefine', 'recoverDraft', 'patchRefine', 'onError']
     )
-    .addEdge('autoRefine', 'generate')
+    .addConditionalEdges('autoRefine', (s) => s.failure ? 'onError' : 'generate', ['generate', 'onError'])
     // A patch never loops: accepted or kept, the (first or patched) draft is delivered.
     .addEdge('patchRefine', 'finalize')
     // A draft that could not be restored (failure left in state) is a real error.

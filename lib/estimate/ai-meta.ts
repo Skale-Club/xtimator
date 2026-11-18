@@ -298,7 +298,7 @@ export function isMissingColumnError(
 // ai-meta-client-surfaces.test.ts guards both.
 // ---------------------------------------------------------------------------
 
-export const OWNER_ONLY_ESTIMATE_COLUMNS = ['ai_meta'] as const
+export const OWNER_ONLY_ESTIMATE_COLUMNS = ['ai_meta', 'owner_review'] as const
 export const OWNER_ONLY_ITEM_COLUMNS = ['confidence', 'basis', 'optional'] as const
 
 function without<T extends object>(row: T, columns: readonly string[]): T {

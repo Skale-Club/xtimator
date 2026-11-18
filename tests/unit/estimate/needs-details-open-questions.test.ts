@@ -12,6 +12,7 @@ vi.mock('@/lib/queries/photo', () => ({ getProjectPhotos: vi.fn().mockResolvedVa
 
 import { makeDefaultAdapter } from '@/lib/estimate/adapters/default'
 import type { EstimateStateType } from '@/lib/estimate/graph/state'
+import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
 
 function makeSupabase() {
   const updates: Array<Record<string, unknown>> = []
@@ -66,6 +67,7 @@ describe('default adapter finalize: needs-details source', () => {
     expect(Object.prototype.hasOwnProperty.call(out, 'estimateId')).toBe(true)
     expect(out.estimateId).toBeUndefined()
     expect(out.needsDetails).toBe(true)
+    expect(revertVagueEstimate).toHaveBeenCalledWith(client, 'p', 'deleted-est', 'awaiting_details')
   })
 
   it('falls back to the classification call when the estimator raised none', async () => {
@@ -85,6 +87,20 @@ describe('default adapter finalize: needs-details source', () => {
       openQuestions: ['x'],
     } as unknown as EstimateStateType)
     expect(out).toEqual({})
+    expect(buildNeedsDetailsMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a failed final discard before writing recourse details', async () => {
+    const { client, updates } = makeSupabase()
+    const error = new Error('discard rejected')
+    vi.mocked(revertVagueEstimate).mockRejectedValueOnce(error)
+
+    await expect(makeDefaultAdapter({ companyId: 'c', supabase: client }).finalize({
+      ...base,
+      estimateId: 'retained-est',
+    } as unknown as EstimateStateType)).rejects.toBe(error)
+
+    expect(updates).toHaveLength(0)
     expect(buildNeedsDetailsMock).not.toHaveBeenCalled()
   })
 })

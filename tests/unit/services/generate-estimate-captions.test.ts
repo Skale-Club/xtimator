@@ -196,7 +196,15 @@ function makeSupabaseMock() {
     }
   })
 
-  return { fromMock, estimatesInsertSpy }
+  const rpc = vi.fn(async (name: string, args: {
+    p_estimate_id: string
+    p_project_update?: Record<string, unknown>
+  }) => {
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    return { data: { estimate_id: args.p_estimate_id, version: 1 }, error: null }
+  })
+
+  return { fromMock, rpc, estimatesInsertSpy }
 }
 
 function setupDefaults() {
@@ -216,8 +224,8 @@ describe('generateEstimateForProject — photo caption folding (PHOTO-01)', () =
   })
 
   it('folds a caption alongside ai_description into photoDescriptions', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectPhotos).mockResolvedValue([
       {
         id: 'photo-1',
@@ -236,8 +244,8 @@ describe('generateEstimateForProject — photo caption folding (PHOTO-01)', () =
   })
 
   it('produces a byte-identical string when the photo has no caption', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectPhotos).mockResolvedValue([
       { id: 'photo-1', caption: null, ai_description: 'Kitchen with damaged cabinets' } as never,
     ])
@@ -249,8 +257,8 @@ describe('generateEstimateForProject — photo caption folding (PHOTO-01)', () =
   })
 
   it('produces a byte-identical string when the caption is empty/whitespace-only', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectPhotos).mockResolvedValue([
       { id: 'photo-1', caption: '   ', ai_description: 'Kitchen with damaged cabinets' } as never,
     ])
@@ -262,8 +270,8 @@ describe('generateEstimateForProject — photo caption folding (PHOTO-01)', () =
   })
 
   it('preserves per-photo indexing and multiple photos, caption on one only', async () => {
-    const { fromMock } = makeSupabaseMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock } as never)
+    const { fromMock, rpc } = makeSupabaseMock()
+    vi.mocked(requireServiceClient).mockReturnValue({ from: fromMock, rpc } as never)
     vi.mocked(getProjectPhotos).mockResolvedValue([
       { id: 'photo-1', caption: null, ai_description: 'Living room, worn carpet' } as never,
       { id: 'photo-2', caption: 'south side, needs repaint', ai_description: 'Exterior wall damage' } as never,

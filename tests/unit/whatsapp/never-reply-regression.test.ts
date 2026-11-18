@@ -119,7 +119,11 @@ function makeChainableClient() {
     }
   })
 
-  return { from } as never
+  const rpc = vi.fn(async (name: string) => {
+    if (name !== 'discard_vague_estimate') throw new Error(`Unexpected RPC ${name}`)
+    return { error: null }
+  })
+  return { from, rpc } as never
 }
 
 vi.mock('@/lib/supabase/service', () => ({

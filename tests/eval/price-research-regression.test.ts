@@ -315,20 +315,15 @@ function makeSupabaseMock() {
       return {
         delete: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-        }),
-        update: vi.fn().mockReturnValue({
-          // chainable: the service demotes other versions with .eq().neq()
-          eq: vi.fn(() => Object.assign(Promise.resolve({ error: null }), { neq: vi.fn().mockResolvedValue({ error: null }) })),
+          then: (resolve: (value: { error: null }) => unknown) => Promise.resolve({ error: null }).then(resolve),
         }),
         select: vi.fn().mockImplementation((cols: string) => {
           if (cols.includes('estimate_sections')) {
             return {
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: { total: capture.total, sections: capture.sections },
-                  error: null,
-                }),
+              eq: vi.fn().mockReturnThis(),
+              single: vi.fn().mockResolvedValue({
+                data: { total: capture.total, sections: capture.sections },
+                error: null,
               }),
             }
           }
@@ -417,7 +412,15 @@ function makeSupabaseMock() {
     }
   })
 
-  return { from }
+  const rpc = vi.fn(async (name: string, args: {
+    p_estimate_id: string
+  }) => {
+    if (name === 'discard_vague_estimate') return { data: null, error: null }
+    if (name !== 'activate_estimate_version') throw new Error(`Unexpected RPC ${name}`)
+    return { data: { estimate_id: args.p_estimate_id, version: 1 }, error: null }
+  })
+
+  return { from, rpc }
 }
 
 /**
@@ -437,14 +440,14 @@ async function runCaseWithFixtures(c: EvalCase, fixtures: PriceResearchFixtures)
   vi.mocked(getProjectRecordings).mockResolvedValue([])
   vi.mocked(getProjectPhotos).mockResolvedValue([])
 
-  const { from } = makeSupabaseMock()
-  vi.mocked(requireServiceClient).mockReturnValue({ from } as never)
+  const { from, rpc } = makeSupabaseMock()
+  vi.mocked(requireServiceClient).mockReturnValue({ from, rpc } as never)
 
   const { buildEstimateGraph } = await import('@/lib/estimate/graph')
   const { makeDefaultAdapter } = await import('@/lib/estimate/adapters/default')
 
   const graph = buildEstimateGraph(
-    makeDefaultAdapter({ companyId: COMPANY_ID, supabase: { from } as never })
+    makeDefaultAdapter({ companyId: COMPANY_ID, supabase: { from, rpc } as never })
   )
 
   await graph.invoke({

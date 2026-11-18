@@ -4,6 +4,7 @@ import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import { serializePhotoContext } from '@/lib/estimate/photo-context'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
+import { findUniqueClientMatch } from '@/lib/estimate/client-match'
 import { type EstimateInput } from '@/lib/ai'
 import { getAIProviderWithFallback } from '@/lib/ai/provider-with-fallback'
 import { resolveLinePrices } from '@/lib/estimate/pricing/resolve-prices'
@@ -121,14 +122,6 @@ export interface GenerateEstimateOptions {
 }
 
 const IMPACT_RANK = { low: 0, medium: 1, high: 2 } as const
-
-function normalizeClientNameForMatch(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[.,]/g, '')
-    .replace(/\s+/g, ' ')
-}
 
 /**
  * Core estimate generation pipeline — callable without an HTTP request or
@@ -403,49 +396,19 @@ export async function generateEstimateForProject(
     source_notes: aiEstimate.source_notes,
   }
 
-  // Client suggestion — only when project has no linked client.
-  // When an exact-normalized match exists, auto-link inline (service-role context
-  // bypasses RLS; cannot call an authenticated server action from Inngest/webhook).
-  // Failure of the inline update is non-fatal — estimate generation still succeeds
-  // and the toast falls back to manual "Link" via autoLinked: false.
+  // Detection is only a suggestion until activation commits. Never attach a
+  // client to a project for a generation that will fail or be discarded.
   let clientSuggestion: ClientSuggestion | null = null
   const detectedClientName = aiEstimate.suggested_client_name?.trim()
   if (!client && detectedClientName) {
-    const { data: existingClients } = await supabase
-      .from('clients')
-      .select('id, name')
-      .eq('company_id', companyId)
-
-    const normalizedDetectedName = normalizeClientNameForMatch(detectedClientName)
-    const matchedClient = (existingClients ?? []).find(
-      (c) =>
-        normalizeClientNameForMatch(c.name as string) === normalizedDetectedName
-    )
-
-    let autoLinked = false
-    if (matchedClient?.id) {
-      const { error: linkError } = await supabase
-        .from('projects')
-        .update({ client_id: matchedClient.id as string })
-        .eq('id', projectId)
-
-      if (linkError) {
-        // Non-fatal — estimate generation must still succeed.
-        // Toast will fall back to manual "Link" path on the client.
-        console.warn(
-          '[generate-estimate] auto-link failed, falling back to manual link toast',
-          linkError
-        )
-      } else {
-        autoLinked = true
-      }
-    }
-
+    const { data: existingClients, error } = await supabase
+      .from('clients').select('id, name').eq('company_id', companyId)
+    const matched = error ? null : findUniqueClientMatch(detectedClientName, existingClients ?? [])
     clientSuggestion = {
       detectedName: detectedClientName,
-      matchedClientId: (matchedClient?.id as string | undefined) ?? null,
-      matchedClientName: (matchedClient?.name as string | undefined) ?? null,
-      autoLinked,
+      matchedClientId: matched?.id ?? null,
+      matchedClientName: matched?.name ?? null,
+      autoLinked: false,
     }
   }
 
@@ -624,46 +587,30 @@ export async function generateEstimateForProject(
     sectionCount: dedupedSections.length,
   })
 
-  // REPLACE-BLANK: an untouched blank estimate must not leave an empty version
-  // behind. When the project's current estimate is a pristine blank — draft,
-  // never AI-written (summary IS NULL), and zero total — delete it before
-  // versioning so the AI result takes its place (typically version 1) instead of
-  // versioning on top of an empty shell. AI estimates always carry a summary and
-  // consolidated estimates aren't draft, so neither is matched; an edited blank
-  // (total>0) is preserved as a real version. The delete cascades to the blank's
-  // section/item rows.
-  await supabase
-    .from('estimates')
-    .delete()
-    .eq('project_id', projectId)
-    .eq('is_current', true)
-    .eq('workflow_status', 'draft')
-    .is('summary', null)
-    .eq('total', 0)
-
-  // Version carry-forward (Quick-260704-pt2) — capture the currently-current
-  // estimate's id AFTER the REPLACE-BLANK delete above: querying is_current=true
-  // post-delete means a deleted pristine-blank naturally returns no row (nothing
-  // to copy), while a real prior version (not deleted) is correctly captured.
-  const { data: previousCurrent } = await supabase
+  // Preserve even a pristine blank until the replacement commits. The activation
+  // RPC removes it and allocates the real version number atomically.
+  const { data: previousCurrent, error: previousError } = await supabase
     .from('estimates')
     .select('id')
     .eq('project_id', projectId)
     .eq('is_current', true)
     .maybeSingle()
 
+  if (previousError) throw new Error('Failed to read current estimate', { cause: previousError })
+
   // Version management. The previous current version is NOT demoted here: the
   // new row is inserted as non-current and only promoted once its sections and
   // items are saved (see the swap below), so a failed save never leaves the
   // project without a current estimate.
-  const { data: existingEstimates } = await supabase
+  const { data: existingEstimates, error: versionsError } = await supabase
     .from('estimates')
     .select('version')
     .eq('project_id', projectId)
     .order('version', { ascending: false })
     .limit(1)
 
-  const nextVersion = (existingEstimates?.[0]?.version ?? 0) + 1
+  if (versionsError) throw new Error('Failed to read estimate versions', { cause: versionsError })
+  let nextVersion = (existingEstimates?.[0]?.version ?? 0) + 1
 
   // SEED-057: the AI's assumptions / exclusions / open questions travel with the
   // estimate in estimates.ai_meta (owner-facing only). Written in the SAME insert
@@ -748,51 +695,6 @@ export async function generateEstimateForProject(
       created_by_user_id: options.createdByUserId ?? null,
   }
 
-  // The shared write path (lib/services/persist-estimate-version.ts): insert non-current, save
-  // sections + items, cleanup on failure, then the safe is_current swap and photo carry-forward.
-  const estimateId = await persistEstimateVersion(supabase, {
-    companyId,
-    projectId,
-    estimateRow,
-    aiMeta,
-    calculatedSections,
-    previousCurrentId: (previousCurrent?.id as string | undefined) ?? null,
-    onInserted: (insertedId) => {
-      // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
-      // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
-      // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
-      // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
-      // reportEstimateQuality NEVER throws, so observability can never break generation.
-      if (qualitySignal && qualityDiscrepancy) {
-        reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
-          companyId,
-          estimateId: insertedId,
-        })
-      }
-
-      // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
-      // over-ceiling) in the SAME best-effort, never-throw observability channel as
-      // the totals_discrepancy signal above. Additive — does not touch
-      // quality-signal.ts's locked EstimateQualitySignal shape.
-      if (consistencyFlags.length > 0) {
-        try {
-          console.info('[estimate_consistency]', {
-            companyId,
-            estimateId: insertedId,
-            flags: consistencyFlags,
-          })
-          Sentry.captureMessage('[estimate-quality] consistency flag', {
-            level: 'warning',
-            tags: { company_id: companyId, estimate_id: insertedId },
-            extra: { flags: consistencyFlags },
-          })
-        } catch {
-          // Observability must never break generation.
-        }
-      }
-    },
-  })
-
   // Update project status. RFALL-01: when research flagged an unpriced item AND the
   // estimate still carries real value (total>0), surface it via the EXISTING
   // awaiting_details recourse path (the needs-details banner renders on this status)
@@ -835,7 +737,7 @@ export async function generateEstimateForProject(
   // always written; name + project_type join the same statement conditionally.
   // detected_trade is captured here so the trade-mismatch activity log below can
   // reuse it without an extra derivation.
-  const projectUpdate: Record<string, unknown> = {
+  const projectUpdate: NonNullable<Parameters<typeof persistEstimateVersion>[1]['projectUpdate']> = {
     status: projectStatus,
     total: safeGrandTotal,
   }
@@ -857,6 +759,7 @@ export async function generateEstimateForProject(
     const currentName = project.name as string | null
     if (suggestedName && currentName && currentName.startsWith(PLACEHOLDER_PREFIX)) {
       projectUpdate.name = suggestedName
+      projectUpdate.expected_name = currentName
     }
 
     if (detectedTrade) {
@@ -864,7 +767,73 @@ export async function generateEstimateForProject(
     }
   }
 
-  await supabase.from('projects').update(projectUpdate).eq('id', projectId)
+
+
+  if (!passIsVague && clientSuggestion?.matchedClientId) {
+    projectUpdate.client_id = clientSuggestion.matchedClientId
+    projectUpdate.detected_client_name = clientSuggestion.detectedName
+  }
+
+  // The shared write path (lib/services/persist-estimate-version.ts): insert non-current, save
+  // sections + items, cleanup on failure, then the safe is_current swap and photo carry-forward.
+  const estimateId = await persistEstimateVersion(supabase, {
+    companyId,
+    projectId,
+    estimateRow,
+    aiMeta,
+    calculatedSections,
+    previousCurrentId: (previousCurrent?.id as string | undefined) ?? null,
+    projectUpdate,
+    onCommitted: (version) => { nextVersion = version },
+    onActivated: ({ clientId }) => {
+      if (clientSuggestion) {
+        clientSuggestion.autoLinked = !!clientId && clientId === projectUpdate.client_id
+      }
+    },
+    onInserted: (insertedId) => {
+      // WI-1 (HARDEN-OBS-01): emit the quality signal now that estimate_id is known. This
+      // ALWAYS fires the byte-identical console.info('[totals_discrepancy]', discrepancy) line
+      // (tests/eval + ops depend on it) and, on an anomaly (>threshold discrepancy OR low
+      // research hit-rate), raises a Sentry warning tagged with company_id/estimate_id.
+      // reportEstimateQuality NEVER throws, so observability can never break generation.
+      if (qualitySignal && qualityDiscrepancy) {
+        reportEstimateQuality(qualityDiscrepancy, qualitySignal, {
+          companyId,
+          estimateId: insertedId,
+        })
+      }
+
+      // AIREL-04: surface consistency flags (duplicate collapses / qty-0-with-price /
+      // over-ceiling) in the SAME best-effort, never-throw observability channel as
+      // the totals_discrepancy signal above. Additive — does not touch
+      // quality-signal.ts's locked EstimateQualitySignal shape.
+      if (consistencyFlags.length > 0) {
+        try {
+          console.info('[estimate_consistency]', {
+            companyId,
+            estimateId: insertedId,
+            flags: consistencyFlags,
+          })
+          Sentry.captureMessage('[estimate-quality] consistency flag', {
+            level: 'warning',
+            tags: { company_id: companyId, estimate_id: insertedId },
+            extra: { flags: consistencyFlags },
+          })
+        } catch {
+          // Observability must never break generation.
+        }
+      }
+    },
+  })
+
+  const logActivity = async (row: Record<string, unknown>) => {
+    try {
+      const { error } = await supabase.from('estimate_activity').insert(row)
+      if (error) console.warn('[generate-estimate] activity write failed after commit:', error)
+    } catch (err) {
+      console.warn('[generate-estimate] activity write failed after commit:', err)
+    }
+  }
 
   // trade_mismatch_detected: raw material for the future industry auto-suggestion
   // UX (no UI in this task) — recorded only on a non-vague pass when both sides
@@ -873,7 +842,7 @@ export async function generateEstimateForProject(
   if (!passIsVague && detectedTrade) {
     const configuredIndustry = company.industry?.trim().toLowerCase() || null
     if (configuredIndustry && detectedTrade !== configuredIndustry) {
-      await supabase.from('estimate_activity').insert({
+      await logActivity({
         project_id: projectId,
         company_id: companyId,
         estimate_id: estimateId,
@@ -889,7 +858,7 @@ export async function generateEstimateForProject(
   // today). estimate_activity.event_type is unconstrained TEXT (no migration —
   // same as trade_mismatch_detected above).
   if (overCeiling) {
-    await supabase.from('estimate_activity').insert({
+    await logActivity({
       project_id: projectId,
       company_id: companyId,
       estimate_id: estimateId,
@@ -899,7 +868,7 @@ export async function generateEstimateForProject(
   }
 
   // Log activity
-  await supabase.from('estimate_activity').insert({
+  await logActivity({
     project_id: projectId,
     company_id: companyId,
     estimate_id: estimateId,
@@ -907,9 +876,13 @@ export async function generateEstimateForProject(
     metadata: { version: nextVersion },
   })
 
-  // Revalidate paths so workspace and sidebar see fresh data
-  revalidatePath(`/projects/${projectId}`)
-  revalidatePath('/', 'layout')
+  // Invalidation is best-effort after commit: it must never re-run paid AI.
+  try {
+    revalidatePath(`/projects/${projectId}`)
+    revalidatePath('/', 'layout')
+  } catch (err) {
+    console.warn('[generate-estimate] cache invalidation failed after commit:', err)
+  }
 
   return {
     estimateId,

@@ -66,7 +66,7 @@ describe('generateEstimateForProject - two-step generation (SEED-057 C)', () => 
     vi.mocked(getProjectRecordings).mockResolvedValue([{ id: 'r', transcript: 'Re-roof the house, about two thousand square feet.' } as never])
     vi.mocked(getProjectPhotos).mockResolvedValue([])
     mock = makeServiceMock({ company: { industry: 'painting' } })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
   })
   afterEach(() => {
     delete process.env.ESTIMATOR_TWO_STEP

@@ -81,7 +81,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
   it('writes ai_meta on the estimate row and confidence/basis on the item rows', async () => {
     setup(RICH)
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -114,7 +114,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
       ],
     })
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
     await generateEstimateForProject('company-1', 'project-1')
     const rows = mock.itemInserts[0]
     const keySets = new Set(rows.map((r) => Object.keys(r).sort().join(',')))
@@ -126,7 +126,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
   it('a legacy output has no ai_meta and non-null defaults on the item rows', async () => {
     setup(LEGACY)
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
     await generateEstimateForProject('company-1', 'project-1')
     expect(mock.estimateInserts[0]).not.toHaveProperty('ai_meta')
     expect(mock.itemInserts[0][0]).toMatchObject({ confidence: null, basis: null, optional: false })
@@ -137,7 +137,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
     const mock = makeServiceMock({
       estimateInsertErrors: [{ code: 'PGRST204', message: "Could not find the 'ai_meta' column of 'estimates' in the schema cache" }],
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -152,7 +152,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
     const mock = makeServiceMock({
       itemInsertErrors: [{ code: '42703', message: 'column "basis" of relation "estimate_items" does not exist' }],
     })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     await generateEstimateForProject('company-1', 'project-1')
 
@@ -167,7 +167,7 @@ describe('generateEstimateForProject - ai_meta and per-line metadata (SEED-057 A
   it('an unrelated insert error still fails the generation', async () => {
     setup(RICH)
     const mock = makeServiceMock({ estimateInsertErrors: [{ code: '23503', message: 'foreign key violation' }] })
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     await expect(generateEstimateForProject('company-1', 'project-1')).rejects.toThrow('Failed to save estimate')
     expect(mock.estimateInserts).toHaveLength(1)
@@ -189,7 +189,7 @@ describe('generateEstimateForProject - structure verdict (SEED-057 D)', () => {
       ],
     })
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -216,7 +216,7 @@ describe('generateEstimateForProject - structure verdict (SEED-057 D)', () => {
       ],
     })
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 
@@ -240,7 +240,7 @@ describe('generateEstimateForProject - structure verdict (SEED-057 D)', () => {
       ],
     })
     const mock = makeServiceMock()
-    vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(mock as never)
 
     const result = await generateEstimateForProject('company-1', 'project-1')
 

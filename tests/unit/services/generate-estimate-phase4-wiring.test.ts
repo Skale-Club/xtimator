@@ -85,7 +85,7 @@ function arrange(mockOpts: Parameters<typeof makeServiceMock>[0] = {}) {
   vi.mocked(getProjectRecordings).mockResolvedValue([{ id: 'r', transcript: 'Repaint the bedroom walls.' } as never])
   vi.mocked(getProjectPhotos).mockResolvedValue([])
   const mock = makeServiceMock(mockOpts)
-  vi.mocked(requireServiceClient).mockReturnValue({ from: mock.from } as never)
+  vi.mocked(requireServiceClient).mockReturnValue(mock as never)
   return mock
 }
 

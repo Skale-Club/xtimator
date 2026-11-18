@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent, within } from '@testing-library/react'
 import { EstimateEditor } from '@/components/workspace/estimate/estimate-editor'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
 
-// SEED-057 Phase G: the AI notes (assumptions, open questions, review verdict) are
-// no longer shown in the editor page flow. They live in the platform-admin-only
-// debug dialog, reached from the floating bar. The editor wires that trigger only
-// when the server-resolved `isPlatformAdmin` flag is true, and neither the editable
-// document nor the page-view preview is ever handed the AI notes.
+// Owners see the sanitized review outside the document. The raw generation
+// record is reserved for the platform-admin debug dialog.
 
+const routerPush = vi.fn()
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: routerPush }),
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -71,6 +69,7 @@ beforeEach(() => {
   documentProps.mockReset()
   previewProps.mockReset()
   floatingProps.mockReset()
+  routerPush.mockReset()
 })
 
 const AI_META = {
@@ -78,6 +77,14 @@ const AI_META = {
   assumptions: ['Assumes 8 ft ceilings'],
   open_questions: [{ question: 'Is the closet included?', impact: 'high' }],
   quality: { score: 58, band: 'review', findings: ['No cleanup line.'] },
+}
+
+const OWNER_REVIEW = {
+  questions: ['Is trim included?'],
+  assumptions: ['Owner provides paint.'],
+  needsReview: true,
+  lowConfidenceLines: 2,
+  unpricedLines: 1,
 }
 
 function buildEstimate(over: Record<string, unknown> = {}): EstimateWithSections {
@@ -164,12 +171,38 @@ function renderEditor(estimate: EstimateWithSections, isPlatformAdmin?: boolean)
 }
 
 describe('EstimateEditor - AI insights (SEED-057 G)', () => {
-  it('never renders the inline AI panel or the review banner, for admins or not', () => {
+  it('keeps raw metadata in the admin debug dialog when there is no sanitized owner review', () => {
     renderEditor(buildEstimate({ ai_meta: AI_META }), true)
     expect(screen.queryByTestId('ai-insights-panel')).toBeNull()
     expect(screen.queryByTestId('ai-needs-review')).toBeNull()
     expect(screen.queryByText('What the AI assumed')).toBeNull()
     expect(screen.queryByTestId('ai-open-questions')).toBeNull()
+    expect(screen.queryByText('Review before sending')).toBeNull()
+  })
+
+  it('shows the sanitized review to an ordinary owner and opens the question-prefilled edit flow', () => {
+    renderEditor(buildEstimate({ owner_review: OWNER_REVIEW }), false)
+    const disclosure = screen.getByText('Review before sending').closest('details')!
+    disclosure.open = true
+
+    expect(screen.getByText('Is trim included?')).toBeTruthy()
+    expect(screen.getByText('Owner provides paint.')).toBeTruthy()
+    expect(screen.queryByTestId('estimate-debug-dialog')).toBeNull()
+    fireEvent.click(within(disclosure).getByRole('button', { name: 'Edit with AI' }))
+
+    expect(routerPush).toHaveBeenCalledOnce()
+    const url = new URL(routerPush.mock.calls[0][0], 'https://example.test/projects/proj-1')
+    expect(url.searchParams.get('refinePrefill')).toBe('Q: Is trim included?\nA: ')
+  })
+
+  it.each([
+    { status: 'accepted', fields: { client_response: 'accepted' } },
+    { status: 'superseded', fields: { is_current: false } },
+  ])('hides the review for an $status version', ({ fields }) => {
+    renderEditor(buildEstimate({ ...fields, owner_review: OWNER_REVIEW }), false)
+
+    expect(screen.queryByText('Review before sending')).toBeNull()
+    expect(screen.queryByText('Is trim included?')).toBeNull()
   })
 
   it('wires no debug trigger for a non-admin (default), even when ai_meta is present', () => {
@@ -199,17 +232,20 @@ describe('EstimateEditor - AI insights (SEED-057 G)', () => {
     expect(screen.getByTestId('debug-no-record').textContent).toContain('No AI record for this estimate.')
   })
 
-  it('never hands the document or the page-view preview any of the AI notes', () => {
-    renderEditor(buildEstimate({ ai_meta: AI_META }), true)
-    expect(JSON.stringify(documentProps.mock.calls)).not.toContain('Assumes 8 ft ceilings')
-    expect(JSON.stringify(documentProps.mock.calls)).not.toContain('Is the closet included?')
-    expect(JSON.stringify(documentProps.mock.calls)).not.toContain('ai_meta')
+  it('keeps both the sanitized review and raw metadata outside the document and page preview', () => {
+    renderEditor(buildEstimate({ owner_review: OWNER_REVIEW, ai_meta: AI_META }), true)
+    expect(screen.getByText('Review before sending')).toBeTruthy()
+    expect(documentProps).toHaveBeenCalled()
 
     const calls = mockSetSlot.mock.calls
     const slot = calls[calls.length - 1][0] as { onViewModeChange: (m: 'width' | 'page') => void }
     act(() => slot.onViewModeChange('page'))
     expect(screen.getByTestId('paginated-preview')).toBeTruthy()
-    expect(JSON.stringify(previewProps.mock.calls)).not.toContain('Assumes 8 ft ceilings')
-    expect(JSON.stringify(previewProps.mock.calls)).not.toContain('ai_meta')
+    for (const props of [documentProps, previewProps]) {
+      const serialized = JSON.stringify(props.mock.calls)
+      for (const ownerOnly of ['ai_meta', 'owner_review', 'Assumes 8 ft ceilings', 'Is the closet included?', 'Is trim included?', 'Owner provides paint.']) {
+        expect(serialized).not.toContain(ownerOnly)
+      }
+    }
   })
 })

@@ -11,22 +11,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * Removes the $0 estimate (cascade deletes its sections/items) and reverts
- * the project to draft / total 0 so the next generate cycle starts clean.
- *
- * Does not throw when estimateId is null/undefined — it only reverts the project.
+ * Atomically discards a genuinely vague current version, restoring an earlier
+ * usable version when one exists. A read/write error never means vague input.
+ * A missing id is a no-op, not permission to reset an unrelated project.
  */
 export async function revertVagueEstimate(
   supabase: SupabaseClient,
   projectId: string,
-  estimateId: string | null
+  estimateId: string | null,
+  status: 'draft' | 'awaiting_details' = 'draft',
 ): Promise<void> {
-  if (estimateId) {
-    // cascade removes estimate_sections + estimate_items
-    await supabase.from('estimates').delete().eq('id', estimateId)
-  }
-  await supabase
-    .from('projects')
-    .update({ status: 'draft', total: 0 })
-    .eq('id', projectId)
+  if (!estimateId) return
+  const { error } = await supabase.rpc('discard_vague_estimate', {
+    p_project_id: projectId,
+    p_estimate_id: estimateId,
+    p_status: status,
+  })
+  if (error) throw new Error('Failed to discard vague estimate', { cause: error })
 }

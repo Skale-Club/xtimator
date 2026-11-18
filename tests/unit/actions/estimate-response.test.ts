@@ -27,6 +27,8 @@ let estimateUpdate: Record<string, unknown> | null
 const activityInsert = vi.fn()
 const projectUpdate = vi.fn()
 const estimateSelectEqs: Array<[string, unknown]> = []
+const estimateUpdateEqs: Array<[string, unknown]> = []
+let updatedRows: Array<{ id: string; updated_at: string }>
 
 function from(table: string) {
   if (table === 'estimates') {
@@ -43,8 +45,11 @@ function from(table: string) {
       update: (payload: Record<string, unknown>) => {
         estimateUpdate = payload
         const q: Record<string, unknown> = {}
-        q.eq = () => q
-        q.select = () => Promise.resolve({ data: [{ id: 'est_1', updated_at: '2026-11-06T12:00:00Z' }], error: null })
+        q.eq = (column: string, value: unknown) => {
+          estimateUpdateEqs.push([column, value])
+          return q
+        }
+        q.select = () => Promise.resolve({ data: updatedRows, error: null })
         return q
       },
     }
@@ -83,6 +88,8 @@ beforeEach(() => {
   signatureRow = null
   estimateUpdate = null
   estimateSelectEqs.length = 0
+  estimateUpdateEqs.length = 0
+  updatedRows = [{ id: 'est_1', updated_at: '2026-11-06T12:00:00Z' }]
 })
 
 async function run(r: 'accepted' | 'declined' | null) {
@@ -119,6 +126,17 @@ describe('recordClientResponse', () => {
     expect(res.success).toBe(false)
     expect(res.error).toMatch(/current version/)
     expect(estimateUpdate).toBeNull()
+  })
+
+  it('skips project status and activity when the estimate stops being current before the write', async () => {
+    updatedRows = []
+
+    const result = await run('accepted')
+
+    expect(estimateUpdateEqs).toContainEqual(['is_current', true])
+    expect(result.success).toBe(false)
+    expect(projectUpdate).not.toHaveBeenCalled()
+    expect(activityInsert).not.toHaveBeenCalled()
   })
 
   it('refuses when a signature row exists (accept, decline and clear)', async () => {

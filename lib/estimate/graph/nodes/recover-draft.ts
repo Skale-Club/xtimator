@@ -9,7 +9,7 @@
  * It restores `previousEstimateId` as the project's current estimate (and clears the
  * flag on every other version, including a half-written newer one), puts the project
  * back to estimate_ready with that estimate's total, and hands the draft to finalize.
- * The draft keeps its ai_meta.quality, so the owner still sees the review banner.
+ * The draft keeps its original quality metadata for the administrative diagnostics.
  *
  * Never throws: if even the restore fails it leaves a failure in state and the graph routes to
  * onError (the outgoing edge is conditional).
@@ -29,44 +29,23 @@ export const recoverDraftNode = async (
   if (!previousId) return unrestorable(state)
   try {
     const supabase = requireServiceClient()
-    const { data: previous } = await supabase
-      .from('estimates')
-      .select('id, total')
-      .eq('id', previousId)
-      .eq('company_id', state.companyId) // trusted scope, never LLM-derived
-      .maybeSingle()
-    if (!previous) return unrestorable(state)
-
-    // A second pass that DID save (a vague one, say) is discarded: delete it (cascade) before
-    // the first draft takes its place, or it would linger as a $0 version.
-    if (state.estimateId && state.estimateId !== previousId) {
-      await supabase
-        .from('estimates')
-        .delete()
-        .eq('id', state.estimateId)
-        .eq('company_id', state.companyId)
-    }
-
-    // Every other version of this project stops being current first, then the draft is.
-    await supabase
-      .from('estimates')
-      .update({ is_current: false })
-      .eq('project_id', state.projectId)
-      .eq('company_id', state.companyId)
-      .neq('id', previousId)
-    await supabase
-      .from('estimates')
-      .update({ is_current: true })
-      .eq('id', previousId)
-      .eq('company_id', state.companyId)
-    await supabase
-      .from('projects')
-      .update({
+    const { data, error } = await supabase.rpc('activate_estimate_version', {
+      p_company_id: state.companyId,
+      p_project_id: state.projectId,
+      p_estimate_id: previousId,
+      p_previous_estimate_id: state.estimateId ?? previousId,
+      p_project_update: {
         status: state.previousProjectStatus ?? 'estimate_ready',
-        total: (previous as { total: number }).total,
-      })
-      .eq('id', state.projectId)
-      .eq('company_id', state.companyId)
+        ...(state.previousProjectType !== undefined ? { project_type: state.previousProjectType } : {}),
+      },
+      p_discard_estimate_id: state.estimateId && state.estimateId !== previousId ? state.estimateId : null,
+      p_restore: true,
+      p_keep_existing: false,
+    })
+    if (error || (data as { estimate_id?: string } | null)?.estimate_id !== previousId) {
+      console.error('[estimate-graph] atomic draft restore failed:', error)
+      return unrestorable(state)
+    }
 
     console.warn('[estimate-graph] targeted refine failed; delivering the first draft', {
       reason: state.failure?.reason,

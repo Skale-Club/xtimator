@@ -11,6 +11,59 @@ import { computeEstimateTotals, type TaxConfig } from '@/lib/estimate/compute-to
 //   grandTotal = (subtotal − disc_global) + taxAmount
 // Discount-before-tax (US norm). Every golden below is HAND-COMPUTED.
 describe('DISC-02: line + global discount (discount-before-tax proration)', () => {
+  it('matches flat tax for mixed taxable/exempt lines with a global discount', () => {
+    const sections = [{ title: 'Work', items: [
+      { quantity: 1, unit_price: 100, taxable: true, tax_category: 'materials' as const },
+      { quantity: 1, unit_price: 100, taxable: false, tax_category: 'labor' as const },
+    ] }]
+    const options = { taxRate: 0.1, discountType: 'amount' as const, discountValue: 20 }
+    const flat = computeEstimateTotals(sections, options)
+    const categorized = computeEstimateTotals(sections, { ...options, taxConfig: { rates: { materials: 0.1, labor: 0.1 } } })
+    expect(flat.taxAmount).toBe(9)
+    expect(categorized.taxAmount).toBe(9)
+    expect(categorized.grandTotal).toBe(189)
+  })
+
+  it('preserves every penny of discount when categories split small amounts', () => {
+    const sections = [{ title: 'Small work', items: [
+      { quantity: 1, unit_price: 0.01, tax_category: 'labor' as const },
+      { quantity: 1, unit_price: 0.01, tax_category: 'materials' as const },
+      { quantity: 1, unit_price: 0.01, tax_category: 'other' as const },
+    ] }]
+    const options = { taxRate: 0.5, discountType: 'amount' as const, discountValue: 0.01 }
+    const flat = computeEstimateTotals(sections, options)
+    const categorized = computeEstimateTotals(sections, { ...options, taxConfig: { rates: { labor: 0.5, materials: 0.5, other: 0.5 } } })
+    expect(categorized.taxAmount).toBe(flat.taxAmount)
+    expect(categorized.grandTotal).toBe(0.03)
+  })
+
+  it.each([0, 0.01, 0.02, 20, 180, 999, -5, NaN])('keeps equivalent rates in parity for discount %s', discountValue => {
+    const sections = [{ title: 'Work', items: [
+      { quantity: 3, unit_price: 33.33, tax_category: 'labor' as const },
+      { quantity: 1, unit_price: 50.02, tax_category: 'materials' as const },
+      { quantity: 1, unit_price: 27.08, taxable: false },
+    ] }]
+    for (const taxRate of [0, 0.0875, 0.1, 0.5]) {
+      const options = { taxRate, discountType: 'amount' as const, discountValue }
+      const flat = computeEstimateTotals(sections, options)
+      const categorized = computeEstimateTotals(sections, { ...options, taxConfig: { rates: { labor: taxRate, materials: taxRate } } })
+      expect(categorized.taxAmount).toBe(flat.taxAmount)
+      expect(categorized.grandTotal).toBe(flat.grandTotal)
+      expect(categorized.taxAmount).toBeGreaterThanOrEqual(0)
+      expect(categorized.discountAmount).toBeLessThanOrEqual(categorized.subtotal)
+    }
+  })
+
+  it('bounds line discounts to the actual line amount before calculating tax', () => {
+    const result = computeEstimateTotals([{ title: 'Work', items: [
+      { quantity: 1, unit_price: 100, discount: 500 },
+      { quantity: 1, unit_price: 100, discount: -10 },
+    ] }], { taxRate: 0.1 })
+    expect(result.sections[0].items.map(i => i.total)).toEqual([0, 100])
+    expect(result.subtotal).toBe(100)
+    expect(result.taxAmount).toBe(10)
+  })
+
   it('Test A — LINE discount reduces the line net before the per-category tax base', () => {
     const taxConfig: TaxConfig = { rates: { labor: 0, materials: 0.08 } }
     const sections = [

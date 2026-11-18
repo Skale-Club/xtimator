@@ -83,6 +83,8 @@ export const EstimateState = Annotation.Root({
   previousEstimateId: Annotation<string | undefined>(),
   /** SEED-057 D: the project status before the targeted pass, restored with the draft. */
   previousProjectStatus: Annotation<string | undefined>(),
+  /** Restored with the first draft if a discarded pass detected another trade. */
+  previousProjectType: Annotation<string | null | undefined>(),
   /** SEED-057 D: the model's open questions, most impactful first (feeds needs-details). */
   openQuestions: Annotation<string[] | undefined>(),
   /** Scaffolded for Phase 96 auto-refine; unused this phase. */

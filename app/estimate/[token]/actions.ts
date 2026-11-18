@@ -217,6 +217,7 @@ export async function respondToEstimate(
       responded_at: new Date().toISOString(),
     })
     .eq('id', est.id)
+    .eq('is_current', true)
     .is('client_response', null)
     .select('id')
 

@@ -55,19 +55,23 @@ export const autoRefineNode = async (
   if (!state.isVague) {
     const hints = state.structureHints ?? []
     const notes = hints.length > 0 ? hints : [VAGUE_NOTE]
-    // Remember the project's status (estimate_ready vs awaiting_details) so a fallback to this
-    // draft restores it instead of assuming. Best-effort.
+    // A safe fallback needs the actual snapshot. If it cannot be read, retain
+    // the first draft and surface the failure instead of guessing its state.
     let previousProjectStatus: string | undefined
+    let previousProjectType: string | null | undefined
     try {
-      const { data } = await requireServiceClient()
+      const { data, error } = await requireServiceClient()
         .from('projects')
-        .select('status')
+        .select('status, project_type')
         .eq('id', state.projectId)
         .eq('company_id', state.companyId)
         .maybeSingle()
+      if (error || !data) throw new Error('Failed to read project before refine', { cause: error })
       previousProjectStatus = (data as { status?: string } | null)?.status ?? undefined
-    } catch {
-      previousProjectStatus = undefined
+      previousProjectType = (data as { project_type?: string | null } | null)?.project_type
+    } catch (err) {
+      console.error('[estimate-graph] cannot snapshot project before refine:', err)
+      return { failure: { reason: 'generation_failed' } }
     }
     return {
       refineAttempts: (state.refineAttempts ?? 0) + 1,
@@ -77,6 +81,7 @@ export const autoRefineNode = async (
       previousStructureScore: state.structureScore,
       structureScore: undefined,
       previousProjectStatus,
+      previousProjectType,
       estimateId: undefined,
       isVague: undefined,
       structureBand: undefined,
@@ -87,7 +92,7 @@ export const autoRefineNode = async (
   }
 
   const supabase = requireServiceClient()
-  // Best-effort revert — swallow errors (consistent with WhatsApp adapter pattern).
+  // A failed discard must stop the loop; it cannot safely start a replacement.
   //
   // QUICK-mv1-01 (zero side effects on discard): this revert intentionally does
   // NOT restore projects.name/project_type. The rename + project_type write in
@@ -110,8 +115,9 @@ export const autoRefineNode = async (
   // shown) vague pass.
   try {
     await revertVagueEstimate(supabase, state.projectId, state.estimateId ?? null)
-  } catch {
-    // non-fatal — the generate loop can still run without the revert completing
+  } catch (err) {
+    console.error('[estimate-graph] failed to discard vague draft:', err)
+    return { failure: { reason: 'generation_failed' } }
   }
   return {
     refineAttempts: (state.refineAttempts ?? 0) + 1,

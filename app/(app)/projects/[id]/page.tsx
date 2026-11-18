@@ -8,6 +8,7 @@ import { getCurrentEstimate, getProjectEstimates } from '@/lib/queries/estimate'
 import { getInvoicesByEstimateId } from '@/lib/queries/invoice'
 import { isPlatformAdmin } from '@/lib/auth/platform-admin'
 import { stripOwnerOnlyEstimate } from '@/lib/estimate/ai-meta'
+import { buildOwnerEstimateReview } from '@/lib/estimate/owner-review'
 import { getPriceBookItems } from '@/lib/queries/price-book'
 import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
@@ -117,7 +118,10 @@ async function ProjectTabs({
 
   // ai_meta (assumptions, open questions, pricing record) is the platform-admin debug
   // tool's data: it never reaches a non-admin browser. Decided here, on the server.
-  const allVersions = viewerIsPlatformAdmin ? allVersionsRaw : allVersionsRaw.map(stripOwnerOnlyEstimate)
+  const allVersions = allVersionsRaw.map(estimate => ({
+    ...(viewerIsPlatformAdmin ? estimate : stripOwnerOnlyEstimate(estimate)),
+    owner_review: buildOwnerEstimateReview(estimate),
+  }))
 
   const companyName = (company?.name as string) ?? ''
   const ownerName = (company?.owner_name as string | null) ?? ''
@@ -189,8 +193,10 @@ async function ProjectTabs({
 
   // Fetch current estimate for workspace tabs that need it
   const currentEstimateRaw = await getCurrentEstimate(supabase, project.id)
-  const currentEstimate =
-    currentEstimateRaw && !viewerIsPlatformAdmin ? stripOwnerOnlyEstimate(currentEstimateRaw) : currentEstimateRaw
+  const currentEstimate = currentEstimateRaw ? {
+    ...(viewerIsPlatformAdmin ? currentEstimateRaw : stripOwnerOnlyEstimate(currentEstimateRaw)),
+    owner_review: buildOwnerEstimateReview(currentEstimateRaw),
+  } : null
 
   // TRUST-01 v2 (security-hardening S1) — this page builds documentCompany from
   // its own companies query above, bypassing getEstimateWithContext's frozen-

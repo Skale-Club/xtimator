@@ -131,6 +131,10 @@ export const persistPatchedEstimate: PersistPatch = async ({
       public_slug_token: generatePublicSlugToken(),
     }
 
+    const { status, overCeiling, ceilingLocal } = resolveProjectStatusForSections(
+      patched.sections, estimateRow.total, currencyCode
+    )
+
     const estimateId = await persistEstimateVersion(supabase, {
       companyId,
       projectId,
@@ -138,19 +142,11 @@ export const persistPatchedEstimate: PersistPatch = async ({
       aiMeta,
       calculatedSections: totals.sections,
       previousCurrentId: baseEstimateId,
+      projectUpdate: { total: estimateRow.total, status },
     })
 
-    // Keep the project total and status in step with the (now current) estimate. The status uses
-    // the same decision as generation (an unpriced line or a total over the ceiling ->
-    // awaiting_details). Generation counts unpriced lines from price research; the patch path has
-    // no research outcome, so it counts lines without a positive unit_price instead. Best-effort.
+    // Observability is best-effort; project state already committed atomically.
     try {
-      const { status, overCeiling, ceilingLocal } = resolveProjectStatusForSections(
-        patched.sections,
-        estimateRow.total,
-        currencyCode
-      )
-      await supabase.from('projects').update({ total: estimateRow.total, status }).eq('id', projectId)
       // Same activity row generation writes, so the owner sees why the project needs review.
       if (overCeiling) {
         await supabase.from('estimate_activity').insert({
@@ -162,7 +158,7 @@ export const persistPatchedEstimate: PersistPatch = async ({
         })
       }
     } catch (err) {
-      console.warn('[persist-patched-estimate] project total/status update failed (non-fatal):', err)
+      console.warn('[persist-patched-estimate] activity write failed (non-fatal):', err)
     }
 
     return { estimateId }
