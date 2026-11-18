@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Receipt, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,11 +13,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { generateInvoice } from '@/lib/actions/invoice'
+import { generateInvoice, getInvoicingPreview } from '@/lib/actions/invoice'
+import { invoiceAmountCents, summarizeInvoicing, type InvoicingInput } from '@/lib/change-orders/invoicing'
 import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 type InvoiceKind = 'full' | 'deposit' | 'balance'
+
+type InvoicingPreview = Extract<Awaited<ReturnType<typeof getInvoicingPreview>>, { data: unknown }>['data']
 
 const PRESET_PERCENTS = [10, 20, 30, 50] as const
 
@@ -84,15 +87,62 @@ export function GenerateInvoiceDialog({
       )
     : null
 
+  // Contract-aware preview (accepted estimate + approved change orders): loaded
+  // when the dialog opens and computed with the same pure math the server uses.
+  // While loading or on error the live-total fallback below applies unchanged.
+  const [preview, setPreview] = useState<InvoicingPreview | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    void getInvoicingPreview(estimateId)
+      .then((result) => {
+        if (cancelled) return
+        setPreview(result && 'data' in result ? result.data : null)
+      })
+      .catch(() => {
+        if (!cancelled) setPreview(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, estimateId])
+
+  const contractInput: InvoicingInput | null = preview
+    ? {
+        estimateTotalCents: preview.estimateTotalCents,
+        depositCents:
+          preview.configuredDepositCents ?? Math.round((preview.estimateTotalCents * safePct) / 100),
+        approvedChangeOrders: preview.approvedChangeOrders,
+        liveInvoices: preview.liveInvoices,
+      }
+    : null
+  const contractSummary = contractInput ? summarizeInvoicing(contractInput) : null
+  const withChangeOrders = !!contractInput && !!contractSummary && contractSummary.changeOrdersCents !== 0
+
   const depositCents = hasConfiguredDeposit
     ? (configuredDepositCents ?? 0)
     : Math.round((estimateTotalCents * safePct) / 100)
+  const shownDepositCents =
+    withChangeOrders && contractInput ? contractInput.depositCents : depositCents
   const previewCents =
-    kind === 'full'
-      ? estimateTotalCents
-      : kind === 'deposit'
-        ? depositCents
-        : estimateTotalCents - depositCents
+    withChangeOrders && contractInput
+      ? invoiceAmountCents(contractInput, { kind })
+      : kind === 'full'
+        ? estimateTotalCents
+        : kind === 'deposit'
+          ? depositCents
+          : estimateTotalCents - depositCents
+  // A credit reads "− $100.00", never "+ -$100.00".
+  const signed = (cents: number) => (cents < 0 ? '−' : '+')
+  const breakdown =
+    withChangeOrders && contractInput && contractSummary
+      ? kind === 'balance'
+        ? `${t('Estimate')} ${formatMinorUnits(contractInput.estimateTotalCents, currencyCode)} − ${t('Deposit')} ${formatMinorUnits(shownDepositCents, currencyCode)} ${signed(contractSummary.changeOrdersInBalanceCents)} ${t('Change orders')} ${formatMinorUnits(Math.abs(contractSummary.changeOrdersInBalanceCents), currencyCode)}`
+        : kind === 'full'
+          ? `${t('Estimate + change orders')}: ${formatMinorUnits(contractInput.estimateTotalCents, currencyCode)} ${signed(contractSummary.changeOrdersCents)} ${formatMinorUnits(Math.abs(contractSummary.changeOrdersCents), currencyCode)}`
+          : null
+      : null
 
   async function handleIssue() {
     setPending(true)
@@ -244,6 +294,11 @@ export function GenerateInvoiceDialog({
               {formatMinorUnits(previewCents, currencyCode)}
             </span>
           </div>
+          {breakdown && (
+            <p data-testid="invoice-breakdown" className="-mt-3 px-1 text-xs text-muted-foreground">
+              {breakdown}
+            </p>
+          )}
 
           <Button
             variant="primary"

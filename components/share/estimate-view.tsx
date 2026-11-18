@@ -19,7 +19,7 @@ import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
 import type { ShareEstimateData } from '@/lib/queries/share'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
-import { formatMinorUnits } from '@/lib/money/currency'
+import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
 import type { ComponentType } from 'react'
 import { FlagUS, FlagBR, FlagES } from '@/components/app-shell/flags'
 import { LANGUAGE_LABELS, type EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -308,7 +308,11 @@ function EstimateViewInner({
   const invoicedCents = estimate.invoices
     .filter((inv) => inv.status !== 'void' && inv.status !== 'uncollectible')
     .reduce((sum, inv) => sum + (inv.amount_cents ?? 0), 0)
-  const uninvoicedCents = Math.max(0, (estimate.total_amount_cents ?? 0) - invoicedCents)
+  // With a contract (accepted estimate + approved change orders) the amount
+  // still to invoice is measured against the whole contract, so a change order
+  // invoice never makes the estimate look over-invoiced.
+  const billableCents = contract ? toMinorUnits(contract.contractTotal, estimate.currency_code ?? 'USD') : (estimate.total_amount_cents ?? 0)
+  const uninvoicedCents = Math.max(0, billableCents - invoicedCents)
 
   // Company "Estimate Terms" now render INSIDE the document (first terms card),
   // exactly as in the PDF/preview, so the public page and the PDF carry the
@@ -572,7 +576,9 @@ function EstimateViewInner({
                       ? t('deposit')
                       : inv.kind === 'balance'
                         ? t('balance')
-                        : t('invoice')
+                        : inv.kind === 'change_order'
+                          ? t('Change order')
+                          : t('invoice')
 
                   if (inv.status === 'paid') {
                     return (

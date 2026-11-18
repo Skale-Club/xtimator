@@ -133,3 +133,24 @@ describe('ContractCard', () => {
     expect(screen.queryByTestId('contract-card')).toBeNull()
   })
 })
+
+describe('ContractCard - invoice badges', () => {
+  it('badges a change order billed on its own as Invoiced or Paid, next to the amount', async () => {
+    const base = summary()
+    const data = summary({
+      changeOrders: [
+        { ...base.changeOrders[0], invoice_status: 'open' },
+        { ...base.changeOrders[1], status: 'accepted', invoice_status: 'paid' },
+        { id: 'co-3', number: 3, title: 'Plain', status: 'accepted', total: 20, sent_at: null, responded_at: null, view_count: 0, invoice_status: null },
+      ],
+    })
+    render(<ContractCard estimateId="est-1" projectId="proj-1" actions={fakeActions({}, data)} />)
+    await screen.findByTestId('contract-card')
+    expect(screen.getByTestId('contract-row-invoice-1').textContent).toBe('Invoiced')
+    expect(screen.getByTestId('contract-row-invoice-2').textContent).toBe('Paid')
+    expect(screen.queryByTestId('contract-row-invoice-3')).toBeNull()
+    // Same flex line as the amount (one shrink-0 group), so it fits 360 px.
+    const badge = screen.getByTestId('contract-row-invoice-1')
+    expect(badge.parentElement?.textContent).toContain('+$800.00')
+  })
+})

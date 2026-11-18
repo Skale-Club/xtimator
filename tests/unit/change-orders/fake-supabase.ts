@@ -57,6 +57,10 @@ export function makeFakeSupabase(
         return chain
       }
     }
+    chain.not = (col: string, operator: string, val: unknown) => {
+      filters.push(['not', col, [operator, val]])
+      return chain
+    }
     chain.order = () => chain
     chain.limit = () => chain
     chain.maybeSingle = () => finish('maybeSingle')

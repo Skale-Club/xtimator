@@ -7,6 +7,7 @@ import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { formatMinorUnits } from '@/lib/money/currency'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { buildEstimatePublicPath } from '@/lib/estimate/public-url'
+import { changeOrderPublicPath } from '@/lib/change-orders/types'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 
 /**
@@ -492,7 +493,7 @@ async function handleInvoicePaid(
     .eq('id', invoiceRowId)
     .eq('company_id', companyId)
     .select(
-      'id, company_id, estimate_id, amount_cents, currency_code, project_name'
+      'id, company_id, estimate_id, change_order_id, amount_cents, currency_code, project_name'
     )
     .single()
 
@@ -537,6 +538,19 @@ async function handleInvoicePaid(
   const estimate = estimateRes.data as
     | { share_token: string | null; project_id: string | null; public_slug_token: string | null }
     | null
+
+  // Delivery 3 of XTM-CONTRACT-CO-01: a change order invoice links to the change
+  // order (owner editor and client page), not to the parent estimate.
+  let changeOrderShareToken: string | null = null
+  if (updated.change_order_id) {
+    const { data: coRow } = await svc
+      .from('change_orders')
+      .select('share_token')
+      .eq('id', updated.change_order_id)
+      .eq('company_id', updated.company_id)
+      .maybeSingle()
+    changeOrderShareToken = (coRow as { share_token: string | null } | null)?.share_token ?? null
+  }
 
   // Amount-mismatch guard: the immutable snapshot column (`invoices.amount_cents`,
   // written at issue time) can diverge from what Stripe actually collected —
@@ -593,7 +607,9 @@ async function handleInvoicePaid(
       body: copy.body,
       copyContext: ctx,
       linkUrl: estimate?.project_id
-        ? `/projects/${estimate.project_id}/estimates/${updated.estimate_id}`
+        ? updated.change_order_id
+          ? `/projects/${estimate.project_id}/change-orders/${updated.change_order_id}`
+          : `/projects/${estimate.project_id}/estimates/${updated.estimate_id}`
         : undefined,
       resourceType: 'invoice',
       resourceId: updated.id,
@@ -631,7 +647,9 @@ async function handleInvoicePaid(
     amountCents: actualAmountCents,
     currencyCode: updated.currency_code,
     projectName: updated.project_name ?? 'Service estimate',
-    estimateShareUrl: estimate?.share_token
+    estimateShareUrl: changeOrderShareToken
+      ? `${origin}${changeOrderPublicPath(changeOrderShareToken)}`
+      : estimate?.share_token
       ? `${origin}${buildEstimatePublicPath(
           { slug: company?.slug ?? null, name: company?.name ?? 'Your service provider' },
           { id: updated.estimate_id, public_slug_token: estimate.public_slug_token, share_token: estimate.share_token, project_name: updated.project_name }

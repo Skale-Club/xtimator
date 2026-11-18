@@ -97,6 +97,21 @@ export interface ContractChangeOrderRow {
   sent_at: string | null
   responded_at: string | null
   view_count: number
+  /** Live invoice of its own (kind change_order): null when not billed alone. */
+  invoice_status: ChangeOrderInvoiceStatus | null
+}
+
+/** A change order's own invoice, as the owner editor and client page see it. */
+export type ChangeOrderInvoiceStatus = 'open' | 'paid'
+
+export interface ChangeOrderInvoice {
+  id: string
+  status: ChangeOrderInvoiceStatus
+  amount_cents: number
+  currency_code: string
+  /** Stripe hosted payment page; null until Stripe returns it. */
+  hosted_invoice_url: string | null
+  paid_at: string | null
 }
 
 export interface ContractSummary {
@@ -145,6 +160,8 @@ export interface PublicChangeOrderData {
   }
   /** Public view: drafts excluded. */
   contract: ContractSummary
+  /** This change order's own live invoice (open or paid), else null. */
+  invoice: ChangeOrderInvoice | null
 }
 
 /** Payload of the owner's save. Items are replaced as a whole. */

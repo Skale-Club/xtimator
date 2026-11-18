@@ -469,3 +469,136 @@ describe('Fix 2: overlap guard — cannot invoice beyond the estimate total', ()
     )
   })
 })
+
+// ---------------------------------------------------------------------------
+// Delivery 3 of XTM-CONTRACT-CO-01: change order invoicing. The contract is the
+// accepted estimate plus approved change orders (lib/change-orders/invoicing.ts).
+// ---------------------------------------------------------------------------
+const acceptedEstimate = {
+  id: 'est_1',
+  company_id: 'co_1',
+  project_id: 'proj_1',
+  currency_code: 'usd',
+  total: 1000,
+  deposit_type: 'none',
+  deposit_value: null,
+  is_current: true,
+  client_response: 'accepted',
+  estimate_number: 'SK-1045',
+  estimate_seq: 45,
+  version: 1,
+  project: { name: 'Bathroom remodel', client: { name: 'Jane Doe', email: 'jane@example.com' } },
+}
+
+function withChangeOrders(opts: {
+  approved: Array<{ id: string; number: number; total: number }>
+  lookup?: { id: string; company_id: string; estimate_id: string } | null
+}) {
+  const base = fromImpl.getMockImplementation() as (t: string) => unknown
+  fromImpl.mockImplementation((table: string) => {
+    if (table !== 'change_orders') return base(table)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {
+      select: () => chain,
+      eq: () => chain,
+      order: () => chain,
+      maybeSingle: () => Promise.resolve({ data: opts.lookup ?? null, error: null }),
+      then: (resolve: (v: unknown) => unknown, reject: (e: unknown) => unknown) =>
+        Promise.resolve({ data: opts.approved, error: null }).then(resolve, reject),
+    }
+    return chain
+  })
+}
+
+describe('XTM-CONTRACT-CO-01 delivery 3: contract-aware invoices', () => {
+  it('full invoice of an accepted estimate bills the whole contract (credits included)', async () => {
+    configureSupabase({ estimate: acceptedEstimate })
+    withChangeOrders({
+      approved: [
+        { id: 'c1', number: 1, total: 250 },
+        { id: 'c2', number: 2, total: -50 },
+      ],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 120000 }))
+    expect(invoicesInsert).toHaveBeenCalledWith(expect.objectContaining({ kind: 'full', change_order_id: null }))
+  })
+
+  it('balance carries the change orders not billed on their own', async () => {
+    configureSupabase({
+      estimate: acceptedEstimate,
+      existingInvoices: [
+        { status: 'paid', amount_cents: 30000, kind: 'deposit', change_order_id: null },
+        { status: 'open', amount_cents: 25000, kind: 'change_order', change_order_id: 'c1' },
+      ],
+    })
+    withChangeOrders({
+      approved: [
+        { id: 'c1', number: 1, total: 250 },
+        { id: 'c2', number: 2, total: -50 },
+      ],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'balance', depositPct: 30 })
+    expect(result).toHaveProperty('data')
+    // 1000 - 300 deposit - 50 credit (c1 already billed alone) = 650
+    expect(createConnectInvoice).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 65000 }))
+  })
+
+  it('invoiceChangeOrder bills the change order alone and links the row to it', async () => {
+    configureSupabase({ estimate: acceptedEstimate })
+    withChangeOrders({
+      approved: [{ id: '11111111-1111-4111-8111-111111111111', number: 2, total: 515 }],
+      lookup: { id: '11111111-1111-4111-8111-111111111111', company_id: 'co_1', estimate_id: 'est_1' },
+    })
+    const { invoiceChangeOrder } = await import('@/lib/actions/invoice')
+
+    const result = await invoiceChangeOrder('11111111-1111-4111-8111-111111111111')
+    expect(result).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 51500,
+        description: 'Bathroom remodel — Change order #2 (SK-1045-CO2)',
+      }),
+    )
+    expect(invoicesInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'change_order',
+        change_order_id: '11111111-1111-4111-8111-111111111111',
+        amount_cents: 51500,
+      }),
+    )
+  })
+
+  it('invoiceChangeOrder refuses another company, a credit and a bad id before Stripe', async () => {
+    const { invoiceChangeOrder } = await import('@/lib/actions/invoice')
+    const id = '22222222-2222-4222-8222-222222222222'
+
+    configureSupabase({ estimate: acceptedEstimate })
+    withChangeOrders({ approved: [], lookup: { id, company_id: 'other_co', estimate_id: 'est_1' } })
+    expect(await invoiceChangeOrder(id)).toEqual({ error: 'Change order not found' })
+
+    configureSupabase({ estimate: acceptedEstimate })
+    withChangeOrders({
+      approved: [{ id, number: 3, total: -40 }],
+      lookup: { id, company_id: 'co_1', estimate_id: 'est_1' },
+    })
+    expect((await invoiceChangeOrder(id)) as { error: string }).toHaveProperty('error', expect.stringMatching(/credit/))
+
+    expect(await invoiceChangeOrder('not-a-uuid')).toEqual({ error: 'Change order not found' })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('change orders of an estimate that is not the accepted contract are ignored', async () => {
+    configureSupabase({ estimate: { ...acceptedEstimate, client_response: null } })
+    withChangeOrders({ approved: [{ id: 'c1', number: 1, total: 250 }] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    await generateInvoice('est_1', { kind: 'full' })
+    expect(createConnectInvoice).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 100000 }))
+  })
+})

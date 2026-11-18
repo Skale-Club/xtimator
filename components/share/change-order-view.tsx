@@ -9,10 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CheckCircle, XCircle, Loader2, PenLine, Download, FileText } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, PenLine, Download, FileText, Receipt, ExternalLink } from 'lucide-react'
 import { declineChangeOrder } from '@/app/change-order/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
-import { ensureReadableOnWhite } from '@/lib/color/contrast'
+import { ensureReadableOnWhite, readableTextColor } from '@/lib/color/contrast'
+import { formatMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { ScopedLanguageProvider, type Language } from '@/lib/i18n/language-context'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -98,6 +99,8 @@ function ChangeOrderViewInner({
 
   const brandColor = company.brand_primary_color ?? SYSTEM_COLORS.primary
   const brandText = ensureReadableOnWhite(brandColor)
+  const brandOnFill = readableTextColor(brandColor)
+  const invoice = data.invoice ?? null
 
   const approvalEnabled = company.digital_signature_enabled === true
   const isDraft = changeOrder.status === 'draft'
@@ -434,6 +437,45 @@ function ChangeOrderViewInner({
             </div>
           </dl>
         </section>
+
+        {/* This change order's own invoice (billed on its own): pay link while
+            open, a confirmation once paid. Nothing when there is none. */}
+        {invoice && invoice.status === 'open' && invoice.hosted_invoice_url && (
+          <section className={card} data-testid="change-order-pay-invoice">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2">
+                <Receipt className="h-5 w-5 shrink-0" style={{ color: brandText }} aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{t('Invoice for this change order')}</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {formatMinorUnits(invoice.amount_cents, invoice.currency_code)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                asChild
+                size="lg"
+                className="w-full sm:w-auto"
+                style={{ backgroundColor: brandColor, color: brandOnFill }}
+              >
+                <a href={invoice.hosted_invoice_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t('Pay invoice')}
+                </a>
+              </Button>
+            </div>
+          </section>
+        )}
+        {invoice && invoice.status === 'paid' && (
+          <section className={card} data-testid="change-order-invoice-paid">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="h-4 w-4 text-green-500" aria-hidden />
+              <span>
+                {t('Paid')}: {formatMinorUnits(invoice.amount_cents, invoice.currency_code)}
+              </span>
+            </p>
+          </section>
+        )}
 
         <nav className="flex flex-col gap-1 px-1 text-sm sm:flex-row sm:gap-6">
           <a

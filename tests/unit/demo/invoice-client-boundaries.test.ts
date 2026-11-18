@@ -13,9 +13,16 @@ const clientSheetSource = readFileSync(
   'utf8',
 )
 
-function functionBody(source: string, name: string): string {
-  const start = source.indexOf(`export async function ${name}`)
-  expect(start, `${name} must remain an exported action`).toBeGreaterThan(-1)
+function functionBody(source: string, name: string, opts: { exported?: boolean } = {}): string {
+  // A private helper of a 'use server' file must NOT be exported (every export
+  // is a callable server action), so it is looked up without the keyword.
+  const start =
+    opts.exported === false
+      ? source.indexOf(`\nasync function ${name}(`) + 1
+      : source.indexOf(`export async function ${name}`)
+  expect(start, `${name} must remain ${opts.exported === false ? 'a private helper' : 'an exported action'}`).toBeGreaterThan(
+    opts.exported === false ? 0 : -1,
+  )
 
   const paramsOpen = source.indexOf('(', start)
   let paramsDepth = 0
@@ -60,15 +67,25 @@ function expectGuardBefore(
 }
 
 describe('SAFE-01/SAFE-02: invoice, client, and public estimate mutation boundaries', () => {
-  it('uses the explicit estimate company guard before creating a Stripe invoice', () => {
-    const body = functionBody(invoiceSource, 'generateInvoice')
+  // Delivery 3 of XTM-CONTRACT-CO-01 moved the shared Stripe path into
+  // issueInvoice, which both generateInvoice and invoiceChangeOrder call.
+  it('both invoice actions go through the guarded issueInvoice path', () => {
+    for (const name of ['generateInvoice', 'invoiceChangeOrder']) {
+      const body = functionBody(invoiceSource, name)
+      expect(body, name).toMatch(/return issueInvoice\(/)
+      expect(body, name).not.toMatch(/createConnectInvoice\s*\(/)
+    }
+  })
 
-    expectGuardBefore(body, /createConnectInvoice\s*\(/, 'generateInvoice')
+  it('uses the explicit estimate company guard before creating a Stripe invoice', () => {
+    const body = functionBody(invoiceSource, 'issueInvoice', { exported: false })
+
+    expectGuardBefore(body, /createConnectInvoice\s*\(/, 'issueInvoice')
     expect(body).not.toMatch(/isDemoCompany\s*\(/)
   })
 
   it('allows a normal tenant invoice path to reach Stripe after the guard', () => {
-    const body = functionBody(invoiceSource, 'generateInvoice')
+    const body = functionBody(invoiceSource, 'issueInvoice', { exported: false })
     const guardIndex = body.search(/assertCompanyWritable\s*\(/)
     const stripeIndex = body.search(/createConnectInvoice\s*\(/)
 

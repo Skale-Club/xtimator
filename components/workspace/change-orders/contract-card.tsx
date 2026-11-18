@@ -219,13 +219,28 @@ export function ContractCard({
                   </span>
                   <span className="block truncate text-[12.5px] text-muted-foreground">{rowStatusLine(row, t)}</span>
                 </span>
-                <span
-                  className={cn(
-                    'shrink-0 text-[14.5px] font-semibold tabular-nums',
-                    isApproved ? amountTone(row.total) : 'text-muted-foreground',
+                <span className="flex shrink-0 items-center gap-2">
+                  {row.invoice_status && (
+                    <span
+                      data-testid={`contract-row-invoice-${row.number}`}
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none',
+                        row.invoice_status === 'paid'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-primary/10 text-primary',
+                      )}
+                    >
+                      {row.invoice_status === 'paid' ? t('Paid') : t('Invoiced')}
+                    </span>
                   )}
-                >
-                  {formatSigned(row.total, currency)}
+                  <span
+                    className={cn(
+                      'text-[14.5px] font-semibold tabular-nums',
+                      isApproved ? amountTone(row.total) : 'text-muted-foreground',
+                    )}
+                  >
+                    {formatSigned(row.total, currency)}
+                  </span>
                 </span>
               </button>
             </li>

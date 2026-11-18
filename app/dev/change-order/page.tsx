@@ -23,7 +23,7 @@ const CONTRACT: ContractSummary = {
   signedOnline: true,
   baseTotal: 3486,
   changeOrders: [
-    { id: 'co-1', number: 1, title: 'Garage painting', status: 'accepted', total: 800, sent_at: '2026-11-09T09:00:00.000Z', responded_at: '2026-11-10T09:00:00.000Z', view_count: 2 },
+    { id: 'co-1', number: 1, title: 'Garage painting', status: 'accepted', total: 800, sent_at: '2026-11-09T09:00:00.000Z', responded_at: '2026-11-10T09:00:00.000Z', view_count: 2, invoice_status: 'open' },
   ],
   approvedTotal: 800,
   pendingTotal: 0,

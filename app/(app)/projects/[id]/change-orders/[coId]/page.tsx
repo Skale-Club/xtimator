@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getProjectById } from '@/lib/queries/project'
 import { getChangeOrderAction, getContractSummaryAction } from '@/lib/actions/change-order'
 import { ChangeOrderEditor } from '@/components/workspace/change-orders/change-order-editor'
+import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { loadChangeOrderInvoice } from '@/lib/change-orders/queries'
 
 /**
  * Owner-side change order page. Renders inside the v2 app shell like the
@@ -24,13 +26,17 @@ export default async function ChangeOrderPage({
   if (changeOrder.error || !changeOrder.data || changeOrder.data.project_id !== project.id) notFound()
   const co = changeOrder.data
 
-  const [contractResult, companyResult] = await Promise.all([
+  const [contractResult, companyResult, invoice] = await Promise.all([
     getContractSummaryAction(co.estimate_id),
     supabase
       .from('companies')
-      .select('name, logo_url, phone, digital_signature_enabled, brand_primary_color')
+      .select(
+        'name, logo_url, phone, digital_signature_enabled, brand_primary_color, stripe_account_id, stripe_connect_status, stripe_charges_enabled',
+      )
       .eq('id', project.company_id)
       .single(),
+    // Session client: RLS scopes the invoice read to the caller's company.
+    loadChangeOrderInvoice(supabase, co.id),
   ])
   const company = companyResult.data
 
@@ -39,6 +45,10 @@ export default async function ChangeOrderPage({
       <ChangeOrderEditor
         changeOrder={co}
         contract={contractResult.data ?? null}
+        invoicing={{
+          paymentsEnabled: company ? paymentsEnabled(company as Parameters<typeof paymentsEnabled>[0]) : false,
+          invoice,
+        }}
         project={{ id: project.id, name: project.name, clientName: project.client?.name ?? null }}
         company={{
           name: (company?.name as string | null) ?? '',

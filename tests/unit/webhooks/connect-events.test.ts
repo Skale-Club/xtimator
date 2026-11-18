@@ -107,6 +107,9 @@ const estimateUpdateEq2 = vi.fn()
 const estimateUpdateSelect = vi.fn()
 const estimateUpdateSingle = vi.fn()
 
+// change_orders.select().eq().eq().maybeSingle() — a change order invoice's links
+const changeOrderMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+
 // projects.select().eq().single() — checkout.session.completed's project-name lookup
 const projectSelect = vi.fn()
 const projectSelectEq = vi.fn()
@@ -272,6 +275,11 @@ vi.mock('@/lib/supabase/service', () => ({
       }
       if (table === 'projects') {
         return { select: projectSelect }
+      }
+      if (table === 'change_orders') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chain: any = { select: () => chain, eq: () => chain, maybeSingle: changeOrderMaybeSingle }
+        return chain
       }
       throw new Error(`Unexpected table: ${table}`)
     }),
@@ -905,5 +913,31 @@ describe("stripe connect webhook — Fix 3: DB errors on the event's purpose thr
     expect(dedupDelete).not.toHaveBeenCalled()
 
     errSpy.mockRestore()
+  })
+})
+
+describe('invoice.paid for a change order invoice (XTM-CONTRACT-CO-01 delivery 3)', () => {
+  it('links the email and the owner notification to the change order, not the estimate', async () => {
+    invoiceUpdateSingle.mockResolvedValue({
+      data: {
+        id: 'inv_row_fixture_1',
+        company_id: 'co_fixture_1',
+        estimate_id: 'est_fixture_1',
+        change_order_id: 'co_order_1',
+        amount_cents: 30000,
+        currency_code: 'usd',
+        project_name: 'Bathroom remodel',
+      },
+      error: null,
+    })
+    changeOrderMaybeSingle.mockResolvedValueOnce({ data: { share_token: 'co-token-1' }, error: null })
+    mockConstructEvent.mockReturnValue(makeConnectInvoiceEvent('invoice.paid'))
+
+    const res = await POST(makeRequest())
+    expect(res.status).toBe(200)
+
+    const ctx = sendPaymentReceivedEmail.mock.calls[0][0] as { estimateShareUrl: string }
+    expect(ctx.estimateShareUrl).toMatch(/\/change-order\/co-token-1$/)
+    expect((notify.mock.calls[0][0] as { linkUrl?: string }).linkUrl).toMatch(/\/change-orders\/co_order_1$/)
   })
 })

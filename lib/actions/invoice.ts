@@ -15,6 +15,14 @@ import { paymentsEnabled } from '@/lib/billing/payments-enabled'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits, formatMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
+import { resolveEstimateNumber } from '@/lib/change-orders/contract'
+import { formatChangeOrderNumber } from '@/lib/change-orders/types'
+import {
+  planInvoice,
+  type InvoiceRequest,
+  type InvoicingApprovedChangeOrder,
+  type InvoicingLiveInvoice,
+} from '@/lib/change-orders/invoicing'
 
 /**
  * Phase 94 (INVOICE-03 / INVOICE-06) — generate-invoice server action + read-back.
@@ -59,10 +67,138 @@ export async function getInvoicesForEstimate(
   return { data: rows }
 }
 
+type IssueInvoiceResult =
+  | { data: { hostedInvoiceUrl: string | null; invoicePdfUrl: string | null } }
+  | { error: string }
+
 export async function generateInvoice(
   estimateId: string,
   opts: GenerateInvoiceInput,
-): Promise<{ data: { hostedInvoiceUrl: string | null; invoicePdfUrl: string | null } } | { error: string }> {
+): Promise<IssueInvoiceResult> {
+  // Validate input early.
+  const parsed = generateInvoiceSchema.safeParse(opts)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+  }
+  return issueInvoice(estimateId, { kind: parsed.data.kind }, parsed.data.depositPct)
+}
+
+/**
+ * Delivery 3 of XTM-CONTRACT-CO-01: bill one approved change order on its own.
+ * Same guards as generateInvoice (owner, demo, Connect, client email); the
+ * amount is the change order's total and the row points at it
+ * (invoices.change_order_id, kind 'change_order').
+ */
+export async function invoiceChangeOrder(changeOrderId: string): Promise<IssueInvoiceResult> {
+  if (!z.string().uuid().safeParse(changeOrderId).success) return { error: 'Change order not found' }
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const supabase = await createClient()
+  const { data: co } = await supabase
+    .from('change_orders')
+    .select('id, company_id, estimate_id')
+    .eq('id', changeOrderId)
+    .maybeSingle()
+  if (!co || co.company_id !== ctx.companyId) return { error: 'Change order not found' }
+  return issueInvoice(co.estimate_id as string, { kind: 'change_order', changeOrderId })
+}
+
+/**
+ * What the owner's invoice dialog needs to preview every kind with the same
+ * math the server uses (lib/change-orders/invoicing.ts). Read-only, RLS-scoped.
+ */
+export async function getInvoicingPreview(estimateId: string): Promise<
+  | {
+      data: {
+        currencyCode: string
+        estimateTotalCents: number
+        /** null when the estimate has no configured deposit (the dialog's percent picker applies). */
+        configuredDepositCents: number | null
+        approvedChangeOrders: InvoicingApprovedChangeOrder[]
+        liveInvoices: InvoicingLiveInvoice[]
+      }
+    }
+  | { error: string }
+> {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const supabase = await createClient()
+  const { data: estimate } = await supabase
+    .from('estimates')
+    .select('id, company_id, currency_code, total, deposit_type, deposit_value, is_current, client_response')
+    .eq('id', estimateId)
+    .maybeSingle()
+  if (!estimate || estimate.company_id !== ctx.companyId) return { error: 'Estimate not found' }
+  const currencyCode = (estimate.currency_code as string) ?? 'USD'
+  const totalDollars = Number(estimate.total) || 0
+  const hasConfiguredDeposit = estimate.deposit_type === 'percent' || estimate.deposit_type === 'amount'
+  const [approvedChangeOrders, liveInvoices] = await Promise.all([
+    loadApprovedChangeOrders(supabase, estimate, currencyCode),
+    loadLiveInvoices(supabase, estimateId),
+  ])
+  return {
+    data: {
+      currencyCode,
+      estimateTotalCents: toMinorUnits(totalDollars, currencyCode),
+      configuredDepositCents: hasConfiguredDeposit
+        ? resolveChargeAmount(
+            {
+              total: totalDollars,
+              deposit_type: estimate.deposit_type as 'percent' | 'amount',
+              deposit_value: estimate.deposit_value as number | null,
+            },
+            currencyCode,
+          ).chargeAmountCents
+        : null,
+      approvedChangeOrders,
+      liveInvoices,
+    },
+  }
+}
+
+type RlsClient = Awaited<ReturnType<typeof createClient>>
+
+/** Approved change orders count only on the accepted current estimate (the contract). */
+async function loadApprovedChangeOrders(
+  supabase: RlsClient,
+  estimate: { id: unknown; is_current?: unknown; client_response?: unknown },
+  currencyCode: string,
+): Promise<InvoicingApprovedChangeOrder[]> {
+  if (estimate.is_current !== true || estimate.client_response !== 'accepted') return []
+  const { data } = await supabase
+    .from('change_orders')
+    .select('id, number, total')
+    .eq('estimate_id', estimate.id as string)
+    .eq('client_response', 'accepted')
+    .order('number', { ascending: true })
+  return ((data ?? []) as Array<{ id: string; number: number; total: number | string | null }>).map((row) => ({
+    id: row.id,
+    number: Number(row.number) || 0,
+    totalCents: toMinorUnits(Number(row.total) || 0, currencyCode),
+  }))
+}
+
+async function loadLiveInvoices(supabase: RlsClient, estimateId: string): Promise<InvoicingLiveInvoice[]> {
+  const { data } = await supabase
+    .from('invoices')
+    .select('status, amount_cents, kind, change_order_id')
+    .eq('estimate_id', estimateId)
+    .not('status', 'in', '(void,uncollectible)')
+  return ((data ?? []) as Array<{ amount_cents: number | null; kind: string | null; change_order_id: string | null }>).map(
+    (row) => ({
+      kind: (row.kind ?? 'full') as InvoicingLiveInvoice['kind'],
+      amount_cents: row.amount_cents ?? 0,
+      change_order_id: row.change_order_id ?? null,
+    }),
+  )
+}
+
+async function issueInvoice(
+  estimateId: string,
+  request: InvoiceRequest,
+  depositPct?: number,
+): Promise<IssueInvoiceResult> {
+  const kind = request.kind
   // 1. Auth.
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
@@ -80,13 +216,6 @@ export async function generateInvoice(
   const sessionDenied = await assertWritable()
   if (sessionDenied) return sessionDenied
 
-  // Validate input early.
-  const parsed = generateInvoiceSchema.safeParse(opts)
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'Invalid input' }
-  }
-  const { kind, depositPct } = parsed.data
-
   const supabase = await createClient()
 
   // 2. Load the estimate (auth-scoped client; RLS enforces company scope) and
@@ -94,7 +223,7 @@ export async function generateInvoice(
   const { data: estimate, error: estimateError } = await supabase
     .from('estimates')
     .select(
-      'id, company_id, project_id, currency_code, total, deposit_type, deposit_value, project:projects(name, client:clients(name, email))',
+      'id, company_id, project_id, currency_code, total, deposit_type, deposit_value, is_current, client_response, estimate_number, estimate_seq, version, project:projects(name, client:clients(name, email))',
     )
     .eq('id', estimateId)
     .single()
@@ -136,79 +265,45 @@ export async function generateInvoice(
   const currencyCode = (estimate.currency_code as string) ?? 'USD'
   const totalDollars = (estimate.total as number) ?? 0
   const totalCents = toMinorUnits(totalDollars, currencyCode)
-  // DEP-02: when the estimate has a server-configured deposit, the deposit is the amount the
-  // payment link charges (resolveChargeAmount). Falls back to the legacy depositPct split when
-  // no deposit is configured on the estimate (backward-compatible with the Phase-94 ad-hoc UI).
+  // DEP-02 / DEP-03: when the estimate has a server-configured deposit, the
+  // deposit is the amount the payment link charges (resolveChargeAmount) and the
+  // free-form depositPct is ignored, so deposit + balance always reconcile. The
+  // legacy depositPct split applies only when no deposit is configured.
   const hasConfiguredDeposit =
     estimate.deposit_type === 'percent' || estimate.deposit_type === 'amount'
-  let amountCents: number
-  if (kind === 'full') {
-    amountCents = totalCents
-  } else if (hasConfiguredDeposit) {
-    // DEP-03: when the estimate has a server-configured deposit, BOTH the
-    // deposit and balance invoices derive from resolveChargeAmount so they
-    // always sum to the total — the free-form depositPct is ignored entirely
-    // (it only drives the legacy ad-hoc split below when no deposit exists).
-    const depositCents = resolveChargeAmount(
-      {
-        total: totalDollars,
-        deposit_type: estimate.deposit_type as 'percent' | 'amount',
-        deposit_value: estimate.deposit_value as number | null,
-      },
-      currencyCode,
-    ).chargeAmountCents
-    amountCents = kind === 'deposit' ? depositCents : totalCents - depositCents
-  } else {
-    const split = splitDepositBalance(totalDollars, currencyCode, depositPct ?? 0)
-    amountCents = kind === 'deposit' ? split.depositCents : split.balanceCents
-  }
-  if (amountCents <= 0) return { error: 'Invalid amount' }
+  const depositCents = hasConfiguredDeposit
+    ? resolveChargeAmount(
+        {
+          total: totalDollars,
+          deposit_type: estimate.deposit_type as 'percent' | 'amount',
+          deposit_value: estimate.deposit_value as number | null,
+        },
+        currencyCode,
+      ).chargeAmountCents
+    : splitDepositBalance(totalDollars, currencyCode, depositPct ?? 0).depositCents
 
-  // 5c. Overlap guard (Fix 2): an estimate can otherwise be invoiced beyond its
-  // total across multiple issues. Reads every non-void/non-uncollectible
-  // invoice already issued for this estimate (RLS-scoped) — AFTER the
-  // owner/Connect gates above, BEFORE any Stripe call below. A `full` invoice
-  // is rejected outright when ANY other active invoice already exists (it is
-  // never valid to "fully" invoice on top of something already issued); every
-  // kind is additionally rejected once the running total would exceed the
-  // estimate's total.
-  const { data: existingInvoices } = await supabase
-    .from('invoices')
-    .select('status, amount_cents, kind')
-    .eq('estimate_id', estimateId)
-    .not('status', 'in', '(void,uncollectible)')
-
-  const activeInvoices = (existingInvoices ?? []) as {
-    status: string
-    amount_cents: number | null
-    kind: string | null
-  }[]
-
-  if (kind === 'full' && activeInvoices.length > 0) {
-    return {
-      error:
-        'This estimate already has an invoice issued. Void the existing invoice before issuing a new full invoice.',
-    }
-  }
-
-  // Per-KIND uniqueness. The sum guard below is not enough on its own: with a
-  // 40% deposit, issuing `deposit` twice sums to 80% ≤ 100% and passes, leaving
-  // the customer two payable deposit invoices AND blocking the real balance.
-  if (activeInvoices.some((inv) => inv.kind === kind)) {
-    return {
-      error: `A ${kind} invoice has already been issued for this estimate. Void it before issuing another.`,
-    }
-  }
-
-  const alreadyInvoicedCents = activeInvoices.reduce(
-    (sum, inv) => sum + (inv.amount_cents ?? 0),
-    0,
+  // 5c. Contract-aware amount + overlap guards (lib/change-orders/invoicing.ts).
+  // The contract is the accepted estimate plus approved change orders: the
+  // balance carries the change orders not billed on their own (credits always),
+  // a change order can be billed once on its own, a full invoice is only valid
+  // when nothing else is live, each estimate kind is issued once, and the live
+  // invoices never add up to more than the contract. Reads run AFTER the
+  // owner/Connect gates above and BEFORE any Stripe call below.
+  const [approvedChangeOrders, liveInvoices] = await Promise.all([
+    loadApprovedChangeOrders(supabase, estimate, currencyCode),
+    loadLiveInvoices(supabase, estimateId),
+  ])
+  const plan = planInvoice(
+    { estimateTotalCents: totalCents, depositCents, approvedChangeOrders, liveInvoices },
+    request,
+    (cents) => formatMinorUnits(cents, currencyCode),
   )
-  if (alreadyInvoicedCents + amountCents > totalCents) {
-    return {
-      error: `This estimate is already fully invoiced (${formatMinorUnits(alreadyInvoicedCents, currencyCode)} of ${formatMinorUnits(totalCents, currencyCode)} already invoiced).`,
-    }
-  }
+  if (plan.error !== undefined) return { error: plan.error }
+  const amountCents = plan.amountCents
+  const billedChangeOrder =
+    request.kind === 'change_order'
+      ? approvedChangeOrders.find((co) => co.id === request.changeOrderId) ?? null
+      : null
 
   // 5b. Platform application fee (FEE-03). Read the live fee%/min from
   //     billing_config (never hard-coded, applied without a deploy) and compute
@@ -233,7 +328,12 @@ export async function generateInvoice(
     }
   ).project
   const projectName = projectRel?.name ?? null
-  const description = `${projectName ?? 'Estimate'} — ${kind} invoice`
+  const description = billedChangeOrder
+    ? `${projectName ?? 'Project'} — Change order #${billedChangeOrder.number} (${formatChangeOrderNumber(
+        resolveEstimateNumber(estimate as Parameters<typeof resolveEstimateNumber>[0]),
+        billedChangeOrder.number,
+      )})`
+    : `${projectName ?? 'Estimate'} — ${kind} invoice`
 
   // 6b. Customer identity for the Stripe Customer (INVOICE-CUST-01). Without an
   //     email, Stripe's sendInvoice cannot email the hosted invoice to anyone, so
@@ -305,6 +405,7 @@ export async function generateInvoice(
       estimate_id: estimateId,
       company_id: companyId,
       kind,
+      change_order_id: billedChangeOrder?.id ?? null,
       amount_cents: amountCents,
       currency_code: currencyCode,
       project_name: projectName,
@@ -327,7 +428,10 @@ export async function generateInvoice(
   // when invoked outside a request/static-generation context.
   try {
     const projectId = (estimate as { project_id?: string | null }).project_id
-    if (projectId) revalidatePath(`/projects/${projectId}`)
+    if (projectId) {
+      revalidatePath(`/projects/${projectId}`)
+      if (billedChangeOrder) revalidatePath(`/projects/${projectId}/change-orders/${billedChangeOrder.id}`)
+    }
   } catch {
     // No request store (e.g. unit test or background context) — ignore.
   }

@@ -55,6 +55,8 @@ const pt: Dict = {
   'Change orders': 'Aditivos',
   'Contract total': 'Total do contrato',
   'Awaiting your approval: {n}': 'Aguardando sua aprovação: {n}',
+  'Invoice for this change order': 'Fatura deste aditivo',
+  'Pay invoice': 'Pagar fatura',
 }
 
 const es: Dict = {
@@ -104,6 +106,8 @@ const es: Dict = {
   'Change orders': 'Órdenes de cambio',
   'Contract total': 'Total del contrato',
   'Awaiting your approval: {n}': 'Pendientes de su aprobación: {n}',
+  'Invoice for this change order': 'Factura de esta orden de cambio',
+  'Pay invoice': 'Pagar factura',
 }
 
 export const changeOrderPublicTranslations: Record<'pt' | 'es', Dict> = { pt, es }
