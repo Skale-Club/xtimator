@@ -9,6 +9,7 @@ import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
+import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -41,6 +42,13 @@ export async function GET(req: NextRequest) {
   } catch {
     return NextResponse.redirect(
       new URL('/settings/integrations/stripe?error=owner_required', base)
+    )
+  }
+
+  // Connect onboarding is closed at launch (lib/billing/connect-availability).
+  if (!isConnectOnboardingOpen()) {
+    return NextResponse.redirect(
+      new URL('/settings/integrations/stripe?error=platform_not_configured', base)
     )
   }
 

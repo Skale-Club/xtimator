@@ -55,6 +55,11 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/queries/auth', () => ({
   getAuthClaims: (...args: unknown[]) => getAuthClaims(...args),
 }))
+// The Connect initiation case exercises the route with onboarding OPEN; the
+// closed-at-launch switch is covered in tests/unit/billing/connect-availability.
+vi.mock('@/lib/billing/connect-availability', () => ({
+  isConnectOnboardingOpen: () => true,
+}))
 vi.mock('@/lib/demo/guard', () => ({
   demoGuardResponse: (...args: unknown[]) => demoGuardResponse(...args),
   isDemoSession: (...args: unknown[]) => isDemoSession(...args),

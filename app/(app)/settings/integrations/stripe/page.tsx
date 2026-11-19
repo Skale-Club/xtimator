@@ -5,6 +5,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
 import { isDemoCompany } from '@/lib/demo/config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import {
@@ -50,7 +51,9 @@ export default async function StripeIntegrationPage({
   const clientId = await getIntegrationKey('stripe_connect_client_id')
 
   let state: ConnectState
-  if (!clientId) {
+  // Connect onboarding is closed at launch (lib/billing/connect-availability):
+  // a company that never connected sees the "not enabled" state, never the CTA.
+  if (!clientId || (!isConnectOnboardingOpen() && !company.stripe_account_id)) {
     state = { kind: 'not_configured' }
   } else if (
     company.stripe_account_id &&

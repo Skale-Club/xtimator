@@ -11,6 +11,13 @@ import { paymentsEnabled } from '@/lib/billing/payments-enabled'
  *   3. platform-not-configured — friendly support message (no CTA)
  */
 
+// Connect onboarding launch switch: existing cases run with onboarding OPEN;
+// the closed-at-launch cases flip it per test.
+const connectOpen = vi.hoisted(() => ({ value: true }))
+vi.mock("@/lib/billing/connect-availability", () => ({
+  isConnectOnboardingOpen: () => connectOpen.value,
+}))
+
 vi.mock('@/lib/queries/auth', () => ({
   getAuthClaims: vi.fn(),
 }))
@@ -82,6 +89,32 @@ describe('/settings/payments page', () => {
     expect(html).toContain('Connect Stripe Account')
     expect(html).toContain('/api/stripe/connect/initiate')
     expect(html).not.toContain('Disconnect')
+  })
+
+  it('shows the not-enabled state instead of the Connect CTA while onboarding is closed', async () => {
+    connectOpen.value = false
+    try {
+      vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSupabase({
+          id: 'company_1',
+          stripe_account_id: null,
+          stripe_connect_status: null,
+          stripe_account_email: null,
+          stripe_account_display_name: null,
+        })
+      )
+
+      const ui = await PaymentsSettingsPage({
+        searchParams: Promise.resolve({}),
+      })
+      const { container } = render(ui)
+      const html = container.innerHTML
+      expect(html).not.toContain('/api/stripe/connect/initiate')
+      expect(html).toContain('not yet enabled')
+    } finally {
+      connectOpen.value = true
+    }
   })
 
   it('renders the connected state with display name and email', async () => {

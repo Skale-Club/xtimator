@@ -16,6 +16,7 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { SettingsHeader } from '@/components/settings/settings-ui'
+import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
 
 export const metadata = { title: 'Integrations | Settings' }
 
@@ -34,6 +35,7 @@ export default async function SettingsIntegrationsPage() {
   const claims = await getAuthClaims()
 
   let stripeConnected = false
+  let stripeLinked = false
   if (claims) {
     const svc = requireServiceClient()
     const { data: company } = await svc
@@ -41,9 +43,13 @@ export default async function SettingsIntegrationsPage() {
       .select('stripe_account_id, stripe_connect_status')
       .eq('user_id', claims.sub as string)
       .single()
+    stripeLinked = !!company?.stripe_account_id
     stripeConnected =
-      !!company?.stripe_account_id && company.stripe_connect_status === 'active'
+      stripeLinked && company?.stripe_connect_status === 'active'
   }
+  // Connect onboarding is closed at launch: hide the card from companies that
+  // never connected (a linked company keeps its status and Disconnect).
+  const showCollectPayments = isConnectOnboardingOpen() || stripeLinked
 
   return (
     <div className="space-y-6">
@@ -53,6 +59,7 @@ export default async function SettingsIntegrationsPage() {
       />
 
       {/* Collect payments — Stripe Connect setup. */}
+      {showCollectPayments && (
       <section className="space-y-3">
         <SectionHeading>
           <T>Collect payments</T>
@@ -83,6 +90,7 @@ export default async function SettingsIntegrationsPage() {
           </Card>
         </Link>
       </section>
+      )}
 
       {/* Developer tools — use Xtimator from inside AI clients via MCP. */}
       <section className="space-y-3">
