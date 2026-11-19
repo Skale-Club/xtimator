@@ -14,6 +14,13 @@ import { render } from '@testing-library/react'
  * the rendered "2%" / "separate from Stripe" substring is valid.
  */
 
+// Connect onboarding launch switch: existing cases run with onboarding OPEN;
+// the closed-at-launch cases flip it per test.
+const connectOpen = vi.hoisted(() => ({ value: true }))
+vi.mock("@/lib/billing/connect-availability", () => ({
+  isConnectOnboardingOpen: () => connectOpen.value,
+}))
+
 vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: vi.fn() }))
 // Fix 3: the page now resolves the ACTIVE company via getActiveCompanyId().
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompanyId: vi.fn() }))

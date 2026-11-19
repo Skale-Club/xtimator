@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { portalConfigurationParam } from '@/lib/billing/stripe-portal-config'
 import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
@@ -70,6 +71,7 @@ export async function POST(_request: NextRequest) {
   const stripe = await getStripeClient()
 
   const session = await stripe.billingPortal.sessions.create({
+    ...(await portalConfigurationParam(stripe)),
     customer: company.stripe_customer_id,
     return_url: `${getCanonicalBaseUrl()}/settings/billing`,
   })

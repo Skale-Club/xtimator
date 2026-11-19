@@ -797,6 +797,32 @@ describe('checkout.session.completed — friendly URL (Phase 160, PUBURL-04)', (
   })
 })
 
+describe('checkout.session — delayed payment methods (launch audit 2026-11-19)', () => {
+  it('does not mark the estimate paid when the session completes unpaid', async () => {
+    const event = makeConnectEvent('checkout.session.completed', { payment_status: 'unpaid' })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(estimateUpdate).not.toHaveBeenCalled()
+    expect(sendPaymentReceivedEmail).not.toHaveBeenCalled()
+  })
+
+  it('marks the estimate paid on async_payment_succeeded', async () => {
+    const event = makeConnectEvent('checkout.session.async_payment_succeeded', { payment_status: 'paid' })
+    mockConstructEvent.mockReturnValue(event)
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(200)
+    expect(estimateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_status: 'paid' })
+    )
+    expect(sendPaymentReceivedEmail).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('stripe connect webhook — Fix 2: event/company account ownership (security)', () => {
   it('drops a cross-account invoice.paid event (acct_attacker emitting an event that resolves to acct_victim\'s company) with 200 and makes NO write', async () => {
     // The resolved company (co_fixture_1) actually belongs to acct_victim —

@@ -150,7 +150,8 @@ async function resolveConnectEventCompanyIdRaw(
   if (metadataCompanyId) return metadataCompanyId
 
   if (
-    event.type === 'checkout.session.completed' &&
+    (event.type === 'checkout.session.completed' ||
+      event.type === 'checkout.session.async_payment_succeeded') &&
     object.metadata?.estimate_id
   ) {
     return readReferencedCompanyId(
@@ -225,6 +226,7 @@ export function connectEventRequiresCompanyResolution(
 ): boolean {
   return [
     'checkout.session.completed',
+    'checkout.session.async_payment_succeeded',
     'invoice.paid',
     'invoice.voided',
     'invoice.marked_uncollectible',
@@ -251,6 +253,10 @@ export async function handleConnectEvent(
 
   switch (event.type) {
     case 'checkout.session.completed':
+    // A delayed method (ACH, bank debit) completes the session unpaid and
+    // confirms later with async_payment_succeeded; the handler only marks the
+    // estimate paid once session.payment_status says so.
+    case 'checkout.session.async_payment_succeeded':
       // companyId is non-null here: checkout.session.completed is in
       // connectEventRequiresCompanyResolution's list, and the `!companyId &&
       // connectEventRequiresCompanyResolution(event)` guard above already
@@ -313,6 +319,19 @@ async function handleCheckoutSessionCompleted(
   if (!estimateId) {
     console.warn(
       '[stripe-webhook][connect] checkout.session.completed missing metadata.estimate_id'
+    )
+    return
+  }
+
+  // Only a confirmed payment marks the estimate paid. An unpaid completion
+  // (delayed method still processing) waits for async_payment_succeeded.
+  // A missing payment_status (older fixtures) is treated as paid, which is
+  // what a card checkout always reports.
+  if (session.payment_status && session.payment_status !== 'paid' && session.payment_status !== 'no_payment_required') {
+    console.info(
+      '[stripe-webhook][connect] checkout session not paid yet; waiting for async_payment_succeeded',
+      session.id,
+      session.payment_status,
     )
     return
   }

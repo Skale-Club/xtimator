@@ -11,6 +11,7 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
 import { resolveTierFromPriceId } from '@/lib/billing/stripe-price-map'
+import { portalConfigurationParam } from '@/lib/billing/stripe-portal-config'
 
 const RATE_LIMITED_RESPONSE = (retryAfter: number | undefined) =>
   NextResponse.json(
@@ -163,6 +164,7 @@ export async function POST(request: NextRequest) {
       }
       try {
         const portal = await stripe.billingPortal.sessions.create({
+          ...(await portalConfigurationParam(stripe)),
           customer: company.stripe_customer_id as string,
           flow_data: {
             type: 'subscription_update_confirm',
@@ -179,6 +181,7 @@ export async function POST(request: NextRequest) {
         // portal session so the user can still switch plans there.
         try {
           const portal = await stripe.billingPortal.sessions.create({
+            ...(await portalConfigurationParam(stripe)),
             customer: company.stripe_customer_id as string,
             return_url: `${getCanonicalBaseUrl()}/settings/billing`,
           })

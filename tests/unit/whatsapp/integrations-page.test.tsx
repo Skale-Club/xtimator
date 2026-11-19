@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 // next/link reads router config at import in jsdom; mock to a plain anchor (repo convention).
+// Connect onboarding launch switch: existing cases run with onboarding OPEN;
+// the closed-at-launch cases flip it per test.
+const connectOpen = vi.hoisted(() => ({ value: true }))
+vi.mock("@/lib/billing/connect-availability", () => ({
+  isConnectOnboardingOpen: () => connectOpen.value,
+}))
+
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => (
     <a href={href} {...props}>
@@ -90,6 +97,36 @@ describe('Settings → Integrations page', () => {
     )
     render(await SettingsIntegrationsPage())
     expect(screen.getByText('Connected')).toBeTruthy()
+  })
+
+  it('hides "Collect payments" while Connect onboarding is closed and the company never connected', async () => {
+    connectOpen.value = false
+    try {
+      vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSupabase({ stripe_account_id: null, stripe_connect_status: null })
+      )
+      render(await SettingsIntegrationsPage())
+      expect(screen.queryByText('Collect payments')).toBeNull()
+      expect(screen.getByText('Developer tools')).toBeTruthy()
+    } finally {
+      connectOpen.value = true
+    }
+  })
+
+  it('keeps "Collect payments" for an already linked company while onboarding is closed', async () => {
+    connectOpen.value = false
+    try {
+      vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user-123' } as any)
+      vi.mocked(requireServiceClient).mockReturnValue(
+        mockSupabase({ stripe_account_id: 'acct_abc', stripe_connect_status: 'active' })
+      )
+      render(await SettingsIntegrationsPage())
+      expect(screen.getByText('Collect payments')).toBeTruthy()
+      expect(screen.getByText('Connected')).toBeTruthy()
+    } finally {
+      connectOpen.value = true
+    }
   })
 
   it('renders MCP Server card with Beta badge', async () => {
