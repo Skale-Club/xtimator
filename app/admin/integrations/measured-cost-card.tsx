@@ -1,5 +1,6 @@
 import type { OpCostStat } from '@/lib/billing/calibration'
 import { T } from '@/components/i18n/t'
+import { markupForCostOp, type MarkupOp } from '@/lib/billing/markup-ops'
 
 /**
  * Read-only "measured AI cost" card for the super-admin Billing panel.
@@ -14,16 +15,20 @@ import { T } from '@/components/i18n/t'
 export function MeasuredCostCard({
   stats,
   markup,
+  markupByOp,
   creditUnitUsd,
 }: {
   stats: OpCostStat[]
   markup: number
+  markupByOp?: Partial<Record<MarkupOp, number>>
   creditUnitUsd: number
 }) {
-  // credits charged for an op = round(realCost × markup ÷ creditUnitUsd) —
-  // the exact recordCreditDebit formula, so this reads as production would bill.
-  const toCredits = (usd: number) =>
-    creditUnitUsd > 0 ? Math.round((usd * markup) / creditUnitUsd) : 0
+  // credits charged for an op = round(realCost × that op's markup ÷ creditUnitUsd)
+  // — the exact recordCreditDebit formula, so this reads as production would bill.
+  // An op that is never debited (translation) shows its credits at the global markup.
+  const opMarkup = (costOp: string) => markupForCostOp({ markup, markupByOp }, costOp)
+  const toCredits = (usd: number, costOp: string) =>
+    creditUnitUsd > 0 ? Math.round((usd * opMarkup(costOp)) / creditUnitUsd) : 0
   const fmtUsd = (usd: number) => `$${usd.toFixed(4)}`
 
   return (
@@ -69,13 +74,13 @@ export function MeasuredCostCard({
                   <td className="py-1.5 pr-3 text-right">{fmtUsd(s.meanUsd)}</td>
                   <td className="py-1.5 pr-3 text-right">{fmtUsd(s.medianUsd)}</td>
                   <td className="py-1.5 pr-3 text-right">{fmtUsd(s.p90Usd)}</td>
-                  <td className="py-1.5 text-right font-semibold">{toCredits(s.meanUsd)}</td>
+                  <td className="py-1.5 text-right font-semibold">{toCredits(s.meanUsd, s.operationType)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted-foreground">
-            <T text={`At markup ${markup}× and $${creditUnitUsd}/credit, "mean in credits" is what each operation debits on average. A monthly grant of G credits ≈ G ÷ (that number) operations.`} />
+            <T text={`At each operation's markup and $${creditUnitUsd}/credit, "mean in credits" is what each operation debits on average. A monthly grant of G credits ≈ G ÷ (that number) operations.`} />
           </p>
         </div>
       )}

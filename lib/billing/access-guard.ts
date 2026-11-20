@@ -114,3 +114,24 @@ export async function getPaywallContext(companyId: string): Promise<PaywallConte
     return { state: 'active' }
   }
 }
+
+/**
+ * Credit recalibration 2026-11-19: what the (capture) layout renders. Capture
+ * only exists to start a new estimate, so it shows the block screen not just
+ * when the app is paywalled but also when the spendable balance is below the
+ * estimate's entry gate (a free account with 40 credits left cannot start one).
+ * Fails open to `active`, like getPaywallContext.
+ */
+export async function getCaptureGateContext(companyId: string): Promise<PaywallContext> {
+  const paywall = await getPaywallContext(companyId)
+  if (paywall.state !== 'active') return paywall
+  try {
+    const denied = await billingCreateDenied(companyId, 'estimate')
+    if (!denied) return { state: 'active' }
+    const cfg = await getBillingConfig()
+    return { state: denied.code, priceLabel: formatUsd(cfg.tiers.pro.subscriptionPriceCents) }
+  } catch (err) {
+    console.warn('[billing] capture gate context failed open:', err)
+    return { state: 'active' }
+  }
+}

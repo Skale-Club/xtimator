@@ -1,6 +1,7 @@
 import 'server-only'
 import { createServiceClient } from '@/lib/supabase/service'
 import type { EstimatedCreditOp } from '@/lib/billing/estimated-credit-ops'
+import type { MarkupOp } from '@/lib/billing/markup-ops'
 
 /**
  * Phase 111 — billing_config store CORE (BILLCFG-01 / BILLCFG-03).
@@ -122,7 +123,15 @@ export type MessagingRates = {
 }
 
 export type BillingConfig = {
-  markup: number // global multiplier; default 4.5 (per-op map = v2 GRAN-01 extension point)
+  markup: number // global multiplier: the fallback for any operation without its own entry in markupByOp
+  /**
+   * Credit recalibration (2026-11-19): per-operation markup. An operation with
+   * no entry here is debited at `markup` (lib/billing/markup-ops.ts markupFor).
+   * A stored row saved before this field existed resolves to an EMPTY map
+   * (mergeStoredBillingConfig), so it keeps debiting every operation at its
+   * stored global markup until an admin saves the new values.
+   */
+  markupByOp: Partial<Record<MarkupOp, number>>
   creditUnitUsd: number // 1 credit = $X charged value; default 0.01
   whisperUsdPerMinute: number // runtime source for the Phase-110 transcription rate const; default 0.006
   estimateFeePct: number // 0.01 = 1% (SEED-036); default 0.01
@@ -218,11 +227,24 @@ export const DEFAULT_MESSAGING_RATES: MessagingRates = {
  * save; real grant/markup/price come from the cost measured since Phase 110.
  */
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
-  // Markup 4.5 confirmed 2026-11-10 against measured production cost: a full
-  // estimate is ~105 credits, so Pro's 3,000 gives ~28 estimates (owner target
-  // 20-30), and the real cost of a full grant is 23% of Pro and 27% of
-  // Business, inside the 30% margin invariant (validateMarginInvariant).
-  markup: 4.5,
+  // Credit recalibration 2026-11-19 (owner targets: Pro 3,000 credits = 20-30
+  // estimates, Free = 1-3 estimates). The 2026-11-10 calibration (one markup of
+  // 4.5) counted web price research, which is off since 2026-11-09, so an
+  // estimate debited ~15 credits. Measured cost: generation p50 US$0.031 (p90
+  // 0.036), photo US$0.010, audio US$0.006/min, AI edit ~US$0.022. Per-op
+  // markups make a generation ~94 credits, a photo ~5, an audio minute ~3, an
+  // AI edit ~18. The margin invariant measures each grant at the LOWEST markup
+  // (5): Pro 20.7% monthly / 24.8% annual, Business (12,000) 24.2% / 29.1%.
+  markup: 5,
+  markupByOp: {
+    estimate: 30,
+    refine: 8,
+    photo_batch: 5,
+    audio_minutes: 5,
+    price_research: 5,
+    chat: 5,
+    messaging: 5,
+  },
   creditUnitUsd: 0.01,
   whisperUsdPerMinute: 0.006,
   estimateFeePct: 0.01,
@@ -243,11 +265,8 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   // CALIBRATE BEFORE CHARGING, do NOT present these as final pricing.
   // Credit scale (owner decision 2026-11-09): 1 credit = US$0.01. Pro US$29
   // grants 3,000 credits/month and Business US$99 grants 12,000 - both
-  // owner-approved. The MARKUP (4.5) is still uncalibrated: Business still
-  // fails the CALIB-02 margin invariant against the placeholder ANNUAL price
-  // (see lib/billing/calibration.ts), and enforcementEnabled defaults FALSE
-  // (below) until the markup is calibrated against measured cost. The
-  // charge-on gate refuses to flip enforcement on until the numbers pass.
+  // owner-approved. enforcementEnabled defaults FALSE (below); the charge-on
+  // gate refuses to flip it on unless every grant passes the margin invariant.
   // BRL prices (owner 2026-11-09): same credits as USD, priced in reais. The
   // annual BRL prices are 10x monthly like the USD placeholders (NOT owner
   // approved - confirm before charging in BRL).
@@ -345,20 +364,23 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   ],
   // SEED-055 Phase C: top-up lots expire 3 months after purchase.
   topupExpiryMonths: 3,
-  // SEED-055 Phase D: pre-gate cost per op, calibrated 2026-11-10 from the
-  // measured production p90 at markup 4.5 and US$0.01/credit (estimate $0.0364,
-  // vision $0.0119, audio $0.0044, price research $0.2184), rounded up. The
-  // debit is always the measured cost; this only decides whether an op starts.
-  // Chat is absorbed (not metered), so it stays at 1.
-  estimatedCreditsByOp: { estimate: 17, photo_batch: 6, audio_minutes: 2, price_research: 99, chat: 1 },
-  // A full estimate (audio + photos + generation + price research) measures
-  // about 105 credits, so warn at roughly three estimates left and at one.
-  lowBalanceThresholds: [300, 110],
+  // SEED-055 Phase D, recalibrated 2026-11-19: credits an op must find in the
+  // balance before it may START. The debit is always the measured cost; this
+  // only decides whether an op starts. `estimate` (80) is the entry gate of a
+  // whole capture: a recording, a text capture or a photo capture that ends in
+  // an estimate is checked against it ONCE, and the chained steps never
+  // re-check, so a started capture is never left charged with no estimate.
+  estimatedCreditsByOp: { estimate: 80, refine: 15, photo_batch: 6, audio_minutes: 3, price_research: 99, chat: 5 },
+  // A normal estimate (generation + 3 min audio + 5 photos + 1 AI edit) is
+  // ~150 credits: warn at about two estimates left and at about one.
+  lowBalanceThresholds: [300, 150],
   meteredOperations: { estimate: true, photo_batch: true, audio_minutes: true, price_research: true },
   absorbedChatRateLimitPerMin: 20,
-  // Billing v2: free-tier one-time allowance. CALIBRATE (sized ≈ a handful of
-  // estimates at the default markup); adjustable at runtime via the admin panel.
-  signupCreditGrant: 2000,
+  // Billing v2: free-tier one-time allowance (owner 2026-11-19: about 2
+  // estimates - 3 small or 1 huge - then the app pauses until the customer
+  // subscribes). 350 and not 300: two normal estimates cost ~306, so 300 would
+  // lock the app before the second one could be sent.
+  signupCreditGrant: 350,
   // Record-only until an admin explicitly calibrates + saves (see type docs).
   // Production ships with NO billing_config row, so THIS default is what every
   // unconfigured deployment enforces — false keeps the credit wall off placeholder
@@ -445,9 +467,17 @@ export function mergeStoredBillingConfig(stored: Partial<BillingConfig>): Billin
     sms: { ...DEFAULT_MESSAGING_RATES.sms, ...(storedRates.sms ?? {}) },
     emailUsd: storedRates.emailUsd ?? DEFAULT_MESSAGING_RATES.emailUsd,
   }
+  // Credit recalibration 2026-11-19: a stored row saved before per-op markups
+  // existed resolves to an EMPTY map, so every operation keeps its stored global
+  // markup (a deploy alone never changes what a customer is charged). A stored
+  // map falls through per key: an op it omits uses the global markup.
+  const markupByOp: Partial<Record<MarkupOp, number>> = {
+    ...((stored.markupByOp ?? {}) as Partial<Record<MarkupOp, number>>),
+  }
   const merged: BillingConfig = {
     ...DEFAULT_BILLING_CONFIG,
     ...stored,
+    markupByOp,
     tiers,
     affiliate,
     estimatedCreditsByOp,

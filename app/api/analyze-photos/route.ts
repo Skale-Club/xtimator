@@ -97,13 +97,17 @@ export async function POST(request: Request) {
 
     // Billing v2 credit gate — "everything on our AI spends credits": a spent
     // balance blocks photo analysis too. BYOK bypass lives inside checkCredits.
-    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('photo_batch'))
+    // Credit recalibration 2026-11-19: with auto-generate this starts a whole
+    // estimate, so it is gated on the estimate's entry gate (the chained
+    // generation then always runs).
+    const gateOp = autoGenerateEstimate ? 'estimate' : 'photo_batch'
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits(gateOp))
     if (!credit.allowed) {
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
-          state: await creditBlockState(companyId, 'photo_batch'),
+          state: await creditBlockState(companyId, gateOp),
           upgradeUrl: '/settings/billing',
         },
         { status: 402 }

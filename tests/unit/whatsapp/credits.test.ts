@@ -235,7 +235,7 @@ describe('BYOK and metering config are honoured centrally', () => {
 })
 
 describe('debitWhatsAppEstimate', () => {
-  it('debits ONE estimate per generation attempt: sums estimate + estimate_retry, ignores audio/vision/price_research', async () => {
+  it('debits ONE estimate per generation attempt: charges the most expensive of estimate + estimate_retry, ignores audio/vision/price_research', async () => {
     const gen = waGenerationAttemptId('wa-batch-1')
     state.costRows = [
       { attempt_id: gen, operation_type: 'estimate', real_cost_usd: 0.1 },
@@ -251,7 +251,8 @@ describe('debitWhatsAppEstimate', () => {
     const call = state.rpcCalls[0].params
     expect(call.p_operation_type).toBe('estimate')
     expect(call.p_idempotency_key).toBe(`${gen}:debit:estimate`)
-    expect(call.p_real_cost_usd).toBeCloseTo(0.15)
+    // Credit recalibration 2026-11-19: one generation = its most expensive call.
+    expect(call.p_real_cost_usd).toBeCloseTo(0.1)
     expect(state.appliedKeys.size).toBe(1)
   })
 })

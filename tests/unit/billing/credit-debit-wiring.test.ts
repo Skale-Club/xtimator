@@ -42,8 +42,8 @@ describe('CREDIT-02: the three Inngest jobs add a record-credit-debit step', () 
 })
 
 describe('CREDIT-02: each seam debits with its correct operationType', () => {
-  it('generate-estimate debits operationType: estimate', () => {
-    expect(read(GENERATE_ESTIMATE)).toMatch(/operationType:\s*'estimate'/)
+  it('generate-estimate debits operationType: estimate (refine when the run ended in needs-details)', () => {
+    expect(read(GENERATE_ESTIMATE)).toMatch(/operationType:\s*ranIntoNeedsDetails\s*\?\s*'refine'\s*:\s*'estimate'/)
   })
   it('analyze-photos debits operationType: photo_batch', () => {
     expect(read(ANALYZE_PHOTOS)).toMatch(/operationType:\s*'photo_batch'/)

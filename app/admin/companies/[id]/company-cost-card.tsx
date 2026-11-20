@@ -51,7 +51,7 @@ export function CompanyCostCard({
         </div>
         <div>
           <span className="text-muted-foreground">
-            <T>Effective markup:</T>
+            <T>Estimate markup:</T>
           </span>{' '}
           <span className="font-mono">{markup}x</span>
         </div>

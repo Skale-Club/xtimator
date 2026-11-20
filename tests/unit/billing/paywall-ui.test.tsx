@@ -16,9 +16,11 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 const toastError = vi.fn()
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }))
 
+// The (capture) layout reads the capture entry gate (credit recalibration
+// 2026-11-19): paywalled, or below the estimate's entry gate.
 const getPaywallContext = vi.fn()
 vi.mock('@/lib/billing/access-guard', () => ({
-  getPaywallContext: (...a: unknown[]) => getPaywallContext(...a),
+  getCaptureGateContext: (...a: unknown[]) => getPaywallContext(...a),
 }))
 vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: async () => ({ sub: 'u1' }) }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompany: async () => ({ id: 'co-1' }) }))
@@ -131,6 +133,17 @@ describe('both layouts share the same access-state source', () => {
   })
 })
 
+describe('a started capture is never re-gated mid-way (credit recalibration 2026-11-19)', () => {
+  it.each(['lib/inngest/functions/analyze-photos.ts', 'lib/inngest/functions/transcribe-audio.ts'])(
+    '%s chains into generation without a second credit check',
+    (file) => {
+      const src = readFileSync(resolve(process.cwd(), file), 'utf8')
+      expect(src).not.toContain('checkCredits(')
+      expect(src).not.toContain("errorCode: 'insufficient_credits'")
+    }
+  )
+})
+
 describe('pre-gate cost is configured, never hard-coded', () => {
   const ROOTS = ['app', 'lib']
   const files: string[] = []
@@ -156,8 +169,6 @@ describe('pre-gate cost is configured, never hard-coded', () => {
   it.each([
     'lib/actions/recording.ts',
     'lib/agent-tools/create-estimate.ts',
-    'lib/inngest/functions/analyze-photos.ts',
-    'lib/inngest/functions/transcribe-audio.ts',
     'lib/whatsapp/handler.ts',
     'app/api/analyze-photos/route.ts',
     'app/api/estimates/[id]/refine/route.ts',

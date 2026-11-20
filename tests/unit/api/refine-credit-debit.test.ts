@@ -15,8 +15,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
  *      `provider.refineEstimate`.
  *   2. AFTER a successful refine, the route reads back `ai_cost_events` for
  *      THAT SAME attemptId and calls `recordCreditDebit({ companyId,
- *      operationType: 'estimate', realCostUsd, attemptId })` — summing only
- *      the known (non-null) real_cost_usd rows.
+ *      operationType: 'refine', realCostUsd, attemptId })` — the most expensive
+ *      known (non-null) edit call; photos and audio debit under their own ops.
  *
  * `getAIProviderWithFallback` is mocked so the refine NODE (real module) runs
  * against a controllable `refineEstimate` spy instead of a live provider —
@@ -136,7 +136,12 @@ describe('Fix (refine credit attribution): refine actually debits after a succes
         return {
           select: () => ({
             eq: () => ({
-              in: async () => ({ data: [{ real_cost_usd: 1.5 }, { real_cost_usd: 0.25 }] }),
+              in: async () => ({
+                data: [
+                  { operation_type: 'estimate', real_cost_usd: 1.5 },
+                  { operation_type: 'estimate_retry', real_cost_usd: 0.25 },
+                ],
+              }),
             }),
           }),
         }
@@ -160,7 +165,7 @@ describe('Fix (refine credit attribution): refine actually debits after a succes
     expect(call.costContext?.projectId).toBe('proj-1')
   })
 
-  it('debits AFTER a successful refine: recordCreditDebit({ companyId, operationType: "estimate", realCostUsd, attemptId }) with the SAME attemptId threaded to refineEstimate', async () => {
+  it('debits AFTER a successful refine: recordCreditDebit({ companyId, operationType: "refine", realCostUsd, attemptId }) with the SAME attemptId threaded to refineEstimate', async () => {
     const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
     expect(res.status).toBe(200)
 
@@ -172,10 +177,10 @@ describe('Fix (refine credit attribution): refine actually debits after a succes
       attemptId: string
     }
     expect(debitArg.companyId).toBe('company-1')
-    expect(debitArg.operationType).toBe('estimate')
-    // Sums the mocked ai_cost_events rows (1.5 + 0.25) — proves the read-back
-    // actually flows into the debit's realCostUsd.
-    expect(debitArg.realCostUsd).toBe(1.75)
+    // Credit recalibration 2026-11-19: an AI edit is its own operation, charged
+    // for ONE model call (the most expensive: the 0.25 retry is absorbed).
+    expect(debitArg.operationType).toBe('refine')
+    expect(debitArg.realCostUsd).toBe(1.5)
 
     // The SAME attemptId the refine node received — proves this is one
     // coherent, correlated attempt end-to-end, not two independent ids.
@@ -190,7 +195,7 @@ describe('Fix (refine credit attribution): refine actually debits after a succes
     expect(aiCostEventsFrom).toBeDefined()
   })
 
-  it('when ai_cost_events has no rows for the attempt, realCostUsd is null and recordCreditDebit no-ops it (never guessed at 0)', async () => {
+  it('when ai_cost_events has no rows for the attempt, nothing is debited (never guessed at 0)', async () => {
     mockSvcFrom.mockImplementation((table: string) => {
       if (table === 'companies') {
         return {
@@ -212,8 +217,7 @@ describe('Fix (refine credit attribution): refine actually debits after a succes
     const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
     expect(res.status).toBe(200)
 
-    expect(mockRecordCreditDebit).toHaveBeenCalledOnce()
-    expect(mockRecordCreditDebit.mock.calls[0][0]).toMatchObject({ realCostUsd: null })
+    expect(mockRecordCreditDebit).not.toHaveBeenCalled()
   })
 
   it('a failed refine never debits (mirrors "record usage/debit ONLY on AI success")', async () => {

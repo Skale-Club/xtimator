@@ -10,15 +10,36 @@
  *   - photo → forward {kind:'photo', base64, mimeType, caption}
  *   - returns normalizeInput's { ok, text, reason }; NEVER throws
  *
- * No credit code (CHATMETER-01 inherited via ingestMultimodal in normalizeInput).
+ * Credit recalibration 2026-11-19: gated like a chat turn, debited as audio / photos.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getClaimsMock, getActiveCompanyIdMock, normalizeInputMock } = vi.hoisted(() => ({
-  getClaimsMock: vi.fn(),
-  getActiveCompanyIdMock: vi.fn(),
-  normalizeInputMock: vi.fn(),
+const { getClaimsMock, getActiveCompanyIdMock, normalizeInputMock, billingDeniedMock, debitMock } =
+  vi.hoisted(() => ({
+    getClaimsMock: vi.fn(),
+    getActiveCompanyIdMock: vi.fn(),
+    normalizeInputMock: vi.fn(),
+    billingDeniedMock: vi.fn(),
+    debitMock: vi.fn(),
+  }))
+
+// Credit recalibration 2026-11-19: attachments are gated and debited.
+vi.mock('@/lib/billing/access-guard', () => ({
+  billingCreateDenied: (...a: unknown[]) => billingDeniedMock(...a),
 }))
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  recordCreditDebit: (...a: unknown[]) => debitMock(...a),
+}))
+vi.mock('@/lib/supabase/service', () => ({
+  requireServiceClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({ eq: async () => ({ data: [{ real_cost_usd: 0.01 }] }) }),
+      }),
+    }),
+  }),
+}))
+vi.mock('@/lib/demo/guard', () => ({ assertWritable: async () => null }))
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -41,6 +62,7 @@ beforeEach(() => {
   getClaimsMock.mockResolvedValue({ data: { claims: { sub: 'user-1' } } })
   getActiveCompanyIdMock.mockResolvedValue('company-1')
   normalizeInputMock.mockResolvedValue({ text: 'transcribed', kind: 'audio', ok: true })
+  billingDeniedMock.mockResolvedValue(null)
 })
 
 describe('normalizeChatInput (CHATUI-03)', () => {
@@ -73,8 +95,12 @@ describe('normalizeChatInput (CHATUI-03)', () => {
         mimeType: 'image/jpeg',
         caption: 'living room',
       },
-      // The active company rides along so the vision cost is recorded.
-      { companyId: 'company-1' }
+      // The active company and a fresh attempt id ride along so the vision
+      // cost is recorded and debited.
+      expect.objectContaining({ companyId: 'company-1', attemptId: expect.any(String) })
+    )
+    expect(debitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: 'company-1', operationType: 'photo_batch', realCostUsd: 0.01 })
     )
     expect(r).toEqual({ ok: true, text: 'a red wall', reason: undefined })
   })
@@ -87,8 +113,17 @@ describe('normalizeChatInput (CHATUI-03)', () => {
     expect(arg.kind).toBe('audio')
     expect(arg.ext).toBe('webm')
     expect(arg.blob).toBeInstanceOf(Blob)
-    expect(normalizeInputMock.mock.calls[0][1]).toEqual({ companyId: 'company-1' })
+    expect(normalizeInputMock.mock.calls[0][1]).toMatchObject({ companyId: 'company-1' })
+    expect(debitMock).toHaveBeenCalledWith(expect.objectContaining({ operationType: 'audio_minutes' }))
     expect(r).toEqual({ ok: true, text: 'hello there', reason: undefined })
+  })
+
+  it('a blocked account runs no paid call', async () => {
+    billingDeniedMock.mockResolvedValue({ error: 'blocked', code: 'paywalled' })
+    const r = await normalizeChatInput({ kind: 'audio', base64: 'aGVsbG8=', ext: 'webm' })
+    expect(r).toEqual({ ok: false, text: '', reason: 'paywalled' })
+    expect(normalizeInputMock).not.toHaveBeenCalled()
+    expect(debitMock).not.toHaveBeenCalled()
   })
 
   it('propagates a failure reason from normalizeInput', async () => {

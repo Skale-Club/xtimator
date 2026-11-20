@@ -2,6 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { markupFor, type MarkupOp } from '@/lib/billing/markup-ops'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
@@ -53,17 +54,11 @@ function notifyCreditLedgerWriteFailed(companyId: string, op: string, err: unkno
  * there is no channel branch; an op that spent nothing simply records nothing.
  */
 
-export type DebitOperationType =
-  | 'estimate'
-  | 'photo_batch'
-  | 'audio_minutes'
-  | 'price_research'
-  // SEED-055 Phase D: the chat assistant debits per turn (app/api/chat/route.ts);
-  // the ledger CHECK accepts it (20261106000001).
-  | 'chat'
-  // Phase 2b: WhatsApp / SMS / email sent on the customer's behalf, debited as ONE
-  // aggregated line per company per run (lib/inngest/functions/debit-messaging-costs.ts).
-  | 'messaging'
+// estimate, photo_batch, audio_minutes, price_research; chat (SEED-055 Phase D,
+// per turn, app/api/chat/route.ts); messaging (Phase 2b, one aggregated line per
+// company per run, lib/inngest/functions/debit-messaging-costs.ts); refine (AI
+// edit, 20261119210000). Each is debited at its own markup (markup-ops.ts).
+export type DebitOperationType = MarkupOp
 
 /** Idempotency key for a debit: `${attemptId}:debit:${op}` (retry-stable per attempt+op). */
 export function debitIdemKey(attemptId: string, op: string, runKey?: string): string {
@@ -142,7 +137,8 @@ async function executeCreditDebit(
     if (!opts.ignoreByok && (await isByokCompany(svc, input.companyId))) return 'byok'
 
     const cfg = await getBillingConfig()
-    const credits = Math.round((input.realCostUsd * cfg.markup) / cfg.creditUnitUsd)
+    const markup = markupFor(cfg, input.operationType)
+    const credits = Math.round((input.realCostUsd * markup) / cfg.creditUnitUsd)
     if (credits <= 0) return 'below_minimum'
 
     // Phase 3 (3.9): honour billing_config.meteredOperations. An op explicitly
@@ -168,7 +164,7 @@ async function executeCreditDebit(
       p_operation_type: input.operationType,
       p_ref_id: input.attemptId,
       p_real_cost_usd: input.realCostUsd,
-      p_markup: cfg.markup,
+      p_markup: markup,
       p_idempotency_key: key,
     })
     if (rpcError) {

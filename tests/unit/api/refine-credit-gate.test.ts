@@ -174,7 +174,7 @@ describe('BILL-01: refine route credit gate', () => {
     expect(body.success).toBe(true)
   })
 
-  it('gate is called with the resolved companyId and the configured estimate pre-gate cost (mirrors generate)', async () => {
+  it('gate is called with the resolved companyId and the configured AI-edit pre-gate cost', async () => {
     mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
 
     await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
@@ -182,7 +182,7 @@ describe('BILL-01: refine route credit gate', () => {
     expect(mockCheckCredits).toHaveBeenCalledWith(
       expect.anything(),
       'company-1',
-      17 // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.estimate (calibrated 2026-11-10)
+      15 // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.refine (recalibrated 2026-11-19)
     )
   })
 })

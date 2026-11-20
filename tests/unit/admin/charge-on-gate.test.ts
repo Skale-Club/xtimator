@@ -137,10 +137,21 @@ describe('charge-on gate — REJECT a failing enforcementEnabled flip (CALIB-02 
     expect(lastUpsertPayload).toBeNull()
   })
 
-  it('rejects the illustrative DEFAULTS by the annual leg (the shipped annual price is still an uncalibrated placeholder — see lib/billing/calibration.ts)', async () => {
-    const res = await saveBillingConfig({ ...DEFAULT_BILLING_CONFIG, enforcementEnabled: true })
+  it('rejects a config whose lowest per-op markup breaks the annual leg', async () => {
+    // Credit recalibration 2026-11-19: the shipped defaults PASS (lowest markup
+    // 5); one cheap operation (messaging at 3) is enough to fail Business.
+    const res = await saveBillingConfig({
+      ...DEFAULT_BILLING_CONFIG,
+      markupByOp: { ...DEFAULT_BILLING_CONFIG.markupByOp, messaging: 3 },
+      enforcementEnabled: true,
+    })
     expect(res.ok).toBe(false)
     expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts the recalibrated DEFAULTS with enforcementEnabled:true', async () => {
+    const res = await saveBillingConfig({ ...DEFAULT_BILLING_CONFIG, enforcementEnabled: true })
+    expect(res.ok).toBe(true)
   })
 
   it('accepts a config whose ANNUAL price also passes the margin invariant with enforcementEnabled:true', async () => {

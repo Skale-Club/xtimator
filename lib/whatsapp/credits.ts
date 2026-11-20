@@ -57,7 +57,13 @@ export function waGenerationAttemptId(batchKey: string): string {
  * Bounded read-back (3 x 150ms) covers a not-yet-committed row, exactly like the
  * web jobs; an absent or all-null result is null (recordCreditDebit then no-ops).
  */
-async function readCostUsd(attemptId: string, operationTypes: string[]): Promise<number | null> {
+async function readCostUsd(
+  attemptId: string,
+  operationTypes: string[],
+  // Credit recalibration 2026-11-19: a generation is charged for its most
+  // expensive call (platform retries absorbed), like generate-estimate.ts.
+  combine: 'sum' | 'max' = 'sum'
+): Promise<number | null> {
   const svc = requireServiceClient()
   for (let i = 0; i < READBACK_ATTEMPTS; i++) {
     const { data } = await svc
@@ -68,7 +74,8 @@ async function readCostUsd(attemptId: string, operationTypes: string[]): Promise
     const rows = (data ?? []) as { real_cost_usd: number | null }[]
     if (rows.length > 0) {
       const known = rows.map((r) => r.real_cost_usd).filter((c): c is number => c != null)
-      return known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+      if (known.length === 0) return null
+      return combine === 'max' ? Math.max(...known) : known.reduce((a, b) => a + b, 0)
     }
     await new Promise((r) => setTimeout(r, READBACK_DELAY_MS))
   }
@@ -113,7 +120,7 @@ export async function debitWhatsAppEstimate(input: {
 }): Promise<void> {
   try {
     const { recordCreditDebit } = await import('@/lib/billing/credit-ledger')
-    const realCostUsd = await readCostUsd(input.attemptId, ['estimate', 'estimate_retry'])
+    const realCostUsd = await readCostUsd(input.attemptId, ['estimate', 'estimate_retry'], 'max')
     await recordCreditDebit({
       companyId: input.companyId,
       operationType: 'estimate',

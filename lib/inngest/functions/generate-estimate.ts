@@ -17,6 +17,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { recordUsage, notifyQuotaThresholds } from '@/lib/quota'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
+import { chargeableGenerationCostUsd } from '@/lib/billing/markup-ops'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
@@ -397,15 +398,22 @@ export const generateEstimateJob = inngest.createFunction(
           .in('operation_type', ['estimate', 'estimate_retry'])
         const rows = (data ?? []) as { real_cost_usd: number | null }[]
         if (rows.length > 0) {
-          const known = rows
-            .map((r) => r.real_cost_usd)
-            .filter((c): c is number => c != null)
-          realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+          realCostUsd = chargeableGenerationCostUsd(rows.map((r) => r.real_cost_usd))
           break
         }
         await new Promise((r) => setTimeout(r, 150))
       }
-      await recordCreditDebit({ companyId, operationType: 'estimate', realCostUsd, attemptId })
+      // Credit recalibration 2026-11-19: a run that ended asking for more
+      // details kept no estimate, so it is charged as an AI edit (refine
+      // markup), not as a full estimate.
+      const ranIntoNeedsDetails =
+        (result as { needsDetails?: boolean } | null)?.needsDetails === true
+      await recordCreditDebit({
+        companyId,
+        operationType: ranIntoNeedsDetails ? 'refine' : 'estimate',
+        realCostUsd,
+        attemptId,
+      })
     })
 
     // Phase 92 (EVENT-02/D-03): resolve the new estimate id from the AI result

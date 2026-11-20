@@ -93,6 +93,7 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Expired': 'Expirado',
     'Price research': 'Pesquisa de preços',
     'Xtimator AI chat': 'Chat do Xtimator AI',
+    'AI estimate edit': 'Edição com IA',
     'Messages': 'Mensagens',
     'Usage': 'Uso',
 
@@ -221,6 +222,7 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Expired': 'Vencido',
     'Price research': 'Investigación de precios',
     'Xtimator AI chat': 'Chat de Xtimator AI',
+    'AI estimate edit': 'Edición con IA',
     'Messages': 'Mensajes',
     'Usage': 'Uso',
 

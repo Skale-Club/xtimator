@@ -1,5 +1,7 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
+
 /**
  * lib/actions/chat.ts — CHATUI-03 multimodal normalize server action.
  *
@@ -38,6 +40,8 @@ import { toUIMessages } from '@/lib/chat/history-mapper'
 import { getCurrentEstimate } from '@/lib/queries/estimate'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingCreateDenied } from '@/lib/billing/access-guard'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { UIMessage } from 'ai'
 
@@ -64,20 +68,54 @@ export async function normalizeChatInput(
   const denied = await assertWritable()
   if (denied) return { ok: false, text: '', reason: 'demo_readonly' }
 
-  if (arg.kind === 'audio') {
-    const bytes = Buffer.from(arg.base64, 'base64')
-    const blob = new Blob([bytes])
-    const r = await normalizeInput({ kind: 'audio', blob, ext: arg.ext }, { companyId })
-    return { ok: r.ok, text: r.text, reason: r.reason }
-  }
+  // Credit recalibration 2026-11-19: a chat attachment runs paid Whisper /
+  // vision, so it is gated like a chat turn and debited like the capture op it
+  // is (audio_minutes / photo_batch). Before, a blocked account could run them
+  // for free.
+  const blocked = await billingCreateDenied(companyId, 'chat')
+  if (blocked) return { ok: false, text: '', reason: blocked.code }
 
-  const r = await normalizeInput({
-    kind: 'photo',
-    base64: arg.base64,
-    mimeType: arg.mimeType,
-    caption: arg.caption,
-  }, { companyId })
+  const attemptId = randomUUID()
+  const costContext = { attemptId, companyId }
+  const r =
+    arg.kind === 'audio'
+      ? await normalizeInput(
+          { kind: 'audio', blob: new Blob([Buffer.from(arg.base64, 'base64')]), ext: arg.ext },
+          costContext
+        )
+      : await normalizeInput(
+          { kind: 'photo', base64: arg.base64, mimeType: arg.mimeType, caption: arg.caption },
+          costContext
+        )
+  await debitChatAttachment(companyId, attemptId, arg.kind === 'audio' ? 'audio_minutes' : 'photo_batch')
   return { ok: r.ok, text: r.text, reason: r.reason }
+}
+
+/** Debit the Whisper / vision cost one chat attachment recorded. Never throws. */
+async function debitChatAttachment(
+  companyId: string,
+  attemptId: string,
+  op: 'audio_minutes' | 'photo_batch'
+): Promise<void> {
+  try {
+    const { data } = await requireServiceClient()
+      .from('ai_cost_events')
+      .select('real_cost_usd')
+      .eq('attempt_id', attemptId)
+      .eq('operation_type', op === 'audio_minutes' ? 'audio_minutes' : 'vision')
+    const known = ((data ?? []) as { real_cost_usd: number | null }[])
+      .map((row) => row.real_cost_usd)
+      .filter((c): c is number => c != null)
+    if (known.length === 0) return
+    await recordCreditDebit({
+      companyId,
+      operationType: op,
+      realCostUsd: known.reduce((a, b) => a + b, 0),
+      attemptId,
+    })
+  } catch (err) {
+    console.warn('[chat] attachment debit skipped:', err instanceof Error ? err.message : err)
+  }
 }
 
 /**

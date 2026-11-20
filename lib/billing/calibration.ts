@@ -27,6 +27,7 @@
  */
 
 import type { BillingConfig, BillingTier } from '@/lib/billing/billing-config'
+import { lowestMarkup } from '@/lib/billing/markup-ops'
 
 /** SEED-035 §5: the real cost of a tier's FULL monthly grant must be ≤ 30% of its price. */
 export const MARGIN_INVARIANT_MAX = 0.3
@@ -60,7 +61,7 @@ export type TierMarginResult = {
 /**
  * Validate the margin invariant against a billing config.
  *
- * For each tier: realCostOfGrantUsd = (monthlyCreditGrant × creditUnitUsd) / markup
+ * For each tier: realCostOfGrantUsd = (monthlyCreditGrant × creditUnitUsd) / lowestMarkup
  * (the exact inverse of recordCreditDebit's `credits = round(realCost × markup /
  * creditUnitUsd)`), ratio = realCostOfGrantUsd / (subscriptionPriceCents / 100),
  * annualRatio = 12 × realCostOfGrantUsd / (subscriptionPriceAnnualCents / 100) —
@@ -77,15 +78,21 @@ export type TierMarginResult = {
  * on a priced tier makes both that tier's pass and the overall pass false.
  */
 export function validateMarginInvariant(
-  cfg: Pick<BillingConfig, 'markup' | 'creditUnitUsd' | 'tiers'>,
+  cfg: Pick<BillingConfig, 'markup' | 'creditUnitUsd' | 'tiers'> & {
+    markupByOp?: BillingConfig['markupByOp'] | null
+  },
   max = MARGIN_INVARIANT_MAX
 ): { pass: boolean; tiers: Record<BillingTier, TierMarginResult> } {
   const tierNames = Object.keys(cfg.tiers) as BillingTier[]
   const tiers = {} as Record<BillingTier, TierMarginResult>
   let overall = true
+  // Credit recalibration 2026-11-19: with per-operation markups the worst case
+  // is a customer who spends the whole grant on the operation with the LOWEST
+  // markup, so the grant's real cost is measured at that markup.
+  const markup = lowestMarkup(cfg)
   for (const name of tierNames) {
     const t = cfg.tiers[name]
-    const realCostOfGrantUsd = (t.monthlyCreditGrant * cfg.creditUnitUsd) / cfg.markup
+    const realCostOfGrantUsd = (t.monthlyCreditGrant * cfg.creditUnitUsd) / markup
 
     const priceUsd = t.subscriptionPriceCents / 100
     const skipped = priceUsd <= 0

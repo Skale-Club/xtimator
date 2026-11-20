@@ -36,6 +36,7 @@ import type { McpAuthContext } from '@/lib/mcp/auth'
 import { ensureReadScope } from '@/lib/mcp/tools/read'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { invalidInput } from '@/lib/mcp/errors'
+import { billingCreateDenied } from '@/lib/billing/access-guard'
 import type { ToolDefinition, ToolDefinitionEntry, ToolResult } from '@/lib/mcp/tools/registry'
 import {
   askKnowledge,
@@ -158,6 +159,10 @@ function textContent(text: string): ToolResult {
 
 async function handleAskKnowledge(auth: McpAuthContext, args: unknown): Promise<ToolResult> {
   const { question } = parseInput(askKnowledgeInput, args)
+  // Credit recalibration 2026-11-19: the answer runs a paid model call, so a
+  // blocked account (paywalled / out of credits) is refused like a chat turn.
+  const blocked = await billingCreateDenied(auth.company_id, 'chat')
+  if (blocked) throw invalidInput(blocked.error)
   const supabase = requireServiceClient()
 
   // Resolve the retrieval scope from the TRUSTED tenant — mirrors

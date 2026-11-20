@@ -104,36 +104,43 @@ describe('CALIB-02: MARGIN_INVARIANT_MAX', () => {
 // nothing until an admin explicitly runs them through this validator via the
 // charge-on gate (saveBillingConfig).
 // =============================================================================
-describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — monthly passes, business annual fails', () => {
-  it('overall pass is FALSE (the business annual price is not yet calibrated)', () => {
+describe('CALIB-02: validateMarginInvariant(DEFAULT_BILLING_CONFIG) — recalibrated 2026-11-19', () => {
+  it('overall pass is TRUE: every grant is measured at the lowest per-op markup (5)', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    expect(res.pass).toBe(false)
+    expect(res.pass).toBe(true)
   })
 
-  it('pro (3000 credits, owner-approved 2026-11-09): monthly ratio ≈ 0.230 and annual ratio ≈ 0.276 both PASS', () => {
+  it('pro (3000 credits): monthly ratio ≈ 0.207 and annual ratio ≈ 0.248 both PASS', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    // 3000 × 0.01 / 4.5 = 6.6667
-    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(6.6667, 3)
-    expect(res.tiers.pro.ratio).toBeCloseTo(0.2299, 3)
+    // 3000 × 0.01 / 5 = 6.0
+    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(6, 3)
+    expect(res.tiers.pro.ratio).toBeCloseTo(0.2069, 3)
     expect(res.tiers.pro.skipped).toBe(false)
-    // 12 × 6.6667 / 290 = 0.2759
-    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.2759, 3)
-    expect(res.tiers.pro.annualSkipped).toBe(false)
+    // 12 × 6 / 290 = 0.2483
+    expect(res.tiers.pro.annualRatio).toBeCloseTo(0.2483, 3)
     expect(res.tiers.pro.annualPass).toBe(true)
     expect(res.tiers.pro.pass).toBe(true)
   })
 
-  it('business: monthly ratio 26.6667/99 ≈ 0.269 PASSES, annual ratio 12×26.6667/990 ≈ 0.323 FAILS', () => {
+  it('business (12000 credits): monthly ≈ 0.242 and annual ≈ 0.291 both PASS', () => {
     const res = validateMarginInvariant(DEFAULT_BILLING_CONFIG)
-    // 12000 × 0.01 / 4.5 = 26.6667
-    expect(res.tiers.business.realCostOfGrantUsd).toBeCloseTo(26.6667, 3)
-    expect(res.tiers.business.ratio).toBeCloseTo(0.2694, 3)
-    expect(res.tiers.business.skipped).toBe(false)
-    // 12 × 26.6667 / 990 = 0.3232
-    expect(res.tiers.business.annualRatio).toBeCloseTo(0.3232, 3)
-    expect(res.tiers.business.annualSkipped).toBe(false)
-    expect(res.tiers.business.annualPass).toBe(false)
-    expect(res.tiers.business.pass).toBe(false)
+    // 12000 × 0.01 / 5 = 24
+    expect(res.tiers.business.realCostOfGrantUsd).toBeCloseTo(24, 3)
+    expect(res.tiers.business.ratio).toBeCloseTo(0.2424, 3)
+    // 12 × 24 / 990 = 0.2909
+    expect(res.tiers.business.annualRatio).toBeCloseTo(0.2909, 3)
+    expect(res.tiers.business.pass).toBe(true)
+  })
+
+  it('a single low per-op markup drives the worst case', () => {
+    const res = validateMarginInvariant({
+      ...DEFAULT_BILLING_CONFIG,
+      markupByOp: { ...DEFAULT_BILLING_CONFIG.markupByOp, messaging: 2 },
+    })
+    // 3000 × 0.01 / 2 = 15 → 15 / 29 > 0.30
+    expect(res.tiers.pro.realCostOfGrantUsd).toBeCloseTo(15, 3)
+    expect(res.tiers.pro.pass).toBe(false)
+    expect(res.pass).toBe(false)
   })
 })
 
@@ -185,6 +192,9 @@ describe('CALIB-02: validateMarginInvariant — passing fixture', () => {
   it('a hand-crafted calibrated config PASSES (low grants relative to price)', () => {
     const cfg = {
       ...DEFAULT_BILLING_CONFIG,
+      // One global markup of 4.5 (no per-op entries) — the arithmetic below.
+      markup: 4.5,
+      markupByOp: {},
       tiers: {
         ...DEFAULT_BILLING_CONFIG.tiers,
         // pro: 1000 × 0.01 / 4.5 = 2.2222 ; 2.2222 / 29 = 0.0766 ≤ 0.30 PASS

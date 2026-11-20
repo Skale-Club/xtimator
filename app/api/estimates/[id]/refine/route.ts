@@ -28,6 +28,7 @@ import { demoGuardResponse } from '@/lib/demo/guard'
 import { asResponse, XtimatorError, throwIfNotFound, throwIfForbidden } from '@/lib/errors'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { checkCredits, recordCreditDebit } from '@/lib/billing/credit-ledger'
+import { chargeableGenerationCostUsd } from '@/lib/billing/markup-ops'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { creditBlockState } from '@/lib/billing/access-guard'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
@@ -56,26 +57,43 @@ function extFromMime(type: string): string {
 }
 
 /**
- * Debit the credits for the AI calls THIS attempt made (Claude/Gemini refine call,
- * vision for photos, Whisper for audio). Reads back the cost rows the attemptId
- * produced and debits once. recordCreditDebit never throws; the whole block is also
- * try/catched so a read-back failure can never change the response.
+ * Debit the credits for the AI calls THIS attempt made, each under its own
+ * operation (credit recalibration 2026-11-19): the edit model call(s) as
+ * 'refine' (one call, the most expensive: platform retries are absorbed),
+ * attached photos as 'photo_batch' and attached audio as 'audio_minutes', each at
+ * its own markup. Every debit is idempotent on attemptId + operation, so the
+ * early call (audio / photos with no usable instruction) and the final call
+ * never charge the same spend twice. recordCreditDebit never throws; the whole
+ * block is also try/catched so a read-back failure can never change the response.
  */
 async function debitRefineAttempt(companyId: string, attemptId: string): Promise<void> {
   try {
     const svc = requireServiceClient()
     const { data } = await svc
       .from('ai_cost_events')
-      .select('real_cost_usd')
+      .select('operation_type, real_cost_usd')
       .eq('attempt_id', attemptId)
       // 'estimate_retry': a schema-repair re-call on the same attempt (recordAICost).
       .in('operation_type', ['estimate', 'estimate_retry', 'vision', 'audio_minutes'])
-    const rows = (data ?? []) as { real_cost_usd: number | null }[]
-    const known = rows
-      .map((r) => r.real_cost_usd)
-      .filter((c): c is number => c != null)
-    const realCostUsd = known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
-    await recordCreditDebit({ companyId, operationType: 'estimate', realCostUsd, attemptId })
+    const rows = (data ?? []) as { operation_type: string; real_cost_usd: number | null }[]
+    const costsOf = (types: string[]) =>
+      rows.filter((r) => types.includes(r.operation_type)).map((r) => r.real_cost_usd)
+    const sumKnown = (costs: Array<number | null>) => {
+      const known = costs.filter((c): c is number => c != null)
+      return known.length > 0 ? known.reduce((a, b) => a + b, 0) : null
+    }
+    const editCost = chargeableGenerationCostUsd(costsOf(['estimate', 'estimate_retry']))
+    const photoCost = sumKnown(costsOf(['vision']))
+    const audioCost = sumKnown(costsOf(['audio_minutes']))
+    if (photoCost != null) {
+      await recordCreditDebit({ companyId, operationType: 'photo_batch', realCostUsd: photoCost, attemptId })
+    }
+    if (audioCost != null) {
+      await recordCreditDebit({ companyId, operationType: 'audio_minutes', realCostUsd: audioCost, attemptId })
+    }
+    if (editCost != null) {
+      await recordCreditDebit({ companyId, operationType: 'refine', realCostUsd: editCost, attemptId })
+    }
   } catch (err) {
     console.warn('[refine] credit-debit read-back failed (non-fatal):', err)
   }
@@ -173,14 +191,14 @@ export async function POST(
     // (164-02 coordination: the TRUST-02 lock guard above now runs BEFORE
     // this gate, per the plan's locked ordering — auth → ownership/current →
     // LOCK → credit gate → paid work.)
-    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'))
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('refine'))
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
-          state: await creditBlockState(companyId, 'estimate'),
+          state: await creditBlockState(companyId, 'refine'),
           upgradeUrl: '/settings/billing',
           ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
         },

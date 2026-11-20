@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { BillingConfig, BillingTier } from '@/lib/billing/billing-config'
 import { ESTIMATED_CREDIT_OPS } from '@/lib/billing/estimated-credit-ops'
+import { MARKUP_OPS } from '@/lib/billing/markup-ops'
 import { saveBillingConfig } from './actions'
 
 type Props = {
@@ -58,6 +59,15 @@ export function BillingConfigForm({ current }: Props) {
 
   // Top-level money / rate fields
   const [markup, setMarkup] = useState(String(current.markup))
+  // Credit recalibration 2026-11-19: per-operation markup. Empty = use the global markup.
+  const [markupByOp, setMarkupByOp] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      MARKUP_OPS.map((op) => {
+        const v = current.markupByOp?.[op]
+        return [op, v != null ? String(v) : '']
+      })
+    )
+  )
   const [creditUnitUsd, setCreditUnitUsd] = useState(String(current.creditUnitUsd))
   const [whisperUsdPerMinute, setWhisperUsdPerMinute] = useState(
     String(current.whisperUsdPerMinute)
@@ -192,6 +202,9 @@ export function BillingConfigForm({ current }: Props) {
     }
     const payload: BillingConfig = {
       markup: Number(markup),
+      markupByOp: Object.fromEntries(
+        MARKUP_OPS.filter((op) => markupByOp[op]?.trim()).map((op) => [op, Number(markupByOp[op])])
+      ) as BillingConfig['markupByOp'],
       creditUnitUsd: Number(creditUnitUsd),
       whisperUsdPerMinute: Number(whisperUsdPerMinute),
       estimateFeePct: Number(estimateFeePct),
@@ -284,7 +297,7 @@ export function BillingConfigForm({ current }: Props) {
         <legend className={legendClass}>{t('Markup & Credits')}</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">{t('Markup (multiplier)')}</span>
+            <span className="text-sm font-medium">{t('Global markup (fallback)')}</span>
             <input
               type="number"
               step="0.1"
@@ -722,13 +735,39 @@ export function BillingConfigForm({ current }: Props) {
         </div>
       </fieldset>
 
+      {/* Per-operation markup (credit recalibration 2026-11-19) */}
+      <fieldset className={fieldsetClass}>
+        <legend className={legendClass}>{t('Markup per operation')}</legend>
+        <p className="text-xs text-muted-foreground">
+          {t('Credits debited = measured cost × this markup ÷ credit unit. Leave empty to use the global markup.')}
+        </p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {MARKUP_OPS.map((op) => (
+            <label key={op} className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">{op}</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={markupByOp[op]}
+                placeholder={markup}
+                onChange={(e) => setMarkupByOp((prev) => ({ ...prev, [op]: e.target.value }))}
+                disabled={isPending}
+                aria-label={`${t('Markup')}: ${op}`}
+                className={inputClass}
+              />
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       {/* Pre-gate credit estimate per operation (SEED-055 Phase D) */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Estimated credits per operation')}</legend>
         <p className="text-xs text-muted-foreground">
           {t('Used only to decide whether an operation may start. The debit is always the measured cost.')}
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
           {ESTIMATED_CREDIT_OPS.map((op) => (
             <label key={op} className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">{op}</span>

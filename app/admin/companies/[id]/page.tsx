@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getOpenRouterDefaultModel } from '@/lib/platform-config'
 import { OR_DEFAULTS } from '@/lib/ai/openrouter-client'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { markupFor } from '@/lib/billing/markup-ops'
 import { getCompanyCostOverview, getCompanyMessagingCost } from '@/lib/queries/admin-company-cost'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -51,7 +52,7 @@ export default async function AdminCompanyDetailPage({
   const globalModel = await getOpenRouterDefaultModel()
 
   const cfg = await getBillingConfig()
-  const costOverview = await getCompanyCostOverview(company.id, cfg.markup)
+  const costOverview = await getCompanyCostOverview(company.id, markupFor(cfg, 'estimate'))
   const messagingCost = await getCompanyMessagingCost(company.id)
 
   // OpenRouter is the single AI engine: effective model is the per-company

@@ -42,8 +42,7 @@ import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { recordPipelineEvent } from '@/lib/observability/pipeline-events'
 import { notifyOps } from '@/lib/observability/ops-alert'
-import { recordCreditDebit, checkCredits } from '@/lib/billing/credit-ledger'
-import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
+import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { deriveAudioMinutes } from '@/lib/billing/whisper-cost'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import {
@@ -355,28 +354,11 @@ export const transcribeAudioJob = inngest.createFunction(
     // this short-circuit exists to serve cheaply.
     if (data.autoGenerateEstimate && ident.projectId) {
       await step.run('dispatch-generate-estimate', async () => {
-        // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK
-        // this chained dispatch (transcription itself already succeeded and
-        // stays; only the generate-estimate hop is skipped). Uses the service
-        // client (this is a background job, no request-scoped client exists) —
-        // checkCredits' plain `companies` select works unchanged against it.
-        const svc = requireServiceClient()
-        const credit = await checkCredits(svc, data.companyId, await getEstimatedCredits('estimate'))
-        if (!credit.allowed) {
-          void recordPipelineEvent({
-            attemptId,
-            inputType,
-            step: 'generate_estimate',
-            status: 'failed',
-            companyId: data.companyId,
-            projectId: ident.projectId,
-            errorCode: 'insufficient_credits',
-            errorMessage: 'Insufficient credits',
-            provider: null,
-          })
-          return
-        }
-
+        // Credit recalibration 2026-11-19: NO credit re-check here. The capture
+        // was gated once at its entry (the whole estimate's gate), and this
+        // step's own analysis was already charged: skipping the generation now
+        // would leave the customer charged with no estimate. A shortfall goes to
+        // credit_debt, and the next capture is refused at its entry.
         const reqId = data.requestId ?? randomUUID()
         await inngest.send({
           name: EVENT_ESTIMATE_GENERATE,

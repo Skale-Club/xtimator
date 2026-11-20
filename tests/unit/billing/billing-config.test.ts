@@ -781,13 +781,14 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
 // SEED-055 Phase D - estimatedCreditsByOp (pre-gate cost per operation)
 // =============================================================================
 describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
-  it('defaults to the calibrated p90 cost per operation', () => {
+  it('defaults to the recalibrated entry gates (2026-11-19)', () => {
     expect(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp).toEqual({
-      estimate: 17,
+      estimate: 80,
+      refine: 15,
       photo_batch: 6,
-      audio_minutes: 2,
+      audio_minutes: 3,
       price_research: 99,
-      chat: 1,
+      chat: 5,
     })
   })
 
@@ -828,10 +829,21 @@ describe('credit scale: defaults', () => {
     expect(DEFAULT_BILLING_CONFIG.creditUnitUsd).toBe(0.01)
   })
 
-  it('Pro grants 3000 credits/month, Business stays 12000, markup is unchanged', () => {
+  it('Pro grants 3000 credits/month, Business 12000, per-operation markups (2026-11-19)', () => {
     expect(DEFAULT_BILLING_CONFIG.tiers.pro.monthlyCreditGrant).toBe(3000)
     expect(DEFAULT_BILLING_CONFIG.tiers.business.monthlyCreditGrant).toBe(12000)
-    expect(DEFAULT_BILLING_CONFIG.markup).toBe(4.5)
+    expect(DEFAULT_BILLING_CONFIG.markup).toBe(5)
+    expect(DEFAULT_BILLING_CONFIG.markupByOp).toEqual({
+      estimate: 30,
+      refine: 8,
+      photo_batch: 5,
+      audio_minutes: 5,
+      price_research: 5,
+      chat: 5,
+      messaging: 5,
+    })
+    expect(DEFAULT_BILLING_CONFIG.signupCreditGrant).toBe(350)
+    expect(DEFAULT_BILLING_CONFIG.lowBalanceThresholds).toEqual([300, 150])
   })
 
   it('packs are US$10/900, US$20/1900, US$50/5000 with BRL R$54,90/R$109,90/R$279,90', () => {
@@ -891,7 +903,9 @@ describe('mergeStoredBillingConfig: stored config without the BRL fields', () =>
     expect(cfg.topUpPacks[0].priceCentsBrl).toBe(9999)
   })
 
-  it('an empty stored row resolves to the defaults', () => {
-    expect(mergeStoredBillingConfig({})).toEqual(DEFAULT_BILLING_CONFIG)
+  it('an empty stored row resolves to the defaults, except per-op markups', () => {
+    // A stored row without markupByOp keeps every op at its stored global
+    // markup, so a deploy alone never changes what a customer is charged.
+    expect(mergeStoredBillingConfig({})).toEqual({ ...DEFAULT_BILLING_CONFIG, markupByOp: {} })
   })
 })

@@ -259,6 +259,7 @@ export async function IntegrationCategoryContent({
           <MeasuredCostCard
             stats={costStats}
             markup={billingConfig.markup}
+            markupByOp={billingConfig.markupByOp}
             creditUnitUsd={billingConfig.creditUnitUsd}
           />
           <BillingConfigForm current={billingConfig} />

@@ -2,6 +2,7 @@ import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { aggregateAiCostByOperation } from '@/lib/billing/calibration'
 import { getBillingConfig } from '@/lib/billing/billing-config'
+import { markupFor, markupForCostOp } from '@/lib/billing/markup-ops'
 import { BillingTable } from './billing-table'
 import { Card } from '@/components/ui/card'
 import { T } from '@/components/i18n/t'
@@ -23,9 +24,15 @@ export default async function AdminBillingPage() {
   ])
 
   const totalRealCostUsd = platformStats.reduce((acc, op) => acc + op.meanUsd * op.n, 0)
+  // Each operation's cost at its own markup (credit recalibration 2026-11-19).
   const totalCreditsEquivalent =
     billingConfig.creditUnitUsd > 0
-      ? Math.round((totalRealCostUsd * billingConfig.markup) / billingConfig.creditUnitUsd)
+      ? Math.round(
+          platformStats.reduce(
+            (acc, op) => acc + op.meanUsd * op.n * markupForCostOp(billingConfig, op.operationType),
+            0
+          ) / billingConfig.creditUnitUsd
+        )
       : 0
 
   // Batched per-company real-cost lookup — avoids an N+1 getCompanyCostOverview
@@ -70,7 +77,7 @@ export default async function AdminBillingPage() {
             ${totalRealCostUsd.toFixed(2)}
           </p>
           <p className="text-xs text-muted-foreground">
-            {totalCreditsEquivalent.toLocaleString()} <T>credits equivalent at</T> {billingConfig.markup}× <T>markup</T>
+            {totalCreditsEquivalent.toLocaleString()} <T>credits equivalent at each operation’s markup</T>
           </p>
         </Card>
       </div>
@@ -78,7 +85,7 @@ export default async function AdminBillingPage() {
       <Card variant="glass" className="p-4 md:p-6">
         <BillingTable
           companies={companiesWithCost}
-          markup={billingConfig.markup}
+          markup={markupFor(billingConfig, 'estimate')}
           creditUnitUsd={billingConfig.creditUnitUsd}
         />
       </Card>

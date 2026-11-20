@@ -32,7 +32,7 @@ import {
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
-import { creditBlockState } from '@/lib/billing/access-guard'
+import { creditBlockState, billingCreateDenied } from '@/lib/billing/access-guard'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -102,6 +102,42 @@ async function screenBatchByPolicy(
 }
 
 // -------------------------------------------------------------------------
+// Credit recalibration 2026-11-19: a blocked account (paywalled / out of
+// credits) gets ONE short reply and nothing else. Before, only the batch
+// estimate path was gated: the intent router (EDIT / QUERY / MANAGE agents), an
+// awaiting_confirm or awaiting_details session and a pending agentic send ran
+// paid AI for an account that could no longer spend. The reply itself is
+// platform cost (not billable), so a blocked account never sinks into debt.
+// Returns true when the message was answered and must not be processed.
+// -------------------------------------------------------------------------
+async function replyIfAccountBlocked(
+  companyId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient
+): Promise<boolean> {
+  const denied = await billingCreateDenied(companyId, 'chat')
+  if (!denied) return false
+  const body =
+    denied.code === 'paywalled'
+      ? 'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
+      : "You're out of credits — buy credits at /settings/billing to keep creating estimates."
+  const wamid = await sendWhatsAppMessage(
+    ownerPhone,
+    { type: 'text', text: { body } },
+    { companyId, purpose: 'bot_reply', billable: false }
+  )
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body,
+    msgType: 'text',
+    waMessageId: wamid,
+    status: 'sent',
+  }).catch(() => undefined)
+  return true
+}
+
+// -------------------------------------------------------------------------
 // Entry point — webhook route calls this fire-and-forget.
 //
 // Phase 48: routes to debounce buffer when no session exists (so multiple
@@ -119,6 +155,8 @@ export async function processInboundWithDebounce(
   // UX feedback first — both paths benefit
   await markMessageAsRead(message.id).catch(() => undefined)
   await sendTypingIndicator(message.id).catch(() => undefined)
+
+  if (await replyIfAccountBlocked(companyId, ownerPhone, supabase)) return
 
   // Agentic-send confirmation pending? (Phase 178 AGENT-01) — route through
   // the intent classifier immediately, exactly like the awaiting_confirm
@@ -250,6 +288,8 @@ export async function processInboundMessage(
   // Meta API failures are swallowed inside markMessageAsRead/sendTypingIndicator.
   await markMessageAsRead(message.id).catch(() => undefined)
   await sendTypingIndicator(message.id).catch(() => undefined)
+
+  if (await replyIfAccountBlocked(companyId, ownerPhone, supabase)) return
 
   // Agentic-send confirmation pending? (Phase 178 AGENT-01) — route through
   // the intent classifier immediately, exactly like the awaiting_confirm

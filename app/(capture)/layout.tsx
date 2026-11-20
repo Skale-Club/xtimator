@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
-import { getPaywallContext } from '@/lib/billing/access-guard'
+import { getCaptureGateContext } from '@/lib/billing/access-guard'
 import { TwaProvider } from '@/components/pwa/twa-provider'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { CaptureBlocked } from '@/components/billing/capture-blocked'
@@ -18,7 +18,7 @@ export default async function CaptureLayout({ children }: { children: React.Reac
 
   // SEED-055 Phase D: capture is pure creation, so a paywalled / out-of-credits
   // company gets a full-screen block instead of the recording UI.
-  const paywall = await getPaywallContext(company.id)
+  const paywall = await getCaptureGateContext(company.id)
   const isTwa = await isTwaRequest()
 
   return (

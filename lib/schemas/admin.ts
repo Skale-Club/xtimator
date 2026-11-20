@@ -273,8 +273,22 @@ export const messagingRatesSchema = z.object({
   emailUsd: z.number().min(0).max(10),
 })
 
+const markupValue = z.number().positive().max(100)
+
 export const billingConfigSchema = z.object({
-  markup: z.number().positive().max(100),
+  markup: markupValue,
+  // Credit recalibration 2026-11-19: per-operation markup; an absent op uses `markup`.
+  markupByOp: z
+    .object({
+      estimate: markupValue.optional(),
+      refine: markupValue.optional(),
+      photo_batch: markupValue.optional(),
+      audio_minutes: markupValue.optional(),
+      price_research: markupValue.optional(),
+      chat: markupValue.optional(),
+      messaging: markupValue.optional(),
+    })
+    .default({}),
   creditUnitUsd: z.number().positive().max(1),
   whisperUsdPerMinute: z.number().min(0).max(10),
   // Capped at 0.1 (10%) — a confiscatory fee percentage is a policy bug, not
@@ -309,6 +323,7 @@ export const billingConfigSchema = z.object({
   // SEED-055 Phase D: pre-gate credit estimate per operation.
   estimatedCreditsByOp: z.object({
     estimate: z.number().int().min(0).max(100000),
+    refine: z.number().int().min(0).max(100000).optional(),
     photo_batch: z.number().int().min(0).max(100000),
     audio_minutes: z.number().int().min(0).max(100000),
     price_research: z.number().int().min(0).max(100000),

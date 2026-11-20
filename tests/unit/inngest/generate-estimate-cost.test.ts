@@ -211,12 +211,13 @@ describe('260821: generate-estimate record-credit-debit read-back scopes to oper
     ])
   })
 
-  it('sums the estimate and estimate_retry rows into one debit', async () => {
+  it('charges ONE generation: the most expensive of the estimate and estimate_retry rows', async () => {
+    // Credit recalibration 2026-11-19: platform retries are absorbed.
     state.aiCostRows = [{ real_cost_usd: 0.02 }, { real_cost_usd: 0.03 }, { real_cost_usd: null }]
     const fn = await loadHandler()
     await fn.handler({ event: baseEvent({ attemptId: 'retry-attempt' }), step: makeReplayStep(new Map()) })
     expect(mockRecordCreditDebit).toHaveBeenCalledWith(
-      expect.objectContaining({ operationType: 'estimate', realCostUsd: 0.05, attemptId: 'retry-attempt' })
+      expect.objectContaining({ operationType: 'estimate', realCostUsd: 0.03, attemptId: 'retry-attempt' })
     )
   })
 

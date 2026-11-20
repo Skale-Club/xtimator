@@ -491,6 +491,15 @@ export async function transcribeRecording(
     return { error: 'This recording has no audio file to transcribe.' }
   }
 
+  if (options?.autoGenerateEstimate && !options.dispatchNonce) {
+    // Credit recalibration 2026-11-19: a capture that ends in an estimate is
+    // gated ONCE, here, on the whole estimate's entry gate; once accepted, the
+    // chained steps (transcription, photos, generation) always finish. A Retry
+    // (dispatchNonce) of an accepted capture is not gated again.
+    const denied = await billingCreateDenied(recording.company_id as string, 'estimate')
+    if (denied) return { error: denied.error, code: denied.code }
+  }
+
   // Dispatch via Inngest. Importing inngest client + events here is safe —
   // server actions already run server-side. Lazy-imported to keep this module
   // pure at the top level (matches the existing import-on-demand style used
@@ -584,8 +593,14 @@ export async function startRecordingPipeline(input: {
 
   let creditsAllowed = true
   try {
-    const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('audio_minutes'))
-    creditsAllowed = credit.allowed
+    // Credit recalibration 2026-11-19: this pipeline always ends in an estimate,
+    // so it is gated on the whole estimate's entry gate, once. A Retry of an
+    // accepted capture (recordingId present) is not gated again: its audio may
+    // already be charged, and refusing now would leave it with no estimate.
+    if (!input.recordingId) {
+      const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('estimate'))
+      creditsAllowed = credit.allowed
+    }
   } catch (err) {
     // Fail OPEN — a metering-read failure must never wrongly block generation.
     console.warn('[startRecordingPipeline] checkCredits failed — failing open:', err)
