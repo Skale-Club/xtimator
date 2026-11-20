@@ -13,12 +13,17 @@ import { resolveIndustries } from '@/lib/industries'
 import { appendIndustryPriceBook } from '@/lib/price-book-seed'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { sendProfileUpdatedEmail, diffProfileFields } from '@/lib/email/account-emails'
 import { isEstimateTemplateId, DEFAULT_ESTIMATE_TEMPLATE_ID } from '@/lib/estimate/templates/registry'
 import { blockFlagForTextChange, mergeDocumentBlocks } from '@/lib/estimate/document-blocks-store'
 import { hasText, type DocumentBlocksRaw } from '@/lib/estimate/document-blocks'
 
-async function getAuthContext() {
+// Product rule 2026-11-20: a paywalled company is read-only everywhere, and
+// that includes its business settings (company details, defaults, terms,
+// delivery, trade). `billing: false` is for the person's own preferences
+// (notification alerts), which stay open like their account and billing.
+async function getAuthContext({ billing = true }: { billing?: boolean } = {}) {
   const supabase = await createClient()
   const { data: claimsData } = await supabase.auth.getClaims()
   const claims = claimsData?.claims ?? null
@@ -33,6 +38,11 @@ async function getAuthContext() {
 
   const denied = await assertWritable()
   if (denied) return denied
+
+  if (billing) {
+    const billingDenied = await billingEditDenied(company.id)
+    if (billingDenied) return billingDenied
+  }
 
   return { supabase, company, claims }
 }
@@ -340,7 +350,7 @@ export async function updateNotifications(data: {
   notifyOnAccept: boolean
   notifyOnDecline: boolean
 }) {
-  const ctx = await getAuthContext()
+  const ctx = await getAuthContext({ billing: false })
   if ('error' in ctx) return { error: ctx.error }
   const { supabase, company } = ctx
 

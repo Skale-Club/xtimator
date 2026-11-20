@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { DOCUMENT_BLOCK_KEYS, type DocumentBlocksRaw } from '@/lib/estimate/document-blocks'
 
 const documentBlocksSchema = z.object({
@@ -36,6 +37,9 @@ export async function updateDocumentBlocks(data: DocumentBlocksRaw) {
 
   const denied = await assertWritable()
   if (denied) return denied
+  // A paywalled company is read-only, settings included (rule 2026-11-20).
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return billingDenied
 
   // Persist exactly the known keys, in catalogue order.
   const documentBlocks: Record<string, boolean> = {}

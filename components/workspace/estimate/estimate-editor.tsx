@@ -688,6 +688,9 @@ export function EstimateEditor({
 
   const handlePresentationSettingsChange = useCallback(
     (next: PresentationSettings) => {
+      // Paywalled: the server refuses this write and content autosave is off,
+      // so a change here would show in the preview and vanish on reload.
+      if (billingReadOnly) return
       dispatch({ type: 'UPDATE_PRESENTATION_SETTINGS', presentation_settings: next })
       if (locked) {
         void savePresentationSettings(stateRef.current.id, next, stateRef.current.updated_at).then(
@@ -707,7 +710,7 @@ export function EstimateEditor({
         )
       }
     },
-    [dispatch, locked]
+    [dispatch, locked, billingReadOnly]
   )
 
   // SEED-056 Phase D: "+ Add block". Turns ONE block on for this estimate through
@@ -1186,8 +1189,9 @@ export function EstimateEditor({
         )}
       </div>
 
-      {/* SEED-056 Phase D: hidden blocks, one click away. Same write path as the gear. */}
-      {isCurrent && (
+      {/* SEED-056 Phase D: hidden blocks, one click away. Same write path as the gear.
+          Hidden while paywalled: the server refuses the write. */}
+      {isCurrent && !billingReadOnly && (
         <AddBlockRow
           settings={state.presentation_settings}
           hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
@@ -1211,7 +1215,7 @@ export function EstimateEditor({
           affordance below is gated on paymentsEnabled (no orphan when off). */}
       <IssuedInvoicesPanel invoices={issuedInvoices} />
 
-      {isCurrent && paymentsEnabled && (
+      {isCurrent && paymentsEnabled && !billingReadOnly && (
         <div className="flex justify-end">
           <GenerateInvoiceDialog
             estimateId={estimate.id}
@@ -1311,6 +1315,7 @@ export function EstimateEditor({
           language={(estimate.language ?? 'en') as EstimateLanguage}
           onLanguageChange={handleLanguageChange}
           languageDisabled={isContentReadOnly}
+          readOnly={billingReadOnly}
         />
       )}
     </div>

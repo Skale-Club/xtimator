@@ -63,6 +63,7 @@ import {
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface PriceBookListProps {
   items: PriceBookItem[]
@@ -108,6 +109,9 @@ export function PriceBookList({
 }: PriceBookListProps) {
   const router = useRouter()
   const { t } = useTranslation()
+  // Paywalled: the server refuses every price-book write, so the list is for
+  // reading only (no add, import, adjust, rename, delete or selection).
+  const readOnly = usePaywallReadOnly()
   // Search and the category filter live in the URL like every list (Back and
   // reload keep them). The category rides on the shared `tab` param.
   const url = useListUrlState()
@@ -399,15 +403,19 @@ export function PriceBookList({
           icon={BookOpen}
           title={t('No price book items yet')}
           description={t('Add your pricing standards and the AI will use them as anchors when generating estimates. Leaving this empty is fine | the AI will use market estimates instead.')}
-          actionLabel={t('Add first item')}
-          onAction={handleAddItem}
+          actionLabel={readOnly ? undefined : t('Add first item')}
+          onAction={readOnly ? undefined : handleAddItem}
         />
-        <div className="flex justify-center -mt-4">
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            {t('Import CSV')}
-          </Button>
-        </div>
+        {readOnly ? (
+          <PaywallReadOnlyNotice className="mx-auto -mt-4 max-w-xl" />
+        ) : (
+          <div className="flex justify-center -mt-4">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              {t('Import CSV')}
+            </Button>
+          </div>
+        )}
         <PriceBookItemDialog
           open={dialogOpen}
           onOpenChange={handleDialogChange}
@@ -435,12 +443,13 @@ export function PriceBookList({
       query={categoryQuery}
       onQueryChange={setCategoryQuery}
       onSelect={selectCategory}
-      onNewCategory={() => { setPickerOpen(false); setNewFolderDialogOpen(true) }}
+      onNewCategory={readOnly ? undefined : () => { setPickerOpen(false); setNewFolderDialogOpen(true) }}
     />
   )
 
   return (
     <>
+      {readOnly && <PaywallReadOnlyNotice className="mb-4" />}
       {/* Desktop: one panel (header, then categories | services). Phone: the
           same content flat on the page, so the list gets the full width. No
           backdrop blur anywhere: a blurred element as tall as the list inside
@@ -479,6 +488,7 @@ export function PriceBookList({
             </Button>
           </div>
 
+          {!readOnly && (
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" className={cn(TOOLBAR_CONTROL, 'hidden md:inline-flex')} onClick={() => setImportDialogOpen(true)}>
               <Upload className="h-4 w-4" />
@@ -512,6 +522,7 @@ export function PriceBookList({
               <span className="sr-only sm:not-sr-only">{t('Add Service')}</span>
             </Button>
           </div>
+          )}
         </div>
 
         <div className="mt-4 md:mt-0 md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
@@ -569,6 +580,7 @@ export function PriceBookList({
                     )}
 
                     {/* Desktop: the category's actions inline. */}
+                    {!readOnly && (
                     <div className="ml-auto hidden shrink-0 items-center gap-1 md:flex">
                       {folderItems.length > 0 && (
                         // Select-all for this category's VISIBLE items — icon button,
@@ -622,8 +634,10 @@ export function PriceBookList({
                       )}
                     </div>
 
+                    )}
+
                     {/* Phone: the same actions behind one ⋯. */}
-                    {!isRenaming && (
+                    {!isRenaming && !readOnly && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="-mr-2 ml-auto size-10 shrink-0 rounded-lg text-muted-foreground md:hidden" aria-label={`${t('Category actions')}: ${folderName}`}>
@@ -664,10 +678,12 @@ export function PriceBookList({
                   {folderItems.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[var(--glass-border)] px-4 py-8 text-center text-sm text-muted-foreground">
                       <p>{t('No services in this category yet.')}</p>
-                      <Button variant="outline" size="sm" className="mt-3" onClick={handleAddItem}>
-                        <Plus className="h-4 w-4" />
-                        {t('Add Service')}
-                      </Button>
+                      {!readOnly && (
+                        <Button variant="outline" size="sm" className="mt-3" onClick={handleAddItem}>
+                          <Plus className="h-4 w-4" />
+                          {t('Add Service')}
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="overflow-hidden rounded-xl border border-[var(--glass-border)] bg-card md:rounded-lg md:bg-transparent">
@@ -684,6 +700,7 @@ export function PriceBookList({
                             item={item}
                             isSelected={selected.has(item.id)}
                             selecting={selecting}
+                            selectable={!readOnly}
                             onToggle={(checked) => toggleItemSelected(item.id, checked)}
                             onTap={() => handleRowTap(item)}
                             selectLabel={`${t('Select')} ${item.name}`}
@@ -701,7 +718,7 @@ export function PriceBookList({
 
       {/* Bulk action bar — appears while selecting. On a phone it clears the
           fixed bottom nav. */}
-      {selecting && (
+      {selecting && !readOnly && (
         <div className="sticky bottom-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] z-30 mt-4 flex justify-center pointer-events-none md:bottom-3">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-background py-1.5 pl-4 pr-1.5 shadow-xl">
             <span className="text-sm font-medium">
@@ -897,7 +914,8 @@ function CategoryList({
   query: string
   onQueryChange: (value: string) => void
   onSelect: (key: string) => void
-  onNewCategory: () => void
+  /** Undefined hides the button (paywalled: read-only). */
+  onNewCategory?: () => void
 }) {
   const { t } = useTranslation()
   const q = query.trim().toLowerCase()
@@ -946,6 +964,7 @@ function CategoryList({
           <li className="px-3 py-2 text-sm text-muted-foreground">{t('No categories match')}</li>
         )}
       </ul>
+      {onNewCategory && (
       <button
         type="button"
         onClick={onNewCategory}
@@ -954,6 +973,7 @@ function CategoryList({
         <FolderPlus className="h-4 w-4" />
         {t('New Category')}
       </button>
+      )}
     </div>
   )
 }
@@ -968,6 +988,7 @@ function PriceRow({
   item,
   isSelected,
   selecting,
+  selectable = true,
   onToggle,
   onTap,
   selectLabel,
@@ -975,6 +996,8 @@ function PriceRow({
   item: PriceBookItem
   isSelected: boolean
   selecting: boolean
+  /** False hides the select checkbox (paywalled: nothing to do with a selection). */
+  selectable?: boolean
   onToggle: (checked: boolean) => void
   onTap: () => void
   selectLabel: string
@@ -990,10 +1013,13 @@ function PriceRow({
       <label
         className={cn(
           'relative z-10 -m-2 shrink-0 cursor-pointer items-center justify-center p-2',
-          selecting
-            ? 'flex'
-            : 'hidden md:flex md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100',
+          !selectable
+            ? 'hidden md:invisible md:flex' // keeps the grid's checkbox column
+            : selecting
+              ? 'flex'
+              : 'hidden md:flex md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100',
         )}
+        aria-hidden={selectable ? undefined : true}
       >
         <Checkbox
           checked={isSelected}

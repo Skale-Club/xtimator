@@ -28,6 +28,7 @@ import {
 } from '@/lib/estimate/presentation-settings'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import Link from 'next/link'
+import { PaywallReadOnlyNotice } from '@/components/billing/paywall-read-only'
 
 // ---------------------------------------------------------------------------
 // Phase 162-04 (DOCUX-01) — The gear-triggered Presentation Settings Panel
@@ -96,6 +97,12 @@ export interface PresentationSettingsPanelProps {
   onLanguageChange?: (next: EstimateLanguageOption) => Promise<void>
   /** The language can't change now (read-only or answered estimate). */
   languageDisabled?: boolean
+  /**
+   * The company is paywalled: the server refuses every write (client link,
+   * pricing, blocks, language), so the panel shows the settings with every
+   * control off and a Subscribe notice instead of accepting changes it drops.
+   */
+  readOnly?: boolean
 }
 
 export type EstimateLanguageOption = 'en' | 'pt' | 'es'
@@ -200,6 +207,7 @@ function PanelBody({
   language,
   onLanguageChange,
   languageDisabled,
+  readOnly,
 }: PresentationSettingsPanelProps): JSX.Element {
   const { t } = useTranslation()
   // The language the owner picked and is asked to confirm (translation costs credits).
@@ -213,6 +221,7 @@ function PanelBody({
   const [taxDraft, setTaxDraft] = useState<string | null>(null)
 
   function patch(next: Partial<PresentationSettings>): void {
+    if (readOnly) return
     onChange({ ...raw, ...next })
   }
 
@@ -247,6 +256,16 @@ function PanelBody({
         </div>
       )}
 
+      {readOnly && <PaywallReadOnlyNotice />}
+
+      {/* Paywalled: a native disabled fieldset turns off every control below
+          (client picker, segmented choices, switches, the tax field) while the
+          values stay readable. The defaults link still works. */}
+      <fieldset
+        disabled={readOnly}
+        data-paywall-read-only={readOnly ? '' : undefined}
+        className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0"
+      >
       {/* --- Client (only while none is linked) --- */}
       {clientSlot && (
         <Group label={t('Client')}>
@@ -484,6 +503,7 @@ function PanelBody({
           <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
+      </fieldset>
     </div>
   )
 }

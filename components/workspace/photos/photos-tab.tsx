@@ -14,6 +14,7 @@ import {
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
+import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface PhotosTabProps {
   projectId: string
@@ -28,6 +29,9 @@ export function PhotosTab({
 }: PhotosTabProps) {
   const { t } = useTranslation()
   const { slot } = useEstimateVersionSlot()
+  // Paywalled: the server refuses uploads, deletes, reordering and attaching,
+  // so the photos are for viewing only (the lightbox still opens).
+  const readOnly = usePaywallReadOnly()
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -109,22 +113,28 @@ export function PhotosTab({
 
   return (
     <div className="space-y-6 py-4">
-      <PhotoDropZone
-        projectId={projectId}
-        companyId={companyId}
-        currentCount={photos.length}
-        onPhotosUploaded={handlePhotosUploaded}
-      />
+      {readOnly ? (
+        <PaywallReadOnlyNotice />
+      ) : (
+        <PhotoDropZone
+          projectId={projectId}
+          companyId={companyId}
+          currentCount={photos.length}
+          onPhotosUploaded={handlePhotosUploaded}
+        />
+      )}
 
       {photos.length > 0 && (
+        <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
         <PhotoGrid
           photos={photos}
-          onReorder={handleReorder}
+          onReorder={readOnly ? () => {} : handleReorder}
           onDelete={handleDelete}
           onPhotoClick={handlePhotoClick}
           isAttached={(id) => attachedIds.has(id)}
           onToggleAttach={handleToggleAttach}
         />
+        </fieldset>
       )}
 
       <PhotoLightbox

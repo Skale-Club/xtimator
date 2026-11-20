@@ -61,6 +61,7 @@ interface RenderOpts {
   clientSlot?: ReactNode
   hasCompanyTerms?: boolean
   hasValidUntil?: boolean
+  readOnly?: boolean
 }
 
 async function renderPanel(opts: RenderOpts = {}) {
@@ -78,6 +79,7 @@ async function renderPanel(opts: RenderOpts = {}) {
       clientSlot={opts.clientSlot}
       hasCompanyTerms={opts.hasCompanyTerms}
       hasValidUntil={opts.hasValidUntil}
+      readOnly={opts.readOnly}
     />,
   )
   return { ...result, onChange, onOpenChange }
@@ -368,5 +370,34 @@ describe('PresentationSettingsPanel — estimate language', () => {
     unmount()
     render(<Panel open onOpenChange={() => {}} settings={null} onChange={() => {}} estimateSentOrViewed={false} />)
     expect(screen.queryByText('Estimate language')).toBeNull()
+  })
+})
+
+// Rule 2026-11-20: a paywalled company is read-only everywhere. The server
+// refuses every write this panel makes, so the panel shows the settings with
+// every control off instead of accepting changes that vanish on reload.
+describe('PresentationSettingsPanel — paywalled (readOnly)', () => {
+  it('shows the Subscribe notice and disables the client slot and every control', async () => {
+    const { onChange } = await renderPanel({
+      readOnly: true,
+      clientSlot: <button data-testid="link-client">Link Client</button>,
+    })
+    expect(screen.getByTestId('paywall-read-only-notice')).toBeTruthy()
+    const slot = screen.getByTestId('link-client') as HTMLButtonElement
+    expect(slot.closest('fieldset[disabled]')).toBeTruthy()
+    expect(slot.matches(':disabled')).toBe(true)
+    for (const control of screen.getAllByRole('radio')) {
+      expect((control as HTMLElement).matches(':disabled')).toBe(true)
+    }
+    for (const control of screen.getAllByRole('switch')) {
+      expect((control as HTMLElement).matches(':disabled')).toBe(true)
+    }
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps everything editable and shows no notice when not read-only', async () => {
+    await renderPanel({ clientSlot: <button data-testid="link-client">Link Client</button> })
+    expect(screen.queryByTestId('paywall-read-only-notice')).toBeNull()
+    expect((screen.getByTestId('link-client') as HTMLButtonElement).matches(':disabled')).toBe(false)
   })
 })

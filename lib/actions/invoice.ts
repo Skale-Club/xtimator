@@ -7,6 +7,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getAuthContext } from '@/lib/auth/context'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeApplicationFee } from '@/lib/billing/estimate-fee'
@@ -215,6 +216,9 @@ async function issueInvoice(
 
   const sessionDenied = await assertWritable()
   if (sessionDenied) return sessionDenied
+  // A paywalled company is read-only: no new invoices (rule 2026-11-20).
+  const billingDenied = await billingEditDenied(companyId)
+  if (billingDenied) return { error: billingDenied.error }
 
   const supabase = await createClient()
 

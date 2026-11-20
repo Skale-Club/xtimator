@@ -10,6 +10,7 @@ import { sendInviteEmail } from '@/lib/email/invite-emails'
 import { syncSeatBilling } from '@/lib/billing/seat-billing'
 import { XtimatorError } from '@/lib/errors'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 /**
  * SEAT-03 — the team-invite lifecycle server actions.
@@ -43,6 +44,12 @@ const TEAM_PATH = '/settings/team'
 // of scope v1 (SEED-037); the company has exactly one owner.
 const roleSchema = z.enum(['admin', 'member'])
 
+/** The paywall refusal as these actions' plain `{ error }` shape. */
+async function teamBillingDenied(companyId: string): Promise<{ error: string } | null> {
+  const d = await billingEditDenied(companyId)
+  return d ? { error: d.error } : null
+}
+
 /**
  * Invite a teammate by email. Owner/admin only.
  *
@@ -72,7 +79,11 @@ export async function inviteMember(
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
 
-  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  // A paywalled company is read-only, the team included (rule 2026-11-20).
+  const denied =
+    (await assertWritable()) ??
+    (await assertCompanyWritable(companyId)) ??
+    (await teamBillingDenied(companyId))
   if (denied) return denied
 
   // 2. Validate name + email and reject role 'owner' before any DB write.
@@ -180,7 +191,8 @@ export async function revokeInvite(
 
   const denied =
     (await assertWritable()) ??
-    (await assertCompanyWritable(invite.company_id as string))
+    (await assertCompanyWritable(invite.company_id as string)) ??
+    (await teamBillingDenied(invite.company_id as string))
   if (denied) return denied
 
   // 3. Only pending invites can be revoked (no-op otherwise).
@@ -240,7 +252,11 @@ export async function removeMember(
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
 
-  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  // A paywalled company is read-only, the team included (rule 2026-11-20).
+  const denied =
+    (await assertWritable()) ??
+    (await assertCompanyWritable(companyId)) ??
+    (await teamBillingDenied(companyId))
   if (denied) return denied
 
   const service = requireServiceClient()
@@ -302,7 +318,11 @@ export async function changeMemberRole(
     return { error: e instanceof XtimatorError ? e.userMessage : 'Not authorized' }
   }
 
-  const denied = (await assertWritable()) ?? (await assertCompanyWritable(companyId))
+  // A paywalled company is read-only, the team included (rule 2026-11-20).
+  const denied =
+    (await assertWritable()) ??
+    (await assertCompanyWritable(companyId)) ??
+    (await teamBillingDenied(companyId))
   if (denied) return denied
 
   // 2. Validate the target role — rejects 'owner' (and any non-enum value)

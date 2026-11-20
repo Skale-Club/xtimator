@@ -61,6 +61,7 @@ import {
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 import { ImagePositionEditor, DEFAULT_IMAGE_POSITION, type ImagePosition } from '@/components/admin/image-position-editor'
 
 const MAX_ITEM_PHOTO_SIZE = 4 * 1024 * 1024
@@ -139,6 +140,8 @@ export function PriceBookItemDialog({
 }: PriceBookItemDialogProps) {
   const router = useRouter()
   const { t } = useTranslation()
+  // Paywalled: the service opens for reading; every field and button is off.
+  const readOnly = usePaywallReadOnly()
   const [isPending, startTransition] = useTransition()
   const [folderOpen, setFolderOpen] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -300,6 +303,8 @@ export function PriceBookItemDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            {readOnly && <PaywallReadOnlyNotice />}
+            <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-5 border-0 p-0">
 
             {/* Folder */}
             <FormField
@@ -778,6 +783,7 @@ export function PriceBookItemDialog({
                 {t('Delete service')}
               </Button>
             )}
+            </fieldset>
           </form>
         </Form>
       </DialogContent>

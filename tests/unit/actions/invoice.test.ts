@@ -18,6 +18,11 @@ vi.mock('@/lib/demo/guard', () => ({
   assertCompanyWritable: (...args: unknown[]) => assertCompanyWritable(...args),
 }))
 
+const billingEditDenied = vi.fn()
+vi.mock('@/lib/billing/access-guard', () => ({
+  billingEditDenied: (...args: unknown[]) => billingEditDenied(...args),
+}))
+
 const getAuthContext = vi.fn()
 vi.mock('@/lib/auth/context', () => ({
   getAuthContext: (...args: unknown[]) => getAuthContext(...args),
@@ -142,6 +147,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   assertWritable.mockResolvedValue(null)
   assertCompanyWritable.mockResolvedValue(null)
+  billingEditDenied.mockResolvedValue(null)
   getAuthContext.mockResolvedValue({ userId: 'u_1', companyId: 'co_1' })
   requireCompanyOwner.mockResolvedValue({ userId: 'u_1', companyId: 'co_1', role: 'owner' })
   getBillingConfig.mockResolvedValue({ estimateFeePct: 0.01, estimateFeeMinCents: 1 })
@@ -165,6 +171,17 @@ describe('INVOICE-03: generateInvoice action', () => {
 
     const result = await generateInvoice('est_1', { kind: 'full' })
     expect(result).toHaveProperty('error')
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('refuses a paywalled company and never calls Stripe (read-only app)', async () => {
+    billingEditDenied.mockResolvedValue({ error: 'Your free credits are used up.', code: 'paywalled' })
+    configureSupabase({})
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toEqual({ error: 'Your free credits are used up.' })
+    expect(billingEditDenied).toHaveBeenCalledWith('co_1')
     expect(createConnectInvoice).not.toHaveBeenCalled()
   })
 

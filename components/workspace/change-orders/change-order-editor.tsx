@@ -45,6 +45,7 @@ import {
   type LineDraft,
 } from './change-order-lines'
 import { deriveChangeOrderStatus, formatSigned } from './change-order-utils'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 const AUTOSAVE_MS = 1500
 
@@ -126,7 +127,10 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
 
   const signature = changeOrder.signature
   const signedOnline = changeOrder.hasSignature || !!signature
-  const locked = lockedByServer || meta.client_response !== null || signedOnline
+  // A paywalled company is read-only on the server (billingEditDenied): the
+  // change order locks like an answered one instead of failing every save.
+  const paywalled = usePaywallReadOnly()
+  const locked = lockedByServer || meta.client_response !== null || signedOnline || paywalled
   const status = deriveChangeOrderStatus({
     sentAt: meta.sent_at,
     viewCount: meta.view_count,
@@ -359,7 +363,7 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
 
   const invoice = invoicing?.invoice ?? null
   const approved = meta.client_response === 'accepted'
-  const canInvoice = approved && !!invoicing?.paymentsEnabled && totals.total > 0 && !invoice
+  const canInvoice = approved && !!invoicing?.paymentsEnabled && totals.total > 0 && !invoice && !paywalled
   const creditNote = approved && totals.total < 0
 
   const handleInvoiced = useCallback(() => router.refresh(), [router])
@@ -431,7 +435,7 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
         onRetrySave={!locked && !paused ? () => void runSave() : undefined}
         onOpenStatus={() => setStatusOpen(true)}
         signature={signature ? { name: signature.signer_name, at: signature.signed_at } : null}
-        onReopen={status === 'declined' && !signedOnline ? () => void handleReopen() : undefined}
+        onReopen={status === 'declined' && !signedOnline && !paywalled ? () => void handleReopen() : undefined}
         reopening={busy === 'reopen'}
       />
 

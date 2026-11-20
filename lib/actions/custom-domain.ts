@@ -5,6 +5,7 @@ import { revalidatePath, updateTag } from 'next/cache'
 import { customDomainSchema } from '@/lib/schemas/custom-domain'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 // getAuthContext is duplicated per action file — established codebase convention (STATE.md Phase 03/20).
 async function getAuthContext() {
@@ -22,6 +23,9 @@ async function getAuthContext() {
 
   const denied = await assertWritable()
   if (denied) return denied
+  // A paywalled company is read-only, settings included (rule 2026-11-20).
+  const billingDenied = await billingEditDenied(company.id)
+  if (billingDenied) return billingDenied
 
   return { supabase, company }
 }
