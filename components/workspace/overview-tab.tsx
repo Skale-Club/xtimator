@@ -1,12 +1,11 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo } from 'react'
 import { ClientPicker } from '@/components/clients/client-picker'
-import { NeedsDetailsBanner } from './needs-details-banner'
 import { EstimateTab } from './estimate/estimate-tab'
-import { captureHref, type CaptureMode } from '@/components/projects/estimate-creation-popup'
-import { CaptureModePicker } from '@/components/workspace/capture-mode-picker'
+import { answerDetailsHref } from '@/lib/estimate/creation-href'
+import { clearCapturePrompts, setCapturePrompts } from '@/lib/estimate/capture-prompts'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
@@ -83,9 +82,26 @@ export function OverviewTab({
   onOpenPhotos,
 }: OverviewTabProps) {
   const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [modePickerOpen, setModePickerOpen] = useState(false)
+
+  // Notices review stage 1, part 2: a project waiting for details is no longer
+  // a banner above the estimate. EstimateTab shows a blank estimate as the
+  // "Almost there" empty state, and adds the questions to "Edit with AI" on
+  // one that has content.
+  const waiting = project.status === 'awaiting_details'
+  const needsReason = project.needs_details?.reason
+  const needsQuestions = project.needs_details?.questions
+  const needsDetails = useMemo(
+    () => (waiting ? { reason: needsReason, questions: needsQuestions } : null),
+    [waiting, needsReason, needsQuestions]
+  )
+  useEffect(() => {
+    if (!waiting) clearCapturePrompts(project.id)
+  }, [waiting, project.id])
+  function answerDetails() {
+    setCapturePrompts(project.id, needsQuestions ?? [])
+    router.push(answerDetailsHref(searchParams.toString(), project.id), { scroll: false })
+  }
 
   // Rendered inside the estimate's gear panel (popover on desktop, bottom sheet
   // on mobile) — not the floating action pill any more. Hence `modal` (so a
@@ -104,35 +120,8 @@ export function OverviewTab({
       />
     ) : null
 
-  function handleModeSelect(mode: CaptureMode) {
-    router.push(
-      captureHref({
-        pathname,
-        search: searchParams.toString(),
-        mode,
-        projectId: project.id,
-      })
-    )
-  }
-
   return (
     <div className="space-y-6">
-      <CaptureModePicker
-        open={modePickerOpen}
-        onOpenChange={setModePickerOpen}
-        onSelect={handleModeSelect}
-        projectId={project.id}
-        companyId={companyId}
-      />
-
-      {project.status === 'awaiting_details' && (
-        <NeedsDetailsBanner
-          onAddDetails={() => setModePickerOpen(true)}
-          reason={project.needs_details?.reason}
-          questions={project.needs_details?.questions}
-        />
-      )}
-
       <EstimateTab
         projectId={project.id}
         companyId={companyId}
@@ -168,6 +157,8 @@ export function OverviewTab({
         smsDeliveryEnabled={smsDeliveryEnabled}
         whatsappEnabled={whatsappEnabled}
         isPlatformAdmin={isPlatformAdmin}
+        needsDetails={needsDetails}
+        onAnswerDetails={answerDetails}
       />
 
     </div>

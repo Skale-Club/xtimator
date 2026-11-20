@@ -20,6 +20,20 @@ export function newProjectHref(currentSearch?: string, clientId?: string): strin
  * (read and removed from the URL by the wizard). Used by "Answer with AI". */
 export const NEW_PROJECT_PREFILL_PARAM = 'refinePrefill'
 
+/** Optional, edit mode only: generate a fresh estimate for the existing project
+ * instead of refining its current one. Used by the project page's "Almost there"
+ * empty state, whose estimate has nothing to refine yet. */
+export const NEW_PROJECT_FRESH_PARAM = 'fresh'
+
+/** The popup on an existing project, generating (not refining) its estimate. */
+export function answerDetailsHref(currentSearch: string | undefined, projectId: string): string {
+  const params = new URLSearchParams(currentSearch ?? '')
+  params.set(NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE)
+  params.set(NEW_PROJECT_EDIT_PARAM, projectId)
+  params.set(NEW_PROJECT_FRESH_PARAM, '1')
+  return `?${params.toString()}`
+}
+
 /** Build the href that opens the SAME popup in edit mode for an existing project. */
 export function editEstimateHref(
   currentSearch: string | undefined,

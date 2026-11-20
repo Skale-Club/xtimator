@@ -31,6 +31,7 @@ vi.mock('sonner', () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
     success: (...args: unknown[]) => mockToastSuccess(...args),
+    info: vi.fn(),
   },
 }))
 

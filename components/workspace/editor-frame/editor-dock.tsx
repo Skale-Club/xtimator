@@ -4,6 +4,7 @@ import type { ReactNode, Ref } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Bug, Camera, Loader2, Settings, Share2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { editEstimateHref } from '@/components/projects/new-project-dialog'
 import type { EstimateViewMode } from '@/components/workspace/estimate/estimate-floating-actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -33,6 +34,9 @@ export interface EditorDockProps {
    */
   /** Notices review stage 1: unanswered AI questions, shown as a small counter on "Edit with AI". */
   aiBadge?: number
+  /** Notices review stage 1, part 2: a dot on the "Page" toggle with this tooltip
+   *  (the Modern template is only drawn in Page view). Absent: no dot. */
+  pageHint?: string
   primary?: {
     label: string
     icon: ReactNode
@@ -88,23 +92,43 @@ export function EditorDock({
   onViewModeChange,
   primary,
   aiBadge = 0,
+  pageHint,
 }: EditorDockProps) {
   const { t } = useTranslation()
 
-  const modeButton = (mode: EstimateViewMode, label: string, ariaLabel: string) => (
-    <button
-      type="button"
-      aria-pressed={viewMode === mode}
-      aria-label={ariaLabel}
-      onClick={() => onViewModeChange(mode)}
-      className={cn(
-        'h-[34px] rounded-full px-3.5 text-[13px] font-medium transition-colors',
-        viewMode === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-      )}
-    >
-      {label}
-    </button>
-  )
+  const modeButton = (mode: EstimateViewMode, label: string, ariaLabel: string, hint?: string) => {
+    const button = (
+      <button
+        type="button"
+        aria-pressed={viewMode === mode}
+        aria-label={ariaLabel}
+        aria-description={hint}
+        onClick={() => onViewModeChange(mode)}
+        className={cn(
+          'relative h-[34px] rounded-full px-3.5 text-[13px] font-medium transition-colors',
+          viewMode === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+        )}
+      >
+        {label}
+        {hint && (
+          <span
+            aria-hidden
+            data-testid="page-view-hint-dot"
+            className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary"
+          />
+        )}
+      </button>
+    )
+    if (!hint) return button
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px]" data-testid="page-view-hint">
+          {hint}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
 
   return (
     <div
@@ -117,8 +141,12 @@ export function EditorDock({
         aria-label="Document view mode"
         className="hidden gap-0.5 rounded-full bg-muted p-[3px] lg:inline-flex"
       >
-        {modeButton('width', t('Width'), 'Full width view')}
-        {modeButton('page', t('Page'), 'Paginated view')}
+        <TooltipProvider delayDuration={150}>
+          {modeButton('width', t('Width'), 'Full width view')}
+          {/* Modern template: the editable width view is drawn in the standard
+              layout; the dot says Page view shows what the client sees. */}
+          {modeButton('page', t('Page'), 'Paginated view', viewMode === 'width' ? pageHint : undefined)}
+        </TooltipProvider>
       </div>
 
       <div className="hidden flex-1 md:block" />

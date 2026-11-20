@@ -70,6 +70,7 @@ vi.mock('@/hooks/use-attempt-progress', () => ({
 }))
 
 import { EstimateTab } from '@/components/workspace/estimate/estimate-tab'
+import { GenerationStatusProvider, useGenerationStatus } from '@/components/workspace/generation-status-context'
 
 const PROGRESS = {
   completedSteps: ['save_recording', 'transcribe'],
@@ -101,7 +102,18 @@ function renderTab(currentEstimate: unknown = null) {
     estimateTemplateId: 'classic',
     preparedBy: null,
   }
-  return render(<EstimateTab {...(props as unknown as Parameters<typeof EstimateTab>[0])} />)
+  return render(
+    <GenerationStatusProvider>
+      <EstimateTab {...(props as unknown as Parameters<typeof EstimateTab>[0])} />
+      <GenerationProbe />
+    </GenerationStatusProvider>,
+  )
+}
+
+/** Stands in for the top bar: shows what the tab published. */
+function GenerationProbe() {
+  const status = useGenerationStatus()
+  return status ? <div data-testid="published-generation" data-mode={status.mode} /> : null
 }
 
 beforeEach(() => {
@@ -133,11 +145,14 @@ describe('EstimateTab while an estimate generates (260927)', () => {
     expect(createBlankEstimate).not.toHaveBeenCalled()
   })
 
-  it('shows a banner, not the full checklist, when a new version generates over an estimate', () => {
+  // Notices review stage 1, part 2: no box above the document; the top bar
+  // draws a chip and a progress line from what the tab publishes.
+  it('publishes the generation to the top bar, not the full checklist, when a new version generates over an estimate', () => {
     backgroundGeneration = { attemptId: 'bg1', projectId: 'p1', mode: 'audio', since: new Date().toISOString() }
     attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null, gaveUp: false }
     renderTab({ id: 'e1' })
-    expect(screen.getByTestId('generation-progress-banner')).toBeTruthy()
+    expect(screen.getByTestId('published-generation').getAttribute('data-mode')).toBe('audio')
+    expect(screen.queryByTestId('generation-progress-banner')).toBeNull()
     expect(screen.getByTestId('estimate-editor')).toBeTruthy()
     expect(screen.queryByTestId('capture-progress-checklist')).toBeNull()
   })
@@ -155,6 +170,13 @@ describe('EstimateTab while an estimate generates (260927)', () => {
     attemptState = { attemptId: 'a1', progress: PROGRESS, outcome: { state: 'failed', step: 'generate_estimate', reason: 'x' }, gaveUp: false }
     renderTab()
     expect(replace).toHaveBeenCalledWith('/projects/p1?tab=estimate', { scroll: false })
+  })
+
+  it('publishes nothing while no estimate is on screen (the checklist shows instead)', () => {
+    backgroundGeneration = { attemptId: 'bg1', projectId: 'p1', mode: 'text', since: new Date().toISOString() }
+    attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null, gaveUp: false }
+    renderTab()
+    expect(screen.queryByTestId('published-generation')).toBeNull()
   })
 
   it('still creates the blank estimate when nothing is generating', () => {

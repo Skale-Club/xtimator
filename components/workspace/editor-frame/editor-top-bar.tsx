@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ChevronLeft, Eye, Lock, XCircle } from 'lucide-react'
+import { AlertCircle, ChevronLeft, History } from 'lucide-react'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot, type VersionSlot } from '@/components/workspace/estimate-version-context'
@@ -12,6 +12,8 @@ import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import { PausedChip } from '@/components/billing/paused-chip'
 import { EstimateStatusChip, deriveEstimateStatus } from './estimate-status'
+import { useGenerationStatus, type GenerationStatus } from '@/components/workspace/generation-status-context'
+import { GenerationChip, GenerationProgressLine, useGenerationSnapshot } from '@/components/capture/generation-progress-banner'
 
 /** Same horizontal padding as the workspace content column below the bar. */
 const GUTTER = 'px-3 sm:px-5 md:px-6'
@@ -52,14 +54,14 @@ function SaveState({ slot }: { slot: VersionSlot }) {
   )
 }
 
-/** Drafts show no chip at all. */
+/** Drafts show no chip at all. Locked content shows a lock (the status sheet says why). */
 function StatusChip({ slot }: { slot: VersionSlot }) {
   const status = deriveEstimateStatus({
     sentAt: slot.sentAt,
     viewCount: slot.viewCount,
     clientResponse: slot.clientResponse,
   })
-  if (status === 'draft') return null
+  if (status === 'draft' && !slot.isLocked) return null
   return (
     <EstimateStatusChip
       sentAt={slot.sentAt}
@@ -67,68 +69,34 @@ function StatusChip({ slot }: { slot: VersionSlot }) {
       clientResponse={slot.clientResponse}
       respondedAt={slot.respondedAt}
       onClick={slot.onOpenStatus}
+      locked={!!slot.isLocked}
     />
   )
 }
 
-const BANNER_BUTTON =
-  'min-h-8 shrink-0 whitespace-nowrap rounded-full bg-background px-3 text-[13px] font-semibold text-primary'
-
-function SentNotice() {
+/** Another tab or session made a newer version: this one can't be saved. */
+function SupersededChip() {
   const { t } = useTranslation()
   return (
-    <div
-      data-testid="editor-sent-notice"
-      className={cn('flex items-center gap-2.5 bg-primary/10 py-2 text-[12.5px] text-muted-foreground sm:text-[13px]', GUTTER)}
+    <span
+      data-testid="editor-superseded-chip"
+      title={t('A newer version of this estimate was created elsewhere. Create a new version to keep editing.')}
+      className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2.5 text-[12.5px] font-medium text-muted-foreground"
     >
-      <Eye className="size-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <b className="font-semibold text-foreground">{t('Shared with the client.')}</b>{' '}
-        {t('Changes you make show up on their link.')}
-      </span>
-    </div>
+      <History aria-hidden className="size-3.5 shrink-0" />
+      {t('Old version')}
+    </span>
   )
 }
 
-function LockBanner({ slot }: { slot: VersionSlot }) {
-  const { t } = useTranslation()
-  const accepted = slot.clientResponse === 'accepted'
-  const declined = slot.clientResponse === 'declined'
+function GenerationIndicator({ status }: { status: GenerationStatus }) {
+  const snapshot = useGenerationSnapshot(status)
+  return <GenerationChip snapshot={snapshot} />
+}
 
-  const Icon = declined ? XCircle : Lock
-  const tone = accepted
-    ? 'bg-[hsl(var(--success)/0.15)]'
-    : declined
-      ? 'bg-[hsl(var(--destructive-text)/0.12)]'
-      : 'bg-muted/60'
-  const lead = accepted ? t('Estimate accepted.') : declined ? t('Estimate declined.') : t('Estimate locked.')
-  const rest = accepted
-    ? t('This is the contract and it can’t be edited.')
-    : declined
-      ? t('Revise it and reopen it so the client can answer again.')
-      : null
-
-  const showReopen = declined && !!slot.onReopen
-  const action = showReopen ? slot.onReopen : slot.onOpenStatus
-  const actionLabel = showReopen ? t('Revise and reopen') : t('See status')
-
-  return (
-    <div
-      data-testid="editor-lock-banner"
-      className={cn('flex items-center gap-2.5 py-2.5 text-[13px] text-muted-foreground', GUTTER, tone)}
-    >
-      <Icon className="size-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <b className="font-semibold text-foreground">{lead}</b>
-        {rest ? <> {rest}</> : null}
-      </span>
-      {action && (
-        <button type="button" onClick={action} className={BANNER_BUTTON}>
-          {actionLabel}
-        </button>
-      )}
-    </div>
-  )
+function GenerationLine({ status }: { status: GenerationStatus }) {
+  const snapshot = useGenerationSnapshot(status)
+  return <GenerationProgressLine fraction={snapshot.fraction} />
 }
 
 /**
@@ -165,10 +133,19 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
   ) : null
   const hasTotal = typeof slot?.total === 'number'
 
-  const sentNotice =
-    !!slot &&
-    !slot.isLocked &&
-    deriveEstimateStatus({ sentAt: slot.sentAt, viewCount: slot.viewCount, clientResponse: slot.clientResponse }) === 'sent'
+  const generation = useGenerationStatus()
+  // Notices review stage 1, part 2: state lives in chips here, never in strips
+  // stacked under the bar (the old "Shared with the client" and lock banners).
+  const chips = (
+    <>
+      {pausedChip}
+      {generation && <GenerationIndicator status={generation} />}
+      {slot && <SaveState slot={slot} />}
+      {slot?.superseded && <SupersededChip />}
+      {slot && <StatusChip slot={slot} />}
+    </>
+  )
+  const hasChips = !!(slot || pausedChip || generation)
 
   return (
     <header
@@ -185,11 +162,9 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
           <ChevronLeft size={18} aria-hidden />
           {t('Projects')}
         </Link>
-        {(slot || pausedChip) && (
+        {hasChips && (
           <div data-testid="editor-top-bar-row-a" className="flex items-center gap-2">
-            {pausedChip}
-            {slot && <SaveState slot={slot} />}
-            {slot && <StatusChip slot={slot} />}
+            {chips}
           </div>
         )}
       </div>
@@ -204,11 +179,9 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
             onRenameSuccess={slot?.onProjectRenamed}
           />
         </div>
-        {(slot || pausedChip) && (
+        {hasChips && (
           <div data-testid="editor-top-bar-inline" className="ml-auto mr-4 hidden shrink-0 items-center gap-2.5 md:flex">
-            {pausedChip}
-            {slot && <SaveState slot={slot} />}
-            {slot && <StatusChip slot={slot} />}
+            {chips}
           </div>
         )}
         {hasTotal && slot && (
@@ -233,8 +206,7 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
         </div>
       )}
 
-      {sentNotice && <SentNotice />}
-      {slot?.isLocked && <LockBanner slot={slot} />}
+      {generation && <GenerationLine status={generation} />}
     </header>
   )
 }

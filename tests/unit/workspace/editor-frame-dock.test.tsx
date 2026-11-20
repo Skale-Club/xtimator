@@ -68,6 +68,29 @@ describe('EditorDock', () => {
     expect(screen.queryByTestId('edit-with-ai-badge')).toBeNull()
   })
 
+  // Notices review stage 1, part 2: the Modern template note is a dot on "Page".
+  it('Page carries a hint dot only with pageHint, and only in width view', () => {
+    renderDock({ pageHint: 'Clients see the Modern template.' })
+    const page = screen.getByRole('button', { name: 'Paginated view' })
+    expect(page.querySelector('[data-testid="page-view-hint-dot"]')).toBeTruthy()
+    expect(page.getAttribute('aria-description')).toBe('Clients see the Modern template.')
+    cleanup()
+    renderDock({ pageHint: 'Clients see the Modern template.', viewMode: 'page' })
+    expect(screen.queryByTestId('page-view-hint-dot')).toBeNull()
+    cleanup()
+    renderDock()
+    expect(screen.queryByTestId('page-view-hint-dot')).toBeNull()
+  })
+
+  it('a primary override replaces Share and Edit with AI (declined: Revise and reopen)', () => {
+    const onClick = vi.fn()
+    renderDock({ locked: true, primary: { label: 'Revise and reopen', icon: null, onClick, testId: 'revise-and-reopen-btn' } })
+    fireEvent.click(screen.getByTestId('revise-and-reopen-btn'))
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('edit-with-ai-btn')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy()
+  })
+
   it('has no Options button without onOpenSettings', () => {
     renderDock()
     expect(screen.queryByRole('button', { name: 'Options' })).toBeNull()

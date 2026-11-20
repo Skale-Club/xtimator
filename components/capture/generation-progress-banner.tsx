@@ -3,23 +3,21 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useAppTranslation } from '@/lib/i18n/use-translation'
-import { buildChecklist, type CaptureProgressMode } from '@/lib/estimate/progress-model'
-import type { AttemptProgressSnapshot } from '@/hooks/use-attempt-progress'
+import { buildChecklist } from '@/lib/estimate/progress-model'
+import type { GenerationStatus } from '@/components/workspace/generation-status-context'
 import { remainingLine, rowLabels } from './processing-narration'
 
-export interface GenerationProgressBannerProps {
-  mode: CaptureProgressMode
-  progress: AttemptProgressSnapshot | null
-  medians?: Record<string, number>
+export interface GenerationSnapshot {
+  /** 0..1 */
+  fraction: number
+  /** Short, for the chip: "~3 min", "<1 min", or null when overdue. */
+  shortRemaining: string | null
+  /** Full sentence for the tooltip and screen readers. */
+  detail: string
 }
 
-/**
- * One-line version of the capture checklist, for a project that already shows
- * an estimate while a NEW version generates (the "add details" flow). The full
- * checklist would push the current estimate off screen; this says what is
- * happening, how far along, and roughly how long is left.
- */
-export function GenerationProgressBanner({ mode, progress, medians }: GenerationProgressBannerProps) {
+/** Where a new version's generation stands, recomputed every second. */
+export function useGenerationSnapshot(status: GenerationStatus): GenerationSnapshot {
   const { t } = useAppTranslation()
   const [nowMs, setNowMs] = useState(() => Date.now())
   useEffect(() => {
@@ -27,6 +25,7 @@ export function GenerationProgressBanner({ mode, progress, medians }: Generation
     return () => clearInterval(id)
   }, [])
 
+  const { mode, progress, medians } = status
   const snapshot = buildChecklist({
     mode,
     done: false,
@@ -46,39 +45,59 @@ export function GenerationProgressBanner({ mode, progress, medians }: Generation
       : remaining.kind === 'under_a_minute'
         ? t('Less than a minute left')
         : `${t('About')} ${remaining.minutes} ${t('min left')}`
+  const shortRemaining =
+    remaining.kind === 'overdue' ? null : remaining.kind === 'under_a_minute' ? '<1 min' : `~${remaining.minutes} min`
 
+  return {
+    fraction: snapshot.fraction,
+    shortRemaining,
+    detail: [t('Generating a new version of this estimate'), active ? t(rowLabels(active.id, mode).ongoing) : null, remainingText]
+      .filter(Boolean)
+      .join(' · '),
+  }
+}
+
+/**
+ * Notices review stage 1, part 2: a new version generating over the current
+ * estimate is a chip in the top bar, not a box above the document. The full
+ * sentence (step and time left) is the chip's tooltip and accessible name.
+ */
+export function GenerationChip({ snapshot }: { snapshot: GenerationSnapshot }) {
+  const { t } = useAppTranslation()
+  return (
+    <span
+      role="status"
+      aria-label={snapshot.detail}
+      title={snapshot.detail}
+      data-testid="generation-chip"
+      className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full bg-primary/10 px-2.5 text-[12.5px] font-medium text-primary"
+    >
+      <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin" />
+      {/* Phones: the time left is enough next to the spinner (the line under
+          the bar says it is progress); the row also holds the status chip. */}
+      <span className={snapshot.shortRemaining ? 'max-sm:hidden' : undefined}>{t('New version')}</span>
+      {snapshot.shortRemaining && (
+        <span className="tabular-nums sm:opacity-80">
+          <span className="max-sm:hidden">· </span>
+          {snapshot.shortRemaining}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** 2px line along the bottom edge of the top bar. */
+export function GenerationProgressLine({ fraction }: { fraction: number }) {
   return (
     <div
-      className="mb-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5"
-      data-testid="generation-progress-banner"
-      role="status"
+      aria-hidden
+      data-testid="generation-progress-line"
+      className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 overflow-hidden"
     >
-      {/* Two lines (headline, then step + time left) rather than one
-          nowrap row: the single row was wider than a phone, so the time left
-          was cut off and the long line widened the whole page. */}
-      <div className="flex items-start gap-2">
-        <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">
-            {t('Generating a new version of this estimate')}
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {active && (
-              <>
-                {t(rowLabels(active.id, mode).ongoing)}
-                {' · '}
-              </>
-            )}
-            {remainingText}
-          </p>
-        </div>
-      </div>
-      <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-          style={{ width: `${Math.round(snapshot.fraction * 1000) / 10}%` }}
-        />
-      </div>
+      <div
+        className="h-full bg-primary transition-[width] duration-500 ease-out"
+        style={{ width: `${Math.round(fraction * 1000) / 10}%` }}
+      />
     </div>
   )
 }

@@ -240,14 +240,17 @@ describe('EstimateEditor in the v2 frame', () => {
     expect(screen.getByTestId('new-change-order-btn')).toBeTruthy()
   })
 
-  it('keeps Edit with AI visible but disabled on a declined estimate', () => {
+  // Notices review stage 1, part 2: the lock banner's "Revise and reopen" moved
+  // to the dock's primary; "Edit with AI" (locked anyway) steps aside.
+  it('leads the dock with "Revise and reopen" on a declined estimate', () => {
     render(
       <Harness
         frame="v2"
         estimate={buildEstimate({ client_response: 'declined', responded_at: '2026-01-02T00:00:00.000Z' })}
       />,
     )
-    expect((screen.getByTestId('edit-with-ai-btn') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('revise-and-reopen-btn').textContent).toContain('Revise and reopen')
+    expect(screen.queryByTestId('edit-with-ai-btn')).toBeNull()
   })
 
   it('offers "Revise and reopen" only for a declined estimate without a signature', async () => {

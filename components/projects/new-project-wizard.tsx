@@ -77,6 +77,8 @@ interface NewProjectWizardProps {
   /** Edit mode: when set, the popup edits THIS existing project's estimate
    * instead of creating a new project. Same popup, shared between new + edit. */
   editProjectId?: string
+  /** Edit mode only: generate a fresh estimate for the project, don't refine. */
+  fresh?: boolean
   /** Lifted estimate-language state so the Dialog header can own the selector. */
   estimateLanguage?: EstimateLanguage
   setEstimateLanguage?: (lang: EstimateLanguage) => void
@@ -85,6 +87,7 @@ interface NewProjectWizardProps {
 export function NewProjectWizard({
   onComplete,
   editProjectId,
+  fresh = false,
   estimateLanguage,
   setEstimateLanguage,
 }: NewProjectWizardProps = {}) {
@@ -121,6 +124,13 @@ export function NewProjectWizard({
         const fetched = await getProjectMinimalAction(editProjectId)
         if ('error' in fetched) {
           toast.error(fetched.error)
+          setIsCreating(false)
+          return
+        }
+        // "Answer and generate" (fresh): the generate path on purpose, the
+        // estimate on screen has nothing to refine yet.
+        if (fresh) {
+          setProject(fetched.data)
           setIsCreating(false)
           return
         }

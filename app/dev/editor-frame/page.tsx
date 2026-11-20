@@ -13,15 +13,45 @@ import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
 import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
 import type { EstimateViewMode } from '@/components/workspace/estimate/estimate-floating-actions'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { History, Plus, RotateCcw } from 'lucide-react'
+import {
+  GenerationStatusProvider,
+  usePublishGenerationStatus,
+  type GenerationStatus,
+} from '@/components/workspace/generation-status-context'
+import { NeedsDetailsEmptyState } from '@/components/workspace/needs-details-empty-state'
+
+const GENERATING: GenerationStatus = {
+  mode: 'audio',
+  progress: {
+    completedSteps: ['save_recording', 'transcribe'],
+    activeStep: 'generate_estimate',
+    activeStepStartedAt: new Date().toISOString(),
+  },
+}
 
 /**
  * Dev-only fixture for the editor's v2 frame (top bar, docked action bar,
  * status sheet), without signing in:
- * ?state=draft|saving|error|sent|accepted|declined. Sample data, nothing is
+ * ?state=draft|saving|error|sent|accepted|declined|locked|superseded|generating|
+ * modern|needs-details. Sample data, nothing is
  * fetched. Renaming the project calls the real server action, so only use it
  * against a dev session. Nothing imports this route.
  */
-const STATES = ['draft', 'saving', 'error', 'sent', 'accepted', 'declined'] as const
+const STATES = [
+  'draft',
+  'saving',
+  'error',
+  'sent',
+  'accepted',
+  'declined',
+  // Notices review stage 1, part 2 (2026-11-20)
+  'locked',
+  'superseded',
+  'generating',
+  'modern',
+  'needs-details',
+] as const
 type FixtureState = (typeof STATES)[number]
 
 const PROJECT = {
@@ -39,7 +69,7 @@ function sampleSlot(
   setViewMode: (m: EstimateViewMode) => void,
 ): VersionSlot {
   const answered = state === 'accepted' || state === 'declined'
-  const shared = state === 'sent' || answered
+  const shared = state === 'sent' || state === 'locked' || answered
   return {
     currentVersionId: 'dev-estimate',
     versions: [],
@@ -61,8 +91,9 @@ function sampleSlot(
     createdAt: '2026-11-05T12:00:00.000Z',
     clientResponse: answered ? state : null,
     respondedAt: answered ? '2026-11-16T15:00:00.000Z' : null,
-    hasSignature: false,
-    isLocked: answered,
+    hasSignature: state === 'locked',
+    isLocked: answered || state === 'locked',
+    superseded: state === 'superseded',
     onRetrySave: state === 'error' ? () => {} : undefined,
     onOpenStatus,
     onReopen: state === 'declined' ? onReopen : undefined,
@@ -92,7 +123,16 @@ function Frame({ state: urlState }: { state: FixtureState }) {
   }, [state, urlState, viewMode, setSlot])
 
   const answered = state === 'accepted' || state === 'declined'
-  const shared = state === 'sent' || answered
+  const shared = state === 'sent' || state === 'locked' || answered
+  usePublishGenerationStatus(state === 'generating' ? GENERATING : null)
+  const primary =
+    state === 'superseded'
+      ? { label: 'Create new version', icon: <History size={18} />, onClick: () => {} }
+      : state === 'accepted'
+        ? { label: 'New change order', icon: <Plus size={18} />, onClick: () => {} }
+        : state === 'declined'
+          ? { label: 'Revise and reopen', icon: <RotateCcw size={18} />, onClick: () => setOverride({ from: urlState, to: 'sent' }) }
+          : undefined
 
   return (
     <div data-editor-frame="v2" className="flex min-h-[100dvh] flex-col bg-background">
@@ -110,21 +150,35 @@ function Frame({ state: urlState }: { state: FixtureState }) {
             </a>
           ))}
         </nav>
-        <div className="mx-auto min-h-[1400px] max-w-3xl rounded-lg border border-border bg-white p-6 shadow-sm">
-          {Array.from({ length: 28 }, (_, i) => (
-            <div key={i} className="mb-6 flex items-center justify-between gap-6 border-b border-neutral-100 pb-4">
-              <div className="h-3 w-1/2 rounded bg-neutral-200" />
-              <div className="h-3 w-16 rounded bg-neutral-200" />
-            </div>
-          ))}
-        </div>
+        {state === 'needs-details' ? (
+          <NeedsDetailsEmptyState
+            questions={[
+              'How many rooms, and roughly how big is each one?',
+              'Is it carpet only, or are there rugs or upholstery too?',
+              'Any pets, heavy stains or stairs?',
+            ]}
+            onAnswer={() => {}}
+            onFillMyself={() => {}}
+          />
+        ) : (
+          <div className="mx-auto min-h-[1400px] max-w-3xl rounded-lg border border-border bg-white p-6 shadow-sm">
+            {Array.from({ length: 28 }, (_, i) => (
+              <div key={i} className="mb-6 flex items-center justify-between gap-6 border-b border-neutral-100 pb-4">
+                <div className="h-3 w-1/2 rounded bg-neutral-200" />
+                <div className="h-3 w-16 rounded bg-neutral-200" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="sticky bottom-0 z-30">
         <EditorDock
           projectId={PROJECT.id}
           saving={state === 'saving'}
-          locked={answered}
+          locked={answered || state === 'locked' || state === 'superseded'}
+          primary={primary}
+          pageHint={state === 'modern' ? 'Clients see the Modern template. Page view shows it that way.' : undefined}
           onShare={() => {}}
           onOpenPhotos={() => {}}
           onOpenSettings={() => {}}
@@ -159,7 +213,9 @@ function Fixture() {
   return (
     <BreadcrumbProvider>
       <EstimateVersionProvider>
-        <Frame state={state} />
+        <GenerationStatusProvider>
+          <Frame state={state} />
+        </GenerationStatusProvider>
       </EstimateVersionProvider>
     </BreadcrumbProvider>
   )

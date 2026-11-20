@@ -9,6 +9,7 @@ import {
 } from '@/components/workspace/estimate-version-context'
 import { EditorTopBar } from '@/components/workspace/editor-frame/editor-top-bar'
 import type { ProjectDetail } from '@/lib/queries/project'
+import { GenerationStatusProvider, usePublishGenerationStatus } from '@/components/workspace/generation-status-context'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -50,6 +51,11 @@ function Publisher({ slot }: { slot: VersionSlot | null }) {
   useEffect(() => {
     setSlot(slot)
   }, [slot, setSlot])
+  return null
+}
+
+function GenerationPublisher() {
+  usePublishGenerationStatus({ mode: 'audio', progress: null })
   return null
 }
 
@@ -143,63 +149,69 @@ describe('EditorTopBar', () => {
     expect(screen.queryByText('Saving…')).toBeNull()
   })
 
-  it('sent and not locked shows the sent notice and no lock banner', () => {
-    renderBar(baseSlot({ sentAt: SENT }))
-    const notice = within(screen.getByTestId('editor-sent-notice'))
-    expect(notice.getByText('Shared with the client.')).toBeTruthy()
-    expect(notice.getByText(/Changes you make show up on their link\./)).toBeTruthy()
-    expect(screen.queryByTestId('editor-lock-banner')).toBeNull()
+  // Notices review stage 1, part 2: no strips under the bar; the chip carries the state.
+  it('never renders the old sent notice or lock banner', () => {
+    for (const over of [
+      { sentAt: SENT },
+      { sentAt: SENT, isLocked: true, clientResponse: 'accepted' },
+      { sentAt: SENT, isLocked: true, clientResponse: 'declined', onReopen: () => {} },
+      { isLocked: true, hasSignature: true },
+    ] as Partial<VersionSlot>[]) {
+      renderBar(baseSlot(over))
+      expect(screen.queryByTestId('editor-sent-notice')).toBeNull()
+      expect(screen.queryByTestId('editor-lock-banner')).toBeNull()
+      expect(screen.queryByText('Shared with the client.')).toBeNull()
+      cleanup()
+    }
   })
 
-  it('no sent notice for drafts or answered estimates', () => {
-    renderBar(baseSlot())
-    expect(screen.queryByTestId('editor-sent-notice')).toBeNull()
+  it('accepted shows a lock in the chip; declined keeps its dot (it can be reopened)', () => {
+    renderBar(baseSlot({ isLocked: true, clientResponse: 'accepted' }))
+    expect(within(screen.getByTestId('editor-top-bar-row-a')).getByTestId('estimate-status-lock')).toBeTruthy()
     cleanup()
-    renderBar(baseSlot({ sentAt: SENT, isLocked: true, clientResponse: 'accepted' }))
-    expect(screen.queryByTestId('editor-sent-notice')).toBeNull()
-    cleanup()
-    renderBar(baseSlot({ sentAt: SENT, isLocked: true, clientResponse: 'declined' }))
-    expect(screen.queryByTestId('editor-sent-notice')).toBeNull()
+    renderBar(baseSlot({ isLocked: true, clientResponse: 'declined' }))
+    expect(screen.queryByTestId('estimate-status-lock')).toBeNull()
   })
 
-  it('locked + accepted shows the contract banner and See status', () => {
+  it('locked without a stored answer still shows a chip, with the lock, that opens the status sheet', () => {
     const onOpenStatus = vi.fn()
-    renderBar(baseSlot({ isLocked: true, clientResponse: 'accepted', onOpenStatus }))
-    const banner = within(screen.getByTestId('editor-lock-banner'))
-    expect(banner.getByText('Estimate accepted.')).toBeTruthy()
-    expect(banner.getByText(/This is the contract and it can’t be edited\./)).toBeTruthy()
-    fireEvent.click(banner.getByRole('button', { name: 'See status' }))
+    renderBar(baseSlot({ isLocked: true, hasSignature: true, onOpenStatus }))
+    const row = within(screen.getByTestId('editor-top-bar-row-a'))
+    expect(row.getByTestId('estimate-status-lock')).toBeTruthy()
+    fireEvent.click(row.getByRole('button', { name: /Estimate status: Locked/ }))
     expect(onOpenStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('locked + declined with onReopen offers "Revise and reopen"', () => {
-    const onReopen = vi.fn()
-    renderBar(baseSlot({ isLocked: true, clientResponse: 'declined', onReopen, onOpenStatus: () => {} }))
-    const banner = within(screen.getByTestId('editor-lock-banner'))
-    expect(banner.getByText('Estimate declined.')).toBeTruthy()
-    expect(banner.getByText(/Revise it and reopen it so the client can answer again\./)).toBeTruthy()
-    expect(banner.queryByRole('button', { name: 'See status' })).toBeNull()
-    fireEvent.click(banner.getByRole('button', { name: 'Revise and reopen' }))
-    expect(onReopen).toHaveBeenCalledTimes(1)
-  })
-
-  it('locked + declined without onReopen falls back to See status', () => {
-    renderBar(baseSlot({ isLocked: true, clientResponse: 'declined', onOpenStatus: () => {} }))
-    const banner = within(screen.getByTestId('editor-lock-banner'))
-    expect(banner.queryByRole('button', { name: 'Revise and reopen' })).toBeNull()
-    expect(banner.getByRole('button', { name: 'See status' })).toBeTruthy()
-  })
-
-  it('locked without a stored answer shows the neutral banner', () => {
-    renderBar(baseSlot({ isLocked: true, hasSignature: true, onOpenStatus: () => {} }))
-    const banner = within(screen.getByTestId('editor-lock-banner'))
-    expect(banner.getByText('Estimate locked.')).toBeTruthy()
-    expect(banner.getByRole('button', { name: 'See status' })).toBeTruthy()
-  })
-
-  it('no banner when not locked', () => {
+  it('a superseded version shows the Old version chip', () => {
+    renderBar(baseSlot({ superseded: true }))
+    expect(within(screen.getByTestId('editor-top-bar-row-a')).getByTestId('editor-superseded-chip').textContent).toContain('Old version')
+    cleanup()
     renderBar(baseSlot())
-    expect(screen.queryByTestId('editor-lock-banner')).toBeNull()
+    expect(screen.queryByTestId('editor-superseded-chip')).toBeNull()
+  })
+
+  it('a generating version shows a chip and the progress line', () => {
+    render(
+      <BreadcrumbProvider>
+        <EstimateVersionProvider>
+          <GenerationStatusProvider>
+            <Publisher slot={baseSlot()} />
+            <GenerationPublisher />
+            <EditorTopBar project={PROJECT} />
+          </GenerationStatusProvider>
+        </EstimateVersionProvider>
+      </BreadcrumbProvider>,
+    )
+    const chip = within(screen.getByTestId('editor-top-bar-inline')).getByTestId('generation-chip')
+    expect(chip.textContent).toContain('New version')
+    expect(chip.getAttribute('aria-label')).toContain('Generating a new version of this estimate')
+    expect(screen.getByTestId('generation-progress-line')).toBeTruthy()
+  })
+
+  it('no generation chip or line when nothing generates', () => {
+    renderBar(baseSlot())
+    expect(screen.queryByTestId('generation-chip')).toBeNull()
+    expect(screen.queryByTestId('generation-progress-line')).toBeNull()
   })
 
   it('without a slot there is only the back link, name and client', () => {

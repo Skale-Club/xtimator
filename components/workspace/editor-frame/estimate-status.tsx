@@ -1,5 +1,6 @@
 'use client'
 
+import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -38,6 +39,9 @@ const TONE: Record<EstimateStatus, { pill: string; dot: string }> = {
 interface EstimateStatusChipProps extends StatusInput {
   respondedAt?: string | null
   onClick?: () => void
+  /** Content lock (accepted, or signed and waiting): a lock replaces the dot.
+   *  A declined estimate keeps its dot: it can be reopened. */
+  locked?: boolean
 }
 
 export function EstimateStatusChip({
@@ -46,13 +50,15 @@ export function EstimateStatusChip({
   clientResponse,
   respondedAt,
   onClick,
+  locked = false,
 }: EstimateStatusChipProps) {
   const { t } = useTranslation()
   const status = deriveEstimateStatus({ sentAt, viewCount, clientResponse })
   const date = shortDate(respondedAt)
+  const showLock = locked && status !== 'declined'
 
   let label: string
-  if (status === 'draft') label = t('Draft')
+  if (status === 'draft') label = locked ? t('Locked') : t('Draft')
   else if (status === 'accepted') label = date ? `${t('Accepted')} · ${date}` : t('Accepted')
   else if (status === 'declined') label = date ? `${t('Declined')} · ${date}` : t('Declined')
   else if (sentAt) label = viewCount > 0 ? `${t('Sent')} · ${t('viewed')} ${viewCount}×` : t('Sent')
@@ -65,7 +71,11 @@ export function EstimateStatusChip({
   )
   const content = (
     <>
-      <span aria-hidden className={cn('size-[7px] shrink-0 rounded-full', tone.dot)} />
+      {showLock ? (
+        <Lock aria-hidden className="size-3 shrink-0" data-testid="estimate-status-lock" />
+      ) : (
+        <span aria-hidden className={cn('size-[7px] shrink-0 rounded-full', tone.dot)} />
+      )}
       {label}
     </>
   )

@@ -53,6 +53,9 @@ export interface VersionSlot {
    *  history) so the content is editable again and the client can answer
    *  again on the same link. Undefined when reopening does not apply. */
   onReopen?: () => void
+  /** The server said a newer version exists (another tab or session): the top
+   *  bar shows an "Old version" chip and the dock offers "Create new version". */
+  superseded?: boolean
 }
 
 interface EstimateVersionCtx {

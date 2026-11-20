@@ -22,7 +22,8 @@ import { useBackgroundGeneration } from '@/hooks/use-background-generations'
 import { removeBackgroundGeneration } from '@/lib/estimate/background-generations'
 import { useAttemptProgress, type AttemptProgressSnapshot } from '@/hooks/use-attempt-progress'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
-import { GenerationProgressBanner } from '@/components/capture/generation-progress-banner'
+import { usePublishGenerationStatus } from '@/components/workspace/generation-status-context'
+import { NeedsDetailsEmptyState, estimateIsBlank } from '@/components/workspace/needs-details-empty-state'
 import type { CaptureProgressMode } from '@/lib/estimate/progress-model'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
@@ -90,6 +91,15 @@ interface EstimateTabProps {
   whatsappEnabled?: boolean
   /** Server-resolved platform-admin flag, forwarded to the editor (estimate debug tool). */
   isPlatformAdmin?: boolean
+  /**
+   * Notices review stage 1, part 2: the project is waiting for details
+   * (projects.status 'awaiting_details'). A blank estimate gives way to the
+   * "Almost there" empty state; one with content gets the questions in
+   * "Edit with AI" instead. Null: not waiting.
+   */
+  needsDetails?: { reason?: string; questions?: string[] } | null
+  /** "Answer and generate" from the empty state. */
+  onAnswerDetails?: () => void
 }
 
 export function EstimateTab({
@@ -117,8 +127,12 @@ export function EstimateTab({
   preparedBy,
   companySlug,
   isPlatformAdmin = false,
+  needsDetails = null,
+  onAnswerDetails,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
+  // "Fill it in myself" on the needs-details empty state: show the blank editor.
+  const [fillMyself, setFillMyself] = useState(false)
   // Notices review stage 1: the editor's "Ready to send?" snapshot for the Share sheet.
   const [sendCheck, setSendCheck] = useState<SendCheck | null>(null)
   const router = useRouter()
@@ -260,6 +274,15 @@ export function EstimateTab({
     isAutoGenerating ? 'audio' : 'text'
   )
 
+  // Notices review stage 1, part 2: a new version generating over the estimate
+  // on screen is a chip and a thin line in the top bar, not a box above the
+  // document. The full checklist below is only for a project with no estimate yet.
+  usePublishGenerationStatus(
+    generationRunning && currentEstimate
+      ? { mode: generationMode, progress: attemptState.progress, medians: attemptMedians }
+      : null
+  )
+
   if (waitingForGeneration && !currentEstimate) {
     if (watchedAttemptId) {
       // 260927: the same journal-driven checklist as the capture popup,
@@ -293,16 +316,27 @@ export function EstimateTab({
     )
   }
 
+  if (
+    currentEstimate &&
+    needsDetails &&
+    onAnswerDetails &&
+    !fillMyself &&
+    !generationRunning &&
+    estimateIsBlank(currentEstimate)
+  ) {
+    return (
+      <NeedsDetailsEmptyState
+        reason={needsDetails.reason}
+        questions={needsDetails.questions}
+        onAnswer={onAnswerDetails}
+        onFillMyself={() => setFillMyself(true)}
+      />
+    )
+  }
+
   if (currentEstimate) {
     return (
       <>
-        {generationRunning && (
-          <GenerationProgressBanner
-            mode={generationMode}
-            progress={attemptState.progress}
-            medians={attemptMedians}
-          />
-        )}
         <EstimateEditor
           estimate={currentEstimate}
           versions={allVersions}
@@ -328,6 +362,7 @@ export function EstimateTab({
           estimateTemplateId={estimateTemplateId}
           preparedBy={preparedBy}
           isPlatformAdmin={isPlatformAdmin}
+          needsDetailsQuestions={needsDetails?.questions}
         />
         <SendHubDialog
           open={sendOpen}

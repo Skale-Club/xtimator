@@ -49,6 +49,7 @@ import { RefineReview } from '@/components/capture/refine-review'
 import { RefineWorking } from '@/components/capture/refine-working'
 import { RefineQuestions, answeredCount, composeRefineInstruction, type RefineQuestionsProps } from '@/components/capture/refine-questions'
 import { getRefineEditor } from '@/lib/estimate/refine-bridge'
+import { readCapturePrompts } from '@/lib/estimate/capture-prompts'
 import { openQuestions as openReviewQuestions, readResolvedQuestions, resolveQuestions } from '@/lib/estimate/review-state'
 import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { REFINE_MAX_PHOTOS } from '@/lib/capture/refine-client'
@@ -1384,6 +1385,17 @@ export function CaptureRecorder({
     setReviewQuestions({ questions: openReviewQuestions(review.questions, resolved), assumptions: review.assumptions })
     setSkippedQuestions(resolved.skipped)
   }, [refineEstimateId])
+
+  // Notices review stage 1, part 2: "Answer and generate" on a project waiting
+  // for details opens this composer with the AI's questions above the text box
+  // (the same inline card a needs-details outcome shows). Cleared when the
+  // pipeline starts, like that card.
+  useEffect(() => {
+    if (refineEstimateId || !inlineNeedsDetailsRef.current) return
+    const questions = readCapturePrompts(projectId)
+    if (questions.length === 0) return
+    setNeedsDetailsInfo({ questions, fallbackMessage: '' })
+  }, [projectId, refineEstimateId])
 
 
 

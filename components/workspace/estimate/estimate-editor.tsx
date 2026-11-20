@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { History, Info, Plus } from 'lucide-react'
+import { History, Info, Plus, RotateCcw } from 'lucide-react'
 import {
   saveEstimate,
   savePresentationSettings,
@@ -25,6 +25,7 @@ import { EstimateFloatingActions, type EstimateViewMode } from './estimate-float
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { EstimateDebugDialog } from './estimate-debug-dialog'
 import { useReviewSummary } from './use-review-summary'
+import { mergeReviewQuestions, useSharedEditHint } from './shared-edit-hint'
 import type { ReadyToSendReview } from '@/components/workspace/send/ready-to-send-check'
 import { editEstimateHref } from '@/lib/estimate/creation-href'
 import {
@@ -248,6 +249,12 @@ interface EstimateEditorProps {
    * on the estimate for admins.
    */
   isPlatformAdmin?: boolean
+  /**
+   * Notices review stage 1, part 2: the AI's clarifying questions on a project
+   * waiting for details (projects.needs_details). On an estimate that already
+   * has content they join the "Edit with AI" questions instead of a banner.
+   */
+  needsDetailsQuestions?: string[]
 }
 
 /** What the Share sheet's "Ready to send?" card shows, and the actions its rows take. */
@@ -295,6 +302,7 @@ export function EstimateEditor({
   priceBookItems,
   onSend,
   isPlatformAdmin = false,
+  needsDetailsQuestions,
 }: EstimateEditorProps) {
   const router = useRouter()
   const { t } = useTranslation()
@@ -455,7 +463,13 @@ export function EstimateEditor({
   const billingReadOnly = useBillingState() === 'paywalled'
   const isContentReadOnly = !isCurrent || locked || notCurrentByServer || billingReadOnly
   // Notices review stage 1: what still needs a look (rows, AI questions).
-  const review = useReviewSummary(state.id, state.sections, state.owner_review?.questions)
+  const reviewQuestions = useMemo(
+    () => mergeReviewQuestions(state.owner_review?.questions, needsDetailsQuestions),
+    [state.owner_review?.questions, needsDetailsQuestions]
+  )
+  const reviewQuestionsRef = useRef(reviewQuestions)
+  reviewQuestionsRef.current = reviewQuestions
+  const review = useReviewSummary(state.id, state.sections, reviewQuestions)
   const gearDisabled = !isCurrent
   // Page view's edit chrome (menus, popovers) speaks the app language.
   const editLabels = Object.fromEntries(
@@ -671,7 +685,7 @@ export function EstimateEditor({
         flush: () => refineHandlersRef.current.flush(),
         apply: (refined) => refineHandlersRef.current.apply(refined),
         review: () => ({
-          questions: stateRef.current.owner_review?.questions ?? [],
+          questions: reviewQuestionsRef.current,
           assumptions: stateRef.current.owner_review?.assumptions ?? [],
         }),
       }),
@@ -812,7 +826,7 @@ export function EstimateEditor({
       onSend?.()
       return
     }
-    const questions = state.owner_review?.questions ?? []
+    const questions = reviewQuestions
     onSend?.({
       review: {
         unpriced: review.unpriced,
@@ -827,7 +841,7 @@ export function EstimateEditor({
         router.push(editEstimateHref(window.location.search, projectId), { scroll: false }),
       onAddClient: () => setSettingsOpen(true),
     })
-  }, [isContentReadOnly, state.isDirty, state.owner_review, runSave, onSend, review, client, router, projectId])
+  }, [isContentReadOnly, state.isDirty, reviewQuestions, runSave, onSend, review, client, router, projectId])
 
   // Owner records the client's answer in-app. The server action returns the
   // DB-restamped updated_at; SET_CLIENT_RESPONSE adopts it so the next save
@@ -1041,6 +1055,7 @@ export function EstimateEditor({
       onRetrySave: canRetrySave ? retrySave : undefined,
       onOpenStatus: openStatus,
       onReopen: canReopen ? reopenEstimate : undefined,
+      superseded: notCurrentByServer,
     })
     return () => setSlot(null)
   }, [
@@ -1072,7 +1087,21 @@ export function EstimateEditor({
     openStatus,
     canReopen,
     reopenEstimate,
+    notCurrentByServer,
   ])
+
+  // Notices review stage 1, part 2: instead of a permanent "Shared with the
+  // client" strip, one toast on the first edit after sharing.
+  useSharedEditHint({
+    estimateId: state.id,
+    isDirty: state.isDirty,
+    shared:
+      isCurrent &&
+      !isContentReadOnly &&
+      !!(state.sent_at || (engagementFields.view_count ?? 0) > 0) &&
+      !state.client_response,
+    clientName: client?.name ?? null,
+  })
 
   // -------------------------------------------------------------------------
   // Render
@@ -1132,7 +1161,9 @@ export function EstimateEditor({
           that it holds the current version was WRONG (another tab/session
           superseded it, e.g. via createBlankEstimate) — terminal, like a
           lock: no autosave loop, no further saves possible from this tab. */}
-      {notCurrentByServer && (
+      {/* v1 frame only. v2 (notices review stage 1, part 2): an "Old version"
+          chip in the top bar and "Create new version" as the dock's primary. */}
+      {frame !== 'v2' && notCurrentByServer && (
         <Alert>
           <History />
           <AlertTitle>{t('This version was superseded')}</AlertTitle>
@@ -1158,7 +1189,9 @@ export function EstimateEditor({
           template. Say so, and offer the one-click way to see it. Page view is
           desktop-only (the effect above forces 'width' below lg), so the note —
           and its button — only exist at lg+. */}
-      {estimateTemplateId === 'modern' && viewMode === 'width' && (
+      {/* v1 frame only. v2 (notices review stage 1, part 2): a dot on the
+          dock's "Page" toggle says it, with a tooltip. */}
+      {frame !== 'v2' && estimateTemplateId === 'modern' && viewMode === 'width' && (
         <div
           data-testid="modern-layout-note"
           className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground"
@@ -1303,14 +1336,33 @@ export function EstimateEditor({
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
             aiBadge={isContentReadOnly ? 0 : review.pendingQuestions.length}
+            pageHint={
+              estimateTemplateId === 'modern'
+                ? t('Clients see the Modern template. Page view shows it that way.')
+                : undefined
+            }
             primary={
-              showContract
+              notCurrentByServer
+                ? {
+                    label: t('Create new version'),
+                    icon: <History size={18} />,
+                    onClick: () => void handleCreateNewVersion(),
+                    testId: 'create-new-version-btn',
+                  }
+                : showContract
                 ? {
                     label: t('New change order'),
                     icon: <Plus size={18} />,
                     onClick: createChangeOrderControl.create,
                     busy: createChangeOrderControl.creating,
                     testId: 'new-change-order-btn',
+                  }
+                : canReopen
+                ? {
+                    label: t('Revise and reopen'),
+                    icon: <RotateCcw size={18} />,
+                    onClick: reopenEstimate,
+                    testId: 'revise-and-reopen-btn',
                   }
                 : undefined
             }

@@ -22,6 +22,7 @@ import {
   NEW_PROJECT_MODAL_VALUE,
   NEW_PROJECT_EDIT_PARAM,
   NEW_PROJECT_PREFILL_PARAM,
+  NEW_PROJECT_FRESH_PARAM,
 } from '@/lib/estimate/creation-href'
 export {
   NEW_PROJECT_MODAL_PARAM, NEW_PROJECT_MODAL_VALUE, NEW_PROJECT_CLIENT_PARAM,
@@ -99,19 +100,22 @@ function NewProjectDialogInner() {
 
   const isOpen = searchParams.get(NEW_PROJECT_MODAL_PARAM) === NEW_PROJECT_MODAL_VALUE
   const editProjectId = searchParams.get(NEW_PROJECT_EDIT_PARAM) ?? undefined
+  // "Answer and generate" on a project waiting for details: same project, a
+  // fresh estimate (there is nothing to refine yet).
+  const fresh = !!editProjectId && searchParams.get(NEW_PROJECT_FRESH_PARAM) === '1'
 
   function onClose() {
     // History API → closes instantly without re-rendering the page behind it.
-    closeModalParam(NEW_PROJECT_EDIT_PARAM, NEW_PROJECT_PREFILL_PARAM)
+    closeModalParam(NEW_PROJECT_EDIT_PARAM, NEW_PROJECT_PREFILL_PARAM, NEW_PROJECT_FRESH_PARAM)
   }
 
   return (
     <NewXtimateFrame
       open={isOpen}
       onClose={onClose}
-      title={editProjectId ? <T>Edit with AI</T> : <T>New Xtimate</T>}
+      title={editProjectId && !fresh ? <T>Edit with AI</T> : <T>New Xtimate</T>}
       description={
-        editProjectId ? (
+        editProjectId && !fresh ? (
           <T>Record audio, type, or upload photos to update the current estimate.</T>
         ) : (
           <T>Record audio, type, or upload photos to generate an estimate.</T>
@@ -124,6 +128,7 @@ function NewProjectDialogInner() {
         <NewProjectWizard
           onComplete={onClose}
           editProjectId={editProjectId}
+          fresh={fresh}
           estimateLanguage={estimateLanguage}
           setEstimateLanguage={setEstimateLanguage}
         />

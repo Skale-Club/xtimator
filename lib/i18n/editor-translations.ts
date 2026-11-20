@@ -83,6 +83,25 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Estimate Terms': 'Termos do orçamento',
     'Valid Until': 'Válido até',
     'Change defaults for new estimates in Settings': 'Mudar o padrão dos novos orçamentos em Configurações',
+    // Notices review stage 1, part 2: chips, dock and the needs-details empty state
+    'Locked': 'Travado',
+    'Old version': 'Versão antiga',
+    'New version': 'Nova versão',
+    'Create new version': 'Criar nova versão',
+    'A newer version of this estimate was created elsewhere. Create a new version to keep editing.':
+      'Uma versão mais nova deste orçamento foi criada em outro lugar. Crie uma nova versão para continuar editando.',
+    'Clients see the Modern template. Page view shows it that way.': 'O cliente vê o modelo Modern. A visão Página mostra assim.',
+    '{name} already has this link. What you change shows up there right away.': '{name} já tem este link. O que você mudar aparece lá na hora.',
+    'Your client already has this link. What you change shows up there right away.': 'Seu cliente já tem este link. O que você mudar aparece lá na hora.',
+    'Almost there': 'Falta pouco',
+    'We need a bit more detail': 'Precisamos de mais detalhes',
+    'Answer these and the AI builds the estimate.': 'Responda estas perguntas e a IA monta o orçamento.',
+    "The estimate came out too vague. Add more about the job (materials, measurements, scope) and we'll rebuild it.":
+      'O orçamento ficou vago demais. Conte mais sobre o serviço (materiais, medidas, escopo) e a gente monta de novo.',
+    'That sounded like a mic test 🙂 Record again describing the job.': 'Pareceu um teste de microfone 🙂 Grave de novo descrevendo o serviço.',
+    'Answer and generate': 'Responder e gerar',
+    'Add details and generate': 'Adicionar detalhes e gerar',
+    'Fill it in myself': 'Preencher eu mesmo',
   },
   es: {
     // Generated-draft review summary
@@ -159,5 +178,24 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Estimate Terms': 'Términos del presupuesto',
     'Valid Until': 'Válido hasta',
     'Change defaults for new estimates in Settings': 'Cambiar el valor predeterminado de los nuevos presupuestos en Configuración',
+    // Notices review stage 1, part 2: chips, dock and the needs-details empty state
+    'Locked': 'Bloqueado',
+    'Old version': 'Versión antigua',
+    'New version': 'Nueva versión',
+    'Create new version': 'Crear nueva versión',
+    'A newer version of this estimate was created elsewhere. Create a new version to keep editing.':
+      'Se creó una versión más reciente de este presupuesto en otro lugar. Crea una nueva versión para seguir editando.',
+    'Clients see the Modern template. Page view shows it that way.': 'El cliente ve la plantilla Modern. La vista Página la muestra así.',
+    '{name} already has this link. What you change shows up there right away.': '{name} ya tiene este enlace. Lo que cambies aparece ahí al instante.',
+    'Your client already has this link. What you change shows up there right away.': 'Tu cliente ya tiene este enlace. Lo que cambies aparece ahí al instante.',
+    'Almost there': 'Falta poco',
+    'We need a bit more detail': 'Necesitamos más detalles',
+    'Answer these and the AI builds the estimate.': 'Responde estas preguntas y la IA arma el presupuesto.',
+    "The estimate came out too vague. Add more about the job (materials, measurements, scope) and we'll rebuild it.":
+      'El presupuesto quedó demasiado vago. Cuenta más sobre el trabajo (materiales, medidas, alcance) y lo armamos de nuevo.',
+    'That sounded like a mic test 🙂 Record again describing the job.': 'Sonó como una prueba de micrófono 🙂 Graba de nuevo describiendo el trabajo.',
+    'Answer and generate': 'Responder y generar',
+    'Add details and generate': 'Agregar detalles y generar',
+    'Fill it in myself': 'Llenarlo yo mismo',
   },
 }
