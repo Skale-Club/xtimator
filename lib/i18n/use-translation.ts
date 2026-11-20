@@ -230,16 +230,15 @@ function makeTranslator(
 
     const cacheKey = `${language}:${text}`
 
-    // 1. In-memory session cache
+    // 1. Static dictionary: authoritative. It used to come after the session
+    //    cache, so an English echo stored in this browser (see
+    //    isRealTranslation) hid a static translation, e.g. "Team" over "Equipe".
+    const staticEntry = staticDict[language as 'pt' | 'es']?.[text]
+    if (staticEntry) return staticEntry
+
+    // 2. In-memory session cache (API translations, also hydrated from storage)
     const cached = memCache.get(cacheKey)
     if (cached) return cached
-
-    // 2. Static dictionary
-    const staticEntry = staticDict[language as 'pt' | 'es']?.[text]
-    if (staticEntry) {
-      memCache.set(cacheKey, staticEntry)
-      return staticEntry
-    }
 
     // 3. Async API fallback: queue string, return source text now
     // The component will re-render when the cached value is available via context state update

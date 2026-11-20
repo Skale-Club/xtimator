@@ -250,3 +250,30 @@ describe('useTranslation — language property', () => {
     expect(language).toBe('en')
   })
 })
+
+describe('useTranslation — English echoes (QA 2026-11-19)', () => {
+  it('never persists an echo of a multi-word source as a translation', async () => {
+    currentLanguage = 'pt'
+    const echo = 'Echoed phrase from the api qa'
+    const real = 'Translated phrase from the api qa'
+    fetchMock.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ translations: { [echo]: echo, [real]: 'Frase traduzida da api qa' } }),
+    })
+    const { t } = useTranslation()
+    t(echo)
+    t(real)
+    await new Promise(r => setTimeout(r, 100))
+
+    const stored = JSON.parse(localStorageMock.getItem('xt:i18n:v1:pt') ?? '{}')
+    expect(stored[real]).toBe('Frase traduzida da api qa')
+    expect(stored).not.toHaveProperty(echo)
+  })
+
+  it('prefers the static dictionary over the session cache', async () => {
+    currentLanguage = 'pt'
+    const { t } = useTranslation()
+    // 'Dashboard' is in the static pt dictionary ('Painel').
+    expect(t('Dashboard')).toBe('Painel')
+  })
+})
