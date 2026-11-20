@@ -5,8 +5,10 @@ import { redirect } from 'next/navigation'
 import { requireAdmin } from '@/lib/auth/admin-context'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { logAdminAction } from '@/lib/admin/audit-log'
+import { getAuthClaims } from '@/lib/queries/auth'
+import { SUPPORT_MODE_COOKIE, sessionCookieOptions } from './owned-session'
 
-export const SUPPORT_MODE_COOKIE = 'support_mode_session'
+export { SUPPORT_MODE_COOKIE } from './owned-session'
 
 // 2 hours — CONTEXT.md's recommended middle-ground TTL within its stated 1-4h range.
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000
@@ -14,6 +16,7 @@ const SESSION_TTL_MS = 2 * 60 * 60 * 1000
 interface SupportModePayload {
   adminUserId: string
   companyId: string
+  sessionId: string
   issuedAt: number
   expiresAt: number
 }
@@ -69,6 +72,7 @@ function decodeCookie(cookieValue: string): SupportModePayload | null {
     if (
       typeof parsed.adminUserId !== 'string' ||
       typeof parsed.companyId !== 'string' ||
+      typeof parsed.sessionId !== 'string' || !parsed.sessionId ||
       typeof parsed.issuedAt !== 'number' ||
       typeof parsed.expiresAt !== 'number'
     ) {
@@ -97,12 +101,17 @@ async function isStillPlatformAdmin(adminUserId: string): Promise<boolean> {
  */
 export async function startSupportSession(companyId: string): Promise<void> {
   const ctx = await requireAdmin()
+  const claims = await getAuthClaims()
+  if (!claims || claims.sub !== ctx.userId || typeof claims.session_id !== 'string' || !claims.session_id) {
+    throw new Error('Sign in again before starting Support Mode.')
+  }
 
   const issuedAt = Date.now()
   const expiresAt = issuedAt + SESSION_TTL_MS
   const payload: SupportModePayload = {
     adminUserId: ctx.userId,
     companyId,
+    sessionId: claims.session_id,
     issuedAt,
     expiresAt,
   }
@@ -110,9 +119,7 @@ export async function startSupportSession(companyId: string): Promise<void> {
 
   const cookieStore = await cookies()
   cookieStore.set(SUPPORT_MODE_COOKIE, cookieValue, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
+    ...sessionCookieOptions,
     maxAge: Math.floor(SESSION_TTL_MS / 1000), // never exceeds signed expiresAt (decision #6c)
   })
 
@@ -137,10 +144,15 @@ export async function getSupportModeSession(): Promise<SupportModeSession | null
   const cookieValue = cookieStore.get(SUPPORT_MODE_COOKIE)?.value
   if (!cookieValue) return null
 
-  const payload = decodeCookie(cookieValue)
+  let payload: SupportModePayload | null
+  try { payload = decodeCookie(cookieValue) } catch { return null }
   if (!payload) return null
 
   if (payload.expiresAt <= Date.now()) return null
+
+  // The grant belongs to the issuing login, not just to an admin ID in a cookie.
+  const claims = await getAuthClaims()
+  if (!claims || claims.sub !== payload.adminUserId || claims.session_id !== payload.sessionId) return null
 
   const stillAdmin = await isStillPlatformAdmin(payload.adminUserId)
   if (!stillAdmin) return null
@@ -163,9 +175,12 @@ export async function endSupportSession(): Promise<void> {
   const cookieValue = cookieStore.get(SUPPORT_MODE_COOKIE)?.value
   if (!cookieValue) return
 
-  const payload = decodeCookie(cookieValue)
+  let payload: SupportModePayload | null
+  try { payload = decodeCookie(cookieValue) } catch { payload = null }
 
-  if (payload) {
+  let currentSupport: SupportModeSession | null = null
+  try { currentSupport = await getSupportModeSession() } catch { /* Still clear the grant when the store is unavailable. */ }
+  if (payload && currentSupport) {
     const durationSeconds = Math.round((Date.now() - payload.issuedAt) / 1000)
     // Re-resolve admin identity for the log's actor fields — the cookie
     // itself only carries adminUserId; look up email via requireAdmin()
@@ -189,9 +204,7 @@ export async function endSupportSession(): Promise<void> {
   }
 
   cookieStore.set(SUPPORT_MODE_COOKIE, '', {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
+    ...sessionCookieOptions,
     maxAge: 0,
   })
 

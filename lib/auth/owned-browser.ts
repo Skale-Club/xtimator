@@ -6,19 +6,36 @@ type Snapshot = { user: User | null; accessToken: string | null; expiresAt?: num
 let singleton: SupabaseClient | undefined
 let cached: Snapshot | undefined
 let reading: Promise<Snapshot> | undefined
+let generation = 0
 const listeners = new Set<(event: string, session: { user: User } | null) => void>()
 
-export function invalidateOwnedBrowserSession() { cached = undefined; reading = undefined }
+export function invalidateOwnedBrowserSession() { ++generation; cached = undefined; reading = undefined }
+
+async function readSnapshot(): Promise<Snapshot> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+    if (!response.ok) throw new Error('Could not read session')
+    return await response.json() as Snapshot
+  } finally { clearTimeout(timer) }
+}
 
 async function snapshot(): Promise<Snapshot> {
   if (cached && (cached.expiresAt ?? 0) > Date.now() + 30_000) return cached
-  reading ??= fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' }).then(async response => {
-    if (!response.ok) throw new Error('Could not read session')
-    const value = await response.json() as Snapshot
+  if (reading) return reading
+  const current = generation
+  const request: Promise<Snapshot> = readSnapshot().then(value => {
+    // A pre-logout/pre-switch response must never restore the old identity.
+    if (current !== generation) return snapshot()
     cached = value
     return value
-  }).finally(() => { reading = undefined })
-  return reading
+  }, error => {
+    if (current !== generation) return snapshot()
+    throw error
+  }).finally(() => { if (reading === request) reading = undefined })
+  reading = request
+  return request
 }
 
 export function createOwnedBrowserClient(): SupabaseClient {

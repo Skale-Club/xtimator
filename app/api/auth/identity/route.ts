@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { verifyIdentity } from '@/lib/auth/google-identity'
 import { completeIdentity, getOwnedAccount, rateLimitOwned, rememberGoogle, requireOwnedActivation } from '@/lib/auth/owned-store'
-import { issueOwnedSession, readOwnedSession, revokeOwnedSession, SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, SESSION_SECONDS, sessionCookieOptions } from '@/lib/auth/owned-session'
+import { issueOwnedSession, readOwnedSession, revokeOwnedSession, SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE, SUPPORT_MODE_COOKIE, SESSION_SECONDS, sessionCookieOptions } from '@/lib/auth/owned-session'
 import { noStore, safeInviteDestination, sameAuthOrigin } from '@/lib/auth/http'
 import { requireDataServiceClient } from '@/lib/supabase/data-service'
 import { clientIpFromHeaders } from '@/lib/security/bot-defense'
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (body.data.purpose === 'link' || (phone && jar.get(RECOVERY_COOKIE)?.value)) await revokeOwnedSession(token, id)
     await revokeOwnedSession(jar.get(SESSION_COOKIE)?.value)
     jar.set(SESSION_COOKIE, token, { ...sessionCookieOptions, maxAge: SESSION_SECONDS })
-    for (const name of [PENDING_COOKIE, RECOVERY_COOKIE]) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
+    for (const name of [PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE, SUPPORT_MODE_COOKIE]) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
     const [{ data: owned, error: ownedError }, { data: member, error: memberError }] = await Promise.all([
       service.from('companies').select('id,theme_preference').eq('user_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       service.from('company_members').select('company_id').eq('user_id', id).limit(1).maybeSingle(),

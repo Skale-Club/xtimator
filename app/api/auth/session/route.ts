@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { ownedAuthEnabled } from '@/lib/auth/mode'
-import { issueDataToken, readOwnedSession, revokeOwnedSession, SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE, DATA_TOKEN_SECONDS, sessionCookieOptions, toUser } from '@/lib/auth/owned-session'
+import { issueDataToken, readOwnedSession, revokeOwnedSession, SESSION_COOKIE, AUTH_COOKIE_NAMES, DATA_TOKEN_SECONDS, sessionCookieOptions, toUser } from '@/lib/auth/owned-session'
 import { noStore, sameAuthOrigin } from '@/lib/auth/http'
 
 export const runtime = 'nodejs'
@@ -23,7 +23,7 @@ export async function DELETE(request: Request) {
   try {
     const jar = await cookies()
     await revokeOwnedSession(jar.get(SESSION_COOKIE)?.value)
-    for (const name of [SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE]) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
+    for (const name of AUTH_COOKIE_NAMES) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
     return NextResponse.json({ success: true }, { headers: noStore })
   } catch { return NextResponse.json({ code: 'auth_unavailable' }, { status: 503 }) }
 }

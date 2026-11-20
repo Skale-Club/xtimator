@@ -27,12 +27,18 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data } = await supabase.auth.getClaims()
-  const loggedIn = !!data?.claims?.sub
-
-  return NextResponse.json(
-    { ok: true, loggedIn },
-    { headers: { 'Cache-Control': 'no-store, max-age=0' } },
-  )
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.getClaims()
+    if (error) throw new Error('Session check unavailable')
+    return NextResponse.json(
+      { ok: true, loggedIn: !!data?.claims?.sub },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    )
+  } catch {
+    // A store/provider outage is not proof that the session has expired.
+    return NextResponse.json({ ok: false, code: 'auth_unavailable' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' },
+    })
+  }
 }

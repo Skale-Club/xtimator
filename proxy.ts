@@ -46,6 +46,9 @@ const PUBLIC_SIGNING_ROUTE =
 const PUBLIC_PREFIXES = ['/icon', '/apple-icon', '/manifest.webmanifest'] as const
 
 export function isPublicRoute(pathname: string): boolean {
+  // Always return a JSON session status to a foreground check, including after
+  // expiry. Keep it out of the claim-free routes so valid sessions still renew.
+  if (pathname === '/api/auth/keepalive') return true
   if (isOwnedAuthEntry(pathname)) return true
   if (PUBLIC_EXACT_ROUTES.includes(pathname as (typeof PUBLIC_EXACT_ROUTES)[number])) {
     return true

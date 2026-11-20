@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { dataApiBaseUrl, postgrestRewriteFetch } from '@/lib/supabase/data-api'
 import { requireDataServiceClient } from '@/lib/supabase/data-service'
 import { getOwnedAccount } from './owned-store'
-import { issueDataToken, readOwnedSession, revokeOwnedSession, sessionClaims, SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE, sessionCookieOptions, toUser } from './owned-session'
+import { issueDataToken, readOwnedSession, revokeOwnedSession, sessionClaims, SESSION_COOKIE, AUTH_COOKIE_NAMES, sessionCookieOptions, toUser } from './owned-session'
 
 /** Preserve the data API/RLS contract while all identity operations are local. */
 export function withOwnedAuth(client: SupabaseClient, auth: object): SupabaseClient {
@@ -36,7 +36,7 @@ export async function createOwnedClient() {
       const value = await session()
       await revokeOwnedSession(jar.get(SESSION_COOKIE)?.value, scope === 'others' ? value?.user_id : undefined)
       if (scope !== 'others') {
-        for (const name of [SESSION_COOKIE, PENDING_COOKIE, RECOVERY_COOKIE, EMAIL_COOKIE]) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
+        for (const name of AUTH_COOKIE_NAMES) jar.set(name, '', { ...sessionCookieOptions, maxAge: 0 })
         sessionPromise = Promise.resolve(null)
       }
       return { error: null }

@@ -80,6 +80,7 @@ describe('owned server/client compatibility boundary', () => {
     expect(decodeURIComponent(deletion.url)).toContain(hashToken('x'.repeat(43)))
     expect(deletion.url).not.toContain('x'.repeat(43))
     expect(jar.set).toHaveBeenCalledWith(SESSION_COOKIE, '', expect.objectContaining({ httpOnly: true, maxAge: 0, sameSite: 'lax', path: '/' }))
+    expect(jar.set).toHaveBeenCalledWith('support_mode_session', '', expect.objectContaining({ httpOnly: true, maxAge: 0 }))
     expect(sessionCookieOptions).not.toHaveProperty('domain')
   })
   it('does not query the store for missing/malformed opaque cookies', async () => {

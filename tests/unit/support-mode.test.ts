@@ -6,17 +6,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createHmac } from 'node:crypto'
 
 // ---------- mocks ----------
 vi.mock('next/headers', () => ({ cookies: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: vi.fn() }))
 vi.mock('@/lib/auth/admin-context', () => ({ requireAdmin: vi.fn() }))
+vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: vi.fn() }))
 vi.mock('@/lib/admin/audit-log', () => ({ logAdminAction: vi.fn() }))
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
 
 import { cookies } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { requireAdmin } from '@/lib/auth/admin-context'
+import { getAuthClaims } from '@/lib/queries/auth'
 import { logAdminAction } from '@/lib/admin/audit-log'
 import { redirect } from 'next/navigation'
 
@@ -40,9 +43,19 @@ beforeEach(() => {
   vi.resetModules()
   vi.useRealTimers()
   process.env.APP_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64')
+  vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'admin-1', session_id: 'admin-session-1' } as never)
 })
 
 describe('startSupportSession', () => {
+  it('does not mint a support grant without a verifiable issuing session', async () => {
+    vi.mocked(requireAdmin).mockResolvedValue({ userId: 'admin-1', email: 'admin@x.com' })
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'admin-1' } as never)
+    const { store, setSpy } = makeCookieStore({ value: null })
+    vi.mocked(cookies).mockResolvedValue(store as never)
+    const { startSupportSession } = await import('@/lib/auth/support-mode')
+    await expect(startSupportSession('company-9')).rejects.toThrow('Sign in again')
+    expect(setSpy).not.toHaveBeenCalled()
+  })
   it('rejects when requireAdmin() rejects/throws — no cookie written, no audit log call', async () => {
     vi.mocked(requireAdmin).mockRejectedValue(new Error('not admin'))
     const { setSpy } = makeCookieStore({ value: null })
@@ -80,6 +93,30 @@ describe('startSupportSession', () => {
 })
 
 describe('getSupportModeSession', () => {
+  it('rejects old signed grants that are not bound to a session', async () => {
+    const payload = Buffer.from(JSON.stringify({ adminUserId: 'admin-1', companyId: 'company-9', issuedAt: Date.now(), expiresAt: Date.now() + 60_000 })).toString('base64url')
+    const signature = createHmac('sha256', Buffer.alloc(32, 7)).update(payload).digest('hex')
+    vi.mocked(cookies).mockResolvedValue(makeCookieStore({ value: `${payload}.${signature}` }).store as never)
+    const { getSupportModeSession } = await import('@/lib/auth/support-mode')
+    expect(await getSupportModeSession()).toBeNull()
+    expect(requireServiceClient).not.toHaveBeenCalled()
+  })
+  it.each([
+    ['signed out', null],
+    ['another account', { sub: 'ordinary-user', session_id: 'ordinary-session' }],
+    ['a replacement session for the same administrator', { sub: 'admin-1', session_id: 'admin-session-2' }],
+  ])('rejects a retained support cookie after %s', async (_label, claims) => {
+    vi.mocked(requireAdmin).mockResolvedValue({ userId: 'admin-1', email: 'admin@x.com' })
+    const mintStore = makeCookieStore({ value: null })
+    vi.mocked(cookies).mockResolvedValue(mintStore.store as never)
+    const { startSupportSession, getSupportModeSession } = await import('@/lib/auth/support-mode')
+    await startSupportSession('company-9')
+    const mintedValue = mintStore.setSpy.mock.calls[0][1] as string
+    vi.mocked(cookies).mockResolvedValue(makeCookieStore({ value: mintedValue }).store as never)
+    vi.mocked(requireServiceClient).mockReturnValue(makeServiceClient({ isAdmin: true }) as never)
+    vi.mocked(getAuthClaims).mockResolvedValue(claims as never)
+    expect(await getSupportModeSession()).toBeNull()
+  })
   it('valid signature + unexpired + admin still in platform_admins -> returns { adminUserId, companyId }', async () => {
     vi.mocked(requireAdmin).mockResolvedValue({ userId: 'admin-1', email: 'admin@x.com' })
     const mintStore = makeCookieStore({ value: null })
@@ -189,6 +226,22 @@ describe('getSupportModeSession', () => {
 })
 
 describe('endSupportSession', () => {
+  it('clears the support grant even if current-session verification is unavailable', async () => {
+    vi.mocked(requireAdmin).mockResolvedValue({ userId: 'admin-1', email: 'admin@x.com' })
+    const mintStore = makeCookieStore({ value: null })
+    vi.mocked(cookies).mockResolvedValue(mintStore.store as never)
+    const { startSupportSession, endSupportSession } = await import('@/lib/auth/support-mode')
+    await startSupportSession('company-9')
+    const value = mintStore.setSpy.mock.calls[0][1] as string
+    const readStore = makeCookieStore({ value })
+    vi.mocked(cookies).mockResolvedValue(readStore.store as never)
+    vi.mocked(getAuthClaims).mockRejectedValue(new Error('Session store unavailable'))
+    vi.mocked(logAdminAction).mockClear()
+    await endSupportSession()
+    expect(readStore.setSpy).toHaveBeenCalledWith('support_mode_session', '', expect.objectContaining({ maxAge: 0 }))
+    expect(logAdminAction).not.toHaveBeenCalled()
+    expect(redirect).toHaveBeenCalledWith('/admin/companies')
+  })
   it('reads issuedAt before clearing, computes durationSeconds, logs company.support_mode_end, then clears the cookie, then redirects to /admin/companies', async () => {
     vi.useFakeTimers()
     const start = new Date('2026-01-01T00:00:00.000Z')

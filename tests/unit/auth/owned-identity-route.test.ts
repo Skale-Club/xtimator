@@ -59,6 +59,7 @@ describe('owned login endpoint', () => {
     expect(await response.json()).toEqual({ status: 'active', redirectTo: '/dashboard' })
     expect(mocks.setCookie).toHaveBeenCalledWith('xtimator_session', 'new-session-token', expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/', maxAge: 2592000 }))
     expect(mocks.issue).toHaveBeenCalledWith('existing-account', expect.any(Number))
+    expect(mocks.setCookie).toHaveBeenCalledWith('support_mode_session', '', expect.objectContaining({ maxAge: 0 }))
     expect(mocks.complete.mock.calls[0][1].currentUser).toBeUndefined()
   })
   it('signs a Google account in without asking for a phone', async () => {
