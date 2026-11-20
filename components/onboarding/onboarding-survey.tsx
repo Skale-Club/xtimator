@@ -20,17 +20,19 @@ const INITIAL: OnboardingValues = {
   defaultTaxRate: 0, defaultPaymentTerms: '', defaultWarrantyTerms: '', defaultValidityDays: 30,
 }
 
-export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValues, draft }: {
+export function OnboardingSurvey({ appName, logoUrl, mode = 'first', initialValues, draft, askPhone = false }: {
   appName: string
   logoUrl: string | null
   mode?: 'first' | 'add'
   initialValues?: Partial<OnboardingValues>
   draft: OnboardingDraft
+  /** Adds the optional phone question for an account with no verified phone. */
+  askPhone?: boolean
 }) {
   const { t } = useTranslation()
   const translate = useRef(t)
   translate.current = t
-  const state = useSurveyState({ ...INITIAL, ...initialValues }, `xtimator_onboarding_${mode}_${draft.id}`, draft)
+  const state = useSurveyState({ ...INITIAL, ...initialValues }, `xtimator_onboarding_${mode}_${draft.id}`, draft, { askPhone })
   const autosave = useDraftAutosave(draft, state.values, state.currentStep.key, state.ready)
   const [isSubmitting, startTransition] = useTransition()
   const [uploading, setUploading] = useState(false)

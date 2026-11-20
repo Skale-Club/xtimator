@@ -1,7 +1,7 @@
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { OTHER_INDUSTRY_ID } from '@/lib/industries'
 
-export type SurveyStepKey = 'language' | 'companyName' | 'industry' | 'location' | 'brandColor' | 'logo'
+export type SurveyStepKey = 'language' | 'companyName' | 'phone' | 'industry' | 'location' | 'brandColor' | 'logo'
 export const SURVEY_VERSION = 3
 export interface SurveyStepDef {
   key: SurveyStepKey
@@ -32,3 +32,16 @@ export const SURVEY_STEPS: readonly SurveyStepDef[] = [
   { key: 'logo', label: 'Upload your logo', helper: 'PNG or JPG, up to 2MB.',
     required: false, validate: () => null, isFilled: () => true },
 ]
+
+/** Asked only of an account with no verified phone (a Google sign-up). Optional. */
+export const PHONE_STEP: SurveyStepDef = {
+  key: 'phone', label: "What's your phone number?", required: false,
+  validate: () => null, isFilled: values => values.phone.replace(/\D/g, '').length > 0,
+}
+
+/** The ordered steps: the phone question goes right after the company name. */
+export function surveySteps(askPhone = false): readonly SurveyStepDef[] {
+  if (!askPhone) return SURVEY_STEPS
+  const at = SURVEY_STEPS.findIndex(step => step.key === 'companyName') + 1
+  return [...SURVEY_STEPS.slice(0, at), PHONE_STEP, ...SURVEY_STEPS.slice(at)]
+}

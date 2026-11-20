@@ -17,7 +17,7 @@ async function post(url: string, body: unknown) {
   return value as { status: string; redirectTo?: string }
 }
 
-export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string | null; purpose?: 'login' | 'link' }) {
+export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true }: { next?: string | null; purpose?: 'login' | 'link'; allowGoogle?: boolean }) {
   const [config, setConfig] = useState<IdentityConfig | null>(null)
   const [step, setStep] = useState<'phone' | 'code' | 'email' | 'email-code'>('phone')
   const [phone, setPhone] = useState('')
@@ -58,8 +58,9 @@ export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string 
     try { await operation() }
     catch (error) {
       if (!alive.current) return
-      setError(identityError(error))
       const code = (error as { code?: string })?.code
+      // Adding or changing a phone: a conflict means the number belongs to another account.
+      setError(purpose === 'link' && code === 'identity_conflict' ? 'This number is already used by another Xtimator account.' : identityError(error))
       if (code === 'account_recovery_required' || code === 'identity_conflict') setRecoveryOffered(true)
     }
     finally { lock.current = false; if (alive.current) setBusy(false) }
@@ -155,10 +156,6 @@ export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string 
   </form>
 
   return <div className="space-y-4">
-    {purpose === 'link' ? <div className="space-y-1 text-center">
-      <p className="text-lg font-bold">Verify your login phone</p>
-      <p className="text-sm text-muted-foreground">We’ll text you a 6-digit code.</p>
-    </div> : null}
     {noticeBox}
     {errorBox}
     <form onSubmit={submit} className="space-y-4">
@@ -170,10 +167,12 @@ export function PhoneSignIn({ next = null, purpose = 'login' }: { next?: string 
         {busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> : null}Send code<ArrowRight className="ml-1 size-4" aria-hidden />
       </Button>
     </form>
-    <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-    <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl text-base" disabled={busy || !config} onClick={() => { void run(async () => { if (config) await exchange(await googleIdentityLogin(config)) }) }}>
-      <GoogleMark />Continue with Google
-    </Button>
+    {allowGoogle ? <>
+      <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+      <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl text-base" disabled={busy || !config} onClick={() => { void run(async () => { if (config) await exchange(await googleIdentityLogin(config)) }) }}>
+        <GoogleMark />Continue with Google
+      </Button>
+    </> : null}
     {purpose === 'login' && recoveryOffered ? <button type="button" className="min-h-10 w-full text-sm text-primary underline-offset-4 hover:underline focus-visible:underline" disabled={busy} onClick={() => { setEmailFlow('recovery'); setStep('email'); setCode(''); setError(''); setNotice('') }}>Recover existing account</button> : null}
   </div>
 }

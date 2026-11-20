@@ -36,9 +36,12 @@ describe('durable onboarding drafts', () => {
  it('derives contact details solely from verified session claims', () => {
   expect(accountDefaults(mocks.claims!)).toEqual({phone:'+16175550142',email:'verified@example.com',ownerName:'Verified Owner'})
  })
- it('rejects unauthenticated or unverified phone sessions before writing', async () => {
+ it('rejects unauthenticated sessions before writing', async () => {
   mocks.claims=null;expect(await saveOnboardingDraft(payload)).toHaveProperty('error');expect(mocks.from).not.toHaveBeenCalled()
-  mocks.claims={sub:user,email:'google@example.com'};expect(await saveOnboardingDraft(payload)).toHaveProperty('error');expect(mocks.from).not.toHaveBeenCalled()
+ })
+ it('lets a Google-only account (no verified phone) save its draft', async () => {
+  mocks.claims={sub:user,email:'google@example.com'}
+  expect(await saveOnboardingDraft(payload)).toEqual({savedAt:saved.last_activity_at,revision:1})
  })
  it('rejects demo writes and forged input ownership', async () => {
   mocks.denied={error:'Read-only'};expect(await saveOnboardingDraft(payload)).toHaveProperty('error');expect(mocks.from).not.toHaveBeenCalled()

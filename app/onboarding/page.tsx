@@ -53,9 +53,6 @@ export default async function OnboardingPage({
       redirect('/dashboard')
     }
   }
-  // Google identity exchange requires SMS before issuing a new owned session.
-  // Also block an older phone-less session from bypassing that requirement.
-  if (ownedAuthEnabled() && !claims.phone) redirect('/?auth=login')
   const [branding, draft] = await Promise.all([getBranding(), getOrCreateOnboardingDraft(addMode)])
 
   // Prefill company name and subdomain captured during account-creation step two.
@@ -82,6 +79,8 @@ export default async function OnboardingPage({
       mode={addMode}
       initialValues={initialValues}
       draft={draft}
+      // A Google sign-up has no verified phone yet: ask for it, like any sign-up form.
+      askPhone={ownedAuthEnabled() && addMode === 'first' && !initialValues.phone}
     />
   )
 }

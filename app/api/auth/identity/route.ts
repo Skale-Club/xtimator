@@ -27,7 +27,11 @@ export async function POST(request: Request) {
     catch { return NextResponse.json({ code: 'invalid_identity' }, { status: 401 }) }
     const jar = await cookies()
     const current = await readOwnedSession(jar.get(SESSION_COOKIE)?.value)
-    if (body.data.purpose === 'link' && (!current || Date.now() - Date.parse(current.auth_time) > 300_000)) {
+    // Replacing a login method needs a sign-in from the last 5 minutes. Adding the FIRST
+    // phone to an account that has none (a Google-only account) only needs the session:
+    // the session can already set a verified email, so this opens no new door.
+    const firstPhone = identity.provider === 'phone' && !!current?.account && !current.account.phone_confirmed_at
+    if (body.data.purpose === 'link' && (!current || (!firstPhone && Date.now() - Date.parse(current.auth_time) > 300_000))) {
       return NextResponse.json({ code: 'reauthentication_required' }, { status: 401 })
     }
     if (body.data.purpose === 'link' && current) {
@@ -43,7 +47,9 @@ export async function POST(request: Request) {
     })
     const account = id ? await getOwnedAccount(id) : null
     if (id && !account) throw new Error('identity_unavailable')
-    if (!id || (identity.provider === 'google.com' && !account?.phone_confirmed_at)) {
+    // Google signs in on its own; the phone is optional. Only a Google identity with no
+    // verified email (the database returns no account) still goes through a phone.
+    if (!id) {
       const pending = await rememberGoogle(identity, id)
       jar.set(PENDING_COOKIE, pending, { ...sessionCookieOptions, maxAge: 600 })
       return NextResponse.json({ status: 'phone_required' }, { headers: noStore })

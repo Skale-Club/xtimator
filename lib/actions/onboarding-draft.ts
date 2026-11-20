@@ -3,7 +3,6 @@
 import { randomUUID } from 'node:crypto'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { ownedAuthEnabled } from '@/lib/auth/mode'
 import { assertWritable } from '@/lib/demo/guard'
 import { saveDraftSchema, accountDefaults, ownsDraftLogo } from '@/lib/onboarding/draft'
 import { createOrUpdateCompany } from '@/lib/actions/company'
@@ -24,7 +23,8 @@ async function context() {
   const supabase = await createClient()
   const { data } = await supabase.auth.getClaims()
   const claims = data?.claims
-  if (!claims?.sub || (ownedAuthEnabled() && !claims.phone)) throw new Error('Authentication required')
+  // A Google-only account (no verified phone) onboards like any other.
+  if (!claims?.sub) throw new Error('Authentication required')
   if (await assertWritable()) throw new Error('Read-only account')
   return { supabase, claims, userId: claims.sub as string }
 }

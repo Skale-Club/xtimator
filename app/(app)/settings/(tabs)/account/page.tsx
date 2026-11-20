@@ -37,7 +37,7 @@ export default async function AccountTabPage() {
         description={<T>Your profile, how you sign in, and your account.</T>}
       />
       <ProfileSection profile={profile} />
-      <AccountSection />
+      <AccountSection loginPhone={typeof claims.phone === 'string' ? claims.phone : null} />
       <SettingsCard
         className="border-destructive/30"
         title={<T>Delete account</T>}

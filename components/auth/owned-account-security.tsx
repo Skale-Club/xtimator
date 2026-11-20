@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { identityError } from '@/lib/auth/google-browser'
 import { invalidateOwnedBrowserSession } from '@/lib/auth/owned-browser'
 
-export function OwnedAccountSecurity() {
+export function OwnedAccountSecurity({ loginPhone = null }: { loginPhone?: string | null }) {
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -35,10 +35,10 @@ export function OwnedAccountSecurity() {
     finally { setBusy(false) }
   }
   return <>
-    <SettingsCard title="Login phone" description="You sign in with a text message code sent to this number. Your profile phone is separate.">
+    <SettingsCard title="Login phone">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Changing it needs a recent sign-in and a code sent to the new number.</p>
-        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>Change login phone</Button>
+        <p className="text-sm text-muted-foreground">{loginPhone ?? 'Not added'}</p>
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>{loginPhone ? 'Change login phone' : 'Add phone'}</Button>
       </div>
     </SettingsCard>
     <SettingsCard title="Verified email" description="Used for account recovery and team invitations.">
@@ -52,6 +52,6 @@ export function OwnedAccountSecurity() {
         {sent ? <Button type="button" variant="ghost" disabled={busy} onClick={() => { setSent(false); setCode('') }}>Change email or request another code</Button> : null}
       </form>
     </SettingsCard>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className={cn('w-[92%] max-w-md rounded-2xl', VISIBLE_AREA_DIALOG)} onInteractOutside={event => event.preventDefault()}><DialogTitle>Account verification</DialogTitle><DialogDescription className="sr-only">Verify a new login phone after a recent sign-in.</DialogDescription>{open ? <PhoneSignIn purpose="link" /> : null}</DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className={cn('w-[92%] max-w-md rounded-2xl', VISIBLE_AREA_DIALOG)} onInteractOutside={event => event.preventDefault()}><DialogTitle>{loginPhone ? 'Change login phone' : 'Add phone'}</DialogTitle><DialogDescription className="sr-only">Verify the phone with a text message code.</DialogDescription>{open ? <PhoneSignIn purpose="link" allowGoogle={!!loginPhone} /> : null}</DialogContent></Dialog>
   </>
 }

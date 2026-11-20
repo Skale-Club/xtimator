@@ -49,7 +49,7 @@ export function OwnedAuthDialog({ branding, open, onClose, next }: {
         <AuthBrand appName={branding.appName} logoUrl={branding.logoUrl} />
         <DialogTitle className="sr-only">Sign in to {branding.appName}</DialogTitle>
         <DialogDescription className="mx-auto mt-4 max-w-sm text-center text-sm leading-6 text-muted-foreground">
-          Sign in or create your account with your phone number.
+          Sign in or create your account with your phone or Google.
         </DialogDescription>
       </div>
       {open ? <PhoneSignIn next={next} /> : null}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, render, cleanup } from '@testing-library/react'
 import { useSurveyState } from '@/components/onboarding/survey/use-survey-state'
-import { SURVEY_STEPS } from '@/components/onboarding/survey/survey-config'
+import { SURVEY_STEPS, surveySteps } from '@/components/onboarding/survey/survey-config'
 import { SurveyProgress } from '@/components/onboarding/survey/survey-progress'
 import { draftValues, type OnboardingDraft } from '@/lib/onboarding/draft'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
@@ -22,6 +22,25 @@ describe('short onboarding', () => {
   it('has six ordered questions, beginning with the tool language and no review', () => {
     expect(SURVEY_STEPS.map(s => s.key)).toEqual(['language', 'companyName', 'industry', 'location', 'brandColor', 'logo'])
     expect(SURVEY_STEPS.filter(s => s.required).map(s => s.key)).toEqual(['companyName'])
+  })
+  it('asks an account without a verified phone for it right after the company name, as an optional step', () => {
+    expect(surveySteps(true).map(s => s.key)).toEqual(['language', 'companyName', 'phone', 'industry', 'location', 'brandColor', 'logo'])
+    expect(surveySteps(false)).toBe(SURVEY_STEPS)
+    const { result } = renderHook(() => useSurveyState({ ...INITIAL, phone: '' }, 'phone-draft', undefined, { askPhone: true }))
+    expect(result.current.totalSteps).toBe(7)
+    act(() => result.current.setValue('companyName', 'Carter Services'))
+    act(() => result.current.goNext())
+    act(() => result.current.goNext())
+    expect(result.current.currentStep.key).toBe('phone')
+    expect(result.current.currentStep.required).toBe(false)
+    expect(result.current.isStepFilled).toBe(false)
+    act(() => result.current.goNext({ skipValidation: true }))
+    expect(result.current.currentStep.key).toBe('industry')
+  })
+  it('resumes past the phone screen once that phone was verified elsewhere', () => {
+    const draft = { ...remote, step: 'phone' as const }
+    const { result } = renderHook(() => useSurveyState(INITIAL, 'verified-elsewhere', draft))
+    expect(result.current.currentStep.key).toBe('industry')
   })
   it('validates company name before continuing and keeps answers on Back', () => {
     const { result } = renderHook(() => useSurveyState(INITIAL))

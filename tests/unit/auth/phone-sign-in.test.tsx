@@ -43,6 +43,16 @@ describe('phone-first sign-in', () => {
     await screen.findByText('Verify your phone to finish linking your account.')
     expect(screen.getByLabelText('Phone number')).toBeTruthy()
   })
+  it('adds a first phone without a Google button and names a number that belongs to another account', async () => {
+    fetchMock.mockImplementation(async (url: string) => url === '/api/auth/config' ? Response.json({ mode: 'owned', firebase: config }) : Response.json({ code: 'identity_conflict' }, { status: 409 }))
+    render(<PhoneSignIn purpose="link" allowGoogle={false} />)
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Send code' }) as HTMLButtonElement).disabled).toBe(false))
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '+1 (508) 555-0100' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send code' }))
+    fireEvent.change(await screen.findByLabelText('6-digit code'), { target: { value: '123456' } })
+    expect((await screen.findByRole('alert')).textContent).toBe('This number is already used by another Xtimator account.')
+  })
   it('hides account recovery until the server says an existing account needs it, never email/password login', async () => {
     fetchMock.mockImplementation(async (url: string) => url === '/api/auth/config' ? Response.json({ mode: 'owned', firebase: config }) : Response.json({ code: 'account_recovery_required' }, { status: 409 }))
     render(<PhoneSignIn />)

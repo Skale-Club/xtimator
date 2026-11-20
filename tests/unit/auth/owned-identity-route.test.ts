@@ -61,7 +61,33 @@ describe('owned login endpoint', () => {
     expect(mocks.issue).toHaveBeenCalledWith('existing-account', expect.any(Number))
     expect(mocks.complete.mock.calls[0][1].currentUser).toBeUndefined()
   })
-  it('remembers unknown Google proof and asks for phone without authenticating the app', async () => {
+  it('signs a Google account in without asking for a phone', async () => {
+    mocks.verify.mockResolvedValue({ project: 'test', subject: 'known-google', provider: 'google.com', email: 'owner@example.test', authTime: Math.floor(Date.now() / 1000) })
+    mocks.account.mockResolvedValue({ id: 'existing-account', phone_confirmed_at: null, email: 'owner@example.test', email_confirmed_at: new Date().toISOString() })
+    expect(await (await POST(request({ idToken: 'test' }))).json()).toEqual({ status: 'active', redirectTo: '/dashboard' })
+    expect(mocks.remember).not.toHaveBeenCalled()
+    expect(mocks.setCookie).toHaveBeenCalledWith('xtimator_session', 'new-session-token', expect.objectContaining({ httpOnly: true }))
+  })
+  it('sends a new Google account without a company to onboarding', async () => {
+    mocks.verify.mockResolvedValue({ project: 'test', subject: 'new-google', provider: 'google.com', email: 'new@example.test', authTime: Math.floor(Date.now() / 1000) })
+    mocks.account.mockResolvedValue({ id: 'existing-account', phone_confirmed_at: null, email: 'new@example.test' })
+    mocks.rows.company_members = null
+    expect(await (await POST(request({ idToken: 'test' }))).json()).toEqual({ status: 'active', redirectTo: '/onboarding' })
+  })
+  it('lets a signed-in account without a phone add its first phone without signing in again', async () => {
+    mocks.read.mockResolvedValue({ user_id: 'existing-account', auth_time: new Date(Date.now() - 86400_000).toISOString(), account: { phone_confirmed_at: null } })
+    expect(await (await POST(request({ idToken: 'test', purpose: 'link' }))).json()).toEqual({ status: 'active', redirectTo: '/settings/account' })
+    expect(mocks.complete.mock.calls[0][1].currentUser).toBe('existing-account')
+  })
+  it('still requires a recent sign-in to replace an existing phone or to link Google', async () => {
+    mocks.read.mockResolvedValue({ user_id: 'existing-account', auth_time: new Date(Date.now() - 600_000).toISOString(), account: { phone_confirmed_at: new Date().toISOString() } })
+    expect(await (await POST(request({ idToken: 'test', purpose: 'link' }))).json()).toEqual({ code: 'reauthentication_required' })
+    mocks.read.mockResolvedValue({ user_id: 'existing-account', auth_time: new Date(Date.now() - 600_000).toISOString(), account: { phone_confirmed_at: null } })
+    mocks.verify.mockResolvedValue({ project: 'test', subject: 'other-google', provider: 'google.com', email: 'x@example.test', authTime: Math.floor(Date.now() / 1000) })
+    expect(await (await POST(request({ idToken: 'test', purpose: 'link' }))).json()).toEqual({ code: 'reauthentication_required' })
+    expect(mocks.complete).not.toHaveBeenCalled()
+  })
+  it('remembers Google proof without a verified email and asks for phone without authenticating the app', async () => {
     mocks.verify.mockResolvedValue({ project: 'test', subject: 'unknown-google', provider: 'google.com' })
     mocks.complete.mockResolvedValue(null)
     expect(await (await POST(request({ idToken: 'test' }))).json()).toEqual({ status: 'phone_required' })

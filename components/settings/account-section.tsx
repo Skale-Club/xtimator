@@ -38,8 +38,8 @@ const emailSchema = z.object({
 
 type EmailValues = z.infer<typeof emailSchema>
 
-export function AccountSection() {
-  return ownedAuthEnabled() ? <OwnedAccountSecurity /> : <LegacyAccountSection />
+export function AccountSection({ loginPhone = null }: { loginPhone?: string | null }) {
+  return ownedAuthEnabled() ? <OwnedAccountSecurity loginPhone={loginPhone} /> : <LegacyAccountSection />
 }
 
 function LegacyAccountSection() {

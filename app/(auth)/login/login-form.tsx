@@ -462,7 +462,7 @@ export function LoginForm({ appName, logoUrl }: LoginFormProps) {
     <div className="relative pb-5 pt-1 text-center">
       <AuthBrand appName={appName} logoUrl={logoUrl} />
       <h1 className="sr-only">Sign in to {appName}</h1>
-      <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Sign in or create your account with your phone number.</p>
+      <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">Sign in or create your account with your phone or Google.</p>
     </div>
     <PhoneSignIn />
     <AuthAgreement />

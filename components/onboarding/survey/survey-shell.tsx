@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import '@/lib/visual-viewport'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import { LanguageStep } from './steps/language-step'
 import { BrandColorStep } from './steps/brand-color-step'
 import { LogoStep } from './steps/logo-step'
 import { LocationStep } from './steps/location-step'
+import { PhoneStep, type PhoneStepHandle } from './steps/phone-step'
 
 interface SurveyShellProps {
   appName: string
@@ -51,6 +52,10 @@ export function SurveyShell({
 }: SurveyShellProps) {
   const { t } = useTranslation()
   const stepContent = useRef<HTMLDivElement>(null)
+  const phoneStep = useRef<PhoneStepHandle>(null)
+  const [phoneBusy, setPhoneBusy] = useState(false)
+  // Starts as the session's verified phone (empty for a Google sign-up); set once a code is confirmed.
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(() => state.values.phone ? '+' + state.values.phone.replace(/\D/g, '') : null)
   const {
     stepIndex,
     totalSteps,
@@ -85,7 +90,7 @@ export function SurveyShell({
   useLayoutEffect(() => {
     if (!ready || !stepContent.current) return
     stepContent.current.scrollTop = 0
-    const textStep = ['companyName', 'location'].includes(currentStep.key)
+    const textStep = ['companyName', 'phone', 'location'].includes(currentStep.key)
     const target = textStep
       ? stepContent.current.querySelector<HTMLInputElement>('input:not([type="file"]):not([type="checkbox"]):not([type="radio"])')
       : stepContent.current.querySelector<HTMLHeadingElement>('h1')
@@ -125,6 +130,9 @@ export function SurveyShell({
         return <LogoStep {...stepProps} />
       case 'location':
         return <LocationStep {...stepProps} />
+      case 'phone':
+        return <PhoneStep ref={phoneStep} values={values} setValue={setValue} onNext={() => goNext({ skipValidation: true })}
+          verifiedPhone={verifiedPhone} onVerified={setVerifiedPhone} onBusyChange={setPhoneBusy} />
       default:
         return null
     }
@@ -146,6 +154,9 @@ export function SurveyShell({
         break
       case 'location':
         setValue('city', '')
+        break
+      case 'phone':
+        setValue('phone', '')
         break
       default:
         break
@@ -217,7 +228,7 @@ export function SurveyShell({
                     <Button
                       type="button"
                       variant="ghost"
-                      disabled={isFirst || isSubmitting}
+                      disabled={isFirst || isSubmitting || phoneBusy}
                       onClick={goBack}
                       className="min-h-11 px-3 min-[360px]:px-4"
                     >
@@ -257,7 +268,7 @@ export function SurveyShell({
                               type="button"
                               variant="outline"
                               onClick={handleSkip}
-                              disabled={isSubmitting}
+                              disabled={isSubmitting || phoneBusy}
                               className="min-h-11 px-3 min-[360px]:px-4"
                             >
                               {t('Skip')}
@@ -266,10 +277,11 @@ export function SurveyShell({
                           <Button
                             type="button"
                             variant="primary"
-                            onClick={() => goNext()}
-                            disabled={(!currentStep.required && !isStepFilled) || isSubmitting}
+                            onClick={() => currentStep.key === 'phone' ? phoneStep.current?.next() : goNext()}
+                            disabled={(!currentStep.required && !isStepFilled) || isSubmitting || phoneBusy}
                             className="min-h-11 px-3 min-[360px]:px-4"
                           >
+                            {phoneBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             {t('Next')}
                           </Button>
                         </>

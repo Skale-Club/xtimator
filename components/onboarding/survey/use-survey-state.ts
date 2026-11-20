@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, startTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import type { OnboardingValues } from '@/lib/schemas/onboarding'
 import { useLanguage, type Language } from '@/lib/i18n/language-context'
 import { draftValues, draftValuesSchema, type OnboardingDraft } from '@/lib/onboarding/draft'
-import { SURVEY_STEPS, SURVEY_VERSION, type SurveyStepKey } from './survey-config'
+import { surveySteps, SURVEY_VERSION, type SurveyStepDef, type SurveyStepKey } from './survey-config'
 
 export interface UseSurveyStateReturn {
-  stepIndex: number; totalSteps: number; currentStep: (typeof SURVEY_STEPS)[number]
+  stepIndex: number; totalSteps: number; currentStep: SurveyStepDef
   values: OnboardingValues
   setValue: <K extends keyof OnboardingValues>(key: K, value: OnboardingValues[K]) => void
   logoFile: File | null; setLogoFile: (file: File | null) => void
@@ -25,7 +25,9 @@ function readDraft(key: string): PersistedDraft {
   try { const value = JSON.parse(localStorage.getItem(key) ?? '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {} } catch { return {} }
 }
 
-export function useSurveyState(initial: OnboardingValues, storageKey = 'xtimator_onboarding', serverDraft?: OnboardingDraft): UseSurveyStateReturn {
+export function useSurveyState(initial: OnboardingValues, storageKey = 'xtimator_onboarding', serverDraft?: OnboardingDraft, options: { askPhone?: boolean } = {}): UseSurveyStateReturn {
+  const askPhone = options.askPhone === true
+  const steps = useMemo(() => surveySteps(askPhone), [askPhone])
   const { setLanguage } = useLanguage()
   const [stepIndex, setStepIndex] = useState(0)
   const [values, setValues] = useState(initial)
@@ -33,9 +35,9 @@ export function useSurveyState(initial: OnboardingValues, storageKey = 'xtimator
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
-  const totalSteps = SURVEY_STEPS.length
+  const totalSteps = steps.length
   const activeIndex = Math.max(0, Math.min(stepIndex, totalSteps - 1))
-  const currentStep = SURVEY_STEPS[activeIndex]
+  const currentStep = steps[activeIndex]
   const valuesRef = useRef(values); valuesRef.current = values
   const fileRef = useRef(logoFile); fileRef.current = logoFile
   const indexRef = useRef(activeIndex); indexRef.current = activeIndex
@@ -62,7 +64,9 @@ export function useSurveyState(initial: OnboardingValues, storageKey = 'xtimator
     const key = source.version === SURVEY_VERSION ? source.stepKey : 'language'
     startTransition(() => {
       setValues(merged); setLanguage(language)
-      setStepIndex(Math.max(0, SURVEY_STEPS.findIndex(step => step.key === key)))
+      // A draft left on the phone screen after that phone was verified resumes at the next question.
+      const index = steps.findIndex(step => step.key === key)
+      setStepIndex(index >= 0 ? index : key === 'phone' ? Math.max(0, steps.findIndex(step => step.key === 'industry')) : 0)
       setLogoPreview(merged.logoUrl || null); setLogoFile(null); setError(null); setReady(true)
     })
   // Restore once per draft identity. Changing answers must not re-read old server props.
@@ -90,11 +94,11 @@ export function useSurveyState(initial: OnboardingValues, storageKey = 'xtimator
     setError(null)
   }, [setLanguage])
   const goNext = useCallback((options?: { skipValidation?: boolean }) => {
-    const step = SURVEY_STEPS[indexRef.current]
+    const step = steps[indexRef.current]
     const message = options?.skipValidation && !step.required ? null : step.validate(valuesRef.current, fileRef.current)
     if (message) { setError(message); return }
     setError(null); setStepIndex(index => Math.min(index + 1, totalSteps - 1))
-  }, [totalSteps])
+  }, [steps, totalSteps])
   const goBack = useCallback(() => { setError(null); setStepIndex(index => Math.max(index - 1, 0)) }, [])
   const clearPersistedState = useCallback(() => { try { localStorage.removeItem(storageKey) } catch {} }, [storageKey])
   return { stepIndex: activeIndex, totalSteps, currentStep, values, setValue, logoFile, setLogoFile, logoPreview, setLogoPreview, error, goNext, goBack,
