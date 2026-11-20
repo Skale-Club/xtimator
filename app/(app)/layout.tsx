@@ -14,6 +14,7 @@ import { BottomNav } from '@/components/app-shell/bottom-nav'
 import { MobileHeader } from '@/components/app-shell/mobile-header'
 import { TranslationLoadingOverlay } from '@/components/i18n/translation-loading-overlay'
 import { PaywallBanner } from '@/components/billing/paywall-banner'
+import { BillingStateProvider } from '@/components/billing/billing-state-context'
 import { getPaywallContext } from '@/lib/billing/access-guard'
 import { DemoBanner } from '@/components/demo/demo-banner'
 import { isDemoCompany } from '@/lib/demo/config'
@@ -271,7 +272,7 @@ export default async function AppShellLayout({
               <PaywallBanner state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
             )}
             <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
-              {children}
+              <BillingStateProvider state={paywall.state}>{children}</BillingStateProvider>
             </main>
           </div>
           <BottomNav isDemo={isDemo} />

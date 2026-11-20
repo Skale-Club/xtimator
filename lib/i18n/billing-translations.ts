@@ -79,8 +79,6 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
       'Créditos grátis nunca expiram. Assine o Pro quando acabarem.',
     'Monthly credits expire when your billing cycle renews.':
       'Os créditos mensais expiram quando seu ciclo de cobrança renova.',
-    'You’re almost out of credits for this cycle.': 'Seus créditos deste ciclo estão quase no fim.',
-    'You’re running low on credits for this cycle.': 'Seus créditos deste ciclo estão acabando.',
     'Top up now': 'Recarregar agora',
 
     // Activity
@@ -101,6 +99,13 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     "You're out of credits": 'Você está sem créditos',
     'Buy credits to keep creating estimates.': 'Compre créditos para continuar criando orçamentos.',
     'Buy credits': 'Comprar créditos',
+    'Your free credits are used up. Subscribe to Xtimator Pro — {price}/mo': 'Seus créditos grátis acabaram. Assine o Xtimator Pro — {price}/mês',
+    'Subscribe to Xtimator Pro — {price}/mo to keep creating estimates.': 'Assine o Xtimator Pro — {price}/mês para continuar criando orçamentos.',
+    'Back to dashboard': 'Voltar ao painel',
+    'You’re almost out of credits for this cycle.': 'Seus créditos deste ciclo estão quase no fim.',
+    'You’re running low on credits for this cycle.': 'Seus créditos deste ciclo estão acabando.',
+    'Your free credits are almost gone.': 'Seus créditos grátis estão quase no fim.',
+    'Your free credits are running low.': 'Seus créditos grátis estão acabando.',
     'Messages': 'Mensagens',
     'Usage': 'Uso',
 
@@ -237,6 +242,11 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     "You're out of credits": 'Te quedaste sin créditos',
     'Buy credits to keep creating estimates.': 'Compra créditos para seguir creando presupuestos.',
     'Buy credits': 'Comprar créditos',
+    'Your free credits are used up. Subscribe to Xtimator Pro — {price}/mo': 'Tus créditos gratis se agotaron. Suscríbete a Xtimator Pro — {price}/mes',
+    'Subscribe to Xtimator Pro — {price}/mo to keep creating estimates.': 'Suscríbete a Xtimator Pro — {price}/mes para seguir creando presupuestos.',
+    'Back to dashboard': 'Volver al panel',
+    'Your free credits are almost gone.': 'Tus créditos gratis casi se agotan.',
+    'Your free credits are running low.': 'Tus créditos gratis se están acabando.',
     'Messages': 'Mensajes',
     'Usage': 'Uso',
 

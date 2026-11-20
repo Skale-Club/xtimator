@@ -62,6 +62,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { isReloadingForNewBuild, recoverFromStaleBuild, takeDraft } from '@/lib/deploy/stale-build'
+import { useBillingState } from '@/components/billing/billing-state-context'
 
 // ---------------------------------------------------------------------------
 // State → EstimateDocumentData converter
@@ -400,7 +401,11 @@ export function EstimateEditor({
   // the document/autosave/nav-guards gate on isContentReadOnly, but the gear
   // panel gets its OWN gate below (gearDisabled) so presentation settings
   // stay editable on a locked-but-current estimate.
-  const isContentReadOnly = !isCurrent || locked || notCurrentByServer
+  // A paywalled free account is read-only on the server (assertCanEdit): the
+  // editor says so up front instead of letting every save fail. The paywall
+  // banner above explains why. An out-of-credits Pro account may still edit.
+  const billingReadOnly = useBillingState() === 'paywalled'
+  const isContentReadOnly = !isCurrent || locked || notCurrentByServer || billingReadOnly
   const gearDisabled = !isCurrent
   // Page view's edit chrome (menus, popovers) speaks the app language.
   const editLabels = Object.fromEntries(

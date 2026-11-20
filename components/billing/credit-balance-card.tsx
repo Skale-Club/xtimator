@@ -146,7 +146,15 @@ export function CreditBalanceCard({
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-sm">
-              {band === 'critical' ? (
+              {/* A free account has no billing cycle (QA 2026-11-19: it read
+                  "for this cycle" on the free plan). */}
+              {tier === 'free' ? (
+                band === 'critical' ? (
+                  <T>Your free credits are almost gone.</T>
+                ) : (
+                  <T>Your free credits are running low.</T>
+                )
+              ) : band === 'critical' ? (
                 <T>You&rsquo;re almost out of credits for this cycle.</T>
               ) : (
                 <T>You&rsquo;re running low on credits for this cycle.</T>
