@@ -92,7 +92,10 @@ export function ItemEditorSheet({
         data-testid="item-editor-sheet"
         className={
           side === 'bottom'
-            ? 'max-h-[90dvh] gap-0 overflow-y-auto p-0'
+            // Same cap as every bottom sheet (the drag can pull it up to 92dvh)
+            // and a solid surface: resizing a backdrop-blurred sheet every
+            // frame stutters on phones.
+            ? 'max-h-[92dvh] gap-0 overflow-y-auto bg-background p-0 backdrop-blur-none'
             : 'w-full gap-0 overflow-y-auto p-0 sm:max-w-md'
         }
         onOpenAutoFocus={(event) => {
@@ -189,7 +192,10 @@ function ItemEditorBody({
       {/* Header: grabber, title, Done */}
       <div
         data-sheet-drag={side === 'bottom' ? '' : undefined}
-        className={cn('sticky top-0 z-10 bg-[var(--glass-bg-strong)] px-4 pb-3', side === 'bottom' ? 'touch-none pt-0' : 'pt-4')}
+        className={cn(
+          'sticky top-0 z-10 px-4 pb-3',
+          side === 'bottom' ? 'touch-none bg-background pt-0' : 'bg-[var(--glass-bg-strong)] pt-4',
+        )}
       >
         {/* Drag the handle or this header down to close (phones). */}
         {side === 'bottom' && <SheetGrabber alwaysVisible className="mb-1" />}

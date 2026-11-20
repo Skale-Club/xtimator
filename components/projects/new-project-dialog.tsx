@@ -9,11 +9,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { NewProjectWizard } from './new-project-wizard'
 import { T } from '@/components/i18n/t'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { X } from 'lucide-react'
 import { EstimateLanguageSelector } from '@/components/estimate/estimate-language-selector'
 import { useLanguage, ScopedLanguageProvider } from '@/lib/i18n/language-context'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -80,17 +79,7 @@ export function NewXtimateFrame({
                 variant="sentence"
               />
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t('Close')}
-              // 40px hit area around a 36px round visual.
-              className="group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none"
-            >
-              <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
-                <X className="h-4 w-4" />
-              </span>
-            </button>
+            <BottomSheetCloseButton label={t('Close')} />
             <DialogDescription className="sr-only">{description}</DialogDescription>
           </DialogHeader>
 

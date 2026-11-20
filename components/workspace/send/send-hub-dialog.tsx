@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -245,17 +245,7 @@ export function SendHubDialog({
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            aria-label={t('Close')}
-            // 40px hit area around a 36px round visual.
-            className="group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none"
-          >
-            <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
-              <X className="h-4 w-4" />
-            </span>
-          </button>
+          <BottomSheetCloseButton label={t('Close')} />
           <DialogDescription className="sr-only">
             {t('Copy the link or the message and send it from your own apps.')}
           </DialogDescription>

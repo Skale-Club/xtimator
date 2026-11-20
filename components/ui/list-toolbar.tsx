@@ -22,7 +22,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 
@@ -204,18 +205,19 @@ export function ListFiltersSheet({
           </span>
         )}
       </Button>
-      <Sheet open={open} onOpenChange={setOpen}>
-        {/* A floating card with side margins, not an edge-to-edge drawer; capped
-            width so it doesn't stretch across a tablet or a narrow desktop window. */}
-        <SheetContent
-          side="bottom"
-          className="inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] mx-auto max-h-[85dvh] w-auto max-w-md gap-0 overflow-y-auto rounded-2xl border pb-4"
-        >
-          <SheetHeader className="pb-2">
-            <SheetTitle>{t('Filters')}</SheetTitle>
-            <SheetDescription className="sr-only">{t('Filter and sort this list')}</SheetDescription>
-          </SheetHeader>
-          <div className="space-y-5 px-4 pb-4">
+      <Dialog open={open} onOpenChange={setOpen}>
+        {/* The app's bottom sheet on phones (handle, drag to resize or close, X);
+            a centred 448px card from sm up, so it never stretches across a tablet. */}
+        <BottomSheetContent desktopClassName="sm:max-w-md">
+          <DialogHeader
+            data-sheet-drag=""
+            className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pt-4"
+          >
+            <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Filters')}</DialogTitle>
+            <BottomSheetCloseButton label={t('Close')} />
+            <DialogDescription className="sr-only">{t('Filter and sort this list')}</DialogDescription>
+          </DialogHeader>
+          <div data-sheet-body="" className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pt-2 pb-4">
             {tabs && tabs.length > 0 && onTabChange && (
               <section className="space-y-2">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{tabsLabel ?? t('Status')}</h3>
@@ -244,7 +246,7 @@ export function ListFiltersSheet({
               </section>
             )}
           </div>
-          <SheetFooter className="flex-row gap-2 border-t border-border px-4 pt-3">
+          <div className="flex shrink-0 flex-row gap-2 border-t border-border px-5 pt-3 pb-4">
             {onClear && activeCount > 0 && (
               <Button type="button" variant="ghost" className="h-11 flex-1 rounded-lg" onClick={onClear}>
                 {t('Clear filters')}
@@ -253,9 +255,9 @@ export function ListFiltersSheet({
             <Button type="button" className="h-11 flex-1 rounded-lg" onClick={() => setOpen(false)}>
               {resultCount === 1 ? t('Show 1 result') : t('Show {n} results').replace('{n}', String(resultCount))}
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </div>
+        </BottomSheetContent>
+      </Dialog>
     </>
   )
 }

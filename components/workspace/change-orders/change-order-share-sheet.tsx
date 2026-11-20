@@ -2,9 +2,9 @@
 
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Check, Copy, Eye, X } from 'lucide-react'
+import { Check, Copy, Eye } from 'lucide-react'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency } from '@/lib/utils/format'
@@ -145,16 +145,7 @@ export function ChangeOrderShareSheet({
               {[clientName, `${t('Change order')} #${number}`, formatSigned(total, currencyCode)].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            aria-label={t('Close')}
-            className="group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none"
-          >
-            <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
-              <X className="h-4 w-4" />
-            </span>
-          </button>
+          <BottomSheetCloseButton label={t('Close')} />
           <DialogDescription className="sr-only">
             {t('Copy the link or the message and send it from your own apps.')}
           </DialogDescription>

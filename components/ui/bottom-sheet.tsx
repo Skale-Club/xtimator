@@ -3,8 +3,10 @@
 // One bottom sheet for the whole app: a Radix dialog that is a sheet pinned to
 // the bottom on phones (< sm) and a centred card from sm up, with a grab handle
 // that really drags. Pull the handle (or any element marked data-sheet-drag,
-// usually the header) down and the sheet follows the finger; let go past ~30%
-// of its height, or flick it down, and it closes. Otherwise it springs back.
+// usually the header) up and the sheet grows taller, up to its max-height; it
+// never leaves the bottom edge. Pull it down and it shrinks back to the height
+// it opened at, then follows the finger down; let go past ~30% of its height,
+// or flick it down, and it closes. Otherwise it springs back.
 //
 // The drag closes through a hidden Radix Close button, so it goes through the
 // caller's onOpenChange exactly like the X or Escape: a caller that refuses to
@@ -67,14 +69,34 @@ export function BottomSheetContent({
   )
 }
 
-/** The round X used in bottom-sheet headers: 40px hit area, 36px visual. */
-export function BottomSheetCloseButton({ label, className }: { label: string; className?: string }) {
+/**
+ * The round X used in every bottom-sheet header: 40px hit area, 36px visual.
+ * Closes through Radix, so it goes through the caller's onOpenChange like
+ * Escape or the drag (a caller that refuses to close keeps the sheet).
+ * The fill is a translucent foreground with a hairline ring, so it stands out
+ * on any sheet surface in both themes (bg-muted all but vanished on the dark
+ * nx-surface).
+ */
+export function BottomSheetCloseButton({
+  label,
+  className,
+  disabled,
+}: {
+  label: string
+  className?: string
+  disabled?: boolean
+}) {
   return (
     <DialogPrimitive.Close
       aria-label={label}
-      className={cn('group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none', className)}
+      disabled={disabled}
+      data-sheet-close=""
+      className={cn(
+        'group flex size-10 shrink-0 items-center justify-center rounded-full focus:outline-none disabled:pointer-events-none disabled:opacity-50',
+        className,
+      )}
     >
-      <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:ring-2 group-focus-visible:ring-ring">
+      <span className="flex size-9 items-center justify-center rounded-full bg-foreground/10 text-foreground/80 ring-1 ring-inset ring-foreground/10 transition-colors group-hover:bg-foreground/15 group-hover:text-foreground group-active:bg-foreground/20 group-focus-visible:ring-2 group-focus-visible:ring-ring">
         <X className="h-4 w-4" />
       </span>
     </DialogPrimitive.Close>
@@ -112,6 +134,27 @@ export function SheetGrabber({ className, alwaysVisible = false }: { className?:
   )
 }
 
+
+/** Animation shared by the spring-back, the snap and the close slide. */
+const SHEET_EASE = '220ms cubic-bezier(0.32,0.72,0,1)'
+/** Below this speed (px/ms) a release is a placement, above it a flick. */
+const FLICK_VELOCITY = 0.5
+
+/**
+ * The gesture behind the handle (phones only).
+ *
+ * The sheet stays pinned to the bottom of the screen; it never moves up.
+ *  - Pulling up makes it taller, up to its own CSS max-height (92dvh, or the
+ *    area the keyboard leaves visible). The height asked for is written to
+ *    --sheet-h with [data-sheet-resized]; globals.css turns that into a
+ *    clamped min-height, so the content can still grow past it and the cap
+ *    follows the keyboard and rotation without any code.
+ *  - Its natural height (what it opens at) is the floor. Pulling down from a
+ *    taller sheet shrinks it to that floor first; past the floor the sheet
+ *    slides down and closes after ~30% of its height or a flick.
+ *  - Released between the floor and the cap it stays where it was left; a
+ *    flick up goes to the cap and a flick down back to the floor.
+ */
 function useSheetDrag(
   zoneRef: React.RefObject<HTMLDivElement | null>,
   closeRef: React.RefObject<HTMLButtonElement | null>,
@@ -125,14 +168,60 @@ function useSheetDrag(
 
     let pointerId: number | null = null
     let startY = 0
-    let offset = 0
+    let startHeight = 0 // rendered height when the drag began
+    let natural = 0 // height the content asks for (the floor)
+    let cap = 0 // the sheet's max-height in px (the ceiling)
+    let height = 0 // height asked for right now (>= natural)
+    let offset = 0 // slide down below the floor, px (>= 0)
     let lastY = 0
     let lastT = 0
     let velocity = 0 // px per ms, positive = down
+    let frame = 0
 
-    function setOffset(px: number, animate: boolean) {
-      sheet!.style.transition = animate && !reduceMotion.matches ? 'transform 220ms cubic-bezier(0.32,0.72,0,1)' : 'none'
-      sheet!.style.transform = px === 0 ? '' : `translate3d(0, ${px}px, 0)`
+    const animate = (on: boolean) => {
+      sheet.style.transition = on && !reduceMotion.matches ? `transform ${SHEET_EASE}, min-height ${SHEET_EASE}` : 'none'
+    }
+
+    function applyHeight(px: number) {
+      if (px > natural + 0.5) {
+        sheet!.style.setProperty('--sheet-h', `${Math.round(px)}px`)
+        sheet!.setAttribute('data-sheet-resized', '')
+      } else {
+        sheet!.style.removeProperty('--sheet-h')
+        sheet!.removeAttribute('data-sheet-resized')
+      }
+    }
+
+    function applyOffset(px: number) {
+      sheet!.style.transform = px > 0 ? `translate3d(0, ${px}px, 0)` : ''
+    }
+
+    function flush() {
+      if (frame) window.cancelAnimationFrame(frame)
+      frame = 0
+      applyHeight(height)
+      applyOffset(offset)
+    }
+
+    // At most one style write per frame while the finger moves.
+    function schedule() {
+      if (typeof window.requestAnimationFrame !== 'function') return flush()
+      if (!frame) frame = window.requestAnimationFrame(flush)
+    }
+
+    /** The height the content asks for: measured without the resize, in one
+     *  synchronous layout (no paint in between, so nothing flickers). */
+    function measureNatural(): number {
+      const resized = sheet!.hasAttribute('data-sheet-resized')
+      if (resized) sheet!.removeAttribute('data-sheet-resized')
+      const h = sheet!.offsetHeight
+      if (resized) sheet!.setAttribute('data-sheet-resized', '')
+      return h
+    }
+
+    function measureCap(): number {
+      const max = Number.parseFloat(window.getComputedStyle(sheet!).maxHeight)
+      return Number.isFinite(max) && max > 0 ? max : window.innerHeight
     }
 
     function onDown(e: PointerEvent) {
@@ -146,49 +235,86 @@ function useSheetDrag(
       pointerId = e.pointerId
       startY = lastY = e.clientY
       lastT = e.timeStamp
-      offset = 0
       velocity = 0
+      offset = 0
+      natural = measureNatural()
+      startHeight = sheet!.offsetHeight
+      cap = Math.max(measureCap(), natural)
+      height = Math.max(startHeight, natural)
+      animate(false)
       try { sheet!.setPointerCapture(e.pointerId) } catch { /* not capturable: drag still works while over the sheet */ }
     }
 
     function onMove(e: PointerEvent) {
       if (e.pointerId !== pointerId) return
       const dy = e.clientY - startY
-      // Upward pull gives a little (rubber band), downward follows the finger.
-      offset = dy >= 0 ? dy : -Math.min(16, Math.sqrt(-dy) * 2)
+      const wanted = startHeight - dy
+      if (wanted >= natural) {
+        height = Math.min(wanted, cap)
+        offset = 0
+      } else {
+        height = natural
+        offset = natural - wanted
+      }
       const dt = e.timeStamp - lastT
       if (dt > 0) velocity = (e.clientY - lastY) / dt
       lastY = e.clientY
       lastT = e.timeStamp
       if (Math.abs(dy) > 2) e.preventDefault()
-      setOffset(offset, false)
+      schedule()
     }
 
     function onUp(e: PointerEvent) {
       if (e.pointerId !== pointerId) return
       pointerId = null
       try { sheet!.releasePointerCapture(e.pointerId) } catch { /* already released */ }
-      const height = sheet!.offsetHeight
-      const shouldClose = offset > Math.min(height * 0.3, 180) || (velocity > 0.5 && offset > 24)
-      if (!shouldClose) {
-        setOffset(0, true)
+      flush()
+
+      // Below the floor: the close gesture.
+      if (offset > 0) {
+        const shouldClose = offset > Math.min(natural * 0.3, 180) || (velocity > FLICK_VELOCITY && offset > 24)
+        animate(true)
+        if (!shouldClose) {
+          offset = 0
+          applyOffset(0)
+          return
+        }
+        applyOffset(natural + 32)
+        window.setTimeout(() => {
+          closeRef.current?.click()
+          // The caller may refuse to close (pending work, a confirm step): bring
+          // the sheet back if it is still on screen a moment later.
+          window.setTimeout(() => {
+            if (sheet!.isConnected) { offset = 0; applyOffset(0) }
+          }, 120)
+        }, reduceMotion.matches ? 0 : 180)
         return
       }
-      setOffset(height + 32, true)
-      window.setTimeout(() => {
-        closeRef.current?.click()
-        // The caller may refuse to close (pending work, a confirm step): bring
-        // the sheet back if it is still on screen a moment later.
+
+      // At or above the floor: a flick snaps, a slow release stays put.
+      if (velocity < -FLICK_VELOCITY && height < cap) {
+        animate(true)
+        height = cap
+        applyHeight(cap)
+      } else if (velocity > FLICK_VELOCITY && height > natural + 0.5) {
+        animate(true)
+        // min-height cannot animate to auto: animate to the natural height in
+        // px, then drop the resize once the transition is over.
+        sheet!.style.setProperty('--sheet-h', `${Math.round(natural)}px`)
+        height = natural
         window.setTimeout(() => {
-          if (sheet!.isConnected) setOffset(0, true)
-        }, 120)
-      }, reduceMotion.matches ? 0 : 180)
+          if (pointerId === null && height <= natural + 0.5) applyHeight(natural)
+        }, reduceMotion.matches ? 0 : 240)
+      }
     }
 
     function onCancel(e: PointerEvent) {
       if (e.pointerId !== pointerId) return
       pointerId = null
-      setOffset(0, true)
+      flush()
+      animate(true)
+      offset = 0
+      applyOffset(0)
     }
 
     sheet.addEventListener('pointerdown', onDown)
@@ -196,6 +322,7 @@ function useSheetDrag(
     sheet.addEventListener('pointerup', onUp)
     sheet.addEventListener('pointercancel', onCancel)
     return () => {
+      if (frame) window.cancelAnimationFrame(frame)
       sheet.removeEventListener('pointerdown', onDown)
       sheet.removeEventListener('pointermove', onMove)
       sheet.removeEventListener('pointerup', onUp)

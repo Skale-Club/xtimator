@@ -45,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { ListSearch, TOOLBAR_CONTROL } from '@/components/ui/list-toolbar'
 import { useListUrlState } from '@/components/ui/list-url-state'
 import { cn } from '@/lib/utils'
@@ -732,15 +732,20 @@ export function PriceBookList({
       )}
 
       {/* Phone category picker */}
-      <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
-        <SheetContent side="bottom" className="max-h-[80dvh] gap-0 bg-background pb-[env(safe-area-inset-bottom,_0px)] backdrop-blur-none">
-          <SheetHeader className="pb-2">
-            <SheetTitle>{t('Categories')}</SheetTitle>
-            <SheetDescription className="sr-only">{t('Show the services of one category.')}</SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-3 pb-4">{categoryList}</div>
-        </SheetContent>
-      </Sheet>
+      {/* The app's bottom sheet: handle, drag to resize or close, X. */}
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <BottomSheetContent desktopClassName="sm:max-w-md">
+          <DialogHeader
+            data-sheet-drag=""
+            className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pt-4"
+          >
+            <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Categories')}</DialogTitle>
+            <BottomSheetCloseButton label={t('Close')} />
+            <DialogDescription className="sr-only">{t('Show the services of one category.')}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-1 pb-4">{categoryList}</div>
+        </BottomSheetContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <PriceBookItemDialog

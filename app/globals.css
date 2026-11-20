@@ -957,6 +957,23 @@ html[data-keyboard='open'] [data-slot='sheet-content']:is([data-side='left'], [d
     bottom: var(--app-kb, 0px);
     max-height: calc(var(--app-vvh, 100dvh) - 1rem);
   }
+  /* A sheet the user pulled taller (useSheetDrag writes --sheet-h). min-height,
+     not height, so content that grows later still pushes it up; clamped here to
+     the same caps as max-height (a min-height above max-height would win), so
+     opening the keyboard or rotating never leaves it behind the keyboard. */
+  [data-sheet-resized] {
+    min-height: min(var(--sheet-h, 0px), 92dvh);
+  }
+  html[data-keyboard='open'] [data-sheet-resized] {
+    min-height: min(var(--sheet-h, 0px), calc(var(--app-vvh, 100dvh) - 1rem));
+  }
+  /* The extra room goes to the sheet's body, so a scrolling list shows more and
+     a pinned footer stays at the bottom edge. The body is the child marked
+     data-sheet-body (a sheet with a footer after it), else the last child. */
+  [data-sheet-resized] > [data-sheet-body],
+  [data-sheet-resized]:not(:has(> [data-sheet-body])) > :last-child {
+    flex-grow: 1;
+  }
 }
 /* Keyboard-height scroll room at the end of the page, so content that fits
    the screen exactly can still scroll up above the keyboard (body is a flex

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Receipt } from 'lucide-react'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils/format'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -66,17 +66,24 @@ export function ChangeOrderInvoiceSheet({
   return (
     <Dialog open={open} onOpenChange={(o) => !pending && onOpenChange(o)}>
       <BottomSheetContent data-testid="change-order-invoice-sheet" className="nx-surface" desktopClassName="sm:max-w-[440px]">
-        <DialogHeader data-sheet-drag="" className="shrink-0 touch-none px-5 pt-1 pb-1 text-left sm:px-6 sm:pt-5">
-          <DialogTitle className="inline-flex items-center gap-2 text-[19px] leading-tight font-semibold tracking-tight">
-            <Receipt className="size-5 text-primary" aria-hidden />
-            {t('Invoice')}
-          </DialogTitle>
-          <DialogDescription className="text-[13.5px]">
-            {t('The client gets a Stripe invoice by email, due in 7 days.')}
-          </DialogDescription>
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-start justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pl-6 sm:pr-4 sm:pt-5"
+        >
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <DialogTitle className="inline-flex items-center gap-2 text-[19px] leading-tight font-semibold tracking-tight">
+              <Receipt className="size-5 text-primary" aria-hidden />
+              {t('Invoice')}
+            </DialogTitle>
+            <DialogDescription className="text-[13.5px]">
+              {t('The client gets a Stripe invoice by email, due in 7 days.')}
+            </DialogDescription>
+          </div>
+          {/* Disabled while sending: the sheet refuses to close then anyway. */}
+          <BottomSheetCloseButton label={t('Close')} disabled={pending} />
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 px-5 pt-3 pb-5 sm:px-6 sm:pb-6">
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-3 pb-5 sm:px-6 sm:pb-6">
           <div className="flex items-baseline justify-between gap-3 rounded-2xl border border-border bg-muted px-4 py-3.5">
             <span className="min-w-0 text-sm text-muted-foreground">
               {t('Invoice for change order #{number}').replace('{number}', String(number))}

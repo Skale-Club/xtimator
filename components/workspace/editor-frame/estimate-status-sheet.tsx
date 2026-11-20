@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import {
   ClientResponseControl,
   type ClientResponseValue,
@@ -85,13 +85,21 @@ export function EstimateStatusSheet({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <BottomSheetContent desktopClassName="sm:max-w-[440px]">
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pt-2 pb-5 sm:pt-5">
+        {/* Header: drags the sheet (phones) and holds the X, like every sheet. */}
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pt-4"
+        >
           <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">
             {t('Estimate status')}
           </DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} />
           <DialogDescription className="sr-only">
             {t('Estimate status')}
           </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 pt-2 pb-5">
 
           <ul className="flex flex-col gap-2 text-[13.5px] text-muted-foreground">
             <TimelineLine lead={t('Created')} rest={shortDate(createdAt)} />
