@@ -35,11 +35,25 @@ function readStored(lang: 'pt' | 'es'): Record<string, string> {
   }
 }
 
+/**
+ * The API falls back to the English source for a string the model did not
+ * translate. That fallback is NOT a translation: it must not be persisted, or
+ * the English sticks in this browser forever (QA 2026-11-19: "Sending and
+ * signature", "Estimate defaults"... stayed English in pt while the API now
+ * translates them). Identity entries already stored are skipped on hydrate,
+ * so they are requested again.
+ */
+function isRealTranslation(src: string, translated: unknown): translated is string {
+  if (typeof translated !== 'string' || translated === '') return false
+  // A single word may legitimately read the same ("Total", "PDF", "Stripe").
+  return translated.trim() !== src.trim() || !/\s/.test(src.trim())
+}
+
 function hydrateFromStorage() {
   if (typeof window === 'undefined') return
   for (const lang of ['pt', 'es'] as const) {
     for (const [src, translated] of Object.entries(readStored(lang))) {
-      if (typeof translated === 'string' && translated) memCache.set(`${lang}:${src}`, translated)
+      if (isRealTranslation(src, translated)) memCache.set(`${lang}:${src}`, translated)
     }
   }
 }
@@ -128,7 +142,7 @@ async function flushBatch(lang: 'pt' | 'es', setPendingCount: Dispatch<SetStateA
       const cacheKey = `${lang}:${src}`
       memCache.set(cacheKey, translated)
       pendingKeys.delete(cacheKey)
-      if (typeof translations[src] === 'string' && translations[src]) landed[src] = translations[src]
+      if (isRealTranslation(src, translations[src])) landed[src] = translations[src]
       cbs.forEach(cb => cb(translated))
     })
     persist(lang, landed)

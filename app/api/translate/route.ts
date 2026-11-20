@@ -67,7 +67,12 @@ export async function POST(request: Request) {
     .eq('target_language', targetLanguage)
 
   const found = new Map<string, string>(
-    (cached ?? []).map((r: { source_text: string; translated_text: string }) => [r.source_text, r.translated_text])
+    (cached ?? [])
+      // An older cached echo of a multi-word English source is not a
+      // translation: translate it again (it is then cached properly).
+      .filter((r: { source_text: string; translated_text: string }) =>
+        r.translated_text.trim() !== r.source_text.trim() || !/\s/.test(r.source_text.trim()))
+      .map((r: { source_text: string; translated_text: string }) => [r.source_text, r.translated_text])
   )
   const missing = texts.filter(t => !found.has(t))
 
@@ -80,7 +85,10 @@ export async function POST(request: Request) {
 
       // 5. Save to DB (ON CONFLICT DO NOTHING via ignoreDuplicates)
       const rows = missing
-        .filter(src => typeof aiMap[src] === 'string' && aiMap[src].length > 0)
+        // Never cache an echo of the English source as a translation: it would be
+        // served from the cache forever instead of being translated again.
+        // (a single word may legitimately read the same: "Total", "PDF").
+        .filter(src => typeof aiMap[src] === 'string' && aiMap[src].length > 0 && (aiMap[src].trim() !== src.trim() || !/\s/.test(src.trim())))
         .map(src => ({
           source_text: src,
           source_language: 'en',
@@ -93,7 +101,9 @@ export async function POST(request: Request) {
           .from('translations')
           .upsert(rows, {
             onConflict: 'source_text,source_language,target_language',
-            ignoreDuplicates: true,
+            // Overwrite: an older row may hold an echo of the source (see the
+            // cache read above); a fresh translation replaces it.
+            ignoreDuplicates: false,
           })
       }
 

@@ -13,7 +13,7 @@ import { billingBlockCopy, showBillingBlockToast } from '@/lib/billing/block-toa
 import { BILLING_SETTINGS_PATH, isBillingBlockCode, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useTranslation } from '@/lib/i18n/use-translation'
+import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -89,6 +89,9 @@ export function NewProjectWizard({
 }: NewProjectWizardProps = {}) {
   const router = useRouter()
   const { t } = useTranslation()
+  // The popup scopes useTranslation to the ESTIMATE language; the block card is
+  // app chrome, so it speaks the app language (like the processing overlay).
+  const { t: tApp } = useAppTranslation()
   const searchParams = useSearchParams()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -189,7 +192,7 @@ export function NewProjectWizard({
   }
 
   if (blockedCode) {
-    const copy = billingBlockCopy(blockedCode, t)
+    const copy = billingBlockCopy(blockedCode, tApp)
     return (
       <div
         data-testid="new-xtimate-blocked"

@@ -94,6 +94,13 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Price research': 'Pesquisa de preços',
     'Xtimator AI chat': 'Chat do Xtimator AI',
     'AI estimate edit': 'Edição com IA',
+    // Credit block (paywall / out of credits) - the moment the free trial ends.
+    'Your free credits are used up': 'Seus créditos grátis acabaram',
+    'Subscribe to Xtimator Pro to keep creating estimates.': 'Assine o Xtimator Pro para continuar criando orçamentos.',
+    'Subscribe': 'Assinar',
+    "You're out of credits": 'Você está sem créditos',
+    'Buy credits to keep creating estimates.': 'Compre créditos para continuar criando orçamentos.',
+    'Buy credits': 'Comprar créditos',
     'Messages': 'Mensagens',
     'Usage': 'Uso',
 
@@ -223,6 +230,13 @@ export const billingTranslations: Record<'pt' | 'es', Record<string, string>> = 
     'Price research': 'Investigación de precios',
     'Xtimator AI chat': 'Chat de Xtimator AI',
     'AI estimate edit': 'Edición con IA',
+    // Credit block (paywall / out of credits).
+    'Your free credits are used up': 'Tus créditos gratis se agotaron',
+    'Subscribe to Xtimator Pro to keep creating estimates.': 'Suscríbete a Xtimator Pro para seguir creando presupuestos.',
+    'Subscribe': 'Suscribirse',
+    "You're out of credits": 'Te quedaste sin créditos',
+    'Buy credits to keep creating estimates.': 'Compra créditos para seguir creando presupuestos.',
+    'Buy credits': 'Comprar créditos',
     'Messages': 'Mensajes',
     'Usage': 'Uso',
 

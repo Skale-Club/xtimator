@@ -141,7 +141,7 @@ describe('/api/translate — I18N-05, I18N-08', () => {
     expect(translateTextsOR).toHaveBeenCalledOnce()
     expect(translateTextsOR).toHaveBeenCalledWith(['Rare string'], 'pt', undefined, { companyId: 'company-1' })
 
-    // Result cached via upsert with ON CONFLICT DO NOTHING.
+    // Result cached via upsert; a fresh translation overwrites an older echo row.
     expect(upsertMock).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
@@ -153,8 +153,41 @@ describe('/api/translate — I18N-05, I18N-08', () => {
       ]),
       expect.objectContaining({
         onConflict: 'source_text,source_language,target_language',
-        ignoreDuplicates: true,
+        ignoreDuplicates: false,
       })
     )
+  })
+
+  it('re-translates a cached echo of a multi-word source and never caches a new echo', async () => {
+    // QA 2026-11-19: English "translations" got stuck (cache + browser storage).
+    const eqMock2 = vi.fn().mockResolvedValue({
+      data: [
+        { source_text: 'Send by email', translated_text: 'Send by email' }, // old echo
+        { source_text: 'Total', translated_text: 'Total' }, // single word: legit
+      ],
+    })
+    const eqMock1 = vi.fn().mockReturnValue({ eq: eqMock2 })
+    const inMock = vi.fn().mockReturnValue({ eq: eqMock1 })
+    const selectMock = vi.fn().mockReturnValue({ in: inMock })
+    fromMock.mockReturnValue({ select: selectMock, upsert: upsertMock })
+    vi.mocked(translateTextsOR).mockResolvedValue({
+      'Send by email': 'Enviar por e-mail',
+      'Valid until date': 'Valid until date', // the model echoed it
+    })
+
+    const res = await POST(
+      makeRequest({ texts: ['Send by email', 'Total', 'Valid until date'], targetLanguage: 'pt' }),
+    )
+    const body = await res.json()
+    expect(translateTextsOR).toHaveBeenCalledWith(
+      ['Send by email', 'Valid until date'],
+      'pt',
+      undefined,
+      { companyId: 'company-1' },
+    )
+    expect(body.translations['Send by email']).toBe('Enviar por e-mail')
+    expect(body.translations['Total']).toBe('Total')
+    const cachedRows = upsertMock.mock.calls[0][0] as Array<{ source_text: string }>
+    expect(cachedRows.map((r) => r.source_text)).toEqual(['Send by email'])
   })
 })

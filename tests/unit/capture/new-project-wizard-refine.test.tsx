@@ -8,7 +8,10 @@ vi.mock('next/navigation', () => ({
 }))
 const toastError = vi.fn()
 vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }))
-vi.mock('@/lib/i18n/use-translation', () => ({ useTranslation: () => ({ t: (s: string) => s, language: 'en' }) }))
+vi.mock('@/lib/i18n/use-translation', () => ({
+  useTranslation: () => ({ t: (s: string) => s, language: 'en' }),
+  useAppTranslation: () => ({ t: (s: string) => s, language: 'en' }),
+}))
 vi.mock('@/lib/actions/project', () => ({
   resumeOrCreateDraftProjectAction: vi.fn(),
   getProjectMinimalAction: vi.fn(async () => ({ data: { id: 'proj-1', company_id: 'co-1', name: 'P' } })),
