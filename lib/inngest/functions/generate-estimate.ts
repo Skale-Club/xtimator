@@ -7,6 +7,7 @@
  *   - INNGEST-02 (route returns jobId; recordUsage on success only)
  *   - INNGEST-06 (idempotent via event.data.requestId)
  */
+import { continueOrPauseForCredits, type StepLike } from '@/lib/inngest/credit-pause'
 import { randomUUID } from 'node:crypto'
 import { inngest } from '@/lib/inngest/client'
 import { assertCompanyWritable } from '@/lib/demo/guard'
@@ -222,6 +223,30 @@ export const generateEstimateJob = inngest.createFunction(
     // skipped anyway). Vision cost rows stay operation_type 'vision' and are
     // debited as 'photo_batch' inside the helper; they are NOT part of the
     // 'estimate' debit read-back below.
+    // Credits plan 2026-11-20: before each step that costs credits, a run with an
+    // empty balance pauses here until a top-up (lib/inngest/credit-pause.ts),
+    // instead of being charged for the steps so far and failing.
+    const pendingPhotos = await step.run('count-pending-photos', async () => {
+      try {
+        const { count } = await requireServiceClient()
+          .from('photos')
+          .select('id', { count: 'exact', head: true })
+          .eq('project_id', projectId)
+          .eq('company_id', companyId)
+          .is('ai_description', null)
+        return count ?? 0
+      } catch {
+        // A failed count only skips the pause before photos; the one before
+        // generating still runs.
+        return 0
+      }
+    })
+    const pauseCtx = { companyId, projectId, attemptId, inputType, ownerUserId: ownerUserId ?? null }
+    if (pendingPhotos > 0) {
+      const gate = await continueOrPauseForCredits(step as unknown as StepLike, { ...pauseCtx, next: 'analyze' })
+      if (gate === 'expired') return { paused: true, expired: true }
+    }
+
     await step.run('analyze-pending-photos', async () => {
       try {
         const { analyzePendingPhotos } = await import(
@@ -236,6 +261,11 @@ export const generateEstimateJob = inngest.createFunction(
         return { pending: 0, analyzed: 0, failed: 0 }
       }
     })
+
+    {
+      const gate = await continueOrPauseForCredits(step as unknown as StepLike, { ...pauseCtx, next: 'generate_estimate' })
+      if (gate === 'expired') return { paused: true, expired: true }
+    }
 
     // Step 1: Shared graph invocation — checkpointed (DURABLE-02: whole graph in one step.run,
     // mirroring lib/inngest/functions/whatsapp-process.ts). A retry of step 2 will NOT re-run

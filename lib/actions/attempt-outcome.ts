@@ -50,6 +50,11 @@ export type AttemptOutcome =
   // creditBlocked: the journal row's error_code was 'insufficient_credits' (SEED-055
   // Phase D) - the UI hides the manual fallback and points at billing instead.
   | { state: 'failed'; step: string; reason: string; creditBlocked?: true }
+  // Credits plan 2026-11-20: the run paused between steps because the credits
+  // ran out (lib/inngest/credit-pause.ts); it resumes by itself after a
+  // top-up. `next` is the step it stopped before, `completedSteps` what is
+  // already saved.
+  | { state: 'paused'; next: 'analyze' | 'generate_estimate'; expiresAt: string | null; completedSteps: string[] }
   // 260707-o7a: pending carries the journal-derived progress payload so the
   // client can drive the REAL progress bar (lib/estimate/progress-model.ts):
   //   completedSteps — steps with a `succeeded` event, in journal order;
@@ -224,11 +229,27 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
         state: 'failed',
         step: failed.step,
         reason: failed.error_message ?? 'Unknown error',
-        ...(failed.error_code === 'insufficient_credits' ? { creditBlocked: true as const } : {}),
+        ...(failed.error_code === 'insufficient_credits' || failed.error_code === 'credit_pause_expired'
+          ? { creditBlocked: true as const }
+          : {}),
       }
     }
 
     const last = rows[rows.length - 1]
+
+    // Credits plan 2026-11-20: the latest row is a pause for credits (a resume
+    // appends a plain `started` row after it, so only a live pause matches).
+    if (last.status === 'started' && last.error_code === 'awaiting_credits') {
+      const meta = (last.metadata ?? {}) as { next?: unknown; expiresAt?: unknown }
+      const done: string[] = []
+      for (const r of rows) if (r.status === 'succeeded' && !done.includes(r.step)) done.push(r.step)
+      return {
+        state: 'paused',
+        next: meta.next === 'analyze' ? 'analyze' : 'generate_estimate',
+        expiresAt: typeof meta.expiresAt === 'string' ? meta.expiresAt : null,
+        completedSteps: done,
+      }
+    }
 
     // 260707-o7a: progress payload for the real progress bar.
     // completedSteps: first `succeeded` occurrence per step, journal order.

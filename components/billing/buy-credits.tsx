@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
+import { Check, CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -14,6 +14,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 import { formatCredits } from '@/lib/billing/format-usd'
 import { formatBillingAmount, type BillingCurrency } from '@/lib/billing/billing-currency'
+import { CAPTURE_PRIMARY_CLASS, CAPTURE_PRIMARY_STYLE } from '@/components/capture/capture-button-styles'
 
 /**
  * Credits plan 2026-11-20 - one way to buy credits, everywhere.
@@ -201,9 +202,13 @@ export function BuyCreditsPicker({
     return (
       <div className="space-y-3 py-4 text-center">
         <p className="text-sm text-muted-foreground">{t('Subscribe to Pro to buy extra credits')}</p>
-        <Button asChild className="w-full">
-          <Link href="/settings/billing#choose-plan">{t('Subscribe to Pro')}</Link>
-        </Button>
+        <Link
+          href="/settings/billing#choose-plan"
+          className={cn(CAPTURE_PRIMARY_CLASS, 'w-full')}
+          style={CAPTURE_PRIMARY_STYLE}
+        >
+          {t('Subscribe to Pro')}
+        </Link>
       </div>
     )
   }
@@ -223,6 +228,11 @@ export function BuyCreditsPicker({
           {t('Purchased credits last {months} months.').replace('{months}', String(offer.expiryMonths))}
         </p>
       )}
+      {compact && (
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {t('Choose a credit pack')}
+        </p>
+      )}
       <div role="radiogroup" aria-label={t('Credit packs')} className="space-y-2">
         {offer.packs.map((p) => {
           const isSel = p.index === pack?.index
@@ -236,27 +246,31 @@ export function BuyCreditsPicker({
               onClick={() => setSelected(p.index)}
               disabled={buying}
               className={cn(
-                'flex w-full items-center gap-3 rounded-[var(--radius-md)] border px-3.5 py-2.5 text-left transition-colors',
-                isSel ? 'border-primary/70 bg-primary/10' : 'border-[var(--glass-border)] hover:bg-[var(--glass-bg-light)]'
+                'flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all',
+                isSel
+                  ? 'border-primary bg-primary/10 shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]'
+                  : 'border-border bg-background/40 hover:border-primary/40 hover:bg-primary/5'
               )}
             >
               <span
                 aria-hidden
                 className={cn(
-                  'h-4 w-4 shrink-0 rounded-full border-2',
-                  isSel ? 'border-primary bg-primary shadow-[inset_0_0_0_3px_hsl(var(--background))]' : 'border-muted-foreground/50'
+                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                  isSel ? 'border-primary bg-primary' : 'border-muted-foreground/35'
                 )}
-              />
+              >
+                {isSel && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2 font-semibold">
+                <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
                   {t('{credits} credits').replace('{credits}', formatCredits(p.credits))}
                   {p.bestValue && <Badge variant="brand">{t('Best value')}</Badge>}
                 </span>
-                <span className="block text-xs text-muted-foreground">
+                <span className="mt-0.5 block text-xs text-muted-foreground">
                   {t('{min} to {max} estimates').replace('{min}', String(p.estimates.min)).replace('{max}', String(p.estimates.max))}
                 </span>
               </span>
-              <span className="font-semibold [font-variant-numeric:tabular-nums]">
+              <span className="text-[17px] font-bold tracking-tight [font-variant-numeric:tabular-nums]">
                 {formatBillingAmount(p.priceCents, p.currency)}
               </span>
             </button>
@@ -265,7 +279,7 @@ export function BuyCreditsPicker({
       </div>
 
       {offer.card ? (
-        <div className="flex items-center gap-2.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] px-3.5 py-2.5 text-sm">
+        <div className="flex items-center gap-2.5 px-1 text-sm">
           <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <span className="font-medium">{offer.card.brand} •••• {offer.card.last4}</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">{t('your subscription card')}</span>
@@ -282,9 +296,10 @@ export function BuyCreditsPicker({
         <p className="text-xs text-muted-foreground">{t('No saved card — you will finish on the secure payment page.')}</p>
       )}
 
-      <Button
-        size="lg"
-        className="h-11 w-full justify-center text-center"
+      <button
+        type="button"
+        className={cn(CAPTURE_PRIMARY_CLASS, 'w-full')}
+        style={CAPTURE_PRIMARY_STYLE}
         disabled={buying || !pack}
         onClick={() => pack && onBuy(pack.index)}
         data-testid="buy-credits-submit"
@@ -297,7 +312,7 @@ export function BuyCreditsPicker({
         ) : (
           label.replace('{credits}', credits).replace('{price}', price)
         )}
-      </Button>
+      </button>
       {offer.card && (
         <p className="text-center text-xs text-muted-foreground">{t('One-time charge to the card above. No renewal.')}</p>
       )}
@@ -329,15 +344,15 @@ export function BuyCreditsProvider() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !buying && setOpen(next)}>
-      <BottomSheetContent desktopClassName="sm:max-w-[520px]" data-testid="buy-credits-dialog">
-        <DialogHeader data-sheet-drag="" className="flex shrink-0 flex-row items-start justify-between gap-3 pb-1 pl-5 pr-3 pt-1 text-left touch-none sm:pt-3">
+      <BottomSheetContent className="nx-surface" desktopClassName="sm:max-w-[520px]" data-testid="buy-credits-dialog">
+        <DialogHeader data-sheet-drag="" className="flex shrink-0 flex-row items-start justify-between gap-4 pb-3 pl-6 pr-4 pt-2 text-left touch-none sm:pl-7 sm:pr-5 sm:pt-6">
           <div className="min-w-0">
-            <DialogTitle className="text-lg font-semibold">{t('Buy credits')}</DialogTitle>
+            <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">{t('Buy credits')}</DialogTitle>
             <DialogDescription className="sr-only">{t('Choose a credit pack')}</DialogDescription>
           </div>
           <BottomSheetCloseButton label={t('Close')} disabled={buying} />
         </DialogHeader>
-        <div className="overflow-y-auto px-5 pb-5 pt-1">
+        <div className="overflow-y-auto px-6 pb-6 pt-1 sm:px-7 sm:pb-7">
           <BuyCreditsPicker
             key={session}
             offer={offer}

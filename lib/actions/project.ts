@@ -247,7 +247,8 @@ export async function duplicateProjectAction(projectId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
-  const billingDenied = await billingCreateDenied(ctx.company.id)
+  // Credits plan 2026-11-20: duplicating uses no AI - read-only (paywalled) only.
+  const billingDenied = await billingEditDenied(ctx.company.id)
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 

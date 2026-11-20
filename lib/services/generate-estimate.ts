@@ -53,7 +53,8 @@ import { isTwoStepEnabled } from '@/lib/ai/scope-plan'
 import { decideDraftEscalation } from '@/lib/ai/model-policy'
 import { getEscalationConfig } from '@/lib/ai/step-models'
 import { reportGeneratePhase } from '@/lib/observability/generation-phase'
-import { billingCreateDenied, BillingBlockedError } from '@/lib/billing/access-guard'
+import { BillingBlockedError } from '@/lib/billing/access-guard'
+import { canContinueRun } from '@/lib/billing/access-state'
 
 /** 260927: minimum gap between two live drafting reports in the journal. */
 const DRAFT_REPORT_MIN_INTERVAL_MS = 2_000
@@ -84,6 +85,12 @@ export type GenerateEstimateResult = {
 }
 
 export interface GenerateEstimateOptions {
+  /**
+   * Credits plan 2026-11-20: the auto-refine retry of a vague first pass. Its
+   * cost is absorbed (only one generation per run is charged), so it is never
+   * refused for credits - refusing it would throw away a run already paid for.
+   */
+  skipCreditGate?: boolean
   /** Explicit override from the caller (UI dropdown, WhatsApp command). */
   language?: EstimateLanguage
   /** User app language to consider in the cascade (rarely set from server). */
@@ -190,12 +197,19 @@ export async function generateEstimateForProject(
   // is_current flips) to that tenant's data.
   if (project.company_id !== companyId) throw new Error('Project not found')
 
-  // SEED-055 Phase D: generating (a new estimate version) needs credits. The AI
-  // routes pre-check too; this is the server-side backstop for every other
-  // entry (WhatsApp confirm, MCP, agent tools, Inngest). Inert while
-  // enforcement is OFF.
-  const billingBlocked = await billingCreateDenied(companyId, 'estimate')
-  if (billingBlocked) throw new BillingBlockedError(billingBlocked.code)
+  // Credits plan 2026-11-20: the entry gate ran where the capture started (web
+  // routes, WhatsApp, MCP, agent tools); here a run only needs SOME credit to
+  // take its generation step (the old 160-credit re-check charged the audio and
+  // photos and then failed). The Inngest job pauses for credits before this
+  // point (lib/inngest/credit-pause.ts); this stays the backstop for every
+  // other entry. Fails open; inert while enforcement is OFF.
+  if (!options.skipCreditGate) {
+    const run = await canContinueRun(companyId).catch((err) => {
+      console.warn('[generate-estimate] credit check failed open:', err)
+      return { ok: true as const, code: 'paywalled' as const, balance: 0 }
+    })
+    if (!run.ok) throw new BillingBlockedError(run.code)
+  }
 
   const currencyCode = normalizeCurrencyCode(company.currency_code)
   // SEED-056: which optional blocks this company's new estimates carry. An AI

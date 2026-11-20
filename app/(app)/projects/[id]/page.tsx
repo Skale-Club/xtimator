@@ -1,3 +1,4 @@
+import { getPausedCaptures } from '@/lib/queries/credit-pauses'
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -57,13 +58,17 @@ export default async function ProjectPage({
   const recordingsPromise = getProjectRecordings(supabase, id)
   const photosPromise = getProjectPhotos(supabase, id)
   const allVersionsPromise = getProjectEstimates(supabase, id)
+  // Credits plan 2026-11-20: this project's capture is paused for credits - the
+  // header shows a small chip that opens the paused sheet (no panel here).
+  const pause = (await getPausedCaptures(project.company_id)).find((p) => p.projectId === id) ?? null
+  const projectWithPause = { ...project, paused_attempt_id: pause?.attemptId ?? null }
 
   return (
     <ProjectPageShell>
     <div className="flex min-h-full flex-col">
       <Suspense fallback={<ProjectWorkspaceSkeleton project={project} />}>
         <ProjectTabs
-          project={project}
+          project={projectWithPause}
           activityPromise={activityPromise}
           statsPromise={statsPromise}
           recordingsPromise={recordingsPromise}

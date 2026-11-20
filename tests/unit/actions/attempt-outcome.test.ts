@@ -654,3 +654,97 @@ describe('transcribeRecording — dispatchNonce event-id format (260707-lyq)', (
     )
   })
 })
+
+// Credits plan 2026-11-20: a capture paused for credits between steps.
+describe('getAttemptOutcome — paused for credits', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreateClient.mockResolvedValue(makeAuthedSupabase() as never)
+    mockGetActiveCompanyId.mockResolvedValue('company-1')
+  })
+
+  const row = (r: Partial<JournalRowFixture>): JournalRowFixture => ({
+    step: 'generate_estimate',
+    status: 'started',
+    error_code: null,
+    error_message: null,
+    estimate_id: null,
+    company_id: 'company-1',
+    ...r,
+  })
+  const EXPIRES = '2026-11-27T12:00:00.000Z'
+
+  it('the latest row is the pause → paused, with the next step, expiry and what is already saved', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          row({ step: 'transcribe', status: 'started' }),
+          row({ step: 'transcribe', status: 'succeeded' }),
+          row({ step: 'generate_estimate', status: 'started' }),
+          row({ error_code: 'awaiting_credits', metadata: { paused: true, next: 'analyze', expiresAt: EXPIRES } }),
+        ],
+      }) as never
+    )
+    expect(await getAttemptOutcome('attempt-paused')).toEqual({
+      state: 'paused',
+      next: 'analyze',
+      expiresAt: EXPIRES,
+      completedSteps: ['transcribe'],
+    })
+  })
+
+  it('a resume row after the pause → back to pending (the run is working again)', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          row({ error_code: 'awaiting_credits', metadata: { next: 'generate_estimate', expiresAt: EXPIRES } }),
+          row({ metadata: { resumed: true, next: 'generate_estimate' } }),
+        ],
+      }) as never
+    )
+    expect((await getAttemptOutcome('attempt-resumed')).state).toBe('pending')
+  })
+
+  it('a paused-then-resumed run that finished → completed', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        estimateExists: true,
+        rows: [
+          row({ error_code: 'awaiting_credits', metadata: { next: 'generate_estimate', expiresAt: EXPIRES } }),
+          row({ metadata: { resumed: true } }),
+          row({ status: 'succeeded', estimate_id: 'existing-estimate' }),
+        ],
+      }) as never
+    )
+    expect(await getAttemptOutcome('attempt-done')).toEqual({ state: 'completed', estimateId: 'existing-estimate' })
+  })
+
+  it('an expired pause → failed with the billing way out (creditBlocked)', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({
+        rows: [
+          row({ error_code: 'awaiting_credits', metadata: { next: 'generate_estimate', expiresAt: EXPIRES } }),
+          row({ status: 'failed', error_code: 'credit_pause_expired', error_message: 'The pause for credits expired' }),
+        ],
+      }) as never
+    )
+    expect(await getAttemptOutcome('attempt-expired')).toEqual({
+      state: 'failed',
+      step: 'generate_estimate',
+      reason: 'The pause for credits expired',
+      creditBlocked: true,
+    })
+  })
+
+  it('a pause row without metadata still reads as paused before generating', async () => {
+    mockRequireServiceClient.mockReturnValue(
+      makeServiceClientMock({ rows: [row({ error_code: 'awaiting_credits', metadata: null })] }) as never
+    )
+    expect(await getAttemptOutcome('attempt-bare')).toEqual({
+      state: 'paused',
+      next: 'generate_estimate',
+      expiresAt: null,
+      completedSteps: [],
+    })
+  })
+})

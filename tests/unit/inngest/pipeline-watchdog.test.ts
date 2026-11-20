@@ -232,3 +232,16 @@ describe('260707-hhp: sweepStuckAttempts', () => {
     expect(mockNotifyOps).not.toHaveBeenCalled()
   })
 })
+
+// Credits plan 2026-11-20: a pause for credits is deliberate waiting.
+describe('credits plan 2026-11-20: classifyLastEvent and paused runs', () => {
+  it('a started row with error_code awaiting_credits is paused, never stuck', () => {
+    expect(classifyLastEvent({ step: 'generate_estimate', status: 'started', error_code: 'awaiting_credits' })).toBe('paused')
+  })
+  it('a plain started row is still pending (stuck candidate)', () => {
+    expect(classifyLastEvent({ step: 'generate_estimate', status: 'started', error_code: null })).toBe('pending')
+  })
+  it('the expiry row is failed (terminal)', () => {
+    expect(classifyLastEvent({ step: 'generate_estimate', status: 'failed', error_code: 'credit_pause_expired' })).toBe('failed')
+  })
+})

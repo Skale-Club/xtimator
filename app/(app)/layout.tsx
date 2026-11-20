@@ -23,6 +23,7 @@ import { academyEntryPointVisible } from '@/lib/academy/access'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
 import { BuyCreditsProvider } from '@/components/billing/buy-credits'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
+import { PausedEstimateSheet } from '@/components/billing/paused-estimate-sheet'
 import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
@@ -301,6 +302,8 @@ export default async function AppShellLayout({
           {!isDemo && <BuyCreditsProvider />}
           <Suspense fallback={null}>
             <BillingStatusToast />
+            {/* Credits plan 2026-11-20: ?paused=<attempt> on a project opens it. */}
+            {!isDemo && <PausedEstimateSheet />}
           </Suspense>
           <WelcomeModal />
           <TourSpotlight />

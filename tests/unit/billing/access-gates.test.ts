@@ -192,9 +192,21 @@ describe('out_of_credits company (Pro, subscription live, no credits)', () => {
     companyRow = PRO_EMPTY
   })
 
-  it.each(createGates)('%s is refused with code out_of_credits', async (_name, run) => {
-    expect(codeOf(await run())).toBe('out_of_credits')
+  // Credits plan 2026-11-20: only the capture entry (a project made for an AI
+  // estimate) needs credits; a blank estimate, a duplicate and a client cost
+  // none, so a paying subscriber can always make them.
+  it('createProjectAction (the capture entry) is refused with code out_of_credits', async () => {
+    expect(codeOf(await createProjectAction({} as never))).toBe('out_of_credits')
   })
+
+  it.each(createGates.filter(([name]) => name !== 'createProjectAction'))(
+    '%s (no AI) is NOT blocked by billing for a subscriber',
+    async (_name, run) => {
+      const code = codeOf(await run())
+      expect(code).not.toBe('paywalled')
+      expect(code).not.toBe('out_of_credits')
+    }
+  )
 
   it.each(editGates)('%s is NOT blocked by billing (editing stays allowed)', async (_name, run) => {
     const code = codeOf(await run())

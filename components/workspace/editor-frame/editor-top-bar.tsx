@@ -10,6 +10,7 @@ import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { formatCurrency } from '@/lib/utils/format'
 import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
+import { PausedChip } from '@/components/billing/paused-chip'
 import { EstimateStatusChip, deriveEstimateStatus } from './estimate-status'
 
 /** Same horizontal padding as the workspace content column below the bar. */
@@ -158,6 +159,10 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
   useBreadcrumb(breadcrumbItems)
 
   const subtitle = [project.client?.name, slot?.estimateNumber].filter(Boolean).join(' · ')
+  // Credits plan 2026-11-20: the capture is paused for credits (set by the page).
+  const pausedChip = project.paused_attempt_id ? (
+    <PausedChip projectId={project.id} attemptId={project.paused_attempt_id} />
+  ) : null
   const hasTotal = typeof slot?.total === 'number'
 
   const sentNotice =
@@ -180,10 +185,11 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
           <ChevronLeft size={18} aria-hidden />
           {t('Projects')}
         </Link>
-        {slot && (
+        {(slot || pausedChip) && (
           <div data-testid="editor-top-bar-row-a" className="flex items-center gap-2">
-            <SaveState slot={slot} />
-            <StatusChip slot={slot} />
+            {pausedChip}
+            {slot && <SaveState slot={slot} />}
+            {slot && <StatusChip slot={slot} />}
           </div>
         )}
       </div>
@@ -198,10 +204,11 @@ export function EditorTopBar({ project }: { project: ProjectDetail }) {
             onRenameSuccess={slot?.onProjectRenamed}
           />
         </div>
-        {slot && (
+        {(slot || pausedChip) && (
           <div data-testid="editor-top-bar-inline" className="ml-auto mr-4 hidden shrink-0 items-center gap-2.5 md:flex">
-            <SaveState slot={slot} />
-            <StatusChip slot={slot} />
+            {pausedChip}
+            {slot && <SaveState slot={slot} />}
+            {slot && <StatusChip slot={slot} />}
           </div>
         )}
         {hasTotal && slot && (

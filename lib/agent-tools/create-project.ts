@@ -18,7 +18,7 @@ import 'server-only'
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { assertCompanyWritable } from '@/lib/demo/guard'
-import { billingCreateDenied } from '@/lib/billing/access-guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 
 export type CreateProjectInput = { name: string; clientId?: string | null }
 
@@ -35,9 +35,9 @@ export async function createProject(
   const denied = await assertCompanyWritable(companyId)
   if (denied) throw new Error(denied.error)
 
-  // SEED-055 Phase D: nothing new can be created without credits (inert while
-  // enforcement is OFF).
-  const billingBlocked = await billingCreateDenied(companyId)
+  // Credits plan 2026-11-20: a project costs no credits - refused only while
+  // the app is read-only (paywalled). Inert while enforcement is OFF.
+  const billingBlocked = await billingEditDenied(companyId)
   if (billingBlocked) return { ok: false, message: billingBlocked.error }
 
   const name = input.name.trim()

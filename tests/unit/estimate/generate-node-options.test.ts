@@ -39,3 +39,26 @@ describe('generate node -> service options', () => {
     expect(generateMock.mock.calls[0][2].costContext).toMatchObject({ attemptId: 'a1', inputType: 'recording' })
   })
 })
+
+// Credits plan 2026-11-20: which generations may skip the "some credit" check.
+describe('generate node -> skipCreditGate', () => {
+  beforeEach(() => {
+    generateMock.mockReset()
+    generateMock.mockResolvedValue({ estimateId: 'e1', language: 'en' })
+  })
+
+  it('the first web generation is checked (skipCreditGate false)', async () => {
+    await makeGenerateNode(runner)({ ...base, channel: 'web' } as EstimateStateType)
+    expect(generateMock.mock.calls[0][2].skipCreditGate).toBe(false)
+  })
+
+  it('the auto-refine retry (refineAttempts > 0) is absorbed, so it is never refused', async () => {
+    await makeGenerateNode(runner)({ ...base, channel: 'web', refineAttempts: 1 } as EstimateStateType)
+    expect(generateMock.mock.calls[0][2].skipCreditGate).toBe(true)
+  })
+
+  it('a WhatsApp run is one step past the entry gate, so it always finishes', async () => {
+    await makeGenerateNode(runner)({ ...base, channel: 'whatsapp' } as EstimateStateType)
+    expect(generateMock.mock.calls[0][2].skipCreditGate).toBe(true)
+  })
+})

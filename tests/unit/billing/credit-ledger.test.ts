@@ -5,6 +5,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // swallowing. Mocked so tests assert the call shape without touching Redis/
 // Sentry/Telegram.
 const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
+// Credits plan 2026-11-20: grants announce billing/credits.granted to Inngest.
+const mockInngestSend = vi.fn(async () => ({ ids: ['e1'] }))
+vi.mock('@/lib/inngest/client', () => ({ inngest: { send: (...a: unknown[]) => mockInngestSend(...a) } }))
+
 vi.mock('@/lib/observability/ops-alert', () => ({
   notifyOps: (...args: unknown[]) => mockNotifyOps(...args),
 }))
@@ -514,6 +518,36 @@ describe('CREDIT-04: grantCredits', () => {
     expect(captured.updates).toHaveLength(0)
   })
 
+  it('credits plan 2026-11-20: an applied grant announces billing/credits.granted (paused runs wake up)', async () => {
+    // Let announcements from earlier tests' grants land before counting.
+    await new Promise((r) => setTimeout(r, 50))
+    mockInngestSend.mockClear()
+    reads.companyBalance = 0
+    await grantCredits({ companyId: COMPANY, credits: 1900, reason: 'topup', source: 'topup', idempotencyKey: 'directtopup:pi_1' })
+    await vi.waitFor(() => expect(mockInngestSend).toHaveBeenCalledTimes(1))
+    expect(mockInngestSend).toHaveBeenCalledWith({
+      name: 'billing/credits.granted',
+      data: { companyId: COMPANY, credits: 1900, source: 'topup' },
+    })
+  })
+
+  it('a replayed grant (not applied) announces nothing', async () => {
+    await new Promise((r) => setTimeout(r, 50))
+    mockInngestSend.mockClear()
+    reads.ledgerExisting = { id: 'existing-grant' }
+    await grantCredits({ companyId: COMPANY, credits: 1900, reason: 'topup', source: 'topup', idempotencyKey: 'directtopup:pi_1' })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(mockInngestSend).not.toHaveBeenCalled()
+  })
+
+  it('an Inngest outage never breaks the grant', async () => {
+    mockInngestSend.mockRejectedValueOnce(new Error('inngest down'))
+    reads.companyBalance = 0
+    await expect(
+      grantCredits({ companyId: COMPANY, credits: 900, reason: 'topup', source: 'topup', idempotencyKey: 'k-outage' })
+    ).resolves.toEqual({ applied: true })
+  })
+
   it('credits <= 0 is a no-op, returning { applied: false } without touching the service client', async () => {
     const result = await grantCredits({ companyId: COMPANY, credits: 0, reason: 'grant', source: 'monthly' })
     expect(result).toEqual({ applied: false })
@@ -695,12 +729,32 @@ describe('CREDIT-05: checkCredits', () => {
     expect(res.shortfall).toBe(999999 - 10)
   })
 
-  it('enforcementEnabled:true + balance < estimated → allowed:false, shortfall>0', async () => {
+  it('enforcementEnabled:true + a NON-subscriber below the estimate → allowed:false, shortfall>0', async () => {
     billingConfig.enforcementEnabled = true
-    const res = await checkCredits(injectedClient(5) as never, COMPANY, 100)
+    const res = await checkCredits(
+      injectedClient(5, { tier: 'free', stripe_subscription_id: null, stripe_subscription_status: null }, [
+        { source: 'signup', remaining: 5 } as Lot,
+      ]) as never,
+      COMPANY,
+      100
+    )
     expect(res.allowed).toBe(false)
     expect(res.balance).toBe(5)
     expect(res.shortfall).toBe(95)
+  })
+
+  it('credits plan 2026-11-20: a live subscriber starts with ANY positive balance (shortfall still reported)', async () => {
+    billingConfig.enforcementEnabled = true
+    const res = await checkCredits(injectedClient(5) as never, COMPANY, 100)
+    expect(res.allowed).toBe(true)
+    expect(res.balance).toBe(5)
+    expect(res.shortfall).toBe(95)
+  })
+
+  it('a live subscriber with an empty balance is still refused', async () => {
+    billingConfig.enforcementEnabled = true
+    const res = await checkCredits(injectedClient(0) as never, COMPANY, 100)
+    expect(res.allowed).toBe(false)
   })
 
   it('enforcementEnabled:true + balance >= estimated → allowed:true, shortfall:0', async () => {

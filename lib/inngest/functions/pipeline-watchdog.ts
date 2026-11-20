@@ -41,8 +41,12 @@ export const SWEEP_WINDOW_MS = 24 * 60 * 60 * 1000
 export function classifyLastEvent(e: {
   step: string
   status: string
-}): 'done' | 'failed' | 'pending' {
+  error_code?: string | null
+}): 'done' | 'failed' | 'pending' | 'paused' {
   if (e.status === 'failed') return 'failed'
+  // Credits plan 2026-11-20: a run paused for credits is waiting on purpose
+  // (lib/inngest/credit-pause.ts journals its own expiry); never a stuck run.
+  if (e.status === 'started' && e.error_code === 'awaiting_credits') return 'paused'
   if (
     e.status === 'succeeded' &&
     (e.step === 'generate_estimate' || e.step === 'preview_redirect')
@@ -64,6 +68,7 @@ interface PipelineAttemptRow {
 interface PipelineEventRow {
   step: string
   status: string
+  error_code?: string | null
 }
 
 export interface SweepResult {
@@ -98,7 +103,7 @@ export async function sweepStuckAttempts(deps: {
   for (const attempt of candidates) {
     const { data: latestRows } = await svc
       .from('pipeline_events')
-      .select('step, status')
+      .select('step, status, error_code')
       .eq('attempt_id', attempt.attempt_id)
       .order('created_at', { ascending: false })
       .limit(1)

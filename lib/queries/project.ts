@@ -4,6 +4,8 @@ export interface ProjectDetail {
   id: string
   company_id: string
   name: string
+  /** Credits plan 2026-11-20: set by the project page when its capture is paused for credits. */
+  paused_attempt_id?: string | null
   project_type: string | null
   status: string
   target_budget: number | null

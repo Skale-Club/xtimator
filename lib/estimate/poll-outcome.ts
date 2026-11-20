@@ -47,6 +47,8 @@ export type EstimateOutcome =
   // below fired instead (it can never know the classification).
   | { state: 'awaiting_details'; reason?: string; questions?: string[] }
   | { state: 'failed'; step: string; reason: string; creditBlocked?: true }
+  // Credits plan 2026-11-20: paused for credits; poll again after a top-up.
+  | { state: 'paused'; next: 'analyze' | 'generate_estimate'; expiresAt: string | null; completedSteps: string[] }
   | { state: 'timeout' }
 
 /**
@@ -233,6 +235,14 @@ export async function pollEstimateOutcome(opts: {
             step: attemptOutcome.step,
             reason: attemptOutcome.reason,
             ...(attemptOutcome.creditBlocked ? { creditBlocked: true as const } : {}),
+          }
+        }
+        if (attemptOutcome.state === 'paused') {
+          return {
+            state: 'paused',
+            next: attemptOutcome.next,
+            expiresAt: attemptOutcome.expiresAt,
+            completedSteps: attemptOutcome.completedSteps,
           }
         }
         if (attemptOutcome.state === 'pending') {

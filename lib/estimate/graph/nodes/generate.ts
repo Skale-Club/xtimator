@@ -37,7 +37,17 @@ export const makeGenerateNode =
       const language = state.estimateLanguage as EstimateLanguage | undefined
       const opts =
         state.channel === 'whatsapp'
-          ? { channel: 'whatsapp' as const, prompts: state.prompts, qualityHints: state.qualityHints, language, costContext }
+          ? {
+              channel: 'whatsapp' as const,
+              prompts: state.prompts,
+              qualityHints: state.qualityHints,
+              language,
+              costContext,
+              // Credits plan 2026-11-20: a WhatsApp run (media + generation) is ONE
+              // Inngest step that started past the entry gate, and a step that starts
+              // always finishes - so it is never refused mid-run for credits.
+              skipCreditGate: true,
+            }
           : {
               prompts: state.prompts,
               qualityHints: state.qualityHints,
@@ -45,6 +55,8 @@ export const makeGenerateNode =
               // origin/dev: stamp "Prepared by" on web/MCP-triggered estimates.
               createdByUserId: state.createdByUserId,
               costContext,
+              // The auto-refine retry is absorbed (one generation charged per run).
+              skipCreditGate: (state.refineAttempts ?? 0) > 0,
             }
       const result = await runner.run('ai-generate', () =>
         generateEstimateForProject(state.companyId, state.projectId, opts)

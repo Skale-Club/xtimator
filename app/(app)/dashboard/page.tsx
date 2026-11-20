@@ -6,6 +6,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-client'
 import { ProjectList } from '@/components/dashboard/project-list'
+import { getPausedCaptures, withPausedStatus } from '@/lib/queries/credit-pauses'
 import { ListCard } from '@/components/ui/list-page'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
 import { DashboardWelcome } from '@/components/dashboard/dashboard-welcome'
@@ -67,7 +68,8 @@ async function DashboardStats({ companyId, currencyCode }: { companyId: string; 
 
 async function DashboardProjects({ companyId }: { companyId: string }) {
   const supabase = await createClient()
-  const projects = await getProjects(supabase, companyId)
+  const [listed, paused] = await Promise.all([getProjects(supabase, companyId), getPausedCaptures(companyId)])
+  const projects = withPausedStatus(listed, paused)
   // Same glass card as the Projects, Clients and Price Book screens.
   return <ListCard><ProjectList projects={projects} /></ListCard>
 }

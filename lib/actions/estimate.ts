@@ -25,7 +25,7 @@ import {
   documentBlocksContext,
   initialPresentationSettings,
 } from '@/lib/estimate/document-blocks'
-import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable, assertCompanyWritable } from '@/lib/demo/guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 import {
@@ -451,9 +451,10 @@ export async function createBlankEstimate(projectId: string) {
     return { data: { estimateId: current.id as string } }
   }
 
-  // Creating a NEW estimate (or version) is gated; returning the existing current
-  // one above is a read and stays allowed.
-  const billingDenied = await billingCreateDenied(ctx.company.id)
+  // Credits plan 2026-11-20: a blank estimate uses no AI, so it is refused only
+  // while the app is read-only (paywalled); returning the existing current one
+  // above is a read and stays allowed.
+  const billingDenied = await billingEditDenied(ctx.company.id)
   if (billingDenied) return billingDenied
 
   // Company defaults

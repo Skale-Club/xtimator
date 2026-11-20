@@ -377,3 +377,63 @@ describe('spendable balance for non-subscribers (SEED-055 D4)', () => {
     expect((await getAccessState(COMPANY, client)).state).toBe('active')
   })
 })
+
+// =============================================================================
+// Credits plan 2026-11-20: a live subscriber STARTS with any positive balance;
+// a run takes its next step with any positive balance (canContinueRun).
+// =============================================================================
+describe('credits plan 2026-11-20: entry rule and canContinueRun', () => {
+  const PRO = { tier: 'pro', stripe_subscription_id: 'sub_1', stripe_subscription_status: 'active' }
+  const client = (row: Partial<Row>, lots?: Lot[]) =>
+    fakeClient({ row: { ...base, ...row }, ledgerCount: 5, lots })
+
+  it('a live subscriber with 5 credits may start an estimate whose gate is 160', async () => {
+    expect(await assertCanCreate(COMPANY, 160, client({ ...PRO, credit_balance: 5 }))).toEqual({ ok: true })
+  })
+
+  it('a live subscriber with an empty or negative balance is refused (out_of_credits)', async () => {
+    expect(await assertCanCreate(COMPANY, 160, client({ ...PRO, credit_balance: 0 }))).toEqual({ ok: false, code: 'out_of_credits' })
+    expect(await assertCanCreate(COMPANY, 160, client({ ...PRO, credit_balance: -30 }))).toEqual({ ok: false, code: 'out_of_credits' })
+  })
+
+  it('a free account keeps the configured entry gate (120 of 160 is refused as paywalled)', async () => {
+    const res = await assertCanCreate(COMPANY, 160, client({ credit_balance: 120 }, [{ source: 'signup', remaining: 120, expires_at: null }]))
+    expect(res).toEqual({ ok: false, code: 'paywalled' })
+  })
+
+  it('a free account at the gate may start', async () => {
+    const res = await assertCanCreate(COMPANY, 160, client({ credit_balance: 200 }, [{ source: 'signup', remaining: 200, expires_at: null }]))
+    expect(res).toEqual({ ok: true })
+  })
+
+  it('a canceled Pro is not a live subscriber: the entry gate applies again', async () => {
+    const res = await assertCanCreate(
+      COMPANY,
+      160,
+      client({ tier: 'pro', stripe_subscription_id: 'sub_1', stripe_subscription_status: 'canceled', credit_balance: 50 }, [
+        { source: 'adjust', remaining: 50, expires_at: null },
+      ])
+    )
+    expect(res).toEqual({ ok: false, code: 'paywalled' })
+  })
+
+  it('canContinueRun: any positive spendable balance continues, for free and Pro alike', async () => {
+    const { canContinueRun } = await import('@/lib/billing/access-state')
+    expect((await canContinueRun(COMPANY, client({ ...PRO, credit_balance: 1 }))).ok).toBe(true)
+    expect((await canContinueRun(COMPANY, client({ credit_balance: 3 }, [{ source: 'signup', remaining: 3, expires_at: null }]))).ok).toBe(true)
+  })
+
+  it('canContinueRun: an empty balance stops, with the wall it hit', async () => {
+    const { canContinueRun } = await import('@/lib/billing/access-state')
+    expect(await canContinueRun(COMPANY, client({ ...PRO, credit_balance: 0 }))).toMatchObject({ ok: false, code: 'out_of_credits' })
+    expect(await canContinueRun(COMPANY, client({ credit_balance: 0 }, []))).toMatchObject({ ok: false, code: 'paywalled' })
+  })
+
+  it('canContinueRun: BYOK, the demo and enforcement OFF always continue', async () => {
+    const { canContinueRun } = await import('@/lib/billing/access-state')
+    expect((await canContinueRun(COMPANY, client({ ...PRO, credit_balance: 0, byok_enabled: true }))).ok).toBe(true)
+    expect((await canContinueRun(DEMO_COMPANY_ID, client({ ...PRO, credit_balance: 0 }))).ok).toBe(true)
+    enforcementEnabled = false
+    expect((await canContinueRun(COMPANY)).ok).toBe(true)
+  })
+})

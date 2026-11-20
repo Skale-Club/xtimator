@@ -1,5 +1,7 @@
 'use client'
 
+import { PausedChip } from '@/components/billing/paused-chip'
+
 import { useMemo } from 'react'
 import { ProjectTitle } from '@/components/workspace/project-title'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -49,6 +51,11 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
             initialName={project.name}
             onRenameSuccess={slot?.onProjectRenamed}
           />
+          {/* Credits plan 2026-11-20: the capture waits for credits. A small chip,
+              not a panel: it opens the paused sheet (?paused=). */}
+          {project.paused_attempt_id && (
+            <PausedChip projectId={project.id} attemptId={project.paused_attempt_id} className="mt-1.5" />
+          )}
         </div>
 
         {/* Right: autosave status + Edit-with-AI button */}

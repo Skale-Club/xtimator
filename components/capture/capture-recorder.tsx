@@ -10,6 +10,7 @@ import { CaptureTimer } from '@/components/capture/capture-timer'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { CaptureFailure } from '@/components/capture/capture-failure'
 import { CaptureNeedsDetails } from '@/components/capture/capture-needs-details'
+import { CapturePaused } from '@/components/capture/capture-paused'
 import { VoiceRecorder } from '@/components/workspace/audio/voice-recorder'
 import { startRecordingPipeline, createTextRecording, reportClientPipelineFailure } from '@/lib/actions/recording'
 import { createBlankEstimate } from '@/lib/actions/estimate'
@@ -348,6 +349,12 @@ export function CaptureRecorder({
   const [needsDetailsInfo, setNeedsDetailsInfo] = useState<
     { reason?: string; questions?: string[]; fallbackMessage: string } | null
   >(null)
+  // Credits plan 2026-11-20: the run paused for credits between steps; the
+  // panel offers the packs and a buy resumes it (null = not paused).
+  const [pausedInfo, setPausedInfo] = useState<
+    | { next: 'analyze' | 'generate_estimate'; expiresAt: string | null; completedSteps: string[]; vagueMessage: string }
+    | null
+  >(null)
 
   // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
   // the popup restores the text the user typed before closing it.
@@ -378,7 +385,7 @@ export function CaptureRecorder({
   // reaches a surface that needs a tap anyway (failure, needs-details) or
   // finishes ('done' → the parent navigates/closes).
   const isPipelineRunning =
-    stage !== 'idle' && stage !== 'done' && !failedAt && !needsDetailsInfo
+    stage !== 'idle' && stage !== 'done' && !failedAt && !needsDetailsInfo && !pausedInfo
   useWakeLock(isRecording || isPipelineRunning || isUploadingPhotos)
 
   // 260707-o7a: real progress bar state — journal-derived (never advances a
@@ -926,6 +933,15 @@ export function CaptureRecorder({
       setAttemptProgress(EMPTY_ATTEMPT_PROGRESS)
       return
     }
+    if (outcome.state === 'paused') {
+      setPausedInfo({
+        next: outcome.next,
+        expiresAt: outcome.expiresAt,
+        completedSteps: outcome.completedSteps,
+        vagueMessage,
+      })
+      return
+    }
     if (outcome.state === 'failed') {
       // 260707-lyq (P4 Wave 2): journal-sourced failure — the server's REAL
       // error_message, surfaced within ~1 tick instead of the 6-minute
@@ -945,6 +961,22 @@ export function CaptureRecorder({
     if (entry) addBackgroundGeneration(entry)
     failAt('generating', t('This is taking longer than usual. It keeps generating in the background and we will let you know when it is ready.'))
   }, [onComplete, projectId, router, t, failAt, stepToStageKey, backgroundEntry])
+
+  // Credits plan 2026-11-20: credits bought from the paused panel. The server
+  // resumes once the grant reaches the paused run, so keep watching: a tick
+  // that still reads "paused" right after the buy is the grant in flight.
+  const handleResumeAfterPurchase = useCallback(async () => {
+    const vague = pausedInfo?.vagueMessage ?? ''
+    setPausedInfo(null)
+    setStage('generating')
+    let outcome = await watchOutcome()
+    for (let i = 0; i < 24 && outcome.state === 'paused'; i++) {
+      await new Promise((r) => setTimeout(r, 2500))
+      if (abortControllerRef.current.signal.aborted) return
+      outcome = await watchOutcome()
+    }
+    handleEstimateOutcome(outcome, vague)
+  }, [pausedInfo, watchOutcome, handleEstimateOutcome])
 
   // QUICK-psh-02: the needs-details panel's "Record again" action — dismisses
   // the panel and reveals the (already-reset) recorder UI.
@@ -1660,7 +1692,17 @@ export function CaptureRecorder({
           {/* 260707-o7a: real journal-driven progress — segments only advance on
               journal succeeded events (attemptProgress via handleStageProgress);
               medians make the in-segment fill an honest elapsed-vs-typical read. */}
-          {!failedAt && (
+          {!failedAt && pausedInfo && (
+            <CapturePaused
+              next={pausedInfo.next}
+              completedSteps={pausedInfo.completedSteps}
+              expiresAt={pausedInfo.expiresAt}
+              hasAudio={activeMode === 'audio' || !!audioBlob}
+              hasPhotos={uploadedPhotos.length > 0}
+              onPurchased={() => void handleResumeAfterPurchase()}
+            />
+          )}
+          {!failedAt && !pausedInfo && (
             <CaptureProcessingOverlay
               layout="popup"
               stage={stage}
@@ -1695,7 +1737,17 @@ export function CaptureRecorder({
         // checklist as the popup, in place of the old four-dot stepper.
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md space-y-6">
-            {!failedAt && !needsDetailsInfo && (
+            {!failedAt && pausedInfo && (
+              <CapturePaused
+                next={pausedInfo.next}
+                completedSteps={pausedInfo.completedSteps}
+                expiresAt={pausedInfo.expiresAt}
+                hasAudio={activeMode === 'audio' || !!audioBlob}
+                hasPhotos={uploadedPhotos.length > 0}
+                onPurchased={() => void handleResumeAfterPurchase()}
+              />
+            )}
+            {!failedAt && !needsDetailsInfo && !pausedInfo && (
               <CaptureProcessingOverlay
                 layout="inline"
                 stage={stage}

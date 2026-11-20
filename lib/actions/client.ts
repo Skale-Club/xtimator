@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import type { ClientFormValues } from '@/lib/schemas/client'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { assertWritable } from '@/lib/demo/guard'
-import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
+import { billingEditDenied } from '@/lib/billing/access-guard'
 import { serverStorage } from '@/lib/storage/server'
 import { storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
@@ -32,10 +32,11 @@ async function getAuthContext(kind: 'create' | 'edit' = 'edit') {
   const denied = await assertWritable()
   if (denied) return { ...denied, code: undefined }
 
-  const billingDenied =
-    kind === 'create'
-      ? await billingCreateDenied(company.id)
-      : await billingEditDenied(company.id)
+  // Credits plan 2026-11-20: a client costs no credits, so creating one is
+  // refused only while the app is read-only (paywalled), like an edit. `kind`
+  // is kept for the callers.
+  void kind
+  const billingDenied = await billingEditDenied(company.id)
   if (billingDenied) return billingDenied
 
   return { supabase, company }

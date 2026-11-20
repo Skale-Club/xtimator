@@ -10,6 +10,7 @@ import { ClientPicker } from '@/components/clients/client-picker'
 import { formatMoney } from '@/lib/money/currency'
 import { formatDate } from '@/lib/utils/format-date'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { pausedHref } from '@/components/billing/paused-estimate-sheet'
 import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
@@ -201,6 +202,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             tabIndex={-1}
           />
           <span className="font-medium hover:underline">{project.name}</span>
+          {project.status === 'awaiting_credits' && <PausedForCreditsBadge project={project} />}
           <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
@@ -384,6 +386,7 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="min-w-0 truncate font-medium">{project.name}</span>
+          {project.status === 'awaiting_credits' && <PausedForCreditsBadge project={project} />}
           <ProjectGeneratingBadge projectId={project.id} />
           <ProjectPaidBadge project={project} />
         </div>
@@ -417,5 +420,23 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
         onCreateNew={onCreateNew}
       />
     </div>
+  )
+}
+
+/** Credits plan 2026-11-20: the project's capture waits for a top-up; opens the paused sheet. */
+function PausedForCreditsBadge({ project }: { project: { id: string; paused_attempt_id?: string } }) {
+  const { t } = useTranslation()
+  const href = project.paused_attempt_id
+    ? pausedHref(project.id, project.paused_attempt_id)
+    : `/projects/${project.id}`
+  return (
+    <Link
+      href={href}
+      data-testid="paused-for-credits-badge"
+      onClick={(e) => e.stopPropagation()}
+      className="relative z-10 ml-2 inline-flex shrink-0 items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-500 hover:bg-amber-500/15"
+    >
+      {t('Paused: out of credits')}
+    </Link>
   )
 }

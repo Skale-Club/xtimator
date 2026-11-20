@@ -17,6 +17,13 @@ export const EVENT_WHATSAPP_PROCESS = 'whatsapp/process.requested' as const
  * whatsAppIntentRouterJob runs the intent-router graph off the webhook ack path.
  */
 export const EVENT_WHATSAPP_INTENT = 'whatsapp/intent.requested' as const
+/**
+ * Credits plan 2026-11-20: a company received credits (a top-up, the monthly
+ * grant, a subscription start, an admin adjustment). Runs paused for credits
+ * (lib/inngest/credit-pause.ts) wait for it and carry on.
+ */
+export const EVENT_CREDITS_GRANTED = 'billing/credits.granted' as const
+export type CreditsGrantedPayload = { companyId: string; credits: number; source: string }
 
 export type EstimateGeneratePayload = {
   /**

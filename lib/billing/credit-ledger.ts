@@ -399,6 +399,26 @@ export async function notifyLowCreditBalance(params: {
  */
 export type CreditLotSource = 'signup' | 'monthly' | 'topup' | 'adjust'
 
+/**
+ * Credits plan 2026-11-20: tell Inngest the company has credits again, so any
+ * run paused for credits (lib/inngest/credit-pause.ts) carries on. Fire and
+ * forget: a lost event only means the pause waits for the next grant or the
+ * owner's retry, and it must never fail the grant that triggered it.
+ */
+function announceCreditsGranted(companyId: string, credits: number, source: string): void {
+  void (async () => {
+    try {
+      const [{ inngest }, { EVENT_CREDITS_GRANTED }] = await Promise.all([
+        import('@/lib/inngest/client'),
+        import('@/lib/inngest/events'),
+      ])
+      await inngest.send({ name: EVENT_CREDITS_GRANTED, data: { companyId, credits, source } })
+    } catch (err) {
+      console.warn('[credits] credits.granted event not sent:', err instanceof Error ? err.message : err)
+    }
+  })()
+}
+
 export async function grantCredits(input: {
   companyId: string
   credits: number
@@ -436,7 +456,9 @@ export async function grantCredits(input: {
     const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
       | { applied?: boolean }
       | undefined
-    return { applied: Boolean(result?.applied) }
+    const applied = Boolean(result?.applied)
+    if (applied) announceCreditsGranted(input.companyId, input.credits, input.source)
+    return { applied }
   } catch (err) {
     console.warn('[grantCredits] swallowed write failure:', err)
     notifyCreditLedgerWriteFailed(input.companyId, 'grantCredits', err)
@@ -586,7 +608,9 @@ export async function grantMonthlyLot(input: {
     const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
       | { applied?: boolean }
       | undefined
-    return { applied: Boolean(result?.applied) }
+    const applied = Boolean(result?.applied)
+    if (applied) announceCreditsGranted(input.companyId, input.credits, 'monthly')
+    return { applied }
   } catch (err) {
     console.warn('[grantMonthlyLot] swallowed write failure:', err)
     notifyCreditLedgerWriteFailed(input.companyId, 'grantMonthlyLot', err)

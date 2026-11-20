@@ -150,9 +150,21 @@ export async function getAccessState(
 }
 
 /**
- * Gate for CREATING anything (estimate, project, client, AI op). Refused when
- * the company is paywalled / out of credits, or when its positive balance is
- * still below the op's estimated cost.
+ * Credits plan 2026-11-20: what a positive balance must reach before an op may
+ * START. A live subscriber (whose empty balance means `out_of_credits`) starts
+ * with any positive balance - an estimate's cost varies, and a run that runs
+ * dry pauses between steps until a top-up (lib/inngest/credit-pause.ts). A
+ * non-subscriber keeps the op's configured entry gate (the free tier's
+ * calibration).
+ */
+function startGate(r: Resolved, estimatedCredits: number): number {
+  return r.blocked === 'out_of_credits' ? Math.min(estimatedCredits, 1) : estimatedCredits
+}
+
+/**
+ * Gate for STARTING an AI op (an estimate, an AI edit, chat). Refused when the
+ * company is paywalled / out of credits, or when a non-subscriber's positive
+ * balance is still below the op's estimated cost.
  */
 export async function assertCanCreate(
   companyId: string,
@@ -161,8 +173,21 @@ export async function assertCanCreate(
 ): Promise<GateResult> {
   const r = await resolve(companyId, client)
   if (r.state !== 'active') return { ok: false, code: r.state }
-  if (!r.exempt && r.balance < estimatedCredits) return { ok: false, code: r.blocked }
+  if (!r.exempt && r.balance < startGate(r, estimatedCredits)) return { ok: false, code: r.blocked }
   return { ok: true }
+}
+
+/**
+ * Credits plan 2026-11-20: may a run that already started take its NEXT step?
+ * Any positive spendable balance (or exempt / enforcement off). The step that
+ * starts always finishes; a run that finds none pauses until credits arrive.
+ */
+export async function canContinueRun(
+  companyId: string,
+  client?: SupabaseClient
+): Promise<{ ok: boolean; code: BillingBlockCode; balance: number }> {
+  const r = await resolve(companyId, client)
+  return { ok: r.exempt || r.state === 'active', code: r.blocked, balance: r.balance }
 }
 
 /**
@@ -178,7 +203,7 @@ export async function resolveSpendable(
   client?: SupabaseClient
 ): Promise<{ ok: boolean; balance: number; exempt: boolean; enforcement: boolean }> {
   const r = await resolve(companyId, client)
-  const ok = r.exempt || (r.state === 'active' && r.balance >= estimatedCredits)
+  const ok = r.exempt || (r.state === 'active' && r.balance >= startGate(r, estimatedCredits))
   return { ok, balance: r.balance, exempt: r.exempt, enforcement: r.enforcement }
 }
 
