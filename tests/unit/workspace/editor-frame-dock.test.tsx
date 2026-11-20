@@ -56,6 +56,18 @@ describe('EditorDock', () => {
     expect((screen.getByTestId('edit-with-ai-btn') as HTMLButtonElement).disabled).toBe(true)
   })
 
+  // Notices review stage 1: unanswered AI questions show as a small counter.
+  it('Edit with AI shows the unanswered-question counter, and none at zero or when locked', () => {
+    renderDock({ aiBadge: 2 })
+    expect(screen.getByTestId('edit-with-ai-badge').textContent).toBe('2')
+    cleanup()
+    renderDock({ aiBadge: 0 })
+    expect(screen.queryByTestId('edit-with-ai-badge')).toBeNull()
+    cleanup()
+    renderDock({ aiBadge: 3, locked: true })
+    expect(screen.queryByTestId('edit-with-ai-badge')).toBeNull()
+  })
+
   it('has no Options button without onOpenSettings', () => {
     renderDock()
     expect(screen.queryByRole('button', { name: 'Options' })).toBeNull()

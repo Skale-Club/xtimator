@@ -24,7 +24,8 @@ import { useEstimateReducer, type EstimateEditorState } from './use-estimate-red
 import { EstimateFloatingActions, type EstimateViewMode } from './estimate-floating-actions'
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { EstimateDebugDialog } from './estimate-debug-dialog'
-import { OwnerReviewSummary } from './owner-review-summary'
+import { useReviewSummary } from './use-review-summary'
+import type { ReadyToSendReview } from '@/components/workspace/send/ready-to-send-check'
 import { editEstimateHref } from '@/lib/estimate/creation-href'
 import {
   registerRefineEditor,
@@ -235,14 +236,43 @@ interface EstimateEditorProps {
   onOpenPhotos?: () => void
   /** Quick-260525-qbc: server-fetched price book for description autocomplete. */
   priceBookItems: PriceBookItem[]
-  /** Opens the send dialog. Auto-saves first if there are unsaved changes. */
-  onSend?: () => void
+  /**
+   * Opens the send dialog. Auto-saves first if there are unsaved changes.
+   * Notices review stage 1: hands over the "Ready to send?" snapshot and the
+   * actions its rows take (they need the editor).
+   */
+  onSend?: (check?: SendCheck) => void
   /**
    * Server-resolved platform-admin flag (never derived on the client). When true the
    * floating bar shows the discreet "Estimate debug" button; ai_meta is only present
    * on the estimate for admins.
    */
   isPlatformAdmin?: boolean
+}
+
+/** What the Share sheet's "Ready to send?" card shows, and the actions its rows take. */
+export interface SendCheck {
+  review: ReadyToSendReview
+  onFixPrices: () => void
+  onAnswerQuestions: () => void
+  onAddClient: () => void
+}
+
+/**
+ * Scroll to the first row that needs a price (or a price check) and open it.
+ * The desktop table and the phone list are both in the DOM (CSS picks one),
+ * so take the first VISIBLE mark. Waits for the Share sheet to finish closing,
+ * which hands focus back to its trigger, before taking focus.
+ */
+function focusFirstReviewRow() {
+  window.setTimeout(() => {
+    const target = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="row-price-slot"], [data-testid="row-ai-price-mark"]'),
+    ).find((el) => el.offsetParent !== null)
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    target.click()
+  }, 450)
 }
 
 export function EstimateEditor({
@@ -424,6 +454,8 @@ export function EstimateEditor({
   // banner above explains why. An out-of-credits Pro account may still edit.
   const billingReadOnly = useBillingState() === 'paywalled'
   const isContentReadOnly = !isCurrent || locked || notCurrentByServer || billingReadOnly
+  // Notices review stage 1: what still needs a look (rows, AI questions).
+  const review = useReviewSummary(state.id, state.sections, state.owner_review?.questions)
   const gearDisabled = !isCurrent
   // Page view's edit chrome (menus, popovers) speaks the app language.
   const editLabels = Object.fromEntries(
@@ -638,6 +670,10 @@ export function EstimateEditor({
         },
         flush: () => refineHandlersRef.current.flush(),
         apply: (refined) => refineHandlersRef.current.apply(refined),
+        review: () => ({
+          questions: stateRef.current.owner_review?.questions ?? [],
+          assumptions: stateRef.current.owner_review?.assumptions ?? [],
+        }),
       }),
     []
   )
@@ -772,8 +808,26 @@ export function EstimateEditor({
 
   const handleSend = useCallback(async () => {
     if (!isContentReadOnly && state.isDirty) await runSave()
-    onSend?.()
-  }, [isContentReadOnly, state.isDirty, runSave, onSend])
+    if (isContentReadOnly) {
+      onSend?.()
+      return
+    }
+    const questions = state.owner_review?.questions ?? []
+    onSend?.({
+      review: {
+        unpriced: review.unpriced,
+        priceChecks: review.priceChecks,
+        pendingQuestions: review.pendingQuestions,
+        hadQuestions: questions.length > 0,
+        hasClient: !!client?.name?.trim(),
+      },
+      // Close the sheet (the card does it) and land on the first row to fix.
+      onFixPrices: () => focusFirstReviewRow(),
+      onAnswerQuestions: () =>
+        router.push(editEstimateHref(window.location.search, projectId), { scroll: false }),
+      onAddClient: () => setSettingsOpen(true),
+    })
+  }, [isContentReadOnly, state.isDirty, state.owner_review, runSave, onSend, review, client, router, projectId])
 
   // Owner records the client's answer in-app. The server action returns the
   // DB-restamped updated_at; SET_CLIENT_RESPONSE adopts it so the next save
@@ -1055,30 +1109,12 @@ export function EstimateEditor({
     />
   )
 
-  const ownerReview = (() => {
-    const items = state.sections.flatMap(section => section.items).filter(item => item.description.trim())
-    const lowConfidenceLines = items.filter(item => !item.isManuallyEdited && item.confidence === 'low').length
-    const unpricedLines = items.filter(item => !Number.isFinite(item.unit_price) || item.unit_price <= 0).length
-    const saved = state.owner_review
-    if (!saved && !lowConfidenceLines && !unpricedLines) return null
-    return {
-      questions: saved?.questions ?? [], assumptions: saved?.assumptions ?? [],
-      needsReview: !!saved?.needsReview || !!lowConfidenceLines || !!unpricedLines,
-      lowConfidenceLines, unpricedLines,
-    }
-  })()
-
   return (
     <div className="space-y-3">
-      {!isContentReadOnly && (
-        <OwnerReviewSummary
-          review={ownerReview}
-          onReview={() => router.push(editEstimateHref(
-            window.location.search, projectId,
-            ownerReview?.questions.map(q => `Q: ${q}\nA: `).join('\n\n'),
-          ), { scroll: false })}
-        />
-      )}
+      {/* Notices review stage 1: the "Review before sending" box that sat here is
+          gone. Its parts live where the action is: marks on the rows, the AI's
+          questions in "Edit with AI" (counter on the dock), and a "Ready to
+          send?" check in the Share sheet. */}
       {showContract && (
         <ContractCard
           estimateId={state.id}
@@ -1266,6 +1302,7 @@ export function EstimateEditor({
             onOpenDebug={isPlatformAdmin ? () => setDebugOpen(true) : undefined}
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
+            aiBadge={isContentReadOnly ? 0 : review.pendingQuestions.length}
             primary={
               showContract
                 ? {

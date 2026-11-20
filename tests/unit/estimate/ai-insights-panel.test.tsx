@@ -15,7 +15,6 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 }))
 
 import { AiInsightsSections } from '@/components/workspace/estimate/ai-insights-panel'
-import { ConfidenceDot, isConfidenceLevel } from '@/components/workspace/estimate/confidence-dot'
 import { editEstimateHref } from '@/components/projects/new-project-dialog'
 import type { AiMeta } from '@/lib/estimate/ai-meta'
 
@@ -70,40 +69,5 @@ describe('AiInsightsSections (platform-admin debug dialog content)', () => {
       ),
       { scroll: false },
     )
-  })
-})
-
-describe('ConfidenceDot', () => {
-  it.each([
-    ['high', 'bg-emerald-500'],
-    ['medium', 'bg-amber-500'],
-    ['low', 'bg-red-500'],
-  ] as const)('%s uses %s and exposes the basis on hover', (level, color) => {
-    render(<ConfidenceDot confidence={level} basis="12 x 14 ft room stated in the audio" />)
-    const dot = screen.getByTestId('confidence-dot')
-    expect(dot.className).toContain(color)
-    expect(dot).toHaveAttribute('data-confidence', level)
-    expect(dot.getAttribute('title')).toContain('12 x 14 ft room stated in the audio')
-    expect(dot.getAttribute('aria-label')).toBe(dot.getAttribute('title'))
-  })
-
-  it('renders nothing without a valid confidence', () => {
-    const { container, rerender } = render(<ConfidenceDot confidence={null} />)
-    expect(container).toBeEmptyDOMElement()
-    rerender(<ConfidenceDot confidence={undefined} basis="x" />)
-    expect(container).toBeEmptyDOMElement()
-    rerender(<ConfidenceDot confidence={'certain' as never} />)
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it('works without a basis', () => {
-    render(<ConfidenceDot confidence="low" />)
-    expect(screen.getByTestId('confidence-dot').getAttribute('title')).toBe('AI confidence: low, check this line')
-  })
-
-  it('isConfidenceLevel', () => {
-    expect(isConfidenceLevel('low')).toBe(true)
-    expect(isConfidenceLevel('LOW')).toBe(false)
-    expect(isConfidenceLevel(null)).toBe(false)
   })
 })

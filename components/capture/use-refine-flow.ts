@@ -14,6 +14,7 @@ import { showBillingBlockToast } from '@/lib/billing/block-toast'
 import { requestRefine, type RefineInput } from '@/lib/capture/refine-client'
 import { mergeRefinement, sectionsSubtotal, type MergeCurrentContent, type RefineDiff } from '@/lib/estimate/refine-merge'
 import { getRefineEditor, storePendingRefinement } from '@/lib/estimate/refine-bridge'
+import { readTwaCookieClient } from '@/lib/pwa/twa-signal'
 import type { EditorSection, RefinementPayload } from '@/components/workspace/estimate/use-estimate-reducer'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -68,6 +69,9 @@ export function useRefineFlow({ estimateId, projectId, onDone, onApplied }: Opti
   const router = useRouter()
   const [phase, setPhase] = useState<RefinePhase>('idle')
   const [review, setReview] = useState<RefineReviewState | null>(null)
+  // Notices review stage 1: out of credits keeps the request (answers, voice
+  // note, photos) so the popup can offer a top-up in place and send it again.
+  const [creditBlocked, setCreditBlocked] = useState<RefineInput | null>(null)
   const busyRef = useRef(false)
 
   const submit = useCallback(
@@ -92,6 +96,11 @@ export function useRefineFlow({ estimateId, projectId, onDone, onApplied }: Opti
         setPhase('refining')
         const result = await requestRefine(estimateId, input)
         if (!result.ok) {
+          if (result.billing === 'out_of_credits' && !readTwaCookieClient()) {
+            setCreditBlocked(input)
+            setPhase('idle')
+            return
+          }
           if (result.billing && showBillingBlockToast(result.billing, router, t)) {
             setPhase('idle')
             return
@@ -188,5 +197,24 @@ export function useRefineFlow({ estimateId, projectId, onDone, onApplied }: Opti
     onDone()
   }, [onDone])
 
-  return { phase, review, submit, apply, discard }
+  /** Credits arrived: send the kept request again. */
+  const retryAfterPurchase = useCallback(async (): Promise<void> => {
+    const input = creditBlocked
+    if (!input) return
+    setCreditBlocked(null)
+    await submit(input)
+  }, [creditBlocked, submit])
+
+  const dismissCreditBlock = useCallback(() => setCreditBlocked(null), [])
+
+  return {
+    phase,
+    review,
+    submit,
+    apply,
+    discard,
+    creditBlocked: creditBlocked !== null,
+    retryAfterPurchase,
+    dismissCreditBlock,
+  }
 }

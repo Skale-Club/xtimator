@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, act, fireEvent, within } from '@testing-library/react'
 import { EstimateEditor } from '@/components/workspace/estimate/estimate-editor'
+import { getRefineEditor } from '@/lib/estimate/refine-bridge'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
 import type { DocumentCompany, CompanyDefaults } from '@/components/workspace/estimate/estimate-document'
 
@@ -180,19 +181,15 @@ describe('EstimateEditor - AI insights (SEED-057 G)', () => {
     expect(screen.queryByText('Review before sending')).toBeNull()
   })
 
-  it('shows the sanitized review to an ordinary owner and opens the question-prefilled edit flow', () => {
+  it('notices review stage 1: no "Review before sending" box; the questions reach "Edit with AI" through the bridge', () => {
     renderEditor(buildEstimate({ owner_review: OWNER_REVIEW }), false)
-    const disclosure = screen.getByText('Review before sending').closest('details')!
-    disclosure.open = true
-
-    expect(screen.getByText('Is trim included?')).toBeTruthy()
-    expect(screen.getByText('Owner provides paint.')).toBeTruthy()
+    expect(screen.queryByText('Review before sending')).toBeNull()
+    expect(screen.queryByText('Is trim included?')).toBeNull()
     expect(screen.queryByTestId('estimate-debug-dialog')).toBeNull()
-    fireEvent.click(within(disclosure).getByRole('button', { name: 'Edit with AI' }))
 
-    expect(routerPush).toHaveBeenCalledOnce()
-    const url = new URL(routerPush.mock.calls[0][0], 'https://example.test/projects/proj-1')
-    expect(url.searchParams.get('refinePrefill')).toBe('Q: Is trim included?\nA: ')
+    const review = getRefineEditor('est-1')?.review?.()
+    expect(review?.questions).toEqual(['Is trim included?'])
+    expect(review?.assumptions).toEqual(['Owner provides paint.'])
   })
 
   it.each([
@@ -234,7 +231,6 @@ describe('EstimateEditor - AI insights (SEED-057 G)', () => {
 
   it('keeps both the sanitized review and raw metadata outside the document and page preview', () => {
     renderEditor(buildEstimate({ owner_review: OWNER_REVIEW, ai_meta: AI_META }), true)
-    expect(screen.getByText('Review before sending')).toBeTruthy()
     expect(documentProps).toHaveBeenCalled()
 
     const calls = mockSetSlot.mock.calls

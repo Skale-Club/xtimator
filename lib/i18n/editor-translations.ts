@@ -40,6 +40,7 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Options': 'Ajustes',
     'AI edit': 'Editar IA',
     'Edit with AI': 'Editar com IA',
+    '{count} AI questions to answer': '{count} perguntas da IA para responder',
     'Width': 'Largura',
     'Page': 'Página',
     // Status sheet
@@ -115,6 +116,7 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Options': 'Ajustes',
     'AI edit': 'Editar IA',
     'Edit with AI': 'Editar con IA',
+    '{count} AI questions to answer': '{count} preguntas de la IA por responder',
     'Width': 'Ancho',
     'Page': 'Página',
     // Status sheet

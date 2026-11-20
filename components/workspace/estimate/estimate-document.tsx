@@ -4,7 +4,8 @@ import Image from 'next/image'
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { ConfidenceDot, isConfidenceLevel } from './confidence-dot'
+import { AiPriceMark, RowReviewBar, UnpricedSlot } from './row-review-marks'
+import { isUnpriced, needsPriceCheck } from '@/lib/estimate/review-state'
 import {
   DndContext,
   closestCenter,
@@ -344,10 +345,22 @@ function SortableDocumentItemRow({
 
   const showAddDiscount = (item.discount ?? 0) === 0 && !isDiscountDraft
   const showRemoveDiscount = (item.discount ?? 0) !== 0 || isDiscountDraft
-  // SEED-057 G: the AI's confidence dot is for the owner's EDIT row only, and only
-  // while the line is still the AI's (a hand-edited line has no AI confidence).
-  const showConfidenceDot =
-    !item.isManuallyEdited && item.price_source != null && isConfidenceLevel(item.confidence)
+  // Review marks (owner's EDIT row only): an empty price gets the amber bar and
+  // the "+ Add price" slot; an AI price the owner has not confirmed gets a sparkle.
+  const unpriced = isUnpriced(item)
+  const aiCheck = needsPriceCheck(item)
+  const priceCellRef = useRef<HTMLTableCellElement>(null)
+  // The empty price shows the slot until the owner taps it; the tap swaps in the
+  // normal price field and focuses it.
+  const [editingPrice, setEditingPrice] = useState(false)
+  const focusPrice = () => {
+    const input = priceCellRef.current?.querySelector<HTMLInputElement>('input')
+    input?.focus()
+    input?.select()
+  }
+  useEffect(() => {
+    if (editingPrice) focusPrice()
+  }, [editingPrice])
 
   return (
     <tr
@@ -377,7 +390,8 @@ function SortableDocumentItemRow({
       {/* drag handle + row-actions kebab — the shared edit gutter: handle at
           4px, ⋮ at 20px, text from 40px (= the document's sm:px-10 margin).
           The section header and "Add item" use the same columns. */}
-      <td className="py-1.5 pl-1 pr-0 w-9 align-middle">
+      <td className="py-1.5 pl-1 pr-0 w-9 align-middle relative">
+        {unpriced && <RowReviewBar />}
         {/* Handle and menu show on row hover (mouse) or keyboard focus; on
             touch screens, which cannot hover, they stay visible. */}
         <div className="flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100">
@@ -436,7 +450,7 @@ function SortableDocumentItemRow({
         </div>
       </td>
       {/* description — pl-0 + the input's own p-1 puts the text at 40px */}
-      <td data-desc-cell className={showConfidenceDot ? 'py-1.5 pl-0 pr-1 align-middle relative' : 'py-1.5 pl-0 pr-1 align-middle'}>
+      <td data-desc-cell className="py-1.5 pl-0 pr-1 align-middle">
         <PriceBookCombobox
           // Wraps and grows instead of cutting a long description at one line.
           multiline
@@ -464,7 +478,6 @@ function SortableDocumentItemRow({
           className={EDIT_DESC_FIELD_CLS}
           noMatchesLabel={L.noMatches}
         />
-        {showConfidenceDot && <ConfidenceDot confidence={item.confidence} basis={item.basis} />}
       </td>
       {/* qty: w-20 fits 5 digits ("12500"); w-16 cut "5000" to "500" (QA 2026-11-20) */}
       <td className={`${EDIT_CELL} w-20`}>
@@ -514,22 +527,39 @@ function SortableDocumentItemRow({
         </Select>
       </td>
       {/* unit price */}
-      <td className={`${EDIT_CELL} w-28`}>
-        <MoneyInput
-          symbolPlacement="beside"
-          value={item.unit_price}
-          currencyCode={currencyCode}
-          onValueChange={(value) =>
-            dispatch({
-              type: 'UPDATE_ITEM',
-              sectionId,
-              itemId: item.id,
-              field: 'unit_price',
-              value,
-            })
-          }
-          className={EDIT_FIELD_CLS}
-        />
+      <td ref={priceCellRef} className={`${EDIT_CELL} w-28`}>
+        <div className="flex items-center justify-end gap-1.5">
+          {aiCheck && (
+            <AiPriceMark
+              variant="popover"
+              description={item.description}
+              price={item.unit_price}
+              currencyCode={currencyCode}
+              onConfirm={() => dispatch({ type: 'CONFIRM_ITEM_PRICE', sectionId, itemId: item.id })}
+              onAdjust={focusPrice}
+            />
+          )}
+          {unpriced && !editingPrice ? (
+            <UnpricedSlot onClick={() => setEditingPrice(true)} />
+          ) : (
+            <MoneyInput
+              symbolPlacement="beside"
+              value={item.unit_price}
+              currencyCode={currencyCode}
+              onBlur={() => setEditingPrice(false)}
+              onValueChange={(value) =>
+                dispatch({
+                  type: 'UPDATE_ITEM',
+                  sectionId,
+                  itemId: item.id,
+                  field: 'unit_price',
+                  value,
+                })
+              }
+              className={EDIT_FIELD_CLS}
+            />
+          )}
+        </div>
       </td>
       {/* line discount + taxable — Disc. is hidden until the row has (or is
           drafting) a discount (see DocumentSectionBlock's showDiscountCol). */}
@@ -591,11 +621,13 @@ function SortableItemSummaryRow({
   currencyCode,
   onOpen,
   showTaxState,
+  onConfirmPrice,
 }: {
   item: DocumentItem
   currencyCode: string
   onOpen: () => void
   showTaxState?: boolean
+  onConfirmPrice: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id })
@@ -613,6 +645,8 @@ function SortableItemSummaryRow({
       currencyCode={currencyCode}
       onOpen={onOpen}
       showTaxState={showTaxState}
+      reviewMarks
+      onConfirmPrice={onConfirmPrice}
       dragProps={{ ...attributes, ...listeners }}
       sortableRef={setNodeRef}
       style={style}
@@ -850,6 +884,9 @@ function DocumentSectionBlock({
                   currencyCode={currencyCode}
                   onOpen={() => onOpenItem?.(section.id, item.id)}
                   showTaxState={showTaxCol}
+                  onConfirmPrice={() =>
+                    dispatch({ type: 'CONFIRM_ITEM_PRICE', sectionId: section.id, itemId: item.id })
+                  }
                 />
               ))}
             </SortableContext>

@@ -129,6 +129,10 @@ export type EstimateAction =
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
   | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable'; value: string | number | boolean | null }
   | { type: 'APPLY_PRICE_BOOK_ITEM'; sectionId: string; itemId: string; item: { name: string; unit: string | null; unit_price: number } }
+  // The owner confirms an AI-suggested price as it is: the line stops being the
+  // AI's (isManuallyEdited, confidence cleared) without touching the price.
+  // Saving then stores price_source = null, so the review mark stays gone.
+  | { type: 'CONFIRM_ITEM_PRICE'; sectionId: string; itemId: string }
   // itemId/description: the paginated view creates a line already described
   // (an empty line is hidden there, as in the PDF), and needs its id to apply
   // a price-book pick right after.
@@ -512,6 +516,24 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
       }
       return recalculate(updated)
     }
+
+    case 'CONFIRM_ITEM_PRICE':
+      return {
+        ...state,
+        sections: state.sections.map((s) =>
+          s.id !== action.sectionId
+            ? s
+            : {
+                ...s,
+                items: s.items.map((i) =>
+                  i.id === action.itemId
+                    ? { ...i, isManuallyEdited: true, confidence: null, basis: null }
+                    : i
+                ),
+              }
+        ),
+        ...dirty(state),
+      }
 
     case 'ADD_ITEM': {
       const updated = {

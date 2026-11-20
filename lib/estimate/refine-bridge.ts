@@ -38,6 +38,11 @@ export interface RefineEditorHandle {
   flush(): Promise<RefineFlushResult>
   /** Dispatch APPLY_REFINEMENT with exactly `refined`, then save. */
   apply(refined: RefinementPayload): Promise<RefineApplyResult>
+  /**
+   * Notices review stage 1: the AI's open questions and assumptions for this
+   * draft, shown as question cards in the popup. Optional: absent = none.
+   */
+  review?(): { questions: string[]; assumptions: string[] }
 }
 
 let activeEditor: RefineEditorHandle | null = null

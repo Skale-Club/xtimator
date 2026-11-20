@@ -33,6 +33,8 @@ import { formatCurrency } from '@/lib/utils/format'
 import { relativeTime } from '@/lib/utils/relative-time'
 import { getInitials } from '@/lib/utils/avatar'
 import { cn } from '@/lib/utils'
+import { ReadyToSendCheck, type ReadyToSendReview } from './ready-to-send-check'
+import { isEstimateLocked } from '@/lib/estimate/lock'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
@@ -59,6 +61,12 @@ export interface SendHubDialogProps {
   viewCount?: number
   /** ISO time of the last open (same value as the Insights chip). */
   lastViewedAt?: string | null
+  /** What still needs the owner's eye (drives the "Ready to send?" card). Card hidden when absent. */
+  review?: ReadyToSendReview | null
+  /** Closes the sheet and focuses the first price problem. */
+  onFixPrices?: () => void
+  onAnswerQuestions?: () => void
+  onAddClient?: () => void
 }
 
 // Primary / secondary / text buttons of the sheet (blue palette of the
@@ -96,6 +104,10 @@ export function SendHubDialog({
   estimateTemplate,
   viewCount,
   lastViewedAt,
+  review,
+  onFixPrices,
+  onAnswerQuestions,
+  onAddClient,
 }: SendHubDialogProps) {
   const { t } = useTranslation()
   const [urlCopied, setUrlCopied] = useState(false)
@@ -220,6 +232,17 @@ export function SendHubDialog({
     status = { text: t('Not opened yet'), tone: 'idle' }
   }
 
+  // The checklist is for a draft: hidden once sent or answered (locked).
+  const showReview = !!review && !estimate.sent_at && !isEstimateLocked(estimate)
+  // Fix actions hand over to the editor, so the sheet closes first.
+  const closeThen = (fn?: () => void) =>
+    fn
+      ? () => {
+          onOpenChange(false)
+          fn()
+        }
+      : undefined
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <BottomSheetContent className="nx-surface" desktopClassName="sm:max-w-[580px]">
@@ -252,6 +275,15 @@ export function SendHubDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-[22px] overflow-y-auto px-5 pt-3.5 pb-5 sm:px-6 sm:pt-4 sm:pb-6">
+          {showReview && review && (
+            <ReadyToSendCheck
+              review={review}
+              onFixPrices={closeThen(onFixPrices)}
+              onAnswerQuestions={closeThen(onAnswerQuestions)}
+              onAddClient={closeThen(onAddClient)}
+            />
+          )}
+
           {/* --- Block 1: the online estimate --- */}
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">

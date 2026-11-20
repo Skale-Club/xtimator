@@ -11,7 +11,7 @@ import type { InvoiceRow } from '@/lib/queries/invoice'
 import type { Recording } from '@/lib/queries/recording'
 import type { Photo } from '@/lib/queries/photo'
 import { Skeleton } from '@/components/ui/skeleton'
-import { EstimateEditor } from './estimate-editor'
+import { EstimateEditor, type SendCheck } from './estimate-editor'
 import { SendHubDialog } from '@/components/workspace/send/send-hub-dialog'
 import {
   popStoredClientSuggestion,
@@ -119,6 +119,8 @@ export function EstimateTab({
   isPlatformAdmin = false,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
+  // Notices review stage 1: the editor's "Ready to send?" snapshot for the Share sheet.
+  const [sendCheck, setSendCheck] = useState<SendCheck | null>(null)
   const router = useRouter()
   const { t } = useTranslation()
   const searchParams = useSearchParams()
@@ -319,7 +321,10 @@ export function EstimateTab({
           linkClientSlot={linkClientSlot}
           onOpenPhotos={onOpenPhotos}
           priceBookItems={priceBookItems}
-          onSend={() => setSendOpen(true)}
+          onSend={(check) => {
+            setSendCheck(check ?? null)
+            setSendOpen(true)
+          }}
           estimateTemplateId={estimateTemplateId}
           preparedBy={preparedBy}
           isPlatformAdmin={isPlatformAdmin}
@@ -337,6 +342,10 @@ export function EstimateTab({
           estimateTemplate={estimateTemplate}
           viewCount={currentEstimate.view_count}
           lastViewedAt={currentEstimate.last_viewed_at}
+          review={sendCheck?.review ?? null}
+          onFixPrices={sendCheck?.onFixPrices}
+          onAnswerQuestions={sendCheck?.onAnswerQuestions}
+          onAddClient={sendCheck?.onAddClient}
         />
       </>
     )

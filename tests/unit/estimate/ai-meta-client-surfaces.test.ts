@@ -190,6 +190,12 @@ const OWNER_ONLY = [
   /\bopen_questions\b/,
   /\bAiInsightsPanel\b/,
   /\bConfidenceDot\b/,
+  // Notices review stage 1 (2026-11-20): owner-only review marks and questions.
+  /\bneedsPriceCheck\b/,
+  /\b(RowReviewBar|UnpricedSlot|AiPriceMark)\b/,
+  /\bRefineQuestions\b/,
+  /\bReadyToSendCheck\b/,
+  /\buseReviewSummary\b/,
   /\bscope_confidence\b/,
   /\.(confidence|basis)\b(?!\s*:)/,
   /\bitem\.(confidence|basis)\b/,

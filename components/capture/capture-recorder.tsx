@@ -47,6 +47,10 @@ import { EstimateLanguageSelector } from '@/components/estimate/estimate-languag
 import { useRefineFlow } from '@/components/capture/use-refine-flow'
 import { RefineReview } from '@/components/capture/refine-review'
 import { RefineWorking } from '@/components/capture/refine-working'
+import { RefineQuestions, answeredCount, composeRefineInstruction, type RefineQuestionsProps } from '@/components/capture/refine-questions'
+import { getRefineEditor } from '@/lib/estimate/refine-bridge'
+import { openQuestions as openReviewQuestions, readResolvedQuestions, resolveQuestions } from '@/lib/estimate/review-state'
+import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { REFINE_MAX_PHOTOS } from '@/lib/capture/refine-client'
 import {
   AlertDialog,
@@ -359,6 +363,12 @@ export function CaptureRecorder({
   // Multi-modal input state. Lazy-init from the saved draft (if any) so reopening
   // the popup restores the text the user typed before closing it.
   const [descriptionText, setDescriptionText] = useState(() => readDraft(draftKey))
+  // Notices review stage 1: the AI's open questions as answer cards (refine mode).
+  const [reviewQuestions, setReviewQuestions] = useState<{ questions: string[]; assumptions: string[] }>({ questions: [], assumptions: [] })
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [voiceFor, setVoiceFor] = useState<string[]>([])
+  const [skippedQuestions, setSkippedQuestions] = useState<string[]>([])
+  const submittedAnswersRef = useRef<string[]>([])
   const refineMode = !!refineEstimateId
   const refineModeRef = useRef(refineMode)
   refineModeRef.current = refineMode
@@ -987,8 +997,10 @@ export function CaptureRecorder({
 
   // Multi-modal helpers
   const refinePhotoCount = photoItems.filter((i) => i.status === 'done' && i.blob).length
+  const answerCount = refineEstimateId ? answeredCount(reviewQuestions.questions, answers, voiceFor) : 0
   const hasAnyInput =
     !!audioBlob ||
+    answerCount > 0 ||
     descriptionText.trim().length > 0 ||
     (refineMode ? refinePhotoCount > 0 : uploadedPhotos.length > 0)
 
@@ -998,6 +1010,11 @@ export function CaptureRecorder({
     onDone: () => onRefineDone?.(),
     // The instruction was applied: the saved draft text has served its purpose.
     onApplied: () => {
+      // Answered questions leave the list (and the dock counter) for good.
+      if (refineEstimateId && submittedAnswersRef.current.length > 0) {
+        resolveQuestions(refineEstimateId, { answered: submittedAnswersRef.current })
+        submittedAnswersRef.current = []
+      }
       if (typeof window === 'undefined' || !draftKey) return
       try {
         localStorage.removeItem(draftStorageKey(draftKey))
@@ -1351,8 +1368,24 @@ export function CaptureRecorder({
   // preview route; the review step shows the result before anything is applied.
   const handleRefineSubmit = useCallback(async () => {
     const photos = photoItemsRef.current.filter((i) => i.blob).map((i) => i.blob as Blob)
-    await refine.submit({ instruction: descriptionText, audio: audioBlob, photos })
-  }, [refine, descriptionText, audioBlob])
+    const { questions } = reviewQuestions
+    submittedAnswersRef.current = questions.filter((q) => (answers[q] ?? '').trim() || voiceFor.includes(q))
+    const instruction = composeRefineInstruction({ questions, answers, voiceFor, extra: descriptionText })
+    await refine.submit({ instruction, audio: audioBlob, photos })
+  }, [refine, descriptionText, audioBlob, reviewQuestions, answers, voiceFor])
+
+  // Refine mode: read the open questions from the mounted editor (none when the
+  // popup was opened from another page). Answered ones are already gone.
+  useEffect(() => {
+    if (!refineEstimateId) return
+    const review = getRefineEditor(refineEstimateId)?.review?.()
+    if (!review) return
+    const resolved = readResolvedQuestions(refineEstimateId)
+    setReviewQuestions({ questions: openReviewQuestions(review.questions, resolved), assumptions: review.assumptions })
+    setSkippedQuestions(resolved.skipped)
+  }, [refineEstimateId])
+
+
 
   // Explicit, confirmed escape hatch: today's generate behavior (full
   // regeneration, new version). Local refine photos are uploaded first, since
@@ -1495,6 +1528,38 @@ export function CaptureRecorder({
     }
   }, [isRecording, startRecording, stopRecording])
 
+  // A per-question mic starts the popup's one recorder and notes which
+  // questions the take answers. A new take replaces the previous one, so the
+  // questions only it answered go back to unanswered.
+  const handleVoiceAnswer = useCallback((question: string) => {
+    if (isRecording) {
+      setVoiceFor((v) => (v.includes(question) ? v : [...v, question]))
+      return
+    }
+    setVoiceFor((v) => (audioBlob ? [question] : v.includes(question) ? v : [...v, question]))
+    handleToggleRecording()
+  }, [isRecording, audioBlob, handleToggleRecording])
+
+  const handleSkipQuestion = useCallback((question: string) => {
+    setSkippedQuestions((s) => (s.includes(question) ? s : [...s, question]))
+    if (refineEstimateId) resolveQuestions(refineEstimateId, { skipped: [question] })
+  }, [refineEstimateId])
+
+  const refineQuestionsProps: RefineQuestionsProps | null =
+    refineEstimateId && (reviewQuestions.questions.length > 0 || reviewQuestions.assumptions.length > 0)
+      ? {
+          questions: reviewQuestions.questions,
+          assumptions: reviewQuestions.assumptions,
+          answers,
+          onAnswer: (q, a) => setAnswers((prev) => ({ ...prev, [q]: a })),
+          voiceFor,
+          onVoice: handleVoiceAnswer,
+          skipped: skippedQuestions,
+          onSkip: handleSkipQuestion,
+          recording: isRecording,
+        }
+      : null
+
   // Throw the take away: stop the recorder and release the microphone like
   // stopRecording, but flag the take first so recorder.onstop drops it. Unlike
   // stopRecording this leaves `stage` alone (nothing is dispatched).
@@ -1615,10 +1680,21 @@ export function CaptureRecorder({
         <RefineWorking phase={refine.phase === 'saving' ? 'saving' : 'refining'} />
       ) : showRecorderUI ? (
         <>
-          {refineMode && (
+          {refineMode && !refine.creditBlocked && (
             <p className="mx-5 mt-1 rounded-xl bg-primary/10 px-3 py-2.5 text-[13px] text-muted-foreground" data-testid="refine-mode-hint">
-              {t('This will update the current estimate. You review the changes before they are applied.')}
+              {refineQuestionsProps && refineQuestionsProps.questions.length > 0
+                ? t('Answer what you know. The rest can stay as it is.')
+                : t('This will update the current estimate. You review the changes before they are applied.')}
             </p>
+          )}
+          {refineMode && refine.creditBlocked && (
+            <div className="mx-5 mt-1 flex flex-col gap-3" data-testid="refine-credit-block">
+              <p className="rounded-2xl bg-muted px-4 py-3.5 text-[13.5px] leading-snug text-foreground/90">
+                <b className="font-semibold">{t('Your credits ran out.')}</b>{' '}
+                {t('Your answers are kept: top up and the AI picks up where it stopped.')}
+              </p>
+              <BuyCreditsInline ctaVerb="continue" onPurchased={() => void refine.retryAfterPurchase()} />
+            </div>
           )}
           {/* CAPT-03: an unsent recording found on mount (crash, tab close,
               popup reopen) for this project/flow — Resume re-runs the
@@ -1650,7 +1726,10 @@ export function CaptureRecorder({
             progress={progress}
             onToggle={handleToggleRecording}
             onPause={isPaused ? resumeRecording : pauseRecording}
-            onDiscard={discardRecording}
+            onDiscard={() => {
+              discardRecording()
+              if (!audioBlob) setVoiceFor([])
+            }}
             // Multi-modal props
             descriptionText={descriptionText}
             setDescriptionText={setDescriptionText}
@@ -1665,8 +1744,13 @@ export function CaptureRecorder({
             onGenerate={refineMode ? handleRefineSubmit : handleGenerate}
             refineMode={refineMode}
             hasAudio={!!audioBlob}
-            onClearAudio={() => setAudioBlob(null)}
+            onClearAudio={() => {
+              setAudioBlob(null)
+              setVoiceFor([])
+            }}
             onRegenerate={() => setConfirmRegenerate(true)}
+            refineQuestions={refineQuestionsProps}
+            answerCount={answerCount}
             // Language selector
             estimateLanguage={estimateLanguage}
             setEstimateLanguage={setEstimateLanguage}
@@ -1844,6 +1928,10 @@ export interface RecorderBodyProps {
   hasAudio?: boolean
   onClearAudio?: () => void
   onRegenerate?: () => void
+  /** Refine mode: the AI's open questions as answer cards (null = none). */
+  refineQuestions?: RefineQuestionsProps | null
+  /** Refine mode: how many questions the request answers (shown on the CTA). */
+  answerCount?: number
   // Language selector props
   estimateLanguage: EstimateLanguage
   setEstimateLanguage: (lang: EstimateLanguage) => void
@@ -1889,6 +1977,7 @@ function PopupBody({
   descriptionText, setDescriptionText, isUploadingPhotos, photoItems, onRemovePhoto,
   photoInputRef, onPhotoFileChange, onPhotoFiles, hasAnyInput, onGenerate,
   refineMode = false, hasAudio = false, onClearAudio, onRegenerate, onStartBlank, needsDetails,
+  refineQuestions = null, answerCount = 0,
 }: RecorderBodyProps) {
   const { t } = useTranslation()
   const isSm = useMediaQuery('(min-width: 640px)')
@@ -2064,12 +2153,22 @@ function PopupBody({
                 fallbackMessage={needsDetails.fallbackMessage}
               />
             )}
+            {refineMode && refineQuestions && (
+              <div className="pt-2">
+                <RefineQuestions {...refineQuestions} />
+                {refineQuestions.questions.length > 0 && (
+                  <p className="mt-4 px-0.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+                    {t('Anything else to change?')}
+                  </p>
+                )}
+              </div>
+            )}
             <textarea
               ref={textareaRef}
               value={descriptionText}
               onChange={(e) => setDescriptionText(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder={placeholder}
+              placeholder={refineMode && refineQuestions && refineQuestions.questions.length > 0 ? t('Type it, or tap the mic and talk') : placeholder}
               rows={2}
               className="block min-h-[62px] max-h-[172px] w-full flex-none resize-none overflow-y-auto border-0 bg-transparent py-1.5 text-[17px] leading-[1.45] caret-primary outline-none placeholder:text-muted-foreground/70 focus:outline-none focus:ring-0 sm:min-h-24"
               data-testid="capture-description"
@@ -2208,6 +2307,11 @@ function PopupBody({
                 larger box than the mic to look the same size. */}
             <Sparkles className="h-[22px] w-[22px] shrink-0" aria-hidden />
             {refineMode ? t('See changes') : t('Generate estimate')}
+            {refineMode && answerCount > 0 && (
+              <span className="font-medium opacity-80" data-testid="refine-answer-count">
+                · {answerCount === 1 ? t('1 answer') : t('{count} answers').replace('{count}', String(answerCount))}
+              </span>
+            )}
             <span className="ml-1 hidden rounded-md border border-white/40 px-[7px] py-[5px] text-[11.5px] font-medium leading-none text-white/90 sm:inline" aria-hidden>
               Ctrl ↵
             </span>

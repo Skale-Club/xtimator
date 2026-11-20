@@ -16,7 +16,7 @@ import { isPercentageDiscount } from '@/lib/estimate/discount-display'
 import { formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
 import { CLASSIC_CARD_BOX, PHOTO_TILE_GAP_PT, PX_PER_PT, cardTintFill } from '@/lib/estimate/document/tokens'
 import { PaymentBoxView } from './payment-box'
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { INTER_LH, font, pt, tracking } from './units'
 import { ReadOnlyPhotoThumb } from './shared'
 import {
@@ -40,6 +40,60 @@ import {
 } from './editable'
 import type { PreviewTemplate, RenderCtx } from './types'
 import { isSectionVisible } from '@/lib/estimate/presentation-settings'
+import { isUnpriced, needsPriceCheck } from '@/lib/estimate/review-state'
+import type { DocumentItem } from '@/lib/estimate/document/model'
+import { AiPriceMark, RowReviewBar, UnpricedSlot } from '../row-review-marks'
+
+/**
+ * The unit-price cell of an editable page-view row. Read-only renders (no
+ * ctx.edit) get the plain number. In the owner's editor an empty price shows the
+ * "+ Add price" slot and an AI price still to check shows the sparkle.
+ */
+function PriceCell({ ctx, sectionId, item }: { ctx: RenderCtx; sectionId: string; item: DocumentItem }) {
+  const [active, setActive] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  const unpriced = !!ctx.edit && isUnpriced(item)
+  const aiCheck = !!ctx.edit && needsPriceCheck(item)
+  const focusPrice = () => ref.current?.querySelector<HTMLElement>('[role="button"], input')?.focus()
+  useEffect(() => {
+    if (active) focusPrice()
+  }, [active])
+
+  const number = (
+    <EditableNumber
+      ctx={ctx}
+      value={item.unit_price}
+      format={ctx.fmt}
+      ariaLabel={ctx.L.unitPrice}
+      onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'unit_price', value: v })}
+    />
+  )
+  if (!unpriced && !aiCheck) return number
+  return (
+    <span
+      ref={ref}
+      className="inline-flex items-center justify-end gap-1.5"
+      onBlur={() => {
+        // After focus has settled: leaving the price field brings the slot back.
+        setTimeout(() => {
+          if (!ref.current?.contains(document.activeElement)) setActive(false)
+        }, 0)
+      }}
+    >
+      {aiCheck && (
+        <AiPriceMark
+          variant="popover"
+          description={item.description}
+          price={item.unit_price}
+          currencyCode={ctx.data.currency_code}
+          onConfirm={() => ctx.edit?.dispatch({ type: 'CONFIRM_ITEM_PRICE', sectionId, itemId: item.id })}
+          onAdjust={focusPrice}
+        />
+      )}
+      {unpriced && !active ? <UnpricedSlot onClick={() => setActive(true)} /> : number}
+    </span>
+  )
+}
 
 // components/pdf/estimate-pdf.tsx styles.sectionHeader.paddingHorizontal: the
 // title text sits 10pt inside a brand band that spans the content width. The
@@ -386,6 +440,7 @@ export const classicTemplate: PreviewTemplate = {
         className={`group border-b border-border/50 ${zebra ? 'bg-muted/40' : ''}`}
       >
         <td className="relative px-0" style={cell}>
+          {ctx.edit && isUnpriced(item) && <RowReviewBar />}
           <ItemRowActions ctx={ctx} sectionId={sectionId} item={item} />
           <EditableDescription ctx={ctx} sectionId={sectionId} item={item} />
         </td>
@@ -401,13 +456,7 @@ export const classicTemplate: PreviewTemplate = {
           <EditableUnit ctx={ctx} sectionId={sectionId} item={item} />
         </td>
         <td className="px-0 text-right whitespace-nowrap" style={cell}>
-          <EditableNumber
-            ctx={ctx}
-            value={item.unit_price}
-            format={ctx.fmt}
-            ariaLabel={ctx.L.unitPrice}
-            onCommit={(v) => ctx.edit?.dispatch({ type: 'UPDATE_ITEM', sectionId, itemId: item.id, field: 'unit_price', value: v })}
-          />
+          <PriceCell ctx={ctx} sectionId={sectionId} item={item} />
         </td>
         <td className="px-0 text-right whitespace-nowrap" style={cell}>{ctx.fmt(item.total)}</td>
       </tr>

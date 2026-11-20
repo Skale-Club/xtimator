@@ -141,17 +141,40 @@ describe('useRefineFlow', () => {
     expect(result.current.review).toBeNull()
   })
 
-  it('routes a 402 to the billing toast', async () => {
-    fetchMock.mockResolvedValue({
+  it('out of credits keeps the request for an in-place top-up (no toast) and sends it again after the purchase', async () => {
+    fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 402,
       json: async () => ({ error: 'plan_limit_reached', reason: 'credits', state: 'out_of_credits' }),
     })
     const { result } = setup()
     await act(async () => {
+      await result.current.submit({ instruction: 'answers kept' })
+    })
+    expect(showBillingBlockToast).not.toHaveBeenCalled()
+    expect(result.current.creditBlocked).toBe(true)
+    expect(result.current.phase).toBe('idle')
+
+    fetchMock.mockResolvedValueOnce(okResponse())
+    await act(async () => {
+      await result.current.retryAfterPurchase()
+    })
+    expect(result.current.creditBlocked).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('a paywalled 402 still goes to the billing toast', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 402,
+      json: async () => ({ error: 'plan_limit_reached', reason: 'credits', state: 'paywalled' }),
+    })
+    const { result } = setup()
+    await act(async () => {
       await result.current.submit({ instruction: 'x' })
     })
-    expect(showBillingBlockToast).toHaveBeenCalledWith('out_of_credits', expect.anything(), expect.anything())
+    expect(showBillingBlockToast).toHaveBeenCalledWith('paywalled', expect.anything(), expect.anything())
+    expect(result.current.creditBlocked).toBe(false)
     expect(result.current.phase).toBe('idle')
   })
 

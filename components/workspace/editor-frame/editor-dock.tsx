@@ -31,6 +31,8 @@ export interface EditorDockProps {
    * change order"). Share then moves to a secondary dock button labelled "Send".
    * Absent: today's layout.
    */
+  /** Notices review stage 1: unanswered AI questions, shown as a small counter on "Edit with AI". */
+  aiBadge?: number
   primary?: {
     label: string
     icon: ReactNode
@@ -41,7 +43,7 @@ export interface EditorDockProps {
   }
 }
 
-function EditWithAiButton({ projectId, locked }: { projectId: string; locked: boolean }) {
+function EditWithAiButton({ projectId, locked, badge = 0 }: { projectId: string; locked: boolean; badge?: number }) {
   const { t } = useTranslation()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -55,6 +57,15 @@ function EditWithAiButton({ projectId, locked }: { projectId: string; locked: bo
     >
       <span className="md:hidden">{t('AI edit')}</span>
       <span className="hidden md:inline">{t('Edit with AI')}</span>
+      {badge > 0 && !locked && (
+        <span
+          className="ml-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500/20 px-[5px] text-[11px] font-bold leading-none tabular-nums text-amber-600 dark:text-amber-400"
+          aria-label={t('{count} AI questions to answer').replace('{count}', String(badge))}
+          data-testid="edit-with-ai-badge"
+        >
+          {badge}
+        </span>
+      )}
     </DockButton>
   )
 }
@@ -76,6 +87,7 @@ export function EditorDock({
   viewMode,
   onViewModeChange,
   primary,
+  aiBadge = 0,
 }: EditorDockProps) {
   const { t } = useTranslation()
 
@@ -135,7 +147,7 @@ export function EditorDock({
       )}
       {/* With a primary override (accepted estimate) the content is locked and
           "Edit with AI" could only be disabled: leave it out so the phone row fits. */}
-      {!primary && <EditWithAiButton projectId={projectId} locked={locked} />}
+      {!primary && <EditWithAiButton projectId={projectId} locked={locked} badge={aiBadge} />}
 
       {primary ? (
         <>
