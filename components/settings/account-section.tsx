@@ -63,6 +63,11 @@ function LegacyAccountSection() {
     },
   })
 
+  // Action forms: the button stays, enabled once every field has a value.
+  const pw = passwordForm.watch()
+  const passwordReady = !!(pw.currentPassword && pw.newPassword && pw.confirmPassword)
+  const emailReady = !!emailForm.watch('newEmail')?.trim()
+
   function onPasswordSubmit(values: PasswordValues) {
     startPasswordTransition(async () => {
       const result = await changePassword({
@@ -118,13 +123,13 @@ function LegacyAccountSection() {
             title={t('Password')}
             description={t('Use a strong password that is not shared with other services.')}
             footer={
-              <Button type="submit" size="sm" disabled={isPendingPassword} className="min-w-28">
+              <Button type="submit" size="sm" disabled={isPendingPassword || !passwordReady} className="min-w-28">
                 {isPendingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('Change password')}
               </Button>
             }
           >
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
               <div className="sm:col-span-2 sm:max-w-[calc(50%-0.625rem)]">
                 {field('currentPassword', t('Current password'), 'current-password')}
               </div>
@@ -141,7 +146,7 @@ function LegacyAccountSection() {
             title={t('Email')}
             description={t('A confirmation message will be sent to the new address.')}
             footer={
-              <Button type="submit" size="sm" disabled={isPendingEmail} className="min-w-28">
+              <Button type="submit" size="sm" disabled={isPendingEmail || !emailReady} className="min-w-28">
                 {isPendingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t('Change email')}
               </Button>

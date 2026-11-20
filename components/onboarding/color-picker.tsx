@@ -68,7 +68,7 @@ export function ColorPicker({ value, onChange, onEnter }: ColorPickerProps) {
       <div className="flex items-center gap-3">
         <input type="color" aria-label={t('Custom color')} value={validHex(normalizedHex) ? normalizedHex : value}
           onChange={event => { setCustomHex(event.target.value.slice(1)); onChange(event.target.value.toUpperCase()) }}
-          className="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-border bg-background p-1" />
+          className="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-field-border bg-field p-1 hover:border-field-border-hover" />
         <span aria-hidden className="text-muted-foreground">#</span>
         <Input id={`${editorId}-hex`} placeholder={SYSTEM_COLORS.primary.slice(1)} className="h-11 min-w-0 flex-1 font-mono text-base" value={customHex}
           onChange={event => {

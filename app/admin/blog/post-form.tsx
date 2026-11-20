@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import {
   Select,
   SelectContent,
@@ -34,7 +35,8 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<BlogPostInput>({
     resolver: zodResolver(blogPostSchema) as never,
     defaultValues: {
@@ -51,6 +53,8 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
 
   const status = watch('status')
   const slug = watch('slug')
+  const title = watch('title')
+  const content = watch('content')
 
   function handleTitleBlur(e: React.FocusEvent<HTMLInputElement>) {
     if (!initial && !slug) {
@@ -128,7 +132,7 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
         <Label htmlFor="status">{t('Status')}</Label>
         <Select
           value={status}
-          onValueChange={(val) => setValue('status', val as 'draft' | 'published')}
+          onValueChange={(val) => setValue('status', val as 'draft' | 'published', { shouldDirty: true })}
         >
           <SelectTrigger id="status">
             <SelectValue placeholder={t('Select status')} />
@@ -173,9 +177,22 @@ export function PostForm({ initial, onSave, isPending }: PostFormProps) {
         </div>
       </details>
 
-      <Button type="submit" disabled={isPending} className="self-start">
-        {status === 'published' ? t('Publish') : t('Save draft')}
-      </Button>
+      {initial ? (
+        <SettingsSaveBar
+          dirty={isDirty}
+          pending={isPending}
+          onDiscard={() => reset()}
+          saveLabel={status === 'published' ? t('Publish') : t('Save draft')}
+        />
+      ) : (
+        <Button
+          type="submit"
+          disabled={isPending || !title?.trim() || !slug?.trim() || !content?.trim()}
+          className="self-start"
+        >
+          {status === 'published' ? t('Publish') : t('Save draft')}
+        </Button>
+      )}
     </form>
   )
 }

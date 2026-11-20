@@ -295,7 +295,7 @@ function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetP
               <Button type="button" variant="outline" className="h-11" disabled={isPending} onClick={() => onOpenChange(false)}>
                 {t('Cancel')}
               </Button>
-              <Button type="submit" form="client-form" className="h-11" disabled={isPending}>
+              <Button type="submit" form="client-form" className="h-11" disabled={isPending || (isEditing && !form.formState.isDirty)}>
                 {isPending
                   ? isEditing ? t('Updating...') : t('Creating...')
                   : isEditing ? t('Update Client') : t('Add Client')}

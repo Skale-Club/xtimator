@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveXphereBaseUrl } from './actions'
 
@@ -14,7 +13,9 @@ interface XphereConfigFormProps {
 
 export function XphereConfigForm({ current }: XphereConfigFormProps) {
   const [value, setValue] = useState(current)
+  const [saved, setSaved] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const dirty = value !== saved
 
   function handleSave() {
     startTransition(async () => {
@@ -22,6 +23,7 @@ export function XphereConfigForm({ current }: XphereConfigFormProps) {
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved(value)
         toast.success('Xphere base URL saved.')
       }
     })
@@ -37,8 +39,8 @@ export function XphereConfigForm({ current }: XphereConfigFormProps) {
           The integration stays disabled until both the API key and this URL are set.
         </p>
       </div>
-      <div className="flex gap-3 items-end max-w-lg">
-        <div className="flex-1 space-y-1">
+      <div className="grid gap-2 max-w-lg">
+        <div className="grid gap-2">
           <Label htmlFor="xphere-base-url">Xphere Base URL</Label>
           <Input
             id="xphere-base-url"
@@ -50,15 +52,8 @@ export function XphereConfigForm({ current }: XphereConfigFormProps) {
             disabled={isPending}
           />
         </div>
-        <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-          {isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
+      <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
     </div>
   )
 }

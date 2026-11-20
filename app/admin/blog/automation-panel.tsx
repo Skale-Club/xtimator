@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -168,12 +169,20 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
   const sources = state.rssSources as unknown as RssSource[]
   const jobs = state.recentJobs as unknown as Job[]
   const drafts = state.pendingDrafts as unknown as Draft[]
+
+  // What is stored right now; refresh() replaces `state` after every save.
+  const savedForm = formFromSettings(state.settings)
+  const formDirty = JSON.stringify(form) !== JSON.stringify(savedForm)
+  const savedChatIds = state.telegram.chatIds.join('\n')
+  const savedApprovalChatIds = state.telegram.approvalsChatIds.join('\n')
+  const telegramDirty =
+    chatIdsText !== savedChatIds || approvalChatIdsText !== savedApprovalChatIds || botToken !== ''
   const parseIds = (text: string) => text.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
 
   return (
     <div className="space-y-6">
       {/* ── Schedule and voice ─────────────────────────────────────────── */}
-      <Card variant="glass" className="space-y-5 p-6">
+      <Card variant="glass" className="space-y-6 p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold"><T>Automated posting</T></h2>
@@ -225,8 +234,8 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
             onCheckedChange={(v) => setForm((p) => ({ ...p, autoPublish: v }))} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-1.5">
+        <div className="grid gap-6 sm:grid-cols-3">
+          <div className="grid gap-2">
             <Label><T>Posts per day</T></Label>
             <Select value={String(form.postsPerDay)}
               onValueChange={(v) => setForm((p) => ({ ...p, postsPerDay: Number(v) }))}>
@@ -242,7 +251,7 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           {/* Without a pinned hour the schedule only promises "at least N hours
               since the last run", so the publishing time walks forward with
               every run until it lands in the middle of the night. */}
-          <div className="space-y-1.5">
+          <div className="grid gap-2">
             <Label><T>Publish at</T></Label>
             <Select
               value={form.postingHour === null ? DRIFTING : String(form.postingHour)}
@@ -258,7 +267,7 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
             </Select>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="grid gap-2">
             <Label><T>Time zone</T></Label>
             <Select value={form.timezone} onValueChange={(v) => setForm((p) => ({ ...p, timezone: v }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -277,20 +286,20 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           </p>
         )}
 
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="ab-keywords"><T>Target keywords</T></Label>
           <Input id="ab-keywords" value={form.seoKeywords}
             placeholder="roof repair, gutter cleaning, Austin TX"
             onChange={(e) => setForm((p) => ({ ...p, seoKeywords: e.target.value }))} />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="ab-style"><T>Style and tone</T></Label>
           <Textarea id="ab-style" value={form.promptStyle} rows={3}
             onChange={(e) => setForm((p) => ({ ...p, promptStyle: e.target.value }))} />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="ab-system"><T>Editorial guide</T></Label>
           <Textarea id="ab-system" value={form.systemPrompt} rows={4}
             onChange={(e) => setForm((p) => ({ ...p, systemPrompt: e.target.value }))} />
@@ -299,14 +308,14 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-2">
             <Label htmlFor="ab-text-model"><T>Text model</T></Label>
             <Input id="ab-text-model" value={form.textModel}
               placeholder="anthropic/claude-sonnet-5.5"
               onChange={(e) => setForm((p) => ({ ...p, textModel: e.target.value }))} />
           </div>
-          <div className="space-y-1.5">
+          <div className="grid gap-2">
             <Label htmlFor="ab-image-model"><T>Image model</T></Label>
             <Input id="ab-image-model" value={form.imageModel}
               onChange={(e) => setForm((p) => ({ ...p, imageModel: e.target.value }))} />
@@ -324,12 +333,13 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
             onCheckedChange={(v) => setForm((p) => ({ ...p, rssEnabled: v }))} />
         </div>
 
-        <div className="flex justify-end">
-          <Button variant="primary" disabled={pending}
-            onClick={() => run(() => saveAutomationSettings(form), 'Settings saved')}>
-            <T>Save settings</T>
-          </Button>
-        </div>
+        <SettingsSaveBar
+          dirty={formDirty}
+          pending={pending}
+          onDiscard={() => setForm(savedForm)}
+          onSave={() => run(() => saveAutomationSettings(form), 'Settings saved')}
+          saveLabel="Save settings"
+        />
       </Card>
 
       {/* ── Preview ────────────────────────────────────────────────────── */}
@@ -523,21 +533,21 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
           </p>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="tg-token"><T>Bot token</T></Label>
           <Input id="tg-token" type="password" value={botToken}
             placeholder={state.telegram.hasBotToken ? '•••••••• (stored)' : '123456:ABC-DEF...'}
             onChange={(e) => setBotToken(e.target.value)} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-2">
             <Label htmlFor="tg-chats"><T>Alert chats</T></Label>
             <Textarea id="tg-chats" rows={3} value={chatIdsText}
               placeholder={'-1001234567890'}
               onChange={(e) => setChatIdsText(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
+          <div className="grid gap-2">
             <Label htmlFor="tg-approval-chats"><T>Approval chats</T></Label>
             <Textarea id="tg-approval-chats" rows={3} value={approvalChatIdsText}
               placeholder={'-1001234567890:42'}
@@ -597,8 +607,16 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
               <T>Check webhook</T>
             </Button>
           )}
-          <Button variant="secondary" disabled={pending}
-            onClick={() => run(
+        </div>
+        <SettingsSaveBar
+          dirty={telegramDirty}
+          pending={pending}
+          onDiscard={() => {
+            setChatIdsText(savedChatIds)
+            setApprovalChatIdsText(savedApprovalChatIds)
+            setBotToken('')
+          }}
+          onSave={() => run(
               async () => {
                 const result = await saveTelegramSettings({
                   enabled: state.telegram.enabled,
@@ -613,10 +631,9 @@ export function BlogAutomationPanel({ initialState }: { initialState: Automation
                 return result
               },
               'Telegram settings saved',
-            )}>
-            <T>Save Telegram settings</T>
-          </Button>
-        </div>
+            )}
+          saveLabel="Save Telegram settings"
+        />
       </Card>
 
       {/* ── History ────────────────────────────────────────────────────── */}

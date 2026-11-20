@@ -74,7 +74,7 @@ export function AdminWhatsAppFilters({
       <div className="relative flex-1 min-w-0">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <Input
-          className="pl-8 h-9 text-sm bg-[var(--glass-bg-light)] border-border/50 focus-visible:ring-1 focus-visible:ring-primary/30"
+          className="pl-8 h-9 text-sm"
           placeholder={t('Search...')}
           defaultValue={q ?? ''}
           onKeyDown={(e) => {

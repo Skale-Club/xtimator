@@ -24,7 +24,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { Bell, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { SettingsCard, SettingsRow, SettingsRows, SettingsStack } from '@/components/settings/settings-ui'
+import { SettingsCard, SettingsRow, SettingsRows, SettingsSaveBar, SettingsStack } from '@/components/settings/settings-ui'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
@@ -120,6 +120,23 @@ export function NotificationsForm({
   // inline consent confirmation rather than silently enabling.
   const [smsConsent, setSmsConsent] = useState(smsOptIn)
   const [smsConsentPending, setSmsConsentPending] = useState(false)
+  // What is stored now; the save bar shows only when the form differs from it.
+  const [saved, setSaved] = useState(() => ({
+    matrix: buildState(initial, defaults),
+    emailDigest: initial.email_digest_enabled,
+    smsConsent: smsOptIn,
+  }))
+  const dirty =
+    JSON.stringify(matrix) !== JSON.stringify(saved.matrix) ||
+    emailDigest !== saved.emailDigest ||
+    smsConsent !== saved.smsConsent
+
+  function discardChanges() {
+    setMatrix(saved.matrix)
+    setEmailDigest(saved.emailDigest)
+    setSmsConsent(saved.smsConsent)
+    setSmsConsentPending(false)
+  }
 
   const pushSupported = useMemo(() => {
     if (typeof window === 'undefined') return true
@@ -181,6 +198,7 @@ export function NotificationsForm({
           toast.error(t('Could not save notification preferences.'))
           return
         }
+        setSaved({ matrix, emailDigest, smsConsent })
         toast.success(t('Notification preferences saved.'))
       } catch {
         toast.error(t('Could not save notification preferences.'))
@@ -223,19 +241,6 @@ export function NotificationsForm({
         title={t('What to notify you about')}
         description={t('Pick a channel for each kind of event.')}
         bodyClassName="p-0 sm:p-0"
-        footer={
-          <Button
-            type="button"
-            size="sm"
-            onClick={onSave}
-            disabled={isPending}
-            data-testid="save-prefs"
-            className="min-w-28"
-          >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('Save preferences')}
-          </Button>
-        }
       >
         <div className="border-b border-[var(--glass-border)] px-5 py-4 sm:px-6">
           <SettingsRows>
@@ -345,6 +350,21 @@ export function NotificationsForm({
           </div>
         )}
       </SettingsCard>
+
+      {!readOnly && (
+        <SettingsSaveBar
+          dirty={dirty}
+          pending={isPending}
+          onSave={onSave}
+          onDiscard={discardChanges}
+          saveTestId="save-prefs"
+          saveLabel={t('Save preferences')}
+          savingLabel={t('Saving…')}
+          unsavedLabel={t('Unsaved changes')}
+          savedLabel={t('All changes saved')}
+          discardLabel={t('Discard')}
+        />
+      )}
 
       <SettingsCard
         title={t('Browser notifications')}

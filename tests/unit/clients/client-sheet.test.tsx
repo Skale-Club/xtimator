@@ -74,9 +74,18 @@ describe('ClientSheet', () => {
     expect((screen.getByPlaceholderText('Client name') as HTMLInputElement).value).toBe('Alice')
   })
 
+  it('keeps Update Client disabled until a field changes', () => {
+    render(<ClientSheet open client={client} companyId="company-one" onOpenChange={vi.fn()} />)
+    const update = screen.getByRole('button', { name: 'Update Client' })
+    expect((update as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(screen.getByPlaceholderText('Client name'), { target: { value: 'Renamed' } })
+    expect((update as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('refreshes once after a successful save and preserves all existing fields', async () => {
     const onOpenChange = vi.fn()
     render(<ClientSheet open client={client} companyId="company-one" onOpenChange={onOpenChange} />)
+    fireEvent.change(screen.getByPlaceholderText('Client name'), { target: { value: 'Renamed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Update Client' }))
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -90,6 +99,7 @@ describe('ClientSheet', () => {
     updateClient.mockResolvedValue({ error: 'Could not save' })
     const onOpenChange = vi.fn()
     render(<ClientSheet open client={client} companyId="company-one" onOpenChange={onOpenChange} />)
+    fireEvent.change(screen.getByPlaceholderText('Client name'), { target: { value: 'Renamed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Update Client' }))
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Could not save'))

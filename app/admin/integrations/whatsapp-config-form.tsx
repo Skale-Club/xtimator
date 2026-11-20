@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveWhatsAppConfig } from './actions'
 
@@ -22,7 +21,16 @@ export function WhatsAppConfigForm({
   const [phoneNumberId, setPhoneNumberId] = useState(currentPhoneNumberId)
   const [wabaId, setWabaId] = useState(currentWabaId)
   const [displayNumber, setDisplayNumber] = useState(currentDisplayNumber)
+  const [saved, setSaved] = useState({
+    phoneNumberId: currentPhoneNumberId,
+    wabaId: currentWabaId,
+    displayNumber: currentDisplayNumber,
+  })
   const [isPending, startTransition] = useTransition()
+  const dirty =
+    phoneNumberId !== saved.phoneNumberId ||
+    wabaId !== saved.wabaId ||
+    displayNumber !== saved.displayNumber
 
   function handleSave() {
     startTransition(async () => {
@@ -30,6 +38,7 @@ export function WhatsAppConfigForm({
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved({ phoneNumberId, wabaId, displayNumber })
         toast.success('WhatsApp config saved.')
       }
     })
@@ -44,8 +53,8 @@ export function WhatsAppConfigForm({
           These are non-secret identifiers required for sending messages.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
-        <div className="space-y-1">
+      <div className="grid gap-6 sm:grid-cols-2 max-w-2xl">
+        <div className="grid gap-2">
           <Label htmlFor="wa-phone-number-id">Phone Number ID</Label>
           <Input
             id="wa-phone-number-id"
@@ -55,7 +64,7 @@ export function WhatsAppConfigForm({
             disabled={isPending}
           />
         </div>
-        <div className="space-y-1">
+        <div className="grid gap-2">
           <Label htmlFor="wa-waba-id">WhatsApp Business Account ID</Label>
           <Input
             id="wa-waba-id"
@@ -65,7 +74,7 @@ export function WhatsAppConfigForm({
             disabled={isPending}
           />
         </div>
-        <div className="space-y-1 sm:col-span-2">
+        <div className="grid gap-2 sm:col-span-2">
           <Label htmlFor="wa-display-number">Display Number (E.164)</Label>
           <Input
             id="wa-display-number"
@@ -80,14 +89,16 @@ export function WhatsAppConfigForm({
           </p>
         </div>
       </div>
-      <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-        {isPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Save className="mr-2 h-4 w-4" />
-        )}
-        Save
-      </Button>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={() => {
+          setPhoneNumberId(saved.phoneNumberId)
+          setWabaId(saved.wabaId)
+          setDisplayNumber(saved.displayNumber)
+        }}
+        onSave={handleSave}
+      />
     </div>
   )
 }

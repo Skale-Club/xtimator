@@ -217,7 +217,7 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
             title={t('Document blocks')}
             description={t('What a new estimate starts with. Anything left off can be added on each estimate with one click.')}
           >
-            <div className="space-y-5">
+            <div className="space-y-6">
               <SettingsRows>
                 <SettingsRow
                   htmlFor="block-summary"

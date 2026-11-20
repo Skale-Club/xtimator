@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveTelegramChatId, sendTelegramTestAlert } from './actions'
 import { TestButton } from './test-button'
@@ -15,7 +14,9 @@ interface TelegramChatIdFormProps {
 
 export function TelegramChatIdForm({ current }: TelegramChatIdFormProps) {
   const [value, setValue] = useState(current)
+  const [saved, setSaved] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const dirty = value !== saved
 
   function handleSave() {
     startTransition(async () => {
@@ -23,6 +24,7 @@ export function TelegramChatIdForm({ current }: TelegramChatIdFormProps) {
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved(value)
         toast.success('Telegram chat ID saved.')
       }
     })
@@ -38,8 +40,8 @@ export function TelegramChatIdForm({ current }: TelegramChatIdFormProps) {
           negative id.
         </p>
       </div>
-      <div className="flex gap-3 items-end max-w-sm">
-        <div className="flex-1 space-y-1">
+      <div className="grid gap-2 max-w-sm">
+        <div className="grid gap-2">
           <Label htmlFor="telegram-chat-id">Chat ID</Label>
           <Input
             id="telegram-chat-id"
@@ -49,18 +51,11 @@ export function TelegramChatIdForm({ current }: TelegramChatIdFormProps) {
             disabled={isPending}
           />
         </div>
-        <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-          {isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
       <div>
         <TestButton onRun={() => sendTelegramTestAlert()} />
       </div>
+      <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
     </div>
   )
 }

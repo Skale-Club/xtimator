@@ -5,6 +5,7 @@ import { HexColorPicker, HexColorInput } from 'react-colorful'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { FIELD_BASE } from '@/components/ui/field-styles'
 import {
   Popover,
   PopoverContent,
@@ -78,7 +79,7 @@ export function ColorPickerPopover({
           <button
             type="button"
             aria-label={t('Pick color')}
-            className="h-10 w-10 cursor-pointer rounded border border-border"
+            className="h-10 w-10 cursor-pointer rounded-[var(--radius-md)] border border-field-border hover:border-field-border-hover"
             style={{ backgroundColor: value }}
           />
         )}
@@ -120,7 +121,7 @@ export function ColorPickerPopover({
                 color={value}
                 onChange={onChange}
                 aria-label={t('Hex color value')}
-                className="w-24 rounded border border-border bg-transparent px-2 py-1 font-mono text-xs uppercase text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={cn(FIELD_BASE, 'h-8 w-24 rounded-[var(--radius-md)] px-2 font-mono text-xs uppercase')}
               />
             ) : (
               <span className="font-mono text-xs text-muted-foreground">{value}</span>

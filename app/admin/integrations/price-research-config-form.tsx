@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
+import { FIELD_BASE } from '@/components/ui/field-styles'
+import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { setPriceResearchSource } from './actions'
 
@@ -18,13 +19,16 @@ export function PriceResearchConfigForm({ current }: Props) {
   const [enabled, setEnabled] = useState(current.enabled)
   const [source, setSource] = useState<ResearchSource>(current.source)
   const [engine, setEngine] = useState<ResearchEngine>(current.engine)
+  const [saved, setSaved] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const dirty = enabled !== saved.enabled || source !== saved.source || engine !== saved.engine
   const { t } = useTranslation()
 
   function handleSave() {
     startTransition(async () => {
       const res = await setPriceResearchSource({ enabled, source, engine })
       if (res.ok) {
+        setSaved({ enabled, source, engine })
         toast.success(res.message ?? t('Saved'))
       } else {
         toast.error(res.message)
@@ -33,7 +37,7 @@ export function PriceResearchConfigForm({ current }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
+    <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-6">
       <div>
         <h3 className="text-sm font-semibold">{t('Price Research')}</h3>
         <p className="text-sm text-muted-foreground mt-1">
@@ -54,7 +58,7 @@ export function PriceResearchConfigForm({ current }: Props) {
         <span className="text-sm">{t('Enable price research')}</span>
       </label>
 
-      <div className="flex flex-col gap-1 max-w-sm">
+      <div className="grid gap-2 max-w-sm">
         <label htmlFor="pr-source" className="text-sm font-medium">
           {t('Source')}
         </label>
@@ -63,13 +67,13 @@ export function PriceResearchConfigForm({ current }: Props) {
           value={source}
           onChange={(e) => setSource(e.target.value as ResearchSource)}
           disabled={isPending}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className={cn(FIELD_BASE, 'h-10 rounded-[var(--radius-md)] px-3 text-sm')}
         >
           <option value="openrouter_web">{t('OpenRouter web')}</option>
         </select>
       </div>
 
-      <div className="flex flex-col gap-1 max-w-sm">
+      <div className="grid gap-2 max-w-sm">
         <label htmlFor="pr-engine" className="text-sm font-medium">
           {t('Engine')}
         </label>
@@ -78,21 +82,24 @@ export function PriceResearchConfigForm({ current }: Props) {
           value={engine}
           onChange={(e) => setEngine(e.target.value as ResearchEngine)}
           disabled={isPending}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          className={cn(FIELD_BASE, 'h-10 rounded-[var(--radius-md)] px-3 text-sm')}
         >
           <option value="exa">{t('Exa (default)')}</option>
           <option value="native">{t('Native')}</option>
         </select>
       </div>
 
-      <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-        {isPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Save className="mr-2 h-4 w-4" />
-        )}
-        {t('Save')}
-      </Button>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={() => {
+          setEnabled(saved.enabled)
+          setSource(saved.source)
+          setEngine(saved.engine)
+        }}
+        onSave={handleSave}
+        saveLabel={t('Save')}
+      />
     </div>
   )
 }

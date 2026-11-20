@@ -327,6 +327,11 @@ const LIGHT_PIN_STYLE = {
   '--border': '240 5.9% 90%',
   '--card': '0 0% 100%',
   '--card-foreground': '240 10% 3.9%',
+  // Form fields on the paper use the light field tokens (app/globals.css).
+  '--field': '0 0% 100%',
+  '--field-border': '240 5% 76%',
+  '--field-border-hover': '240 5% 60%',
+  '--field-placeholder': '240 4% 60%',
   '--glass-bg': 'rgba(255, 255, 255, 0.65)',
   '--glass-bg-strong': 'rgba(255, 255, 255, 0.97)',
   '--glass-border': 'rgba(15, 23, 42, 0.08)',

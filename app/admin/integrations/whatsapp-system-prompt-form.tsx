@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveWhatsAppSystemPrompt } from './actions'
 
@@ -18,7 +17,9 @@ export function WhatsAppSystemPromptForm({
   currentPrompt,
 }: WhatsAppSystemPromptFormProps) {
   const [prompt, setPrompt] = useState(currentPrompt)
+  const [saved, setSaved] = useState(currentPrompt)
   const [isPending, startTransition] = useTransition()
+  const dirty = prompt !== saved
 
   function handleSave() {
     startTransition(async () => {
@@ -26,6 +27,7 @@ export function WhatsAppSystemPromptForm({
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved(prompt)
         toast.success('WhatsApp system prompt saved.')
       }
     })
@@ -41,7 +43,7 @@ export function WhatsAppSystemPromptForm({
           price-book, and security rules still apply.
         </p>
       </div>
-      <div className="space-y-1 max-w-2xl">
+      <div className="grid gap-2 max-w-2xl">
         <Label htmlFor="wa-system-prompt">Additional instructions</Label>
         <Textarea
           id="wa-system-prompt"
@@ -56,14 +58,12 @@ export function WhatsAppSystemPromptForm({
           {prompt.length} / {MAX}
         </p>
       </div>
-      <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-        {isPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Save className="mr-2 h-4 w-4" />
-        )}
-        Save
-      </Button>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={() => setPrompt(saved)}
+        onSave={handleSave}
+      />
     </div>
   )
 }

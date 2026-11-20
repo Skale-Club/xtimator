@@ -1,10 +1,10 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateProfile } from '@/lib/actions/settings'
-import { SettingsCard } from '@/components/settings/settings-ui'
+import { SettingsCard, SettingsSaveBar } from '@/components/settings/settings-ui'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
@@ -32,6 +32,19 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarPosition, setAvatarPosition] = useState<ImagePosition>(profile.avatarPosition ?? DEFAULT_IMAGE_POSITION)
   const [phone, setPhone] = useState(profile.phone)
+  const [fullName, setFullName] = useState(profile.fullName)
+  const [avatarPicked, setAvatarPicked] = useState(false)
+  // What is stored now; the save bar shows only when the form differs from it.
+  const [saved, setSaved] = useState({
+    fullName: profile.fullName,
+    phone: profile.phone,
+    position: profile.avatarPosition ?? DEFAULT_IMAGE_POSITION,
+  })
+  const dirty =
+    fullName !== saved.fullName ||
+    phone !== saved.phone ||
+    avatarPicked ||
+    JSON.stringify(avatarPosition) !== JSON.stringify(saved.position)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -44,6 +57,21 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
     setAvatarPreview(URL.createObjectURL(file))
     setAvatarPosition(DEFAULT_IMAGE_POSITION)
     setAdjusting(true)
+    setAvatarPicked(true)
+  }
+
+  function clearPickedFile() {
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
+    setAvatarPicked(false)
+  }
+
+  function handleDiscard() {
+    setFullName(saved.fullName)
+    setPhone(saved.phone)
+    setAvatarPosition(saved.position)
+    if (avatarPicked) setAvatarPreview(null)
+    clearPickedFile()
+    setAdjusting(false)
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -57,21 +85,17 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
       } else {
         toast.success(t('Profile updated.'))
         setAdjusting(false)
+        setSaved({ fullName, phone, position: avatarPosition })
+        clearPickedFile()
       }
     })
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit}>
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <SettingsCard
         title={t('Profile')}
         description={t('Your name, photo and contact phone on this account.')}
-        footer={
-          <Button type="submit" size="sm" disabled={isPending} className="min-w-28">
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('Save profile')}
-          </Button>
-        }
       >
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-5">
@@ -138,18 +162,19 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
             </div>
           )}
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
+          <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
+            <div className="grid gap-1.5">
               <Label htmlFor="fullName">{t('Your name')}</Label>
               <Input
                 id="fullName"
                 name="fullName"
-                defaultValue={profile.fullName}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 placeholder="Jane Smith"
                 autoComplete="name"
               />
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-1.5">
               <Label htmlFor="phone">{t('Phone')}</Label>
               {/* PhoneInput is controlled and name-less; the hidden input carries
                   its full value ("+1 (XXX) XXX-XXXX") into the FormData submit. */}
@@ -160,6 +185,16 @@ export function ProfileSection({ profile }: ProfileSectionProps) {
           </div>
         </div>
       </SettingsCard>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={handleDiscard}
+        saveLabel={t('Save profile')}
+        savingLabel={t('Saving…')}
+        unsavedLabel={t('Unsaved changes')}
+        savedLabel={t('All changes saved')}
+        discardLabel={t('Discard')}
+      />
     </form>
   )
 }

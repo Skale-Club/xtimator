@@ -2,6 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
+import { FIELD_BASE } from '@/components/ui/field-styles'
+import { cn } from '@/lib/utils'
 import { setModelSlot, setEscalationConfig } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -95,10 +99,10 @@ function SlotSelect({
   }
 
   return (
-    <label className="flex flex-col gap-1">
+    <label className="grid gap-2">
       <span className="text-sm font-medium">{t(label)}</span>
       <select
-        className="h-9 rounded-md border bg-background px-2 text-sm"
+        className={cn(FIELD_BASE, 'h-10 rounded-[var(--radius-md)] px-3 text-sm')}
         value={value}
         disabled={isSaving}
         onChange={(e) => onChange(e.target.value)}
@@ -124,7 +128,15 @@ export function ModelSlotsForm({ models, escalation }: Props) {
   const [minTotalUsd, setMinTotalUsd] = useState(escalation?.minTotalUsd?.toString() ?? '')
   const [minSections, setMinSections] = useState(escalation?.minSections?.toString() ?? '')
   const [onLow, setOnLow] = useState(escalation?.onLowScopeConfidence ?? false)
+  const [saved, setSaved] = useState({
+    enabled: escalation?.enabled ?? false,
+    model: escalation?.model || OPUS,
+    minTotalUsd: escalation?.minTotalUsd?.toString() ?? '',
+    minSections: escalation?.minSections?.toString() ?? '',
+    onLow: escalation?.onLowScopeConfidence ?? false,
+  })
   const [isSaving, startTransition] = useTransition()
+  const dirty = JSON.stringify({ enabled, model, minTotalUsd, minSections, onLow }) !== JSON.stringify(saved)
 
   function saveEscalation() {
     startTransition(async () => {
@@ -135,14 +147,16 @@ export function ModelSlotsForm({ models, escalation }: Props) {
         minSections: minSections ? Number(minSections) : null,
         onLowScopeConfidence: onLow,
       })
-      if (result.ok) toast.success(result.message ?? t('Saved'))
-      else toast.error(result.message)
+      if (result.ok) {
+        setSaved({ enabled, model, minTotalUsd, minSections, onLow })
+        toast.success(result.message ?? t('Saved'))
+      } else toast.error(result.message)
     })
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border p-4 space-y-4">
+      <div className="rounded-lg border p-4 space-y-6">
         <div>
           <h3 className="font-medium text-sm">{t('Model per step')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -151,14 +165,14 @@ export function ModelSlotsForm({ models, escalation }: Props) {
             )}
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2">
           {SLOTS.map((s) => (
             <SlotSelect key={s.slot} {...s} current={models[s.slot] ?? DEFAULT_VALUE} />
           ))}
         </div>
       </div>
 
-      <div className="rounded-lg border p-4 space-y-3">
+      <div className="rounded-lg border p-4 space-y-6">
         <div>
           <h3 className="font-medium text-sm">{t('Opus escalation for large jobs')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -168,49 +182,51 @@ export function ModelSlotsForm({ models, escalation }: Props) {
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <input type="checkbox" className="accent-primary" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           {t('Enable escalation')}
         </label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm">
             {t('Opus model')}
-            <input
-              className="h-9 rounded-md border bg-background px-2 text-sm"
+            <Input
               value={model}
               onChange={(e) => setModel(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="grid gap-2 text-sm">
             {t('Min sections in plan')}
-            <input
-              className="h-9 rounded-md border bg-background px-2 text-sm"
+            <Input
               inputMode="numeric"
               value={minSections}
               onChange={(e) => setMinSections(e.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="grid gap-2 text-sm">
             {t('Min target budget (USD)')}
-            <input
-              className="h-9 rounded-md border bg-background px-2 text-sm"
+            <Input
               inputMode="decimal"
               value={minTotalUsd}
               onChange={(e) => setMinTotalUsd(e.target.value)}
             />
           </label>
           <label className="flex items-center gap-2 text-sm self-end pb-2">
-            <input type="checkbox" checked={onLow} onChange={(e) => setOnLow(e.target.checked)} />
+            <input type="checkbox" className="accent-primary" checked={onLow} onChange={(e) => setOnLow(e.target.checked)} />
             {t('Escalate on low scope confidence')}
           </label>
         </div>
-        <button
-          type="button"
-          className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
-          disabled={isSaving}
-          onClick={saveEscalation}
-        >
-          {t('Save escalation')}
-        </button>
+        <SettingsSaveBar
+          dirty={dirty}
+          pending={isSaving}
+          onDiscard={() => {
+            setEnabled(saved.enabled)
+            setModel(saved.model)
+            setMinTotalUsd(saved.minTotalUsd)
+            setMinSections(saved.minSections)
+            setOnLow(saved.onLow)
+          }}
+          onSave={saveEscalation}
+          saveLabel={t('Save escalation')}
+        />
       </div>
     </div>
   )

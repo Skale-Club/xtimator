@@ -203,7 +203,7 @@ export function AdminCreateCompanyModal({
                 value={brandColor}
                 onChange={(e) => setBrandColor(e.target.value)}
                 disabled={isPending}
-                className="h-9 w-14 cursor-pointer rounded-md border border-input bg-transparent p-1"
+                className="h-10 w-14 cursor-pointer rounded-md border border-field-border bg-field p-1 hover:border-field-border-hover"
               />
               <span className="text-sm text-muted-foreground font-mono">{brandColor}</span>
             </div>

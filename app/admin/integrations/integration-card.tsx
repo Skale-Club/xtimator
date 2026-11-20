@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Save, Trash2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -17,7 +17,7 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -204,12 +204,12 @@ export function IntegrationCard({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
+            className="flex flex-col gap-6"
           >
             {keyParts?.length ? (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-6">
                 {keyParts.map((part, index) => (
-                  <FormItem key={part.id}>
+                  <FormItem key={part.id} className="gap-2">
                     <FormLabel>{t(part.label)}</FormLabel>
                     <FormControl>
                       {part.secret ? (
@@ -243,7 +243,6 @@ export function IntegrationCard({
                           autoComplete="off"
                           spellCheck={false}
                           disabled={isSaving}
-                          className="min-h-[44px]"
                           data-1p-ignore
                           data-lpignore="true"
                           value={parts[index] ?? ''}
@@ -294,18 +293,6 @@ export function IntegrationCard({
                 below the Test button, the column grows — items-center would
                 re-center and SHIFT the buttons. Top-anchoring keeps Save/Test put. */}
             <div className="flex items-start gap-3">
-              <Button
-                type="submit"
-                disabled={isSaving}
-                className="min-h-[44px]"
-              >
-                {isSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                {isSaving ? t('Saving\u2026') : t('Save key')}
-              </Button>
               <TestButton
                 disabled={!canTest}
                 onRun={() =>
@@ -316,6 +303,16 @@ export function IntegrationCard({
                 }
               />
             </div>
+            <SettingsSaveBar
+              dirty={apiKeyDraft.length > 0}
+              pending={isSaving}
+              onDiscard={() => {
+                form.reset({ provider, apiKey: '' })
+                setParts((prev) => prev.map(() => ''))
+              }}
+              saveLabel={t('Save key')}
+              savingLabel={t('Saving…')}
+            />
           </form>
         </Form>
       </CardContent>

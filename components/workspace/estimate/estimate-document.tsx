@@ -1997,6 +1997,11 @@ export function EstimateDocument({
         '--border': '240 5.9% 90%',
         '--card': '0 0% 100%',
         '--card-foreground': '240 10% 3.9%',
+        // Form fields on the paper use the light field tokens (app/globals.css).
+        '--field': '0 0% 100%',
+        '--field-border': '240 5% 76%',
+        '--field-border-hover': '240 5% 60%',
+        '--field-placeholder': '240 4% 60%',
         // The document forces a light "paper" surface. The glass tokens must be
         // overridden too, otherwise glass cards nested in the paper (e.g. the
         // mobile item rows) inherit the app's DARK glass fill and render as

@@ -134,7 +134,7 @@ export function TextDescribe({ project, projectId }: TextDescribeProps) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={t("Describe the job here | for example: 'Pressure wash the driveway and two-car garage, remove mold from the north-facing fascia boards, and seal all concrete surfaces. Approximately 1,800 sq ft total.'")}
-            className="flex-1 min-h-[200px] [html[data-keyboard=open]_&]:min-h-[96px] w-full resize-none rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-4 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 min-h-[200px] [html[data-keyboard=open]_&]:min-h-[96px] w-full resize-none rounded-md border border-field-border bg-field px-4 py-3 text-sm leading-relaxed text-foreground hover:border-field-border-hover placeholder:text-field-placeholder focus-visible:outline-none focus-visible:border-[hsl(var(--primary))] focus-visible:shadow-glow-brand disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isGenerating}
           />
         </Card>

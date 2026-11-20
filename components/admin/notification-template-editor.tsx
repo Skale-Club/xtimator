@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { T } from '@/components/i18n/t'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
@@ -61,6 +62,11 @@ export function NotificationTemplateEditor({
   const [isActive, setIsActive] = useState(() => (existing ? existing.is_active : true))
   // Local-only, never persisted — see sendTestNotification's SendTestInput contract.
   const [phone, setPhone] = useState('')
+  // What is stored (or the seed, when nothing is stored yet): Save only shows
+  // once the template differs from it.
+  const [saved, setSaved] = useState({ subject, title, body, isActive })
+  const dirty =
+    subject !== saved.subject || title !== saved.title || body !== saved.body || isActive !== saved.isActive
 
   const variables = getEventVariableCatalog(eventType)
 
@@ -98,6 +104,7 @@ export function NotificationTemplateEditor({
         isActive,
       })
       if (res.ok) {
+        setSaved({ subject, title, body, isActive })
         toast.success(t('Template saved'))
         onSaved?.()
       } else {
@@ -129,7 +136,7 @@ export function NotificationTemplateEditor({
   }
 
   return (
-    <Card variant="glass" className="p-6 space-y-5">
+    <Card variant="glass" className="p-6 space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold">{seed.title}</h3>
@@ -145,7 +152,7 @@ export function NotificationTemplateEditor({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="grid gap-2">
         <Label>
           <T>Variables</T>
         </Label>
@@ -170,7 +177,7 @@ export function NotificationTemplateEditor({
       </div>
 
       {channel === 'email' && (
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="tpl-subject">
             <T>Subject</T>
           </Label>
@@ -179,7 +186,7 @@ export function NotificationTemplateEditor({
       )}
 
       {channel === 'in_app' && (
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="tpl-title">
             <T>Title</T>
           </Label>
@@ -187,7 +194,7 @@ export function NotificationTemplateEditor({
         </div>
       )}
 
-      <div className="space-y-1.5">
+      <div className="grid gap-2">
         <Label htmlFor="tpl-body">
           <T>Body</T>
         </Label>
@@ -205,7 +212,7 @@ export function NotificationTemplateEditor({
         )}
       </div>
 
-      <div className="space-y-1.5">
+      <div className="grid gap-2">
         <Label>
           <T>Live preview (sample data)</T>
         </Label>
@@ -218,7 +225,7 @@ export function NotificationTemplateEditor({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="grid gap-2">
         <Label htmlFor="tpl-test-phone">
           <T>Test SMS phone (E.164)</T>
         </Label>
@@ -230,7 +237,7 @@ export function NotificationTemplateEditor({
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[var(--glass-border)]">
+      <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[var(--glass-border)]">
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -276,11 +283,20 @@ export function NotificationTemplateEditor({
           </Button>
         </div>
 
-        <Button type="button" disabled={pending || !validation.valid} onClick={handleSave}>
-          {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <T>Save</T>
-        </Button>
       </div>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={pending}
+        saveDisabled={!validation.valid}
+        onDiscard={() => {
+          setSubject(saved.subject)
+          setTitle(saved.title)
+          setBody(saved.body)
+          setIsActive(saved.isActive)
+        }}
+        onSave={handleSave}
+        saveLabel={t('Save')}
+      />
     </Card>
   )
 }

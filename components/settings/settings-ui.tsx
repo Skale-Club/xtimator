@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
-import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 
 /*
  * Settings building blocks. Every settings page is a SettingsHeader followed
@@ -121,77 +119,5 @@ export function SettingsRows({ children, className }: { children: ReactNode; cla
   return <div className={cn('divide-y divide-[var(--glass-border)]', className)}>{children}</div>
 }
 
-/**
- * The save action for a page-long form. While there are unsaved changes it
- * sticks to the bottom of the screen; otherwise it rests at the form's end
- * and covers nothing. Sticks to the bottom of the screen
- * (above the phone bottom nav: main's own bottom padding already clears it,
- * and sticky offsets are measured inside that padding) so a change made at the top of a long form can
- * be saved without scrolling, and says when there are unsaved changes.
- */
-export function SettingsSaveBar({
-  dirty,
-  pending,
-  onDiscard,
-  saveLabel = 'Save changes',
-  savingLabel = 'Saving…',
-  unsavedLabel = 'Unsaved changes',
-  savedLabel = 'All changes saved',
-  discardLabel = 'Discard',
-  className,
-}: {
-  dirty: boolean
-  pending: boolean
-  onDiscard?: () => void
-  saveLabel?: string
-  savingLabel?: string
-  unsavedLabel?: string
-  savedLabel?: string
-  discardLabel?: string
-  /** Spacing only. Must be a direct child of the <form>: sticky needs the
-   *  whole form as its containing block, so never wrap it in its own div. */
-  className?: string
-}) {
-  return (
-    <div
-      // Phone keyboard open: rest at the form's end instead. A sticky bar is
-      // pinned to the layout viewport's bottom, which on iOS is BEHIND the
-      // keyboard (Save unreachable) and on Android floats over the field being
-      // typed in. At the end of the form it is a normal scroll target, and the
-      // keyboard helper (lib/visual-viewport.ts) scrolls it into view when the
-      // field and Save fit together.
-      className={cn(dirty && "sticky bottom-3 z-20 md:bottom-4 [html[data-keyboard='open']_&]:static", className)}
-      data-testid="settings-save-bar"
-      data-settings-save-bar={dirty ? 'sticky' : 'rest'}
-    >
-      <div
-        className={cn(
-          'flex items-center justify-between gap-3 rounded-[var(--radius-lg)] border px-4 py-2.5 shadow-lg backdrop-blur transition-colors',
-          dirty
-            ? 'border-primary/40 bg-background/95'
-            : 'border-[var(--glass-border)] bg-background/80',
-        )}
-      >
-        <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-          {dirty && !pending && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-          {/* Phones: the dot says it; the words need more room than the
-              buttons leave. */}
-          <span className="truncate max-sm:sr-only">
-            {pending ? savingLabel : dirty ? unsavedLabel : savedLabel}
-          </span>
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          {dirty && onDiscard && (
-            <Button type="button" variant="ghost" size="sm" onClick={onDiscard} disabled={pending}>
-              {discardLabel}
-            </Button>
-          )}
-          <Button type="submit" size="sm" disabled={pending} className="min-w-28">
-            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {saveLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
+/** The save action for edit forms; see settings-save-bar.tsx. */
+export { SettingsSaveBar } from '@/components/settings/settings-save-bar'

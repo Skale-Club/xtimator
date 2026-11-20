@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
 
 import { seoSchema, type SeoInput } from '@/lib/schemas/admin'
 import {
@@ -18,7 +17,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { OgImageUploader } from '@/components/admin/og-image-uploader'
 
 import { saveSeo } from './actions'
@@ -75,6 +74,15 @@ export function SeoEditor({ initial }: SeoEditorProps) {
     form.setValue('ogImageUrl', '', { shouldDirty: true })
   }
 
+  const dirty = form.formState.isDirty || ogImageFile !== null || ogImageRemoved
+
+  function handleDiscard() {
+    form.reset()
+    setOgImageFile(null)
+    setOgImageRemoved(false)
+    setOgImagePreview(initial.ogImageUrl || null)
+  }
+
   function onSubmit(values: SeoInput) {
     startTransition(async () => {
       const fd = new FormData()
@@ -93,6 +101,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
         // doesn't re-upload the same file or re-trigger removal.
         setOgImageFile(null)
         setOgImageRemoved(false)
+        form.reset(values)
       } else {
         toast.error(`${t("Couldn't save SEO settings.")} ${result.message}`)
       }
@@ -183,12 +192,7 @@ export function SeoEditor({ initial }: SeoEditorProps) {
           )}
         />
 
-        <div>
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('Save SEO settings')}
-          </Button>
-        </div>
+        <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={handleDiscard} saveLabel={t('Save SEO settings')} />
       </form>
     </Form>
   )

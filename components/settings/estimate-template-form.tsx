@@ -4,7 +4,6 @@ import { useTransition } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import type { CompanySettings } from '@/lib/queries/company'
@@ -12,10 +11,9 @@ import { estimateTemplateSchema, type EstimateTemplateFormValues } from '@/lib/s
 import { saveEstimateTemplate } from '@/lib/actions/estimate-template'
 import { TEMPLATE_DEFAULTS } from '@/lib/utils/estimate-template'
 
-import { SettingsCard } from '@/components/settings/settings-ui'
+import { SettingsCard, SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface EstimateTemplateFormProps {
@@ -57,18 +55,12 @@ export function EstimateTemplateForm({ company }: EstimateTemplateFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <SettingsCard
           title={t('Message')}
           description={t('Filled in when you share or copy an estimate. You can still edit it each time you send.')}
-          footer={
-            <Button type="submit" size="sm" disabled={isPending} className="min-w-28">
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save message')}
-            </Button>
-          }
         >
-          <div className="space-y-5">
+          <div className="space-y-6">
               <FormField
                 control={form.control}
                 name="greeting"
@@ -130,6 +122,16 @@ export function EstimateTemplateForm({ company }: EstimateTemplateFormProps) {
             </div>
           </div>
         </SettingsCard>
+        <SettingsSaveBar
+          dirty={form.formState.isDirty}
+          pending={isPending}
+          onDiscard={() => form.reset()}
+          saveLabel={t('Save message')}
+          savingLabel={t('Saving…')}
+          unsavedLabel={t('Unsaved changes')}
+          savedLabel={t('All changes saved')}
+          discardLabel={t('Discard')}
+        />
       </form>
     </Form>
   )

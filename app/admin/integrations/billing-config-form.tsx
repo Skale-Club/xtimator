@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { BillingConfig, BillingTier } from '@/lib/billing/billing-config'
 import { ESTIMATED_CREDIT_OPS } from '@/lib/billing/estimated-credit-ops'
@@ -16,10 +19,8 @@ type Props = {
 
 const TIERS: BillingTier[] = ['free', 'pro', 'business']
 
-const inputClass =
-  'h-10 w-full rounded-md border border-input bg-background px-3 text-sm'
 const fieldsetClass =
-  'rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4'
+  'rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-6'
 const legendClass = 'text-sm font-semibold'
 
 // Per-tier editable state. Number fields are held as strings (the raw <input>
@@ -168,6 +169,42 @@ export function BillingConfigForm({ current }: Props) {
     String(current.absorbedChatRateLimitPerMin)
   )
 
+  // One serialisable view of every editable field: Save appears once it
+  // differs from what is stored, and Discard rewinds every field to it.
+  const snapshot = {
+    markup, markupByOp, creditUnitUsd, whisperUsdPerMinute, estimateFeePct, estimateFeeMinCents,
+    seatPriceCents, seatPriceAnnualCents, tiers, topUpPacks, topupExpiryMonths, estimatedCredits,
+    messagingRatesJson, lowBalanceThresholds, signupCreditGrant, enforcementEnabled,
+    autoTopupEnabled, brlPricingEnabled, meteredOperations, absorbedChatRateLimitPerMin,
+  }
+  const snapshotJson = JSON.stringify(snapshot)
+  const [savedJson, setSavedJson] = useState(snapshotJson)
+  const dirty = snapshotJson !== savedJson
+
+  function handleDiscard() {
+    const v = JSON.parse(savedJson) as typeof snapshot
+    setMarkup(v.markup)
+    setMarkupByOp(v.markupByOp)
+    setCreditUnitUsd(v.creditUnitUsd)
+    setWhisperUsdPerMinute(v.whisperUsdPerMinute)
+    setEstimateFeePct(v.estimateFeePct)
+    setEstimateFeeMinCents(v.estimateFeeMinCents)
+    setSeatPriceCents(v.seatPriceCents)
+    setSeatPriceAnnualCents(v.seatPriceAnnualCents)
+    setTiers(v.tiers)
+    setTopUpPacks(v.topUpPacks)
+    setTopupExpiryMonths(v.topupExpiryMonths)
+    setEstimatedCredits(v.estimatedCredits)
+    setMessagingRatesJson(v.messagingRatesJson)
+    setLowBalanceThresholds(v.lowBalanceThresholds)
+    setSignupCreditGrant(v.signupCreditGrant)
+    setEnforcementEnabled(v.enforcementEnabled)
+    setAutoTopupEnabled(v.autoTopupEnabled)
+    setBrlPricingEnabled(v.brlPricingEnabled)
+    setMeteredOperations(v.meteredOperations)
+    setAbsorbedChatRateLimitPerMin(v.absorbedChatRateLimitPerMin)
+  }
+
   function updateTier<K extends keyof TierFormState>(
     tier: BillingTier,
     field: K,
@@ -279,6 +316,7 @@ export function BillingConfigForm({ current }: Props) {
     startTransition(async () => {
       const res = await saveBillingConfig(payload)
       if (res.ok) {
+        setSavedJson(snapshotJson)
         toast.success(res.message ?? t('Saved'))
       } else {
         toast.error(res.message)
@@ -295,38 +333,35 @@ export function BillingConfigForm({ current }: Props) {
       {/* Markup & Credits */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Markup & Credits')}</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Global markup (fallback)')}</span>
-            <input
+            <Input
               type="number"
               step="0.1"
               value={markup}
               onChange={(e) => setMarkup(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Signup credit grant (free tier, one-time)')}</span>
-            <input
+            <Input
               type="number"
               step="1"
               value={signupCreditGrant}
               onChange={(e) => setSignupCreditGrant(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Credit unit (USD per credit)')}</span>
-            <input
+            <Input
               type="number"
               step="0.001"
               value={creditUnitUsd}
               onChange={(e) => setCreditUnitUsd(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
         </div>
@@ -335,15 +370,14 @@ export function BillingConfigForm({ current }: Props) {
       {/* Cost rates */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Cost rates')}</legend>
-        <label className="flex flex-col gap-1 max-w-sm">
+        <label className="grid gap-2 max-w-sm">
           <span className="text-sm font-medium">{t('Whisper USD per minute')}</span>
-          <input
+          <Input
             type="number"
             step="0.001"
             value={whisperUsdPerMinute}
             onChange={(e) => setWhisperUsdPerMinute(e.target.value)}
             disabled={isPending}
-            className={inputClass}
           />
         </label>
       </fieldset>
@@ -351,43 +385,41 @@ export function BillingConfigForm({ current }: Props) {
       {/* Messaging rates (WhatsApp / SMS / email passed to customer credits) */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Messaging rates (USD)')}</legend>
-        <p className="text-xs text-muted-foreground max-w-3xl">
-          {t("Checked 2026-11-10. WhatsApp is billed per delivered message by market and category (re-check against Meta's rate card); SMS per segment by country, including the carrier fee; email per message.")}
-        </p>
-        <textarea
+        <Textarea
           value={messagingRatesJson}
           onChange={(e) => setMessagingRatesJson(e.target.value)}
           disabled={isPending}
           rows={16}
           spellCheck={false}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
+          className="font-mono text-xs"
         />
+        <p className="text-xs text-muted-foreground max-w-3xl">
+          {t("Checked 2026-11-10. WhatsApp is billed per delivered message by market and category (re-check against Meta's rate card); SMS per segment by country, including the carrier fee; email per message.")}
+        </p>
       </fieldset>
 
       {/* Estimate fee */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Estimate fee')}</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Estimate fee % (0–1)')}</span>
-            <input
+            <Input
               type="number"
               step="0.001"
               value={estimateFeePct}
               onChange={(e) => setEstimateFeePct(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Estimate fee minimum (cents)')}</span>
-            <input
+            <Input
               type="number"
               step="1"
               value={estimateFeeMinCents}
               onChange={(e) => setEstimateFeeMinCents(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
         </div>
@@ -396,27 +428,25 @@ export function BillingConfigForm({ current }: Props) {
       {/* Seat billing */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Seat billing')}</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Per-seat price (cents)')}</span>
-            <input
+            <Input
               type="number"
               step="1"
               value={seatPriceCents}
               onChange={(e) => setSeatPriceCents(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="grid gap-2">
             <span className="text-sm font-medium">{t('Per-seat price annual (cents)')}</span>
-            <input
+            <Input
               type="number"
               step="1"
               value={seatPriceAnnualCents}
               onChange={(e) => setSeatPriceAnnualCents(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
         </div>
@@ -425,39 +455,33 @@ export function BillingConfigForm({ current }: Props) {
       {/* Per-tier grants, prices, entitlements & feature bullets */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Per-tier plans')}</legend>
-        <p className="text-xs text-muted-foreground max-w-2xl">
-          {t(
-            'Saving creates or updates the real Stripe Price charged at checkout for each subscription price. Existing subscribers keep their current price until they switch plans.'
-          )}
-        </p>
         <div className="space-y-6">
           {TIERS.map((tier) => (
             <div
               key={tier}
-              className="rounded-md border border-border bg-background/40 p-4 space-y-4"
+              className="rounded-md border border-border bg-background/40 p-4 space-y-6"
             >
               <span className="text-sm font-semibold capitalize">{tier}</span>
 
               {/* Grants & prices */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="flex flex-col gap-1">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Monthly credit grant')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     value={tiers[tier].monthlyCreditGrant}
                     onChange={(e) => updateTier(tier, 'monthlyCreditGrant', e.target.value)}
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Subscription price (cents)')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     value={tiers[tier].subscriptionPriceCents}
@@ -465,14 +489,13 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'subscriptionPriceCents', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Subscription price annual (cents)')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     value={tiers[tier].subscriptionPriceAnnualCents}
@@ -480,31 +503,29 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'subscriptionPriceAnnualCents', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Included seats')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     value={tiers[tier].includedSeats}
                     onChange={(e) => updateTier(tier, 'includedSeats', e.target.value)}
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
               </div>
 
               {/* Entitlement caps */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                <label className="flex flex-col gap-1">
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Max estimates / month')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     min="0"
@@ -513,36 +534,34 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'maxEstimatesPerMonth', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                     placeholder={t('unlimited')}
                   />
                   <span className="text-[11px] text-muted-foreground/80">
                     {t('(empty = unlimited)')}
                   </span>
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Max estimates / day')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     min="0"
                     value={tiers[tier].maxEstimatesPerDay}
                     onChange={(e) => updateTier(tier, 'maxEstimatesPerDay', e.target.value)}
                     disabled={isPending}
-                    className={inputClass}
                     placeholder={t('unlimited')}
                   />
                   <span className="text-[11px] text-muted-foreground/80">
                     {t('(empty = unlimited)')}
                   </span>
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Max price research / month')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     min="0"
@@ -551,18 +570,17 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'maxPriceResearchPerMonth', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                     placeholder={t('unlimited')}
                   />
                   <span className="text-[11px] text-muted-foreground/80">
                     {t('(empty = unlimited)')}
                   </span>
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Max photos / estimate')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     min="0"
@@ -571,14 +589,13 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'maxPhotosPerEstimate', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
+                <label className="grid gap-2">
                   <span className="text-xs text-muted-foreground">
                     {t('Max audio minutes / estimate')}
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="1"
                     min="0"
@@ -587,7 +604,6 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'maxAudioMinutesPerEstimate', e.target.value)
                     }
                     disabled={isPending}
-                    className={inputClass}
                   />
                 </label>
               </div>
@@ -600,7 +616,7 @@ export function BillingConfigForm({ current }: Props) {
                     checked={tiers[tier].whatsappEnabled}
                     onChange={(e) => updateTier(tier, 'whatsappEnabled', e.target.checked)}
                     disabled={isPending}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
                   {t('WhatsApp')}
                 </label>
@@ -610,7 +626,7 @@ export function BillingConfigForm({ current }: Props) {
                     checked={tiers[tier].pdfEnabled}
                     onChange={(e) => updateTier(tier, 'pdfEnabled', e.target.checked)}
                     disabled={isPending}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
                   {t('PDF')}
                 </label>
@@ -620,7 +636,7 @@ export function BillingConfigForm({ current }: Props) {
                     checked={tiers[tier].priceBookEnabled}
                     onChange={(e) => updateTier(tier, 'priceBookEnabled', e.target.checked)}
                     disabled={isPending}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
                   {t('Price book')}
                 </label>
@@ -632,67 +648,68 @@ export function BillingConfigForm({ current }: Props) {
                       updateTier(tier, 'customDomainEnabled', e.target.checked)
                     }
                     disabled={isPending}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-primary"
                   />
                   {t('Custom domain')}
                 </label>
               </div>
 
               {/* Feature bullets */}
-              <label className="flex flex-col gap-1">
+              <label className="grid gap-2">
                 <span className="text-xs text-muted-foreground">
                   {t('Feature bullets (one per line)')}
                 </span>
-                <textarea
+                <Textarea
                   rows={4}
                   value={tiers[tier].featureBullets}
                   onChange={(e) => updateTier(tier, 'featureBullets', e.target.value)}
                   disabled={isPending}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
               </label>
             </div>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground max-w-2xl">
+          {t(
+            'Saving creates or updates the real Stripe Price charged at checkout for each subscription price. Existing subscribers keep their current price until they switch plans.'
+          )}
+        </p>
       </fieldset>
 
       {/* Top-up packs */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Top-up packs')}</legend>
-        <div className="space-y-3">
+        <div className="space-y-6">
           {topUpPacks.map((pack, index) => (
-            <div key={index} className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-              <label className="flex flex-col gap-1">
+            <div key={index} className="grid gap-6 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+              <label className="grid gap-2">
                 <span className="text-xs text-muted-foreground">{t('Credits')}</span>
-                <input
+                <Input
                   type="number"
                   step="1"
                   value={pack.credits}
                   onChange={(e) => updatePack(index, 'credits', e.target.value)}
                   disabled={isPending}
-                  className={inputClass}
                 />
               </label>
-              <label className="flex flex-col gap-1">
+              <label className="grid gap-2">
                 <span className="text-xs text-muted-foreground">{t('Price (cents)')}</span>
-                <input
+                <Input
                   type="number"
                   step="1"
                   value={pack.priceCents}
                   onChange={(e) => updatePack(index, 'priceCents', e.target.value)}
                   disabled={isPending}
-                  className={inputClass}
                 />
               </label>
-              <label className="flex flex-col gap-1">
+              <label className="grid gap-2">
                 <span className="text-xs text-muted-foreground">{t('Price in BRL (centavos)')}</span>
-                <input
+                <Input
                   type="number"
                   step="1"
                   value={pack.priceCentsBrl}
                   onChange={(e) => updatePack(index, 'priceCentsBrl', e.target.value)}
                   disabled={isPending}
-                  className={inputClass}
                 />
               </label>
               <Button
@@ -702,7 +719,6 @@ export function BillingConfigForm({ current }: Props) {
                 onClick={() => removePack(index)}
                 disabled={isPending}
                 aria-label={t('Remove pack')}
-                className="min-h-[44px]"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -713,23 +729,21 @@ export function BillingConfigForm({ current }: Props) {
             variant="outline"
             onClick={addPack}
             disabled={isPending}
-            className="min-h-[44px]"
           >
             <Plus className="mr-2 h-4 w-4" />
             {t('Add pack')}
           </Button>
-          <label className="flex flex-col gap-1 max-w-xs">
+          <label className="grid gap-2 max-w-xs">
             <span className="text-xs text-muted-foreground">
               {t('Top-up expiry (months)')}
             </span>
-            <input
+            <Input
               type="number"
               step="1"
               min="1"
               value={topupExpiryMonths}
               onChange={(e) => setTopupExpiryMonths(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
         </div>
@@ -738,14 +752,11 @@ export function BillingConfigForm({ current }: Props) {
       {/* Per-operation markup (credit recalibration 2026-11-19) */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Markup per operation')}</legend>
-        <p className="text-xs text-muted-foreground">
-          {t('Credits debited = measured cost × this markup ÷ credit unit. Leave empty to use the global markup.')}
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {MARKUP_OPS.map((op) => (
-            <label key={op} className="flex flex-col gap-1">
+            <label key={op} className="grid gap-2">
               <span className="text-xs text-muted-foreground">{op}</span>
-              <input
+              <Input
                 type="number"
                 step="0.1"
                 min="0"
@@ -754,24 +765,23 @@ export function BillingConfigForm({ current }: Props) {
                 onChange={(e) => setMarkupByOp((prev) => ({ ...prev, [op]: e.target.value }))}
                 disabled={isPending}
                 aria-label={`${t('Markup')}: ${op}`}
-                className={inputClass}
               />
             </label>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground">
+          {t('Credits debited = measured cost × this markup ÷ credit unit. Leave empty to use the global markup.')}
+        </p>
       </fieldset>
 
       {/* Pre-gate credit estimate per operation (SEED-055 Phase D) */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Estimated credits per operation')}</legend>
-        <p className="text-xs text-muted-foreground">
-          {t('Used only to decide whether an operation may start. The debit is always the measured cost.')}
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
           {ESTIMATED_CREDIT_OPS.map((op) => (
-            <label key={op} className="flex flex-col gap-1">
+            <label key={op} className="grid gap-2">
               <span className="text-xs text-muted-foreground">{op}</span>
-              <input
+              <Input
                 type="number"
                 step="1"
                 min="0"
@@ -781,27 +791,28 @@ export function BillingConfigForm({ current }: Props) {
                 }
                 disabled={isPending}
                 aria-label={`${t('Estimated credits')}: ${op}`}
-                className={inputClass}
               />
             </label>
           ))}
         </div>
+        <p className="text-xs text-muted-foreground">
+          {t('Used only to decide whether an operation may start. The debit is always the measured cost.')}
+        </p>
       </fieldset>
 
       {/* Low-balance thresholds */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Low-balance thresholds')}</legend>
-        <label className="flex flex-col gap-1 max-w-sm">
+        <label className="grid gap-2 max-w-sm">
           <span className="text-sm font-medium">
             {t('Credit balances to warn at (comma-separated)')}
           </span>
-          <input
+          <Input
             type="text"
             inputMode="numeric"
             value={lowBalanceThresholds}
             onChange={(e) => setLowBalanceThresholds(e.target.value)}
             disabled={isPending}
-            className={inputClass}
             placeholder="200, 50"
           />
         </label>
@@ -816,9 +827,9 @@ export function BillingConfigForm({ current }: Props) {
             checked={enforcementEnabled}
             onChange={(e) => setEnforcementEnabled(e.target.checked)}
             disabled={isPending}
-            className="mt-1 h-4 w-4"
+            className="mt-1 h-4 w-4 accent-primary"
           />
-          <span className="flex flex-col gap-1">
+          <span className="grid gap-2">
             <span className="text-sm font-medium">{t('Enforce credit charging')}</span>
             <span className="text-xs text-muted-foreground max-w-2xl">
               {t(
@@ -838,9 +849,9 @@ export function BillingConfigForm({ current }: Props) {
             checked={autoTopupEnabled}
             onChange={(e) => setAutoTopupEnabled(e.target.checked)}
             disabled={isPending}
-            className="mt-1 h-4 w-4"
+            className="mt-1 h-4 w-4 accent-primary"
           />
-          <span className="flex flex-col gap-1">
+          <span className="grid gap-2">
             <span className="text-sm font-medium">{t('Enable auto-top-up')}</span>
             <span className="text-xs text-muted-foreground max-w-2xl">
               {t(
@@ -860,7 +871,7 @@ export function BillingConfigForm({ current }: Props) {
             checked={brlPricingEnabled}
             onChange={(e) => setBrlPricingEnabled(e.target.checked)}
             disabled={isPending}
-            className="mt-1 h-4 w-4"
+            className="mt-1 h-4 w-4 accent-primary"
           />
           <span className="text-sm font-medium">
             {t('BRL pricing for Brazilian companies (plans still charge in USD)')}
@@ -871,7 +882,7 @@ export function BillingConfigForm({ current }: Props) {
       {/* Metering */}
       <fieldset className={fieldsetClass}>
         <legend className={legendClass}>{t('Metering')}</legend>
-        <div className="space-y-3">
+        <div className="space-y-6">
           <span className="text-sm font-medium">{t('Metered operations')}</span>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {Object.entries(meteredOperations).map(([op, enabled]) => (
@@ -883,37 +894,35 @@ export function BillingConfigForm({ current }: Props) {
                     setMeteredOperations((prev) => ({ ...prev, [op]: e.target.checked }))
                   }
                   disabled={isPending}
-                  className="h-4 w-4"
+                  className="h-4 w-4 accent-primary"
                 />
                 {op}
               </label>
             ))}
           </div>
-          <label className="flex flex-col gap-1 max-w-sm">
+          <label className="grid gap-2 max-w-sm">
             <span className="text-sm font-medium">
               {t('Absorbed chat rate limit (per minute)')}
             </span>
-            <input
+            <Input
               type="number"
               step="1"
               min="0"
               value={absorbedChatRateLimitPerMin}
               onChange={(e) => setAbsorbedChatRateLimitPerMin(e.target.value)}
               disabled={isPending}
-              className={inputClass}
             />
           </label>
         </div>
       </fieldset>
 
-      <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-        {isPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Save className="mr-2 h-4 w-4" />
-        )}
-        {t('Save')}
-      </Button>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={handleDiscard}
+        onSave={handleSave}
+        saveLabel={t('Save')}
+      />
     </div>
   )
 }

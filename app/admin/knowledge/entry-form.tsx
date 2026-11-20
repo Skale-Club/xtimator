@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import {
   Select,
   SelectContent,
@@ -37,7 +38,8 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<KnowledgeEntryInput>({
     resolver: zodResolver(knowledgeEntrySchema) as never,
     defaultValues: {
@@ -49,6 +51,8 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
   })
 
   const industryId = watch('industry_id')
+  const title = watch('title')
+  const body = watch('body')
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-6">
@@ -56,7 +60,7 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
         <Label htmlFor="industry_id">{t('Industry')}</Label>
         <Select
           value={industryId}
-          onValueChange={(val) => setValue('industry_id', val, { shouldValidate: true })}
+          onValueChange={(val) => setValue('industry_id', val, { shouldValidate: true, shouldDirty: true })}
         >
           <SelectTrigger id="industry_id">
             <SelectValue placeholder={t('Select industry')} />
@@ -111,9 +115,22 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
         )}
       </div>
 
-      <Button type="submit" disabled={isPending} className="self-start">
-        {t('Save entry')}
-      </Button>
+      {initial ? (
+        <SettingsSaveBar
+          dirty={isDirty}
+          pending={isPending}
+          onDiscard={() => reset()}
+          saveLabel={t('Save entry')}
+        />
+      ) : (
+        <Button
+          type="submit"
+          disabled={isPending || !industryId || !title?.trim() || !body?.trim()}
+          className="self-start"
+        >
+          {t('Save entry')}
+        </Button>
+      )}
     </form>
   )
 }

@@ -222,6 +222,11 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 0 0% 100%;
+    --field-border: 240 5% 76%;
+    --field-border-hover: 240 5% 60%;
+    --field-placeholder: 240 4% 60%;
     --ring: var(--system-primary);
     --radius: 0.5rem;
 
@@ -267,6 +272,11 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 240 6% 10%;
+    --field-border: 240 5% 28%;
+    --field-border-hover: 240 5% 38%;
+    --field-placeholder: 240 4% 46%;
     --ring: var(--system-primary);
 
     /* --- Phase 9 (09-04): semantic status palette — dark --- */
@@ -298,6 +308,11 @@
     --popover-foreground: 0 0% 98%;
     --border: 240 4% 20%;
     --input: 240 4% 16%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 240 5% 13%;
+    --field-border: 240 5% 30%;
+    --field-border-hover: 240 5% 40%;
+    --field-placeholder: 240 4% 48%;
     --primary: var(--platform-primary, var(--system-primary));
     --primary-foreground: 0 0% 100%;
     --secondary: var(--system-secondary);
@@ -359,6 +374,11 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 0 0% 100%;
+    --field-border: 240 5% 76%;
+    --field-border-hover: 240 5% 60%;
+    --field-placeholder: 240 4% 60%;
     --ring: var(--platform-primary, var(--system-primary));
 
     /* --- Phase 9 (09-04): semantic status palette — forced-light (matches :root) --- */
@@ -385,6 +405,11 @@
     --accent: 222 55% 96%;
     --border: 222 36% 88%;
     --input: 222 36% 88%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 0 0% 100%;
+    --field-border: 222 26% 78%;
+    --field-border-hover: 222 24% 64%;
+    --field-placeholder: 224 12% 58%;
     --foreground: 226 45% 10%;
     --muted-foreground: 224 18% 38%;
     background-image: radial-gradient(120% 70% at 50% 0%, hsl(var(--primary) / 0.09), transparent 62%);
@@ -399,6 +424,11 @@
     --accent: 225 30% 15%;
     --border: 225 28% 22%;
     --input: 225 28% 22%;
+    /* Form fields: a filled surface and a border that reads against the card (WCAG 1.4.11). */
+    --field: 225 30% 12%;
+    --field-border: 225 22% 32%;
+    --field-border-hover: 225 22% 42%;
+    --field-placeholder: 224 14% 50%;
     --foreground: 220 40% 98%;
     --muted-foreground: 222 22% 72%;
     background-image: radial-gradient(120% 70% at 50% 0%, hsl(var(--primary) / 0.2), transparent 62%);
@@ -508,6 +538,10 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-border:              hsl(var(--border));
   --color-input:               hsl(var(--input));
+  --color-field:               hsl(var(--field));
+  --color-field-border:        hsl(var(--field-border));
+  --color-field-border-hover:  hsl(var(--field-border-hover));
+  --color-field-placeholder:   hsl(var(--field-placeholder));
   --color-ring:                hsl(var(--ring));
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-lora), ui-serif, Georgia, serif;

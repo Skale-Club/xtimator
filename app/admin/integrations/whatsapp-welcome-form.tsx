@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveWhatsAppWelcomeConfig } from './actions'
 
@@ -27,13 +26,18 @@ export function WhatsAppWelcomeForm({
 }: WhatsAppWelcomeFormProps) {
   const [templateNames, setTemplateNames] = useState(currentTemplateNames)
   const [videoUrls, setVideoUrls] = useState(currentVideoUrls)
+  const [saved, setSaved] = useState({ templateNames: currentTemplateNames, videoUrls: currentVideoUrls })
   const [isPending, startTransition] = useTransition()
+  const dirty = JSON.stringify({ templateNames, videoUrls }) !== JSON.stringify(saved)
 
   function handleSave() {
     startTransition(async () => {
       const result = await saveWhatsAppWelcomeConfig({ templateNames, videoUrls })
       if (!result.ok) toast.error(result.message)
-      else toast.success('WhatsApp welcome settings saved.')
+      else {
+        setSaved({ templateNames, videoUrls })
+        toast.success('WhatsApp welcome settings saved.')
+      }
     })
   }
 
@@ -48,9 +52,9 @@ export function WhatsAppWelcomeForm({
           template is skipped; a text placeholder replaces the video).
         </p>
       </div>
-      <div className="grid gap-4 max-w-2xl">
+      <div className="grid gap-6 max-w-2xl">
         {LANGS.map(({ key, label }) => (
-          <div key={key} className="space-y-1">
+          <div key={key} className="grid gap-2">
             <Label htmlFor={`wa-welcome-template-${key}`}>Template name ({label})</Label>
             <Input
               id={`wa-welcome-template-${key}`}
@@ -62,7 +66,7 @@ export function WhatsAppWelcomeForm({
           </div>
         ))}
         {LANGS.map(({ key, label }) => (
-          <div key={key} className="space-y-1">
+          <div key={key} className="grid gap-2">
             <Label htmlFor={`wa-welcome-video-${key}`}>How-it-works video URL ({label})</Label>
             <Input
               id={`wa-welcome-video-${key}`}
@@ -74,14 +78,15 @@ export function WhatsAppWelcomeForm({
           </div>
         ))}
       </div>
-      <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-        {isPending ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <Save className="mr-2 h-4 w-4" />
-        )}
-        Save
-      </Button>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={() => {
+          setTemplateNames(saved.templateNames)
+          setVideoUrls(saved.videoUrls)
+        }}
+        onSave={handleSave}
+      />
     </div>
   )
 }

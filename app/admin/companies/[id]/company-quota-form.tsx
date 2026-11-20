@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { setDemoEstimateQuota } from '../actions'
 
 type Props = {
@@ -12,8 +13,10 @@ type Props = {
 }
 
 export function CompanyQuotaForm({ companyId, initialQuota }: Props) {
-  const [value, setValue] = useState(initialQuota !== null ? String(initialQuota) : '')
+  const [saved, setSaved] = useState(initialQuota !== null ? String(initialQuota) : '')
+  const [value, setValue] = useState(saved)
   const [pending, startTransition] = useTransition()
+  const dirty = value.trim() !== saved.trim()
 
   function save() {
     const parsed = value.trim() === '' ? null : parseInt(value.trim(), 10)
@@ -25,16 +28,18 @@ export function CompanyQuotaForm({ companyId, initialQuota }: Props) {
     startTransition(async () => {
       const result = await setDemoEstimateQuota(companyId, parsed ?? null)
       if (result.ok) {
+        setSaved(value.trim())
         toast.success(result.message ?? 'Saved')
       } else {
         toast.error(result.message)
-        setValue(initialQuota !== null ? String(initialQuota) : '')
+        setValue(saved)
       }
     })
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="grid gap-4">
+      <div className="flex items-center gap-3">
       <Input
         type="number"
         min={0}
@@ -44,14 +49,6 @@ export function CompanyQuotaForm({ companyId, initialQuota }: Props) {
         disabled={pending}
         className="w-32 font-mono"
       />
-      <Button
-        type="button"
-        size="sm"
-        disabled={pending}
-        onClick={save}
-      >
-        {pending ? 'Saving…' : 'Save'}
-      </Button>
       {value !== '' && (
         <Button
           type="button"
@@ -62,7 +59,10 @@ export function CompanyQuotaForm({ companyId, initialQuota }: Props) {
             setValue('')
             startTransition(async () => {
               const result = await setDemoEstimateQuota(companyId, null)
-              if (result.ok) toast.success(result.message ?? 'Quota removed')
+              if (result.ok) {
+                setSaved('')
+                toast.success(result.message ?? 'Quota removed')
+              }
               else toast.error(result.message)
             })
           }}
@@ -70,6 +70,8 @@ export function CompanyQuotaForm({ companyId, initialQuota }: Props) {
           Remove limit
         </Button>
       )}
+      </div>
+      <SettingsSaveBar dirty={dirty} pending={pending} onDiscard={() => setValue(saved)} onSave={save} />
     </div>
   )
 }

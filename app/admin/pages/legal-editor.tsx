@@ -4,7 +4,6 @@ import { useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
 
 import { legalPageSchema, type LegalPageInput } from '@/lib/schemas/admin'
 import {
@@ -17,7 +16,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { saveLegalPage } from './actions'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { LegalPage } from '@/lib/queries/legal-pages'
@@ -44,6 +43,7 @@ export function LegalEditor({ page }: LegalEditorProps) {
       const result = await saveLegalPage(page.id, values)
       if (result.ok) {
         toast.success(t('Legal page saved.'))
+        form.reset(values)
       } else {
         toast.error(result.message)
       }
@@ -100,12 +100,12 @@ export function LegalEditor({ page }: LegalEditorProps) {
           )}
         />
 
-        <div>
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('Save')}
-          </Button>
-        </div>
+        <SettingsSaveBar
+          dirty={form.formState.isDirty}
+          pending={isPending}
+          onDiscard={() => form.reset()}
+          saveLabel={t('Save')}
+        />
       </form>
     </Form>
   )

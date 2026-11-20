@@ -4,13 +4,12 @@ import { useState, useTransition } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { customDomainSchema, type CustomDomainFormValues } from '@/lib/schemas/custom-domain'
 import { saveCustomDomain } from '@/lib/actions/custom-domain'
 
-import { SettingsCard, SettingsStack } from '@/components/settings/settings-ui'
+import { SettingsCard, SettingsSaveBar, SettingsStack } from '@/components/settings/settings-ui'
 import {
   Form,
   FormControl,
@@ -21,7 +20,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 interface CustomDomainFormProps {
   settings: { id: string; custom_domain: string | null }
@@ -52,6 +50,7 @@ export function CustomDomainForm({ settings }: CustomDomainFormProps) {
       } else {
         // Update local state immediately before router.refresh()
         setSavedDomain(values.custom_domain || null)
+        form.reset(values)
         toast.success('Domain saved.')
         router.refresh()
       }
@@ -68,16 +67,10 @@ export function CustomDomainForm({ settings }: CustomDomainFormProps) {
   return (
     <SettingsStack>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <SettingsCard
             title="Domain"
             description="Leave it empty to stop using a custom domain."
-            footer={
-              <Button type="submit" size="sm" disabled={isPending} className="min-w-28">
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save domain
-              </Button>
-            }
           >
             <FormField
               control={form.control}
@@ -97,6 +90,12 @@ export function CustomDomainForm({ settings }: CustomDomainFormProps) {
               )}
             />
           </SettingsCard>
+          <SettingsSaveBar
+            dirty={form.formState.isDirty}
+            pending={isPending}
+            onDiscard={() => form.reset()}
+            saveLabel="Save domain"
+          />
         </form>
       </Form>
 

@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils'
  * (Not `dark:` — Tailwind's dark variant here follows the OS, not the app theme.)
  */
 export const TOOLBAR_CONTROL =
-  'h-9 rounded-lg border border-input bg-foreground/[0.03] shadow-none hover:bg-foreground/[0.07] hover:text-foreground'
+  'h-9 rounded-lg border border-field-border bg-field shadow-none hover:border-field-border-hover hover:bg-field hover:text-foreground'
 
 export interface ListOption {
   value: string
@@ -115,7 +115,7 @@ export function ListSearch({ value, onChange, placeholder, className }: {
             onChange('')
           }
         }}
-        className="h-9 w-full min-w-0 rounded-lg border border-input bg-foreground/[0.03] pl-9 pr-9 text-base text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm [&::-webkit-search-cancel-button]:hidden"
+        className="h-9 w-full min-w-0 rounded-lg border border-field-border bg-field pl-9 pr-9 text-base text-foreground outline-none transition-[border-color,box-shadow] hover:border-field-border-hover placeholder:text-field-placeholder focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm [&::-webkit-search-cancel-button]:hidden"
       />
       {value && (
         <button

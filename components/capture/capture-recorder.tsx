@@ -2218,7 +2218,7 @@ function StackedBody({ analyser, isRecording, elapsedMs, ringColorClass, progres
             value={descriptionText}
             onChange={e => setDescriptionText(e.target.value)}
             placeholder={t('Or describe the job here...')}
-            className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full min-h-[80px] rounded-md border border-field-border bg-field px-3 py-2 text-sm hover:border-field-border-hover placeholder:text-field-placeholder focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/40"
             data-testid="capture-description"
           />
         </div>

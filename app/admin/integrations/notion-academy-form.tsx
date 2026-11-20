@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveNotionAcademyConfig } from './actions'
 
@@ -16,7 +15,9 @@ interface NotionAcademyFormProps {
 export function NotionAcademyForm({ currentCoursesDb, currentLessonsDb }: NotionAcademyFormProps) {
   const [coursesDb, setCoursesDb] = useState(currentCoursesDb)
   const [lessonsDb, setLessonsDb] = useState(currentLessonsDb)
+  const [saved, setSaved] = useState({ coursesDb: currentCoursesDb, lessonsDb: currentLessonsDb })
   const [isPending, startTransition] = useTransition()
+  const dirty = coursesDb !== saved.coursesDb || lessonsDb !== saved.lessonsDb
 
   function handleSave() {
     startTransition(async () => {
@@ -24,6 +25,7 @@ export function NotionAcademyForm({ currentCoursesDb, currentLessonsDb }: Notion
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved({ coursesDb, lessonsDb })
         toast.success('Academy databases saved. Changes appear within a few minutes.')
       }
     })
@@ -39,8 +41,8 @@ export function NotionAcademyForm({ currentCoursesDb, currentLessonsDb }: Notion
           once at least one course is published for Xtimator and has a published lesson.
         </p>
       </div>
-      <div className="grid gap-4 max-w-xl">
-        <div className="space-y-1">
+      <div className="grid gap-6 max-w-xl">
+        <div className="grid gap-2">
           <Label htmlFor="notion-courses-db">Courses database id</Label>
           <Input
             id="notion-courses-db"
@@ -51,7 +53,7 @@ export function NotionAcademyForm({ currentCoursesDb, currentLessonsDb }: Notion
             autoComplete="off"
           />
         </div>
-        <div className="space-y-1">
+        <div className="grid gap-2">
           <Label htmlFor="notion-lessons-db">Lessons database id</Label>
           <Input
             id="notion-lessons-db"
@@ -62,17 +64,16 @@ export function NotionAcademyForm({ currentCoursesDb, currentLessonsDb }: Notion
             autoComplete="off"
           />
         </div>
-        <div>
-          <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-            {isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            Save
-          </Button>
-        </div>
       </div>
+      <SettingsSaveBar
+        dirty={dirty}
+        pending={isPending}
+        onDiscard={() => {
+          setCoursesDb(saved.coursesDb)
+          setLessonsDb(saved.lessonsDb)
+        }}
+        onSave={handleSave}
+      />
     </div>
   )
 }

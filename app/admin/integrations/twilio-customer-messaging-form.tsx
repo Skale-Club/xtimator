@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveTwilioCustomerMessagingServiceSid } from './actions'
 
@@ -14,7 +13,9 @@ interface TwilioCustomerMessagingFormProps {
 
 export function TwilioCustomerMessagingForm({ current }: TwilioCustomerMessagingFormProps) {
   const [value, setValue] = useState(current)
+  const [saved, setSaved] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const dirty = value !== saved
 
   function handleSave() {
     startTransition(async () => {
@@ -22,6 +23,7 @@ export function TwilioCustomerMessagingForm({ current }: TwilioCustomerMessaging
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved(value)
         toast.success('Customer Messaging Service saved.')
       }
     })
@@ -38,8 +40,8 @@ export function TwilioCustomerMessagingForm({ current }: TwilioCustomerMessaging
           to disable end-customer SMS entirely (no fallback to the number above).
         </p>
       </div>
-      <div className="flex gap-3 items-end max-w-sm">
-        <div className="flex-1 space-y-1">
+      <div className="grid gap-2 max-w-sm">
+        <div className="grid gap-2">
           <Label htmlFor="twilio-customer-messaging-service-sid">Messaging Service SID</Label>
           <Input
             id="twilio-customer-messaging-service-sid"
@@ -50,15 +52,8 @@ export function TwilioCustomerMessagingForm({ current }: TwilioCustomerMessaging
             disabled={isPending}
           />
         </div>
-        <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-          {isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
+      <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
     </div>
   )
 }

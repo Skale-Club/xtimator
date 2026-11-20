@@ -20,8 +20,8 @@ export function CodeInput({ id, value, onChange, disabled, length = 6, label = '
         key={index}
         aria-hidden
         className={cn(
-          'flex aspect-square w-full max-w-14 items-center justify-center rounded-xl border bg-muted/30 font-mono text-2xl font-semibold transition-colors dark:bg-input/30',
-          isActive ? 'border-primary ring-[3px] ring-primary/25' : 'border-input',
+          'flex aspect-square w-full max-w-14 items-center justify-center rounded-xl border bg-field font-mono text-2xl font-semibold transition-colors',
+          isActive ? 'border-primary ring-[3px] ring-primary/25' : 'border-field-border',
           disabled && 'opacity-60',
         )}
       >

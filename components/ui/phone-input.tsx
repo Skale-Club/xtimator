@@ -26,6 +26,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
+import { FIELD_DISABLED, FIELD_FOCUS, FIELD_SURFACE } from '@/components/ui/field-styles'
+import { cn } from '@/lib/utils'
 import { COUNTRIES, applyMask, maxDigits, type Country } from '@/lib/phone/countries'
 
 type FlagComponent = React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number | string }>
@@ -237,10 +239,10 @@ export function PhoneInput({
           <button
             type="button"
             aria-label={`Country: ${country.name} +${country.dial}`}
-            className="flex min-h-[44px] w-[104px] shrink-0 items-center gap-1.5 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs transition-colors hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30"
+            className={cn(FIELD_SURFACE, FIELD_FOCUS, FIELD_DISABLED, 'flex min-h-[44px] w-[104px] shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] px-3 text-sm disabled:pointer-events-none')}
           >
             <FlagSvg code={countryCode} className="shrink-0 rounded-sm" />
-            <span className="tabular-nums text-muted-foreground">+{country.dial}</span>
+            <span className="tabular-nums">+{country.dial}</span>
             <ChevronDown className={`ml-auto size-4 shrink-0 opacity-50 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
         </PopoverTrigger>

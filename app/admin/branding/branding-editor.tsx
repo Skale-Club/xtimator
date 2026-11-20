@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
 
 import { brandingSchema, type BrandingInput } from '@/lib/schemas/admin'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -19,7 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { LogoUploader } from '@/components/onboarding/logo-uploader'
 import { ColorPickerPopover } from '@/components/ui/color-picker-popover'
 
@@ -51,6 +50,8 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [faviconFile, setFaviconFile] = useState<File | null>(null)
+  // Bumped to remount the (uncontrolled) favicon file input and clear it.
+  const [faviconInputKey, setFaviconInputKey] = useState(0)
 
   const form = useForm<BrandingInput>({
     // zod v4 + RHF generic mismatch — same cast pattern as
@@ -87,6 +88,16 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
     form.setValue('logoFile', null, { shouldDirty: true })
   }
 
+  const dirty = form.formState.isDirty || logoFile !== null || faviconFile !== null
+
+  function handleDiscard() {
+    form.reset()
+    setLogoFile(null)
+    setLogoPreview(initial.logoUrl)
+    setFaviconFile(null)
+    setFaviconInputKey(k => k + 1)
+  }
+
   function onSubmit(values: BrandingInput) {
     startTransition(async () => {
       const fd = new FormData()
@@ -99,6 +110,10 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
       const result = await saveBranding(fd)
       if (result.ok) {
         toast.success(t('Branding updated.'))
+        form.reset({ ...values, logoFile: null })
+        setLogoFile(null)
+        setFaviconFile(null)
+        setFaviconInputKey(k => k + 1)
         router.refresh()
       } else if ('errors' in result) {
         toast.error(t('Couldn’t save branding. Check the form for errors.'))
@@ -156,6 +171,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             <FormLabel>{t('Favicon')}</FormLabel>
             <FormControl>
               <input
+                key={faviconInputKey}
                 type="file"
                 accept=".ico,.png,.svg"
                 className="text-sm"
@@ -228,12 +244,7 @@ export function BrandingEditor({ initial }: BrandingEditorProps) {
             )}
           />
 
-          <div>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('Save branding')}
-            </Button>
-          </div>
+          <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={handleDiscard} saveLabel={t('Save branding')} />
         </form>
       </Form>
 

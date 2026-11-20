@@ -23,6 +23,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import Link from 'next/link'
+import { SAVE_BAR_CLEARANCE_GAP, useSaveBarRect } from '@/lib/ui/save-bar-clearance'
 import {
   MessageSquare,
   Minus,
@@ -171,6 +172,25 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
         }
       : undefined
   const launcherRef = useRef<HTMLButtonElement>(null)
+
+  // A visible save bar the bubble would sit on top of: lift the bubble just
+  // above it (only then; a bubble beside the bar stays put), so Save is never
+  // covered. Horizontal position never changes with the lift, so the current
+  // rect is enough to test the overlap.
+  const saveBar = useSaveBarRect()
+  const [liftTo, setLiftTo] = useState<number | null>(null)
+  useEffect(() => {
+    const el = launcherRef.current
+    if (!saveBar || !el || open) { setLiftTo(null); return }
+    const r = el.getBoundingClientRect()
+    const overlapsX = r.right > saveBar.left && r.left < saveBar.right
+    setLiftTo(overlapsX ? Math.round(window.innerHeight - saveBar.top + SAVE_BAR_CLEARANCE_GAP) : null)
+  }, [saveBar, open, spot])
+  const baseBottom = spot ? `clamp(8px, ${spot.bottom}px, calc(100dvh - ${BUBBLE_PX + 8}px))` : 'var(--bubble-bottom)'
+  const placedStyle: CSSProperties | undefined =
+    liftTo !== null && !dragAt
+      ? { ...launcherStyle, bottom: `max(${baseBottom}, ${liftTo}px)`, transition: 'bottom 200ms ease, transform 150ms, box-shadow 150ms' }
+      : launcherStyle
   const panelRef = useRef<HTMLDivElement>(null)
   const panel = useChatPanel()
   const panelStyle: CSSProperties & { '--chat-panel-height': string } = {
@@ -276,10 +296,10 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
           aria-label={t('Open chat assistant')}
           data-hide-on-keyboard
           title={t('Drag to move')}
-          style={launcherStyle}
+          style={placedStyle}
           className={cn(
             'fixed z-40 [--bubble-edge:1.5rem] lg:[--bubble-edge:2rem]',
-            'bottom-24 right-[var(--bubble-edge)] lg:bottom-8',
+            '[--bubble-bottom:6rem] lg:[--bubble-bottom:2rem] bottom-[var(--bubble-bottom)] right-[var(--bubble-edge)]',
             'flex h-12 w-12 items-center justify-center rounded-full',
             'bg-primary text-primary-foreground shadow-lg',
             // touch-none: a finger on the bubble drags it instead of scrolling the page.

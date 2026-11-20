@@ -2,9 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { PhoneInput } from '@/components/ui/phone-input'
-import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
-import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { saveTwilioFromPhone } from './actions'
 
@@ -14,7 +13,9 @@ interface TwilioFromPhoneFormProps {
 
 export function TwilioFromPhoneForm({ current }: TwilioFromPhoneFormProps) {
   const [value, setValue] = useState(current)
+  const [saved, setSaved] = useState(current)
   const [isPending, startTransition] = useTransition()
+  const dirty = value !== saved
 
   function handleSave() {
     startTransition(async () => {
@@ -22,6 +23,7 @@ export function TwilioFromPhoneForm({ current }: TwilioFromPhoneFormProps) {
       if (!result.ok) {
         toast.error(result.message)
       } else {
+        setSaved(value)
         toast.success('Twilio from phone saved.')
       }
     })
@@ -36,8 +38,8 @@ export function TwilioFromPhoneForm({ current }: TwilioFromPhoneFormProps) {
           <code className="font-mono text-xs">+15551234567</code>).
         </p>
       </div>
-      <div className="flex gap-3 items-end max-w-sm">
-        <div className="flex-1 space-y-1">
+      <div className="grid gap-2 max-w-sm">
+        <div className="grid gap-2">
           <Label htmlFor="twilio-from-phone">From phone</Label>
           <PhoneInput
             id="twilio-from-phone"
@@ -50,15 +52,8 @@ export function TwilioFromPhoneForm({ current }: TwilioFromPhoneFormProps) {
             disabled={isPending}
           />
         </div>
-        <Button onClick={handleSave} disabled={isPending} className="min-h-[44px]">
-          {isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
+      <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
     </div>
   )
 }

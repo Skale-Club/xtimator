@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 
 export type EntryFormInitial = {
   title: string
@@ -29,7 +30,9 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    reset,
+    watch,
+    formState: { errors, isDirty },
   } = useForm<CompanyKnowledgeEntryInput>({
     resolver: zodResolver(companyKnowledgeEntrySchema) as never,
     defaultValues: {
@@ -39,15 +42,20 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
     },
   })
 
+  // Editing an entry: the save bar appears only after a change. A new entry
+  // keeps its button, enabled once it has a title and a body.
+  const isEdit = !!initial
+  const canCreate = !!watch('title')?.trim() && !!watch('body')?.trim()
+
   return (
     <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor="title">{t('Title')}</Label>
         <Input id="title" {...register('title')} placeholder={t('Entry title')} />
         {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor="body">{t('Body')}</Label>
         <Textarea
           id="body"
@@ -58,7 +66,7 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
         {errors.body && <p className="text-sm text-destructive">{errors.body.message}</p>}
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor="source">{t('Source (optional)')}</Label>
         <Input
           id="source"
@@ -68,9 +76,22 @@ export function EntryForm({ initial, onSave, isPending }: EntryFormProps) {
         {errors.source && <p className="text-sm text-destructive">{errors.source.message}</p>}
       </div>
 
-      <Button type="submit" disabled={isPending} className="self-start">
-        {t('Save entry')}
-      </Button>
+      {isEdit ? (
+        <SettingsSaveBar
+          dirty={isDirty}
+          pending={isPending}
+          onDiscard={() => reset()}
+          saveLabel={t('Save entry')}
+          savingLabel={t('Saving…')}
+          unsavedLabel={t('Unsaved changes')}
+          savedLabel={t('All changes saved')}
+          discardLabel={t('Discard')}
+        />
+      ) : (
+        <Button type="submit" disabled={isPending || !canCreate} className="self-start">
+          {t('Save entry')}
+        </Button>
+      )}
     </form>
   )
 }

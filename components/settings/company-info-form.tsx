@@ -306,8 +306,8 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
               title={t('Business details')}
               description={t('Shown in the header of every estimate you send.')}
             >
-              <div className="space-y-5">
-                <div className="grid items-start gap-5 sm:grid-cols-2">
+              <div className="space-y-6">
+                <div className="grid items-start gap-x-5 gap-y-6 sm:grid-cols-2">
                   {/* Company Name */}
                   <FormField
                     control={form.control}
@@ -343,7 +343,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
 
                 </div>
                 {/* Phone, Email & Website — same row on desktop */}
-                <div className="grid items-start gap-5 sm:grid-cols-2">
+                <div className="grid items-start gap-x-5 gap-y-6 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="phone"
@@ -405,7 +405,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                 />
 
                 {/* City, State, Zip */}
-                <div className="grid items-start gap-5 sm:grid-cols-3">
+                <div className="grid items-start gap-x-5 gap-y-6 sm:grid-cols-3">
                   <FormField
                     control={form.control}
                     name="city"
@@ -448,7 +448,7 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
                 </div>
 
                 {/* License & Insurance */}
-                <div className="grid items-start gap-5 sm:grid-cols-2">
+                <div className="grid items-start gap-x-5 gap-y-6 sm:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="licenseNumber"
@@ -543,8 +543,8 @@ export function CompanyInfoForm({ company, readOnly = false }: CompanyInfoFormPr
               title={t('Language, currency and design')}
               description={t('Defaults for every new estimate.')}
             >
-              <div className="space-y-5">
-                <div className="grid items-start gap-5 sm:grid-cols-2">
+              <div className="space-y-6">
+                <div className="grid items-start gap-x-5 gap-y-6 sm:grid-cols-2">
                   {/* Default Estimate Language */}
                   <FormField
                     control={form.control}

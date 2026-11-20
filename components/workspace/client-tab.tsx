@@ -45,6 +45,7 @@ export function ClientTab({ project }: ClientTabProps) {
         toast.error(result.error)
       } else {
         toast.success(t('Client updated'))
+        form.reset(values)
         router.refresh()
       }
     })
@@ -127,9 +128,17 @@ export function ClientTab({ project }: ClientTabProps) {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? t('Saving...') : t('Save')}
-              </Button>
+              {/* Save appears only once something changed. */}
+              {(form.formState.isDirty || isPending) && (
+                <div className="flex gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                  <Button type="button" variant="ghost" disabled={isPending} onClick={() => form.reset()}>
+                    {t('Discard')}
+                  </Button>
+                  <Button type="submit" disabled={isPending} className="flex-1">
+                    {isPending ? t('Saving...') : t('Save')}
+                  </Button>
+                </div>
+              )}
             </form>
           </Form>
         </CardContent>

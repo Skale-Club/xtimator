@@ -1,10 +1,10 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 
 import { landingContentSchema, type LandingContentInput } from '@/lib/schemas/admin'
 import {
@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -93,6 +94,47 @@ export function LandingEditor({ initial }: LandingEditorProps) {
     () => (initial.features ?? []).map(f => f.imageUrl ?? null)
   )
   const [featureUploaderKey, setFeatureUploaderKey] = useState(0)
+
+  // What is stored right now, so Discard can put the media state back.
+  const saved = useRef({
+    hero: initial.heroImageUrl ?? null,
+    bgImage: initial.heroBackgroundImageUrl ?? null,
+    bgVideo: initial.heroBackgroundVideoUrl ?? null,
+    stepUrls: (initial.howItWorksSteps ?? []).map(s => s.imageUrl ?? null),
+    featureUrls: (initial.features ?? []).map(f => f.imageUrl ?? null),
+  })
+
+  const dirty =
+    form.formState.isDirty ||
+    heroImageFile !== null ||
+    heroImageRemoved ||
+    bgImageFile !== null ||
+    bgImageRemoved ||
+    bgVideoFile !== null ||
+    bgVideoRemoved ||
+    stepImages.some(s => s.file !== null || s.removed) ||
+    featureImages.some(s => s.file !== null || s.removed)
+
+  function handleDiscard() {
+    form.reset()
+    setHeroImageFile(null)
+    setHeroImageRemoved(false)
+    setHeroImagePreview(saved.current.hero)
+    setBgImageFile(null)
+    setBgImageRemoved(false)
+    setBgImagePreview(saved.current.bgImage)
+    setBgVideoFile(null)
+    setBgVideoRemoved(false)
+    setBgVideoPreview(saved.current.bgVideo)
+    setCurrentStepUrls(saved.current.stepUrls)
+    setStepImages(saved.current.stepUrls.map(() => ({ file: null, removed: false })))
+    setStepUploaderKey(k => k + 1)
+    setCurrentFeatureUrls(saved.current.featureUrls)
+    setFeatureImages(saved.current.featureUrls.map(() => ({ file: null, removed: false })))
+    setFeatureUploaderKey(k => k + 1)
+    setActiveStep(0)
+    setActiveFeature(0)
+  }
 
   function handleHeroImageSelect(file: File, preview: string) {
     setHeroImageFile(file)
@@ -240,6 +282,14 @@ export function LandingEditor({ initial }: LandingEditorProps) {
       const result = await saveLandingContent(fd)
       if (result.ok) {
         toast.success(t('Landing page updated.'))
+        saved.current = {
+          hero: heroImageRemoved ? null : heroImagePreview,
+          bgImage: bgImageRemoved ? null : bgImagePreview,
+          bgVideo: bgVideoRemoved ? null : bgVideoPreview,
+          stepUrls: result.stepImageUrls,
+          featureUrls: result.featureImageUrls,
+        }
+        form.reset(values)
         setHeroImageFile(null)
         setHeroImageRemoved(false)
         setBgImageFile(null)
@@ -644,12 +694,7 @@ export function LandingEditor({ initial }: LandingEditorProps) {
           </TabsContent>
         </Tabs>
 
-        <div>
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('Save landing page')}
-          </Button>
-        </div>
+        <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={handleDiscard} saveLabel={t('Save landing page')} />
       </form>
     </Form>
   )
