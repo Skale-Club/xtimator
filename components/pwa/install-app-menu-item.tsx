@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { AppIcon } from '@/components/ui/app-icon'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { googlePlayUrl } from '@/lib/store-links'
 import { useInstallApp, type InstallPlatform } from './use-install-app'
 
 interface InstallAppMenuItemProps {
@@ -19,28 +20,34 @@ interface InstallAppMenuItemProps {
 }
 
 /**
- * "Install app" entry for the avatar dropdown. Hidden once the app runs as an
- * installed PWA.
- * - Android / desktop Chrome with a captured `beforeinstallprompt`: opens the
- *   native install sheet.
- * - iOS (no install API) and Android browsers without the prompt: opens the
- *   step-by-step instructions dialog.
- * - Desktop without the prompt: hidden (nothing actionable to offer).
+ * "Install app" entry for the account menu, shown only where installing is
+ * worth it: on a phone or tablet, in the browser.
+ * - Android: opens the Xtimator app on Google Play (the official app, a
+ *   Trusted Web Activity), not the browser's own PWA install, so nobody ends
+ *   up with two copies.
+ * - iOS (no app store app, no install API): the Add to Home Screen steps.
+ * - Desktop: hidden. Xtimator is used on the job site with the phone; a
+ *   desktop install adds nothing.
+ * - Already installed (home-screen app, or the Play app itself): hidden.
  */
 export function InstallAppMenuItem({ onShowInstructions }: InstallAppMenuItemProps) {
   const { t } = useTranslation()
-  const { platform, installed, canPrompt, promptInstall } = useInstallApp()
+  const { platform, installed } = useInstallApp()
 
-  if (!platform || installed) return null
-  if (platform === 'desktop' && !canPrompt) return null
+  if (!platform || installed || platform === 'desktop') return null
 
-  function handleSelect() {
-    if (canPrompt) void promptInstall()
-    else onShowInstructions()
+  if (platform === 'android') {
+    return (
+      <DropdownMenuItem asChild className="cursor-pointer gap-2">
+        <a href={googlePlayUrl('account_menu')} target="_blank" rel="noopener noreferrer">
+          <Download className="h-4 w-4" />{t('Install app')}
+        </a>
+      </DropdownMenuItem>
+    )
   }
 
   return (
-    <DropdownMenuItem className="cursor-pointer gap-2" onSelect={handleSelect}>
+    <DropdownMenuItem className="cursor-pointer gap-2" onSelect={onShowInstructions}>
       <Download className="h-4 w-4" />{t('Install app')}
     </DropdownMenuItem>
   )

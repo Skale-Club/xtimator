@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { InstallAppMenuItem, InstallAppDialog } from '@/components/pwa/install-app-menu-item'
 import { detectInstallPlatform } from '@/components/pwa/use-install-app'
+import { googlePlayUrl } from '@/lib/store-links'
 
 vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (s: string) => s, language: 'en' }),
@@ -50,18 +51,22 @@ describe('detectInstallPlatform', () => {
 })
 
 describe('InstallAppMenuItem', () => {
-  it('opens the instructions on iOS (no install API)', () => {
+  it('opens the Add to Home Screen steps on iOS (no app store app, no install API)', () => {
     setEnv(IPHONE_UA)
     const onShow = renderMenu()
     fireEvent.click(screen.getByText('Install app'))
     expect(onShow).toHaveBeenCalledOnce()
   })
 
-  it('falls back to instructions on Android when no native prompt was captured', () => {
+  it('links to the Google Play app on Android instead of a browser install', () => {
     setEnv(ANDROID_UA)
     const onShow = renderMenu()
-    fireEvent.click(screen.getByText('Install app'))
-    expect(onShow).toHaveBeenCalledOnce()
+    const link = screen.getByText('Install app').closest('a')!
+    expect(link.getAttribute('href')).toBe(googlePlayUrl('account_menu'))
+    expect(link.getAttribute('href')).toContain('id=com.xtimator.app')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toContain('noopener')
+    expect(onShow).not.toHaveBeenCalled()
   })
 
   it('is hidden when already running as an installed app', () => {
@@ -70,12 +75,23 @@ describe('InstallAppMenuItem', () => {
     expect(screen.queryByText('Install app')).toBeNull()
   })
 
-  it('is hidden on desktop without a native prompt', () => {
+  it('is hidden inside the Google Play app (TWA cookie), even when display-mode is not standalone', () => {
+    setEnv(ANDROID_UA)
+    document.cookie = 'xt_twa=1; path=/'
+    try {
+      renderMenu()
+      expect(screen.queryByText('Install app')).toBeNull()
+    } finally {
+      document.cookie = 'xt_twa=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    }
+  })
+
+  it('is hidden on desktop', () => {
     renderMenu()
     expect(screen.queryByText('Install app')).toBeNull()
   })
 
-  it('uses the native prompt once beforeinstallprompt has fired', async () => {
+  it('stays hidden on desktop even after Chrome offers its native install prompt', () => {
     const prompt = vi.fn().mockResolvedValue(undefined)
     const event = Object.assign(new Event('beforeinstallprompt'), {
       prompt,
@@ -84,12 +100,9 @@ describe('InstallAppMenuItem', () => {
     act(() => {
       window.dispatchEvent(event)
     })
-    const onShow = renderMenu()
-    await act(async () => {
-      fireEvent.click(screen.getByText('Install app'))
-    })
-    expect(prompt).toHaveBeenCalledOnce()
-    expect(onShow).not.toHaveBeenCalled()
+    renderMenu()
+    expect(screen.queryByText('Install app')).toBeNull()
+    expect(prompt).not.toHaveBeenCalled()
   })
 })
 

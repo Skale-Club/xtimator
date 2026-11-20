@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useSyncExternalStore } from 'react'
+import { readTwaCookieClient } from '@/lib/pwa/twa-signal'
 
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -69,7 +70,9 @@ export function useInstallApp() {
   useEffect(() => {
     setEnv({
       platform: detectInstallPlatform(navigator.userAgent, navigator.maxTouchPoints),
-      standalone: isStandalone(),
+      // The Play app (TWA) also counts as installed: its sticky cookie covers
+      // launches where display-mode does not report standalone.
+      standalone: isStandalone() || readTwaCookieClient(),
     })
   }, [])
 

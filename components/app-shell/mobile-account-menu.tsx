@@ -42,8 +42,8 @@ interface MobileAccountMenuProps {
  *
  * Renders <CompanySelector> (Companies switcher + Add new company) with a custom
  * avatar trigger and an accountMenuSlot mirroring the desktop slot built in
- * Sidebar (user name/email header + Install app + Settings + App Tour +
- * Sign Out). Mobile-only extras: the Credits row and the theme picker, which
+ * Sidebar (user name/email header, Settings, then the help group: Install app,
+ * App Tour, Academy; then Sign Out). Mobile-only extras: the Credits row and the theme picker, which
  * the desktop keeps in its topbar but the narrow mobile header has no room for.
  * The company switch itself is handled entirely inside CompanySelector via the
  * existing `switchActiveCompany` server action — not reimplemented here.
@@ -100,12 +100,14 @@ export function MobileAccountMenu({
         <ThemeSegmentedPicker />
       </div>
       <DropdownMenuSeparator />
-      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem asChild className="cursor-pointer">
         <Link href="/settings" className="flex items-center gap-2">
           <Settings className="h-4 w-4" />{t('Settings')}
         </Link>
       </DropdownMenuItem>
+      {/* Help group: Install app (phones only, see InstallAppMenuItem), App Tour, Academy. */}
+      <DropdownMenuSeparator />
+      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>

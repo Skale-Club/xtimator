@@ -115,12 +115,14 @@ export function Sidebar({ branding, company, memberships, isDemo, isAdmin, user,
           <DropdownMenuSeparator />
         </>
       )}
-      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem asChild className="cursor-pointer">
         <Link href="/settings" className="flex items-center gap-2">
           <Settings className="h-4 w-4" />{t('Settings')}
         </Link>
       </DropdownMenuItem>
+      {/* Help group: Install app (phones only, see InstallAppMenuItem), App Tour, Academy. */}
+      <DropdownMenuSeparator />
+      <InstallAppMenuItem onShowInstructions={() => setInstallHelpOpen(true)} />
       <DropdownMenuItem className="cursor-pointer gap-2" onClick={handleOpenTour}>
         <HelpCircle className="h-4 w-4" />{t('App Tour')}
       </DropdownMenuItem>
