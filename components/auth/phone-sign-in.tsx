@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { CodeInput } from './code-input'
-import { cancelPhoneChallenge, confirmPhoneCode, googleIdentityLogin, identityError, requestPhoneCode, type IdentityConfig } from '@/lib/auth/google-browser'
+import { cancelPhoneChallenge, confirmPhoneCode, prepareGoogleIdentityLogin, identityError, requestPhoneCode, type IdentityConfig } from '@/lib/auth/google-browser'
 import { invalidateOwnedBrowserSession } from '@/lib/auth/owned-browser'
 import '@/lib/visual-viewport'
 
@@ -19,6 +19,7 @@ async function post(url: string, body: unknown) {
 
 export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true }: { next?: string | null; purpose?: 'login' | 'link'; allowGoogle?: boolean }) {
   const [config, setConfig] = useState<IdentityConfig | null>(null)
+  const [googleLogin, setGoogleLogin] = useState<(() => Promise<string>) | null>(null)
   const [step, setStep] = useState<'phone' | 'code' | 'email' | 'email-code'>('phone')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -29,7 +30,8 @@ export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true
   const [notice, setNotice] = useState('')
   const [emailFlow, setEmailFlow] = useState<'recovery' | 'invite'>('recovery')
   const [inviteDestination, setInviteDestination] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<'phone' | 'google' | null>(null)
+  const busy = pending !== null
   const [retryAt, setRetryAt] = useState(0)
   const [now, setNow] = useState(0)
   const lock = useRef(false)
@@ -47,14 +49,23 @@ export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true
     return () => { alive.current = false; controller.abort(); cancelPhoneChallenge() }
   }, [])
   useEffect(() => {
+    if (!config || !allowGoogle) return
+    let cancelled = false
+    setGoogleLogin(null)
+    prepareGoogleIdentityLogin(config).then(login => {
+      if (!cancelled) setGoogleLogin(() => login)
+    }).catch(error => { if (!cancelled) setError(identityError(error)) })
+    return () => { cancelled = true }
+  }, [config, allowGoogle])
+  useEffect(() => {
     if (step !== 'code' || !retryAt) return
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [step, retryAt])
 
-  async function run(operation: () => Promise<void>) {
+  async function run(operation: () => Promise<void>, action: 'phone' | 'google' = 'phone') {
     if (lock.current) return
-    lock.current = true; setBusy(true); setError('')
+    lock.current = true; setPending(action); setError('')
     try { await operation() }
     catch (error) {
       if (!alive.current) return
@@ -63,7 +74,7 @@ export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true
       setError(purpose === 'link' && code === 'identity_conflict' ? 'This number is already used by another Xtimator account.' : identityError(error))
       if (code === 'account_recovery_required' || code === 'identity_conflict') setRecoveryOffered(true)
     }
-    finally { lock.current = false; if (alive.current) setBusy(false) }
+    finally { lock.current = false; if (alive.current) setPending(null) }
   }
 
   async function exchange(idToken: string) {
@@ -164,13 +175,13 @@ export function PhoneSignIn({ next = null, purpose = 'login', allowGoogle = true
         <PhoneInput id={fieldId} value={phone} onChange={setPhone} enterKeyHint="send" onEnter={() => submit()} disabled={busy || !config} className="[&_button]:h-12 [&_button]:rounded-xl [&_input]:h-12 [&_input]:rounded-xl [&_input]:!text-base" />
       </div>
       <Button type="submit" className={primary} disabled={busy || !config}>
-        {busy ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> : null}Send code<ArrowRight className="ml-1 size-4" aria-hidden />
+        {pending === 'phone' ? <Loader2 className="mr-2 size-4 animate-spin" aria-hidden /> : null}Send code<ArrowRight className="ml-1 size-4" aria-hidden />
       </Button>
     </form>
     {allowGoogle ? <>
       <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-      <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl text-base" disabled={busy || !config} onClick={() => { void run(async () => { if (config) await exchange(await googleIdentityLogin(config)) }) }}>
-        <GoogleMark />Continue with Google
+      <Button type="button" variant="outline" className="h-12 w-full gap-2 rounded-xl text-base" aria-busy={pending === 'google'} disabled={busy || !googleLogin} onClick={() => { void run(async () => { if (googleLogin) await exchange(await googleLogin()) }, 'google') }}>
+        {pending === 'google' ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <GoogleMark />}Continue with Google
       </Button>
     </> : null}
     {purpose === 'login' && recoveryOffered ? <button type="button" className="min-h-10 w-full text-sm text-primary underline-offset-4 hover:underline focus-visible:underline" disabled={busy} onClick={() => { setEmailFlow('recovery'); setStep('email'); setCode(''); setError(''); setNotice('') }}>Recover existing account</button> : null}

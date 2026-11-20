@@ -3,7 +3,7 @@
 import type { Auth, ConfirmationResult, RecaptchaVerifier } from 'firebase/auth'
 
 export interface IdentityConfig { apiKey: string; projectId: string; authDomain: string }
-let initializing: Promise<Auth> | undefined
+let initializing: Promise<{ auth: Auth; sdk: typeof import('firebase/auth') }> | undefined
 let confirmation: { phone: string; result: ConfirmationResult } | undefined
 let captcha: RecaptchaVerifier | undefined
 let node: HTMLDivElement | undefined
@@ -16,7 +16,7 @@ async function prepare(config: IdentityConfig) {
     const auth = sdk.getAuth(app)
     await sdk.setPersistence(auth, sdk.inMemoryPersistence)
     auth.useDeviceLanguage()
-    return auth
+    return { auth, sdk }
   })().catch(error => { initializing = undefined; throw error })
   return initializing
 }
@@ -29,7 +29,7 @@ export function cancelPhoneChallenge() {
 export async function requestPhoneCode(config: IdentityConfig, phone: string) {
   cancelPhoneChallenge()
   const current = generation
-  const [auth, sdk] = await Promise.all([prepare(config), import('firebase/auth')])
+  const { auth, sdk } = await prepare(config)
   if (current !== generation) throw new DOMException('Cancelled', 'AbortError')
   const container = document.createElement('div')
   document.body.appendChild(container); node = container
@@ -49,11 +49,13 @@ export async function confirmPhoneCode(phone: string, code: string) {
   return (await confirmation.result.confirm(code)).user.getIdToken(true)
 }
 
-export async function googleIdentityLogin(config: IdentityConfig) {
-  const [auth, sdk] = await Promise.all([prepare(config), import('firebase/auth')])
+export async function prepareGoogleIdentityLogin(config: IdentityConfig): Promise<() => Promise<string>> {
+  const { auth, sdk } = await prepare(config)
   const provider = new sdk.GoogleAuthProvider()
   provider.setCustomParameters({ prompt: 'select_account' })
-  return (await sdk.signInWithPopup(auth, provider)).user.getIdToken(true)
+  // Load the SDK and initialize its mobile/Safari popup resolver before the tap.
+  // Opening from the ready handler preserves the browser's user activation.
+  return () => sdk.signInWithPopup(auth, provider).then(result => result.user.getIdToken(true))
 }
 
 export function identityError(error: unknown): string {
@@ -64,7 +66,8 @@ export function identityError(error: unknown): string {
   if (['auth/invalid-verification-code', 'wrong_code'].includes(code ?? '')) return 'That code is incorrect. Check your message and try again.'
   if (['auth/code-expired', 'auth/session-expired', 'challenge_expired'].includes(code ?? '')) return 'This verification expired. Start again and request a new code.'
   if (['auth/too-many-requests', 'auth/quota-exceeded', 'rate_limited'].includes(code ?? '')) return 'Too many attempts. Please wait before trying again.'
-  if (['auth/network-request-failed', 'auth/captcha-check-failed', 'auth/invalid-app-credential'].includes(code ?? '')) return 'We could not complete phone verification. Check your connection and try again.'
+  if (code === 'auth/network-request-failed') return 'We could not complete sign-in. Check your connection and try again.'
+  if (['auth/captcha-check-failed', 'auth/invalid-app-credential'].includes(code ?? '')) return 'We could not complete phone verification. Check your connection and try again.'
   if (code === 'identity_conflict') return 'This identity belongs to another account. Recover your existing account to continue.'
   if (code === 'account_recovery_required') return 'An existing account needs verification. Choose “Recover existing account” below.'
   if (code === 'reauthentication_required') return 'Sign out and sign in again with your current phone or Google before changing account sign-in details.'
