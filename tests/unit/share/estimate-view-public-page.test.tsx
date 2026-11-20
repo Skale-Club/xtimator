@@ -19,7 +19,7 @@ vi.mock('@/app/estimate/[token]/actions', () => ({
   respondToEstimate: vi.fn(),
   logEstimateView: vi.fn(),
 }))
-vi.mock('@/hooks/use-estimate-tracking', () => ({ useEstimateTracking: () => {} }))
+vi.mock('@/hooks/use-estimate-tracking', () => ({ useEstimateTracking: () => ({ trackAction: () => {} }) }))
 // jsdom has no canvas: a stub pad that can set the signer name and a signature.
 vi.mock('@/components/share/signature-pad', () => ({
   SignaturePad: (props: {

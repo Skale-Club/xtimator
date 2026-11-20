@@ -7,6 +7,8 @@ import { shareTranslations } from './share-translations'
 import { changeOrderEditorTranslations } from './change-order-editor-translations'
 import { changeOrderPublicTranslations } from './change-order-public-translations'
 import { editorTranslations } from './editor-translations'
+import { analyticsTranslations } from './analytics-translations'
+import { clientActivityTranslations } from './client-activity-translations'
 
 type TranslationDict = Record<string, string>
 
@@ -21,6 +23,8 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...changeOrderEditorTranslations.pt,
     ...changeOrderPublicTranslations.pt,
     ...editorTranslations.pt,
+    ...analyticsTranslations.pt,
+    ...clientActivityTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -505,6 +509,8 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...changeOrderEditorTranslations.es,
     ...changeOrderPublicTranslations.es,
     ...editorTranslations.es,
+    ...analyticsTranslations.es,
+    ...clientActivityTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

@@ -2,6 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EstimateDocumentData, DocumentCompany, DocumentClient } from '@/lib/estimate/document/model'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
 import {
+  buildEstimateAnalytics,
+  type AnalyticsActivityRow,
+  type AnalyticsEventRow,
+} from '@/lib/estimate/analytics/build'
+import type { EngagementEventType, EstimateAnalytics } from '@/lib/estimate/analytics/contracts'
+import {
   isEstimateTemplateId,
   DEFAULT_ESTIMATE_TEMPLATE_ID,
   type EstimateTemplateId,
@@ -34,14 +40,7 @@ export interface EngagementEventRow {
   company_id: string
   visitor_id: string
   session_id: string
-  event_type:
-    | 'view'
-    | 'click'
-    | 'scroll_depth'
-    | 'section_view'
-    | 'heartbeat'
-    | 'unlock_ok'
-    | 'unlock_fail'
+  event_type: EngagementEventType
   target: string | null
   x_pct: number | null
   y_px: number | null
@@ -295,6 +294,81 @@ export async function getEstimateEngagementOverview(
 
   const rows = (data ?? []) as EngagementEventRow[]
   return { summary: aggregateEngagementSummary(rows), visits: aggregateViewTimeline(rows) }
+}
+
+/**
+ * Everything the analytics drawer shows, from three authenticated reads
+ * (engagement events, the estimate's activity log, the estimate row) folded by
+ * the pure builder. RLS-scoped like the rest of this file.
+ */
+export async function getEstimateAnalytics(
+  supabase: SupabaseClient,
+  estimateId: string
+): Promise<EstimateAnalytics> {
+  const [eventsRes, activityRes, estimateRes, signatureRes] = await Promise.all([
+    supabase
+      .from('estimate_engagement_events')
+      .select('visitor_id, session_id, event_type, target, device, metadata, created_at')
+      .eq('estimate_id', estimateId)
+      .order('created_at', { ascending: false })
+      .limit(SUMMARY_ROW_LIMIT),
+    supabase
+      .from('estimate_activity')
+      .select('event_type, metadata, created_at')
+      .eq('estimate_id', estimateId)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('estimates')
+      .select('created_at, sent_at, last_viewed_at, client_response, responded_at')
+      .eq('id', estimateId)
+      .maybeSingle(),
+    supabase
+      .from('estimate_signatures')
+      .select('id', { count: 'exact', head: true })
+      .eq('estimate_id', estimateId),
+  ])
+
+  if (eventsRes.error) throw new Error(eventsRes.error.message)
+  if (estimateRes.error) throw new Error(estimateRes.error.message)
+  const estimate = estimateRes.data as {
+    created_at: string
+    sent_at: string | null
+    last_viewed_at: string | null
+    client_response: string | null
+    responded_at: string | null
+  } | null
+  if (!estimate) throw new Error('Estimate not found')
+
+  return buildEstimateAnalytics({
+    events: (eventsRes.data ?? []) as AnalyticsEventRow[],
+    // The activity log is secondary: a failed read degrades to the estimate-row fallbacks.
+    activity: (activityRes.error ? [] : (activityRes.data ?? [])) as AnalyticsActivityRow[],
+    estimate: { ...estimate, signed_online: (signatureRes.count ?? 0) > 0 },
+  })
+}
+
+export interface EstimateAnalyticsContext {
+  estimateNumber: string | null
+  clientName: string | null
+}
+
+/** Header context for the analytics drawer: estimate number and client name. */
+export async function getEstimateAnalyticsContext(
+  supabase: SupabaseClient,
+  estimateId: string
+): Promise<EstimateAnalyticsContext> {
+  const { data } = await supabase
+    .from('estimates')
+    .select('estimate_number, project:projects(client:clients(name))')
+    .eq('id', estimateId)
+    .maybeSingle()
+  type Client = { name: string | null }
+  type Project = { client: Client | Client[] | null }
+  const row = data as { estimate_number: string | null; project: Project | Project[] | null } | null
+  const project = Array.isArray(row?.project) ? row?.project[0] : row?.project
+  const client = Array.isArray(project?.client) ? project?.client[0] : project?.client
+  return { estimateNumber: row?.estimate_number ?? null, clientName: client?.name ?? null }
 }
 
 export interface EngagementDwell {

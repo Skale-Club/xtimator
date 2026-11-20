@@ -138,6 +138,28 @@ describe('parseTrackBody', () => {
     ).toBeNull()
   })
 
+  it('accepts every client action event type and keeps its target', () => {
+    for (const type of ['pdf_download', 'print', 'sign_start', 'contact_click'] as const) {
+      const parsed = parseTrackBody({
+        token: 't1',
+        visitor_id: 'v1',
+        session_id: 's1',
+        events: [{ event_type: type, target: 'phone' }],
+      })
+      expect(parsed?.events[0]).toEqual(expect.objectContaining({ event_type: type, target: 'phone' }))
+    }
+  })
+
+  it('accepts a heartbeat that carries real seconds in metadata', () => {
+    const parsed = parseTrackBody({
+      token: 't1',
+      visitor_id: 'v1',
+      session_id: 's1',
+      events: [{ event_type: 'heartbeat', metadata: { seconds: 7 } }],
+    })
+    expect(parsed?.events[0].metadata).toEqual({ seconds: 7 })
+  })
+
   it('rejects any unrecognized event_type', () => {
     expect(
       parseTrackBody({

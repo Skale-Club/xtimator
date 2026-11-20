@@ -14,6 +14,9 @@ import { pausedHref } from '@/components/billing/paused-estimate-sheet'
 import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
+import { EstimateListStatusPill } from '@/components/projects/estimate-list-status'
+import { AwaitingAnswerToggle } from '@/components/projects/awaiting-answer-filter'
+import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
 export interface ProjectTableRow {
   id: string
@@ -26,6 +29,8 @@ export interface ProjectTableRow {
   client?: { id: string; name: string } | null
   payment_status?: 'unpaid' | 'paid' | 'refunded' | null
   paid_at?: string | null
+  /** Client-side standing of the current estimate (lib/queries/estimate-list-status.ts). */
+  estimate_status?: EstimateListStatus | null
 }
 
 /** Extra item the phone card asks the row menu to show (link or change the
@@ -168,6 +173,12 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null)
   const [createClientForProjectId, setCreateClientForProjectId] = useState<string | null>(null)
+  // Status column + "Opened, no answer yet" filter: only when the caller loaded
+  // estimate statuses (the Projects page does; the dashboard list does not).
+  const hasEstimateStatus = projects.some((project) => project.estimate_status)
+  const [awaitingOnly, setAwaitingOnly] = useState(false)
+  const awaiting = hasEstimateStatus && awaitingOnly
+  const visibleProjects = awaiting ? projects.filter((project) => project.estimate_status?.openedNoAnswer) : projects
 
   function handleEditClient(clientId: string) {
     const client = editingClients?.find((entry) => entry.id === clientId)
@@ -221,6 +232,16 @@ export function ProjectTable<TProject extends ProjectTableRow>({
         />
       ),
     },
+    ...(hasEstimateStatus
+      ? [
+          {
+            key: 'status',
+            header: t('Status'),
+            sortDesc: 'activity',
+            cell: (project: TProject) => <EstimateListStatusPill status={project.estimate_status} />,
+          } satisfies Column<TProject>,
+        ]
+      : []),
     {
       key: 'total',
       header: t('Total'),
@@ -255,7 +276,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   return (
     <>
       <DataTable<TProject>
-        data={projects}
+        data={visibleProjects}
         columns={columns}
         getRowKey={(project) => project.id}
         searchPlaceholder={searchPlaceholder ?? t('Search projects...')}
@@ -287,6 +308,18 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             label: t('Lowest Value'),
             sort: (a, b) => (a.total ?? 0) - (b.total ?? 0),
           },
+          ...(hasEstimateStatus
+            ? [
+                {
+                  value: 'activity',
+                  label: t('Last client activity'),
+                  // Newest client open or answer first; never-opened estimates last.
+                  sort: (a: TProject, b: TProject) =>
+                    (b.estimate_status?.lastActivityAt ? new Date(b.estimate_status.lastActivityAt).getTime() : -Infinity) -
+                    (a.estimate_status?.lastActivityAt ? new Date(a.estimate_status.lastActivityAt).getTime() : -Infinity) || 0,
+                },
+              ]
+            : []),
           {
             value: 'alphabetical',
             label: t('Alphabetical'),
@@ -310,9 +343,22 @@ export function ProjectTable<TProject extends ProjectTableRow>({
         filterValue={viewTabs ? viewValue : undefined}
         onFilterChange={viewTabs ? onViewChange : undefined}
         filterTabsLabel={viewTabs ? t('View') : t('Status')}
-        filters={filters}
-        activeFilters={activeFilters}
-        onClearFilters={onClearFilters}
+        filters={hasEstimateStatus
+          ? (placement) => (
+              <>
+                {filters?.(placement)}
+                <AwaitingAnswerToggle
+                  active={awaitingOnly}
+                  onToggle={() => setAwaitingOnly((v) => !v)}
+                  fullWidth={placement === 'sheet'}
+                />
+              </>
+            )
+          : filters}
+        activeFilters={awaiting
+          ? [...(activeFilters ?? []), { key: 'awaiting', label: t('Opened, no answer yet'), onRemove: () => setAwaitingOnly(false) }]
+          : activeFilters}
+        onClearFilters={hasEstimateStatus ? () => { setAwaitingOnly(false); onClearFilters?.() } : onClearFilters}
         emptyTitle={emptyTitle ?? t('No projects yet')}
         emptyDescription={emptyDescription ?? t('Create your first project to get started')}
         emptyActionLabel={emptyActionLabel}
@@ -402,6 +448,7 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
             </>
           )}
         </div>
+        {project.estimate_status && <EstimateListStatusPill status={project.estimate_status} className="mt-1.5 max-w-full" />}
       </div>
       <span className="shrink-0 font-semibold text-sm">
         {formatMoney(project.total, project.currency_code ?? fallbackCurrencyCode, {

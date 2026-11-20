@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { EngagementButton } from '@/components/workspace/estimate/engagement-button'
 
@@ -7,10 +7,10 @@ import { EngagementButton } from '@/components/workspace/estimate/engagement-but
 // never sent" rule lives in the CALLER (project-header.tsx only mounts this
 // when slot.sentAt is set), so it isn't re-tested here.
 
-// EngagementPanel does its own data fetching (covered by
-// engagement-panel.test.tsx) — stub it so this file only exercises the chip.
-vi.mock('@/components/workspace/estimate/engagement-panel', () => ({
-  EngagementPanel: () => <div data-testid="stub-panel" />,
+// The analytics drawer does its own data fetching (covered by
+// estimate-analytics-drawer.test.tsx): stub it so this file only exercises the chip.
+vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({
+  EstimateAnalyticsDrawer: ({ open }: { open: boolean }) => (open ? <div data-testid="stub-drawer" /> : null),
 }))
 
 describe('EngagementButton', () => {
@@ -37,5 +37,12 @@ describe('EngagementButton', () => {
   it('renders a lock affordance when the share link is password-protected', () => {
     render(<EngagementButton estimateId="est-1" viewCount={2} lastViewedAt={null} hasPassword />)
     expect(screen.getByLabelText('Password protected')).toBeTruthy()
+  })
+
+  it('opens the analytics drawer when the chip is clicked', () => {
+    render(<EngagementButton estimateId="est-1" viewCount={2} lastViewedAt={null} hasPassword={false} />)
+    expect(screen.queryByTestId('stub-drawer')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Estimate engagement' }))
+    expect(screen.getByTestId('stub-drawer')).toBeTruthy()
   })
 })

@@ -196,6 +196,11 @@ describe('useEstimateTracking', () => {
       metadata?: { dwell_seconds?: number }
     }>
   }
+  function heartbeatSeconds(events: Array<{ event_type: string; metadata?: Record<string, unknown> }>) {
+    return events
+      .filter((e) => e.event_type === 'heartbeat')
+      .reduce((sum, e) => sum + Number(e.metadata?.seconds ?? 0), 0)
+  }
   function totalDwell(events: Awaited<ReturnType<typeof allEvents>>, target: string) {
     return events
       .filter((e) => e.event_type === 'section_view' && e.target === target && e.metadata?.dwell_seconds)
@@ -296,7 +301,9 @@ describe('useEstimateTracking', () => {
     let events = await allEvents(sendBeacon)
     expect(totalDwell(events, 'totals')).toBeGreaterThanOrEqual(58)
     expect(totalDwell(events, 'totals')).toBeLessThanOrEqual(60)
-    expect(events.filter((e) => e.event_type === 'heartbeat')).toHaveLength(2)
+    // 120s open, but only the first 60s fall inside the activity window: the
+    // heartbeats add up to exactly 60 real seconds, not 20s per tick forever.
+    expect(heartbeatSeconds(events)).toBe(60)
 
     sendBeacon.mockClear()
     act(() => {
@@ -490,5 +497,208 @@ describe('useEstimateTracking', () => {
     const [{ body }] = await decodeCalls(sendBeacon)
     expect(typeof body.visitor_id).toBe('string')
     expect(body.visitor_id.length).toBeGreaterThan(0)
+  })
+
+  describe('visible reading time', () => {
+    function setVisibility(state: 'visible' | 'hidden') {
+      Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    async function beats(sendBeacon: ReturnType<typeof vi.fn>) {
+      const calls = await decodeCalls(sendBeacon)
+      return calls
+        .flatMap((c) => c.body.events as Array<{ event_type: string; metadata?: { seconds?: number } }>)
+        .filter((e) => e.event_type === 'heartbeat')
+        .map((e) => e.metadata?.seconds ?? 0)
+    }
+
+    it('reports the real visible seconds, not a fixed 20, when the tab is hidden mid-interval', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+
+      await act(async () => {
+        vi.advanceTimersByTime(7_000)
+      })
+      act(() => setVisibility('hidden'))
+      expect(await beats(sendBeacon)).toEqual([7])
+    })
+
+    it('does not count hidden time and resumes counting when the tab is visible again', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+
+      await act(async () => {
+        vi.advanceTimersByTime(5_000)
+      })
+      act(() => setVisibility('hidden'))
+      await act(async () => {
+        vi.advanceTimersByTime(120_000) // away for two minutes: contributes nothing
+      })
+      act(() => setVisibility('visible'))
+      await act(async () => {
+        vi.advanceTimersByTime(8_000)
+      })
+      act(() => setVisibility('hidden'))
+
+      const seconds = await beats(sendBeacon)
+      expect(seconds.reduce((a, b) => a + b, 0)).toBe(13)
+    })
+
+    it('skips the heartbeat when no visible second has accrued', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+      act(() => setVisibility('hidden')) // 0s elapsed
+      expect(await beats(sendBeacon)).toEqual([])
+    })
+
+    it('sends the final partial interval on pagehide', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+
+      await act(async () => {
+        vi.advanceTimersByTime(12_400)
+      })
+      act(() => {
+        window.dispatchEvent(new Event('pagehide'))
+      })
+      expect(await beats(sendBeacon)).toEqual([12])
+    })
+
+    it('carries the sub-second remainder into the next heartbeat instead of dropping it', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+
+      await act(async () => {
+        vi.advanceTimersByTime(1_600)
+      })
+      act(() => setVisibility('hidden'))
+      act(() => setVisibility('visible'))
+      await act(async () => {
+        vi.advanceTimersByTime(1_600)
+      })
+      act(() => setVisibility('hidden'))
+      expect(await beats(sendBeacon)).toEqual([1, 2])
+    })
+
+    it('flushes pending section dwell when the tab is hidden', async () => {
+      const sendBeacon = installSendBeacon()
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      const container = makeContainer()
+      const section = document.createElement('div')
+      section.setAttribute('data-track-section', 'totals')
+      container.appendChild(section)
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+      const observer = FakeIntersectionObserver.instances.at(-1)!
+      act(() => observer.trigger(section, 0.8))
+      await act(async () => {
+        vi.advanceTimersByTime(9_000)
+      })
+      act(() => setVisibility('hidden'))
+      const events = await allEvents(sendBeacon)
+      expect(totalDwell(events, 'totals')).toBe(9)
+      expect(heartbeatSeconds(events)).toBe(9)
+    })
+  })
+
+  describe('action events', () => {
+    async function actionEvents(sendBeacon: ReturnType<typeof vi.fn>) {
+      const calls = await decodeCalls(sendBeacon)
+      return calls
+        .flatMap((c) => c.body.events as Array<{ event_type: string; target?: string }>)
+        .filter((e) => e.event_type !== 'view')
+    }
+
+    it('trackAction flushes immediately, without waiting for the 5s tick', async () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      const { result } = renderHook(() =>
+        useEstimateTracking({ token: 'tok-1', containerRef: { current: container } })
+      )
+      act(() => result.current.trackAction('pdf_download'))
+      expect(sendBeacon).toHaveBeenCalledTimes(1)
+      expect(await actionEvents(sendBeacon)).toEqual([expect.objectContaining({ event_type: 'pdf_download' })])
+    })
+
+    it('trackAction keeps a stable identity across renders and is a no-op when disabled', () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      const { result, rerender } = renderHook(() =>
+        useEstimateTracking({ token: 'tok-1', containerRef: { current: container }, enabled: false })
+      )
+      const first = result.current.trackAction
+      rerender()
+      expect(result.current.trackAction).toBe(first)
+      act(() => result.current.trackAction('print'))
+      expect(sendBeacon).not.toHaveBeenCalled()
+    })
+
+    it('reports sign_start once per session', async () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      const { result } = renderHook(() =>
+        useEstimateTracking({ token: 'tok-1', containerRef: { current: container } })
+      )
+      act(() => result.current.trackAction('sign_start'))
+      act(() => result.current.trackAction('sign_start'))
+      expect((await actionEvents(sendBeacon)).filter((e) => e.event_type === 'sign_start')).toHaveLength(1)
+    })
+
+    it('emits print on beforeprint', async () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+      act(() => {
+        window.dispatchEvent(new Event('beforeprint'))
+      })
+      expect(await actionEvents(sendBeacon)).toEqual([expect.objectContaining({ event_type: 'print' })])
+    })
+
+    it('emits contact_click for tel / mailto / sms / company-website links, anywhere on the page', async () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      const bar = document.createElement('nav') // outside the document container, like the proposal bar
+      bar.innerHTML =
+        '<a id="t" href="tel:+15551234567">c</a><a id="m" href="mailto:a@b.co">m</a>' +
+        '<a id="s" href="sms:+15551234567">s</a><a id="w" href="https://www.acme.com/about">w</a>' +
+        '<a id="o" href="https://other.com">o</a>'
+      document.body.appendChild(bar)
+      renderHook(() =>
+        useEstimateTracking({
+          token: 'tok-1',
+          containerRef: { current: container },
+          companyWebsite: 'acme.com',
+        })
+      )
+      for (const id of ['t', 'm', 's', 'w', 'o']) {
+        act(() => {
+          bar.querySelector('#' + id)!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+        })
+      }
+      const contacts = (await actionEvents(sendBeacon)).filter((e) => e.event_type === 'contact_click')
+      expect(contacts.map((e) => e.target)).toEqual(['phone', 'email', 'phone', 'website'])
+    })
+
+    it('emits pdf_download when the client clicks a PDF link', async () => {
+      const sendBeacon = installSendBeacon()
+      const container = makeContainer()
+      const link = document.createElement('a')
+      link.setAttribute('href', '/api/estimates/abc/pdf?token=xyz')
+      document.body.appendChild(link)
+      renderHook(() => useEstimateTracking({ token: 'tok-1', containerRef: { current: container } }))
+      act(() => {
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      })
+      expect(await actionEvents(sendBeacon)).toEqual([expect.objectContaining({ event_type: 'pdf_download' })])
+    })
   })
 })

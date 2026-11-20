@@ -70,8 +70,8 @@ vi.mock('@/components/workspace/estimate/issued-invoices-panel', () => ({
 vi.mock('@/components/workspace/estimate/generate-invoice-dialog', () => ({
   GenerateInvoiceDialog: () => null,
 }))
-vi.mock('@/components/workspace/estimate/engagement-panel', () => ({
-  EngagementPanel: () => null,
+vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({
+  EstimateAnalyticsDrawer: () => null,
 }))
 
 function buildEstimate(overrides: Record<string, unknown> = {}): EstimateWithSections {

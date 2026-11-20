@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import { Loader2 } from 'lucide-react'
 import {
@@ -23,6 +23,8 @@ import {
   type EngagementClickPoint,
   type EngagementHeatmapDocument,
 } from '@/lib/queries/engagement'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from './analytics/use-phone'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Same code-split reasoning as components/share/estimate-view.tsx: the public
@@ -48,6 +50,18 @@ const EstimateDocumentModern = dynamic(
   () => import('@/components/share/estimate-document-modern').then((m) => m.EstimateDocumentModern),
   { loading: () => <DocumentSkeleton /> }
 )
+
+/** Bottom sheet on phones, the wide desktop dialog from sm up. */
+function HeatmapShell({ phone, children }: { phone: boolean; children: ReactNode }) {
+  if (phone) {
+    return (
+      <BottomSheetContent className="h-[92dvh]" desktopClassName="sm:max-w-5xl">
+        {children}
+      </BottomSheetContent>
+    )
+  }
+  return <DialogContent className="flex h-[85vh] max-w-5xl flex-col gap-0 p-0 sm:max-w-5xl">{children}</DialogContent>
+}
 
 interface EngagementHeatmapProps {
   open: boolean
@@ -135,6 +149,8 @@ function drawHeatmapBlobs(
  */
 export function EngagementHeatmap({ open, onOpenChange, estimateId }: EngagementHeatmapProps) {
   const { t } = useTranslation()
+  // Phones get the shared bottom sheet (drag handle, X) instead of a desktop dialog.
+  const phone = useIsPhone()
   const [loading, setLoading] = useState(true)
   const [doc, setDoc] = useState<EngagementHeatmapDocument | null>(null)
   const [points, setPoints] = useState<EngagementClickPoint[]>([])
@@ -289,8 +305,12 @@ export function EngagementHeatmap({ open, onOpenChange, estimateId }: Engagement
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[85vh] max-w-5xl flex-col gap-0 p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b border-border p-4 pb-3">
+      <HeatmapShell phone={phone}>
+        <DialogHeader
+          data-sheet-drag={phone ? '' : undefined}
+          className={cn('relative border-b border-border p-4 pb-3', phone && 'touch-none pr-14 pt-1')}
+        >
+          {phone && <BottomSheetCloseButton label={t('Close')} className="absolute right-2 top-0" />}
           <DialogTitle>{mode === 'attention' ? t('Attention map') : t('Click heatmap')}</DialogTitle>
           <DialogDescription>
             {mode === 'attention'
@@ -452,7 +472,7 @@ export function EngagementHeatmap({ open, onOpenChange, estimateId }: Engagement
             ))}
           </div>
         </div>
-      </DialogContent>
+      </HeatmapShell>
     </Dialog>
   )
 }

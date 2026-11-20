@@ -1,12 +1,18 @@
 import { z } from 'zod'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
+import { ENGAGEMENT_EVENT_TYPES, type EngagementEventType } from '@/lib/estimate/analytics/contracts'
 
 const MAX_EVENTS_PER_BATCH = 25
 // Server-emitted-only event types (unlock_ok/unlock_fail, written directly by
 // the password-unlock server action in a later plan) are deliberately NOT in
 // this list — a public caller must never be able to forge them.
-const CLIENT_EVENT_TYPES = ['view', 'click', 'scroll_depth', 'section_view', 'heartbeat'] as const
+// Everything else in ENGAGEMENT_EVENT_TYPES (including the client action events
+// pdf_download / print / sign_start / contact_click) a browser may report.
+const SERVER_ONLY_EVENT_TYPES: readonly EngagementEventType[] = ['unlock_ok', 'unlock_fail']
+const CLIENT_EVENT_TYPES = ENGAGEMENT_EVENT_TYPES.filter(
+  (t) => !SERVER_ONLY_EVENT_TYPES.includes(t)
+) as unknown as [EngagementEventType, ...EngagementEventType[]]
 
 /** Coerces to a finite number and clamps into [min, max] rather than rejecting — a
  *  slightly-out-of-range value from a real browser (e.g. a fractional viewport

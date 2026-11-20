@@ -14,6 +14,8 @@ import { cookies } from 'next/headers'
 import { getWhatsAppDisplayNumber } from '@/lib/platform-config'
 import { WHATSAPP_WELCOME_COOKIE, buildFirstEstimateLink } from '@/lib/whatsapp/welcome-card'
 import { WhatsAppWelcomeCard } from '@/components/dashboard/whatsapp-welcome-card'
+import { ClientActivitySection } from '@/components/dashboard/client-activity-section'
+import { ClientActivitySkeleton } from '@/components/dashboard/client-activity-skeleton'
 
 export default async function DashboardPage() {
   const claims = await getAuthClaims()
@@ -41,6 +43,12 @@ export default async function DashboardPage() {
       <Suspense fallback={<StatCardsSkeleton />}>
           <DashboardStats companyId={company.id} currencyCode={company.currency_code} />
       </Suspense>
+
+      <section className="mt-8 px-4 sm:mt-12 sm:px-6">
+        <Suspense fallback={<ClientActivitySkeleton />}>
+          <ClientActivitySection companyId={company.id} />
+        </Suspense>
+      </section>
 
       <section className="mt-8 px-4 sm:mt-12 sm:px-6">
         <Suspense fallback={<RecentProjectsSkeleton />}>

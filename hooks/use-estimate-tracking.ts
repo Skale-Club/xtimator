@@ -26,7 +26,8 @@
  * is behind an unlock gate (Phase 193-02) so a locked page's DOM is never
  * fingerprinted before the visitor has proven they hold the password.
  */
-import { useEffect, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
+import type { ActionEventType } from '@/lib/estimate/analytics/contracts'
 
 const TRACK_ENDPOINT = '/api/track/estimate'
 const VISITOR_ID_STORAGE_KEY = 'xtimator_visitor_id'
@@ -34,7 +35,8 @@ const VISITOR_ID_STORAGE_KEY = 'xtimator_visitor_id'
 const FLUSH_INTERVAL_MS = 5_000
 const FLUSH_AT_BUFFER_SIZE = 20 // stays under the server's 25-per-batch cap
 const HEARTBEAT_INTERVAL_MS = 20_000
-const HEARTBEAT_CAP = 180 // 180 * 20s = 60 minutes of heartbeats per session
+const HEARTBEAT_CAP_SECONDS = 3_600 // at most 60 minutes of reading time reported per session
+const MAX_HEARTBEAT_SECONDS_PER_FLUSH = 120 // sanity cap for one heartbeat row
 const MAX_EVENTS_PER_BATCH = 25 // server-side cap per beacon
 const ACTIVITY_WINDOW_MS = 60_000 // visitor counts as "active" for 60s after any input
 const DWELL_TICK_MS = 1_000
@@ -47,7 +49,13 @@ const SCROLL_MILESTONES = [25, 50, 75, 100] as const
 const SECTION_VISIBLE_THRESHOLD = 0.5
 const MOBILE_BREAKPOINT_PX = 768
 
-type ClientEventType = 'view' | 'click' | 'scroll_depth' | 'section_view' | 'heartbeat'
+type ClientEventType =
+  | 'view'
+  | 'click'
+  | 'scroll_depth'
+  | 'section_view'
+  | 'heartbeat'
+  | ActionEventType
 
 interface TrackEventInput {
   event_type: ClientEventType
@@ -116,13 +124,60 @@ interface UseEstimateTrackingOptions {
   token: string
   containerRef: RefObject<HTMLElement | null>
   enabled?: boolean
+  /** Company website; an <a> pointing at its host counts as a "website" contact click. */
+  companyWebsite?: string | null
+}
+
+export interface EstimateTracking {
+  /**
+   * Report a client action (PDF download, print, signature flow opened,
+   * contact tap). Stable identity; a no-op while tracking is disabled.
+   * `sign_start` is reported once per session. Action events are flushed
+   * right away: they are rare and the owner wants to see them promptly.
+   */
+  trackAction: (type: ActionEventType, target?: string) => void
+}
+
+function hostOf(value: string | null | undefined): string | null {
+  if (!value) return null
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`)
+    return url.hostname.replace(/^www\./i, '').toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+/** Which contact channel (if any) an anchor represents. */
+function contactTargetOf(anchor: Element, websiteHost: string | null): string | null {
+  const explicit = anchor.getAttribute('data-track-contact')
+  if (explicit === 'phone' || explicit === 'email' || explicit === 'website') return explicit
+  const href = anchor.getAttribute('href') ?? ''
+  if (/^(tel|sms):/i.test(href)) return 'phone'
+  if (/^mailto:/i.test(href)) return 'email'
+  if (websiteHost && /^https?:/i.test(href) && hostOf(href) === websiteHost) return 'website'
+  return null
+}
+
+function isPdfAnchor(anchor: Element): boolean {
+  if (anchor.hasAttribute('data-track-pdf')) return true
+  const path = (anchor.getAttribute('href') ?? '').split(/[?#]/)[0]
+  return /\/pdf$/i.test(path) || /\.pdf$/i.test(path)
 }
 
 export function useEstimateTracking({
   token,
   containerRef,
   enabled = true,
-}: UseEstimateTrackingOptions): void {
+  companyWebsite = null,
+}: UseEstimateTrackingOptions): EstimateTracking {
+  const actionRef = useRef<(type: ActionEventType, target?: string) => void>(() => {})
+  const trackAction = useCallback((type: ActionEventType, target?: string) => {
+    actionRef.current(type, target)
+  }, [])
+  const websiteRef = useRef<string | null>(null)
+  websiteRef.current = hostOf(companyWebsite)
+
   useEffect(() => {
     if (!enabled || !token) return
 
@@ -154,6 +209,9 @@ export function useEstimateTracking({
         drainDwellIntoBuffer()
         lastDwellDrainAt = Date.now()
       }
+      sendBuffer()
+    }
+    function sendBuffer() {
       if (buffer.length === 0) return
       const batch = buffer
       buffer = []
@@ -166,6 +224,9 @@ export function useEstimateTracking({
     // -- Activity (scroll / pointer / touch / key within the last 60s) --------
     let lastActivityAt = Date.now()
     function markActivity() {
+      // Close the interval under the OLD activity window first, so an idle gap
+      // is not retroactively credited by this fresh input.
+      accrue()
       lastActivityAt = Date.now()
     }
     function isActive() {
@@ -173,6 +234,38 @@ export function useEstimateTracking({
     }
     function isEngaged() {
       return document.visibilityState === 'visible' && isActive()
+    }
+
+    // -- Reading time (visible tab only) -------------------------------------
+    // Time accrues between two checkpoints only while the tab was visible, and
+    // only inside the 60s activity window of the last input, so a background
+    // tab or an idle foreground tab adds nothing. Every flush path (20s
+    // interval, tab hidden, pagehide, unmount) calls emitHeartbeat(), which
+    // reports the whole seconds accrued since the last heartbeat and carries
+    // the sub-second remainder forward.
+    let visibleNow = document.visibilityState === 'visible'
+    let lastAccrueAt = Date.now()
+    let pendingVisibleMs = 0
+    let reportedSeconds = 0
+    function accrue() {
+      const now = Date.now()
+      if (visibleNow) {
+        const activeUntil = lastActivityAt + ACTIVITY_WINDOW_MS
+        pendingVisibleMs += Math.max(0, Math.min(now, activeUntil) - lastAccrueAt)
+      }
+      lastAccrueAt = now
+    }
+    function emitHeartbeat() {
+      accrue()
+      const whole = Math.min(
+        Math.floor(pendingVisibleMs / 1000),
+        MAX_HEARTBEAT_SECONDS_PER_FLUSH,
+        Math.max(0, HEARTBEAT_CAP_SECONDS - reportedSeconds)
+      )
+      if (whole <= 0) return
+      pendingVisibleMs -= whole * 1000
+      reportedSeconds += whole
+      buffer.push({ event_type: 'heartbeat', metadata: { seconds: whole } })
     }
     for (const name of ACTIVITY_EVENTS) {
       window.addEventListener(name, markActivity, { passive: true })
@@ -269,23 +362,67 @@ export function useEstimateTracking({
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
 
-    // -- Heartbeat (visible tab only, capped) ---------------------------------
-    let heartbeatCount = 0
+    // -- Heartbeat (real visible seconds, capped) -----------------------------
     const heartbeatTimer = window.setInterval(() => {
-      if (!isEngaged()) return
-      if (heartbeatCount >= HEARTBEAT_CAP) return
-      heartbeatCount += 1
-      enqueue({ event_type: 'heartbeat', metadata: { seconds: HEARTBEAT_INTERVAL_MS / 1000 } })
+      emitHeartbeat()
+      if (buffer.length >= FLUSH_AT_BUFFER_SIZE) flush()
     }, HEARTBEAT_INTERVAL_MS)
 
     // -- Flush cadence ---------------------------------------------------------
-    const forceFlush = () => flush(true)
+    // Hidden / pagehide: report the final partial interval and any pending
+    // dwell. The batch goes out through sendBeacon, which survives unload.
+    const forceFlush = () => {
+      emitHeartbeat()
+      flush(true)
+    }
     const flushTimer = window.setInterval(() => flush(), FLUSH_INTERVAL_MS)
     function handleVisibilityChange() {
-      if (document.visibilityState === 'hidden') flush(true)
+      if (document.visibilityState === 'hidden') {
+        forceFlush()
+        visibleNow = false
+        return
+      }
+      // Back in view: restart the clock without crediting the hidden gap.
+      accrue()
+      visibleNow = true
+      lastAccrueAt = Date.now()
+      lastActivityAt = lastAccrueAt // coming back to the tab is itself activity
+    }
+    function handlePageShow() {
+      visibleNow = document.visibilityState === 'visible'
+      lastAccrueAt = Date.now()
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('pagehide', forceFlush)
+    window.addEventListener('pageshow', handlePageShow)
+
+    // -- Client actions -------------------------------------------------------
+    const firedOnce = new Set<ActionEventType>()
+    actionRef.current = (type, target) => {
+      if (type === 'sign_start') {
+        if (firedOnce.has(type)) return
+        firedOnce.add(type)
+      }
+      buffer.push({ event_type: type, target })
+      sendBuffer() // promptly, without draining dwell early
+    }
+    function handleDocumentClick(e: MouseEvent) {
+      const anchor = e.target instanceof Element ? e.target.closest('a') : null
+      if (!anchor) return
+      const contact = contactTargetOf(anchor, websiteRef.current)
+      if (contact) {
+        actionRef.current('contact_click', contact)
+        return
+      }
+      if (isPdfAnchor(anchor)) actionRef.current('pdf_download')
+    }
+    // Document-level (capture): the sticky contact bar lives outside the
+    // estimate container, so the container alone would miss phone/email taps.
+    document.addEventListener('click', handleDocumentClick, { capture: true })
+    function handleBeforePrint() {
+      actionRef.current('print')
+    }
+    window.addEventListener('beforeprint', handleBeforePrint)
 
     return () => {
       containerRef.current?.removeEventListener('click', handleClick, { capture: true })
@@ -298,9 +435,16 @@ export function useEstimateTracking({
       window.clearInterval(flushTimer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pagehide', forceFlush)
+      window.removeEventListener('pageshow', handlePageShow)
+      document.removeEventListener('click', handleDocumentClick, { capture: true })
+      window.removeEventListener('beforeprint', handleBeforePrint)
+      actionRef.current = () => {}
+      emitHeartbeat()
       flush(true)
     }
     // containerRef is a stable ref object — intentionally excluded from deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, enabled])
+
+  return { trackAction }
 }

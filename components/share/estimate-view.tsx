@@ -156,7 +156,12 @@ function EstimateViewInner({
   // whole page: the proposal bar, invoice cards, etc. live outside it), so
   // click coordinates and doc_h stay meaningful for a future heatmap overlay.
   const documentContainerRef = useRef<HTMLDivElement | null>(null)
-  useEstimateTracking({ token, containerRef: documentContainerRef, enabled: !ownerPreview })
+  const { trackAction } = useEstimateTracking({
+    token,
+    containerRef: documentContainerRef,
+    enabled: !ownerPreview,
+    companyWebsite: estimate.company.website ?? null,
+  })
 
   const { company, project } = estimate
   // Online approval exists ONLY when the company requires a digital signature.
@@ -333,6 +338,7 @@ function EstimateViewInner({
   const respondedOn = estimate.responded_at ? formatDate(estimate.responded_at, lang) : null
 
   function openSignature() {
+    trackAction('sign_start')
     setError(null)
     setConfirmingDecline(false)
     setShowSignaturePad(true)

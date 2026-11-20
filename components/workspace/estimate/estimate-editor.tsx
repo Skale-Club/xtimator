@@ -52,6 +52,7 @@ import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-
 import { useEditorFrameContext } from '@/components/workspace/editor-frame/context'
 import { EditorDock } from '@/components/workspace/editor-frame/editor-dock'
 import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
+import { EstimateAnalyticsDrawer } from './analytics/estimate-analytics-drawer'
 import { ContractCard, useCreateChangeOrder } from '@/components/workspace/change-orders/contract-card'
 import { formatEstimateNumber } from '@/lib/estimate/document/format'
 import {
@@ -274,6 +275,22 @@ export function EstimateEditor({
   const { frame, dockEl } = useEditorFrameContext()
   const [statusOpen, setStatusOpen] = useState(false)
   const openStatus = useCallback(() => setStatusOpen(true), [])
+  // Per-estimate analytics drawer. Owned here so the status sheet button and the
+  // `?analytics=1` deep link (dashboard) open the same one.
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const openAnalytics = useCallback(() => {
+    setStatusOpen(false)
+    setAnalyticsOpen(true)
+  }, [])
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('analytics') !== '1') return
+    setAnalyticsOpen(true)
+    // Drop the param without a navigation, so a refresh does not reopen it.
+    url.searchParams.delete('analytics')
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [])
   // Platform-admin debug sheet (AI record of this estimate). Closed by default.
   const [debugOpen, setDebugOpen] = useState(false)
   const [state, dispatch] = useEstimateReducer(estimate)
@@ -1277,8 +1294,10 @@ export function EstimateEditor({
           signedOnline={state.hasSignature}
           recordDisabled={!isCurrent || state.isDirty || saveStatus === 'saving'}
           onRecord={handleRecordClientResponse}
+          onOpenAnalytics={openAnalytics}
         />
       )}
+      <EstimateAnalyticsDrawer open={analyticsOpen} onOpenChange={setAnalyticsOpen} estimateId={state.id} />
 
       {/* Platform-admin only; outside the document stage, so never part of the page view,
           the share page, a PDF or a message. */}

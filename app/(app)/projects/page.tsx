@@ -5,6 +5,7 @@ import { getActiveCompany } from '@/lib/queries/active-company'
 import { getProjectsForListPage, type ProjectListStatus } from '@/lib/queries/project'
 import { getClientsForEditing } from '@/lib/queries/clients'
 import { getPausedCaptures, withPausedStatus } from '@/lib/queries/credit-pauses'
+import { getEstimateListStatuses, withEstimateStatus } from '@/lib/queries/estimate-list-status'
 import { ProjectsPageShell } from '@/components/projects/projects-page-shell'
 
 function parseStatus(raw: string | string[] | undefined): ProjectListStatus {
@@ -34,13 +35,15 @@ export default async function ProjectsPage({
   const clientId = parseClient(sp.client)
 
   const supabase = await createClient()
-  const [listed, clients, paused] = await Promise.all([
+  const [listed, clients, paused, estimateStatuses] = await Promise.all([
     getProjectsForListPage(supabase, company.id, { status, clientId }),
     getClientsForEditing(supabase, company.id),
     getPausedCaptures(company.id),
+    getEstimateListStatuses(supabase, company.id),
   ])
   // Credits plan 2026-11-20: a capture paused for credits shows on its project.
-  const projects = withPausedStatus(listed, paused)
+  // Client activity (Draft / Sent / Viewed / Accepted + Hot) for the Status column.
+  const projects = withEstimateStatus(withPausedStatus(listed, paused), estimateStatuses)
 
   return (
     <ProjectsPageShell

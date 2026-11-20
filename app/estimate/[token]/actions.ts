@@ -42,7 +42,11 @@ export async function logEstimateView(token: string): Promise<void> {
   // in-app notification copy (Phase 77 NOTIF-04).
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, viewed_at, estimate_number, client_name')
+    // NOTE: `client_name` is NOT a column on estimates (it lives on clients.name
+    // via projects.client_id). Selecting it made PostgREST answer 42703, `data`
+    // came back null and this function returned silently before stamping
+    // viewed_at, so no client first-open was ever recorded.
+    .select('id, project_id, company_id, viewed_at, estimate_number')
     .eq('share_token', token)
     .single()
 
@@ -54,7 +58,6 @@ export async function logEstimateView(token: string): Promise<void> {
     company_id: string
     viewed_at: string | null
     estimate_number?: string | null
-    client_name?: string | null
   }
 
   const denied = (await assertWritable()) ?? await assertCompanyWritable(estimateRow.company_id)
@@ -85,10 +88,25 @@ export async function logEstimateView(token: string): Promise<void> {
   // throws. Dedupe key is per estimate per day so repeated views by the same
   // client only ping the owner once a day.
   try {
+    // Client name for the notification copy: clients.name through the project.
+    // Best-effort — a missing client just degrades the copy to "A client".
+    let clientName: string | null = null
+    try {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('client:clients(name)')
+        .eq('id', estimateRow.project_id)
+        .single()
+      const rel = (proj as { client?: { name?: string | null } | { name?: string | null }[] | null } | null)?.client
+      const row = Array.isArray(rel) ? rel[0] : rel
+      clientName = row?.name ?? null
+    } catch {
+      /* copy falls back to "A client" */
+    }
     const ymd = new Date().toISOString().slice(0, 10)
     const ctx = {
       estimateNumber: estimateRow.estimate_number ?? undefined,
-      clientName: estimateRow.client_name ?? undefined,
+      clientName: clientName ?? undefined,
     }
     const copy = buildNotificationCopy('estimate.viewed', ctx)
     void notify({
@@ -148,7 +166,7 @@ export async function respondToEstimate(
   // Look up estimate
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, client_response, is_current, estimate_number, client_name')
+    .select('id, project_id, company_id, client_response, is_current, estimate_number')
     .eq('share_token', token)
     .single()
 
@@ -163,7 +181,6 @@ export async function respondToEstimate(
     client_response: string | null
     is_current: boolean
     estimate_number?: string | null
-    client_name?: string | null
   }
 
   const denied = (await assertWritable()) ?? await assertCompanyWritable(est.company_id)

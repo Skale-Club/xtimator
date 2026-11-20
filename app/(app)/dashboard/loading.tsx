@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
+import { ClientActivitySkeleton } from '@/components/dashboard/client-activity-skeleton'
 
 export default function DashboardLoading() {
   return (
@@ -12,6 +13,10 @@ export default function DashboardLoading() {
       </div>
 
       <StatCardsSkeleton />
+
+      <section className="mt-8 px-4 sm:mt-12 sm:px-6">
+        <ClientActivitySkeleton />
+      </section>
 
       <section className="mt-8 px-4 sm:mt-12 sm:px-6">
         <RecentProjectsSkeleton />

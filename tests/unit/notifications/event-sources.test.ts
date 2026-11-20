@@ -95,10 +95,11 @@ describe('estimate.viewed instrumentation', () => {
           company_id: 'co_1',
           viewed_at: null,
           estimate_number: 'EST-001',
-          client_name: 'Acme',
         },
         error: null,
       },
+      // projects -> clients.name lookup (client_name is not an estimates column)
+      { data: { client: { name: 'Acme' } }, error: null },
       { data: { notify_on_view: false, email: null, name: 'BizName' }, error: null },
       { data: { name: 'Roof Job' }, error: null },
     ]
