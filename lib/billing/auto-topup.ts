@@ -7,6 +7,8 @@ import { topupExpiresAt } from '@/lib/billing/credit-window'
 import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { notifyOps } from '@/lib/observability/ops-alert'
+import { formatBillingAmount } from '@/lib/billing/billing-currency'
+import { resolveSavedCard, savedCardLabel } from '@/lib/billing/saved-card'
 
 /**
  * Pre-launch audit fix (B2): hard cooldown between off-session charge
@@ -146,6 +148,7 @@ export async function triggerAutoTopupIfNeeded(input: {
       await chargeAutoTopup({
         companyId: input.companyId,
         stripeCustomerId: company.stripe_customer_id,
+        stripeSubscriptionId: company.stripe_subscription_id ?? null,
         packIndex: company.auto_topup_pack_index,
         packPriceCents: company.auto_topup_pack_price_cents ?? null,
         packCredits: company.auto_topup_pack_credits ?? null,
@@ -197,6 +200,8 @@ function sanitizeStripeError(err: unknown): {
 async function chargeAutoTopup(input: {
   companyId: string
   stripeCustomerId: string
+  /** Credits plan 2026-11-20: the subscription's card is used when the customer has no invoice default. */
+  stripeSubscriptionId?: string | null
   packIndex: number
   packPriceCents?: number | null
   packCredits?: number | null
@@ -205,13 +210,11 @@ async function chargeAutoTopup(input: {
   const svc = requireServiceClient()
   try {
     const stripe = await getStripeClient()
-    const customer = (await stripe.customers.retrieve(input.stripeCustomerId, {
-      expand: ['invoice_settings.default_payment_method'],
-    })) as unknown as {
-      invoice_settings?: { default_payment_method?: { id: string } | string | null }
-    }
-    const pm = customer.invoice_settings?.default_payment_method
-    const paymentMethodId = typeof pm === 'string' ? pm : pm?.id
+    // Credits plan 2026-11-20: the same card a one-click buy charges - the
+    // customer's invoice default, else the subscription's card, else the first
+    // saved card - so turning auto top-up on needs no second card entry.
+    const card = await resolveSavedCard(stripe, input.stripeCustomerId, input.stripeSubscriptionId ?? null)
+    const paymentMethodId = card?.id
     if (!paymentMethodId) {
       throw new Error('no payment method on file')
     }
@@ -312,6 +315,13 @@ async function chargeAutoTopup(input: {
     if (grantResult.applied) {
       // Success — clear any prior failure flag so the tenant-facing banner clears.
       await svc.from('companies').update({ auto_topup_last_failed_at: null }).eq('id', input.companyId)
+      // Credits plan 2026-11-20: the owner hears about every automatic charge.
+      void notifyOwnerAutoTopup(input.companyId, {
+        ok: true,
+        credits: pack.credits,
+        amount: formatBillingAmount(pack.priceCents, chargeCurrency),
+        card: savedCardLabel(card),
+      })
     } else {
       void notifyOps({
         kind: 'auto_topup_charged_without_grant',
@@ -344,5 +354,46 @@ async function chargeAutoTopup(input: {
       .from('companies')
       .update({ auto_topup_last_failed_at: new Date().toISOString() })
       .eq('id', input.companyId)
+    // Credits plan 2026-11-20: ...and about every failed one.
+    void notifyOwnerAutoTopup(input.companyId, { ok: false })
+  }
+}
+
+/**
+ * Credits plan 2026-11-20: in-app + email to the owner after an automatic
+ * charge - what was bought and on which card, or that it failed and how to
+ * keep going. Never throws.
+ */
+async function notifyOwnerAutoTopup(
+  companyId: string,
+  result: { ok: true; credits: number; amount: string; card: string | null } | { ok: false }
+): Promise<void> {
+  try {
+    const { notify } = await import('@/lib/notifications/dispatch')
+    if (result.ok) {
+      await notify({
+        companyId,
+        userId: null,
+        eventType: 'payment.received',
+        title: `Auto top-up: ${result.credits.toLocaleString('en-US')} credits added`,
+        body: `We charged ${result.amount}${result.card ? ` to ${result.card}` : ''} because your balance dropped below your auto top-up threshold.`,
+        linkUrl: '/settings/billing#topup-packs',
+        channels: { inApp: true, email: true },
+        metadata: { dedupe_key: `autotopup-ok-${companyId}-${new Date().toISOString().slice(0, 13)}` },
+      })
+    } else {
+      await notify({
+        companyId,
+        userId: null,
+        eventType: 'quota.exhausted',
+        title: 'Auto top-up failed',
+        body: 'We could not charge your card for the automatic top-up. Buy credits or update your card to keep creating estimates.',
+        linkUrl: '/settings/billing#topup-packs',
+        channels: { inApp: true, email: true },
+        metadata: { dedupe_key: `autotopup-failed-${companyId}-${new Date().toISOString().slice(0, 10)}` },
+      })
+    }
+  } catch (err) {
+    console.warn('[auto-topup] owner notification failed:', err instanceof Error ? err.message : err)
   }
 }

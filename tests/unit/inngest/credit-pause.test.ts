@@ -29,6 +29,9 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
+const triggerAutoTopupIfNeeded = vi.fn(async () => undefined)
+vi.mock('@/lib/billing/auto-topup', () => ({ triggerAutoTopupIfNeeded: (...a: unknown[]) => triggerAutoTopupIfNeeded(...a) }))
+
 const { continueOrPauseForCredits, AWAITING_CREDITS, CREDIT_PAUSE_EXPIRED } = await import('@/lib/inngest/credit-pause')
 
 const CTX = {
@@ -78,7 +81,7 @@ describe('continueOrPauseForCredits', () => {
   })
 
   it('without credits: journals a pause (started + awaiting_credits) with its expiry and next step, and tells the owner', async () => {
-    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
     const { step } = fakeStep([{ data: { companyId: 'co-1' } }])
     await continueOrPauseForCredits(step, CTX)
     const pause = journal()[0]
@@ -105,7 +108,7 @@ describe('continueOrPauseForCredits', () => {
   })
 
   it('waits only for this company\'s credits.granted event, within the pause window', async () => {
-    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
     const { step, waitOpts } = fakeStep([{ data: { companyId: 'co-1' } }])
     await continueOrPauseForCredits(step, CTX)
     expect(waitOpts[0].event).toBe('billing/credits.granted')
@@ -116,7 +119,7 @@ describe('continueOrPauseForCredits', () => {
   })
 
   it('credits arrive: re-checks, journals a plain started row (resumed) and continues', async () => {
-    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
     const { step } = fakeStep([{ data: { companyId: 'co-1' } }])
     expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
     const resumed = journal()[1]
@@ -128,6 +131,7 @@ describe('continueOrPauseForCredits', () => {
   it('a grant that only paid down debt leaves the balance empty: keeps waiting, then resumes on the next one', async () => {
     canContinueRun
       .mockResolvedValueOnce({ ok: false }) // first check
+      .mockResolvedValueOnce({ ok: false }) // after the auto top-up attempt
       .mockResolvedValueOnce({ ok: false }) // after grant 1 (paid debt only)
       .mockResolvedValue({ ok: true }) // after grant 2
     const { step, waitOpts } = fakeStep([{ data: {} }, { data: {} }])
@@ -145,7 +149,7 @@ describe('continueOrPauseForCredits', () => {
   })
 
   it('step ids are unique per wake, so Inngest memoizes each wait separately', async () => {
-    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
     const { step, ids } = fakeStep([{}, {}])
     await continueOrPauseForCredits(step, { ...CTX, next: 'analyze' })
     expect(new Set(ids).size).toBe(ids.length)
@@ -162,9 +166,27 @@ describe('continueOrPauseForCredits', () => {
   })
 
   it('a notify failure never breaks the pause', async () => {
-    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
     notify.mockRejectedValueOnce(new Error('smtp down'))
     const { step } = fakeStep([{}])
     expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
+  })
+
+  it('delivery 3: auto top-up is tried before pausing; when it recharges, the run continues without a pause', async () => {
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    const { step, ids } = fakeStep([])
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
+    expect(triggerAutoTopupIfNeeded).toHaveBeenCalledWith({ companyId: 'co-1', newBalance: 0 })
+    expect(ids).toContain('credits-autotopup-generate_estimate')
+    expect(recordPipelineEvent).not.toHaveBeenCalled()
+    expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('delivery 3: a failed or skipped auto top-up still pauses normally', async () => {
+    triggerAutoTopupIfNeeded.mockRejectedValueOnce(new Error('card declined'))
+    canContinueRun.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: false }).mockResolvedValue({ ok: true })
+    const { step } = fakeStep([{}])
+    expect(await continueOrPauseForCredits(step, CTX)).toBe('continue')
+    expect(journal()[0]).toMatchObject({ errorCode: AWAITING_CREDITS })
   })
 })

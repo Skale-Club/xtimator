@@ -25,8 +25,13 @@ export function AutoTopupCard({
   currentPackIndex,
   isOwner = true,
   currency = 'usd',
+  packCredits = null,
+  estimateRange,
 }: {
   enabled: boolean
+  /** Credits plan 2026-11-20: credits of the pack the rule buys. */
+  packCredits?: number | null
+  estimateRange?: { low: number; high: number }
   packAmount: string | null
   thresholdAmount: string | null
   paymentMethodLabel: string | null
@@ -54,18 +59,32 @@ export function AutoTopupCard({
               )}
             </p>
             <p className="text-sm text-muted-foreground">
+              {/* Credits plan 2026-11-20: the whole rule in one sentence. */}
               {enabled && packAmount && thresholdAmount ? (
-                <T
-                  text="We'll add {amount} when your balance drops below {threshold} credits."
-                  values={{ amount: packAmount, threshold: thresholdAmount }}
-                />
+                packCredits ? (
+                  <T
+                    text={
+                      paymentMethodLabel
+                        ? 'When your balance drops below {threshold} credits, we buy {credits} credits ({amount}) on {card}.'
+                        : 'When your balance drops below {threshold} credits, we buy {credits} credits ({amount}).'
+                    }
+                    values={{
+                      threshold: thresholdAmount,
+                      credits: packCredits.toLocaleString('en-US'),
+                      amount: packAmount,
+                      card: paymentMethodLabel ?? '',
+                    }}
+                  />
+                ) : (
+                  <T
+                    text="We'll add {amount} when your balance drops below {threshold} credits."
+                    values={{ amount: packAmount, threshold: thresholdAmount }}
+                  />
+                )
               ) : (
-                <T>Never run out mid-job. Turn on auto top-up to automatically add credits when your balance gets low.</T>
+                <T>Buys credits by itself when your balance runs low, so an estimate never pauses.</T>
               )}
             </p>
-            {enabled && paymentMethodLabel && (
-              <p className="text-xs text-muted-foreground">{paymentMethodLabel}</p>
-            )}
           </div>
         </div>
         <div className="shrink-0">
@@ -75,6 +94,8 @@ export function AutoTopupCard({
             currentThresholdCredits={currentThresholdCredits}
             currentPackIndex={currentPackIndex}
             hasPaymentMethod={!!paymentMethodLabel}
+            cardLabel={paymentMethodLabel}
+            estimateRange={estimateRange}
             isOwner={isOwner}
             currency={currency}
           />

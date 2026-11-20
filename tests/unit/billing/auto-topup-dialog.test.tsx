@@ -1,52 +1,102 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 /**
- * Phase 156 Plan 01 (CREDITFIX-01) — AutoTopupDialog pack-picker regression
- * guard.
+ * Credits plan 2026-11-20 (delivery 3) - the auto top-up sheet.
  *
- * Repairs a confirmed v4.15 CREDITUI-04 violation: the SelectItem label used
- * to render "$X (≈Y credits)". The parenthetical is gone — the label must
- * show ONLY the dollar amount.
- *
- * Static source-read approach (mirrors topup-pack-labels-no-hardcode.test.ts):
- * Radix Select's SelectContent only mounts in a portal when opened, which is
- * unreliable in jsdom without extra interaction setup — a static source scan
- * is the established precedent in this test directory.
+ * Supersedes the CREDITFIX-01 source scan (a dollar-only pack select): the
+ * threshold is now in CREDITS (the old dollars x 100 assumed 1 credit = 1
+ * cent), packs show credits + estimate range + price, the card is named, and
+ * the whole rule is spelled out before saving.
  */
 
-const autoTopupDialogSrc = readFileSync(
-  resolve(__dirname, '../../../components/billing/auto-topup-dialog.tsx'),
-  'utf8'
-)
+const T = (s: string) => s
+vi.mock('@/lib/i18n/use-translation', () => ({ useTranslation: () => ({ t: T }) }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+const saveAutoTopupSettings = vi.fn(async () => ({ success: true }))
+const disableAutoTopup = vi.fn(async () => ({ success: true }))
+vi.mock('@/lib/actions/auto-topup', () => ({
+  saveAutoTopupSettings: (...a: unknown[]) => saveAutoTopupSettings(...a),
+  disableAutoTopup: (...a: unknown[]) => disableAutoTopup(...a),
+}))
 
-// Scope the assertion to the SelectItem's rendered label — the file
-// legitimately uses "credits" elsewhere (prop/type names like
-// `packs: Array<{ credits: number }>`, the unrelated "We'll check this every
-// time credits are used." copy for the threshold field). The bug class this
-// guards against is specifically the pack-picker's rendered dollar label
-// growing a "(≈X credits)" parenthetical back.
-const selectItemMatch = autoTopupDialogSrc.match(
-  /<SelectItem key=\{i\} value=\{String\(i\)\}>([\s\S]*?)<\/SelectItem>/
-)
+const { AutoTopupDialogLauncher } = await import('@/components/billing/auto-topup-dialog')
 
-describe('auto-topup-dialog (CREDITFIX-01 / CREDITUI-04)', () => {
-  it('Test B (sanity): the SelectItem block was found in source', () => {
-    expect(selectItemMatch).not.toBeNull()
+const PACKS = [
+  { credits: 900, priceCents: 1000 },
+  { credits: 1900, priceCents: 2000 },
+  { credits: 5000, priceCents: 5000 },
+]
+
+function open(props: Partial<Parameters<typeof AutoTopupDialogLauncher>[0]> = {}) {
+  render(
+    <AutoTopupDialogLauncher
+      enabled={false}
+      packs={PACKS}
+      currentThresholdCredits={null}
+      currentPackIndex={null}
+      hasPaymentMethod
+      cardLabel="Visa •••• 4242"
+      {...props}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: props.enabled ? 'Change' : 'Turn on' }))
+}
+
+beforeEach(() => vi.clearAllMocks())
+
+describe('AutoTopupDialogLauncher', () => {
+  it('packs show credits, the estimate range and the price; Best value on the most credits per dollar', () => {
+    open()
+    const packs = screen.getAllByTestId('autotopup-pack')
+    expect(packs).toHaveLength(3)
+    expect(packs[0].textContent).toContain('900 credits')
+    expect(packs[0].textContent).toContain('6 to 13 estimates')
+    expect(packs[0].textContent).toContain('$10')
+    expect(packs[2].textContent).toContain('Best value')
+    expect(packs[1].getAttribute('aria-checked')).toBe('true')
   })
 
-  it('Test B: rendered SelectItem label never matches /credits/i and never contains "≈"', () => {
-    const label = selectItemMatch?.[1] ?? ''
-    expect(label).not.toMatch(/credits/i)
-    expect(label).not.toContain('≈')
+  it('spells out the whole rule with the threshold in credits and the card', () => {
+    open()
+    expect(screen.getByTestId('autotopup-summary').textContent).toBe(
+      'When your balance drops below 300 credits, we buy 1,900 credits ($20) on Visa •••• 4242.'
+    )
   })
 
-  it('Test B (continued): dollar amount is still derived from priceCents', () => {
-    const label = selectItemMatch?.[1] ?? ''
-    // Currency-aware since Phase 1 (BRL behind a flag): price resolved per pack,
-    // then formatted from cents — never a hardcoded amount.
-    expect(label).toMatch(/resolvePackPrice\(pack,/)
-    expect(label).toMatch(/formatBillingAmount\(price\.priceCents,/)
+  it('saves the threshold in CREDITS (no dollars x 100) and the chosen pack', async () => {
+    open()
+    fireEvent.click(screen.getByRole('button', { name: '600' }))
+    fireEvent.click(screen.getAllByTestId('autotopup-pack')[2])
+    fireEvent.click(screen.getByTestId('autotopup-save'))
+    await waitFor(() => expect(saveAutoTopupSettings).toHaveBeenCalledWith({ thresholdCredits: 600, packIndex: 2 }))
+  })
+
+  it('a custom threshold beyond 5x the pack is refused before saving', () => {
+    open()
+    fireEvent.click(screen.getAllByTestId('autotopup-pack')[0]) // 900 credits -> max 4,500
+    fireEvent.change(screen.getByLabelText('Credits'), { target: { value: '5000' } })
+    expect((screen.getByTestId('autotopup-save') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Enter between 1 and 4,500 credits for this pack.')).toBeTruthy()
+  })
+
+  it('without a card it cannot be turned on and offers to add one', () => {
+    open({ hasPaymentMethod: false, cardLabel: null })
+    expect((screen.getByTestId('autotopup-save') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: 'Add payment method' })).toBeTruthy()
+  })
+
+  it('when on, it opens with the saved rule and can be turned off', async () => {
+    open({ enabled: true, currentThresholdCredits: 150, currentPackIndex: 0 })
+    expect(screen.getByTestId('autotopup-summary').textContent).toContain('below 150 credits, we buy 900 credits ($10)')
+    fireEvent.click(screen.getByRole('button', { name: 'Turn off auto top-up' }))
+    await waitFor(() => expect(disableAutoTopup).toHaveBeenCalled())
+  })
+
+  it('a member (not the owner) cannot open it', () => {
+    render(
+      <AutoTopupDialogLauncher enabled={false} packs={PACKS} currentThresholdCredits={null} currentPackIndex={null} hasPaymentMethod isOwner={false} />
+    )
+    expect((screen.getByRole('button', { name: 'Turn on' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

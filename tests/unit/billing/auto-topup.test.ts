@@ -65,12 +65,22 @@ let customerRetrieveResult: unknown = {
 }
 const customersRetrieve = vi.fn(async () => customerRetrieveResult)
 
+// Credits plan 2026-11-20: the charge falls back to the subscription's card.
+let subscriptionPm: unknown = null
+const subscriptionsRetrieve = vi.fn(async () => ({ default_payment_method: subscriptionPm }))
+const paymentMethodsList = vi.fn(async () => ({ data: [] }))
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: async () => ({
     customers: { retrieve: customersRetrieve },
+    subscriptions: { retrieve: subscriptionsRetrieve },
+    paymentMethods: { list: paymentMethodsList },
     paymentIntents: { create: paymentIntentsCreate },
   }),
 }))
+
+// Credits plan 2026-11-20: the owner hears about every automatic charge.
+const mockNotify = vi.fn().mockResolvedValue({ ok: true })
+vi.mock('@/lib/notifications/dispatch', () => ({ notify: (...a: unknown[]) => mockNotify(...a) }))
 
 // ---- billing-config mock -----------------------------------------------------
 let billingConfig: {
@@ -121,6 +131,52 @@ beforeEach(() => {
   customersRetrieve.mockClear()
   ledgerRpcApplied = true
   mockNotifyOps.mockClear()
+  mockNotify.mockClear()
+  subscriptionPm = null
+  subscriptionsRetrieve.mockClear()
+})
+
+// =============================================================================
+// Credits plan 2026-11-20 (delivery 3): the subscription card and owner emails.
+// =============================================================================
+describe('credits plan 2026-11-20: auto top-up on the subscription card', () => {
+  it('with no customer default, it charges the card the subscription bills', async () => {
+    customerRetrieveResult = { invoice_settings: { default_payment_method: null } }
+    subscriptionPm = { id: 'pm_sub', card: { brand: 'visa', last4: '4242' } }
+    companyRow!.stripe_subscription_id = 'sub_1'
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith('sub_1', { expand: ['default_payment_method'] })
+    expect(paymentIntentsCreate.mock.calls[0][0]).toMatchObject({ payment_method: 'pm_sub', off_session: true })
+  })
+
+  it('a successful charge emails the owner what was bought and on which card', async () => {
+    customerRetrieveResult = { invoice_settings: { default_payment_method: { id: 'pm_test', card: { brand: 'visa', last4: '4242' } } } }
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    await vi.waitFor(() => expect(mockNotify).toHaveBeenCalled())
+    const n = mockNotify.mock.calls[0][0] as { title: string; body: string; channels: unknown; linkUrl: string }
+    expect(n.title).toBe('Auto top-up: 1,300 credits added')
+    expect(n.body).toContain('$20')
+    expect(n.body).toContain('Visa •••• 4242')
+    expect(n.channels).toEqual({ inApp: true, email: true })
+    expect(n.linkUrl).toBe('/settings/billing#topup-packs')
+  })
+
+  it('a declined charge emails the owner that it failed and how to keep going', async () => {
+    paymentIntentsCreate.mockRejectedValueOnce(Object.assign(new Error('declined'), { code: 'card_declined' }))
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    await vi.waitFor(() => expect(mockNotify).toHaveBeenCalled())
+    const n = mockNotify.mock.calls[0][0] as { title: string; body: string }
+    expect(n.title).toBe('Auto top-up failed')
+    expect(n.body).toContain('Buy credits or update your card')
+  })
+
+  it('with no card anywhere it does not charge and tells the owner it failed', async () => {
+    customerRetrieveResult = { invoice_settings: { default_payment_method: null } }
+    await triggerAutoTopupIfNeeded({ companyId: COMPANY, newBalance: 50 })
+    expect(paymentIntentsCreate).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(mockNotify).toHaveBeenCalled())
+    expect((mockNotify.mock.calls[0][0] as { title: string }).title).toBe('Auto top-up failed')
+  })
 })
 
 describe('CREDITUI-07: threshold independence (Pitfall 3)', () => {

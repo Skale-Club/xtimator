@@ -15,11 +15,17 @@ export type SavedCard = { id: string; brand: string; last4: string }
 
 type PmLike = { id?: string; card?: { brand?: string | null; last4?: string | null } | null } | string | null | undefined
 
+/**
+ * Any payment method with an id can be charged; brand/last4 only feed the
+ * label. An unexpanded id or a non-card method (Link, bank) still counts, with
+ * an empty last4 ("Card on file" in the UI).
+ */
 function toCard(pm: PmLike): SavedCard | null {
-  if (!pm || typeof pm === 'string') return null
-  if (!pm.id || !pm.card?.last4) return null
-  const brand = pm.card.brand ?? 'card'
-  return { id: pm.id, brand: brand.charAt(0).toUpperCase() + brand.slice(1), last4: pm.card.last4 }
+  if (!pm) return null
+  if (typeof pm === 'string') return { id: pm, brand: 'Card', last4: '' }
+  if (!pm.id) return null
+  const brand = pm.card?.brand ?? 'card'
+  return { id: pm.id, brand: brand.charAt(0).toUpperCase() + brand.slice(1), last4: pm.card?.last4 ?? '' }
 }
 
 export async function resolveSavedCard(
@@ -54,5 +60,6 @@ export async function resolveSavedCard(
 
 /** "Visa •••• 4242" */
 export function savedCardLabel(card: SavedCard | null): string | null {
-  return card ? `${card.brand} •••• ${card.last4}` : null
+  if (!card) return null
+  return card.last4 ? `${card.brand} •••• ${card.last4}` : 'Card on file'
 }

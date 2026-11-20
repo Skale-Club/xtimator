@@ -67,6 +67,20 @@ export async function continueOrPauseForCredits(
   const first = await step.run(`credits-check-${ctx.next}`, () => hasCredits(ctx.companyId))
   if (first) return 'continue'
 
+  // Auto top-up on (delivery 3): try it before pausing. The charge respects
+  // the company's own switch, threshold, cooldown and failure backoff; on
+  // success the grant lands synchronously and the run simply carries on.
+  const recharged = await step.run(`credits-autotopup-${ctx.next}`, async () => {
+    try {
+      const { triggerAutoTopupIfNeeded } = await import('@/lib/billing/auto-topup')
+      await triggerAutoTopupIfNeeded({ companyId: ctx.companyId, newBalance: 0 })
+    } catch (err) {
+      console.warn('[credit-pause] auto top-up attempt failed:', err instanceof Error ? err.message : err)
+    }
+    return hasCredits(ctx.companyId)
+  })
+  if (recharged) return 'continue'
+
   const pause = await step.run(`credits-pause-${ctx.next}`, async () => {
     const { getBillingConfig } = await import('@/lib/billing/billing-config')
     const cfg = await getBillingConfig()

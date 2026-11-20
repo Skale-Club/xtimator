@@ -396,6 +396,8 @@ export default async function BillingPage() {
                 packAmount={autoTopupPackAmount}
                 thresholdAmount={autoTopupThresholdAmount}
                 paymentMethodLabel={autoTopupPaymentMethodLabel}
+                packCredits={autoTopupCompany?.auto_topup_pack_credits ?? autoTopupPack?.credits ?? null}
+                estimateRange={cfg.estimateCreditsRange}
                 lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
                 packs={cfg.topUpPacks}
                 currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}

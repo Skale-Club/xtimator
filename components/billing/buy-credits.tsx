@@ -281,7 +281,7 @@ export function BuyCreditsPicker({
       {offer.card ? (
         <div className="flex items-center gap-2.5 px-1 text-sm">
           <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="font-medium">{offer.card.brand} •••• {offer.card.last4}</span>
+          <span className="font-medium">{offer.card.last4 ? `${offer.card.brand} •••• ${offer.card.last4}` : t('Card on file')}</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">{t('your subscription card')}</span>
           <button
             type="button"

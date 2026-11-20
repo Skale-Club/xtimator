@@ -1,5 +1,6 @@
 'use server'
 
+import { resolveSavedCard } from '@/lib/billing/saved-card'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -112,12 +113,12 @@ export async function saveAutoTopupSettings(input: {
   }
 
   // Pitfall 2 — verify server-side, independent of any client claim, that a
-  // default payment method actually exists before persisting enabled: true.
+  // card the charge can use actually exists before persisting enabled: true.
+  // Credits plan 2026-11-20: the subscription's card counts (resolveSavedCard,
+  // the same lookup the charge uses), so no second card entry is needed.
   const stripe = await getStripeClient()
-  const customer = (await stripe.customers.retrieve(stripeCustomerId, {
-    expand: ['invoice_settings.default_payment_method'],
-  })) as unknown as { invoice_settings?: { default_payment_method?: unknown } }
-  if (!customer.invoice_settings?.default_payment_method) {
+  const card = await resolveSavedCard(stripe, stripeCustomerId, companyRow?.stripe_subscription_id ?? null)
+  if (!card) {
     return { error: 'Add a payment method before enabling auto top-up.' }
   }
 
