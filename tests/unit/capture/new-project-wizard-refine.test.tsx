@@ -14,7 +14,13 @@ vi.mock('@/lib/actions/project', () => ({
   getProjectMinimalAction: vi.fn(async () => ({ data: { id: 'proj-1', company_id: 'co-1', name: 'P' } })),
 }))
 vi.mock('@/lib/actions/estimate', () => ({ createBlankEstimate: vi.fn() }))
-vi.mock('@/lib/billing/block-toast', () => ({ showBillingBlockToast: vi.fn() }))
+vi.mock('@/lib/billing/block-toast', () => ({
+  showBillingBlockToast: vi.fn(),
+  billingBlockCopy: (code: string) =>
+    code === 'out_of_credits'
+      ? { title: "You're out of credits", description: 'Buy credits to keep creating estimates.', cta: 'Buy credits' }
+      : { title: 'Your free credits are used up', description: 'Subscribe to Xtimator Pro to keep creating estimates.', cta: 'Subscribe' },
+}))
 const getCurrentEstimateId = vi.fn()
 vi.mock('@/lib/estimate/poll-outcome', () => ({
   getCurrentEstimateIdOrThrow: (...a: unknown[]) => getCurrentEstimateId(...a),
@@ -77,5 +83,22 @@ describe('NewProjectWizard edit mode', () => {
     render(<NewProjectWizard editProjectId="proj-1" />)
     await vi.waitFor(() => expect(toastError).toHaveBeenCalled())
     expect(screen.queryByTestId('recorder-stub')).toBeNull()
+  })
+})
+
+describe('NewProjectWizard new mode when the company cannot start an estimate', () => {
+  it.each([
+    ['paywalled', 'Your free credits are used up', 'Subscribe'],
+    ['out_of_credits', "You're out of credits", 'Buy credits'],
+  ] as const)('%s: shows the block with its way out instead of an endless loader', async (code, title, cta) => {
+    const { resumeOrCreateDraftProjectAction } = await import('@/lib/actions/project')
+    vi.mocked(resumeOrCreateDraftProjectAction).mockResolvedValue({ error: 'blocked', code } as never)
+    render(<NewProjectWizard />)
+    const blocked = await screen.findByTestId('new-xtimate-blocked')
+    expect(blocked).toHaveAttribute('data-state', code)
+    expect(screen.getByText(title)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: cta })).toBeInTheDocument()
+    expect(screen.queryByTestId('recorder-stub')).toBeNull()
+    expect(toastError).not.toHaveBeenCalled()
   })
 })

@@ -9,7 +9,10 @@ import { consumeSearchParam } from '@/lib/utils/modal-url'
 
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { createBlankEstimate } from '@/lib/actions/estimate'
-import { showBillingBlockToast } from '@/lib/billing/block-toast'
+import { billingBlockCopy, showBillingBlockToast } from '@/lib/billing/block-toast'
+import { BILLING_SETTINGS_PATH, isBillingBlockCode, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { CreditCard } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { LoadingDots } from '@/components/ui/loading-dots'
 import type { ProjectDetail } from '@/lib/queries/project'
@@ -89,6 +92,10 @@ export function NewProjectWizard({
   const searchParams = useSearchParams()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  // The company cannot start a new estimate (paywalled / out of credits, or
+  // below the estimate's entry gate): the popup shows why, with the way out,
+  // instead of an endless loader behind a toast that disappears.
+  const [blockedCode, setBlockedCode] = useState<BillingBlockCode | null>(null)
   const createdRef = useRef(false)
   // Edit mode: the project's current estimate. When set the popup REFINES it
   // (preview + apply); when null the popup keeps the generate behavior.
@@ -136,10 +143,12 @@ export function NewProjectWizard({
       const result = await resumeOrCreateDraftProjectAction(readDraftProjectId(), clientId)
       if ('error' in result) {
         // SEED-055 Phase D: a paywalled / out-of-credits company cannot create a
-        // draft project - show the Subscribe / Buy credits toast instead.
-        if (!showBillingBlockToast((result as { code?: unknown }).code, router, t)) {
-          toast.error(result.error)
-        }
+        // draft project - the popup shows the block with its Subscribe / Buy
+        // credits way out (credit recalibration 2026-11-19: it used to show a
+        // toast and keep the loader spinning forever).
+        const code = (result as { code?: unknown }).code
+        if (isBillingBlockCode(code)) setBlockedCode(code)
+        else toast.error(result.error)
         setIsCreating(false)
         return
       }
@@ -177,6 +186,30 @@ export function NewProjectWizard({
     router.push(`/projects/${project.id}?tab=estimate&estimate=${result.data.estimateId}`)
     router.refresh()
     return true
+  }
+
+  if (blockedCode) {
+    const copy = billingBlockCopy(blockedCode, t)
+    return (
+      <div
+        data-testid="new-xtimate-blocked"
+        data-state={blockedCode}
+        className="flex min-h-[260px] flex-col items-center justify-center gap-4 px-6 py-10 text-center"
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <CreditCard className="h-6 w-6" />
+        </div>
+        <div className="max-w-xs space-y-1.5">
+          <p className="text-base font-semibold">{copy.title}</p>
+          <p className="text-sm text-muted-foreground">{copy.description}</p>
+        </div>
+        {copy.cta && (
+          <Button size="lg" onClick={() => router.push(BILLING_SETTINGS_PATH)}>
+            {copy.cta}
+          </Button>
+        )}
+      </div>
+    )
   }
 
   if (isCreating || !project) {

@@ -74,7 +74,9 @@ describe('launch calibration (owner targets 2026-11-19)', () => {
   const photo = credits(0.0101, m('photo_batch'))
   const audioMinute = credits(0.006, m('audio_minutes'))
   const edit = credits(0.022, m('refine'))
-  const small = generation + audioMinute + 2 * photo
+  // Text-only small job: the Skleanings battery measured 64-71 credits; the
+  // cheapest (64) is the hardest case for the 3-estimate limit.
+  const small = 64
   const normal = generation + 3 * audioMinute + 5 * photo + edit
   const huge = credits(0.041, m('estimate')) + 10 * audioMinute + 20 * photo + 2 * edit
 
@@ -99,10 +101,14 @@ describe('launch calibration (owner targets 2026-11-19)', () => {
     expect(cfg.signupCreditGrant - 2 * normal).toBeGreaterThan(0)
   })
 
-  it('Pro gives 20-30 normal-to-small estimates a month', () => {
+  it('Pro gives about 20 normal estimates a month', () => {
     const pro = cfg.tiers.pro.monthlyCreditGrant
     expect(Math.floor(pro / normal)).toBeGreaterThanOrEqual(19)
-    expect(Math.floor(pro / small)).toBeLessThanOrEqual(30)
+    expect(Math.floor(pro / normal)).toBeLessThanOrEqual(30)
+  })
+
+  it('an AI edit only starts when the balance survives it', () => {
+    expect(cfg.estimatedCreditsByOp.refine).toBeGreaterThan(credits(0.03, m('refine')))
   })
 
   it('every priced tier passes the margin invariant at the lowest markup', () => {

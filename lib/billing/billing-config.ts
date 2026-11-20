@@ -366,11 +366,18 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   topupExpiryMonths: 3,
   // SEED-055 Phase D, recalibrated 2026-11-19: credits an op must find in the
   // balance before it may START. The debit is always the measured cost; this
-  // only decides whether an op starts. `estimate` (80) is the entry gate of a
+  // only decides whether an op starts. `estimate` (160) is the entry gate of a
   // whole capture: a recording, a text capture or a photo capture that ends in
   // an estimate is checked against it ONCE, and the chained steps never
   // re-check, so a started capture is never left charged with no estimate.
-  estimatedCreditsByOp: { estimate: 80, refine: 15, photo_batch: 6, audio_minutes: 3, price_research: 99, chat: 5 },
+  // 160, not 80 (Skleanings test battery, 2026-11-19): text-only estimates cost
+  // 64-71 credits, so with 80 the 350 free credits allowed a 4th one; with 160
+  // the free tier stops after 3 small (even at 64 each: 350 - 192 = 158), 2
+  // normal (~146 each: 204 left after the first) or 1 huge estimate. `refine`
+  // (40) covers a whole AI edit (18-25 credits), so an edit only starts when
+  // the balance survives it - otherwise the paid result could not be saved
+  // (saving is an edit, and a balance <= 0 makes a free account read-only).
+  estimatedCreditsByOp: { estimate: 160, refine: 40, photo_batch: 6, audio_minutes: 3, price_research: 99, chat: 5 },
   // A normal estimate (generation + 3 min audio + 5 photos + 1 AI edit) is
   // ~150 credits: warn at about two estimates left and at about one.
   lowBalanceThresholds: [300, 150],

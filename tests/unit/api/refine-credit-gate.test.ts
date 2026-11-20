@@ -182,7 +182,7 @@ describe('BILL-01: refine route credit gate', () => {
     expect(mockCheckCredits).toHaveBeenCalledWith(
       expect.anything(),
       'company-1',
-      15 // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.refine (recalibrated 2026-11-19)
+      40 // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.refine (recalibrated 2026-11-19)
     )
   })
 })

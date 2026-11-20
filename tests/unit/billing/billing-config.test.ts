@@ -783,8 +783,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
 describe('SEED-055 Phase D: estimatedCreditsByOp', () => {
   it('defaults to the recalibrated entry gates (2026-11-19)', () => {
     expect(DEFAULT_BILLING_CONFIG.estimatedCreditsByOp).toEqual({
-      estimate: 80,
-      refine: 15,
+      estimate: 160,
+      refine: 40,
       photo_batch: 6,
       audio_minutes: 3,
       price_research: 99,
