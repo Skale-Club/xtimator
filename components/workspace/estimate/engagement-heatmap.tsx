@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic'
 import { Loader2 } from 'lucide-react'
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -51,16 +50,13 @@ const EstimateDocumentModern = dynamic(
   { loading: () => <DocumentSkeleton /> }
 )
 
-/** Bottom sheet on phones, the wide desktop dialog from sm up. */
-function HeatmapShell({ phone, children }: { phone: boolean; children: ReactNode }) {
-  if (phone) {
-    return (
-      <BottomSheetContent className="h-[92dvh]" desktopClassName="sm:max-w-5xl">
-        {children}
-      </BottomSheetContent>
-    )
-  }
-  return <DialogContent className="flex h-[85vh] max-w-5xl flex-col gap-0 p-0 sm:max-w-5xl">{children}</DialogContent>
+/** One container: the shared bottom sheet on phones, which is a wide centred card from sm up. */
+function HeatmapShell({ children }: { children: ReactNode }) {
+  return (
+    <BottomSheetContent className="flex h-[92dvh] flex-col gap-0 p-0 sm:h-[85dvh]" desktopClassName="sm:max-w-5xl">
+      {children}
+    </BottomSheetContent>
+  )
 }
 
 interface EngagementHeatmapProps {
@@ -305,12 +301,12 @@ export function EngagementHeatmap({ open, onOpenChange, estimateId }: Engagement
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <HeatmapShell phone={phone}>
+      <HeatmapShell>
         <DialogHeader
           data-sheet-drag={phone ? '' : undefined}
-          className={cn('relative border-b border-border p-4 pb-3', phone && 'touch-none pr-14 pt-1')}
+          className={cn('relative border-b border-border p-4 pb-3 pr-14', phone && 'touch-none pt-1')}
         >
-          {phone && <BottomSheetCloseButton label={t('Close')} className="absolute right-2 top-0" />}
+          <BottomSheetCloseButton label={t('Close')} className="absolute right-2 top-0 sm:top-2" />
           <DialogTitle>{mode === 'attention' ? t('Attention map') : t('Click heatmap')}</DialogTitle>
           <DialogDescription>
             {mode === 'attention'

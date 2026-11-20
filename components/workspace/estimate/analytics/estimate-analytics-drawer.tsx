@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Dialog } from '@/components/ui/dialog'
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -101,10 +101,11 @@ export function EstimateAnalyticsDrawer({
       className="flex shrink-0 touch-none items-center justify-between gap-3 border-b border-border/60 py-2 pl-5 pr-3 sm:touch-auto sm:py-4"
     >
       <div className="min-w-0">
-        <SheetTitle className="text-[19px] font-semibold leading-tight tracking-tight">
+        {/* Dialog* parts work under both roots: Sheet is the same Radix Dialog. */}
+        <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">
           {t('Estimate analytics')}
-        </SheetTitle>
-        <SheetDescription className="mt-0.5 truncate text-[13px]">{subtitle}</SheetDescription>
+        </DialogTitle>
+        <DialogDescription className="mt-0.5 truncate text-[13px]">{subtitle}</DialogDescription>
       </div>
       <BottomSheetCloseButton label={t('Close')} />
     </div>
