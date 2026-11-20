@@ -337,12 +337,23 @@ describe('CREDIT-07: zero-debit + never-throw', () => {
     expect(captured.updates).toHaveLength(0)
   })
 
-  it('a cost that rounds to 0 credits → NO debit', async () => {
-    // 0.000001 * 4.5 / 0.01 = 0.00045 -> round = 0
+  it('a fraction of a credit still debits 1 credit (owner decision 2026-11-20)', async () => {
+    // 0.000001 * markup / 0.01 rounds to 0 -> charged as 1
     await recordCreditDebit({
       companyId: COMPANY,
       operationType: 'estimate',
       realCostUsd: 0.000001,
+      attemptId: 'a1',
+    })
+    expect(captured.inserts).toHaveLength(1)
+    expect(captured.inserts[0].payload.delta_credits).toBe(-1)
+  })
+
+  it('a zero cost → NO debit', async () => {
+    await recordCreditDebit({
+      companyId: COMPANY,
+      operationType: 'estimate',
+      realCostUsd: 0,
       attemptId: 'a1',
     })
     expect(captured.inserts).toHaveLength(0)

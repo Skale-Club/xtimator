@@ -1,6 +1,6 @@
 import type { OpCostStat } from '@/lib/billing/calibration'
 import { T } from '@/components/i18n/t'
-import { markupForCostOp, type MarkupOp } from '@/lib/billing/markup-ops'
+import { creditsForCost, markupForCostOp, type MarkupOp } from '@/lib/billing/markup-ops'
 
 /**
  * Read-only "measured AI cost" card for the super-admin Billing panel.
@@ -23,12 +23,12 @@ export function MeasuredCostCard({
   markupByOp?: Partial<Record<MarkupOp, number>>
   creditUnitUsd: number
 }) {
-  // credits charged for an op = round(realCost × that op's markup ÷ creditUnitUsd)
+  // credits charged for an op = creditsForCost (rounded, at least 1 for any cost)
   // — the exact recordCreditDebit formula, so this reads as production would bill.
   // An op that is never debited (translation) shows its credits at the global markup.
   const opMarkup = (costOp: string) => markupForCostOp({ markup, markupByOp }, costOp)
   const toCredits = (usd: number, costOp: string) =>
-    creditUnitUsd > 0 ? Math.round((usd * opMarkup(costOp)) / creditUnitUsd) : 0
+    creditsForCost(usd, opMarkup(costOp), creditUnitUsd)
   const fmtUsd = (usd: number) => `$${usd.toFixed(4)}`
 
   return (

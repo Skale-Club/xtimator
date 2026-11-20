@@ -6,8 +6,9 @@
  * not-yet-debited rows of each company into ONE credit debit per company per run
  * (operation 'messaging', shown to the customer as a single "Messages" line), via
  * recordMessagingDebit (lib/billing/credit-ledger.ts): credits =
- * round(sum(cost_usd) x markup / creditUnitUsd), rounded ONCE over the whole batch
- * so many sub-credit messages are never lost to per-message rounding.
+ * creditsForCost(sum(cost_usd), markup, creditUnitUsd), rounded ONCE over the whole
+ * batch (many sub-credit messages add up before rounding) and at least 1 credit
+ * for a batch with any cost (owner decision 2026-11-20).
  *
  * Which rows are debitable:
  *   - billable = true (welcome sequence, unknown-sender replies, OTP and ops alerts
@@ -23,8 +24,9 @@
  *      row lock, so a concurrent run claims a disjoint set).
  *   2. DEBIT once, with ledger idempotency key derived from
  *      `messaging:<companyId>:<batchId>` (a retry of the same batch is a no-op).
- *   3. SETTLE: set debited_at on the batch. If the debit rounds to 0 credits the
- *      claim is RELEASED so the cost keeps accumulating toward the next run. If the
+ *   3. SETTLE: set debited_at on the batch (a batch with any cost debits at least
+ *      1 credit). If the debit comes out at 0 credits (only with a config that
+ *      prices nothing) the claim is RELEASED so the cost keeps accumulating. If the
  *      ledger write fails the claim is KEPT, and the next run's recovery pass
  *      retries the SAME batch id (idempotent), so nothing is double-charged or lost.
  *
@@ -83,7 +85,8 @@ async function settleBatch(
   }
 
   if (outcome === 'below_minimum') {
-    // Rounds to 0 credits: release so the cost accumulates into a later batch.
+    // 0 credits (only possible when the config prices nothing): release so the
+    // cost accumulates into a later batch.
     await svc
       .from('messaging_cost_events')
       .update({ debit_batch_id: null })

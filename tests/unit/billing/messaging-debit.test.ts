@@ -82,9 +82,15 @@ describe('recordMessagingDebit', () => {
     })
   })
 
-  it('a batch that rounds to 0 credits is reported as below_minimum and writes nothing', async () => {
+  it('a batch worth a fraction of a credit still debits 1 credit (owner decision 2026-11-20)', async () => {
     const outcome = await recordMessagingDebit({ companyId: 'co-1', realCostUsd: 0.0004, batchId: 'b' }) // 0.18 credits
-    expect(outcome).toBe('below_minimum')
+    expect(outcome).toBe('debited')
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_credits: 1 })
+  })
+
+  it('a batch with no cost writes nothing', async () => {
+    const outcome = await recordMessagingDebit({ companyId: 'co-1', realCostUsd: 0, batchId: 'b' })
+    expect(outcome).toBe('no_cost')
     expect(rpc).not.toHaveBeenCalled()
   })
 

@@ -2,7 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
-import { markupFor, type MarkupOp } from '@/lib/billing/markup-ops'
+import { creditsForCost, markupFor, type MarkupOp } from '@/lib/billing/markup-ops'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
@@ -67,8 +67,8 @@ export function debitIdemKey(attemptId: string, op: string, runKey?: string): st
 
 /**
  * Record a credit debit for one AI operation. Best-effort, idempotent, never
- * throws. credits = round(realCostUsd × markup / creditUnitUsd); a null cost
- * or a cost rounding to ≤0 credits is a no-op (no row). Reads the cached
+ * throws. credits = creditsForCost(realCostUsd, markup, creditUnitUsd): rounded,
+ * and at least 1 credit for any real cost; a null or zero cost is a no-op (no row). Reads the cached
  * companies.credit_balance, writes the ledger row, and updates the cache in
  * the same service-role write.
  */
@@ -129,7 +129,8 @@ async function executeCreditDebit(
   opts: { ignoreByok?: boolean } = {}
 ): Promise<DebitOutcome> {
     // null cost → no debit (NEVER guess; null-vs-0 discipline from Phase 110).
-    if (input.realCostUsd == null) return 'no_cost'
+    // A zero cost has nothing to charge either.
+    if (input.realCostUsd == null || !(input.realCostUsd > 0)) return 'no_cost'
 
     const svc = requireServiceClient()
 
@@ -138,7 +139,8 @@ async function executeCreditDebit(
 
     const cfg = await getBillingConfig()
     const markup = markupFor(cfg, input.operationType)
-    const credits = Math.round((input.realCostUsd * markup) / cfg.creditUnitUsd)
+    // At least 1 credit for any real cost (owner decision 2026-11-20).
+    const credits = creditsForCost(input.realCostUsd, markup, cfg.creditUnitUsd)
     if (credits <= 0) return 'below_minimum'
 
     // Phase 3 (3.9): honour billing_config.meteredOperations. An op explicitly
@@ -211,7 +213,7 @@ export async function recordCreditDebit(input: DebitInput): Promise<void> {
 
 /**
  * Phase 2b: debit the aggregated messaging cost of ONE batch. Same formula as
- * recordCreditDebit (round(realCostUsd x markup / creditUnitUsd), rounded once
+ * recordCreditDebit (creditsForCost: rounded once, at least 1 credit,
  * over the whole batch) but (a) BYOK does NOT skip it - messaging is not AI -
  * and (b) it reports the outcome. Idempotent on `messaging:<companyId>:<batchId>`
  * (the ledger key is that attempt id + ':debit:messaging'), so re-running the

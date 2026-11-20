@@ -9,6 +9,7 @@ import {
   lowestMarkup,
   markupFor,
   markupForCostOp,
+  creditsForCost,
 } from '@/lib/billing/markup-ops'
 import { DEFAULT_BILLING_CONFIG, mergeStoredBillingConfig } from '@/lib/billing/billing-config'
 import { validateMarginInvariant } from '@/lib/billing/calibration'
@@ -116,5 +117,26 @@ describe('launch calibration (owner targets 2026-11-19)', () => {
     expect(check.pass).toBe(true)
     expect(check.tiers.pro.ratio).toBeCloseTo(0.207, 2)
     expect(check.tiers.business.annualRatio).toBeLessThanOrEqual(0.3)
+  })
+})
+
+describe('creditsForCost — at least 1 credit for any real cost (owner decision 2026-11-20)', () => {
+  it('rounds normally above one credit', () => {
+    expect(creditsForCost(0.02, 5, 0.01)).toBe(10)
+    expect(creditsForCost(0.0123, 8, 0.01)).toBe(10)
+  })
+
+  it('charges a fraction of a credit as 1', () => {
+    expect(creditsForCost(0.000531, 8, 0.01)).toBe(1) // the dev translation, 0.42 credits
+    expect(creditsForCost(0.000001, 5, 0.01)).toBe(1)
+  })
+
+  it('charges nothing without a real cost or with an invalid config', () => {
+    expect(creditsForCost(null, 5, 0.01)).toBe(0)
+    expect(creditsForCost(0, 5, 0.01)).toBe(0)
+    expect(creditsForCost(-1, 5, 0.01)).toBe(0)
+    expect(creditsForCost(Number.NaN, 5, 0.01)).toBe(0)
+    expect(creditsForCost(0.01, 5, 0)).toBe(0)
+    expect(creditsForCost(0.01, 0, 0.01)).toBe(0)
   })
 })

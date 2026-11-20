@@ -5,7 +5,7 @@
  * Client-safe (no server-only import): the admin form and the server config
  * share this list.
  *
- * credits = round(realCostUsd × markupFor(cfg, op) / creditUnitUsd)
+ * credits = creditsForCost(realCostUsd, markupFor(cfg, op), creditUnitUsd)
  */
 export type MarkupOp =
   | 'estimate'
@@ -82,4 +82,21 @@ export function lowestMarkup(cfg: MarkupSource): number {
 export function chargeableGenerationCostUsd(costs: Array<number | null | undefined>): number | null {
   const known = costs.filter((c): c is number => typeof c === 'number' && Number.isFinite(c))
   return known.length > 0 ? Math.max(...known) : null
+}
+
+/**
+ * Credits debited for one real cost: round(realCostUsd × markup / creditUnitUsd),
+ * never less than 1 when there was a real cost (owner decision 2026-11-20: a
+ * fraction of a credit still costs 1 credit, so a cheap AI call such as a
+ * translation is never free). No cost (null, zero, negative) or an invalid
+ * config is 0 credits.
+ */
+export function creditsForCost(
+  realCostUsd: number | null | undefined,
+  markup: number,
+  creditUnitUsd: number
+): number {
+  if (realCostUsd == null || !Number.isFinite(realCostUsd) || realCostUsd <= 0) return 0
+  if (!(creditUnitUsd > 0) || !(markup > 0)) return 0
+  return Math.max(1, Math.round((realCostUsd * markup) / creditUnitUsd))
 }
