@@ -867,6 +867,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...guarded('lib/actions/estimate-response.ts', 'assertWritable', ['recordClientResponse']),
   ...guarded('lib/actions/estimate-template.ts', 'assertWritable', ['saveEstimateTemplate']),
+  ...guarded('lib/actions/estimate-translate.ts', 'assertWritable', ['translateEstimate']),
   ...guarded('lib/actions/estimate.ts', 'assertWritable', [
     'createBlankEstimate',
     'deleteEstimateItem',

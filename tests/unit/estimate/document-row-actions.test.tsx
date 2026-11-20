@@ -140,10 +140,9 @@ describe('EstimateDocument edit-mode row/section actions', () => {
 
     const row = container.querySelector(`[data-item-id="${targetItemId}"]`)
     expect(row).toBeTruthy()
-    // MoneyInput hardcodes inputMode="numeric"; the row's other numeric
-    // control (quantity) does not set inputMode, so this selects exactly
+    // MoneyInput marks its input with data-money-input, so this selects exactly
     // the unit-price and discount MoneyInput instances within the row.
-    const moneyInputs = row!.querySelectorAll<HTMLInputElement>('input[inputmode="numeric"]')
+    const moneyInputs = row!.querySelectorAll<HTMLInputElement>('input[data-money-input]')
     expect(moneyInputs.length).toBe(2)
     // The overlap came from an absolutely positioned "$" over an input with too
     // little left padding. symbolPlacement="beside" removes the overlay: the

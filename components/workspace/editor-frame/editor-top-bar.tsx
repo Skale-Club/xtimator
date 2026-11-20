@@ -8,7 +8,7 @@ import type { ProjectDetail } from '@/lib/queries/project'
 import { useEstimateVersionSlot, type VersionSlot } from '@/components/workspace/estimate-version-context'
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { formatCurrency } from '@/lib/utils/format'
-import { useTranslation } from '@/lib/i18n/use-translation'
+import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import { EstimateStatusChip, deriveEstimateStatus } from './estimate-status'
 
@@ -143,12 +143,15 @@ function LockBanner({ slot }: { slot: VersionSlot }) {
 export function EditorTopBar({ project }: { project: ProjectDetail }) {
   const { slot } = useEstimateVersionSlot()
   const { t } = useTranslation()
+  // The breadcrumb is app chrome: app language, never the estimate's (QA 2026-11-20).
+  const { t: tApp } = useAppTranslation()
+  const projectsLabel = tApp('Projects')
   const breadcrumbItems = useMemo(
     () => [
-      { label: 'Projects', href: '/projects' },
+      { label: projectsLabel, href: '/projects' },
       { label: project.name },
     ],
-    [project.name],
+    [project.name, projectsLabel],
   )
 
   // Feeds the global breadcrumb for the desktop top bar (same as ProjectHeader).

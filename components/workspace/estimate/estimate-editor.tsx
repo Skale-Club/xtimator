@@ -12,6 +12,7 @@ import {
   getEstimateByIdAction,
 } from '@/lib/actions/estimate'
 import { removePhotoFromEstimate } from '@/lib/actions/estimate-photo'
+import { translateEstimate } from '@/lib/actions/estimate-translate'
 import { renameProjectAction } from '@/lib/actions/project'
 import { recordClientResponse } from '@/lib/actions/estimate-response'
 import { ClientResponseControl, type ClientResponseValue } from './client-response-control'
@@ -61,7 +62,7 @@ import { isEstimateLocked } from '@/lib/estimate/lock'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { isReloadingForNewBuild, recoverFromStaleBuild, takeDraft } from '@/lib/deploy/stale-build'
+import { isReloadingForNewBuild, newerBuildIsLive, recoverFromStaleBuild, takeDraft } from '@/lib/deploy/stale-build'
 import { useBillingState } from '@/components/billing/billing-state-context'
 
 // ---------------------------------------------------------------------------
@@ -648,6 +649,43 @@ export function EstimateEditor({
   // autosave. On a draft/unlocked estimate this is a no-op beyond the
   // dispatch: presentation_settings continues to ride the normal content
   // save payload (dual-path, unchanged today's behavior).
+  // Estimate options -> language: save what is pending, translate on the server
+  // (AI, charged as an estimate edit), then reload so every surface (editor,
+  // page view, labels) comes back from the translated rows.
+  const handleLanguageChange = useCallback(
+    async (next: EstimateLanguage) => {
+      if (stateRef.current.isDirty) {
+        const ok = await runSave()
+        if (!ok) {
+          toast.error(t('Save your changes before changing the language.'))
+          return
+        }
+      }
+      let result: Awaited<ReturnType<typeof translateEstimate>>
+      try {
+        result = await translateEstimate({
+          estimateId: stateRef.current.id,
+          targetLanguage: next,
+          expectedUpdatedAt: stateRef.current.updated_at,
+        })
+      } catch (err) {
+        console.warn('[estimate-editor] translate failed:', err)
+        toast.error(t('The translation failed. Nothing was changed. Try again.'))
+        // A deploy since this page opened retires its Server Action ids: the
+        // edits are already saved, so a plain reload gets the new build.
+        if (await newerBuildIsLive()) window.location.reload()
+        return
+      }
+      if ('error' in result) {
+        toast.error(t(result.error))
+        return
+      }
+      toast.success(t('Estimate translated'))
+      window.location.reload()
+    },
+    [runSave, t]
+  )
+
   const handlePresentationSettingsChange = useCallback(
     (next: PresentationSettings) => {
       dispatch({ type: 'UPDATE_PRESENTATION_SETTINGS', presentation_settings: next })
@@ -1270,6 +1308,9 @@ export function EstimateEditor({
           anchorRef={settingsGearRef}
           hasCompanyTerms={!!(company.estimate_terms_enabled && company.estimate_terms_text)}
           hasValidUntil={!!state.valid_until}
+          language={(estimate.language ?? 'en') as EstimateLanguage}
+          onLanguageChange={handleLanguageChange}
+          languageDisabled={isContentReadOnly}
         />
       )}
     </div>

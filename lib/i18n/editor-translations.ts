@@ -50,6 +50,16 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
       'Ainda não foi compartilhado. A resposta do cliente aparece aqui depois que você compartilhar o orçamento.',
     // Estimate options panel (presentation-settings-panel.tsx)
     'Estimate options': 'Ajustes do orçamento',
+    'Estimate language': 'Idioma do orçamento',
+    'Translate this estimate to': 'Traduzir este orçamento para',
+    'The texts and items are translated with AI and use a few credits.':
+      'Os textos e itens são traduzidos com IA e usam alguns créditos.',
+    'Translate': 'Traduzir',
+    'Translating…': 'Traduzindo…',
+    'Estimate translated': 'Orçamento traduzido',
+    'Save your changes before changing the language.': 'Salve suas alterações antes de trocar o idioma.',
+    'The translation failed. Nothing was changed. Try again.': 'A tradução falhou. Nada foi alterado. Tente de novo.',
+    'This estimate changed elsewhere. Reload and try again.': 'Este orçamento foi alterado em outro lugar. Recarregue e tente de novo.',
     'Pricing and the blocks shown on this estimate.': 'Preços e blocos que aparecem neste orçamento.',
     'Link a client': 'Vincular cliente',
     'Add client': 'Adicionar cliente',
@@ -115,6 +125,16 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
       'Aún no se ha compartido. La respuesta del cliente aparece aquí después de compartir el presupuesto.',
     // Estimate options panel (presentation-settings-panel.tsx)
     'Estimate options': 'Ajustes del presupuesto',
+    'Estimate language': 'Idioma del presupuesto',
+    'Translate this estimate to': 'Traducir este presupuesto al',
+    'The texts and items are translated with AI and use a few credits.':
+      'Los textos y las partidas se traducen con IA y usan algunos créditos.',
+    'Translate': 'Traducir',
+    'Translating…': 'Traduciendo…',
+    'Estimate translated': 'Presupuesto traducido',
+    'Save your changes before changing the language.': 'Guarda tus cambios antes de cambiar el idioma.',
+    'The translation failed. Nothing was changed. Try again.': 'La traducción falló. No se cambió nada. Inténtalo de nuevo.',
+    'This estimate changed elsewhere. Reload and try again.': 'Este presupuesto cambió en otro lugar. Recarga e inténtalo de nuevo.',
     'Pricing and the blocks shown on this estimate.': 'Precios y bloques que aparecen en este presupuesto.',
     'Link a client': 'Vincular cliente',
     'Add client': 'Agregar cliente',

@@ -331,3 +331,42 @@ describe('PresentationSettingsPanel — document blocks (SEED-056)', () => {
     expect(payload.sections?.valid_until).toBe(true)
   })
 })
+
+describe('PresentationSettingsPanel — estimate language', () => {
+  it('asks before translating, then calls onLanguageChange with the picked language', async () => {
+    const Panel = await loadPanel()
+    const onLanguageChange = vi.fn().mockResolvedValue(undefined)
+    render(
+      <Panel
+        open
+        onOpenChange={() => {}}
+        settings={null}
+        onChange={() => {}}
+        estimateSentOrViewed={false}
+        language="en"
+        onLanguageChange={onLanguageChange}
+      />,
+    )
+    expect(screen.queryByTestId('estimate-language-confirm')).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'Português' }))
+    expect(screen.getByTestId('estimate-language-confirm').textContent).toContain('Português')
+    expect(onLanguageChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Translate' }))
+    await vi.waitFor(() => expect(onLanguageChange).toHaveBeenCalledWith('pt'))
+  })
+
+  it('cancel drops the pick; no language section without a handler', async () => {
+    const Panel = await loadPanel()
+    const onLanguageChange = vi.fn()
+    const { unmount } = render(
+      <Panel open onOpenChange={() => {}} settings={null} onChange={() => {}} estimateSentOrViewed={false} language="pt" onLanguageChange={onLanguageChange} />,
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Español' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByTestId('estimate-language-confirm')).toBeNull()
+    expect(onLanguageChange).not.toHaveBeenCalled()
+    unmount()
+    render(<Panel open onOpenChange={() => {}} settings={null} onChange={() => {}} estimateSentOrViewed={false} />)
+    expect(screen.queryByText('Estimate language')).toBeNull()
+  })
+})

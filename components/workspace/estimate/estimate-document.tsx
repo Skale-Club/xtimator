@@ -62,6 +62,7 @@ import {
 } from '@/lib/estimate/presentation-settings'
 import { LABELS as DOC_LABELS } from '@/lib/estimate/document/labels'
 import { formatAddress, formatDate, formatPercent, formatProjectType } from '@/lib/estimate/document/format'
+import { useAppLanguage } from '@/lib/i18n/language-context'
 import { LETTER_HEIGHT_PX, PAPER_SWITCH_CLASS, cardTintFill } from '@/lib/estimate/document/tokens'
 import type {
   DocumentCompany,
@@ -465,8 +466,8 @@ function SortableDocumentItemRow({
         />
         {showConfidenceDot && <ConfidenceDot confidence={item.confidence} basis={item.basis} />}
       </td>
-      {/* qty */}
-      <td className={`${EDIT_CELL} w-16`}>
+      {/* qty: w-20 fits 5 digits ("12500"); w-16 cut "5000" to "500" (QA 2026-11-20) */}
+      <td className={`${EDIT_CELL} w-20`}>
         <input
           type="number"
           inputMode="decimal"
@@ -895,7 +896,7 @@ function DocumentSectionBlock({
                   <tr className="bg-muted/50 text-xs text-muted-foreground border-b border-border/50 select-none">
                     <th className="py-2 p-0 w-9" />
                     <th className="py-2 pl-1 pr-2 text-left font-medium">{L.description}</th>
-                    <th className="py-2 px-1 w-16 text-center font-medium">{L.qty}</th>
+                    <th className="py-2 px-1 w-20 text-center font-medium">{L.qty}</th>
                     <th className="py-2 px-1 w-24 text-center font-medium">{L.unit}</th>
                     <th className={`py-2 ${EDIT_TH_PX} w-28 text-right font-medium`}>{L.unitPrice}</th>
                     {/* Disc. stays hidden until a row has (or drafts) a
@@ -1806,7 +1807,27 @@ export function EstimateDocument({
   companyTerms,
 }: EstimateDocumentProps) {
   const lang = (language ?? 'en') as EstimateLanguage
-  const L = DOC_LABELS[lang] ?? DOC_LABELS.en
+  // Printed labels follow the ESTIMATE language; the editing chrome (Add item,
+  // Add section, price book search, placeholders...) never reaches the client,
+  // so it follows the APP language (QA 2026-11-20: "Add item" showed in English
+  // inside a Portuguese app because the estimate was in English).
+  const appLang = useAppLanguage() as EstimateLanguage
+  const docLabels = DOC_LABELS[lang] ?? DOC_LABELS.en
+  const appLabels = DOC_LABELS[appLang] ?? DOC_LABELS.en
+  const L = {
+    ...docLabels,
+    addItem: appLabels.addItem,
+    addSection: appLabels.addSection,
+    addDetails: appLabels.addDetails,
+    summaryPlaceholder: appLabels.summaryPlaceholder,
+    termsPlaceholder: appLabels.termsPlaceholder,
+    searchPriceBook: appLabels.searchPriceBook,
+    noMatches: appLabels.noMatches,
+    customized: appLabels.customized,
+    usingDefault: appLabels.usingDefault,
+    resetToDefault: appLabels.resetToDefault,
+    noClient: appLabels.noClient,
+  }
   const brandColor = brandColorProp ?? company?.brand_primary_color ?? SYSTEM_COLORS.primary
   // Render-time WCAG adaptation (stored brand color never mutated):
   const brandText = ensureReadableOnWhite(brandColor) // brand color as text on white

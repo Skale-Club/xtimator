@@ -31,46 +31,61 @@ interface MoneyInputProps {
   symbolPlacement?: 'start' | 'beside'
 }
 
-// Cap the digit buffer to keep parseInt within a safe range.
-const MAX_DIGITS = 12
-
-/** Cents accumulator → numeric value. `1250` (minorUnit 2) → 12.5. */
-function digitsToValue(digits: string, minorUnit: number): number {
-  if (!digits) return 0
-  const n = parseInt(digits, 10)
-  if (!Number.isFinite(n)) return 0
-  return n / 10 ** minorUnit
-}
-
-/** Strip everything but digits, drop leading zeros, cap length. */
-function sanitizeDigits(raw: string): string {
-  return raw.replace(/\D/g, '').replace(/^0+/, '').slice(0, MAX_DIGITS)
-}
-
-/** Seed the buffer from an existing numeric value (e.g. when editing). */
-function valueToDigits(value: number | null | undefined, minorUnit: number): string {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return ''
-  return String(Math.round(value * 10 ** minorUnit))
-}
+// Keep a typed amount within a safe range (12 integer digits).
+const MAX_INTEGER_DIGITS = 12
 
 /**
- * Calculator / cents-style display: digits fill in from the right and the
- * decimal floats two (minorUnit) places from the right once you pass the
- * minor-unit digit count.
- *   minorUnit 2:  "5" → "5", "50" → "50", "500" → "5.00", "5000" → "50.00"
- *   minorUnit 0:  "5" → "5" (no decimal ever)
+ * Plain decimal entry (owner decision 2026-11-20): what you type is the
+ * amount. "35" is 35.00, "35.5" or "35,5" is 35.50. It replaced a
+ * calculator-style entry where digits filled in from the right ("35" was
+ * 0.35 while the field still showed "35"), which priced lines 100x too low
+ * and disagreed with the change order fields.
+ *
+ * Accepts digits and ONE decimal separator ("." or ","), at most `minorUnit`
+ * decimals (none for zero-decimal currencies such as JPY). Anything else
+ * typed or pasted (currency symbols, letters, thousands separators after the
+ * decimal) is dropped.
  */
-function digitsToDisplay(digits: string, minorUnit: number, locale: string): string {
-  if (!digits) return ''
-  if (minorUnit === 0) {
-    return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(parseInt(digits, 10))
+export function sanitizeMoneyDraft(raw: string, minorUnit: number): string {
+  let out = ''
+  let seenSeparator = false
+  let decimals = 0
+  let integerDigits = 0
+  for (const ch of raw) {
+    if (ch >= '0' && ch <= '9') {
+      if (seenSeparator) {
+        if (decimals >= minorUnit) continue
+        decimals += 1
+      } else {
+        if (integerDigits >= MAX_INTEGER_DIGITS) continue
+        integerDigits += 1
+      }
+      out += ch
+    } else if ((ch === '.' || ch === ',') && !seenSeparator && minorUnit > 0) {
+      seenSeparator = true
+      out += ch
+    }
   }
-  // Decimal not yet reached — show the raw digits with no separator.
-  if (digits.length <= minorUnit) return digits
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: minorUnit,
-    maximumFractionDigits: minorUnit,
-  }).format(digitsToValue(digits, minorUnit))
+  // Drop leading zeros of the integer part ("007" -> "7"), keeping "0.5".
+  return out.replace(/^0+(?=\d)/, '')
+}
+
+/** A sanitized draft -> its numeric value ("35,5" -> 35.5, "" or "." -> 0). */
+export function moneyDraftToValue(draft: string): number {
+  const n = Number(draft.replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+/** The editable text for an existing value: no grouping, decimals only when needed. */
+function valueToDraft(value: number | null | undefined, minorUnit: number, decimalSeparator: string): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return ''
+  const fixed = value.toFixed(minorUnit)
+  const trimmed = minorUnit > 0 ? fixed.replace(/\.?0+$/, '') : fixed
+  return decimalSeparator === ',' ? trimmed.replace('.', ',') : trimmed
+}
+
+function localeDecimalSeparator(locale: string): string {
+  return new Intl.NumberFormat(locale).formatToParts(1.1).find((p) => p.type === 'decimal')?.value ?? '.'
 }
 
 export function MoneyInput({
@@ -87,32 +102,33 @@ export function MoneyInput({
   symbolPlacement = 'start',
 }: MoneyInputProps) {
   const [focused, setFocused] = useState(false)
-  const [digits, setDigits] = useState('')
+  const [draft, setDraft] = useState('')
   const currency = getCurrencyConfig(currencyCode)
   const minorUnit = currency.minorUnit
   const symbol = getCurrencySymbol(currencyCode)
-  const display = focused ? digitsToDisplay(digits, minorUnit, currency.locale) : formatMoneyNumber(value ?? 0, currencyCode)
+  const display = focused ? draft : formatMoneyNumber(value ?? 0, currencyCode)
 
   const inputProps = {
     id,
     name,
-    inputMode: 'numeric' as const,
+    inputMode: (minorUnit > 0 ? 'decimal' : 'numeric') as 'decimal' | 'numeric',
+    'data-money-input': '',
     value: display,
     placeholder,
     disabled,
     onFocus: () => {
       setFocused(true)
-      // Seed from the current value so editing works; clears 0.00 → empty.
-      setDigits(valueToDigits(value, minorUnit))
+      // Seed from the current value so editing works; 0 -> empty (placeholder shows).
+      setDraft(valueToDraft(value, minorUnit, localeDecimalSeparator(currency.locale)))
     },
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-      const next = sanitizeDigits(event.target.value)
-      setDigits(next)
-      onValueChange(Math.max(min, digitsToValue(next, minorUnit)))
+      const next = sanitizeMoneyDraft(event.target.value, minorUnit)
+      setDraft(next)
+      onValueChange(Math.max(min, moneyDraftToValue(next)))
     },
     onBlur: () => {
       setFocused(false)
-      onValueChange(Math.max(min, digitsToValue(digits, minorUnit)))
+      onValueChange(Math.max(min, moneyDraftToValue(draft)))
       onBlur?.()
     },
   }

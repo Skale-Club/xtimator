@@ -801,3 +801,73 @@ export async function translateTextsOR(
   }
   return result
 }
+
+/**
+ * Translate the client-facing texts of an estimate (summary, terms, section
+ * titles, line descriptions) between en / pt / es with the cheap model
+ * (owner decision 2026-11-20: switching an estimate's language from Estimate
+ * options; "a simpler model is fine"). Input and output are ARRAYS in the same
+ * order, so a text that appears twice or matches a JSON key cannot be lost.
+ * Returns the translations and the real USD cost (null when the provider did
+ * not report one). Records one 'translation' cost row under costContext.
+ */
+export async function translateEstimateTextsOR(
+  texts: string[],
+  sourceLanguage: 'en' | 'pt' | 'es',
+  targetLanguage: 'en' | 'pt' | 'es',
+  costContext?: CostContext,
+  model = OR_DEFAULTS.fast,
+): Promise<{ translations: string[]; costUsd: number | null }> {
+  const label = (l: 'en' | 'pt' | 'es') =>
+    l === 'pt' ? 'Brazilian Portuguese (PT-BR)' : l === 'es' ? 'Latin American Spanish' : 'US English'
+  const { apiKey } = await resolveOpenRouterKey(costContext?.companyId)
+  const body = {
+    model,
+    max_tokens: 8000,
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Translate the texts of a contractor's job estimate from ${label(sourceLanguage)} to ${label(targetLanguage)}. ` +
+          'Use natural trade wording a homeowner understands. Keep numbers, measurements, units, money amounts, ' +
+          'proper nouns, brand names and line breaks exactly as they are. Do not add or remove information. ' +
+          'Return ONLY a raw JSON array of strings (no markdown), with exactly one translation per input, in the same order. ' +
+          `Input (${texts.length} strings):\n${JSON.stringify(texts)}`,
+      },
+    ],
+    usage: { include: true },
+  }
+  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...SITE_HEADERS },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_CHAT_TIMEOUT_MS),
+  })
+  if (!res.ok) {
+    const err = await res.text().catch(() => 'unknown')
+    throw new Error(`OpenRouter estimate translation failed (${res.status}): ${err.slice(0, 400)}`)
+  }
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string | null } }>
+    error?: { message?: string }
+    usage?: { cost?: number }
+  }
+  if (json.error?.message) throw new Error(`OpenRouter estimate translation error: ${json.error.message}`)
+  const costUsd = typeof json.usage?.cost === 'number' ? json.usage.cost : null
+  await recordAICost({
+    attemptId: costContext?.attemptId ?? randomUUID(),
+    operationType: 'translation',
+    provider: 'openrouter',
+    model,
+    realCostUsd: costUsd,
+    companyId: costContext?.companyId ?? null,
+    projectId: costContext?.projectId ?? null,
+  })
+  const raw = json.choices?.[0]?.message?.content ?? '[]'
+  const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+  const parsed = JSON.parse(clean) as unknown
+  if (!Array.isArray(parsed) || parsed.length !== texts.length || parsed.some((t) => typeof t !== 'string')) {
+    throw new Error('OpenRouter estimate translation returned a malformed list')
+  }
+  return { translations: parsed as string[], costUsd }
+}

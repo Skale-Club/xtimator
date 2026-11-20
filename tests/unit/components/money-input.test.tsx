@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { useState } from 'react'
-import { MoneyInput } from '@/components/ui/money-input'
+import { MoneyInput, moneyDraftToValue, sanitizeMoneyDraft } from '@/components/ui/money-input'
 
 /**
- * Calculator / cents-style entry (see plan: humming-cuddling-summit).
- * Digits fill from the right; the decimal floats `minorUnit` places from the
- * right once the digit count passes `minorUnit`.
+ * Plain decimal entry (owner decision 2026-11-20): what you type is the amount.
+ * It replaced a calculator-style entry where "35" became 0.35 while the field
+ * still showed "35".
  */
 
 function Harness({
@@ -36,67 +36,57 @@ function type(input: HTMLInputElement, raw: string) {
   fireEvent.change(input, { target: { value: raw } })
 }
 
-describe('MoneyInput — cents entry', () => {
+describe('MoneyInput — plain decimal entry', () => {
   it('clears the seeded 0.00 to an empty field on focus', () => {
     render(<Harness initial={0} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
     expect(input.value).toBe('0.00') // unfocused
     fireEvent.focus(input)
-    expect(input.value).toBe('') // zeros gone — placeholder shows
+    expect(input.value).toBe('') // placeholder shows
   })
 
-  it('follows the 5 > 50 > 5.00 > 50.00 sequence (USD)', () => {
+  it('"35" is 35.00, not 0.35', () => {
     const onValue = vi.fn()
     render(<Harness onValue={onValue} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
     fireEvent.focus(input)
-
-    type(input, '5')
-    expect(input.value).toBe('5')
-    type(input, '50')
-    expect(input.value).toBe('50')
-    type(input, '500')
-    expect(input.value).toBe('5.00')
-    type(input, '5000')
-    expect(input.value).toBe('50.00')
-
-    expect(onValue).toHaveBeenLastCalledWith(50)
-  })
-
-  it('keeps the decimal two from the right regardless of length', () => {
-    const onValue = vi.fn()
-    render(<Harness onValue={onValue} />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
-    fireEvent.focus(input)
-
-    type(input, '12345')
-    expect(input.value).toBe('123.45')
-    expect(onValue).toHaveBeenLastCalledWith(123.45)
-
-    // backspace one digit
-    type(input, '1234')
-    expect(input.value).toBe('12.34')
-    expect(onValue).toHaveBeenLastCalledWith(12.34)
-  })
-
-  it('a 2-digit entry commits as cents (50 → $0.50)', () => {
-    const onValue = vi.fn()
-    render(<Harness onValue={onValue} />)
-    const input = screen.getByRole('textbox') as HTMLInputElement
-    fireEvent.focus(input)
-    type(input, '50')
+    type(input, '35')
+    expect(input.value).toBe('35')
+    expect(onValue).toHaveBeenLastCalledWith(35)
     fireEvent.blur(input)
-    expect(onValue).toHaveBeenLastCalledWith(0.5)
+    expect(input.value).toBe('35.00')
+    expect(onValue).toHaveBeenLastCalledWith(35)
   })
 
-  it('strips leading zeros so typed zeros disappear', () => {
+  it('accepts a dot or a comma as the decimal separator', () => {
+    const onValue = vi.fn()
+    render(<Harness onValue={onValue} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input)
+    type(input, '35.5')
+    expect(onValue).toHaveBeenLastCalledWith(35.5)
+    type(input, '35,75')
+    expect(onValue).toHaveBeenLastCalledWith(35.75)
+  })
+
+  it('keeps at most two decimals and one separator', () => {
     render(<Harness />)
     const input = screen.getByRole('textbox') as HTMLInputElement
     fireEvent.focus(input)
-    type(input, '000')
-    expect(input.value).toBe('')
-    type(input, '0050')
-    expect(input.value).toBe('50')
+    type(input, '12.3456')
+    expect(input.value).toBe('12.34')
+    type(input, '1.2.3')
+    expect(input.value).toBe('1.23')
+  })
+
+  it('drops symbols and letters from a paste', () => {
+    const onValue = vi.fn()
+    render(<Harness onValue={onValue} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input)
+    type(input, '$1250abc')
+    expect(input.value).toBe('1250')
+    expect(onValue).toHaveBeenLastCalledWith(1250)
   })
 
   it('round-trips an existing value on focus (edit mode)', () => {
@@ -104,16 +94,34 @@ describe('MoneyInput — cents entry', () => {
     const input = screen.getByRole('textbox') as HTMLInputElement
     expect(input.value).toBe('12.50')
     fireEvent.focus(input)
-    expect(input.value).toBe('12.50') // seeded from 1250 minor units
+    expect(input.value).toBe('12.5')
   })
 
-  it('never shows a decimal for zero-minor-unit currencies (JPY)', () => {
+  it('edits a whole-number value without decimals', () => {
+    render(<Harness initial={1100} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input)
+    expect(input.value).toBe('1100')
+  })
+
+  it('never takes a decimal for zero-minor-unit currencies (JPY)', () => {
     const onValue = vi.fn()
     render(<Harness currencyCode="JPY" onValue={onValue} />)
     const input = screen.getByRole('textbox') as HTMLInputElement
     fireEvent.focus(input)
-    type(input, '5000')
-    expect(input.value).toBe('5,000')
-    expect(onValue).toHaveBeenLastCalledWith(5000)
+    type(input, '5000.5')
+    expect(input.value).toBe('50005')
+    expect(onValue).toHaveBeenLastCalledWith(50005)
+  })
+})
+
+describe('sanitizeMoneyDraft / moneyDraftToValue', () => {
+  it('cleans a draft and parses it', () => {
+    expect(sanitizeMoneyDraft('007', 2)).toBe('7')
+    expect(sanitizeMoneyDraft('0.5', 2)).toBe('0.5')
+    expect(sanitizeMoneyDraft('', 2)).toBe('')
+    expect(moneyDraftToValue('35,5')).toBe(35.5)
+    expect(moneyDraftToValue('')).toBe(0)
+    expect(moneyDraftToValue('.')).toBe(0)
   })
 })

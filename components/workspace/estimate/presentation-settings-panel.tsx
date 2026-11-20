@@ -19,6 +19,7 @@ import { RadioGroup } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   resolvePresentationSettings,
   isSectionVisible,
@@ -86,6 +87,24 @@ export interface PresentationSettingsPanelProps {
   hasCompanyTerms?: boolean
   /** Offer the Valid-until switch; only when the estimate carries a valid_until date. */
   hasValidUntil?: boolean
+  /** The estimate's language. With onLanguageChange, the panel offers switching it. */
+  language?: EstimateLanguageOption
+  /**
+   * Translate the estimate into `next` (AI, charged in credits) and switch its
+   * language. Resolves once done; the panel shows the busy state meanwhile.
+   */
+  onLanguageChange?: (next: EstimateLanguageOption) => Promise<void>
+  /** The language can't change now (read-only or answered estimate). */
+  languageDisabled?: boolean
+}
+
+export type EstimateLanguageOption = 'en' | 'pt' | 'es'
+
+/** Each language in its own name: the owner looks for the one they want. */
+const LANGUAGE_NAMES: Record<EstimateLanguageOption, string> = {
+  en: 'English',
+  pt: 'Português',
+  es: 'Español',
 }
 
 const SECTION_ORDER: SectionKey[] = [
@@ -178,8 +197,14 @@ function PanelBody({
   clientSlot,
   hasCompanyTerms,
   hasValidUntil,
+  language,
+  onLanguageChange,
+  languageDisabled,
 }: PresentationSettingsPanelProps): JSX.Element {
   const { t } = useTranslation()
+  // The language the owner picked and is asked to confirm (translation costs credits).
+  const [pendingLanguage, setPendingLanguage] = useState<EstimateLanguageOption | null>(null)
+  const [translating, setTranslating] = useState(false)
   const resolved = resolvePresentationSettings(settings)
   const raw = settings ?? {}
   // What the user is typing in the custom tax field. Rendering the stored rate
@@ -226,6 +251,64 @@ function PanelBody({
       {clientSlot && (
         <Group label={t('Client')}>
           <div className="p-1">{clientSlot}</div>
+        </Group>
+      )}
+
+      {/* --- Estimate language: the document labels follow it; the texts are translated by AI. --- */}
+      {language && onLanguageChange && (
+        <Group label={t('Estimate language')}>
+          <div className="space-y-3 px-3.5 py-3">
+            <RadioGroup
+              value={pendingLanguage ?? language}
+              disabled={languageDisabled || translating}
+              onValueChange={(next) => {
+                const lang = next as EstimateLanguageOption
+                setPendingLanguage(lang === language ? null : lang)
+              }}
+              className={SEGMENTED_GROUP}
+            >
+              {(Object.keys(LANGUAGE_NAMES) as EstimateLanguageOption[]).map((code) => (
+                <RadioOption key={code} id={`lang-${code}`} value={code} label={LANGUAGE_NAMES[code]} />
+              ))}
+            </RadioGroup>
+            {pendingLanguage && (
+              <div className="space-y-2.5 rounded-xl border border-border bg-background p-3" data-testid="estimate-language-confirm">
+                <p className="text-sm font-medium">
+                  {t('Translate this estimate to')} {LANGUAGE_NAMES[pendingLanguage]}?
+                </p>
+                <p className="text-[13px] text-muted-foreground">
+                  {t('The texts and items are translated with AI and use a few credits.')}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={translating}
+                    onClick={async () => {
+                      setTranslating(true)
+                      try {
+                        await onLanguageChange(pendingLanguage)
+                      } finally {
+                        setTranslating(false)
+                        setPendingLanguage(null)
+                      }
+                    }}
+                  >
+                    {translating ? t('Translating…') : t('Translate')}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={translating}
+                    onClick={() => setPendingLanguage(null)}
+                  >
+                    {t('Cancel')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </Group>
       )}
 
@@ -426,7 +509,7 @@ function RadioOption({
     <RadioGroupPrimitive.Item
       id={id}
       value={value}
-      className="h-9 cursor-pointer rounded-lg px-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-sm"
+      className="h-9 cursor-pointer rounded-lg px-2 text-sm font-medium text-foreground/80 outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-sm data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50"
     >
       {label}
     </RadioGroupPrimitive.Item>

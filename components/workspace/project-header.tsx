@@ -8,7 +8,7 @@ import { EditEstimateHeaderButton } from '@/components/workspace/edit-estimate-h
 import { useBreadcrumb } from '@/components/app-shell/breadcrumb-context'
 import { ViewModeToggle } from '@/components/workspace/view-mode-toggle'
 import { EngagementButton } from '@/components/workspace/estimate/engagement-button'
-import { useTranslation } from '@/lib/i18n/use-translation'
+import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 
 interface ProjectHeaderProps {
   project: ProjectDetail
@@ -17,12 +17,15 @@ interface ProjectHeaderProps {
 export function ProjectHeader({ project }: ProjectHeaderProps) {
   const { slot } = useEstimateVersionSlot()
   const { t } = useTranslation()
+  // The breadcrumb is app chrome: app language, never the estimate's (QA 2026-11-20).
+  const { t: tApp } = useAppTranslation()
+  const projectsLabel = tApp('Projects')
   const breadcrumbItems = useMemo(
     () => [
-      { label: 'Projects', href: '/projects' },
+      { label: projectsLabel, href: '/projects' },
       { label: project.name },
     ],
-    [project.name],
+    [project.name, projectsLabel],
   )
 
   // Feed the global breadcrumb for the desktop top bar. Mobile shows no trail:
