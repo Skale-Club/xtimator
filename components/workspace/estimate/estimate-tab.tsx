@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import { createBlankEstimate } from '@/lib/actions/estimate'
@@ -23,7 +23,12 @@ import { removeBackgroundGeneration } from '@/lib/estimate/background-generation
 import { useAttemptProgress, type AttemptProgressSnapshot } from '@/hooks/use-attempt-progress'
 import { CaptureProcessingOverlay } from '@/components/capture/capture-processing-overlay'
 import { usePublishGenerationStatus } from '@/components/workspace/generation-status-context'
-import { NeedsDetailsEmptyState, estimateIsBlank } from '@/components/workspace/needs-details-empty-state'
+import {
+  NeedsDetailsEmptyState,
+  estimateIsBlank,
+  readNeedsDetailsSkip,
+  writeNeedsDetailsSkip,
+} from '@/components/workspace/needs-details-empty-state'
 import type { CaptureProgressMode } from '@/lib/estimate/progress-model'
 import type { DocumentClient, DocumentCompany, CompanyDefaults } from './estimate-document'
 import type { PriceBookItem } from '@/lib/queries/price-book'
@@ -131,8 +136,18 @@ export function EstimateTab({
   onAnswerDetails,
 }: EstimateTabProps) {
   const [sendOpen, setSendOpen] = useState(false)
-  // "Fill it in myself" on the needs-details empty state: show the blank editor.
+  // "Fill it in myself" on the needs-details empty state: show the blank editor,
+  // and keep showing it on later visits for the same questions (the questions
+  // are optional; owner rule 2026-11-20).
   const [fillMyself, setFillMyself] = useState(false)
+  const needsSignature = needsDetails ? `${needsDetails.reason ?? ''}|${(needsDetails.questions ?? []).join('|')}` : null
+  useEffect(() => {
+    if (needsSignature && readNeedsDetailsSkip(projectId) === needsSignature) setFillMyself(true)
+  }, [projectId, needsSignature])
+  const skipNeedsDetails = useCallback(() => {
+    setFillMyself(true)
+    if (needsSignature) writeNeedsDetailsSkip(projectId, needsSignature)
+  }, [projectId, needsSignature])
   // Notices review stage 1: the editor's "Ready to send?" snapshot for the Share sheet.
   const [sendCheck, setSendCheck] = useState<SendCheck | null>(null)
   const router = useRouter()
@@ -329,7 +344,7 @@ export function EstimateTab({
         reason={needsDetails.reason}
         questions={needsDetails.questions}
         onAnswer={onAnswerDetails}
-        onFillMyself={() => setFillMyself(true)}
+        onFillMyself={skipNeedsDetails}
       />
     )
   }

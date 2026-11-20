@@ -84,6 +84,26 @@ describe('RefineQuestions', () => {
     expect(p.onSkip).toHaveBeenCalledWith(QUESTIONS[0])
   })
 
+  // Owner rule 2026-11-20: every question is optional, one tap sets them all aside.
+  it('Skip all skips every open question, and is gone once none is open', () => {
+    const p = setup({ answers: { [QUESTIONS[0]]: 'Residential' } })
+    fireEvent.click(screen.getByTestId('refine-questions-skip-all'))
+    expect(p.onSkip).toHaveBeenCalledTimes(1)
+    expect(p.onSkip).toHaveBeenCalledWith(QUESTIONS[1])
+  })
+
+  it('no Skip all when every question is answered or skipped', () => {
+    setup({ answers: { [QUESTIONS[0]]: 'x' }, skipped: [QUESTIONS[1]] })
+    expect(screen.queryByTestId('refine-questions-skip-all')).toBeNull()
+  })
+
+  it('no answer field is ever required', () => {
+    setup()
+    for (const input of screen.getAllByTestId('refine-question-input')) {
+      expect(input.hasAttribute('required')).toBe(false)
+    }
+  })
+
   it('the per-question mic is off while a recording runs', () => {
     setup({ recording: true })
     expect((screen.getByTestId('refine-question-mic') as HTMLButtonElement).disabled).toBe(true)

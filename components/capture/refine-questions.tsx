@@ -83,14 +83,31 @@ export function RefineQuestions({
 
   if (questions.length === 0 && assumptions.length === 0) return null
   const done = answeredCount(questions, answers, voiceFor)
+  const open = questions.filter((q) => !(answers[q] ?? '').trim() && !voiceFor.includes(q) && !skipped.includes(q))
 
   return (
     <div className="flex flex-col gap-2.5" data-testid="refine-questions">
       {questions.length > 0 && (
         <div className="flex items-center justify-between px-0.5 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
           <span>{t('Questions from the AI')}</span>
-          <span className="font-medium normal-case tracking-normal" data-testid="refine-questions-progress">
-            {t('{done} of {total} answered').replace('{done}', String(done)).replace('{total}', String(questions.length))}
+          <span className="flex items-center gap-2 font-medium normal-case tracking-normal">
+            <span data-testid="refine-questions-progress">
+              {t('{done} of {total} answered').replace('{done}', String(done)).replace('{total}', String(questions.length))}
+            </span>
+            {/* Every question is optional: one tap sets them all aside. */}
+            {open.length > 0 && (
+              <>
+                <span aria-hidden>·</span>
+                <button
+                  type="button"
+                  onClick={() => open.forEach((q) => onSkip(q))}
+                  data-testid="refine-questions-skip-all"
+                  className="relative font-semibold text-primary after:absolute after:-inset-2 after:content-[''] hover:underline"
+                >
+                  {t('Skip all')}
+                </button>
+              </>
+            )}
           </span>
         </div>
       )}

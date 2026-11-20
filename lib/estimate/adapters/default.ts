@@ -22,6 +22,7 @@ import type { ChannelAdapter } from '@/lib/estimate/graph/types'
 import { revertVagueEstimate } from '@/lib/estimate/quality/revert'
 import { failureReasonToXtimatorError } from '@/lib/estimate/failure'
 import { buildNeedsDetails } from '@/lib/ai/needs-details'
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
 import { getProjectRecordings } from '@/lib/queries/recording'
 import { getProjectPhotos } from '@/lib/queries/photo'
 import type { EstimateLanguage } from '@/lib/i18n/resolve-estimate-language'
@@ -90,7 +91,7 @@ export function makeDefaultAdapter({ companyId, supabase }: {
           // are specific to THIS job, were produced with the whole source in view,
           // and cost no extra model call. The classification call only runs when
           // the estimator raised none (it also detects mic tests).
-          const raised = (state.openQuestions ?? []).filter((q) => q.trim().length > 0).slice(0, 4)
+          const raised = (state.openQuestions ?? []).filter((q) => q.trim().length > 0).slice(0, MAX_OWNER_QUESTIONS)
           const needsDetails =
             raised.length > 0
               ? { reason: 'missing_specifics' as const, questions: raised }

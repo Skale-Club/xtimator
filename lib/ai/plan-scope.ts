@@ -89,7 +89,7 @@ export function buildPlanSystemPrompt(input: EstimateInput): string {
     '1. detected_trade: the trade of the work that was actually requested.',
     '2. measurements: one consolidated table. Merge duplicates (the same wall in three photos is one row). Mark each "stated" when it was said aloud, written or measured, "estimated" when judged from a photo. Derive areas and lengths from stated dimensions (length x width; perimeter x height minus openings) and keep the unit.',
     `3. sections: the sections the estimate should have, in this order where they apply: ${pb.sections.join(' > ')}. One line of purpose each.`,
-    '4. assumptions, exclusions and open_questions: what you had to assume, what the price will not cover, and anything that could move the price by more than about 10% (at most 5 questions).',
+    '4. assumptions, exclusions and open_questions: what you had to assume, what the price will not cover, and anything that could move the price by more than about 10% that the source material does not already answer (at most 3 questions; prefer stating an assumption).',
     '5. scope_confidence: how complete the material is for pricing.',
     '',
     languageInstruction(language),

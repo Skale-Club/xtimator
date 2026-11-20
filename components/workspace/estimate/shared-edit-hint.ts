@@ -3,12 +3,14 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
 
 /**
  * Notices review stage 1, part 2 (2026-11-20).
  *
  * The owner's review questions: the AI's open questions for the draft, then
- * the clarifying questions of a project waiting for details. Same text once.
+ * the clarifying questions of a project waiting for details. Same text once,
+ * and never more than MAX_OWNER_QUESTIONS in all.
  */
 export function mergeReviewQuestions(
   ownerQuestions: readonly string[] | null | undefined,
@@ -22,6 +24,7 @@ export function mergeReviewQuestions(
     if (!text || seen.has(key)) continue
     seen.add(key)
     out.push(text)
+    if (out.length === MAX_OWNER_QUESTIONS) break
   }
   return out
 }

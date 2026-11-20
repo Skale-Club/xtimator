@@ -11,7 +11,12 @@ vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (s: string) => s, language: 'en' }),
 }))
 
-import { NeedsDetailsEmptyState, estimateIsBlank } from '@/components/workspace/needs-details-empty-state'
+import {
+  NeedsDetailsEmptyState,
+  estimateIsBlank,
+  readNeedsDetailsSkip,
+  writeNeedsDetailsSkip,
+} from '@/components/workspace/needs-details-empty-state'
 
 const item = (over: Record<string, unknown> = {}) => ({ description: '', unit_price: 0, ...over })
 const est = (items: Record<string, unknown>[]) =>
@@ -39,6 +44,17 @@ describe('NeedsDetailsEmptyState', () => {
     expect(list.textContent).toContain('1How many rooms?')
     fireEvent.click(screen.getByRole('button', { name: 'Answer and generate' }))
     expect(onAnswer).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows at most 3 questions', () => {
+    render(<NeedsDetailsEmptyState questions={['a?', 'b?', 'c?', 'd?']} onAnswer={() => {}} />)
+    expect(screen.getByTestId('needs-details-questions').querySelectorAll('li')).toHaveLength(3)
+  })
+
+  it('"Fill it in myself" is remembered per project for the same questions', () => {
+    writeNeedsDetailsSkip('p1', 'sig')
+    expect(readNeedsDetailsSkip('p1')).toBe('sig')
+    expect(readNeedsDetailsSkip('p2')).toBeNull()
   })
 
   it('a mic test asks to record again, with no question list', () => {

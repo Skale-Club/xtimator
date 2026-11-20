@@ -29,6 +29,10 @@ describe('mergeReviewQuestions', () => {
     ])
     expect(mergeReviewQuestions(undefined, null)).toEqual([])
   })
+
+  it('never more than 3 questions in all (owner rule: not pesky)', () => {
+    expect(mergeReviewQuestions(['a?', 'b?'], ['c?', 'd?', 'e?'])).toEqual(['a?', 'b?', 'c?'])
+  })
 })
 
 describe('useSharedEditHint', () => {
@@ -64,6 +68,8 @@ describe('capture prompts handoff', () => {
     expect(readCapturePrompts('p2')).toEqual([])
     expect(readCapturePrompts('p1')).toEqual(['How many rooms?'])
     expect(readCapturePrompts('p1')).toEqual(['How many rooms?'])
+    setCapturePrompts('p1', ['a?', 'b?', 'c?', 'd?'])
+    expect(readCapturePrompts('p1')).toEqual(['a?', 'b?', 'c?'])
     clearCapturePrompts('p1')
     expect(readCapturePrompts('p1')).toEqual([])
   })

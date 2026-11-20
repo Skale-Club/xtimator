@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { buildOwnerEstimateReview } from '@/lib/estimate/owner-review'
 
 describe('buildOwnerEstimateReview', () => {
-  it('orders valid questions by impact and limits questions, assumptions and text length', () => {
+  // Owner rule 2026-11-20: at most 3 questions, never a low-impact one.
+  it('orders valid questions by impact, drops low-impact ones, and limits questions (3), assumptions and text length', () => {
     const review = buildOwnerEstimateReview({
       ai_meta: {
         open_questions: [
@@ -19,12 +20,19 @@ describe('buildOwnerEstimateReview', () => {
     })
 
     expect(review).toEqual({
-      questions: ['High priority', 'X'.repeat(240), 'Unknown priority', 'Medium priority'],
+      questions: ['High priority', 'X'.repeat(240), 'Unknown priority'],
       assumptions: ['Assume ladder access', 'Two coats', 'Y'.repeat(240)],
       needsReview: true,
       lowConfidenceLines: 0,
       unpricedLines: 0,
     })
+  })
+
+  it('a draft with only low-impact questions asks nothing', () => {
+    const review = buildOwnerEstimateReview({
+      ai_meta: { open_questions: [{ question: 'Preferred paint brand?', impact: 'low' }] },
+    })
+    expect(review?.questions ?? []).toEqual([])
   })
 
   it('uses the structure band as a plain flag and drops platform-admin diagnostics', () => {

@@ -4,12 +4,32 @@ import { MessageCircleQuestionMark, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { EstimateWithSections } from '@/lib/queries/estimate'
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
 
 /** True when no line has a description or a price yet (a blank estimate). */
 export function estimateIsBlank(estimate: Pick<EstimateWithSections, 'sections'>): boolean {
   return !estimate.sections.some((section) =>
     section.items.some((item) => (item.description ?? '').trim() !== '' || Number(item.unit_price ?? 0) > 0),
   )
+}
+
+const SKIP_KEY = (projectId: string) => `xtm:needs-details-skip:${projectId}`
+
+/** What "Fill it in myself" remembered for this project (a signature of the questions), if anything. */
+export function readNeedsDetailsSkip(projectId: string): string | null {
+  try {
+    return window.localStorage.getItem(SKIP_KEY(projectId))
+  } catch {
+    return null
+  }
+}
+
+export function writeNeedsDetailsSkip(projectId: string, signature: string): void {
+  try {
+    window.localStorage.setItem(SKIP_KEY(projectId), signature)
+  } catch {
+    // Blocked storage: the empty state may show again next visit.
+  }
 }
 
 interface NeedsDetailsEmptyStateProps {
@@ -32,7 +52,7 @@ interface NeedsDetailsEmptyStateProps {
  */
 export function NeedsDetailsEmptyState({ reason, questions, onAnswer, onFillMyself }: NeedsDetailsEmptyStateProps) {
   const { t } = useTranslation()
-  const list = (questions ?? []).filter((q) => q.trim() !== '')
+  const list = (questions ?? []).filter((q) => q.trim() !== '').slice(0, MAX_OWNER_QUESTIONS)
   const micTest = reason === 'mic_test'
   const hasQuestions = !micTest && list.length > 0
 

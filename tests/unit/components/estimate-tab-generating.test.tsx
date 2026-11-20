@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 
 /**
  * 260927: the project's estimate tab while a generation runs.
@@ -79,7 +79,7 @@ const PROGRESS = {
   phaseVisits: [{ phase: 'drafting', startedAt: new Date().toISOString(), detail: {} }],
 }
 
-function renderTab(currentEstimate: unknown = null) {
+function renderTab(currentEstimate: unknown = null, extra: Record<string, unknown> = {}) {
   const props = {
     projectId: 'p1',
     companyId: 'c1',
@@ -101,6 +101,7 @@ function renderTab(currentEstimate: unknown = null) {
     estimateTemplate: {},
     estimateTemplateId: 'classic',
     preparedBy: null,
+    ...extra,
   }
   return render(
     <GenerationStatusProvider>
@@ -177,6 +178,31 @@ describe('EstimateTab while an estimate generates (260927)', () => {
     attemptState = { attemptId: 'bg1', progress: PROGRESS, outcome: null, gaveUp: false }
     renderTab()
     expect(screen.queryByTestId('published-generation')).toBeNull()
+  })
+
+  // Owner rule 2026-11-20: the questions are optional. "Fill it in myself"
+  // opens the editor and stays that way on the next visit.
+  it('needs details on a blank estimate: the empty state, skippable for good', () => {
+    const blank = { id: 'e1', sections: [{ items: [] }] }
+    const needs = { needsDetails: { questions: ['How many rooms?'] }, onAnswerDetails: vi.fn() }
+    const first = renderTab(blank, needs)
+    expect(screen.getByTestId('needs-details-empty-state')).toBeTruthy()
+    expect(screen.queryByTestId('estimate-editor')).toBeNull()
+    fireEvent.click(screen.getByTestId('needs-details-fill-myself'))
+    expect(screen.getByTestId('estimate-editor')).toBeTruthy()
+    first.unmount()
+    renderTab(blank, needs)
+    expect(screen.queryByTestId('needs-details-empty-state')).toBeNull()
+    expect(screen.getByTestId('estimate-editor')).toBeTruthy()
+  })
+
+  it('needs details on an estimate with content: the editor, no empty state', () => {
+    renderTab(
+      { id: 'e1', sections: [{ items: [{ description: 'Paint walls', unit_price: 100 }] }] },
+      { needsDetails: { questions: ['How many rooms?'] }, onAnswerDetails: vi.fn() },
+    )
+    expect(screen.queryByTestId('needs-details-empty-state')).toBeNull()
+    expect(screen.getByTestId('estimate-editor')).toBeTruthy()
   })
 
   it('still creates the blank estimate when nothing is generating', () => {

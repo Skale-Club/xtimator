@@ -19,7 +19,7 @@ export const STRUCTURE_CONTRACT_PROMPT = `## Estimate structure
 - Every line item has: an imperative description ("Remove and haul away old decking"), a quantity, one unit from [${CANONICAL_UNITS.join(', ')}], a unit price, tax_category and price_source.
 - Every line also gets a confidence (low, medium or high) and a one-line basis saying where its quantity comes from. Use "low" whenever the quantity or price is a guess.
 - Every line also gets a price_key: a short generic name for the priced work with no dimensions, quantities, colors or room names, so the same kind of work on another job gets the same price_key.
-- assumptions: things you had to assume because the source material did not say. exclusions: what the price does not cover. open_questions: anything that could move the price by more than about 10%, at most 5, each with its impact. scope_confidence: how complete the source material was for pricing this job.
+- assumptions: things you had to assume because the source material did not say. exclusions: what the price does not cover. open_questions: only what could move the price by more than about 10% and the source material does not already answer, at most 3, each with its impact. When a reasonable assumption works, make it and list it under assumptions instead of asking. scope_confidence: how complete the source material was for pricing this job.
 - assumptions, exclusions and open questions are about the job and are read by the business owner. Anything about the source material itself (a duplicated or repeated transcript, cut-off or unclear audio, an unreadable photo) goes only in source_notes, which is an internal record nobody else sees.
 
 ## Quantities

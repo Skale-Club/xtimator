@@ -70,7 +70,7 @@ describe('buildNeedsDetails (QUICK-psh-01)', () => {
     expect(result).toEqual({ reason: 'mic_test', questions: [] })
   })
 
-  it('caps questions at 4 and drops non-string / blank entries', async () => {
+  it('caps questions at 3 and drops non-string / blank entries', async () => {
     ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       makeResponse(
         JSON.stringify({
@@ -83,7 +83,7 @@ describe('buildNeedsDetails (QUICK-psh-01)', () => {
     const result = await buildNeedsDetails('input', 'en')
 
     expect(result.reason).toBe('missing_specifics')
-    expect(result.questions).toEqual(['q1', 'q2', 'q3', 'q4'])
+    expect(result.questions).toEqual(['q1', 'q2', 'q3'])
   })
 
   it('unknown reason string from the model -> coerced to missing_specifics', async () => {

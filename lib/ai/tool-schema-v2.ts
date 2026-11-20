@@ -21,7 +21,7 @@ export const ESTIMATE_V2_TEXT = {
   exclusions:
     'Work or materials that are NOT included in this price, one short sentence each (e.g. "Permit fees are not included"). Omit when there are none.',
   open_questions:
-    'Questions the owner should answer because the answer would move the price by more than about 10%. At most 5. Omit when there are none.',
+    'Questions the owner should answer because the answer would move the price by more than about 10% and the source material does not already say it. At most 3; when a reasonable assumption works, list it under assumptions instead. Omit when there are none.',
   open_question: 'The question, phrased for the business owner.',
   open_question_impact: "How much the answer could move the price: 'low', 'medium' or 'high'.",
   scope_confidence:

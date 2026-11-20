@@ -2,7 +2,7 @@
  * lib/ai/needs-details.ts
  *
  * QUICK-psh-01 — classify WHY a vague/discarded generation could not be
- * priced, and (for real-but-thin input) produce 2-4 concrete clarifying
+ * priced, and (for real-but-thin input) produce 1-3 concrete clarifying
  * questions in the estimate's language. Wired at the SINGLE final-vague
  * terminal (the default web/MCP adapter's `finalize`, after auto-refine's one
  * retry is exhausted — see lib/estimate/adapters/default.ts). Production case
@@ -29,6 +29,7 @@ import {
 } from '@/lib/ai/openrouter-client'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
 import { resolveSlotModel } from '@/lib/ai/step-models'
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
 
 export type NeedsDetailsReason = 'mic_test' | 'too_short' | 'missing_specifics'
 
@@ -47,7 +48,7 @@ const LANGUAGE_LABEL: Record<'en' | 'pt' | 'es', string> = {
 
 /**
  * Classify why a field-service estimate input was too vague to price, and (for
- * real-but-thin input) generate 2-4 concrete clarifying questions in the
+ * real-but-thin input) generate 1-3 concrete clarifying questions in the
  * ESTIMATE language — phrased for a field-service business owner so they know
  * exactly what to say on the next recording.
  *
@@ -85,18 +86,19 @@ export async function buildNeedsDetails(
       `A ${trade} business owner recorded or typed the following job description, but ` +
       `the AI could not produce a priceable estimate from it:\n\n"""\n${input}\n"""\n\n` +
       `Classify WHY this input could not be priced, and — unless it is a mic test — write ` +
-      `2-4 concrete, specific clarifying questions in ${langLabel} that would let the owner ` +
+      `1-3 concrete, specific clarifying questions in ${langLabel} that would let the owner ` +
       `make it priceable on their next recording (ask about quantities, materials, ` +
       `dimensions, condition, or scope as relevant to the job described).\n\n` +
       `Return ONLY a raw JSON object (no markdown, no code blocks) of the shape:\n` +
       `{"reason": "mic_test" | "too_short" | "missing_specifics", "questions": string[]}\n\n` +
       `- "mic_test": the input is clearly an accidental/test recording (silence, ` +
       `"testing 1 2 3", a stray greeting, no job content at all) — questions MUST be [].\n` +
-      `- "too_short": there IS real job content but it is too brief to price — 2-4 questions.\n` +
+      `- "too_short": there IS real job content but it is too brief to price — 1-3 questions.\n` +
       `- "missing_specifics": a real job description missing the specifics needed to price ` +
-      `it — 2-4 questions.\n` +
+      `it — 1-3 questions.\n` +
       `Questions must be phrased for the field-service owner, written in ${langLabel}, and ` +
-      `specific to what they described (never generic).`
+      `specific to what they described (never generic). Ask only what is needed to price the job, ` +
+      `never something the description already says, and as few questions as possible.`
 
     const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
       method: 'POST',
@@ -157,7 +159,7 @@ export async function buildNeedsDetails(
           ? parsed.questions
               .filter((q): q is string => typeof q === 'string' && q.trim().length > 0)
               .map((q) => q.trim())
-              .slice(0, 4)
+              .slice(0, MAX_OWNER_QUESTIONS)
           : []
 
     return { reason, questions }

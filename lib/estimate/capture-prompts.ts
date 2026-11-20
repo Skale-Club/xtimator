@@ -8,10 +8,12 @@
 // works. Reading does not clear (React may mount the recorder twice in
 // development); the project page clears it once the project stops waiting.
 
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
+
 let pending: { projectId: string; questions: string[] } | null = null
 
 export function setCapturePrompts(projectId: string, questions: readonly string[]): void {
-  const list = questions.map((q) => q.trim()).filter(Boolean)
+  const list = questions.map((q) => q.trim()).filter(Boolean).slice(0, MAX_OWNER_QUESTIONS)
   pending = list.length > 0 ? { projectId, questions: list } : null
 }
 

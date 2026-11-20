@@ -53,7 +53,8 @@ describe('default adapter finalize: needs-details source', () => {
     const row = updates.find((u) => 'needs_details' in u)!
     expect(row.needs_details).toMatchObject({
       reason: 'missing_specifics',
-      questions: ['How many rooms?', 'What is the ceiling height?', 'Is there a garage?', 'Interior or exterior?'],
+      // Owner rule 2026-11-20: at most 3 questions reach the owner.
+      questions: ['How many rooms?', 'What is the ceiling height?', 'Is there a garage?'],
     })
   })
 

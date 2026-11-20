@@ -1,4 +1,5 @@
 import { parseAiMeta } from '@/lib/estimate/ai-meta'
+import { MAX_OWNER_QUESTIONS } from '@/lib/estimate/question-limits'
 
 export interface OwnerEstimateReview {
   questions: string[]
@@ -27,9 +28,12 @@ export function buildOwnerEstimateReview(input: {
   sections?: readonly { items?: readonly ReviewItem[] }[]
 }): OwnerEstimateReview | null {
   const meta = parseAiMeta(input.ai_meta)
+  // The owner sees few questions, and only ones that move the price: a
+  // low-impact question is noise (owner rule 2026-11-20, "not pesky").
   const questions = (meta?.open_questions ?? [])
+    .filter((q) => q.impact !== 'low')
     .sort((a, b) => QUESTION_PRIORITY[b.impact] - QUESTION_PRIORITY[a.impact])
-    .slice(0, 4)
+    .slice(0, MAX_OWNER_QUESTIONS)
     .map(({ question }) => boundedText(question))
   const assumptions = (meta?.assumptions ?? []).slice(0, 3).map(boundedText)
 
