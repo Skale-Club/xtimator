@@ -269,7 +269,12 @@ export default async function AppShellLayout({
             />
             {isDemo && <DemoBanner />}
             {paywall.state !== 'active' && (
-              <PaywallBanner state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
+              <PaywallBanner
+                state={paywall.state}
+                priceLabel={isTwa ? '' : paywall.priceLabel}
+                logoUrl={branding.logoUrl}
+                appName={branding.appName}
+              />
             )}
             <main data-shell="main" className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] md:pb-6">
               <BillingStateProvider state={paywall.state}>{children}</BillingStateProvider>

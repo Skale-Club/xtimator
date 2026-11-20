@@ -27,6 +27,8 @@ interface TierCardProps {
   savePct?: number | null
   /** Off when the surrounding card already names the only plan offered. */
   showName?: boolean
+  /** Small line under the button (e.g. "Cancel anytime."). */
+  ctaNote?: string
 }
 
 /**
@@ -57,6 +59,7 @@ export function TierCard({
   annualPerMonth,
   savePct,
   showName = true,
+  ctaNote,
 }: TierCardProps) {
   const { t } = useTranslation()
   const buttonVariant =
@@ -102,10 +105,13 @@ export function TierCard({
           variant={buttonVariant}
           onClick={onSelect}
           disabled={current || disabled}
-          className="mt-auto h-auto min-h-10 w-full whitespace-normal py-2 text-center leading-tight"
+          className="mt-auto h-auto min-h-10 w-full justify-center whitespace-normal py-2 text-center leading-tight"
         >
           {t(current ? currentLabel : ctaLabel)}
         </Button>
+        {ctaNote && !current && (
+          <p className="-mt-2 text-center text-xs text-muted-foreground">{t(ctaNote)}</p>
+        )}
       </div>
 
       <ul className="grid content-start gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">

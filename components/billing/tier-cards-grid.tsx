@@ -22,6 +22,9 @@ const VISIBLE_TIERS: Tier[] = ['pro']
 
 // Always shown first on the Pro card, whatever billing_config.featureBullets says.
 const PRO_SCOPE_BULLET = '1 company · 1 user'
+// Redesign 2026-11-20: the Free plan's "Add credits" card (which only said
+// "subscribe first") is gone; the offer itself says top-ups come with Pro.
+const PRO_TOPUP_BULLET = 'Buy extra credits when you need them'
 
 interface TierCardsGridProps {
   currentTier: Tier | 'trial'
@@ -55,6 +58,8 @@ interface TierCardsGridProps {
   title?: ReactNode
   description?: ReactNode
   id?: string
+  /** Extra classes on the card frame (the billing page highlights the offer). */
+  className?: string
 }
 
 /**
@@ -136,6 +141,7 @@ export function TierCardsGrid({
   title,
   description,
   id,
+  className,
 }: TierCardsGridProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState<Tier | null>(null)
@@ -234,7 +240,14 @@ export function TierCardsGrid({
   )
 
   return (
-    <SettingsCard id={id} title={title ?? t('Plan')} description={description} action={intervalToggle} bodyClassName="space-y-4">
+    <SettingsCard
+      id={id}
+      className={className}
+      title={title ?? t('Plan')}
+      description={description}
+      action={intervalToggle}
+      bodyClassName="space-y-4"
+    >
       {!isOwner && (
         <p className="text-sm text-muted-foreground">
           {t('Only the company owner can manage billing.')}
@@ -248,8 +261,12 @@ export function TierCardsGrid({
           // Config-sourced bullets win; hardcoded TIERS[].features is the fallback.
           const configured = featureBullets?.[tierItem.tier] ?? tierItem.features
           const features =
-            tierItem.tier === 'pro' && !configured.includes(PRO_SCOPE_BULLET)
-              ? [PRO_SCOPE_BULLET, ...configured]
+            tierItem.tier === 'pro'
+              ? [
+                  ...(configured.includes(PRO_SCOPE_BULLET) ? [] : [PRO_SCOPE_BULLET]),
+                  ...configured,
+                  ...(configured.includes(PRO_TOPUP_BULLET) ? [] : [PRO_TOPUP_BULLET]),
+                ]
               : configured
           // Free card is a portal-only downgrade path for paid users — render it
           // disabled (it never had a checkout wire-up; onSelect returns early)
@@ -305,6 +322,7 @@ export function TierCardsGrid({
               annualPerMonth={annualDisplay?.annualPerMonth}
               savePct={annualDisplay?.savePct}
               ctaLabel={ctaLabel}
+              ctaNote={!isPaidUser && tierItem.tier !== 'free' ? 'Cancel anytime.' : undefined}
               disabled={freeDisabledForPaid || !isOwner}
               currentLabel="Current plan"
               popularLabel="Most popular"

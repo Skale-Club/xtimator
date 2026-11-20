@@ -6,6 +6,7 @@ import { SettingsCard } from '@/components/settings/settings-ui'
 import { UsageProgressBar } from '@/components/billing/usage-progress-bar'
 import { formatCredits } from '@/lib/billing/format-usd'
 import type { LiveCreditLot, LiveCreditLotSource } from '@/lib/queries/credits'
+import { cn } from '@/lib/utils'
 
 /**
  * Owner-facing credit balance card.
@@ -40,15 +41,7 @@ const LOT_DOT: Record<LiveCreditLotSource, string> = {
   adjust: 'bg-muted-foreground/60',
 }
 
-export function CreditBalanceCard({
-  percentUsed,
-  tier,
-  balance,
-  lots = [],
-  topupEligible = true,
-  hidePurchase = false,
-  className,
-}: {
+type CreditBalanceProps = {
   percentUsed: number | null
   tier: string
   balance?: number
@@ -56,8 +49,36 @@ export function CreditBalanceCard({
   topupEligible?: boolean
   /** Android TWA (Google Play): no purchase links or subscribe nudges. */
   hidePurchase?: boolean
-  className?: string
-}) {
+}
+
+export function CreditBalanceCard({ className, ...props }: CreditBalanceProps & { className?: string }) {
+  return (
+    <SettingsCard
+      className={className}
+      title={<T>Credit balance</T>}
+      description={<T>Your credits by type, and when they expire.</T>}
+      bodyClassName="space-y-5"
+    >
+      <CreditBalanceBody {...props} />
+    </SettingsCard>
+  )
+}
+
+/**
+ * The card's content without its frame, so the billing page can put the
+ * balance beside the plan in one card (redesign 2026-11-20). `showCaption`
+ * off drops the expiry caption when the surrounding card already says it.
+ */
+export function CreditBalanceBody({
+  percentUsed,
+  tier,
+  balance,
+  lots = [],
+  topupEligible = true,
+  hidePurchase = false,
+  showCaption = true,
+  compact = false,
+}: CreditBalanceProps & { showCaption?: boolean; compact?: boolean }) {
   const band =
     percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
 
@@ -69,18 +90,16 @@ export function CreditBalanceCard({
       : 'Monthly credits expire when your billing cycle renews.'
 
   return (
-    <SettingsCard
-      className={className}
-      title={<T>Credit balance</T>}
-      description={<T>Your credits by type, and when they expire.</T>}
-      bodyClassName="space-y-5"
-    >
+    <div className="space-y-5">
       {/* The total first: the one number the owner came here for. */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span
             data-testid="credit-balance-total"
-            className="text-4xl font-semibold tracking-tight [font-variant-numeric:tabular-nums]"
+            className={cn(
+              'font-semibold tracking-tight [font-variant-numeric:tabular-nums]',
+              compact ? 'text-3xl' : 'text-4xl'
+            )}
           >
             {formatCredits(balance ?? 0)}
           </span>
@@ -130,9 +149,11 @@ export function CreditBalanceCard({
         </ul>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        <T text={resetCaption} />
-      </p>
+      {showCaption && (
+        <p className="text-xs text-muted-foreground">
+          <T text={resetCaption} />
+        </p>
+      )}
 
       {band !== 'healthy' && (
         <div
@@ -171,6 +192,6 @@ export function CreditBalanceCard({
           )}
         </div>
       )}
-    </SettingsCard>
+    </div>
   )
 }

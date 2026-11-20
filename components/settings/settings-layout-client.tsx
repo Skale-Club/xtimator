@@ -12,8 +12,8 @@ import { SettingsNav, SettingsNavStrip } from './settings-nav'
  *   full height under the 4rem top bar: that container cancels main's md:pb-6
  *   with md:-mb-6, so the rail's border reaches the bottom of the screen and
  *   the rail is not nudged up at the end of the scroll.
- * - Below md: no rail. A single row of pills, pinned under the top bar, so the
- *   page keeps the whole phone width.
+ * - Below md: no rail. A button pinned under the top bar names the section and
+ *   opens the same grouped nav as a left drawer, so the page keeps the width.
  *
  * The content column owns the page padding and the reading width, so no page
  * adds its own `p-6` or max-width.

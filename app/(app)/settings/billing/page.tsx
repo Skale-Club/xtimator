@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
@@ -16,11 +15,10 @@ import { getStripeClient } from '@/lib/billing/stripe-client'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { ManageSubscriptionButton } from '@/components/billing/manage-subscription-button'
 import { TierCardsGrid } from '@/components/billing/tier-cards-grid'
 import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
-import { CreditBalanceCard } from '@/components/billing/credit-balance-card'
+import { CreditBalanceBody } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { AutoTopupCard } from '@/components/billing/auto-topup-card'
 import { BillingStatusToast } from '@/components/billing/billing-status-toast'
@@ -28,7 +26,10 @@ import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
 import { formatBillingAmount, resolveBillingCurrency } from '@/lib/billing/billing-currency'
 import { T } from '@/components/i18n/t'
 import { LocalizedDate } from '@/components/i18n/localized-date'
-import { SettingsCard, SettingsHeader } from '@/components/settings/settings-ui'
+import { SettingsCard, SettingsHeader, SETTINGS_CARD_CLASS } from '@/components/settings/settings-ui'
+import { getPaywallContext } from '@/lib/billing/access-guard'
+import { getCachedBranding } from '@/lib/platform-config'
+import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Plan and billing | Settings' }
 
@@ -70,7 +71,7 @@ export default async function BillingPage() {
 
   // Billing data, credits, and config are independent of one another once the
   // company id is known — fetch them in parallel.
-  const [data, credits, cfg, stripePrices, grantedThisCycle, lots] = await Promise.all([
+  const [data, credits, cfg, stripePrices, grantedThisCycle, lots, paywall, branding] = await Promise.all([
     getBillingData(company.id),
     getCreditOverview(company.id),
     getBillingConfig(),
@@ -80,6 +81,10 @@ export default async function BillingPage() {
     getLiveGrantedCredits(company.id),
     // SEED-055 Phase E: the balance split by live lot, with expiry dates.
     getLiveCreditLots(company.id),
+    // Same access state the (app) layout's banner uses: paywalled (free, credits
+    // gone, read-only) or out_of_credits (paid, balance at zero).
+    getPaywallContext(company.id),
+    getCachedBranding(),
   ])
 
   if (!data) {
@@ -228,22 +233,34 @@ export default async function BillingPage() {
         ? { label: 'Cancels at period end', variant: 'warning' }
         : { label: 'Active', variant: 'success' }
 
-  const usageStats: Array<{ label: string; value: string | number }> = [
-    { label: 'Estimates', value: data.estimatesThisMonth },
-    { label: 'Photos analyzed', value: data.photosThisMonth },
-    ...(data.entitlements.maxPhotosPerEstimate !== null
-      ? [{ label: 'Photo limit per estimate', value: data.entitlements.maxPhotosPerEstimate }]
-      : []),
-  ]
+  const blocked = paywall.state !== 'active'
 
-  // The plan card's action: manage an existing subscription, or point a Free
-  // company at the Pro offer further down. Never a purchase control in the TWA.
-  const planAction = isTwa ? null : isPaid ? (
-    hasStripeCustomer ? <ManageSubscriptionButton isOwner={isOwner} /> : null
-  ) : (
-    <Button asChild variant="primary" size="sm">
-      <Link href="#choose-plan"><T>Subscribe to Pro</T></Link>
-    </Button>
+  // The plan's own action: manage an existing subscription. A Free company has
+  // none here - the Pro offer right below is the page's single Subscribe.
+  const planAction = !isTwa && isPaid && hasStripeCustomer ? <ManageSubscriptionButton isOwner={isOwner} /> : null
+
+  const proOffer = (
+    <TierCardsGrid
+      id="choose-plan"
+      className={cn(!isPaid && 'border-primary/30 bg-gradient-to-b from-primary/[0.07] to-transparent')}
+      title={
+        <span className="flex items-center gap-2.5">
+          {branding.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logoUrl} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain" />
+          )}
+          <T>Xtimator Pro</T>
+        </span>
+      }
+      description={<T>1 company and 1 user, with every feature included.</T>}
+      currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
+      currentInterval={data.stripeSubscriptionInterval ?? undefined}
+      isOwner={isOwner}
+      pendingCancel={!!data.tierCancelledAt}
+      annualPrices={annualPrices}
+      monthlyPricesCents={monthlyPricesCents}
+      featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
+    />
   )
 
   return (
@@ -274,13 +291,21 @@ export default async function BillingPage() {
         </div>
       )}
 
-      {/* Current plan: what you're on, its state, what it costs, and this
-          month's usage, with the one action that changes it. */}
-      <SettingsCard title={<T>Current plan</T>} action={planAction} bodyClassName="space-y-5">
-        <div className="space-y-1.5">
+      {/* Redesign 2026-11-20: one card for where you stand (plan beside
+          credits), then the single Pro offer for a company without it, then
+          top-ups (Pro only) and the credit history. */}
+      <section data-testid="plan-overview" className={cn(SETTINGS_CARD_CLASS, 'grid md:grid-cols-2')}>
+        <div className="space-y-3 px-5 py-5 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <T>Current plan</T>
+          </p>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-2xl font-semibold tracking-tight"><T text={tierDisplay} /></span>
-            {planStatus && <Badge variant={planStatus.variant}><T text={planStatus.label} /></Badge>}
+            {blocked ? (
+              <Badge variant="outline" data-testid="plan-blocked-badge" className="border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"><T>Credits used up</T></Badge>
+            ) : (
+              planStatus && <Badge variant={planStatus.variant}><T text={planStatus.label} /></Badge>
+            )}
           </div>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             {planPrice && (
@@ -303,10 +328,14 @@ export default async function BillingPage() {
             )}
             {data.tier === 'free' && (
               <span>
-                {isTwa ? (
-                  <T>Free plan — your free credits never expire.</T>
+                {paywall.state === 'paywalled' ? (
+                  isTwa ? (
+                    <T>Your free credits are used up.</T>
+                  ) : (
+                    <T>Your free credits are used up. Until you subscribe, your estimates are read-only.</T>
+                  )
                 ) : (
-                  <T>Free plan — your free credits never expire. Subscribe to Pro when they run out.</T>
+                  <T>Free plan — your free credits never expire.</T>
                 )}
               </span>
             )}
@@ -316,47 +345,37 @@ export default async function BillingPage() {
               <T>This plan was set by support — contact us to change it.</T>
             </p>
           )}
+          <p className="text-xs text-muted-foreground" data-testid="usage-this-month">
+            <T
+              text="This month: {estimates} estimates · {photos} photos analyzed"
+              values={{ estimates: data.estimatesThisMonth, photos: data.photosThisMonth }}
+            />
+          </p>
+          {planAction && <div className="pt-1">{planAction}</div>}
         </div>
 
-        <div className="space-y-2 border-t border-[var(--glass-border)] pt-5">
+        <div className="space-y-3 border-t border-[var(--glass-border)] px-5 py-5 sm:px-6 md:border-l md:border-t-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <T>This month</T>
+            <T>Credits</T>
           </p>
-          <dl className="grid grid-cols-3 gap-2 sm:gap-3">
-            {usageStats.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-light)] px-3 py-3 sm:px-4"
-              >
-                <dt className="text-xs text-muted-foreground"><T text={stat.label} /></dt>
-                <dd className="mt-1 text-xl font-semibold [font-variant-numeric:tabular-nums]">{stat.value}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="text-xs text-muted-foreground">
-            <T>Counts reset at the start of each UTC calendar month.</T>
-          </p>
+          <CreditBalanceBody
+            compact
+            percentUsed={percentUsed}
+            tier={data.tier}
+            balance={credits.balance}
+            lots={lots}
+            topupEligible={topupEligible}
+            hidePurchase={isTwa}
+            showCaption={isPaid}
+          />
         </div>
-      </SettingsCard>
+      </section>
 
-      {/* Credits (CREDITUI-01/02): the balance by lot beside the ledger.
-          Owner sees credits + history, never cost math. The history list
-          scrolls inside its card, so on wide screens the balance card sets
-          the row height and the ledger fills it. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <CreditBalanceCard
-          percentUsed={percentUsed}
-          tier={data.tier}
-          balance={credits.balance}
-          lots={lots}
-          topupEligible={topupEligible}
-          hidePurchase={isTwa}
-        />
-        <CreditHistoryList rows={credits.history} className="flex flex-col" fillHeight />
-      </div>
+      {!isTwa && !isPaid && proOffer}
 
       {/* Top-up packs (CREDITUI-06) + auto top-up (CREDITUI-07) in one card:
-          Pro only (SEED-055 D5). Everyone else sees the subscribe prompt. */}
+          Pro only (SEED-055 D5). A Free company sees "buy extra credits" as a
+          Pro benefit in the offer above instead of a card of its own. */}
       {isTwa ? (
         <p
           data-testid="twa-plan-note"
@@ -402,35 +421,13 @@ export default async function BillingPage() {
             </div>
           )}
         </SettingsCard>
-      ) : (
-        <div id="topup-packs" data-testid="topup-subscribe-prompt">
-          <SettingsCard
-            title={<T>Add credits</T>}
-            description={<T>Subscribe to Pro to buy extra credits</T>}
-            action={
-              <Button asChild variant="outline" size="sm">
-                <Link href="#choose-plan"><T>Subscribe to Pro</T></Link>
-              </Button>
-            }
-          />
-        </div>
-      )}
+      ) : null}
 
-      {/* Plan offer: Pro only, monthly / annual toggle (SEED-055). */}
-      {!isTwa && (
-        <TierCardsGrid
-          id="choose-plan"
-          title={<T>Xtimator Pro</T>}
-          description={<T>1 company and 1 user, with every feature included.</T>}
-          currentTier={data.tier as 'free' | 'trial' | 'pro' | 'business'}
-          currentInterval={data.stripeSubscriptionInterval ?? undefined}
-          isOwner={isOwner}
-          pendingCancel={!!data.tierCancelledAt}
-          annualPrices={annualPrices}
-          monthlyPricesCents={monthlyPricesCents}
-          featureBullets={{ pro: cfg.tiers.pro.featureBullets }}
-        />
-      )}
+      <CreditHistoryList rows={credits.history} />
+
+      {/* A Pro company keeps the offer at the end: switching between monthly
+          and annual, or resuming a cancellation. */}
+      {!isTwa && isPaid && proOffer}
     </div>
   )
 }

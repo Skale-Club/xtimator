@@ -37,13 +37,27 @@ beforeEach(() => {
 })
 
 describe('PaywallBanner', () => {
-  it('paywalled: persistent alert with the configured price and a Subscribe link', () => {
+  it('paywalled: persistent alert with the configured price and a Subscribe link to the offer', () => {
     render(<PaywallBanner state="paywalled" priceLabel="$29" />)
     const banner = screen.getByTestId('paywall-banner')
     expect(banner.getAttribute('data-state')).toBe('paywalled')
-    expect(banner.textContent).toContain('Your free credits are used up. Subscribe to Xtimator Pro — $29/mo')
-    const link = screen.getByRole('link', { name: 'Subscribe' })
-    expect(link.getAttribute('href')).toBe('/settings/billing')
+    expect(banner.textContent).toContain('Your free credits are used up')
+    // Full sentence on wide screens, short price line on phones.
+    expect(banner.textContent).toContain('Subscribe to Xtimator Pro — $29/mo to keep creating estimates.')
+    expect(banner.textContent).toContain('Xtimator Pro — $29/mo')
+    const link = screen.getByRole('link', { name: /Subscribe/ })
+    expect(link.getAttribute('href')).toBe('/settings/billing#choose-plan')
+  })
+
+  it('paywalled: shows the platform logo when one is configured, else its initial', () => {
+    const { container, unmount } = render(
+      <PaywallBanner state="paywalled" priceLabel="$29" logoUrl="/storage/logo.png" appName="Xtimator" />
+    )
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('/storage/logo.png')
+    unmount()
+    const fallback = render(<PaywallBanner state="paywalled" priceLabel="$29" appName="Xtimator" />)
+    expect(fallback.container.querySelector('img')).toBeNull()
+    expect(fallback.getByTestId('paywall-banner').textContent?.startsWith('X')).toBe(true)
   })
 
   it('out_of_credits: softer banner with a Buy credits link', () => {
