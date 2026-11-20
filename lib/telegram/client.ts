@@ -1,8 +1,8 @@
 import 'server-only'
-import { getTelegramConfig } from '@/lib/platform-config'
+import { getTelegramConfig, type TelegramDestination } from '@/lib/platform-config'
 
 /**
- * Server-only outbound Telegram client for the platform-owner ops-alert channel.
+ * Server-only outbound Telegram client for separate platform Ops and Leads groups.
  *
  * Mirrors lib/whatsapp/client.ts: a thin typed wrapper around the provider API
  * that reads credentials from the encrypted platform-config and throws on a
@@ -14,11 +14,14 @@ import { getTelegramConfig } from '@/lib/platform-config'
  *
  * Never import from a client component.
  */
-export async function sendTelegramMessage(text: string): Promise<void> {
-  const config = await getTelegramConfig()
+export async function sendTelegramMessage(text: string, destination: TelegramDestination = 'ops'): Promise<void> {
+  if (destination === 'leads' && process.env.NODE_ENV !== 'production') {
+    throw new Error('[Telegram] Leads delivery is production-only')
+  }
+  const config = destination === 'leads' ? await getTelegramConfig('leads') : await getTelegramConfig()
   if (!config) {
     throw new Error(
-      '[Telegram] not configured — set a bot token and chat_id in /admin/integrations'
+      `[Telegram] not configured — set the shared bot token and ${destination === 'leads' ? 'leads_chat_id' : 'chat_id'} in platform integrations`
     )
   }
   const res = await fetch(

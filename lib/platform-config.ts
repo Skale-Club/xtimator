@@ -452,31 +452,41 @@ export async function getXphereConfig(): Promise<XphereConfig> {
 }
 
 export type TelegramConfig = { botToken: string; chatId: string } | null
+export type TelegramDestination = 'ops' | 'leads'
 
 /**
  * Read the platform-owner Telegram ops-alert credentials: the encrypted bot
  * token (via getIntegrationKey, which falls back to TELEGRAM_API_KEY for dev)
  * plus the numeric chat_id stored in platform_integrations.telegram
- * metadata.chat_id.
+ * metadata.chat_id. Sales notifications explicitly select 'leads', which reads
+ * metadata.leads_chat_id and never falls back to the technical Ops destination.
  *
  * Dormant-by-default: returns null unless BOTH the token and chat_id resolve, so
  * the entire ops-alerting system stays off until an operator configures it in
  * /admin/integrations → Platform Alerts. The token is never logged or returned
  * except inside this config object consumed by the server-only client.
  */
-export async function getTelegramConfig(): Promise<TelegramConfig> {
+export async function getTelegramConfig(destination: TelegramDestination = 'ops'): Promise<TelegramConfig> {
   const botToken = await getIntegrationKey('telegram') // env fallback → TELEGRAM_API_KEY (dev only)
   if (!botToken) return null
 
   const svc = createServiceClient()
   if (!svc) return null
-  const { data } = await svc
+  const { data, error } = await svc
     .from('platform_integrations')
     .select('metadata')
     .eq('provider', 'telegram')
     .maybeSingle()
 
-  const chatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
+  const metadata = data?.metadata as { chat_id?: unknown; leads_chat_id?: unknown } | null
+  if (destination === 'leads') {
+    if (error) return null
+    const chatId = typeof metadata?.leads_chat_id === 'string' ? metadata.leads_chat_id.trim() : ''
+    const opsChat = typeof metadata?.chat_id === 'string' ? metadata.chat_id.trim() : ''
+    if (!/^-[1-9]\d*$/.test(chatId) || chatId === opsChat) return null
+    return { botToken, chatId }
+  }
+  const chatId = typeof metadata?.chat_id === 'string' ? metadata.chat_id : ''
   if (!chatId) return null
 
   return { botToken, chatId }
