@@ -24,7 +24,19 @@ vi.mock('@/lib/billing/access-guard', () => ({
 }))
 vi.mock('@/lib/queries/auth', () => ({ getAuthClaims: async () => ({ sub: 'u1' }) }))
 vi.mock('@/lib/queries/active-company', () => ({ getActiveCompany: async () => ({ id: 'co-1' }) }))
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }))
+vi.mock('next/navigation', () => ({ redirect: vi.fn(), useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
+
+// The inline buy picker (credits plan 2026-11-20) loads its offer on mount.
+const OFFER = {
+  eligible: true, balance: 0, expiryMonths: 3, defaultIndex: 1,
+  card: { brand: 'Visa', last4: '4242' },
+  packs: [
+    { index: 0, credits: 900, priceCents: 1000, currency: 'usd', estimates: { min: 6, max: 13 }, bestValue: false },
+    { index: 1, credits: 1900, priceCents: 2000, currency: 'usd', estimates: { min: 12, max: 29 }, bestValue: false },
+    { index: 2, credits: 5000, priceCents: 5000, currency: 'usd', estimates: { min: 33, max: 76 }, bestValue: true },
+  ],
+}
+globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(OFFER), { status: 200 })) as unknown as typeof fetch
 
 import { PaywallBanner } from '@/components/billing/paywall-banner'
 import { CaptureBlocked } from '@/components/billing/capture-blocked'
@@ -60,47 +72,58 @@ describe('PaywallBanner', () => {
     expect(fallback.getByTestId('paywall-banner').textContent?.startsWith('X')).toBe(true)
   })
 
-  it('out_of_credits: softer banner with a Buy credits link', () => {
+  it('out_of_credits: softer banner whose Buy credits opens the buy dialog in place', () => {
+    const opened = vi.fn()
+    window.addEventListener('xtm:buy-credits', opened)
     render(<PaywallBanner state="out_of_credits" priceLabel="$29" />)
     expect(screen.getByTestId('paywall-banner').getAttribute('data-state')).toBe('out_of_credits')
     expect(screen.getByText("You're out of credits")).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Buy credits' }).getAttribute('href')).toBe('/settings/billing')
+    screen.getByRole('button', { name: 'Buy credits' }).click()
+    expect(opened).toHaveBeenCalledTimes(1)
+    window.removeEventListener('xtm:buy-credits', opened)
   })
 
   it.each(['paywalled', 'out_of_credits'] as const)('%s banner cannot be dismissed', (state) => {
     render(<PaywallBanner state={state} priceLabel="$29" />)
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: /close|dismiss/i })).toBeNull()
   })
 })
 
 describe('CaptureBlocked', () => {
-  it('paywalled: Subscribe CTA to /settings/billing', () => {
+  it('paywalled: Subscribe CTA to the Pro offer', () => {
     render(<CaptureBlocked state="paywalled" priceLabel="$29" />)
     expect(screen.getByTestId('capture-blocked').getAttribute('data-state')).toBe('paywalled')
-    expect(screen.getByRole('link', { name: 'Subscribe' }).getAttribute('href')).toBe('/settings/billing')
+    expect(screen.getByRole('link', { name: 'Subscribe' }).getAttribute('href')).toBe('/settings/billing#choose-plan')
     expect(screen.getByText(/\$29\/mo/)).toBeTruthy()
   })
 
-  it('out_of_credits: Buy credits CTA, no manual fallback anywhere', () => {
+  it('out_of_credits: the packs right there, no manual fallback anywhere', async () => {
     const { container } = render(<CaptureBlocked state="out_of_credits" priceLabel="$29" />)
-    expect(screen.getByRole('link', { name: 'Buy credits' })).toBeTruthy()
+    expect(await screen.findByTestId('buy-credits-picker')).toBeTruthy()
+    expect(screen.getAllByTestId('buy-credits-pack')).toHaveLength(3)
     expect(container.textContent).not.toMatch(/manual/i)
   })
 })
 
 describe('showBillingBlockToast', () => {
-  it('shows the state copy and routes the action to billing', () => {
+  it('shows the state copy; paywalled goes to the Pro offer, out of credits opens the buy dialog', () => {
     const router = { push: vi.fn() }
     expect(showBillingBlockToast('paywalled', router, (k) => k)).toBe(true)
     const [title, opts] = toastError.mock.calls[0] as [string, { action: { label: string; onClick: () => void } }]
     expect(title).toBe('Your free credits are used up')
     expect(opts.action.label).toBe('Subscribe')
     opts.action.onClick()
-    expect(router.push).toHaveBeenCalledWith('/settings/billing')
+    expect(router.push).toHaveBeenCalledWith('/settings/billing#choose-plan')
 
     toastError.mockReset()
+    const opened = vi.fn()
+    window.addEventListener('xtm:buy-credits', opened)
     expect(showBillingBlockToast('out_of_credits', router, (k) => k)).toBe(true)
-    expect((toastError.mock.calls[0] as [string, { action: { label: string } }])[1].action.label).toBe('Buy credits')
+    const outOpts = (toastError.mock.calls[0] as [string, { action: { label: string; onClick: () => void } }])[1]
+    expect(outOpts.action.label).toBe('Buy credits')
+    outOpts.action.onClick()
+    expect(opened).toHaveBeenCalledTimes(1)
+    window.removeEventListener('xtm:buy-credits', opened)
   })
 
   it('ignores anything that is not a billing code so callers keep their own error toast', () => {

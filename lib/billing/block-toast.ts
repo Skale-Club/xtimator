@@ -7,6 +7,7 @@ import {
   type BillingBlockCode,
 } from '@/lib/billing/block-codes'
 import { TWA_OUT_OF_CREDITS_COPY, readTwaCookieClient } from '@/lib/pwa/twa-signal'
+import { openBuyCredits } from '@/components/billing/buy-credits'
 
 type Translate = (key: string) => string
 type RouterLike = { push: (href: string) => void }
@@ -58,8 +59,20 @@ export function showBillingBlockToast(
     description: copy.description,
     duration: 9000,
     ...(copy.cta
-      ? { action: { label: copy.cta, onClick: () => router.push(BILLING_SETTINGS_PATH) } }
+      ? { action: { label: copy.cta, onClick: () => billingBlockAction(code, router) } }
       : {}),
   })
   return true
+}
+
+/**
+ * Credits plan 2026-11-20: what a block's CTA does. Out of credits opens the
+ * buy dialog in place; the paywall goes straight to the Pro offer.
+ */
+export function billingBlockAction(code: BillingBlockCode, router: RouterLike) {
+  if (code === 'out_of_credits') {
+    openBuyCredits()
+    return
+  }
+  router.push(`${BILLING_SETTINGS_PATH}#choose-plan`)
 }

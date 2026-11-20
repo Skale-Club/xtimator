@@ -590,6 +590,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('app/api/billing/create-checkout-session/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/billing/create-portal-session/route.ts', 'demoGuardResponse', ['POST']),
   ...guarded('app/api/billing/create-topup-session/route.ts', 'demoGuardResponse', ['POST']),
+  ...guarded('app/api/billing/buy-credits/route.ts', 'demoGuardResponse', ['GET', 'POST']),
   ...guarded('app/api/chat/route.ts', 'demoGuardResponse', ['POST']),
   ...excepted('app/api/clients/route.ts', 'read-only', READ_AUTHORITY, READ_REASON, ['GET']),
   ...excepted(

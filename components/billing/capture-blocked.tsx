@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useRouter } from 'next/navigation'
+import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { useIsTwa } from '@/components/pwa/twa-provider'
@@ -69,14 +71,26 @@ export function CaptureBlocked({
             : t('Buy credits to keep creating estimates.')}
         </p>
       </div>
-      <div className="flex flex-col items-center gap-2">
-        <Button asChild size="lg">
-          <Link href={BILLING_SETTINGS_PATH}>{paywalled ? t('Subscribe') : t('Buy credits')}</Link>
-        </Button>
+      <div className="flex w-full max-w-sm flex-col items-center gap-2">
+        {paywalled ? (
+          <Button asChild size="lg">
+            <Link href={`${BILLING_SETTINGS_PATH}#choose-plan`}>{t('Subscribe')}</Link>
+          </Button>
+        ) : (
+          // Credits plan 2026-11-20: buy right here; the refresh after a buy
+          // re-runs the (capture) layout gate and the recorder appears.
+          <CaptureBuyInline />
+        )}
         <Link href="/dashboard" className="text-sm text-muted-foreground underline underline-offset-2">
           {t('Back to dashboard')}
         </Link>
       </div>
     </div>
   )
+}
+
+/** Its own component so the router is only needed where a buy can happen. */
+function CaptureBuyInline() {
+  const router = useRouter()
+  return <BuyCreditsInline onPurchased={() => router.refresh()} />
 }

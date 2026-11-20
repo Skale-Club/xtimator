@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { AlertTriangle, RotateCw } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { openBuyCredits } from '@/components/billing/buy-credits'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 
@@ -81,14 +82,27 @@ export function CaptureFailure({
       <div className="flex w-full flex-1 flex-col" data-testid="capture-failure">
         <FailureBody message={errorMessage} />
         <div className={DOCK_CLASS}>
-          <Link
-            href={BILLING_SETTINGS_PATH}
-            className={`${PRIMARY_CLASS} flex-1`}
-            style={PRIMARY_STYLE}
-            data-testid="capture-billing-cta"
-          >
-            {cta}
-          </Link>
+          {billingBlock === 'out_of_credits' ? (
+            // Credits plan 2026-11-20: buy without leaving the capture.
+            <button
+              type="button"
+              onClick={() => openBuyCredits()}
+              className={`${PRIMARY_CLASS} flex-1`}
+              style={PRIMARY_STYLE}
+              data-testid="capture-billing-cta"
+            >
+              {cta}
+            </button>
+          ) : (
+            <Link
+              href={billingBlock === 'paywalled' ? `${BILLING_SETTINGS_PATH}#choose-plan` : BILLING_SETTINGS_PATH}
+              className={`${PRIMARY_CLASS} flex-1`}
+              style={PRIMARY_STYLE}
+              data-testid="capture-billing-cta"
+            >
+              {cta}
+            </Link>
+          )}
         </div>
       </div>
     )

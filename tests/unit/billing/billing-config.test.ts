@@ -728,6 +728,8 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
         'lib/billing/access-guard.ts',
         'lib/billing/estimated-credits.ts',
         'lib/actions/company.ts',
+        // Credits plan 2026-11-20: the one-click buy prices packs like the top-up session.
+        'app/api/billing/buy-credits/route.ts',
       ].map((p) => resolve(process.cwd(), p)),
     ])
 

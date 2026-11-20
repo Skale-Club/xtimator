@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { billingBlockCopy } from '@/lib/billing/block-toast'
+import { billingBlockAction, billingBlockCopy } from '@/lib/billing/block-toast'
 import {
   BILLING_SETTINGS_PATH,
   isBillingBlockCode,
@@ -65,7 +65,13 @@ export function UpgradeModal() {
                 description: copy.description,
                 duration: 9000,
                 ...(copy.cta
-                  ? { action: { label: copy.cta, onClick: () => router.push(target) } }
+                  ? {
+                      action: {
+                        label: copy.cta,
+                        onClick: () =>
+                          billingBlockAction(body.state === 'out_of_credits' ? 'out_of_credits' : 'paywalled', router),
+                      },
+                    }
                   : {}),
               })
               return

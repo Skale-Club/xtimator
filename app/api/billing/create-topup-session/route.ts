@@ -3,12 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { getStripeClient } from '@/lib/billing/stripe-client'
-import { STRIPE_PRODUCT_IMAGE_URL } from '@/lib/billing/stripe-product-image'
 import { isTwaRequest, TWA_PURCHASE_BLOCKED_BODY } from '@/lib/pwa/twa-context'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { getBillingConfig } from '@/lib/billing/billing-config'
-import { ensureStripeCustomer } from '@/lib/billing/stripe-customer'
-import { getCanonicalBaseUrl } from '@/lib/utils/site-url'
+import { createTopupCheckoutSession } from '@/lib/billing/topup-checkout'
 import { rateLimit } from '@/lib/ratelimit'
 import { resolveBillingCurrency, resolvePackPrice } from '@/lib/billing/billing-currency'
 import { isTopupEligible, TOPUP_REQUIRES_SUBSCRIPTION_BODY } from '@/lib/billing/topup-eligibility'
@@ -52,7 +50,7 @@ export async function POST(request: NextRequest) {
   const blocked = await demoGuardResponse()
   if (blocked) return blocked
 
-  const body = (await request.json().catch(() => null)) as { packIndex?: number } | null
+  const body = (await request.json().catch(() => null)) as { packIndex?: number; returnTo?: string } | null
   const packIndex = Number(body?.packIndex)
 
   const companyId = await getActiveCompanyId()
@@ -116,47 +114,16 @@ export async function POST(request: NextRequest) {
   // key because the request parameters differ.
   const idempotencyKey = `topup:${company.id}:${packIndex}:${pack.credits}:${priceCents}:${currency}:${Math.floor(Date.now() / 60000)}`
 
-  const session = await stripe.checkout.sessions.create(
-    {
-      mode: 'payment',
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency, // 'usd' | 'brl'
-            unit_amount: priceCents, // server-side — never from the body (Pitfall 4)
-            product_data: {
-              name: `${pack.credits} Xtimator credits`,
-              images: [STRIPE_PRODUCT_IMAGE_URL],
-            },
-          },
-        },
-      ],
-      // Always a persisted Stripe Customer — never an orphan created ad hoc by
-      // Checkout (see lib/billing/stripe-customer.ts).
-      customer: await ensureStripeCustomer(stripe, company.id as string),
-      success_url: `${getCanonicalBaseUrl()}/settings/billing?topup=1`,
-      cancel_url: `${getCanonicalBaseUrl()}/settings/billing?topup=cancelled`,
-      metadata: {
-        type: 'credit_topup',
-        companyId: company.id,
-        credits: String(pack.credits), // metadata values are strings
-      },
-      // Stripe does NOT copy Session metadata onto the PaymentIntent, and a
-      // refund event carries only the Charge/PI — without this the
-      // charge.refunded clawback cannot tell a top-up from any other charge
-      // and silently does nothing. Same three keys, so both the grant
-      // (checkout.session.completed) and the clawback read one shape.
-      payment_intent_data: {
-        metadata: {
-          type: 'credit_topup',
-          companyId: company.id,
-          credits: String(pack.credits),
-        },
-      },
-    },
-    { idempotencyKey }
-  )
+  const session = await createTopupCheckoutSession({
+    stripe,
+    companyId: company.id as string,
+    packIndex,
+    pack,
+    priceCents,
+    currency,
+    returnTo: typeof body?.returnTo === 'string' ? body.returnTo : null,
+    idempotencyKey,
+  })
 
   return NextResponse.json({ url: session.url })
 }

@@ -38,14 +38,17 @@ import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { billingCreateDenied } from '@/lib/billing/access-guard'
+import { creditBlockMessage } from '@/lib/billing/billing-links'
 
 /** Thrown by createEstimate when the company's credit balance is spent. */
+// Credits plan 2026-11-20: the thrown message is creditBlockMessage() - this
+// sentence plus a tappable https link to the packs / the Pro offer.
 export const INSUFFICIENT_CREDITS_MESSAGE =
-  'Out of credits — buy credits at /settings/billing to keep creating estimates.'
+  "You're out of credits — buy credits to keep creating estimates"
 
 /** Thrown instead when the company has no live subscription (paywalled). */
 export const PAYWALLED_MESSAGE =
-  'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
+  'Your free credits are used up — subscribe to Xtimator Pro to keep creating estimates'
 
 export async function createEstimate(args: {
   companyId: string
@@ -69,9 +72,7 @@ export async function createEstimate(args: {
   )
   if (!allowed) {
     const blocked = await billingCreateDenied(args.companyId, 'estimate')
-    throw new Error(
-      blocked?.code === 'paywalled' ? PAYWALLED_MESSAGE : INSUFFICIENT_CREDITS_MESSAGE,
-    )
+    throw new Error(creditBlockMessage(blocked?.code === 'paywalled' ? 'paywalled' : 'out_of_credits'))
   }
 
   const requestId = randomUUID()

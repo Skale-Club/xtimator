@@ -9,6 +9,7 @@ import { triggerAutoTopupIfNeeded } from '@/lib/billing/auto-topup'
 import { notifyOps } from '@/lib/observability/ops-alert'
 import { currentMonthlyCreditWindow } from '@/lib/billing/credit-window'
 import { isTopupEligible } from '@/lib/billing/topup-eligibility'
+import { BUY_CREDITS_PATH, SUBSCRIBE_PATH } from '@/lib/billing/billing-links'
 
 /**
  * Best-effort ops alert for a swallowed credit-ledger write failure. Shared by
@@ -291,6 +292,37 @@ async function creditCtaFor(companyId: string): Promise<string> {
   return 'Subscribe to Pro'
 }
 
+/**
+ * Credits plan 2026-11-20: the alerts used to dedupe per calendar month, so an
+ * owner who bought a pack and ran low again the same month heard nothing. The
+ * dedupe window is now "since the last credit grant": any purchase, renewal or
+ * adjustment opens a new window. Falls back to the month if the ledger cannot
+ * be read.
+ */
+async function creditAlertWindow(companyId: string): Promise<string> {
+  try {
+    const svc = requireServiceClient()
+    const { data } = await svc
+      .from('credit_ledger')
+      .select('created_at')
+      .eq('company_id', companyId)
+      .gt('delta_credits', 0)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const at = (data as { created_at?: string } | null)?.created_at
+    if (at) return `g${new Date(at).getTime()}`
+  } catch {
+    /* fall through to the month */
+  }
+  return monthKey()
+}
+
+/** Where the alert's link lands: the packs for a subscriber, the Pro offer otherwise. */
+function creditAlertLink(cta: string): string {
+  return cta === 'Buy credits' ? BUY_CREDITS_PATH : SUBSCRIBE_PATH
+}
+
 export async function notifyLowCreditBalance(params: {
   companyId: string
   userId?: string | null
@@ -299,7 +331,6 @@ export async function notifyLowCreditBalance(params: {
   thresholds: number[]
 }): Promise<void> {
   const { companyId, userId, previousBalance, newBalance, thresholds } = params
-  const month = monthKey()
 
   try {
     // Zero / exhausted state takes precedence over any low-threshold crossing.
@@ -308,6 +339,7 @@ export async function notifyLowCreditBalance(params: {
     // month — whichever fires first wins (they mean the same thing to the user).
     if (previousBalance > 0 && newBalance <= 0) {
       const ctx = { creditCta: await creditCtaFor(companyId) }
+      const window = await creditAlertWindow(companyId)
       const copy = buildNotificationCopy('quota.exhausted', ctx)
       void notify({
         companyId,
@@ -316,9 +348,9 @@ export async function notifyLowCreditBalance(params: {
         title: copy.title,
         body: copy.body,
         copyContext: ctx,
-        linkUrl: '/settings/billing',
+        linkUrl: creditAlertLink(ctx.creditCta),
         channels: { inApp: true, email: true },
-        metadata: { dedupe_key: `quota-exhausted-${companyId}-${month}` },
+        metadata: { dedupe_key: `quota-exhausted-${companyId}-${window}` },
       })
       return
     }
@@ -335,6 +367,7 @@ export async function notifyLowCreditBalance(params: {
     // "you're running low" reaches the owner at most once per month regardless
     // of which meter (count or credit) crossed first.
     const ctx = { creditCta: await creditCtaFor(companyId) }
+    const window = await creditAlertWindow(companyId)
     const copy = buildNotificationCopy('quota.80pct', ctx)
     void notify({
       companyId,
@@ -343,8 +376,8 @@ export async function notifyLowCreditBalance(params: {
       title: copy.title,
       body: copy.body,
       copyContext: ctx,
-      linkUrl: '/settings/billing',
-      metadata: { dedupe_key: `quota-80-${companyId}-${month}` },
+      linkUrl: creditAlertLink(ctx.creditCta),
+      metadata: { dedupe_key: `quota-80-${companyId}-${window}` },
     })
   } catch {
     /* best-effort — never throws (a notify failure must not break the debit). */

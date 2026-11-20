@@ -82,12 +82,9 @@ export function CreditBalanceBody({
   const band =
     percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
 
-  const resetCaption =
-    tier === 'free'
-      ? hidePurchase
-        ? 'Free credits never expire.'
-        : 'Free credits never expire. Subscribe to Pro when they run out.'
-      : 'Monthly credits expire when your billing cycle renews.'
+  // Owner 2026-11-20: no "free credits never expire" caption; only the paid
+  // plan's expiry rule is worth a line.
+  const resetCaption = tier === 'free' ? null : 'Monthly credits expire when your billing cycle renews.'
 
   return (
     <div className="space-y-5">
@@ -130,15 +127,12 @@ export function CreditBalanceBody({
                   <span className="block font-medium text-foreground">
                     <T text={LOT_LABEL[lot.source]} />
                   </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {lot.expiresAt ? (
-                      <>
-                        <T>Expires</T> <LocalizedDate iso={lot.expiresAt} variant="short" utc />
-                      </>
-                    ) : (
-                      <T>No expiry</T>
-                    )}
-                  </span>
+                  {/* Only a real expiry date is worth a line (no "No expiry"). */}
+                  {lot.expiresAt && (
+                    <span className="block text-xs text-muted-foreground">
+                      <T>Expires</T> <LocalizedDate iso={lot.expiresAt} variant="short" utc />
+                    </span>
+                  )}
                 </span>
               </span>
               <span className="whitespace-nowrap font-medium [font-variant-numeric:tabular-nums]">
@@ -149,7 +143,7 @@ export function CreditBalanceBody({
         </ul>
       )}
 
-      {showCaption && (
+      {showCaption && resetCaption && (
         <p className="text-xs text-muted-foreground">
           <T text={resetCaption} />
         </p>

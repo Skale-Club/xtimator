@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { getAuthClaims } from '@/lib/queries/auth'
@@ -12,6 +11,7 @@ import { isTopupEligible } from '@/lib/billing/topup-eligibility'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { getStripeDisplayPrices } from '@/lib/billing/stripe-display-prices'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { resolveSavedCard, savedCardLabel } from '@/lib/billing/saved-card'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { computeUsagePercent } from '@/lib/billing/usage-percent'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +21,6 @@ import { TopUpPacksGrid } from '@/components/billing/topup-packs-grid'
 import { CreditBalanceBody } from '@/components/billing/credit-balance-card'
 import { CreditHistoryList } from '@/components/billing/credit-history-list'
 import { AutoTopupCard } from '@/components/billing/auto-topup-card'
-import { BillingStatusToast } from '@/components/billing/billing-status-toast'
 import { formatUsd, formatCredits } from '@/lib/billing/format-usd'
 import { formatBillingAmount, resolveBillingCurrency } from '@/lib/billing/billing-currency'
 import { T } from '@/components/i18n/t'
@@ -135,7 +134,15 @@ export default async function BillingPage() {
     auto_topup_last_failed_at?: string | null
     stripe_customer_id?: string | null
   } | null = null
-  let autoTopupPaymentMethodLabel: string | null = null
+  // Credits plan 2026-11-20: the card a buy (one click or auto top-up) charges -
+  // the subscription's card, resolved the same way the buy route does.
+  // Never 500 the page on a Stripe hiccup: no card simply means "Checkout".
+  const savedCard = topupEligible && !isTwa
+    ? await getStripeClient()
+        .then((stripe) => resolveSavedCard(stripe, data.stripeCustomerId, data.stripeSubscriptionId))
+        .catch(() => null)
+    : null
+  const autoTopupPaymentMethodLabel: string | null = savedCardLabel(savedCard)
 
   if (cfg.autoTopupEnabled && topupEligible) {
     const svc = requireServiceClient()
@@ -147,27 +154,6 @@ export default async function BillingPage() {
       .eq('id', company.id)
       .maybeSingle()
     autoTopupCompany = autoTopupRow
-
-    if (autoTopupCompany?.stripe_customer_id) {
-      try {
-        const stripe = await getStripeClient()
-        const customer = (await stripe.customers.retrieve(autoTopupCompany.stripe_customer_id, {
-          expand: ['invoice_settings.default_payment_method'],
-        })) as unknown as {
-          invoice_settings?: {
-            default_payment_method?: { card?: { brand?: string; last4?: string } } | string | null
-          }
-        }
-        const pm = customer.invoice_settings?.default_payment_method
-        if (pm && typeof pm !== 'string' && pm.card?.brand && pm.card?.last4) {
-          const brand = pm.card.brand.charAt(0).toUpperCase() + pm.card.brand.slice(1)
-          autoTopupPaymentMethodLabel = `${brand} •••• ${pm.card.last4}`
-        }
-      } catch (err) {
-        console.warn('[settings/billing] auto-top-up payment method read failed:', err)
-        autoTopupPaymentMethodLabel = null
-      }
-    }
   }
 
   // Prefer the per-company price snapshot (what the tenant authorized) over the
@@ -265,9 +251,6 @@ export default async function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <Suspense fallback={null}>
-        <BillingStatusToast />
-      </Suspense>
       <SettingsHeader
         title={<T>Plan and billing</T>}
         description={<T>Your plan, credits and payments.</T>}
@@ -326,16 +309,14 @@ export default async function BillingPage() {
                 </span>
               )
             )}
-            {data.tier === 'free' && (
+            {/* Owner 2026-11-20: no "free credits never expire" line - only the
+                paywall's consequence is worth saying. */}
+            {data.tier === 'free' && paywall.state === 'paywalled' && (
               <span>
-                {paywall.state === 'paywalled' ? (
-                  isTwa ? (
-                    <T>Your free credits are used up.</T>
-                  ) : (
-                    <T>Your free credits are used up. Until you subscribe, your estimates are read-only.</T>
-                  )
+                {isTwa ? (
+                  <T>Your free credits are used up.</T>
                 ) : (
-                  <T>Free plan — your free credits never expire.</T>
+                  <T>Your free credits are used up. Until you subscribe, your estimates are read-only.</T>
                 )}
               </span>
             )}
@@ -346,10 +327,8 @@ export default async function BillingPage() {
             </p>
           )}
           <p className="text-xs text-muted-foreground" data-testid="usage-this-month">
-            <T
-              text="This month: {estimates} estimates · {photos} photos analyzed"
-              values={{ estimates: data.estimatesThisMonth, photos: data.photosThisMonth }}
-            />
+            {/* Owner 2026-11-20: the photo count adds nothing; estimates only. */}
+            <T text="This month: {estimates} estimates" values={{ estimates: data.estimatesThisMonth }} />
           </p>
           {planAction && <div className="pt-1">{planAction}</div>}
         </div>
@@ -400,7 +379,13 @@ export default async function BillingPage() {
               <T>Only the company owner can manage billing.</T>
             </p>
           )}
-          <TopUpPacksGrid packs={cfg.topUpPacks} isOwner={isOwner} currency={billingCurrency} />
+          <TopUpPacksGrid
+            packs={cfg.topUpPacks}
+            isOwner={isOwner}
+            currency={billingCurrency}
+            estimateRange={cfg.estimateCreditsRange}
+            cardLabel={autoTopupPaymentMethodLabel}
+          />
           {/* Auto top-up is gated behind the platform kill switch
               (billing_config.autoTopupEnabled); omitted from the tree
               entirely, not rendered-disabled, when the switch is off. */}

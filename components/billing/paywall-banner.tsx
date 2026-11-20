@@ -6,6 +6,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 import { TWA_OUT_OF_CREDITS_COPY } from '@/lib/pwa/twa-signal'
+import { openBuyCredits } from '@/components/billing/buy-credits'
 
 /**
  * SEED-055 Phase D: persistent, NON-dismissable top banner for a company whose
@@ -55,18 +56,24 @@ export function PaywallBanner({
         role="status"
         data-testid="paywall-banner"
         data-state="out_of_credits"
-        className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400"
+        className="flex items-center gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-sm md:px-6"
       >
-        <span className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          {t("You're out of credits")}
-        </span>
-        <Link
-          href={BILLING_SETTINGS_PATH}
-          className="font-semibold underline underline-offset-2 hover:no-underline"
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+        <p className="min-w-0 flex-1 leading-snug">
+          <span className="font-semibold text-foreground">{t("You're out of credits")}</span>
+          <span className="hidden text-muted-foreground md:inline">
+            {'. '}
+            {t('Buy a pack to keep creating estimates. Your estimates stay editable.')}
+          </span>
+        </p>
+        {/* Credits plan 2026-11-20: opens the buy dialog right here. */}
+        <button
+          type="button"
+          onClick={() => openBuyCredits()}
+          className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-primary px-3.5 text-center text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
           {t('Buy credits')}
-        </Link>
+        </button>
       </div>
     )
   }

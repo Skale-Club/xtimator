@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCachedBranding } from '@/lib/platform-config'
 import { getAuthClaims } from '@/lib/queries/auth'
@@ -20,6 +21,8 @@ import { DemoBanner } from '@/components/demo/demo-banner'
 import { isDemoCompany } from '@/lib/demo/config'
 import { academyEntryPointVisible } from '@/lib/academy/access'
 import { UpgradeModal } from '@/components/billing/upgrade-modal'
+import { BuyCreditsProvider } from '@/components/billing/buy-credits'
+import { BillingStatusToast } from '@/components/billing/billing-status-toast'
 import { TourProvider } from '@/components/tour/tour-provider'
 import { WelcomeModal } from '@/components/tour/welcome-modal'
 import { TourSpotlight } from '@/components/tour/tour-spotlight'
@@ -293,6 +296,12 @@ export default async function AppShellLayout({
           <BackgroundGenerationWatcher />
           <TranslationLoadingOverlay />
           <UpgradeModal />
+          {/* Credits plan 2026-11-20: one buy dialog for every "Buy credits",
+              and the Stripe return toast on whichever page Checkout comes back to. */}
+          {!isDemo && <BuyCreditsProvider />}
+          <Suspense fallback={null}>
+            <BillingStatusToast />
+          </Suspense>
           <WelcomeModal />
           <TourSpotlight />
           <OfflineIndicator />

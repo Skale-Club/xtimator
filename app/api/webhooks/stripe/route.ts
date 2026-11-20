@@ -322,7 +322,7 @@ function requiresCompanyResolution(event: Stripe.Event): boolean {
 
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object as Stripe.PaymentIntent
-    return paymentIntent.metadata?.type === 'auto_topup'
+    return paymentIntent.metadata?.type === 'auto_topup' || paymentIntent.metadata?.type === 'direct_topup'
   }
 
   return false
@@ -880,11 +880,15 @@ async function handlePlatformEvent(
     // confirms the charge but before the synchronous grant call completes.
     case 'payment_intent.succeeded': {
       const pi = event.data.object as Stripe.PaymentIntent
-      if (pi.metadata?.type === 'auto_topup') {
+      // Credits plan 2026-11-20: 'direct_topup' is the one-click buy
+      // (app/api/billing/buy-credits), granted synchronously there with the
+      // same `directtopup:{pi}` key - this arm is its backstop.
+      if (pi.metadata?.type === 'auto_topup' || pi.metadata?.type === 'direct_topup') {
         const topupCompanyId = pi.metadata.companyId
         const credits = Number(pi.metadata.credits)
         if (topupCompanyId && credits > 0) {
           const cfg = await getBillingConfig().catch(() => null)
+          const keyPrefix = pi.metadata.type === 'direct_topup' ? 'directtopup' : 'autotopup'
           await grantCredits({
             companyId: topupCompanyId,
             credits,
@@ -892,7 +896,7 @@ async function handlePlatformEvent(
             source: 'topup',
             expiresAt: topupExpiresAt(cfg?.topupExpiryMonths),
             refId: pi.id,
-            idempotencyKey: `autotopup:${pi.id}`,
+            idempotencyKey: `${keyPrefix}:${pi.id}`,
           })
         }
       }
@@ -1066,7 +1070,7 @@ async function handlePlatformEvent(
       const piMetadata = await resolveChargePaymentIntentMetadata(charge, stripe)
       const topupType = piMetadata?.type
 
-      if (topupType === 'credit_topup' || topupType === 'auto_topup') {
+      if (topupType === 'credit_topup' || topupType === 'auto_topup' || topupType === 'direct_topup') {
         // Claw back the credits IN PROPORTION to what was actually refunded:
         // a $1 refund on a $100 pack must not zero all 10,000 credits. Each
         // Stripe refund is its own object, so keying on the REFUND id (not the

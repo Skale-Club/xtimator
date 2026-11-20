@@ -9,13 +9,26 @@ vi.mock('@/lib/notifications/copy', () => ({
 }))
 
 const companyRow: { data: unknown } = { data: null }
+// Credits plan 2026-11-20: the dedupe window starts at the last credit grant.
+const lastGrant: { data: unknown } = { data: null }
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({ maybeSingle: () => Promise.resolve(companyRow) }),
-      }),
-    }),
+    from: (table: string) =>
+      table === 'credit_ledger'
+        ? {
+            select: () => ({
+              eq: () => ({
+                gt: () => ({
+                  order: () => ({ limit: () => ({ maybeSingle: () => Promise.resolve(lastGrant) }) }),
+                }),
+              }),
+            }),
+          }
+        : {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve(companyRow) }),
+            }),
+          },
   }),
 }))
 
@@ -31,6 +44,7 @@ describe('notifyLowCreditBalance', () => {
     vi.clearAllMocks()
     ;(notify as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true })
     companyRow.data = { tier: 'free', stripe_subscription_status: null, stripe_subscription_id: null }
+    lastGrant.data = null
   })
 
   it('fires once on a downward crossing of a low threshold', async () => {
@@ -45,7 +59,8 @@ describe('notifyLowCreditBalance', () => {
 
     expect(notify).toHaveBeenCalledTimes(1)
     const arg = (notify as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(arg.linkUrl).toBe('/settings/billing')
+    // A free company is pointed at the Pro offer.
+    expect(arg.linkUrl).toBe('/settings/billing#choose-plan')
     // Billing v2: dedupe shares the quota namespace (`quota-80-{c}-{month}`) so
     // the credit + count meters can never double-ping in the same month.
     expect(arg.metadata.dedupe_key).toContain(COMPANY_ID)
@@ -65,7 +80,34 @@ describe('notifyLowCreditBalance', () => {
     expect(notify).toHaveBeenCalledTimes(1)
     const arg = (notify as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(arg.eventType).toBe('quota.exhausted')
-    expect(arg.linkUrl).toBe('/settings/billing')
+    expect(arg.linkUrl).toBe('/settings/billing#choose-plan')
+  })
+
+  it('a live Pro subscriber is linked to the packs, and a new grant opens a new alert window', async () => {
+    companyRow.data = { tier: 'pro', stripe_subscription_status: 'active', stripe_subscription_id: 'sub_1' }
+    lastGrant.data = { created_at: '2026-11-20T10:00:00.000Z' }
+    await notifyLowCreditBalance({
+      companyId: COMPANY_ID,
+      userId: null,
+      previousBalance: 40,
+      newBalance: 0,
+      thresholds: THRESHOLDS,
+    })
+    const first = (notify as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(first.linkUrl).toBe('/settings/billing#topup-packs')
+    expect(first.metadata.dedupe_key).toBe(`quota-exhausted-${COMPANY_ID}-g${Date.parse('2026-11-20T10:00:00.000Z')}`)
+
+    // Bought a pack later the same month: a different window, so it can alert again.
+    lastGrant.data = { created_at: '2026-11-25T08:00:00.000Z' }
+    await notifyLowCreditBalance({
+      companyId: COMPANY_ID,
+      userId: null,
+      previousBalance: 40,
+      newBalance: 0,
+      thresholds: THRESHOLDS,
+    })
+    const second = (notify as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    expect(second.metadata.dedupe_key).not.toBe(first.metadata.dedupe_key)
   })
 
   it('does NOT fire when there is no downward crossing (both above)', async () => {

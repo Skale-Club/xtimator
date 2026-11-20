@@ -78,9 +78,9 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
     expect(html).not.toContain('Top up now')
   })
 
-  it('Test 6a: free tier caption says free credits never expire', () => {
+  it('Test 6a: free tier has no "never expire" caption (owner 2026-11-20)', () => {
     const { container } = render(<CreditBalanceCard percentUsed={10} tier="free" />)
-    expect(container.innerHTML).toContain('Free credits never expire. Subscribe to Pro when they run out.')
+    expect(container.innerHTML).not.toMatch(/never expire/i)
   })
 
   it('Test 6b: paid tier caption says monthly credits expire at renewal', () => {
@@ -113,6 +113,8 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
       expect(rows[2].textContent).not.toContain('Expires')
       expect(rows[3].textContent).toContain('Adjustments')
       expect(rows[3].textContent).not.toContain('Expires')
+      // No "No expiry" line either: only a real date is shown.
+      expect(rows[2].textContent).not.toMatch(/no expiry/i)
     })
 
     it('renders no lot list when there are no live lots', () => {

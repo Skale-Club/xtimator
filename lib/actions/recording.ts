@@ -617,7 +617,9 @@ export async function startRecordingPipeline(input: {
       errorMessage: 'Insufficient credits',
       provider: null,
     })
-    const code = await creditBlockState(company.id, 'audio_minutes')
+    // The gate above is the estimate's, so the wall is too (it read 'audio_minutes',
+    // which a 3-credit balance passes - a Pro subscriber then saw "Subscribe").
+    const code = await creditBlockState(company.id, 'estimate')
     return { error: BILLING_BLOCK_MESSAGES[code], code }
   }
 

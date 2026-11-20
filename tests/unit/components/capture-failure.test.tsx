@@ -109,7 +109,20 @@ describe('SEED-055 Phase D: credits / paywall failures', () => {
       expect(screen.queryByTestId('capture-edit-manually')).toBeNull()
       expect(screen.queryByTestId('capture-retry')).toBeNull()
       const cta = screen.getByTestId('capture-billing-cta')
-      expect(cta.getAttribute('href')).toBe('/settings/billing')
+      // Credits plan 2026-11-20: out of credits buys in place (a button that
+      // opens the buy dialog); the paywall goes to the Pro offer.
+      if (billingBlock === 'out_of_credits') {
+        expect(cta.tagName).toBe('BUTTON')
+        const opened = vi.fn()
+        window.addEventListener('xtm:buy-credits', opened)
+        cta.click()
+        expect(opened).toHaveBeenCalledTimes(1)
+        window.removeEventListener('xtm:buy-credits', opened)
+      } else {
+        expect(cta.getAttribute('href')).toBe(
+          billingBlock === 'paywalled' ? '/settings/billing#choose-plan' : '/settings/billing'
+        )
+      }
     }
   )
 

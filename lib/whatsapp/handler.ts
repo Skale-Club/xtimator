@@ -33,6 +33,7 @@ import { getEntitlementsForTier } from '@/lib/entitlements-server'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { creditBlockState, billingCreateDenied } from '@/lib/billing/access-guard'
+import { creditBlockMessage } from '@/lib/billing/billing-links'
 import { logOutboundMessage } from '@/lib/whatsapp/conversations'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import type { WhatsAppMessage } from '@/lib/whatsapp/types'
@@ -117,10 +118,8 @@ async function replyIfAccountBlocked(
 ): Promise<boolean> {
   const denied = await billingCreateDenied(companyId, 'chat')
   if (!denied) return false
-  const body =
-    denied.code === 'paywalled'
-      ? 'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
-      : "You're out of credits — buy credits at /settings/billing to keep creating estimates."
+  // Credits plan 2026-11-20: a full https link WhatsApp can tap.
+  const body = creditBlockMessage(denied.code)
   const wamid = await sendWhatsAppMessage(
     ownerPhone,
     { type: 'text', text: { body } },
@@ -507,10 +506,7 @@ export async function processInboundMessages(
   const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'))
   if (!credit.allowed) {
     const blockedState = await creditBlockState(companyId, 'estimate')
-    const body =
-      blockedState === 'paywalled'
-        ? 'Your free credits are used up — subscribe to Xtimator Pro at /settings/billing to keep creating estimates.'
-        : "You're out of credits — buy credits at /settings/billing to keep creating estimates."
+    const body = creditBlockMessage(blockedState)
     const wamid = await sendWhatsAppMessage(
       ownerPhone,
       { type: 'text', text: { body } },

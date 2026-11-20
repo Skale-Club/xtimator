@@ -89,18 +89,33 @@ describe('NewProjectWizard edit mode', () => {
   })
 })
 
+// Credits plan 2026-11-20: out of credits shows the packs inside the block.
+vi.mock('@/components/billing/buy-credits', () => ({
+  BuyCreditsInline: () => <div data-testid="buy-credits-inline" />,
+}))
+
 describe('NewProjectWizard new mode when the company cannot start an estimate', () => {
-  it.each([
-    ['paywalled', 'Your free credits are used up', 'Subscribe'],
-    ['out_of_credits', "You're out of credits", 'Buy credits'],
-  ] as const)('%s: shows the block with its way out instead of an endless loader', async (code, title, cta) => {
+  it('paywalled: shows the block with Subscribe instead of an endless loader', async () => {
     const { resumeOrCreateDraftProjectAction } = await import('@/lib/actions/project')
-    vi.mocked(resumeOrCreateDraftProjectAction).mockResolvedValue({ error: 'blocked', code } as never)
+    vi.mocked(resumeOrCreateDraftProjectAction).mockResolvedValue({ error: 'blocked', code: 'paywalled' } as never)
     render(<NewProjectWizard />)
     const blocked = await screen.findByTestId('new-xtimate-blocked')
-    expect(blocked).toHaveAttribute('data-state', code)
-    expect(screen.getByText(title)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: cta })).toBeInTheDocument()
+    expect(blocked).toHaveAttribute('data-state', 'paywalled')
+    expect(screen.getByText('Your free credits are used up')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Subscribe' })).toBeInTheDocument()
+    expect(screen.queryByTestId('buy-credits-inline')).toBeNull()
+    expect(screen.queryByTestId('recorder-stub')).toBeNull()
+    expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('out_of_credits: shows the block with the packs right there', async () => {
+    const { resumeOrCreateDraftProjectAction } = await import('@/lib/actions/project')
+    vi.mocked(resumeOrCreateDraftProjectAction).mockResolvedValue({ error: 'blocked', code: 'out_of_credits' } as never)
+    render(<NewProjectWizard />)
+    const blocked = await screen.findByTestId('new-xtimate-blocked')
+    expect(blocked).toHaveAttribute('data-state', 'out_of_credits')
+    expect(screen.getByText("You're out of credits")).toBeInTheDocument()
+    expect(screen.getByTestId('buy-credits-inline')).toBeInTheDocument()
     expect(screen.queryByTestId('recorder-stub')).toBeNull()
     expect(toastError).not.toHaveBeenCalled()
   })

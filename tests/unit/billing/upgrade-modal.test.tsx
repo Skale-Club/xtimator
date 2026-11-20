@@ -85,7 +85,7 @@ describe('UpgradeModal copy', () => {
     expect(opts.action.label).toBe('Subscribe')
     expect(`${title} ${opts.description}`).not.toMatch(/manual/i)
     opts.action.onClick()
-    expect(push).toHaveBeenCalledWith('/settings/billing')
+    expect(push).toHaveBeenCalledWith('/settings/billing#choose-plan')
   })
 
   it('out_of_credits -> Buy credits', async () => {

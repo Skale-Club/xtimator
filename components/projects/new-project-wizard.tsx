@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import { createBlankEstimate } from '@/lib/actions/estimate'
 import { billingBlockCopy, showBillingBlockToast } from '@/lib/billing/block-toast'
 import { BILLING_SETTINGS_PATH, isBillingBlockCode, type BillingBlockCode } from '@/lib/billing/block-codes'
 import { CreditCard } from 'lucide-react'
+import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { Button } from '@/components/ui/button'
 import { useAppTranslation, useTranslation } from '@/lib/i18n/use-translation'
 import { LoadingDots } from '@/components/ui/loading-dots'
@@ -111,9 +112,7 @@ export function NewProjectWizard({
     if (value) setPrefill(value)
   }, [editProjectId])
 
-  useEffect(() => {
-    if (createdRef.current) return
-    createdRef.current = true
+  const start = useCallback(() => {
     setIsCreating(true)
 
     void (async () => {
@@ -162,6 +161,19 @@ export function NewProjectWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (createdRef.current) return
+    createdRef.current = true
+    start()
+  }, [start])
+
+  // Credits plan 2026-11-20: bought credits from the block below - carry on
+  // creating the draft right here, no reload.
+  const handlePurchased = useCallback(() => {
+    setBlockedCode(null)
+    start()
+  }, [start])
+
   function handleComplete(estimateId: string) {
     if (!project) return
     // Draft consumed — the project now owns a real estimate, so the next New
@@ -206,10 +218,16 @@ export function NewProjectWizard({
           <p className="text-base font-semibold">{copy.title}</p>
           <p className="text-sm text-muted-foreground">{copy.description}</p>
         </div>
-        {copy.cta && (
-          <Button size="lg" onClick={() => router.push(BILLING_SETTINGS_PATH)}>
-            {copy.cta}
-          </Button>
+        {blockedCode === 'out_of_credits' ? (
+          <div className="w-full max-w-sm">
+            <BuyCreditsInline onPurchased={handlePurchased} />
+          </div>
+        ) : (
+          copy.cta && (
+            <Button size="lg" onClick={() => router.push(`${BILLING_SETTINGS_PATH}#choose-plan`)}>
+              {copy.cta}
+            </Button>
+          )
         )}
       </div>
     )

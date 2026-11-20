@@ -5,6 +5,7 @@ import { getCaptureGateContext } from '@/lib/billing/access-guard'
 import { TwaProvider } from '@/components/pwa/twa-provider'
 import { isTwaRequest } from '@/lib/pwa/twa-context'
 import { CaptureBlocked } from '@/components/billing/capture-blocked'
+import { BuyCreditsProvider } from '@/components/billing/buy-credits'
 import type { Metadata } from 'next'
 import { PRIVATE_ROBOTS } from '@/lib/seo/route-policy'
 
@@ -33,6 +34,8 @@ export default async function CaptureLayout({ children }: { children: React.Reac
         <CaptureBlocked state={paywall.state} priceLabel={isTwa ? '' : paywall.priceLabel} />
       )}
     </div>
+    {/* Credits plan 2026-11-20: "Buy credits" inside a capture opens here. */}
+    <BuyCreditsProvider />
     </TwaProvider>
   )
 }
