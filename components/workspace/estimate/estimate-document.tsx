@@ -985,7 +985,12 @@ function DocumentSectionBlock({
                 dispatch({ type: 'ADD_ITEM', sectionId: section.id, itemId })
                 onOpenItem(section.id, itemId, true)
               } else {
-                dispatch({ type: 'ADD_ITEM', sectionId: section.id })
+                // Desktop: the new row takes the focus, so typing right after
+                // "Add item" fills it (before, the text went nowhere and a space
+                // re-pressed the button, piling up empty rows).
+                const itemId = 'temp-' + crypto.randomUUID()
+                dispatch({ type: 'ADD_ITEM', sectionId: section.id, itemId })
+                focusRowDescription(itemId)
               }
             }}
             // Phones: the "+" hangs in the gutter so the label starts on the 24px rail.
@@ -2464,14 +2469,17 @@ export function EstimateDocument({
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 select-none">
               {L.signedBy}
             </p>
-            <div className="flex items-start gap-4">
+            {/* Phones: the name and date sit under the signature (side by side,
+                a 240px signature left ~70px for the name, which broke one word
+                per line and clipped the date - QA 2026-11-19). */}
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={data.signature.signatureDataUrl}
                 alt={L.signedBy}
-                className="h-16 w-auto max-w-[240px] object-contain"
+                className="h-16 w-auto max-w-full sm:max-w-[240px] object-contain"
               />
-              <div>
+              <div className="min-w-0">
                 <p className="text-base font-semibold">{data.signature.signerName}</p>
                 <p className="text-sm text-muted-foreground">{formatDate(data.signature.signedAt, lang)}</p>
               </div>

@@ -35,6 +35,7 @@ import { ChangeOrderInvoiceSheet } from './change-order-invoice-sheet'
 import { ChangeOrderInvoiceRow } from './change-order-invoice-row'
 import { ChangeOrderStatusSheet } from './change-order-status-sheet'
 import { ChangeOrderTopBar, CO_GUTTER, type CoSaveStatus } from './change-order-top-bar'
+import { isReloadingForNewBuild, recoverFromStaleBuild, takeDraft } from '@/lib/deploy/stale-build'
 import {
   blankLine,
   isBlankLine,
@@ -152,6 +153,17 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
     setDirtyVersion(dirtyVersionRef.current)
   }, [])
 
+  // A draft stashed because a save failed across a deploy (lib/deploy/stale-build):
+  // put it back as unsaved edits, so this build saves it. Only taken when the
+  // server copy is still the one the draft was based on.
+  const draftKey = `change-order:${changeOrder.id}`
+  useEffect(() => {
+    const draft = takeDraft<Fields>(draftKey, changeOrder.updated_at)
+    if (draft) edit(() => draft)
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Server data changed (router.refresh): adopt it unless unsaved edits are waiting.
   const seenServerRef = useRef(changeOrder)
   useEffect(() => {
@@ -224,6 +236,7 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
           })
           return false
         }
+        if (await recoverFromStaleBuild(draftKey, updatedAtRef.current, fieldsRef.current)) return false
         toast.error(t('Could not save your changes. Try again.'))
         return false
       }
@@ -239,12 +252,15 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
       return true
     } catch {
       setSaveStatus('error')
+      // A Server Action from an older build throws here (404): if a new build
+      // is live, keep the draft and reload instead of losing it.
+      if (await recoverFromStaleBuild(draftKey, updatedAtRef.current, fieldsRef.current)) return false
       toast.error(t('Could not save your changes. Try again.'))
       return false
     } finally {
       savingRef.current = false
     }
-  }, [changeOrder.id, router, t])
+  }, [changeOrder.id, draftKey, router, t])
 
   useEffect(() => {
     if (locked || paused || !isDirty) return
@@ -259,6 +275,8 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (dirtyVersionRef.current <= savedVersionRef.current || lockedRef.current) return
+      // Reloading on purpose to save the stashed draft with the new build.
+      if (isReloadingForNewBuild()) return
       e.preventDefault()
       e.returnValue = ''
     }
@@ -300,7 +318,15 @@ export function ChangeOrderEditor({ changeOrder, contract, project, company, inv
     [edit],
   )
   const addLine = useCallback(
-    (credit: boolean) => edit((f) => ({ ...f, lines: [...f.lines, blankLine(credit, true)] })),
+    (credit: boolean) => {
+      const line = blankLine(credit, true)
+      edit((f) => ({ ...f, lines: [...f.lines, line] }))
+      // The new line takes the focus so typing right after "Add item" fills it
+      // (a timer, not requestAnimationFrame, which stalls in a background tab).
+      setTimeout(() => {
+        document.querySelector<HTMLInputElement>(`[data-line-key="${line.key}"] input`)?.focus()
+      }, 30)
+    },
     [edit],
   )
 

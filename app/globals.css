@@ -995,3 +995,14 @@ body:has([data-editor-frame='v2']) [data-shell='main'] {
     bottom: 5.5rem;
   }
 }
+/* A settings form with unsaved changes pins its Save bar to the bottom: the
+   resting chat bubble moves above it instead of covering "Save changes"
+   (QA 2026-11-19). A spot the user dragged it to (inline style) is theirs. */
+body:has([data-settings-save-bar='sticky']) [data-shell='chat-launcher']:not([style]) {
+  bottom: 9.5rem;
+}
+@media (min-width: 1024px) {
+  body:has([data-settings-save-bar='sticky']) [data-shell='chat-launcher']:not([style]) {
+    bottom: 6rem;
+  }
+}

@@ -61,6 +61,7 @@ import { isEstimateLocked } from '@/lib/estimate/lock'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { isReloadingForNewBuild, recoverFromStaleBuild, takeDraft } from '@/lib/deploy/stale-build'
 
 // ---------------------------------------------------------------------------
 // State → EstimateDocumentData converter
@@ -277,6 +278,17 @@ export function EstimateEditor({
   const stateRef = useRef(state)
   stateRef.current = state
 
+  // A draft stashed because a save failed across a deploy (lib/deploy/stale-build):
+  // restore it as unsaved edits so this build saves it. Taken only when the
+  // server copy is still the one the draft was based on.
+  const draftKey = `estimate:${estimate.id}`
+  useEffect(() => {
+    const draft = takeDraft<typeof state>(draftKey, estimate.updated_at)
+    if (draft && draft.id === estimate.id) dispatch({ type: 'RESTORE_DRAFT', draft })
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [currentVersionId, setCurrentVersionId] = useState(estimate.id)
   const [localProjectName, setLocalProjectName] = useState(projectName)
@@ -439,7 +451,17 @@ export function EstimateEditor({
     // editor dirty instead of falsely marking it clean (audit B4).
     const savedEpoch = stateRef.current.editEpoch
     setSaveStatus('saving')
-    const result = await saveEstimate(stateToSavePayload(stateRef.current, opts))
+    let result: Awaited<ReturnType<typeof saveEstimate>>
+    try {
+      result = await saveEstimate(stateToSavePayload(stateRef.current, opts))
+    } catch {
+      // A Server Action from an older build throws (404 after a deploy): keep
+      // the draft and reload into the new build instead of losing the edits.
+      setSaveStatus('error')
+      if (await recoverFromStaleBuild(draftKey, stateRef.current.updated_at, stateRef.current)) return false
+      toast.error(t('Could not save your changes. Try again.'))
+      return false
+    }
     if (result.error) {
       setSaveStatus('error')
       // TRUST-02 (Phase 164 Plan 02): the server discovered a lock this tab
@@ -513,7 +535,7 @@ export function EstimateEditor({
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2500)
     return true
-  }, [isContentReadOnly, dispatch, handleDiscard, t])
+  }, [isContentReadOnly, dispatch, handleDiscard, draftKey, t])
 
   // Phase 165 Plan 02 (SAVE-05) — "Keep my changes": fires runSave({force:true})
   // exactly ONCE per keepMineRequestId bump (the toast action above). `t`
@@ -753,6 +775,8 @@ export function EstimateEditor({
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (!stateRef.current.isDirty || isContentReadOnly) return
+      // Reloading on purpose to save the stashed draft with the new build.
+      if (isReloadingForNewBuild()) return
       e.preventDefault()
       e.returnValue = ''
     }

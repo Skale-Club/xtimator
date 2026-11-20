@@ -162,6 +162,7 @@ export function SettingsSaveBar({
       // field and Save fit together.
       className={cn(dirty && "sticky bottom-3 z-20 md:bottom-4 [html[data-keyboard='open']_&]:static", className)}
       data-testid="settings-save-bar"
+      data-settings-save-bar={dirty ? 'sticky' : 'rest'}
     >
       <div
         className={cn(

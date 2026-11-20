@@ -496,14 +496,15 @@ export function EstimateDocumentModern({
             <p className={`${EYEBROW} mb-3`}>
               {L.signedBy}
             </p>
-            <div className="flex items-start gap-4">
+            {/* Phones: name and date under the signature (see the Classic document). */}
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:gap-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={data.signature.signatureDataUrl}
                 alt={L.signedBy}
-                className="h-16 w-auto max-w-[240px] object-contain"
+                className="h-16 w-auto max-w-full sm:max-w-[240px] object-contain"
               />
-              <div>
+              <div className="min-w-0">
                 <p className={`text-base font-semibold ${INK}`}>{data.signature.signerName}</p>
                 <p className={`text-base ${SECONDARY}`}>{formatDate(data.signature.signedAt, lang)}</p>
               </div>

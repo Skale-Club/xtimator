@@ -122,6 +122,7 @@ export function LinesEditor({ lines, readOnly, currencyCode, showTaxable, onChan
             <li
               key={line.key}
               data-testid="change-order-line"
+              data-line-key={line.key}
               data-credit={isCredit ? 'true' : 'false'}
               className={cn(
                 'grid grid-cols-3 gap-x-2 gap-y-2 rounded-xl border border-neutral-200 p-3 md:items-center md:rounded-none md:border-0 md:border-b md:px-0 md:py-2',

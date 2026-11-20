@@ -121,6 +121,10 @@ export interface EstimateEditorState {
 
 export type EstimateAction =
   | { type: 'INIT'; estimate: EstimateWithSections }
+  /** Put back a draft stashed when a save failed across a deploy
+   *  (lib/deploy/stale-build): the stashed editor state becomes unsaved edits
+   *  on top of the server copy it was based on. */
+  | { type: 'RESTORE_DRAFT'; draft: EstimateEditorState }
   | { type: 'UPDATE_FIELD'; field: 'summary' | 'notes' | 'timeline' | 'payment_terms' | 'warranty_terms' | 'estimate_date' | 'estimate_number'; value: string | null }
   | { type: 'UPDATE_SECTION_TITLE'; sectionId: string; title: string }
   | { type: 'UPDATE_ITEM'; sectionId: string; itemId: string; field: 'description' | 'quantity' | 'unit' | 'unit_price' | 'discount' | 'taxable'; value: string | number | boolean | null }
@@ -439,6 +443,22 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
   switch (action.type) {
     case 'INIT':
       return initState(action.estimate)
+
+    case 'RESTORE_DRAFT':
+      // Keep the server's concurrency baseline and lock fields; take the
+      // draft's content. Dirty + structural bump so autosave and the paginated
+      // preview both pick it up.
+      return {
+        ...action.draft,
+        updated_at: state.updated_at,
+        sent_at: state.sent_at,
+        client_response: state.client_response,
+        responded_at: state.responded_at,
+        is_current: state.is_current,
+        isDirty: true,
+        editEpoch: state.editEpoch + 1,
+        structuralEditEpoch: state.structuralEditEpoch + 1,
+      }
 
     case 'UPDATE_FIELD':
       return { ...state, [action.field]: action.value, ...dirty(state) }

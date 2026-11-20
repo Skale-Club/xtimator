@@ -12,6 +12,11 @@ describe('formatDate — local-midnight fix (ENGINE-01)', () => {
   it('does not throw on a full ISO timestamp (only date-only strings get T00:00:00 normalization)', () => {
     expect(() => formatDate('2026-07-08T15:30:00Z', 'en')).not.toThrow()
   })
+  it('formats a full timestamp as its UTC day, whatever the viewer zone (share page = PDF = editor)', () => {
+    // 03:10 UTC on Nov 20 is still Nov 19 in New York; every surface must say Nov 20.
+    expect(formatDate('2026-11-20T03:10:00.000Z', 'en')).toBe('November 20, 2026')
+    expect(formatDate('2026-11-19T23:59:00+00:00', 'en')).toBe('November 19, 2026')
+  })
 })
 
 describe('formatAddress', () => {

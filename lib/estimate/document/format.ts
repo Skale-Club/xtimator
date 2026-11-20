@@ -36,11 +36,19 @@ export function formatDate(dateStr: string, lang: EstimateLanguage = 'en'): stri
   // `new Date('2026-07-08')` is UTC midnight, which renders as the PREVIOUS
   // day for any viewer west of UTC (and made the doc snapshot non-deterministic
   // in CI). Mirrors DatePopover's `${value}T00:00:00` convention.
-  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+  const normalized = dateOnly ? `${dateStr}T00:00:00` : dateStr
   return new Date(normalized).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    // A full timestamp (created_at, signed_at, responded_at) is formatted in
+    // UTC so every surface shows the SAME day: the PDF renders on the server
+    // (UTC) and the editor falls back to created_at.slice(0, 10) (the UTC
+    // date), while the browser used to use the viewer's zone - a US client
+    // opening the share page in the evening saw the previous day (QA
+    // 2026-11-19: editor and PDF "November 20", share page "November 19").
+    ...(dateOnly ? {} : { timeZone: 'UTC' }),
   })
 }
 
