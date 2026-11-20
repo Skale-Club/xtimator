@@ -26,12 +26,10 @@ export function AutoTopupCard({
   isOwner = true,
   currency = 'usd',
   packCredits = null,
-  estimateRange,
 }: {
   enabled: boolean
   /** Credits plan 2026-11-20: credits of the pack the rule buys. */
   packCredits?: number | null
-  estimateRange?: { low: number; high: number }
   packAmount: string | null
   thresholdAmount: string | null
   paymentMethodLabel: string | null
@@ -95,7 +93,6 @@ export function AutoTopupCard({
             currentPackIndex={currentPackIndex}
             hasPaymentMethod={!!paymentMethodLabel}
             cardLabel={paymentMethodLabel}
-            estimateRange={estimateRange}
             isOwner={isOwner}
             currency={currency}
           />

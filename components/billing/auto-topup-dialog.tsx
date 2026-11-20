@@ -12,7 +12,7 @@ import { saveAutoTopupSettings, disableAutoTopup } from '@/lib/actions/auto-topu
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { formatCredits } from '@/lib/billing/format-usd'
 import { formatBillingAmount, type BillingCurrency } from '@/lib/billing/billing-currency'
-import { packViews, type EstimateCreditsRange } from '@/lib/billing/pack-display'
+import { packViews } from '@/lib/billing/pack-display'
 import { CAPTURE_PRIMARY_CLASS, CAPTURE_PRIMARY_STYLE } from '@/components/capture/capture-button-styles'
 
 /**
@@ -20,8 +20,7 @@ import { CAPTURE_PRIMARY_CLASS, CAPTURE_PRIMARY_STYLE } from '@/components/captu
  *
  * A sheet of the New Xtimate family (bottom sheet on phones): the threshold
  * in CREDITS (it used to be typed in dollars and multiplied by 100, a leftover
- * of "1 credit = 1 cent" that no longer holds), the pack as credits + estimate
- * range + price, the card it charges (the subscription's card, or another one
+ * of "1 credit = 1 cent" that no longer holds), the pack as credits + price, the card it charges (the subscription's card, or another one
  * via Stripe), and the whole rule in one sentence before saving.
  */
 
@@ -36,7 +35,6 @@ interface AutoTopupDialogLauncherProps {
   hasPaymentMethod: boolean
   /** "Visa •••• 4242" - the card the charge uses. */
   cardLabel?: string | null
-  estimateRange?: EstimateCreditsRange
   // False when the signed-in user is a company member, not the owner —
   // defaults to true so existing callers keep today's behavior.
   isOwner?: boolean
@@ -50,7 +48,6 @@ export function AutoTopupDialogLauncher({
   currentPackIndex,
   hasPaymentMethod,
   cardLabel = null,
-  estimateRange = { low: 65, high: 150 },
   isOwner = true,
   currency = 'usd',
 }: AutoTopupDialogLauncherProps) {
@@ -60,7 +57,7 @@ export function AutoTopupDialogLauncher({
   const [packIndex, setPackIndex] = useState(currentPackIndex ?? (packs.length >= 3 ? 1 : 0))
   const [isPending, startTransition] = useTransition()
 
-  const views = packViews(packs, currency, estimateRange)
+  const views = packViews(packs, currency)
   const pack = views.find((v) => v.index === packIndex) ?? views[0]
   // Mirrors the server: positive, at most 5x the pack's credits and 100,000.
   const maxThreshold = pack ? Math.min(pack.credits * 5, 100_000) : 100_000
@@ -199,9 +196,6 @@ export function AutoTopupDialogLauncher({
                         <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
                           {t('{credits} credits').replace('{credits}', formatCredits(v.credits))}
                           {v.bestValue && <Badge variant="brand">{t('Best value')}</Badge>}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {t('{min} to {max} estimates').replace('{min}', String(v.estimates.min)).replace('{max}', String(v.estimates.max))}
                         </span>
                       </span>
                       <span className="text-[17px] font-bold tracking-tight tabular-nums">

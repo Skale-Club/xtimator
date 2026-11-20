@@ -12,8 +12,8 @@ import { formatBillingAmount, type BillingCurrency } from '@/lib/billing/billing
 /**
  * One top-up pack on the billing page (credits plan 2026-11-20).
  *
- * The credits are the headline, with the range of estimates they usually
- * cover; the price is on the button. The price is ALWAYS derived from
+ * The credits are the headline and the price is on the button (no
+ * conversion to estimates: what a credit buys is a business secret). The price is ALWAYS derived from
  * `priceCents` (admin-editable packs). Buy opens the shared buy dialog with
  * this pack selected, which charges the subscription card or falls back to
  * Checkout.
@@ -22,7 +22,6 @@ export function TopUpPackCard({
   packIndex,
   priceCents,
   credits,
-  estimates,
   bestValue,
   highlighted,
   isOwner = true,
@@ -31,7 +30,6 @@ export function TopUpPackCard({
   packIndex: number
   priceCents: number
   credits: number
-  estimates?: { min: number; max: number }
   bestValue?: boolean
   /** The pack offered first (stronger border and a primary button). */
   highlighted?: boolean
@@ -61,13 +59,6 @@ export function TopUpPackCard({
         {formatCredits(credits)}
       </span>
       <span className="text-xs text-muted-foreground">{t('credits')}</span>
-      {estimates && (
-        <span className="text-[11px] leading-tight text-muted-foreground sm:text-xs">
-          {t('{min} to {max} estimates')
-            .replace('{min}', String(estimates.min))
-            .replace('{max}', String(estimates.max))}
-        </span>
-      )}
       {!isTwa && (
         <Button
           size="sm"

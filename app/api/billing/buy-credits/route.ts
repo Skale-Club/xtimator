@@ -94,7 +94,7 @@ export async function GET() {
   const currency = resolveBillingCurrency({ currency_code: company.currency_code }, cfg.brlPricingEnabled === true)
   const stripe = await getStripeClient()
   const card = await resolveSavedCard(stripe, company.stripe_customer_id, company.stripe_subscription_id)
-  const packs = packViews(cfg.topUpPacks, currency, cfg.estimateCreditsRange)
+  const packs = packViews(cfg.topUpPacks, currency)
 
   return NextResponse.json({
     eligible: true,

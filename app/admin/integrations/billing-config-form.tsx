@@ -126,9 +126,7 @@ export function BillingConfigForm({ current }: Props) {
     String(current.topupExpiryMonths ?? 3)
   )
 
-  // Credits plan 2026-11-20: estimate cost range shown on packs, and pause length.
-  const [estimateRangeLow, setEstimateRangeLow] = useState(String(current.estimateCreditsRange?.low ?? 65))
-  const [estimateRangeHigh, setEstimateRangeHigh] = useState(String(current.estimateCreditsRange?.high ?? 150))
+  // Credits plan 2026-11-20: how long a capture paused for credits waits.
   const [creditPauseDays, setCreditPauseDays] = useState(String(current.creditPauseDays ?? 7))
 
   // SEED-055 Phase D: pre-gate credit estimate per operation.
@@ -179,7 +177,7 @@ export function BillingConfigForm({ current }: Props) {
   const snapshot = {
     markup, markupByOp, creditUnitUsd, whisperUsdPerMinute, estimateFeePct, estimateFeeMinCents,
     seatPriceCents, seatPriceAnnualCents, tiers, topUpPacks, topupExpiryMonths, estimatedCredits,
-    estimateRangeLow, estimateRangeHigh, creditPauseDays,
+    creditPauseDays,
     messagingRatesJson, lowBalanceThresholds, signupCreditGrant, enforcementEnabled,
     autoTopupEnabled, brlPricingEnabled, meteredOperations, absorbedChatRateLimitPerMin,
   }
@@ -200,8 +198,6 @@ export function BillingConfigForm({ current }: Props) {
     setTiers(v.tiers)
     setTopUpPacks(v.topUpPacks)
     setTopupExpiryMonths(v.topupExpiryMonths)
-    setEstimateRangeLow(v.estimateRangeLow)
-    setEstimateRangeHigh(v.estimateRangeHigh)
     setCreditPauseDays(v.creditPauseDays)
     setEstimatedCredits(v.estimatedCredits)
     setMessagingRatesJson(v.messagingRatesJson)
@@ -299,7 +295,6 @@ export function BillingConfigForm({ current }: Props) {
         ...(p.priceCentsBrl.trim() !== '' ? { priceCentsBrl: Number(p.priceCentsBrl) } : {}),
       })),
       topupExpiryMonths: Number(topupExpiryMonths),
-      estimateCreditsRange: { low: Number(estimateRangeLow), high: Number(estimateRangeHigh) },
       creditPauseDays: Number(creditPauseDays),
       estimatedCreditsByOp: Object.fromEntries(
         ESTIMATED_CREDIT_OPS.map((op) => [op, Number(estimatedCredits[op])])
@@ -757,22 +752,14 @@ export function BillingConfigForm({ current }: Props) {
               disabled={isPending}
             />
           </label>
-          <div className="grid max-w-md grid-cols-3 gap-3">
-            <label className="grid gap-2">
-              <span className="text-xs text-muted-foreground">{t('Small estimate (credits)')}</span>
-              <Input type="number" step="1" min="1" value={estimateRangeLow} onChange={(e) => setEstimateRangeLow(e.target.value)} disabled={isPending} />
-            </label>
-            <label className="grid gap-2">
-              <span className="text-xs text-muted-foreground">{t('Large estimate (credits)')}</span>
-              <Input type="number" step="1" min="1" value={estimateRangeHigh} onChange={(e) => setEstimateRangeHigh(e.target.value)} disabled={isPending} />
-            </label>
+          <div className="grid max-w-[10rem] gap-3">
             <label className="grid gap-2">
               <span className="text-xs text-muted-foreground">{t('Credit pause (days)')}</span>
               <Input type="number" step="1" min="1" max="30" value={creditPauseDays} onChange={(e) => setCreditPauseDays(e.target.value)} disabled={isPending} />
             </label>
           </div>
           <p className="text-xs text-muted-foreground">
-            {t('The estimate range is shown on each pack (e.g. 6 to 13 estimates). The pause is how long an estimate waits for a top-up.')}
+            {t('How long an estimate paused for credits waits for a top-up.')}
           </p>
         </div>
       </fieldset>

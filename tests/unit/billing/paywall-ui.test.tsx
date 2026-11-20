@@ -31,9 +31,9 @@ const OFFER = {
   eligible: true, balance: 0, expiryMonths: 3, defaultIndex: 1,
   card: { brand: 'Visa', last4: '4242' },
   packs: [
-    { index: 0, credits: 900, priceCents: 1000, currency: 'usd', estimates: { min: 6, max: 13 }, bestValue: false },
-    { index: 1, credits: 1900, priceCents: 2000, currency: 'usd', estimates: { min: 12, max: 29 }, bestValue: false },
-    { index: 2, credits: 5000, priceCents: 5000, currency: 'usd', estimates: { min: 33, max: 76 }, bestValue: true },
+    { index: 0, credits: 900, priceCents: 1000, currency: 'usd', bestValue: false },
+    { index: 1, credits: 1900, priceCents: 2000, currency: 'usd', bestValue: false },
+    { index: 2, credits: 5000, priceCents: 5000, currency: 'usd', bestValue: true },
   ],
 }
 globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(OFFER), { status: 200 })) as unknown as typeof fetch

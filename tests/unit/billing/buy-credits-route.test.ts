@@ -85,7 +85,6 @@ beforeEach(() => {
   vi.mocked(getBillingConfig).mockResolvedValue({
     topUpPacks: PACKS,
     topupExpiryMonths: 3,
-    estimateCreditsRange: { low: 65, high: 150 },
     brlPricingEnabled: false,
   } as never)
   vi.mocked(rateLimit).mockResolvedValue({ allowed: true, count: 1, max: 20 })
@@ -102,13 +101,13 @@ beforeEach(() => {
 })
 
 describe('GET /api/billing/buy-credits', () => {
-  it('returns the packs with credits, price, estimate range, best value and the saved card', async () => {
+  it('returns the packs with credits, price, best value and the saved card (no estimate conversion)', async () => {
     const res = await GET()
     const body = await res.json()
     expect(body.eligible).toBe(true)
     expect(body.card).toEqual({ brand: 'Visa', last4: '4242' })
     expect(body.packs).toHaveLength(3)
-    expect(body.packs[2]).toMatchObject({ credits: 5000, priceCents: 5000, bestValue: true, estimates: { min: 33, max: 76 } })
+    expect(body.packs[2]).toMatchObject({ credits: 5000, priceCents: 5000, bestValue: true })
     expect(body.defaultIndex).toBe(1)
     expect(body.balance).toBe(2020)
   })

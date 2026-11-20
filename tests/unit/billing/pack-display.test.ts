@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   bestValuePackIndex,
   defaultPackIndex,
-  estimatesForCredits,
   packViews,
 } from '@/lib/billing/pack-display'
 
@@ -13,17 +12,6 @@ const PACKS = [
 ]
 
 describe('pack display (credits plan 2026-11-20)', () => {
-  it('turns credits into a range of estimates: large estimates give the minimum, small the maximum', () => {
-    expect(estimatesForCredits(900, { low: 65, high: 150 })).toEqual({ min: 6, max: 13 })
-    expect(estimatesForCredits(1900, { low: 65, high: 150 })).toEqual({ min: 12, max: 29 })
-    expect(estimatesForCredits(5000, { low: 65, high: 150 })).toEqual({ min: 33, max: 76 })
-  })
-
-  it('a misconfigured range (high below low, zero) never divides by zero or inverts', () => {
-    expect(estimatesForCredits(900, { low: 0, high: 0 })).toEqual({ min: 900, max: 900 })
-    expect(estimatesForCredits(900, { low: 150, high: 65 })).toEqual({ min: 6, max: 6 })
-  })
-
   it('"Best value" is the pack with the most credits per unit of price, not the middle one', () => {
     expect(bestValuePackIndex(PACKS, 'usd')).toBe(2)
   })
@@ -33,11 +21,13 @@ describe('pack display (credits plan 2026-11-20)', () => {
     expect(bestValuePackIndex([PACKS[0]], 'usd')).toBe(-1)
   })
 
-  it('packViews carries price, currency, range and best value per pack', () => {
-    const views = packViews(PACKS, 'brl', { low: 65, high: 150 })
+  it('packViews carries price, currency and best value per pack, and never a conversion to estimates', () => {
+    const views = packViews(PACKS, 'brl')
     expect(views.map((v) => v.priceCents)).toEqual([5490, 10990, 27990])
     expect(views.every((v) => v.currency === 'brl')).toBe(true)
     expect(views.filter((v) => v.bestValue).map((v) => v.index)).toEqual([2])
+    // What a credit buys in estimates is a business secret (owner, 2026-11-20).
+    expect(views.every((v) => !('estimates' in v))).toBe(true)
   })
 
   it('offers the middle pack first when there are three', () => {

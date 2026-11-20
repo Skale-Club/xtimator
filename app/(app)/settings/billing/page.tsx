@@ -383,7 +383,6 @@ export default async function BillingPage() {
             packs={cfg.topUpPacks}
             isOwner={isOwner}
             currency={billingCurrency}
-            estimateRange={cfg.estimateCreditsRange}
             cardLabel={autoTopupPaymentMethodLabel}
           />
           {/* Auto top-up is gated behind the platform kill switch
@@ -397,7 +396,6 @@ export default async function BillingPage() {
                 thresholdAmount={autoTopupThresholdAmount}
                 paymentMethodLabel={autoTopupPaymentMethodLabel}
                 packCredits={autoTopupCompany?.auto_topup_pack_credits ?? autoTopupPack?.credits ?? null}
-                estimateRange={cfg.estimateCreditsRange}
                 lastFailed={!!autoTopupCompany?.auto_topup_last_failed_at}
                 packs={cfg.topUpPacks}
                 currentThresholdCredits={autoTopupCompany?.auto_topup_threshold_credits ?? null}

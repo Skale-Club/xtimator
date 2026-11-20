@@ -320,11 +320,6 @@ export const billingConfigSchema = z.object({
     .max(10),
   // SEED-055 Phase C: months until a top-up lot expires.
   topupExpiryMonths: z.number().int().min(1).max(36),
-  // Credits plan 2026-11-20: optional so rows saved before it still parse.
-  estimateCreditsRange: z
-    .object({ low: z.number().int().min(1).max(100000), high: z.number().int().min(1).max(100000) })
-    .refine((r) => r.high >= r.low, { message: 'high must be >= low' })
-    .optional(),
   creditPauseDays: z.number().int().min(1).max(30).optional(),
   // SEED-055 Phase D: pre-gate credit estimate per operation.
   estimatedCreditsByOp: z.object({

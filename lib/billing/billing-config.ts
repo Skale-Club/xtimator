@@ -148,12 +148,6 @@ export type BillingConfig = {
    */
   topupExpiryMonths: number
   /**
-   * Credits plan 2026-11-20: what a small and a large estimate usually cost,
-   * in credits. Shown to the owner as a range on each top-up pack ("900
-   * credits - 6 to 13 estimates"); never used to gate or debit anything.
-   */
-  estimateCreditsRange: { low: number; high: number }
-  /**
    * Credits plan 2026-11-20: days a capture paused for credits waits for a
    * top-up before the pause expires (the transcript and photos stay).
    */
@@ -375,9 +369,6 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   ],
   // SEED-055 Phase C: top-up lots expire 3 months after purchase.
   topupExpiryMonths: 3,
-  // Measured 2026-11-19: text-only estimates 64-71 credits, a normal one
-  // with audio and photos about 146-150.
-  estimateCreditsRange: { low: 65, high: 150 },
   creditPauseDays: 7,
   // SEED-055 Phase D, recalibrated 2026-11-19: credits an op must find in the
   // balance before it may START. The debit is always the measured cost; this

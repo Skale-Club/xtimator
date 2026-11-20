@@ -2,11 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 /**
- * Credits plan 2026-11-20 - TopUpPackCard.
+ * Credits plan 2026-11-20 - TopUpPackCard. A pack never says how many
+ * estimates its credits cover (business secret, owner 2026-11-20).
  *
  * Supersedes the July 2026 CREDITFIX-01 guard ("never show a credit count"):
  * since SEED-055 credits are shown everywhere, and a pack now leads with its
- * credits, shows the range of estimates they usually cover, and carries the
+ * credits and carries the
  * price (always derived from priceCents) on its button.
  */
 
@@ -17,11 +18,11 @@ vi.mock('@/lib/i18n/use-translation', () => ({
 const { TopUpPackCard } = await import('@/components/billing/topup-pack-card')
 
 describe('TopUpPackCard', () => {
-  it('leads with the credits, shows the estimate range and the price on the button', () => {
-    render(<TopUpPackCard packIndex={1} priceCents={2000} credits={1900} estimates={{ min: 12, max: 29 }} />)
+  it('leads with the credits and the price on the button, with no conversion to estimates', () => {
+    const { container } = render(<TopUpPackCard packIndex={1} priceCents={2000} credits={1900} />)
     expect(screen.getByText('1,900')).toBeTruthy()
     expect(screen.getByText('credits')).toBeTruthy()
-    expect(screen.getByText('12 to 29 estimates')).toBeTruthy()
+    expect(container.textContent).not.toMatch(/estimate/i)
     expect(screen.getByRole('button').textContent).toContain('Buy for $20')
   })
 

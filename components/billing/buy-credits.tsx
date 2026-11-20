@@ -21,8 +21,8 @@ import { CAPTURE_PRIMARY_CLASS, CAPTURE_PRIMARY_STYLE } from '@/components/captu
  *
  * Any surface opens it with openBuyCredits() (banner, block toast, AI 402
  * modal, the New Xtimate block, the capture block, the billing page packs).
- * The packs show credits first, the range of estimates they usually cover, and
- * the price on the button; Buy charges the card the subscription already uses
+ * The packs show credits and price only (what a credit buys in estimates is a
+ * business secret); Buy charges the card the subscription already uses
  * (app/api/billing/buy-credits) and falls back to Stripe Checkout when there is
  * no saved card or the bank wants a confirmation. A successful buy fires
  * CREDITS_PURCHASED_EVENT so blocked surfaces can carry on without a reload.
@@ -50,7 +50,6 @@ type PackView = {
   credits: number
   priceCents: number
   currency: BillingCurrency
-  estimates: { min: number; max: number }
   bestValue: boolean
 }
 
@@ -265,9 +264,6 @@ export function BuyCreditsPicker({
                 <span className="flex flex-wrap items-center gap-2 text-[15px] font-semibold">
                   {t('{credits} credits').replace('{credits}', formatCredits(p.credits))}
                   {p.bestValue && <Badge variant="brand">{t('Best value')}</Badge>}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {t('{min} to {max} estimates').replace('{min}', String(p.estimates.min)).replace('{max}', String(p.estimates.max))}
                 </span>
               </span>
               <span className="text-[17px] font-bold tracking-tight [font-variant-numeric:tabular-nums]">

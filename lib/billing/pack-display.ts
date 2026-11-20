@@ -6,22 +6,11 @@ import { resolvePackPrice, type BillingCurrency } from '@/lib/billing/billing-cu
  *
  * - The credits are the headline (the July 2026 "never show credit counts"
  *   rule is gone since SEED-055 shows credits everywhere).
- * - An estimate's cost varies, so a pack shows a RANGE of estimates, from the
- *   admin-configured cost of a large one (fewest) to a small one (most).
+ * - No conversion to estimates: what a credit buys is a business secret
+ *   (owner, 2026-11-20), so a pack shows only its credits and price.
  * - "Best value" goes to the pack with the most credits per unit of price, not
  *   to a fixed position.
  */
-export type EstimateCreditsRange = { low: number; high: number }
-
-export function estimatesForCredits(
-  credits: number,
-  range: EstimateCreditsRange
-): { min: number; max: number } {
-  const low = Math.max(1, Math.round(range.low))
-  const high = Math.max(low, Math.round(range.high))
-  return { min: Math.floor(credits / high), max: Math.floor(credits / low) }
-}
-
 /** Index of the pack with the most credits per cent (ties: the bigger pack). -1 with fewer than 2 packs. */
 export function bestValuePackIndex(packs: TopUpPack[], currency: BillingCurrency): number {
   if (packs.length < 2) return -1
@@ -44,15 +33,10 @@ export type PackView = {
   credits: number
   priceCents: number
   currency: BillingCurrency
-  estimates: { min: number; max: number }
   bestValue: boolean
 }
 
-export function packViews(
-  packs: TopUpPack[],
-  currency: BillingCurrency,
-  range: EstimateCreditsRange
-): PackView[] {
+export function packViews(packs: TopUpPack[], currency: BillingCurrency): PackView[] {
   const best = bestValuePackIndex(packs, currency)
   return packs.map((pack, index) => {
     const price = resolvePackPrice(pack, currency)
@@ -61,7 +45,6 @@ export function packViews(
       credits: pack.credits,
       priceCents: price.priceCents,
       currency: price.currency,
-      estimates: estimatesForCredits(pack.credits, range),
       bestValue: index === best,
     }
   })

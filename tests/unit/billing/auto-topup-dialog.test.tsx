@@ -6,7 +6,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
  *
  * Supersedes the CREDITFIX-01 source scan (a dollar-only pack select): the
  * threshold is now in CREDITS (the old dollars x 100 assumed 1 credit = 1
- * cent), packs show credits + estimate range + price, the card is named, and
+ * cent), packs show credits + price (never estimates), the card is named, and
  * the whole rule is spelled out before saving.
  */
 
@@ -46,12 +46,12 @@ function open(props: Partial<Parameters<typeof AutoTopupDialogLauncher>[0]> = {}
 beforeEach(() => vi.clearAllMocks())
 
 describe('AutoTopupDialogLauncher', () => {
-  it('packs show credits, the estimate range and the price; Best value on the most credits per dollar', () => {
+  it('packs show credits and the price, never estimates; Best value on the most credits per dollar', () => {
     open()
     const packs = screen.getAllByTestId('autotopup-pack')
     expect(packs).toHaveLength(3)
     expect(packs[0].textContent).toContain('900 credits')
-    expect(packs[0].textContent).toContain('6 to 13 estimates')
+    expect(packs[0].textContent).not.toMatch(/estimate/i)
     expect(packs[0].textContent).toContain('$10')
     expect(packs[2].textContent).toContain('Best value')
     expect(packs[1].getAttribute('aria-checked')).toBe('true')
