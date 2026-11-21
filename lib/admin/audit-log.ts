@@ -16,6 +16,7 @@ export type AuditAction =
   | 'company.set_demo_quota'
   | 'company.byok_enabled'
   | 'company.byok_disabled'
+  | 'company.feature_allowed'
   | 'company.handoff'
   | 'company.support_mode_start'
   | 'company.support_mode_end'

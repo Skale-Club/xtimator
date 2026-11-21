@@ -14,6 +14,9 @@ import { CompanyModelOverrideForm } from './company-model-override-form'
 import { CompanyQuotaForm } from './company-quota-form'
 import { CompanyByokForm } from './company-byok-form'
 import { CompanyCostCard } from './company-cost-card'
+import { CompanyFeaturesForm, type CompanyFeaturesState } from './company-features-form'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +31,9 @@ export default async function AdminCompanyDetailPage({
   const svc = requireServiceClient()
   const { data } = await svc
     .from('companies')
-    .select('id, name, tier, ai_model_override, demo_estimate_quota, byok_enabled, byok_key_last4')
+    .select(
+      `id, name, tier, ai_model_override, demo_estimate_quota, byok_enabled, byok_key_last4, stripe_account_display_name, stripe_connect_disabled_reason, ${COMPANY_FEATURE_COLUMNS}`
+    )
     .eq('id', id)
     .maybeSingle()
 
@@ -41,13 +46,54 @@ export default async function AdminCompanyDetailPage({
     demo_estimate_quota: number | null
     byok_enabled: boolean | null
     byok_key_last4: string | null
-  }
+    stripe_account_display_name: string | null
+    stripe_connect_disabled_reason: string | null
+    stripe_charges_enabled: boolean | null
+  } & Parameters<typeof resolveCompanyFeatures>[0]
 
   // Count current estimates for usage display
   const { count: estimateCount } = await svc
     .from('estimates')
     .select('id', { count: 'exact', head: true })
     .eq('company_id', id)
+
+  // Live feature state: every derived value comes from the resolver.
+  const platform = await getPlatformFeatureState()
+  const features = resolveCompanyFeatures(company, platform)
+  const { count: openInvoiceCount } = await svc
+    .from('invoices')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', id)
+    .eq('status', 'open')
+  const { data: lastPaid } = await svc
+    .from('invoices')
+    .select('paid_at')
+    .eq('company_id', id)
+    .not('paid_at', 'is', null)
+    .order('paid_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const op = features.onlinePayments
+  const featuresState: CompanyFeaturesState = {
+    signature: {
+      allowed: features.digitalSignature.allowed,
+      enabled: features.digitalSignature.enabled,
+      active: features.digitalSignature.active,
+    },
+    payments: {
+      // The stored platform switch (not folded with the global stop).
+      allowed: company.online_payments_allowed === true,
+      enabled: op.enabled,
+      canIssue: op.canIssue,
+      globalOpen: platform.connectPaymentsOpen,
+      stripe: op.restricted ? 'restricted' : op.linked ? 'connected' : 'not_connected',
+      stripeName: company.stripe_account_display_name,
+      disabledReason: company.stripe_connect_disabled_reason,
+      chargesEnabled: op.linked ? (company.stripe_charges_enabled ?? null) : null,
+      openInvoices: openInvoiceCount ?? 0,
+      lastPaymentAt: (lastPaid as { paid_at: string | null } | null)?.paid_at ?? null,
+    },
+  }
 
   const globalModel = await getOpenRouterDefaultModel()
 
@@ -80,6 +126,21 @@ export default async function AdminCompanyDetailPage({
           <span className="font-mono text-xs">{company.id}</span>
         </p>
       </div>
+
+      <Card variant="glass" className="p-6 md:p-8 space-y-4">
+        <div>
+          <h2 className="text-lg font-medium"><T>Client features</T></h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            <T>
+              Allow or hide each client-facing feature for this company. The company
+              owner still has their own switch in Settings; a feature works only when
+              both are on.
+            </T>
+          </p>
+        </div>
+
+        <CompanyFeaturesForm companyId={company.id} state={featuresState} />
+      </Card>
 
       <Card variant="glass" className="p-6 md:p-8 space-y-4">
         <div>

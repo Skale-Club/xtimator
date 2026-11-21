@@ -214,3 +214,78 @@ export async function setByokConfig(
     message: `BYOK enabled — this company now runs on its own key (…${trimmed.slice(-4)}) and spends no platform credits.`,
   }
 }
+
+export type CompanyFeatureKey = 'online_payments' | 'digital_signature'
+
+// Fixed lookup: the column is never built from input.
+const FEATURE_ALLOWED_COLUMN = {
+  online_payments: 'online_payments_allowed',
+  digital_signature: 'digital_signature_allowed',
+} as const
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Platform switch for one client-facing feature of one company (super admin).
+ * Off means the feature does not exist for that company. The tenant switches
+ * are never touched from here.
+ */
+export async function setCompanyFeatureAllowed(
+  companyId: string,
+  feature: CompanyFeatureKey,
+  allowed: boolean
+): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  if (typeof companyId !== 'string' || !UUID_RE.test(companyId)) {
+    return { ok: false, message: 'Invalid company id' }
+  }
+  if (
+    typeof feature !== 'string' ||
+    !Object.prototype.hasOwnProperty.call(FEATURE_ALLOWED_COLUMN, feature)
+  ) {
+    return { ok: false, message: 'Unknown feature' }
+  }
+  if (typeof allowed !== 'boolean') {
+    return { ok: false, message: 'allowed must be a boolean' }
+  }
+  const column = FEATURE_ALLOWED_COLUMN[feature]
+
+  const svc = requireServiceClient()
+  let previous: boolean | null = null
+  try {
+    const { data } = await svc
+      .from('companies')
+      .select(column)
+      .eq('id', companyId)
+      .maybeSingle()
+    const row = data as Record<string, boolean | null> | null
+    previous = row?.[column] ?? null
+  } catch {
+    // non-fatal
+  }
+
+  const { error } = await svc
+    .from('companies')
+    .update({ [column]: allowed })
+    .eq('id', companyId)
+
+  if (error) {
+    console.error('[admin] setCompanyFeatureAllowed DB error:', error)
+    return { ok: false, message: error.message }
+  }
+
+  revalidatePath('/admin/companies')
+  revalidatePath(`/admin/companies/${companyId}`)
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'company.feature_allowed',
+    targetType: 'company',
+    targetId: companyId,
+    metadata: { feature, allowed, previous },
+  })
+
+  const label = feature === 'online_payments' ? 'Online payments' : 'Digital signature'
+  return { ok: true, message: `${label} ${allowed ? 'allowed' : 'hidden'} for this company.` }
+}
