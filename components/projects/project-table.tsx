@@ -12,6 +12,8 @@ import { formatDate } from '@/lib/utils/format-date'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { pausedHref } from '@/components/billing/paused-estimate-sheet'
 import { linkProjectToClient } from '@/lib/actions/project'
+import { moveProject } from '@/lib/actions/project-order'
+import { computeMovedSortOrder } from '@/lib/projects/order'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
 import { EstimateAnalyticsButton } from '@/components/projects/estimate-list-status'
@@ -34,6 +36,8 @@ export interface ProjectTableRow {
   estimate_status?: EstimateListStatus | null
   /** Stored thumbnail key (rendered through the storage proxy), null = initials. */
   cover_thumb_path?: string | null
+  /** Custom list order (lower = higher); null/absent = not positioned yet. */
+  sort_order?: number | null
 }
 
 /** Extra item the phone card asks the row menu to show (link or change the
@@ -69,6 +73,8 @@ interface ProjectTableProps<TProject extends ProjectTableRow> {
   actionsHeader?: string
   companyId?: string
   editingClients?: ClientDetail[]
+  /** Adds the "Custom order" sort and drag-and-drop reordering (the Projects page). */
+  customOrder?: boolean
 }
 
 function ProjectClientCell({
@@ -171,8 +177,13 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   actionsHeader,
   companyId,
   editingClients,
+  customOrder,
 }: ProjectTableProps<TProject>) {
   const { t } = useTranslation()
+  // Optimistic positions of moved rows. An entry only applies while the row's
+  // own sort_order is still the one it was moved from, so it drops by itself
+  // once the revalidated list arrives.
+  const [moved, setMoved] = useState<Record<string, { value: number; base: number | null }>>({})
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientDetail | null>(null)
   const [createClientForProjectId, setCreateClientForProjectId] = useState<string | null>(null)
@@ -182,6 +193,48 @@ export function ProjectTable<TProject extends ProjectTableRow>({
   const [awaitingOnly, setAwaitingOnly] = useState(false)
   const awaiting = hasEstimateStatus && awaitingOnly
   const visibleProjects = awaiting ? projects.filter((project) => project.estimate_status?.openedNoAnswer) : projects
+
+  function orderOf(project: ProjectTableRow | undefined): number | null {
+    if (!project) return null
+    const base = project.sort_order ?? null
+    const entry = moved[project.id]
+    return entry && entry.base === base ? entry.value : base
+  }
+
+  function handleMove(movedKey: string, aboveKey: string | null, belowKey: string | null) {
+    const byId = new Map(projects.map((project) => [project.id, project]))
+    const project = byId.get(movedKey)
+    if (!project) return
+    const base = project.sort_order ?? null
+    const previous = moved[movedKey]
+
+    const optimistic = computeMovedSortOrder(
+      aboveKey === null ? undefined : orderOf(byId.get(aboveKey)),
+      belowKey === null ? undefined : orderOf(byId.get(belowKey)),
+    )
+    if (optimistic !== null) setMoved((current) => ({ ...current, [movedKey]: { value: optimistic, base } }))
+
+    const revert = () => {
+      setMoved((current) => {
+        const next = { ...current }
+        if (previous) next[movedKey] = previous
+        else delete next[movedKey]
+        return next
+      })
+      toast.error(t('Could not move the project.'))
+    }
+
+    moveProject(movedKey, { aboveId: aboveKey, belowId: belowKey })
+      .then((result) => {
+        if ('error' in result || !result.data) {
+          revert()
+          return
+        }
+        const serverValue = result.data.sort_order
+        setMoved((current) => ({ ...current, [movedKey]: { value: serverValue, base } }))
+      })
+      .catch(revert)
+  }
 
   function handleEditClient(clientId: string) {
     const client = editingClients?.find((entry) => entry.id === clientId)
@@ -333,8 +386,29 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             label: t('Z → A'),
             sort: (a, b) => b.name.localeCompare(a.name),
           },
+          ...(customOrder
+            ? [
+                {
+                  value: 'custom',
+                  label: t('Custom order'),
+                  // The owner's own order: lowest sort_order first, unpositioned last, then newest.
+                  sort: (a: TProject, b: TProject) => {
+                    const ao = orderOf(a)
+                    const bo = orderOf(b)
+                    if (ao !== null && bo !== null && ao !== bo) return ao - bo
+                    if (ao === null && bo !== null) return 1
+                    if (ao !== null && bo === null) return -1
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                  },
+                },
+              ]
+            : []),
         ]}
         defaultSort="newest"
+        reorder={customOrder
+          ? { sortValue: 'custom', onMove: handleMove, disabledHint: t('Clear the search and filters to reorder.') }
+          : undefined}
+        rememberSortKey={customOrder ? 'projects:list:sort' : undefined}
         filterTabs={
           viewTabs?.map((tab) => ({ key: tab.value, label: t(tab.label) })) ??
           statusTabs?.map((tab, index) => ({

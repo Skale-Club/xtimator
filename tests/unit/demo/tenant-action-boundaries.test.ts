@@ -55,6 +55,10 @@ const ACTIONS = {
     ],
     reads: ['listProjectCoverPhotos'],
   },
+  'project-order': {
+    mutators: ['moveProject'],
+    reads: [],
+  },
 } as const
 
 function moduleSource(module: keyof typeof ACTIONS) {

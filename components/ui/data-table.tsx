@@ -15,9 +15,27 @@
  *    tab, and the caller's own filters through onClearFilters);
  *  - the search is trimmed, so a stray space no longer hides one-word names.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode, type TouchEventHandler } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Search, FolderOpen, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, FolderOpen, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   Table,
   TableBody,
@@ -57,6 +75,15 @@ export interface FilterTab<T> {
   label: string
   /** Client-side predicate. Omit on the first ("all") tab, or for server-filtered tabs. */
   match?: (row: T) => boolean
+}
+
+export interface DataTableReorder {
+  /** The sort option that is the user's own order; reordering exists only while it is active. */
+  sortValue: string
+  /** Called after a drop with the moved row and the rows now directly above and below it. */
+  onMove: (movedKey: string, aboveKey: string | null, belowKey: string | null) => void
+  /** Shown instead of grips when the custom sort is on but search or filters narrow the list. */
+  disabledHint?: string
 }
 
 export interface DataTableProps<T> {
@@ -112,6 +139,32 @@ export interface DataTableProps<T> {
   persistInUrl?: boolean
   /** Namespaces the URL params when two lists share a page. */
   urlKey?: string
+  /**
+   * Opt-in drag-and-drop ordering. Active only while the sort equals
+   * `reorder.sortValue` and nothing narrows the list (no search, base tab, no
+   * filters); then every row is shown (no pagination) and gets a grip.
+   */
+  reorder?: DataTableReorder
+  /** localStorage key that remembers the last chosen sort (the URL still wins). */
+  rememberSortKey?: string
+}
+
+function readRememberedSort(key: string | undefined): string | null {
+  if (!key) return null
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeRememberedSort(key: string | undefined, value: string) {
+  if (!key) return
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Private mode or blocked storage: the sort simply is not remembered.
+  }
 }
 
 export function DataTable<T>({
@@ -146,6 +199,8 @@ export function DataTable<T>({
   pageSize,
   persistInUrl = true,
   urlKey,
+  reorder,
+  rememberSortKey,
 }: DataTableProps<T>) {
   const { t } = useTranslation()
   const url = useListUrlState({ enabled: persistInUrl, prefix: urlKey })
@@ -175,10 +230,21 @@ export function DataTable<T>({
   // Rewrite the URL once with what was actually applied, so an invalid value
   // (an old link, a typo) doesn't stay in the address bar and get shared.
   useEffect(() => {
+    // The remembered sort is read after mount (localStorage does not exist on
+    // the server render, so reading it in the initial state would mismatch).
+    let sort = activeSort
+    const urlSort = url.read('sort')
+    if (!(urlSort && sortOptions?.some((s) => s.value === urlSort))) {
+      const remembered = readRememberedSort(rememberSortKey)
+      if (remembered && remembered !== activeSort && sortOptions?.some((s) => s.value === remembered)) {
+        sort = remembered
+        setActiveSort(remembered)
+      }
+    }
     url.write({
       q: search.trim() || null,
       tab: tabsControlled || internalFilter === baseFilter ? null : internalFilter,
-      sort: activeSort === baseSort ? null : activeSort,
+      sort: sort === baseSort ? null : sort,
     })
     // Mount only: later changes write through the update functions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,6 +262,7 @@ export function DataTable<T>({
 
   function updateSort(value: string) {
     setActiveSort(value)
+    writeRememberedSort(rememberSortKey, value)
     setPage(1)
     url.write({ sort: value === baseSort ? null : value, page: null })
   }
@@ -262,9 +329,32 @@ export function DataTable<T>({
     }
   }, [page, currentPage, url])
 
-  const paginatedData = pageSize
-    ? displayData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
-    : displayData
+  // Reordering: only on the custom sort, with nothing narrowing the list.
+  const customSortOn = !!reorder && activeSort === reorder.sortValue
+  const reorderActive = customSortOn && !isFiltered && activeFilter === baseFilter
+  const showReorderHint = customSortOn && !reorderActive && !!reorder?.disabledHint
+
+  const paginatedData =
+    pageSize && !reorderActive
+      ? displayData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+      : displayData
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const rowKeys = useMemo(() => displayData.map((row) => getRowKey(row)), [displayData, getRowKey])
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!reorder || !over || active.id === over.id) return
+    const from = rowKeys.indexOf(String(active.id))
+    const to = rowKeys.indexOf(String(over.id))
+    if (from < 0 || to < 0) return
+    const next = arrayMove(rowKeys, from, to)
+    reorder.onMove(next[to], next[to - 1] ?? null, next[to + 1] ?? null)
+  }
 
   // ── Toolbar ────────────────────────────────────────────────────────────────
   const tabOptions = filterTabs?.map((tab) => ({ value: tab.key, label: tab.label })) ?? []
@@ -371,6 +461,11 @@ export function DataTable<T>({
       {isFiltered && displayData.length > 0 && (
         <ListFilterSummary chips={chips} shown={displayData.length} total={data.length} onClear={clearFilters} />
       )}
+      {showReorderHint && (
+        <p className="text-xs text-muted-foreground" data-testid="reorder-disabled-hint">
+          {reorder?.disabledHint}
+        </p>
+      )}
 
       {displayData.length === 0 ? (
         // Its own "Clear filters" button resets everything; the Filters badge
@@ -385,63 +480,95 @@ export function DataTable<T>({
         <>
           {/* Desktop table */}
           <div className="hidden min-w-0 md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {columns.map((col) => {
-                    const isSortable = col.sortAsc !== undefined || col.sortDesc !== undefined
-                    const isActiveDesc = activeSort === col.sortDesc
-                    const isActiveAsc = activeSort === col.sortAsc
-                    return (
-                      <TableHead
-                        key={col.key}
-                        className={cn(col.className, isSortable && 'cursor-pointer select-none')}
-                        onClick={isSortable ? () => toggleColumnSort(col) : undefined}
-                        aria-sort={isActiveDesc ? 'descending' : isActiveAsc ? 'ascending' : undefined}
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          {col.header}
-                          {isSortable && (
-                            isActiveDesc ? (
-                              <ChevronDown className="h-3.5 w-3.5 text-foreground" />
-                            ) : isActiveAsc ? (
-                              <ChevronUp className="h-3.5 w-3.5 text-foreground" />
-                            ) : (
-                              <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-                            )
-                          )}
-                        </span>
-                      </TableHead>
-                    )
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedData.map((row) => (
-                  <TableRow
-                    key={getRowKey(row)}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className={onRowClick ? 'cursor-pointer' : ''}
-                  >
-                    {columns.map((col) => (
-                      <TableCell key={col.key} className={col.className}>
-                        {col.cell(row)}
-                      </TableCell>
-                    ))}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {reorderActive && <TableHead className="w-8 px-1" aria-label={t('Drag to reorder')} />}
+                    {columns.map((col) => {
+                      const isSortable = col.sortAsc !== undefined || col.sortDesc !== undefined
+                      const isActiveDesc = activeSort === col.sortDesc
+                      const isActiveAsc = activeSort === col.sortAsc
+                      return (
+                        <TableHead
+                          key={col.key}
+                          className={cn(col.className, isSortable && 'cursor-pointer select-none')}
+                          onClick={isSortable ? () => toggleColumnSort(col) : undefined}
+                          aria-sort={isActiveDesc ? 'descending' : isActiveAsc ? 'ascending' : undefined}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {col.header}
+                            {isSortable && (
+                              isActiveDesc ? (
+                                <ChevronDown className="h-3.5 w-3.5 text-foreground" />
+                              ) : isActiveAsc ? (
+                                <ChevronUp className="h-3.5 w-3.5 text-foreground" />
+                              ) : (
+                                <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                              )
+                            )}
+                          </span>
+                        </TableHead>
+                      )
+                    })}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  <SortableContext items={reorderActive ? rowKeys : []} strategy={verticalListSortingStrategy}>
+                    {paginatedData.map((row) =>
+                      reorderActive ? (
+                        <SortableTableRow
+                          key={getRowKey(row)}
+                          id={getRowKey(row)}
+                          onClick={onRowClick ? () => onRowClick(row) : undefined}
+                          gripLabel={t('Drag to reorder')}
+                        >
+                          {columns.map((col) => (
+                            <TableCell key={col.key} className={col.className}>
+                              {col.cell(row)}
+                            </TableCell>
+                          ))}
+                        </SortableTableRow>
+                      ) : (
+                        <TableRow
+                          key={getRowKey(row)}
+                          onClick={onRowClick ? () => onRowClick(row) : undefined}
+                          className={onRowClick ? 'cursor-pointer' : ''}
+                        >
+                          {columns.map((col) => (
+                            <TableCell key={col.key} className={col.className}>
+                              {col.cell(row)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ),
+                    )}
+                  </SortableContext>
+                </TableBody>
+              </Table>
+            </DndContext>
           </div>
 
-          {/* Mobile cards (sorting lives in the Filters sheet) */}
+          {/* Mobile cards (sorting lives in the Filters sheet; a long press drags when reordering) */}
           {renderMobileCard && (
             <div className="md:hidden space-y-0">
-              {paginatedData.map((row) => renderMobileCard(row))}
+              {reorderActive ? (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={rowKeys} strategy={verticalListSortingStrategy}>
+                    {paginatedData.map((row) => (
+                      <SortableCard key={getRowKey(row)} id={getRowKey(row)}>
+                        {renderMobileCard(row)}
+                      </SortableCard>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                paginatedData.map((row) => renderMobileCard(row))
+              )}
             </div>
           )}
 
-          {pageSize && totalPages > 1 && (
+          {pageSize && !reorderActive && totalPages > 1 && (
             <PaginationBar
               page={currentPage}
               totalPages={totalPages}
@@ -453,6 +580,70 @@ export function DataTable<T>({
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/** Desktop row with a leading grip: mouse and keyboard drag from the grip only. */
+function SortableTableRow({
+  id,
+  onClick,
+  gripLabel,
+  children,
+}: {
+  id: string
+  onClick?: () => void
+  gripLabel: string
+  children: ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      onClick={onClick}
+      data-sortable-row={id}
+      className={cn(onClick && 'cursor-pointer', isDragging && 'relative z-20 bg-background opacity-80 shadow-md')}
+    >
+      <TableCell className="w-8 px-1">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label={gripLabel}
+          title={gripLabel}
+          data-testid={`row-grip-${id}`}
+          className="flex size-7 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:text-foreground"
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </button>
+      </TableCell>
+      {children}
+    </TableRow>
+  )
+}
+
+/**
+ * Phone card: only the touch listener is attached, so a long press (the
+ * TouchSensor delay) lifts the card while a tap still opens the project and a
+ * swipe still scrolls.
+ */
+function SortableCard({ id, children }: { id: string; children: ReactNode }) {
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const { onTouchStart } = (listeners ?? {}) as { onTouchStart?: TouchEventHandler }
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      onTouchStart={onTouchStart}
+      data-sortable-card={id}
+      className={cn(
+        'relative select-none bg-background [-webkit-touch-callout:none]',
+        isDragging && 'z-20 opacity-80 shadow-md',
+      )}
+    >
+      {children}
     </div>
   )
 }

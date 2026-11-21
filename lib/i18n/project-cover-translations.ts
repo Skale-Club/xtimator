@@ -7,6 +7,10 @@ type Dict = Record<string, string>
 
 export const projectCoverTranslations: Record<'pt' | 'es', Dict> = {
   pt: {
+    // Custom project order (components/projects/project-table.tsx)
+    'Custom order': 'Ordem personalizada',
+    'Clear the search and filters to reorder.': 'Limpe a busca e os filtros para reordenar.',
+    'Could not move the project.': 'Não foi possível mover o projeto.',
     'Thumbnail': 'Miniatura',
     'Change thumbnail': 'Alterar miniatura',
     'Choose a photo from this project or upload an image.': 'Escolha uma foto deste projeto ou envie uma imagem.',
@@ -27,6 +31,10 @@ export const projectCoverTranslations: Record<'pt' | 'es', Dict> = {
     'This photo is in HEIC format. Choose a JPG or PNG, or set the camera to "Most compatible".': 'Esta foto está em formato HEIC. Escolha um JPG ou PNG, ou configure a câmera para "Mais compatível".',
   },
   es: {
+    // Custom project order (components/projects/project-table.tsx)
+    'Custom order': 'Orden personalizado',
+    'Clear the search and filters to reorder.': 'Quita la búsqueda y los filtros para reordenar.',
+    'Could not move the project.': 'No se pudo mover el proyecto.',
     'Thumbnail': 'Miniatura',
     'Change thumbnail': 'Cambiar miniatura',
     'Choose a photo from this project or upload an image.': 'Elige una foto de este proyecto o sube una imagen.',

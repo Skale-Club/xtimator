@@ -932,6 +932,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...excepted('lib/actions/project-cover.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'listProjectCoverPhotos',
   ]),
+  ...guarded('lib/actions/project-order.ts', 'assertWritable', ['moveProject']),
   ...guarded('lib/actions/project.ts', 'assertWritable', [
     'archiveProjectAction',
     'createProjectAction',

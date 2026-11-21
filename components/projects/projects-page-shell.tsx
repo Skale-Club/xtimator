@@ -173,6 +173,7 @@ export function ProjectsPageShell({
           activeFilters={clientChipLabel ? [{ key: 'client', label: clientChipLabel, onRemove: () => pushQuery({ client: null }) }] : []}
           onClearFilters={() => { if (clientId) pushQuery({ client: null }) }}
           pageSize={20}
+          customOrder
           projects={projects}
           fallbackCurrencyCode={currencyCode}
           companyId={companyId}

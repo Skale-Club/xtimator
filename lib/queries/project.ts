@@ -160,6 +160,8 @@ export interface ProjectListRow {
   /** Project thumbnail: 'auto' | 'photo' | 'upload' | 'none'; the key renders via storageProxyPath. */
   cover_mode: string
   cover_thumb_path: string | null
+  /** Custom list order: lower = higher in the list; null until the project is positioned. */
+  sort_order: number | null
 }
 
 interface ProjectListRowRaw {
@@ -174,6 +176,7 @@ interface ProjectListRowRaw {
   client: { id: string; name: string } | { id: string; name: string }[] | null
   cover_mode: string | null
   cover_thumb_path: string | null
+  sort_order: number | null
 }
 
 export async function getProjectsForListPage(
@@ -183,7 +186,7 @@ export async function getProjectsForListPage(
 ): Promise<ProjectListRow[]> {
   let q = supabase
     .from('projects')
-    .select('id, name, project_type, status, total, created_at, archived_at, deleted_at, cover_mode, cover_thumb_path, client:clients(id, name)')
+    .select('id, name, project_type, status, total, created_at, archived_at, deleted_at, cover_mode, cover_thumb_path, sort_order, client:clients(id, name)')
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
@@ -226,6 +229,7 @@ export async function getProjectsForListPage(
       client,
       cover_mode: row.cover_mode ?? 'auto',
       cover_thumb_path: row.cover_thumb_path ?? null,
+      sort_order: row.sort_order ?? null,
     }
   })
 }
