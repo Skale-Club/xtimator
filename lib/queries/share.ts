@@ -12,6 +12,8 @@ import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 import { applySignedSnapshot, applySignedCompanyTerms } from '@/lib/estimate/signed-snapshot'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites
+import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
+import type { SnapshotSourceEstimate, SnapshotSourceSection } from '@/lib/estimate/signed-snapshot'
 
 // Internal fields never sent to the public browser payload: share_token is a
 // bearer credential the viewer already holds. attachedPhotos is also omitted
@@ -80,6 +82,14 @@ export interface ShareEstimateData {
     signerName: string | null
     signedAt: string | null
     signatureImageDataUrl: string | null
+    /**
+     * Fingerprint of the content a signature would freeze (estimate, lines and
+     * company terms), computed from the same rows this page renders. The client
+     * sends it back when signing and the sign route refuses on a mismatch, so
+     * nobody signs a document that changed after their page loaded. null once
+     * a signature exists (nothing left to sign).
+     */
+    contentFingerprint: string | null
   }
   client: {
     // Phase 162-02 (DOCUX-02) — required by the widened DocumentClient
@@ -255,6 +265,16 @@ export async function getEstimateByShareToken(
 
   if (!companyData) return null
 
+  // Computed from the LIVE rows (never the signed overlay): it must equal what
+  // the sign route rebuilds from the database when the client signs.
+  const contentFingerprint = signedSnapshotRow
+    ? null
+    : computeContentFingerprint(
+        estimate as unknown as SnapshotSourceEstimate,
+        sectionsWithItems as unknown as SnapshotSourceSection[],
+        companyData as { estimate_terms_enabled?: boolean | null; estimate_terms_text?: string | null }
+      )
+
   // TRUST-01 v2 (security-hardening S1): a v2 signed snapshot freezes the
   // company Terms & Conditions block too — REPLACE (never merge) enabled +
   // text wholesale, same discipline as applySignedSnapshot above. A v1
@@ -363,6 +383,7 @@ export async function getEstimateByShareToken(
       signerName,
       signedAt,
       signatureImageDataUrl,
+      contentFingerprint,
     },
     client,
     preparedBy: await resolvePreparedBy(
@@ -514,6 +535,16 @@ export async function getEstimateByPublicToken(
 
   if (!companyData) return null
 
+  // Computed from the LIVE rows (never the signed overlay): it must equal what
+  // the sign route rebuilds from the database when the client signs.
+  const contentFingerprint = signedSnapshotRow
+    ? null
+    : computeContentFingerprint(
+        estimate as unknown as SnapshotSourceEstimate,
+        sectionsWithItems as unknown as SnapshotSourceSection[],
+        companyData as { estimate_terms_enabled?: boolean | null; estimate_terms_text?: string | null }
+      )
+
   // TRUST-01 v2 (security-hardening S1) — same overlay as
   // getEstimateByShareToken above; see that call site's comment for the
   // full rationale.
@@ -587,6 +618,7 @@ export async function getEstimateByPublicToken(
       signerName,
       signedAt,
       signatureImageDataUrl,
+      contentFingerprint,
     },
     client,
     preparedBy: await resolvePreparedBy(

@@ -18,6 +18,8 @@ import {
   actionAddItem,
   actionRemoveItem,
   formatEstimateContext,
+  ESTIMATE_ANSWERED_MESSAGE,
+  type EditableFields,
   type ItemMutationResult,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
@@ -33,6 +35,18 @@ export function makeConfirmationTools(
   companyId: string,
   supabase: SupabaseClient
 ) {
+  // A header edit on an estimate the client already answered is refused by
+  // actionUpdateField; tell the owner why instead of failing the whole turn.
+  async function updateField(patch: EditableFields, done: string): Promise<string> {
+    try {
+      const updated = await actionUpdateField(session, supabase, patch)
+      return `${done}\n\n${formatEstimateContext(updated)}`
+    } catch (err) {
+      if (err instanceof Error && err.message === ESTIMATE_ANSWERED_MESSAGE) return ESTIMATE_ANSWERED_MESSAGE
+      throw err
+    }
+  }
+
   const sendEstimate = tool(
     async () => {
       const result = await actionSend(session, companyId, supabase)
@@ -61,8 +75,7 @@ export function makeConfirmationTools(
 
   const updateTotal = tool(
     async ({ value }: { value: number }) => {
-      const updated = await actionUpdateField(session, supabase, { total: value })
-      return `Total updated.\n\n${formatEstimateContext(updated)}`
+      return updateField({ total: value }, 'Total updated.')
     },
     {
       name: 'update_total',
@@ -76,8 +89,7 @@ export function makeConfirmationTools(
 
   const updateTimeline = tool(
     async ({ value }: { value: string }) => {
-      const updated = await actionUpdateField(session, supabase, { timeline: value })
-      return `Timeline updated.\n\n${formatEstimateContext(updated)}`
+      return updateField({ timeline: value }, 'Timeline updated.')
     },
     {
       name: 'update_timeline',
@@ -90,8 +102,7 @@ export function makeConfirmationTools(
 
   const updatePaymentTerms = tool(
     async ({ value }: { value: string }) => {
-      const updated = await actionUpdateField(session, supabase, { payment_terms: value })
-      return `Payment terms updated.\n\n${formatEstimateContext(updated)}`
+      return updateField({ payment_terms: value }, 'Payment terms updated.')
     },
     {
       name: 'update_payment_terms',
@@ -104,8 +115,7 @@ export function makeConfirmationTools(
 
   const updateSummary = tool(
     async ({ value }: { value: string }) => {
-      const updated = await actionUpdateField(session, supabase, { summary: value })
-      return `Summary updated.\n\n${formatEstimateContext(updated)}`
+      return updateField({ summary: value }, 'Summary updated.')
     },
     {
       name: 'update_summary',

@@ -187,6 +187,10 @@ async function main() {
   try {
     await db.query(APPLY ? 'BEGIN' : 'BEGIN READ ONLY')
     if (APPLY) await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${SEED}:${COMPANY}`])
+    // The seed inserts estimates already accepted and then their sections and items;
+    // 20261121130001 refuses line writes on an answered estimate unless the
+    // transaction opts in.
+    if (APPLY) await db.query("SELECT set_config('app.allow_locked_estimate_write', 'on', true)")
     const { rows: [account] } = await db.query(`SELECT c.id,c.name,c.user_id FROM companies c JOIN company_members m ON m.company_id=c.id AND m.user_id=c.user_id
       JOIN auth.users u ON u.id=c.user_id WHERE c.id=$1 AND lower(u.email)=lower($2) AND m.role='owner'`, [COMPANY, EMAIL])
     if (!account) throw new Error('Exact account/company ownership check failed')

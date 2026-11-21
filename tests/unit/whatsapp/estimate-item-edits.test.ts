@@ -22,6 +22,8 @@ import {
   actionUpdateItem,
   actionAddItem,
   actionRemoveItem,
+  actionUpdateField,
+  ESTIMATE_ANSWERED_MESSAGE,
   type Session,
 } from '@/lib/whatsapp/confirm-actions'
 import { makeConfirmationTools } from '@/lib/whatsapp/agent-tools'
@@ -106,6 +108,7 @@ function makeInMemorySupabase() {
       mkItem('i3', 's2', 'Paint', 1, 50, 0),
     ] as MockItem[],
     projectTotal: 190,
+    signatures: [] as Array<{ id: string }>,
   }
   let idSeq = 0
 
@@ -194,6 +197,9 @@ function makeInMemorySupabase() {
       }
       if (table === 'companies') {
         return { data: { tax_config: db.company.tax_config }, error: null }
+      }
+      if (table === 'estimate_signatures') {
+        return { data: db.signatures, error: null }
       }
       if (table === 'projects') {
         if (state.mode === 'update') db.projectTotal = Number((state.payload as { total: number }).total)
@@ -361,6 +367,56 @@ describe('actionRemoveItem — delete + recompute', () => {
     const result = await actionRemoveItem(SESSION, COMPANY_ID, client, 1, 9)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toMatch(/item 1\.9/i)
+  })
+})
+
+// Lock-at-acceptance: once the client answered or signed, the WhatsApp edits
+// refuse before touching a row (the database refuses line writes as well).
+describe('an answered or signed estimate cannot be edited from WhatsApp', () => {
+  function locked(how: 'accepted' | 'declined' | 'signed') {
+    const harness = makeInMemorySupabase()
+    if (how === 'signed') harness.db.signatures.push({ id: 'sig-1' })
+    else (harness.db.estimate as Record<string, unknown>).client_response = how
+    return harness
+  }
+  const state = (db: ReturnType<typeof makeInMemorySupabase>['db']) =>
+    JSON.stringify({ items: db.items, sections: db.sections, estimate: db.estimate, project: db.projectTotal })
+
+  it.each(['accepted', 'declined', 'signed'] as const)(
+    '%s: item update, add and remove are refused and nothing changes',
+    async (how) => {
+      const { client, db } = locked(how)
+      const before = state(db)
+
+      const results = [
+        await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, { price: 999 }),
+        await actionAddItem(SESSION, COMPANY_ID, client, 1, 'Extra work', 50),
+        await actionRemoveItem(SESSION, COMPANY_ID, client, 1, 2),
+      ]
+
+      for (const res of results) expect(res).toEqual({ ok: false, message: ESTIMATE_ANSWERED_MESSAGE })
+      expect(state(db)).toBe(before)
+    }
+  )
+
+  it('a header edit (total, timeline, terms, summary) is refused too', async () => {
+    const { client, db } = locked('accepted')
+    await expect(actionUpdateField(SESSION, client, { total: 1 })).rejects.toThrow(ESTIMATE_ANSWERED_MESSAGE)
+    expect(db.estimate.total).toBe(190)
+  })
+
+  it('the field tools answer plainly instead of failing the turn', async () => {
+    const { client } = locked('accepted')
+    const tools = makeConfirmationTools(SESSION, COMPANY_ID, client)
+    const updateTotal = tools.find((t) => t.name === 'update_total')!
+    await expect(updateTotal.invoke({ value: 500 })).resolves.toBe(ESTIMATE_ANSWERED_MESSAGE)
+  })
+
+  it('an unanswered estimate is still editable', async () => {
+    const { client, db } = makeInMemorySupabase()
+    const res = await actionUpdateItem(SESSION, COMPANY_ID, client, 1, 1, { price: 150 })
+    expect(res.ok).toBe(true)
+    expect(db.items.find((i) => i.id === 'i1')!.unit_price).toBe(150)
   })
 })
 
