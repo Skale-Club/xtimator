@@ -20,7 +20,16 @@ import { uploadProjectPhoto, deletePhoto } from '@/lib/actions/photo'
 import { createClient } from '@/lib/supabase/client'
 import { createStorage } from '@/lib/storage'
 import { uploadViaTicket } from '@/lib/storage/browser-upload'
-import { savePendingCapture, getPendingCapture, deletePendingCapture, isAvailable as isBlobStoreAvailable, type PendingCapture } from '@/lib/capture/blob-store'
+import {
+  savePendingCapture,
+  getPendingCapture,
+  deletePendingCapture,
+  appendInflightChunk,
+  getInflightCapture,
+  deleteInflightCapture,
+  isAvailable as isBlobStoreAvailable,
+  type PendingCapture,
+} from '@/lib/capture/blob-store'
 import { getSupportedAudioMimeType, formatDuration } from '@/lib/utils/media-format'
 import { cn } from '@/lib/utils'
 import { compressImage, isLikelyHeic } from '@/lib/utils/image-compressor'
@@ -104,6 +113,38 @@ const MAX_PHOTOS = 16
 // CAPT-03: a pending IDB capture older than this is treated as stale and
 // silently discarded rather than offered for resume.
 const PENDING_CAPTURE_MAX_AGE_MS = 24 * 60 * 60 * 1000
+
+// In-progress persistence: a webm take is flushed to IndexedDB every
+// INFLIGHT_TIMESLICE_MS, so a locked screen, a discarded tab or a crash loses
+// at most this much audio. mp4 (older iOS) keeps the single-blob recorder:
+// joining fragmented mp4 chunks is not verified with the transcriber.
+const INFLIGHT_TIMESLICE_MS = 10_000
+
+/** Only webm chunks concatenate into a playable file. */
+export function supportsInflightPersistence(mimeType: string): boolean {
+  return mimeType.toLowerCase().includes('webm')
+}
+
+/** m:ss for the "interrupted at" line. */
+function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** One ArrayBuffer from the ordered chunks (webm chunks are a byte-stream split). */
+function joinChunks(chunks: ArrayBuffer[]): ArrayBuffer {
+  const total = chunks.reduce((n, c) => n + c.byteLength, 0)
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) {
+    out.set(new Uint8Array(c), offset)
+    offset += c.byteLength
+  }
+  return out.buffer
+}
+
+/** A capture offered on mount; `interrupted` = rebuilt from an in-progress take. */
+type ResumableCapture = PendingCapture & { interrupted?: boolean }
 
 // Draft persistence — the typed description survives closing the popup (outside
 // click / X / Escape) so it can be restored on the next open. Keyed per flow
@@ -435,7 +476,7 @@ export function CaptureRecorder({
   // A pending capture found on mount (< 24h old) — renders the inline
   // "Resume upload / Discard" card while idle. null once resolved/discarded/
   // resumed.
-  const [pendingResume, setPendingResume] = useState<PendingCapture | null>(null)
+  const [pendingResume, setPendingResume] = useState<ResumableCapture | null>(null)
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -453,6 +494,14 @@ export function CaptureRecorder({
   // Set by Discard just before MediaRecorder.stop(): recorder.onstop reads it
   // (via resolveRecorderStop) to drop the take instead of dispatching it.
   const discardedRef = useRef(false)
+  // In-progress persistence: appends are chained so chunks reach IndexedDB in order.
+  const inflightChainRef = useRef<Promise<unknown>>(Promise.resolve())
+  const inflightEnabledRef = useRef(false)
+  const inflightSeqRef = useRef(0)
+  const inflightStartedAtRef = useRef(0)
+  const enqueueInflight = useCallback((job: () => Promise<unknown>) => {
+    inflightChainRef.current = inflightChainRef.current.then(job).catch(() => {})
+  }, [])
   // Popup composer (isHorizontal): needs-details is an inline card, not a panel.
   const inlineNeedsDetailsRef = useRef(false)
   inlineNeedsDetailsRef.current = variant === 'popup' && mode === undefined
@@ -554,13 +603,38 @@ export function CaptureRecorder({
     // Refine mode never persists or resumes a recording (its resume would generate).
     if (refineModeRef.current) return
     let cancelled = false
-    void getPendingCapture(pendingCaptureKey).then((stored) => {
-      if (cancelled || !stored) return
-      if (Date.now() - stored.createdAt > PENDING_CAPTURE_MAX_AGE_MS) {
-        void deletePendingCapture(pendingCaptureKey)
+    void getPendingCapture(pendingCaptureKey).then(async (stored) => {
+      if (cancelled) return
+      if (stored) {
+        // A finished take wins; any in-progress leftover for this key is moot.
+        void deleteInflightCapture(pendingCaptureKey)
+        if (Date.now() - stored.createdAt > PENDING_CAPTURE_MAX_AGE_MS) {
+          void deletePendingCapture(pendingCaptureKey)
+          return
+        }
+        setPendingResume(stored)
         return
       }
-      setPendingResume(stored)
+      // No finished take: look for one that was interrupted mid-recording.
+      const inflight = await getInflightCapture(pendingCaptureKey)
+      // A take started in this component meanwhile owns the in-progress record.
+      if (cancelled || !inflight || inflightEnabledRef.current) return
+      if (
+        Date.now() - inflight.updatedAt > PENDING_CAPTURE_MAX_AGE_MS ||
+        inflight.chunks.length === 0 ||
+        inflight.durationMs < MIN_RECORDING_MS
+      ) {
+        void deleteInflightCapture(pendingCaptureKey)
+        return
+      }
+      setPendingResume({
+        key: pendingCaptureKey,
+        buffer: joinChunks(inflight.chunks),
+        mimeType: inflight.mimeType,
+        durationSeconds: finalizeDurationSeconds(inflight.durationMs),
+        createdAt: inflight.updatedAt,
+        interrupted: true,
+      })
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -658,6 +732,10 @@ export function CaptureRecorder({
     segmentStartRef.current = null
     elapsedMsRef.current = accumulatedMsRef.current
     setElapsedMs(accumulatedMsRef.current)
+    // No data event fires while paused: flush what the take holds so far.
+    if (inflightEnabledRef.current) {
+      try { rec.requestData() } catch { /* fail-soft */ }
+    }
     rec.pause()
     setIsPaused(true)
   }, [])
@@ -1263,12 +1341,27 @@ export function CaptureRecorder({
     accumulatedMsRef.current = stored.durationSeconds * 1000
     mimeTypeRef.current = stored.mimeType
     setAudioBlob(reconstructed)
+    if (stored.interrupted) {
+      // Promote the rebuilt take to a finished pending capture first: from here
+      // the normal upload protection applies (it is deleted once dispatch is confirmed).
+      const pending: PendingCapture = {
+        key: stored.key,
+        buffer: stored.buffer,
+        mimeType: stored.mimeType,
+        durationSeconds: stored.durationSeconds,
+        createdAt: stored.createdAt,
+      }
+      void savePendingCapture(pending)
+        .then(() => deleteInflightCapture(pendingCaptureKey))
+        .catch(() => {})
+    }
     void runPipeline(reconstructed)
-  }, [pendingResume, runPipeline])
+  }, [pendingResume, runPipeline, pendingCaptureKey])
 
   const handleDiscardCapture = useCallback(() => {
     setPendingResume(null)
     void deletePendingCapture(pendingCaptureKey)
+    void deleteInflightCapture(pendingCaptureKey)
   }, [pendingCaptureKey])
 
   // Unified generation handler (text-only, audio, or photos-only). `photos` is
@@ -1431,6 +1524,8 @@ export function CaptureRecorder({
     setIsPaused(false)
     warnedRef.current = false
     discardedRef.current = false
+    inflightEnabledRef.current = false
+    inflightSeqRef.current = 0
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -1454,11 +1549,48 @@ export function CaptureRecorder({
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       mediaRecorderRef.current = recorder
 
+      // In-progress persistence: webm only, never in refine mode.
+      const inflightMime = recorder.mimeType || mimeType
+      const inflight =
+        !refineModeRef.current &&
+        isBlobStoreAvailable() &&
+        supportsInflightPersistence(inflightMime)
+      inflightEnabledRef.current = inflight
+      inflightStartedAtRef.current = Date.now()
+      let stopHandled = false
+
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
+        if (e.data.size === 0) return
+        chunksRef.current.push(e.data)
+        // The final flush at stop (state already inactive) is covered by the normal stop flow.
+        if (!inflight || recorder.state === 'inactive' || discardedRef.current) return
+        const chunk = e.data
+        const durationMs = computeElapsedMs(accumulatedMsRef.current, segmentStartRef.current, performance.now())
+        const reset = inflightSeqRef.current === 0
+        inflightSeqRef.current += 1
+        enqueueInflight(async () => {
+          const buffer = await chunk.arrayBuffer()
+          await appendInflightChunk(
+            pendingCaptureKey,
+            { mimeType: inflightMime, startedAt: inflightStartedAtRef.current, durationMs },
+            buffer,
+            reset
+          )
+        })
+      }
+
+      recorder.onerror = () => {
+        toast.error(t('The recording stopped unexpectedly. What was captured is kept.'))
+        // Keep the audio: stop through the normal path so onstop decides keep or drop.
+        elapsedMsRef.current = computeElapsedMs(accumulatedMsRef.current, segmentStartRef.current, performance.now())
+        try { stopRecording() } catch { /* fall through to the safety net below */ }
+        // A recorder that died without firing stop must not leave the UI stuck.
+        setTimeout(() => { if (!stopHandled) recorder.onstop?.(new Event('stop')) }, 1500)
       }
 
       recorder.onstop = () => {
+        if (stopHandled) return
+        stopHandled = true
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
         const action = resolveRecorderStop({
           discarded: discardedRef.current,
@@ -1467,6 +1599,9 @@ export function CaptureRecorder({
           elapsedMs: elapsedMsRef.current,
         })
         discardedRef.current = false
+        // The in-progress copy has served its purpose on every path except a
+        // finished take that is persisted below (cleared right after that write).
+        if (inflight && action !== 'run-pipeline') enqueueInflight(() => deleteInflightCapture(pendingCaptureKey))
         // Discarded by the user: no blob kept, nothing persisted or dispatched, no toast.
         if (action === 'discard') return
         // Refine mode: keep the take for the "See changes" submit. No IDB
@@ -1506,6 +1641,9 @@ export function CaptureRecorder({
               })
             )
             .catch((err) => console.error('[capture] IDB persist failed (non-fatal):', err))
+            .finally(() => { if (inflight) enqueueInflight(() => deleteInflightCapture(pendingCaptureKey)) })
+        } else if (inflight) {
+          enqueueInflight(() => deleteInflightCapture(pendingCaptureKey))
         }
         // Pipeline fires after blob is set — call through runPipelineRef so the
         // LATEST closure runs at stop, not the one bound when onstop was assigned
@@ -1513,7 +1651,9 @@ export function CaptureRecorder({
         void runPipelineRef.current(blob)
       }
 
-      recorder.start()
+      // timeslice only where chunks can be joined back (webm); mp4 keeps today's single blob.
+      if (inflight) recorder.start(INFLIGHT_TIMESLICE_MS)
+      else recorder.start()
       segmentStartRef.current = performance.now()
       setIsRecording(true)
 
@@ -1532,7 +1672,7 @@ export function CaptureRecorder({
         toast.error(t('Failed to start recording. Please try again.'))
       }
     }
-  }, [tick, runPipeline])
+  }, [tick, runPipeline, stopRecording, enqueueInflight, pendingCaptureKey, t])
 
   const handleToggleRecording = useCallback(() => {
     if (isRecording) {
@@ -1719,14 +1859,16 @@ export function CaptureRecorder({
               data-testid="capture-resume-card"
             >
               <span className="text-amber-900 dark:text-amber-200">
-                {t('You have an unsent recording')} ({Math.max(1, Math.round(pendingResume.durationSeconds / 60))} {t('min')})
+                {pendingResume.interrupted
+                  ? `${t('A recording was interrupted at')} ${formatClock(pendingResume.durationSeconds)}.`
+                  : <>{t('You have an unsent recording')} ({Math.max(1, Math.round(pendingResume.durationSeconds / 60))} {t('min')})</>}
               </span>
               <div className="flex gap-2 shrink-0">
                 <Button variant="ghost" size="sm" onClick={handleDiscardCapture} data-testid="capture-resume-discard">
                   {t('Discard')}
                 </Button>
                 <Button size="sm" onClick={handleResumeCapture} data-testid="capture-resume-upload">
-                  {t('Resume upload')}
+                  {pendingResume.interrupted ? t('Use it') : t('Resume upload')}
                 </Button>
               </div>
             </div>

@@ -41,6 +41,9 @@ vi.mock('@/lib/capture/blob-store', () => ({
   savePendingCapture: vi.fn(),
   getPendingCapture: vi.fn(async () => null),
   deletePendingCapture: vi.fn(),
+  appendInflightChunk: vi.fn(async () => true),
+  getInflightCapture: vi.fn(async () => null),
+  deleteInflightCapture: vi.fn(async () => undefined),
   isAvailable: () => false,
 }))
 vi.mock('@/lib/estimate/poll-outcome', () => ({
