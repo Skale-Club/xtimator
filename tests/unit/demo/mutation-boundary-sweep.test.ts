@@ -912,6 +912,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'deletePriceBookItem',
     'deletePriceBookItems',
     'importPriceBookItems',
+    'reorderFolders',
     'resolveOrCreateFolders',
     'setItemOptions',
     'undoLastImport',

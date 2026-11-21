@@ -34,10 +34,14 @@ export default async function PriceBookPage() {
   }
 
   // No ListPage card: the list draws its own panel on desktop and goes flat,
-  // full width, on a phone.
+  // full width, on a phone. On md+ the wrapper is as tall as <main> and the
+  // panel fills it, so only the services column scrolls. md:pb-0: main's own
+  // md:pb-6 is the gap under the card, the same 24px as the sides.
   return (
-    <div className="w-full space-y-4 p-4 sm:p-6">
-      <UndoImportBanner />
+    <div className="w-full space-y-4 p-4 sm:p-6 md:flex md:h-full md:flex-col md:gap-4 md:space-y-0 md:pb-0">
+      <div className="empty:hidden md:shrink-0">
+        <UndoImportBanner />
+      </div>
       <PriceBookList
         items={items}
         folders={folders}

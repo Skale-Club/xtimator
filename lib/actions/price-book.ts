@@ -49,14 +49,73 @@ export async function createFolder(name: string) {
   const billingDenied = await billingEditDenied(ctx.company.id)
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
+  // A new category goes to the end of the list.
+  const nextOrder = await nextFolderSortOrder(supabase, company.id)
   const { data, error } = await supabase
     .from('price_book_folders')
-    .insert({ company_id: company.id, name: name.trim() })
+    .insert({ company_id: company.id, name: name.trim(), sort_order: nextOrder })
     .select()
     .single()
   if (error) return { error: 'Failed to create folder.' }
   revalidatePath('/price-book')
   return { data }
+}
+
+/** Current max sort_order + 1 (0 when the company has no folders yet). */
+async function nextFolderSortOrder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companyId: string
+): Promise<number> {
+  const { data } = await supabase
+    .from('price_book_folders')
+    .select('sort_order')
+    .eq('company_id', companyId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+  const max = (data as { sort_order: number | null }[] | null)?.[0]?.sort_order
+  return typeof max === 'number' ? max + 1 : 0
+}
+
+/**
+ * Persist a new category order: `orderedIds` must be exactly the company's
+ * folder ids (no missing, extra or duplicate ids); each folder's sort_order
+ * becomes its index. One plain UPDATE per folder scoped by company_id (no
+ * nested or() filters, which PostgREST 12 mangles in an UPDATE).
+ */
+export async function reorderFolders(orderedIds: string[]) {
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const denied = await assertWritable()
+  if (denied) return denied
+  const billingDenied = await billingEditDenied(ctx.company.id)
+  if (billingDenied) return billingDenied
+  const { supabase, company } = ctx
+
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return { error: 'Nothing to reorder.' }
+  if (new Set(orderedIds).size !== orderedIds.length) return { error: 'Duplicate categories in the new order.' }
+
+  const { data: existing, error: loadErr } = await supabase
+    .from('price_book_folders')
+    .select('id')
+    .eq('company_id', company.id)
+  if (loadErr) return { error: 'Could not load the categories.' }
+  const known = new Set((existing ?? []).map((f: { id: string }) => f.id))
+  if (known.size !== orderedIds.length || orderedIds.some((id) => !known.has(id))) {
+    return { error: 'The category list changed. Refresh and try again.' }
+  }
+
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase
+        .from('price_book_folders')
+        .update({ sort_order: index })
+        .eq('id', id)
+        .eq('company_id', company.id)
+    )
+  )
+  if (results.some((r) => r.error)) return { error: 'Failed to reorder categories.' }
+  revalidatePath('/price-book')
+  return { data: true as const }
 }
 
 export async function updateFolder(folderId: string, name: string) {
@@ -158,9 +217,11 @@ export async function resolveOrCreateFolders(
   // Create missing
   const toCreate = names.filter((n) => !existingNames.has(n.toLowerCase()))
   if (toCreate.length > 0) {
+    // New folders follow the existing ones, in import order.
+    const firstOrder = await nextFolderSortOrder(supabase, company.id)
     const { data: created } = await supabase
       .from('price_book_folders')
-      .insert(toCreate.map((name) => ({ company_id: company.id, name })))
+      .insert(toCreate.map((name, i) => ({ company_id: company.id, name, sort_order: firstOrder + i })))
       .select('id, name')
     for (const row of created ?? []) {
       map.set(row.name.toLowerCase(), row.id)

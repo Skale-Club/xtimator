@@ -26,6 +26,7 @@ vi.mock('sonner', () => ({
 const mockDelete = vi.fn().mockResolvedValue({ data: { deleted: true } })
 const mockTrash = vi.fn().mockResolvedValue({ data: { deleted: 2 } })
 const mockDeleteFolderWithItems = vi.fn().mockResolvedValue({ data: { deleted: true } })
+const mockReorder = vi.fn().mockResolvedValue({ data: true })
 
 vi.mock('@/lib/actions/price-book', () => ({
   createPriceBookItem: vi.fn().mockResolvedValue({ data: {} }),
@@ -36,6 +37,7 @@ vi.mock('@/lib/actions/price-book', () => ({
   createFolder: vi.fn().mockResolvedValue({ data: {} }),
   updateFolder: vi.fn().mockResolvedValue({ data: { updated: true } }),
   deleteFolder: vi.fn().mockResolvedValue({ data: { deleted: true } }),
+  reorderFolders: (...args: any[]) => mockReorder(...args),
   deleteFolderWithItems: (...args: any[]) => mockDeleteFolderWithItems(...args),
 }))
 
@@ -419,5 +421,72 @@ describe('Category filter', () => {
     fireEvent.change(screen.getByLabelText('Filter categories'), { target: { value: 'Trade 3' } })
     expect(screen.getByTestId('category-filter-f3')).toBeDefined()
     expect(screen.queryByTestId('category-filter-f4')).toBeNull()
+  })
+
+  it('keeps the first of two same-named folders and shows the repeated folder items under it', () => {
+    const folders = [
+      ...mockFolders,
+      { id: 'folder-labor-2', company_id: 'c1', name: 'labor', sort_order: 1, created_at: '2026-01-02' },
+    ]
+    const items = [
+      ...mockItems,
+      { ...mockItems[0], id: '4', folder_id: 'folder-labor-2', folder_name: 'labor', name: 'Helper' },
+    ]
+    render(<PriceBookList items={items} folders={folders} companyId="c1" />)
+    // One category row, counting its own 2 items plus the duplicate's 1.
+    expect(screen.queryByTestId('category-filter-folder-labor-2')).toBeNull()
+    expect(screen.getByTestId('category-filter-folder-labor').textContent).toContain('3')
+    // The total still matches the sum of the rows, and the item is on screen.
+    expect(screen.getByTestId('category-filter-all').textContent).toContain('4')
+    expect(screen.getByText('Helper')).toBeDefined()
+  })
+})
+
+describe('Category order', () => {
+  const three: PriceBookFolder[] = [
+    { id: 'fa', company_id: 'c1', name: 'Alpha', sort_order: 0, created_at: '2026-01-01' },
+    { id: 'fb', company_id: 'c1', name: 'Bravo', sort_order: 1, created_at: '2026-01-01' },
+    { id: 'fc', company_id: 'c1', name: 'Charlie', sort_order: 2, created_at: '2026-01-01' },
+  ]
+  const items = three.map((f, i) => ({ ...mockItems[0], id: `i${i}`, folder_id: f.id, folder_name: f.name, name: `Svc ${f.name}` }))
+
+  /** Open a category's ⋯ menu (the phone actions; the same handlers on every screen). */
+  function openMenu(name: string) {
+    const trigger = screen.getByRole('button', { name: `Category actions: ${name}` })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+  }
+
+  beforeEach(() => {
+    mockReorder.mockClear()
+    mockReorder.mockResolvedValue({ data: true })
+  })
+
+  it('moves a category down: reorders optimistically and saves every folder id', async () => {
+    render(<PriceBookList items={items} folders={three} companyId="c1" />)
+    openMenu('Alpha')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    await waitFor(() => expect(mockReorder).toHaveBeenCalledWith(['fb', 'fa', 'fc']))
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(headings[0]).toContain('Bravo')
+    expect(headings[1]).toContain('Alpha')
+  })
+
+  it('disables move up on the first category and move down on the last', () => {
+    render(<PriceBookList items={items} folders={three} companyId="c1" />)
+    openMenu('Alpha')
+    expect(screen.getByRole('menuitem', { name: 'Move up' }).getAttribute('data-disabled')).not.toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Move down' }).getAttribute('data-disabled')).toBeNull()
+  })
+
+  it('reverts the order and toasts when saving fails', async () => {
+    mockReorder.mockResolvedValue({ error: 'nope' })
+    render(<PriceBookList items={items} folders={three} companyId="c1" />)
+    openMenu('Alpha')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    await waitFor(() => expect(mockReorder).toHaveBeenCalled())
+    await waitFor(() => {
+      const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+      expect(headings[0]).toContain('Alpha')
+    })
   })
 })

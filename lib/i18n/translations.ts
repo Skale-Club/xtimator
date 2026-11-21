@@ -9,6 +9,7 @@ import { changeOrderPublicTranslations } from './change-order-public-translation
 import { editorTranslations } from './editor-translations'
 import { analyticsTranslations } from './analytics-translations'
 import { clientActivityTranslations } from './client-activity-translations'
+import { sidePanelTranslations } from './side-panel-translations'
 
 type TranslationDict = Record<string, string>
 
@@ -25,6 +26,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...editorTranslations.pt,
     ...analyticsTranslations.pt,
     ...clientActivityTranslations.pt,
+    ...sidePanelTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -525,6 +527,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...editorTranslations.es,
     ...analyticsTranslations.es,
     ...clientActivityTranslations.es,
+    ...sidePanelTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

@@ -32,6 +32,7 @@ const ACTIONS = {
       'updateFolder',
       'deleteFolder',
       'deleteFolderWithItems',
+      'reorderFolders',
       'resolveOrCreateFolders',
       'setItemOptions',
       'createPriceBookItem',

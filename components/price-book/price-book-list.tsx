@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BookOpen,
@@ -13,8 +13,10 @@ import {
   Trash2,
   FolderPlus,
   ListChecks,
-  ChevronDown,
   CheckSquare,
+  ArrowUp,
+  ArrowDown,
+  LayoutList,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -47,6 +49,12 @@ import {
 } from '@/components/ui/dialog'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { ListSearch, TOOLBAR_CONTROL } from '@/components/ui/list-toolbar'
+import {
+  SidePanelColumn,
+  SidePanelMobilePicker,
+  type SidePanelGroup,
+} from '@/components/ui/side-panel'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useListUrlState } from '@/components/ui/list-url-state'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/dashboard/empty-state'
@@ -59,6 +67,7 @@ import {
   createFolder,
   updateFolder,
   deleteFolderWithItems,
+  reorderFolders,
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
@@ -76,7 +85,8 @@ interface PriceBookListProps {
 const ALL_KEY = 'all'
 const UNCATEGORIZED_KEY = 'uncategorized'
 
-/** The category list gets a filter box once it no longer fits at a glance. */
+/** The category list gets a filter box once it no longer fits at a glance
+ *  (counted over the real categories; the "All" row does not count). */
 const CATEGORY_FILTER_MIN = 7
 
 type Category = {
@@ -124,10 +134,17 @@ export function PriceBookList({
   function selectCategory(key: string) {
     setActiveKeyState(key)
     url.write({ tab: key === ALL_KEY ? null : key })
-    setPickerOpen(false)
+    // Desktop: the services column is the only scroller; start the new category at its top.
+    if (servicesRef.current) servicesRef.current.scrollTop = 0
   }
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [categoryQuery, setCategoryQuery] = useState('')
+  // The desktop services column (the only scroller on md+).
+  const servicesRef = useRef<HTMLDivElement>(null)
+
+  // Folders as shown: the server order, reordered optimistically on a drop and
+  // re-synced whenever the server sends a new list.
+  const [folderState, setFolderState] = useState({ source: folders, list: folders })
+  if (folderState.source !== folders) setFolderState({ source: folders, list: folders })
+  const orderedFolders = folderState.list
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<PriceBookItem | null>(null)
@@ -156,29 +173,55 @@ export function PriceBookList({
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null)
   const [deleteFolderDialogOpen, setDeleteFolderDialogOpen] = useState(false)
 
+  // Folders with a repeated name (case-insensitive, e.g. a seed that ran twice)
+  // show once: the first one is kept and the repeats map to it, so their items
+  // show and count under the kept category instead of vanishing.
+  const { keptFolders, folderAlias, duplicateIds } = useMemo(() => {
+    const byName = new Map<string, PriceBookFolder>()
+    const alias = new Map<string, string>()
+    const dupes = new Map<string, string[]>()
+    const kept: PriceBookFolder[] = []
+    for (const folder of orderedFolders) {
+      const name = folder.name.toLowerCase()
+      const first = byName.get(name)
+      if (first) {
+        alias.set(folder.id, first.id)
+        dupes.set(first.id, [...(dupes.get(first.id) ?? []), folder.id])
+      } else {
+        byName.set(name, folder)
+        kept.push(folder)
+      }
+    }
+    return { keptFolders: kept, folderAlias: alias, duplicateIds: dupes }
+  }, [orderedFolders])
+
+  /** An item's category id, with a dropped duplicate folder mapped to the kept one. */
+  const folderOf = (item: PriceBookItem): string | null => {
+    const id = item.folder_id ?? null
+    return id ? (folderAlias.get(id) ?? id) : null
+  }
+
   // Every category with its UNFILTERED item count (the sidebar and the picker).
   const categories = useMemo<Category[]>(() => {
     const counts = new Map<string | null, number>()
     for (const item of items) {
-      const key = item.folder_id ?? null
+      const id = item.folder_id ?? null
+      const key = id ? (folderAlias.get(id) ?? id) : null
       counts.set(key, (counts.get(key) ?? 0) + 1)
     }
-    const list: Category[] = []
-    // Deduplicate by name (case-insensitive) — protects against duplicate DB rows
-    // that can occur when the seed ran more than once due to a partial failure.
-    const seenNames = new Set<string>()
-    for (const folder of folders) {
-      const key = folder.name.toLowerCase()
-      if (seenNames.has(key)) continue
-      seenNames.add(key)
-      list.push({ key: folder.id, id: folder.id, name: folder.name, count: counts.get(folder.id) ?? 0, isVirtual: false })
-    }
+    const list: Category[] = keptFolders.map((folder) => ({
+      key: folder.id,
+      id: folder.id,
+      name: folder.name,
+      count: counts.get(folder.id) ?? 0,
+      isVirtual: false,
+    }))
     const uncategorized = counts.get(null) ?? 0
     if (uncategorized > 0) {
       list.push({ key: UNCATEGORIZED_KEY, id: null, name: 'Uncategorized', count: uncategorized, isVirtual: true })
     }
     return list
-  }, [items, folders])
+  }, [items, keptFolders, folderAlias])
 
   // A category that no longer exists (deleted, stale link) falls back to All.
   const activeKey = categories.some((c) => c.key === activeKeyState) ? activeKeyState : ALL_KEY
@@ -200,7 +243,7 @@ export function PriceBookList({
   const sections = useMemo<Section[]>(() => {
     const byFolder = new Map<string | null, PriceBookItem[]>()
     for (const item of filtered) {
-      const key = item.folder_id ?? null
+      const key = folderOf(item)
       const list = byFolder.get(key) ?? []
       list.push(item)
       byFolder.set(key, list)
@@ -208,7 +251,8 @@ export function PriceBookList({
     const all = categories.map((c) => ({ ...c, items: byFolder.get(c.id) ?? [] }))
     if (activeKey !== ALL_KEY) return all.filter((s) => s.key === activeKey)
     return all.filter((s) => s.items.length > 0)
-  }, [filtered, categories, activeKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- folderOf only reads folderAlias
+  }, [filtered, categories, activeKey, folderAlias])
 
   const visibleCount = sections.reduce((n, s) => n + s.items.length, 0)
 
@@ -359,6 +403,38 @@ export function PriceBookList({
     })
   }
 
+  /**
+   * Save a new category order. `orderedKeys` are the kept real categories in
+   * their new order; folders hidden as duplicates ride along right after the
+   * folder they were merged into, so the server gets every folder id.
+   */
+  function applyCategoryOrder(orderedKeys: string[]) {
+    const previous = orderedFolders
+    const byId = new Map(orderedFolders.map((f) => [f.id, f]))
+    const ids = orderedKeys.flatMap((id) => [id, ...(duplicateIds.get(id) ?? [])])
+    const next = ids.map((id) => byId.get(id)).filter((f): f is PriceBookFolder => !!f)
+    if (next.length !== orderedFolders.length) return
+    setFolderState((state) => ({ ...state, list: next }))
+    startTransition(async () => {
+      const result = await reorderFolders(ids)
+      if ('error' in result && result.error) {
+        setFolderState((state) => ({ ...state, list: previous }))
+        toast.error(t('Could not reorder the categories.'))
+      } else {
+        router.refresh()
+      }
+    })
+  }
+
+  function moveCategory(key: string, direction: -1 | 1) {
+    const keys = categories.filter((c) => !c.isVirtual).map((c) => c.key)
+    const from = keys.indexOf(key)
+    const to = from + direction
+    if (from < 0 || to < 0 || to >= keys.length) return
+    ;[keys[from], keys[to]] = [keys[to], keys[from]]
+    applyCategoryOrder(keys)
+  }
+
   function handleRenameConfirm(folderId: string) {
     const trimmed = renamingFolderValue.trim()
     setRenamingFolderId(null)
@@ -431,19 +507,38 @@ export function PriceBookList({
   }
 
   const realCategoryCount = categories.filter((c) => !c.isVirtual).length
-  const pickerLabel = activeCategory ? activeCategory.name : t('All categories')
+  const realCategoryKeys = categories.filter((c) => !c.isVirtual).map((c) => c.key)
 
-  const categoryList = (
-    <CategoryList
-      categories={categories}
-      activeKey={activeKey}
-      totalCount={items.length}
-      query={categoryQuery}
-      onQueryChange={setCategoryQuery}
-      onSelect={selectCategory}
-      onNewCategory={readOnly ? undefined : () => { setPickerOpen(false); setNewFolderDialogOpen(true) }}
-    />
-  )
+  const categoryGroups: SidePanelGroup[] = [
+    {
+      key: 'categories',
+      items: [
+        { key: ALL_KEY, label: t('All categories'), icon: LayoutList, count: items.length },
+        ...categories.map((c) => ({
+          key: c.key,
+          label: c.isVirtual ? t(c.name) : c.name,
+          count: c.count,
+        })),
+      ],
+    },
+  ]
+  const categoryTestId = (key: string) => `category-filter-${key}`
+  const categoryReorder = readOnly
+    ? undefined
+    : { fixedKeys: [ALL_KEY, UNCATEGORIZED_KEY], onReorder: applyCategoryOrder }
+  const filterThreshold = CATEGORY_FILTER_MIN + 1
+
+  const newCategoryButton = (after?: () => void) =>
+    readOnly ? undefined : (
+      <button
+        type="button"
+        onClick={() => { after?.(); setNewFolderDialogOpen(true) }}
+        className="flex min-h-11 w-full items-center gap-2 rounded-[var(--radius-md)] px-3 text-sm text-muted-foreground transition-colors hover:bg-[var(--glass-bg-light)] hover:text-foreground md:min-h-9"
+      >
+        <FolderPlus className="h-4 w-4" aria-hidden />
+        {t('New Category')}
+      </button>
+    )
 
   return (
     <>
@@ -451,9 +546,9 @@ export function PriceBookList({
           same content flat on the page, so the list gets the full width. No
           backdrop blur anywhere: a blurred element as tall as the list inside
           the scrolling <main> froze scrolling on phones. */}
-      <div className="md:rounded-[var(--radius-lg)] md:border md:border-[var(--glass-border)] md:bg-[var(--glass-bg)] md:shadow-[var(--shadow-glass)]">
-        {/* Header */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 md:border-b md:border-[var(--glass-border)] md:px-5 md:py-4">
+      <div className="md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-hidden md:rounded-[var(--radius-lg)] md:border md:border-[var(--glass-border)] md:bg-[var(--glass-bg)] md:shadow-[var(--shadow-glass)]">
+        {/* Header: fixed on desktop (only the services column scrolls). */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-3 md:shrink-0 md:border-b md:border-[var(--glass-border)] md:px-5 md:py-4">
           <div className="min-w-0 flex-1">
             <h2 className="text-xl font-semibold tracking-[-0.015em] sm:text-2xl">{t('Price Book')}</h2>
             <p className="text-sm text-muted-foreground" data-testid="price-book-summary">
@@ -472,17 +567,21 @@ export function PriceBookList({
               onChange={setSearch}
               placeholder={t('Search items...')}
             />
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(TOOLBAR_CONTROL, 'h-9 max-w-[45%] shrink-0 gap-1 px-3 md:hidden')}
-              onClick={() => setPickerOpen(true)}
-              aria-label={`${t('Category')}: ${pickerLabel}`}
-              data-testid="category-picker-btn"
-            >
-              <span className="truncate">{pickerLabel}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </Button>
+            <SidePanelMobilePicker
+              title={t('Categories')}
+              fallbackLabel={t('All categories')}
+              description={t('Show the services of one category.')}
+              groups={categoryGroups}
+              activeKey={activeKey}
+              onSelect={selectCategory}
+              pinnedKeys={[ALL_KEY]}
+              filterThreshold={filterThreshold}
+              filterLabel={t('Filter categories')}
+              noMatchesLabel={t('No categories match')}
+              getItemTestId={categoryTestId}
+              testId="category-picker-btn"
+              footer={(close) => newCategoryButton(close)}
+            />
           </div>
 
           {!readOnly && (
@@ -522,16 +621,42 @@ export function PriceBookList({
           )}
         </div>
 
-        <div className="mt-4 md:mt-0 md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
-          {/* Desktop category column — sticky inside the scrolling <main>. */}
-          <aside
-            aria-label={t('Categories')}
-            className="hidden md:sticky md:top-0 md:block md:max-h-[calc(100dvh-4rem)] md:self-start md:overflow-y-auto md:border-r md:border-[var(--glass-border)] md:p-3"
-          >
-            {categoryList}
-          </aside>
+        <div className="mt-4 md:mt-0 md:flex md:min-h-0 md:flex-1">
+          {/* Desktop category column: full height, never moves; collapses to a rail. */}
+          <SidePanelColumn
+            id="price-book"
+            title={t('Categories')}
+            groups={categoryGroups}
+            activeKey={activeKey}
+            onSelect={selectCategory}
+            pinnedKeys={[ALL_KEY]}
+            filterThreshold={filterThreshold}
+            filterLabel={t('Filter categories')}
+            noMatchesLabel={t('No categories match')}
+            getItemTestId={categoryTestId}
+            reorder={categoryReorder}
+            footer={newCategoryButton()}
+            footerCollapsed={
+              readOnly ? undefined : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setNewFolderDialogOpen(true)}
+                      aria-label={t('New Category')}
+                      className="flex size-8 items-center justify-center rounded-[var(--radius-md)] text-muted-foreground transition-colors hover:bg-[var(--glass-bg-light)] hover:text-foreground"
+                    >
+                      <FolderPlus className="size-4" aria-hidden />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{t('New Category')}</TooltipContent>
+                </Tooltip>
+              )
+            }
+          />
 
-          <div className="min-w-0 space-y-6 md:p-5">
+          {/* The services: the only scroller on md+. On a phone the page scrolls. */}
+          <div ref={servicesRef} className="min-w-0 space-y-6 md:min-h-0 md:flex-1 md:overflow-y-auto md:p-5">
             {/* No results from search */}
             {search.trim() && visibleCount === 0 && (
               <EmptyState
@@ -656,6 +781,20 @@ export function PriceBookList({
                           )}
                           {!section.isVirtual && (
                             <>
+                              <DropdownMenuItem
+                                disabled={realCategoryKeys.indexOf(section.key) <= 0}
+                                onSelect={() => moveCategory(section.key, -1)}
+                              >
+                                <ArrowUp className="h-4 w-4" />
+                                {t('Move up')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={realCategoryKeys.indexOf(section.key) >= realCategoryKeys.length - 1}
+                                onSelect={() => moveCategory(section.key, 1)}
+                              >
+                                <ArrowDown className="h-4 w-4" />
+                                {t('Move down')}
+                              </DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => startRename(folderId!, folderName)}>
                                 <Pencil className="h-4 w-4" />
                                 {t('Rename category')}
@@ -709,57 +848,42 @@ export function PriceBookList({
                 </section>
               )
             })}
-          </div>
-        </div>
-      </div>
 
-      {/* Bulk action bar — appears while selecting. On a phone it clears the
-          fixed bottom nav. */}
-      {selecting && !readOnly && (
-        <div className="sticky bottom-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] z-30 mt-4 flex justify-center pointer-events-none md:bottom-3">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-background py-1.5 pl-4 pr-1.5 shadow-xl">
-            <span className="text-sm font-medium">
-              {selected.size} {t('selected')}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-full"
-              onClick={clearSelection}
-            >
-              {selected.size > 0 ? t('Clear') : t('Done')}
-            </Button>
-            {selected.size > 0 && (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="rounded-full gap-1.5"
-                onClick={() => setBulkDeleteDialogOpen(true)}
-                data-testid="bulk-delete-btn"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {t('Delete')}
-              </Button>
+            {/* Bulk action bar: lives in the services column so it stays visible
+                while that column scrolls (md+); on a phone it clears the fixed
+                bottom nav. */}
+            {selecting && !readOnly && (
+              <div className="pointer-events-none sticky bottom-[calc(5rem_+_env(safe-area-inset-bottom,_0px))] z-30 flex justify-center md:bottom-3">
+                <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-border bg-background py-1.5 pl-4 pr-1.5 shadow-xl">
+                  <span className="text-sm font-medium">
+                    {selected.size} {t('selected')}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full"
+                    onClick={clearSelection}
+                  >
+                    {selected.size > 0 ? t('Clear') : t('Done')}
+                  </Button>
+                  {selected.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="rounded-full gap-1.5"
+                      onClick={() => setBulkDeleteDialogOpen(true)}
+                      data-testid="bulk-delete-btn"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t('Delete')}
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
-      )}
-
-      {/* Phone category picker */}
-      {/* The app's bottom sheet: handle, drag to resize or close, X. */}
-      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <BottomSheetContent desktopClassName="sm:max-w-md">
-          <DialogHeader
-            data-sheet-drag=""
-            className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:pt-4"
-          >
-            <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Categories')}</DialogTitle>
-            <BottomSheetCloseButton label={t('Close')} />
-            <DialogDescription className="sr-only">{t('Show the services of one category.')}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-1 pb-4">{categoryList}</div>
-        </BottomSheetContent>
-      </Dialog>
+      </div>
 
       {/* Add/Edit Dialog */}
       <PriceBookItemDialog
@@ -890,94 +1014,10 @@ export function PriceBookList({
           onOpenChange={handleAdjustClose}
           folderId={adjustFolder.id}
           folderName={adjustFolder.name}
-          items={items.filter((i) => (i.folder_id ?? null) === adjustFolder.id)}
+          items={items.filter((i) => folderOf(i) === adjustFolder.id)}
         />
       )}
     </>
-  )
-}
-
-/**
- * The category list shared by the desktop column and the phone picker: All,
- * then each category with its count, a filter box once there are many, and
- * New category at the end.
- */
-function CategoryList({
-  categories,
-  activeKey,
-  totalCount,
-  query,
-  onQueryChange,
-  onSelect,
-  onNewCategory,
-}: {
-  categories: Category[]
-  activeKey: string
-  totalCount: number
-  query: string
-  onQueryChange: (value: string) => void
-  onSelect: (key: string) => void
-  /** Undefined hides the button (paywalled: read-only). */
-  onNewCategory?: () => void
-}) {
-  const { t } = useTranslation()
-  const q = query.trim().toLowerCase()
-  const shown = q ? categories.filter((c) => c.name.toLowerCase().includes(q)) : categories
-
-  const row = (key: string, label: string, count: number) => {
-    const active = key === activeKey
-    return (
-      <li key={key}>
-        <button
-          type="button"
-          onClick={() => onSelect(key)}
-          aria-current={active ? 'true' : undefined}
-          data-testid={`category-filter-${key}`}
-          className={cn(
-            'flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm transition-colors md:min-h-9',
-            active ? 'bg-primary/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-          )}
-        >
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-primary' : 'text-muted-foreground')}>{count}</span>
-        </button>
-      </li>
-    )
-  }
-
-  return (
-    <div className="space-y-2">
-      {categories.length >= CATEGORY_FILTER_MIN && (
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder={t('Filter categories')}
-            aria-label={t('Filter categories')}
-            enterKeyHint="search"
-            className="h-9 pl-8 text-sm"
-          />
-        </div>
-      )}
-      <ul className="space-y-0.5">
-        {!q && row(ALL_KEY, t('All categories'), totalCount)}
-        {shown.map((c) => row(c.key, c.isVirtual ? t(c.name) : c.name, c.count))}
-        {q && shown.length === 0 && (
-          <li className="px-3 py-2 text-sm text-muted-foreground">{t('No categories match')}</li>
-        )}
-      </ul>
-      {onNewCategory && (
-      <button
-        type="button"
-        onClick={onNewCategory}
-        className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground md:min-h-9"
-      >
-        <FolderPlus className="h-4 w-4" />
-        {t('New Category')}
-      </button>
-      )}
-    </div>
   )
 }
 
