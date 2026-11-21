@@ -29,7 +29,7 @@ export async function loadChangeOrderInvoice(
 ): Promise<ChangeOrderInvoice | null> {
   const { data } = await supabase
     .from('invoices')
-    .select('id, status, amount_cents, currency_code, hosted_invoice_url, paid_at, created_at')
+    .select('id, status, amount_cents, currency_code, hosted_invoice_url, paid_at, refunded_cents, created_at')
     .eq('change_order_id', changeOrderId)
     .in('status', ['open', 'paid'])
     .order('created_at', { ascending: false })
@@ -40,6 +40,7 @@ export async function loadChangeOrderInvoice(
     currency_code: string
     hosted_invoice_url: string | null
     paid_at: string | null
+    refunded_cents: number | null
   }>
   const row = rows.find((r) => r.status === 'paid') ?? rows[0]
   if (!row) return null
@@ -50,6 +51,7 @@ export async function loadChangeOrderInvoice(
     currency_code: row.currency_code,
     hosted_invoice_url: row.hosted_invoice_url ?? null,
     paid_at: row.paid_at ?? null,
+    refunded_cents: row.refunded_cents ?? 0,
   }
 }
 

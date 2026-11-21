@@ -27,8 +27,9 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
  *   - invoice.payment_failed → leave invoices.status open, touch updated_at
  *     and log a warn (no EventType in the notification catalog fits this
  *     event, so no tenant notification is sent)
- *   - charge.refunded → payment.refunded notification (best effort);
- *     resolves via charge.invoice → invoices.stripe_invoice_id, falling
+ *   - charge.refunded → payment.refunded notification (best effort) and, on
+ *     the invoice path, refunded_cents/refunded_at on the invoices row (status
+ *     stays paid); resolves via charge.invoice → invoices.stripe_invoice_id, falling
  *     back to the legacy estimates.stripe_payment_intent_id path
  *   - account.application.deauthorized → clear company connection
  *   - account.updated → sync display name / email AND Connect account health
@@ -100,13 +101,14 @@ async function assertEventOwnsCompany(
     (data as { stripe_account_id?: string | null } | null)?.stripe_account_id ?? null
 
   if (companyAccountId !== event.account) {
-    // Invoice-scoped events from a PREVIOUSLY connected account are still
-    // honored: a company that switched accounts must still get paid for an
-    // invoice issued (and paid) on the old one. The proof is OUR stored row,
-    // never the payload: the invoices row named by metadata.invoice_id must
-    // belong to this company AND carry a stripe_account_id equal to the
-    // signed event.account. Rows issued before that column existed have it null
-    // and never qualify.
+    // Invoice-scoped events (and refunds of an invoice payment) from a
+    // PREVIOUSLY connected account are still honored: a company that switched
+    // accounts must still get paid for, and see refunds of, an invoice issued
+    // on the old one. The proof is OUR stored row, never the payload: the
+    // invoices row found by metadata.invoice_id (invoice events) or by
+    // stripe_invoice_id = charge.invoice (charge.refunded) must belong to this
+    // company AND carry a stripe_account_id equal to the signed event.account.
+    // Rows issued before that column existed have it null and never qualify.
     if (await invoiceRowProvesAccount(svc, companyId, event)) return companyId
 
     console.warn(
@@ -142,15 +144,29 @@ async function invoiceRowProvesAccount(
   companyId: string,
   event: Stripe.Event,
 ): Promise<boolean> {
-  if (!INVOICE_SCOPED_EVENT_TYPES.includes(event.type) || !event.account) return false
-  const invoiceRowId = (event.data.object as { metadata?: Record<string, string> | null }).metadata
-    ?.invoice_id
-  if (!invoiceRowId) return false
+  if (!event.account) return false
+
+  // Which stored row proves the account, and how we look it up. The lookup key
+  // is the only payload value used; the proof is the row's own columns.
+  let lookupColumn: 'id' | 'stripe_invoice_id'
+  let lookupValue: string | undefined
+  if (INVOICE_SCOPED_EVENT_TYPES.includes(event.type)) {
+    lookupColumn = 'id'
+    lookupValue = (event.data.object as { metadata?: Record<string, string> | null }).metadata
+      ?.invoice_id
+  } else if (event.type === 'charge.refunded') {
+    const chargeInvoice = (event.data.object as { invoice?: string | Stripe.Invoice | null }).invoice
+    lookupColumn = 'stripe_invoice_id'
+    lookupValue = typeof chargeInvoice === 'string' ? chargeInvoice : chargeInvoice?.id
+  } else {
+    return false
+  }
+  if (!lookupValue) return false
 
   const { data, error } = await svc
     .from('invoices')
     .select('company_id, stripe_account_id')
-    .eq('id', invoiceRowId)
+    .eq(lookupColumn, lookupValue)
     .maybeSingle()
   if (error) {
     throw new Error(
@@ -311,7 +327,7 @@ export async function handleConnectEvent(
 
     case 'charge.refunded':
       // Phase 77 NOTIF-04 — payment.refunded notification (best-effort)
-      await handleChargeRefunded(event, svc)
+      await handleChargeRefunded(event, svc, companyId as string)
       return
 
     case 'account.application.deauthorized':
@@ -842,14 +858,22 @@ async function handleInvoicePaymentFailed(
 }
 
 // ------------------------------------------------------------------
-// charge.refunded — Phase 77 NOTIF-04 payment.refunded notification.
-// We do NOT mutate invoices/estimates status here (refund handling beyond
-// notification is out of scope for v1 — Stripe itself keeps a refunded
-// invoice `paid`). Best-effort — failure is ignored.
+// charge.refunded — Phase 77 NOTIF-04 payment.refunded notification, plus the
+// refund record on the invoices row (refunded_cents / refunded_at) for the
+// invoice path. We never change `status` here: Stripe itself keeps a refunded
+// invoice `paid`, and the contract math must keep counting it as billed.
+//
+// KNOWN LIMITATION: newer Stripe API versions no longer send `charge.invoice`
+// on the Charge. Until the invoice is resolved through the invoice payment
+// instead (needs a real Stripe test account to verify, so it is not guessed
+// here), the Connect webhook endpoint must use an API version that still sends
+// `charge.invoice`; otherwise refunds fall through to the legacy path below and
+// are neither recorded nor notified for invoice payments.
 // ------------------------------------------------------------------
 async function handleChargeRefunded(
   event: Stripe.Event,
-  svc: ServiceClient
+  svc: ServiceClient,
+  companyId: string
 ): Promise<void> {
   // Stripe's TS types dropped Charge.invoice in favor of Invoice.payments, but
   // the webhook payload can still carry it (older/pinned API versions) — cast
@@ -861,7 +885,7 @@ async function handleChargeRefunded(
     typeof charge.invoice === 'string' ? charge.invoice : (charge.invoice?.id ?? null)
 
   if (invoiceId) {
-    await handleChargeRefundedViaInvoice(event, svc, charge, invoiceId)
+    await handleChargeRefundedViaInvoice(event, svc, charge, invoiceId, companyId)
     return
   }
 
@@ -929,13 +953,15 @@ async function handleChargeRefunded(
 // charge.invoice → invoices.stripe_invoice_id and fires payment.refunded
 // using the invoice snapshot's project_name (no extra estimates/projects
 // lookup needed — the invoices row already carries that snapshot, mirroring
-// handleInvoicePaid). Best-effort — failure is ignored.
+// handleInvoicePaid). The notification is best-effort; recording the refund on
+// the row is the purpose of the event and throws on a database error.
 // ------------------------------------------------------------------
 async function handleChargeRefundedViaInvoice(
   event: Stripe.Event,
   svc: ServiceClient,
   charge: Stripe.Charge,
-  stripeInvoiceId: string
+  stripeInvoiceId: string,
+  companyId: string
 ): Promise<void> {
   const { data: invoiceRow } = await svc
     .from('invoices')
@@ -952,6 +978,30 @@ async function handleChargeRefundedViaInvoice(
       }
     | null
   if (!inv) return
+  // The row was found by an id the payload carries; it must be the TRUSTED
+  // company's, or this event is not ours to record.
+  if (inv.company_id !== companyId) return
+
+  // Record the refund. charge.amount_refunded is cumulative, so writing it is
+  // idempotent across duplicate and out-of-order deliveries. Scoped to the
+  // TRUSTED companyId. `status` is deliberately untouched (see the header).
+  if (typeof charge.amount_refunded === 'number') {
+    const now = new Date().toISOString()
+    const { error: refundError } = await svc
+      .from('invoices')
+      .update({
+        refunded_cents: Math.max(0, charge.amount_refunded),
+        refunded_at: now,
+        updated_at: now,
+      })
+      .eq('id', inv.id)
+      .eq('company_id', companyId)
+    if (refundError) {
+      throw new Error(
+        `[stripe-webhook][connect] failed to record invoice refund: ${refundError.message} invoiceRowId=${inv.id}`
+      )
+    }
+  }
 
   const { data: company } = await svc
     .from('companies')

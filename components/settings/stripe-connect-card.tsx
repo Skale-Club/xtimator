@@ -77,12 +77,12 @@ export function StripeConnectCard({
         })
         const json = (await res.json()) as { ok: boolean; message?: string }
         if (!json.ok) {
-          setError(json.message ?? 'Disconnect failed')
+          setError(json.message ?? t('Disconnect failed'))
           return
         }
         window.location.reload()
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Disconnect failed')
+        setError(e instanceof Error ? e.message : t('Disconnect failed'))
       }
     })
   }
@@ -156,7 +156,7 @@ export function StripeConnectCard({
             data-testid="fee-disclosure"
             className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
           >
-            {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
+            {t('Xtimator charges a {fee} fee on each payment you receive through the platform | this is separate from Stripe\'s processing fees.').replace('{fee}', feeLabel)}
             {' '}
             {t('If you refund a payment, the Xtimator fee is not returned.')}
           </p>

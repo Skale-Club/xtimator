@@ -63,7 +63,7 @@ export function VoidInvoiceButton({
     try {
       const result = await onVoid(invoiceId)
       if ('error' in result) {
-        toast.error(result.error)
+        toast.error(t(result.error))
         return
       }
       toast.success(t('Invoice voided'))
@@ -163,6 +163,14 @@ export function IssuedInvoicesPanel({ invoices }: IssuedInvoicesPanelProps) {
                     >
                       {t(STATUS_LABELS[inv.status])}
                     </span>
+                    {isPaid && inv.refunded_cents > 0 && (
+                      <span data-testid="invoice-refund-label" className="font-medium text-amber-600 dark:text-amber-400">
+                        {' · '}
+                        {inv.refunded_cents >= inv.amount_cents
+                          ? t('Refunded')
+                          : `${t('Partly refunded')}: ${formatMinorUnits(inv.refunded_cents, inv.currency_code)}`}
+                      </span>
+                    )}
                   </p>
                 </div>
 

@@ -111,3 +111,48 @@ describe('ChangeOrderInvoiceRow void', () => {
     expect(voidInvoice).not.toHaveBeenCalled()
   })
 })
+
+describe('refund labels on the owner surfaces', () => {
+  const coInvoice = (over: Record<string, unknown>) => ({
+    id: 'co-inv-1',
+    status: 'paid' as const,
+    amount_cents: 1000,
+    currency_code: 'USD',
+    hosted_invoice_url: null,
+    paid_at: '2026-11-18T00:00:00.000Z',
+    ...over,
+  })
+
+  it('panel: no label for a paid invoice that was never refunded', () => {
+    render(<IssuedInvoicesPanel invoices={[inv({ status: 'paid', refunded_cents: 0 })]} />)
+    expect(screen.queryByTestId('invoice-refund-label')).toBeNull()
+  })
+
+  it('panel: Refunded when the whole amount was refunded, status text stays Paid', () => {
+    render(<IssuedInvoicesPanel invoices={[inv({ status: 'paid', refunded_cents: 1000, refunded_at: '2026-11-19T00:00:00.000Z' })]} />)
+    expect(screen.getByTestId('invoice-refund-label').textContent).toContain('Refunded')
+    expect(screen.getByText('Paid')).toBeTruthy()
+  })
+
+  it('panel: Partly refunded with the refunded amount', () => {
+    render(<IssuedInvoicesPanel invoices={[inv({ status: 'paid', refunded_cents: 250 })]} />)
+    const label = screen.getByTestId('invoice-refund-label').textContent ?? ''
+    expect(label).toContain('Partly refunded')
+    expect(label).toContain('2.50')
+  })
+
+  it('change order row: Refunded and Partly refunded', () => {
+    const { unmount } = render(<ChangeOrderInvoiceRow invoice={coInvoice({ refunded_cents: 1000 })} />)
+    expect(screen.getByTestId('invoice-refund-label').textContent).toContain('Refunded')
+    unmount()
+    render(<ChangeOrderInvoiceRow invoice={coInvoice({ refunded_cents: 400 })} />)
+    const label = screen.getByTestId('invoice-refund-label').textContent ?? ''
+    expect(label).toContain('Partly refunded')
+    expect(label).toContain('4.00')
+  })
+
+  it('change order row: no label without a refund', () => {
+    render(<ChangeOrderInvoiceRow invoice={coInvoice({})} />)
+    expect(screen.queryByTestId('invoice-refund-label')).toBeNull()
+  })
+})

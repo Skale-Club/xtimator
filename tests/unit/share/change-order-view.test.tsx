@@ -256,6 +256,17 @@ describe('ChangeOrderView - invoice', () => {
     expect(screen.queryByTestId('change-order-pay-invoice')).toBeNull()
   })
 
+  it('labels a refunded paid invoice, fully or partly, and keeps it paid', () => {
+    const paid = { ...invoice, status: 'paid' as const, paid_at: '2026-02-04T10:00:00Z' }
+    const first = renderView(approvedOver, {}, {}, { invoice: { ...paid, refunded_cents: 51500 } })
+    const section = screen.getByTestId('change-order-invoice-paid')
+    expect(section.textContent).toContain('Paid')
+    expect(screen.getByTestId('invoice-refund-label').textContent).toBe('Refunded')
+    first.unmount()
+    renderView(approvedOver, {}, {}, { invoice: { ...paid, refunded_cents: 10000 } })
+    expect(screen.getByTestId('invoice-refund-label').textContent).toContain('Partly refunded')
+  })
+
   it('shows nothing without an invoice, or an open one without a hosted link', () => {
     const first = renderView(approvedOver, {}, {}, { invoice: null })
     expect(screen.queryByTestId('change-order-pay-invoice')).toBeNull()

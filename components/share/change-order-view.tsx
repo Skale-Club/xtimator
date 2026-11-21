@@ -477,6 +477,13 @@ function ChangeOrderViewInner({
               <span>
                 {t('Paid')}: {formatMinorUnits(invoice.amount_cents, invoice.currency_code)}
               </span>
+              {(invoice.refunded_cents ?? 0) > 0 && (
+                <span data-testid="invoice-refund-label" className="font-medium text-amber-600 dark:text-amber-400">
+                  {(invoice.refunded_cents ?? 0) >= invoice.amount_cents
+                    ? t('Refunded')
+                    : `${t('Partly refunded')}: ${formatMinorUnits(invoice.refunded_cents ?? 0, invoice.currency_code)}`}
+                </span>
+              )}
             </p>
           </section>
         )}

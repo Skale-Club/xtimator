@@ -88,6 +88,8 @@ export interface ShareEstimateData {
       currency_code: string
       status: string
       hosted_invoice_url: string | null
+      /** Cumulative refunded amount; 0 when never refunded. */
+      refunded_cents?: number
     }[]
     /** Optional per-estimate-version photo attachments, with signed URLs pre-resolved server-side (anon visitors have no session). */
     attachedPhotos: {
@@ -313,7 +315,7 @@ export async function getEstimateByShareToken(
   try {
     const invoicesQuery = supabase
       .from('invoices')
-      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url')
+      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url, refunded_cents')
     const { data: invoiceRows } = (await invoicesQuery
       ?.eq?.('estimate_id', estimate.id)
       ?.in?.('status', ['open', 'paid'])) ?? { data: null }
@@ -577,7 +579,7 @@ export async function getEstimateByPublicToken(
   try {
     const invoicesQuery = supabase
       .from('invoices')
-      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url')
+      .select('id, kind, amount_cents, currency_code, status, hosted_invoice_url, refunded_cents')
     const { data: invoiceRows } = (await invoicesQuery
       ?.eq?.('estimate_id', estimate.id)
       ?.in?.('status', ['open', 'paid'])) ?? { data: null }

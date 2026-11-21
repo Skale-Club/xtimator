@@ -75,8 +75,8 @@ Xtimator uses one URL for two separate Stripe webhook endpoints. Each endpoint h
    - `checkout.session.completed`
    - `checkout.session.async_payment_succeeded`
 
-   The last two belong to the older estimate checkout flow, which no longer exists in the app. They are still handled so that old payments are recorded, and are harmless to keep. The invoice flow itself needs `invoice.paid` (marks the invoice paid and sends the emails), `charge.refunded` (refund notification), and `account.updated` plus `account.application.deauthorized` (keeps connection health in sync and handles a company disconnecting from the Stripe side).
-5. API version caveat. The refund handler in `lib/billing/connect-webhook.ts` reads the `invoice` field of the charge. Newer Stripe API versions no longer send that field. Until that handler is changed, create the endpoint with an API version that still includes `charge.invoice`. If you use a newer version, the refund notification will not match the invoice (the paid status is not affected).
+   The last two belong to the older estimate checkout flow, which no longer exists in the app. They are still handled so that old payments are recorded, and are harmless to keep. The invoice flow itself needs `invoice.paid` (marks the invoice paid and sends the emails), `charge.refunded` (refund notification and the refund record on the invoice row), and `account.updated` plus `account.application.deauthorized` (keeps connection health in sync and handles a company disconnecting from the Stripe side).
+5. API version caveat. The refund handler in `lib/billing/connect-webhook.ts` reads the `invoice` field of the charge. Newer Stripe API versions no longer send that field. Until that handler is changed to resolve the invoice through the invoice payment instead (this needs a real Stripe test account to verify), create the endpoint with an API version that still includes `charge.invoice`. If you use a newer version, a refund will not match the invoice: it is neither recorded on the invoice row nor notified (the paid status is not affected).
 6. Copy the signing secret of this endpoint, in the form `whsec_<your-secret>`.
 7. In Coolify, open the Xtimator application, go to Environment Variables, add `STRIPE_CONNECT_WEBHOOK_SECRET` with that value, save, and redeploy the application. The variable is only read at start, so the redeploy is required.
 
@@ -84,13 +84,19 @@ Test mode and live mode have separate endpoints and separate secrets. Do the sam
 
 ## 8. Database
 
-The feature switches need the migration `supabase/migrations/20261121140000_company_feature_switches.sql`, plus any migration added after it. Migrations are applied by hand, never by the deploy, and on BOTH databases before the deploy that needs them.
+Client payments need these migrations, in this order, plus any migration added after them:
+
+- `supabase/migrations/20261121140000_company_feature_switches.sql` (the per-company switches and the global stop)
+- `supabase/migrations/20261121150000_invoice_stripe_account.sql` (each invoice row remembers the connected Stripe account it was issued on)
+- `supabase/migrations/20261121160000_invoice_refunds.sql` (the refunded amount and time on the invoice row)
+
+Migrations are applied by hand, never by the deploy, and on BOTH databases before the deploy that needs them.
 
 1. Development database: run `npm run db:migrate`. By default it uses the development (Supabase) connection from `.env.local`.
 2. Production database (PostgreSQL on Coolify): run the same command with the `MIGRATION_DATABASE_URL` variable pointing at the production database.
 3. Never write to production without the owner's explicit OK.
 
-The migration adds the per-company switch columns and the global stop. Without it, the settings pages and the invoice action fail closed (the feature appears off).
+The first migration adds the per-company switch columns and the global stop. Without it, the settings pages and the invoice action fail closed (the feature appears off). The second keeps customers and webhook events tied to the right Stripe account after a company switches accounts. The third adds `refunded_cents` and `refunded_at` to invoices; without it the invoice lists and the share links fail to load the refund data, so apply it before the deploy.
 
 ## 9. The switches
 
@@ -121,9 +127,10 @@ Use a test company, never a real customer.
    - two emails went out (one to the owner, one receipt to the client);
    - in the Stripe dashboard of the PLATFORM account, the payment shows a collected application fee.
 7. Repeat for a balance invoice and for a change order invoice.
-8. Refund the payment in the Stripe dashboard (on the connected test account) and confirm the owner gets a refund notification. The invoice row itself is not changed by a refund (recording refunds on the invoice row is planned, not built yet).
-9. In the Stripe test dashboard, pause charges on the connected test account (or use a test account that is restricted). Confirm the app blocks new invoices with a message about Stripe pausing payments.
-10. Disconnect from Settings, Client actions. Confirm the company shows as not connected and the earlier paid invoice stays paid.
+8. Refund the payment in the Stripe dashboard (on the connected test account) and confirm three things. The owner gets a refund notification. The invoice in the app, on the estimate (and change order) page, still says Paid but now carries a **Refunded** label (a full refund) or **Partly refunded** with the amount (a partial refund). The same label shows to the client on the share link. The invoice status stays paid on purpose, and the Xtimator fee is not returned on a refund.
+9. Void an invoice. Issue a new invoice and leave it unpaid. As the company owner, click **Void** on the open invoice and confirm. The invoice shows as void in the app, the Stripe hosted page no longer accepts payment, and the client no longer sees a pay link. Do the same for a change order invoice. A paid invoice has no Void button: refund it in Stripe instead. Voiding also works while Online payments are switched off.
+10. In the Stripe test dashboard, pause charges on the connected test account (or use a test account that is restricted). Confirm the app blocks new invoices with a message about Stripe pausing payments.
+11. Disconnect from Settings, Client actions. Confirm the company shows as not connected and the earlier paid invoice stays paid.
 
 ## 11. Pilot in live mode
 
@@ -131,12 +138,12 @@ Use a test company, never a real customer.
 2. Allow Online payments for ONE company only (a company you control).
 3. Issue one real invoice of US$1.00 to a real email address you own.
 4. Pay it with a real card, confirm the invoice turns paid, the emails arrive and the fee is collected.
-5. Refund the payment in the Stripe dashboard.
+5. Refund the payment in the Stripe dashboard and confirm the invoice shows the Refunded label.
 6. Only then allow other companies.
 
 ## 12. What switching off does
 
-- Online payments off (platform or owner): connecting a Stripe account and issuing new invoices are blocked. Invoices already sent stay visible and payable on Stripe's page, and the webhook still records any payment that arrives. Voiding an invoice from the app is planned, not built yet.
+- Online payments off (platform or owner): connecting a Stripe account and issuing new invoices are blocked. Invoices already sent stay visible and payable on Stripe's page, and the webhook still records any payment that arrives. The owner can still void an open invoice from the app (the **Void** button on open invoices of estimates and change orders), because that only closes an invoice that was already issued.
 - Digital signature off (platform or owner): links already sent become view-only at once. Estimates and change orders that were already signed stay signed.
 
 ## 13. Troubleshooting
@@ -150,6 +157,10 @@ Use a test company, never a real customer.
 | Connect returns with `platform_not_configured` | The Stripe Connect Client ID is not saved in `/admin/integrations` (step 6). |
 | Connect returns with `invalid_state` | The sign-in cookie was blocked, or more than 10 minutes passed. Try again in a normal browser window. |
 | Connect returns with `token_exchange_failed` | The platform Stripe secret key is missing or belongs to a different mode than the client id (test vs live). Check the server logs. |
+| Connect returns with `account_in_use` | That Stripe account is already connected to another company in Xtimator. One Stripe account can serve only one company. Use a different account, or disconnect it from the other company first. |
+| Connect returns with `mode_mismatch` | The Stripe account is in a different mode (test or live) than the platform keys. Use an account in the same mode as the platform. |
+| Connect returns with `insufficient_scope` | Stripe did not grant the access Xtimator needs (the `read_write` scope). Try connecting again and accept the full request. |
+| Connect returns with `save_failed` | Stripe confirmed the connection but Xtimator could not save it. Try again, and check the server logs if it repeats. |
 | Stripe says `invalid_redirect_uri` | The callback address is not in the Connect redirect URI list (step 5). |
 | Stripe says the client id is invalid | A secret key was pasted instead of the `ca_` value, or the id is from the other mode. |
 | Issuing an invoice says to add an email to the client | The project's client has no email, so Stripe cannot send the invoice. Add one. |
@@ -158,7 +169,10 @@ Use a test company, never a real customer.
 | Issuing an invoice says to turn on online payments | The owner switch is off. |
 | Webhook returns 400 for every event | Neither signing secret matches. Compare both secrets in Coolify with the endpoints in Stripe. |
 | Webhook returns 503 | The platform Stripe secret key is not configured in `/admin/integrations`. |
-| Refund happened but no refund notification | The endpoint uses a newer API version without `charge.invoice` (step 7, item 5). |
+| Refund happened but no refund notification, and the invoice shows no Refunded label | The endpoint uses a newer API version without `charge.invoice` (step 7, item 5). |
+| Refund notification arrived but the invoice shows no Refunded label | The migration `20261121160000_invoice_refunds.sql` was not applied to this database, or the deploy is older than the refund recording. Apply the migration and check the delivery log: a failed write returns an error and Stripe retries it. |
+| The Void button says the invoice was issued on an account that is no longer connected | The company switched Stripe accounts after issuing it. Void it in that Stripe account's dashboard. |
+| The Void button says a paid invoice cannot be voided | Paid invoices cannot be voided. Refund the payment in Stripe instead. |
 | No emails after a payment | The email provider key is missing in `/admin/integrations`, or the company has no email. Check the server logs. |
 
 ## 14. Reference
@@ -173,5 +187,8 @@ Use a test company, never a real customer.
 - Connect routes: `app/api/stripe/connect/initiate/route.ts`, `app/api/stripe/connect/callback/route.ts`, `app/api/stripe/connect/disconnect/route.ts`
 - Feature switch rules (single source of truth): `lib/features/company-features.ts`
 - Switch migration: `supabase/migrations/20261121140000_company_feature_switches.sql`
+- Invoice account migration: `supabase/migrations/20261121150000_invoice_stripe_account.sql`
+- Invoice refunds migration: `supabase/migrations/20261121160000_invoice_refunds.sql`
+- Void action: `lib/actions/invoice-void.ts`
 - Payment emails: `lib/email/payment-emails.ts`
 - Deployment pipeline: the Deployment section of `CLAUDE.md`

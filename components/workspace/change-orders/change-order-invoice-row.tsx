@@ -34,6 +34,14 @@ export function ChangeOrderInvoiceRow({
           <span className={cn('text-xs', paid ? 'font-medium text-[hsl(var(--success))]' : 'text-muted-foreground')}>
             {paid ? t('Paid') : t('Open')}
           </span>
+          {paid && (invoice.refunded_cents ?? 0) > 0 && (
+            <span data-testid="invoice-refund-label" className="text-xs font-medium text-amber-600 dark:text-amber-400">
+              {' · '}
+              {(invoice.refunded_cents ?? 0) >= invoice.amount_cents
+                ? t('Refunded')
+                : `${t('Partly refunded')}: ${formatMinorUnits(invoice.refunded_cents ?? 0, invoice.currency_code)}`}
+            </span>
+          )}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">

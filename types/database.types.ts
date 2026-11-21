@@ -1866,6 +1866,8 @@ export type Database = {
           kind: string
           paid_at: string | null
           project_name: string | null
+          refunded_at: string | null
+          refunded_cents: number
           status: string
           stripe_account_id: string | null
           stripe_customer_id: string | null
@@ -1885,6 +1887,8 @@ export type Database = {
           kind: string
           paid_at?: string | null
           project_name?: string | null
+          refunded_at?: string | null
+          refunded_cents?: number
           status?: string
           stripe_account_id?: string | null
           stripe_customer_id?: string | null
@@ -1904,6 +1908,8 @@ export type Database = {
           kind?: string
           paid_at?: string | null
           project_name?: string | null
+          refunded_at?: string | null
+          refunded_cents?: number
           status?: string
           stripe_account_id?: string | null
           stripe_customer_id?: string | null

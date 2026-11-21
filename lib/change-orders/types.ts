@@ -112,6 +112,8 @@ export interface ChangeOrderInvoice {
   /** Stripe hosted payment page; null until Stripe returns it. */
   hosted_invoice_url: string | null
   paid_at: string | null
+  /** Cumulative refunded amount; 0 when never refunded. The status stays paid. */
+  refunded_cents?: number
 }
 
 export interface ContractSummary {

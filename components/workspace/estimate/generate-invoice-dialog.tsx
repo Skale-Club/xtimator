@@ -165,7 +165,7 @@ export function GenerateInvoiceDialog({
     setPending(false)
 
     if ('error' in result) {
-      toast.error(result.error)
+      toast.error(t(result.error))
       return
     }
 

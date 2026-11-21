@@ -24,6 +24,9 @@ export interface InvoiceRow {
   hosted_invoice_url: string | null
   invoice_pdf_url: string | null
   paid_at: string | null
+  /** Cumulative amount refunded to the client (mirrors Stripe charge.amount_refunded). Status stays paid. */
+  refunded_cents: number
+  refunded_at: string | null
   created_at: string
 }
 
@@ -38,7 +41,7 @@ export async function getInvoicesByEstimateId(
   const { data } = await supabase
     .from('invoices')
     .select(
-      'id, estimate_id, company_id, kind, change_order_id, amount_cents, currency_code, status, stripe_invoice_id, hosted_invoice_url, invoice_pdf_url, paid_at, created_at, change_order:change_orders(number)',
+      'id, estimate_id, company_id, kind, change_order_id, amount_cents, currency_code, status, stripe_invoice_id, hosted_invoice_url, invoice_pdf_url, paid_at, refunded_cents, refunded_at, created_at, change_order:change_orders(number)',
     )
     .eq('estimate_id', estimateId)
     // A draft row is a reservation made while the Stripe invoice is being
