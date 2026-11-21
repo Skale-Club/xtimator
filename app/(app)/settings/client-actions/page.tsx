@@ -25,6 +25,11 @@ const ERROR_TEXT: Record<string, string> = {
   invalid_state: 'The connection attempt expired. Please try again.',
   missing_params: 'Stripe did not send back everything we need. Please try again.',
   token_exchange_failed: 'Stripe could not confirm the connection. Please try again.',
+  insufficient_scope: 'Stripe did not grant the access Xtimator needs. Please try connecting again.',
+  mode_mismatch:
+    'That Stripe account is in a different mode (test or live) than this platform. Use an account in the right mode.',
+  account_in_use: 'That Stripe account is already connected to another company in Xtimator.',
+  save_failed: 'We could not save the Stripe connection. Please try again.',
 }
 
 export default async function ClientActionsPage({
@@ -84,6 +89,17 @@ export default async function ClientActionsPage({
     connectState = { kind: 'not_connected' }
   }
 
+  // Invoices still open when the owner disconnects can no longer be tracked.
+  let openInvoiceCount = 0
+  if (onlinePayments.linked) {
+    const { count } = await svc
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', company.id as string)
+      .eq('status', 'open')
+    openInvoiceCount = count ?? 0
+  }
+
   const { estimateFeePct } = await getBillingConfig()
 
   const sp = await searchParams
@@ -124,6 +140,7 @@ export default async function ClientActionsPage({
         }}
         connectState={connectState}
         feePct={estimateFeePct}
+        openInvoiceCount={openInvoiceCount}
         isOwner={isOwner}
       />
     </div>

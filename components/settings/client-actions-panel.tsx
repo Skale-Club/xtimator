@@ -16,6 +16,8 @@ export interface ClientActionsPanelProps {
   payments: { showInSettings: boolean; allowed: boolean; enabled: boolean; linked: boolean }
   connectState: ConnectState
   feePct: number
+  /** Invoices still open: Disconnect asks for confirmation when above zero. */
+  openInvoiceCount?: number
   /** Only the company owner may change the switches or connect/disconnect Stripe. */
   isOwner: boolean
 }
@@ -25,6 +27,7 @@ export function ClientActionsPanel({
   payments,
   connectState,
   feePct,
+  openInvoiceCount = 0,
   isOwner,
 }: ClientActionsPanelProps) {
   const { t } = useTranslation()
@@ -109,7 +112,7 @@ export function ClientActionsPanel({
         </SettingsRows>
       </SettingsCard>
 
-      {showCard && <StripeConnectCard state={connectState} feePct={feePct} readOnly={!isOwner} />}
+      {showCard && <StripeConnectCard state={connectState} feePct={feePct} openInvoiceCount={openInvoiceCount} readOnly={!isOwner} />}
     </div>
   )
 }

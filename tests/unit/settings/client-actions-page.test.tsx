@@ -39,12 +39,23 @@ const { requireCompanyOwner } = await import('@/lib/auth/require-company-role')
 const { getBillingConfig } = await import('@/lib/billing/billing-config')
 const Page = (await import('@/app/(app)/settings/client-actions/page')).default
 
+let openInvoices = 0
+
 function mockSupabase(company: Record<string, unknown> | null) {
   return {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: company, error: null }),
+    from: vi.fn((table: string) => {
+      if (table === 'invoices') {
+        const q: Record<string, unknown> = {}
+        q.select = vi.fn(() => q)
+        q.eq = vi.fn(() => q)
+        q.then = (resolve: (v: unknown) => void) => resolve({ count: openInvoices, error: null })
+        return q
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: company, error: null }),
+      }
     }),
   } as never
 }
@@ -77,6 +88,7 @@ async function html(company: Record<string, unknown>, sp: Record<string, string 
 
 beforeEach(() => {
   vi.clearAllMocks()
+  openInvoices = 0
   vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
   vi.mocked(getActiveCompanyId).mockResolvedValue('company_1')
   vi.mocked(getIntegrationKey).mockResolvedValue('ca_test_123')
@@ -179,6 +191,13 @@ describe('/settings/client-actions page', () => {
     expect(notConnected).not.toContain('/api/stripe/connect/initiate')
   })
 
+  it('queries open invoices for the company and passes the count to the card (dialog closed until Disconnect is clicked)', async () => {
+    openInvoices = 2
+    const out = await html(CONNECTED)
+    expect(out).toContain('Disconnect')
+    expect(out).not.toContain('open invoice')
+  })
+
   it('shows the success card for ?connected=1', async () => {
     const out = await html(CONNECTED, { connected: '1' })
     expect(out).toContain('Stripe account connected successfully.')
@@ -187,6 +206,10 @@ describe('/settings/client-actions page', () => {
   it('maps known error codes to friendly text and falls back for unknown codes', async () => {
     expect(await html(BASE, { error: 'payments_off' })).toContain('Turn on Pay online first')
     expect(await html(BASE, { error: 'owner_required' })).toContain('Only the company owner')
+    expect(await html(BASE, { error: 'insufficient_scope' })).toContain('did not grant the access')
+    expect(await html(BASE, { error: 'mode_mismatch' })).toContain('different mode')
+    expect(await html(BASE, { error: 'account_in_use' })).toContain('already connected to another company')
+    expect(await html(BASE, { error: 'save_failed' })).toContain('could not save the Stripe connection')
     expect(await html(BASE, { error: 'access_denied' })).toContain('Connection failed: access_denied')
   })
 

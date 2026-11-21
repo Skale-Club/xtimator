@@ -331,8 +331,8 @@ export function EstimateSettingsForm({ company }: { company: CompanySettings }) 
           </SettingsCard>
 
           <SettingsCard
-            title={t('Sending and signature')}
-            description={t('How estimates reach your clients and how they accept them.')}
+            title={t('Sending')}
+            description={t('How estimates reach your clients.')}
           >
             <SettingsRows>
               <SettingsRow

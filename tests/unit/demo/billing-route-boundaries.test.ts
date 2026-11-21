@@ -225,6 +225,8 @@ const routeCases: RouteCase[] = [
       expect(serviceUpdate).toHaveBeenCalledWith({
         stripe_account_id: null,
         stripe_connect_status: 'disconnected',
+        stripe_charges_enabled: null,
+        stripe_connect_disabled_reason: null,
       })
       expect(revalidatePath).toHaveBeenCalledWith('/settings/client-actions')
       expect(revalidatePath).toHaveBeenCalledWith('/settings/integrations/stripe')

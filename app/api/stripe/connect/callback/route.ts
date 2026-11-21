@@ -6,6 +6,7 @@ import { requireCompanyOwner } from '@/lib/auth/require-company-role'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
+import { getIntegrationKey } from '@/lib/platform-config'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
@@ -111,23 +112,58 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { stripe_user_id } = await exchangeCode(code)
+    const { stripe_user_id, livemode, scope } = await exchangeCode(code)
+
+    // Without read_write the platform cannot create invoices on the account.
+    if (scope !== 'read_write') {
+      settingsUrl.searchParams.set('error', 'insufficient_scope')
+      return NextResponse.redirect(settingsUrl)
+    }
+
+    // A test account on a live platform (or the reverse) can never be charged.
+    // If the platform key's mode cannot be told, do not block.
+    const platformKey = await getIntegrationKey('stripe')
+    const platformLive =
+      platformKey?.startsWith('sk_live_') || platformKey?.startsWith('rk_live_')
+        ? true
+        : platformKey?.startsWith('sk_test_') || platformKey?.startsWith('rk_test_')
+          ? false
+          : null
+    if (platformLive !== null && platformLive !== livemode) {
+      settingsUrl.searchParams.set('error', 'mode_mismatch')
+      return NextResponse.redirect(settingsUrl)
+    }
+
     const stripe = await getStripeClient()
     const account = await stripe.accounts.retrieve(stripe_user_id)
     const displayName =
       account.settings?.dashboard?.display_name ??
       account.business_profile?.name ??
       stripe_user_id
-    await svc
+    const chargesEnabled = account.charges_enabled === true
+
+    // Deliberately no Stripe deauthorize on a failed save: deauthorize is per
+    // platform and account, so it would also cut off the other company that
+    // legitimately uses the same account.
+    const { error: saveError } = await svc
       .from('companies')
       .update({
         stripe_account_id: stripe_user_id,
-        stripe_connect_status: 'active',
+        stripe_connect_status: chargesEnabled ? 'active' : 'restricted',
+        stripe_charges_enabled: chargesEnabled,
+        stripe_connect_disabled_reason: account.requirements?.disabled_reason ?? null,
         stripe_connected_at: new Date().toISOString(),
         stripe_account_email: account.email ?? null,
         stripe_account_display_name: displayName,
       })
       .eq('id', company.id as string)
+    if (saveError) {
+      // companies.stripe_account_id is UNIQUE: 23505 = another company has it.
+      const inUse = (saveError as { code?: string }).code === '23505'
+      console.error('[connect-callback] save failed', saveError)
+      settingsUrl.searchParams.set('error', inUse ? 'account_in_use' : 'save_failed')
+      return NextResponse.redirect(settingsUrl)
+    }
     settingsUrl.searchParams.set('connected', '1')
     return NextResponse.redirect(settingsUrl)
   } catch (e) {
