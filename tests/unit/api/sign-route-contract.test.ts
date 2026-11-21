@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
 import { canonicalJsonStringify } from '@/lib/estimate/signed-snapshot'
+import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
 
 /**
  * Security-hardening S2 — public sign route contract.
@@ -56,12 +57,20 @@ import { POST } from '@/app/api/estimates/[id]/sign/route'
 // The content version the (simulated) public page rendered: matches estimateRow().updated_at.
 const PAGE_VERSION = '2026-07-29T00:00:00.000Z'
 
-// Pass `contentVersion: undefined` to simulate a client that sends none.
+// The fingerprint the (simulated) public page was rendered with: the default
+// estimate row, no sections, the default company terms. Lazy because the
+// fixtures it reads are declared further down.
+function pageFingerprint(sections: unknown[] = [], company: Record<string, unknown> = COMPANY_ROW): string {
+  return computeContentFingerprint(estimateRow(), sections as never, company)
+}
+
+// Pass `contentVersion: undefined` / `contentFingerprint: undefined` to simulate
+// a client that sends none.
 function jsonRequest(body: Record<string, unknown>): Request {
   return new Request('http://localhost/api/estimates/est-1/sign', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contentVersion: PAGE_VERSION, ...body }),
+    body: JSON.stringify({ contentVersion: PAGE_VERSION, contentFingerprint: pageFingerprint(), ...body }),
   })
 }
 
@@ -541,6 +550,93 @@ describe('lock-at-acceptance: signing exactly the content the client loaded', ()
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toEqual({ error: 'estimate_superseded' })
     expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+})
+
+// The version token only covers the estimate and its lines. The fingerprint
+// covers everything the snapshot freezes, company terms included, and is
+// compared against the rows the route reads at signing time.
+describe('content fingerprint: signing exactly the document the page rendered', () => {
+  const BASE = { token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }
+  const SECTION = {
+    id: 's1',
+    title: 'Labor',
+    sort_order: 0,
+    subtotal: 1000,
+    items: [{ id: 'i1', description: 'Demo old cabinets', quantity: 1, unit: 'each', unit_price: 1000, total: 1000, sort_order: 0 }],
+  }
+
+  function configure(config: { sectionsRows?: unknown[]; companyRow?: Record<string, unknown> } = {}) {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow()],
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+      ...config,
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+    return supabase
+  }
+
+  it('the page fingerprint is exactly the snapshot hash stored with the signature', async () => {
+    const supabase = configure({ sectionsRows: [SECTION] })
+    const fingerprint = pageFingerprint([SECTION])
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: fingerprint }), PARAMS)
+    expect(res.status).toBe(200)
+    const [, rpcParams] = supabase.__rpcMock.mock.calls[0]
+    expect(rpcParams.p_snapshot_sha256).toBe(fingerprint)
+  })
+
+  it('a line reworded after the page loaded (same totals, same version) -> 409 estimate_updated, nothing signed', async () => {
+    const reworded = { ...SECTION, items: [{ ...SECTION.items[0], description: 'Demo old cabinets and haul away' }] }
+    const supabase = configure({ sectionsRows: [reworded] })
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: pageFingerprint([SECTION]) }), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('company terms edited after the page loaded -> 409 estimate_updated, nothing signed', async () => {
+    const supabase = configure({
+      companyRow: { digital_signature_enabled: true, estimate_terms_enabled: true, estimate_terms_text: 'Net 30. No refunds.' },
+    })
+    const loadedWith = pageFingerprint([], {
+      digital_signature_enabled: true,
+      estimate_terms_enabled: true,
+      estimate_terms_text: 'Net 15.',
+    })
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: loadedWith }), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a page rendered before the check existed (no fingerprint) -> 409 estimate_updated, no content read', async () => {
+    const supabase = configure()
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: undefined }), PARAMS)
+    expect(res.status).toBe(409)
+    await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+    const sectionReads = supabase.__fromMock.mock.calls.filter(([t]: [string]) => t === 'estimate_sections')
+    expect(sectionReads).toHaveLength(0)
+  })
+
+  it.each([[''], [42], [{ hash: 'x' }]])('a malformed fingerprint (%j) -> 409 estimate_updated', async (bad) => {
+    const supabase = configure()
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: bad }), PARAMS)
+    expect(res.status).toBe(409)
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a lost-reply retry by the same signer still succeeds without a fingerprint', async () => {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow({ client_response: 'accepted' })],
+      signatureRows: [{ signer_name: 'Jane Doe', signer_email: null }],
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+    const res = await POST(jsonRequest({ ...BASE, contentFingerprint: undefined }), PARAMS)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ success: true, alreadySigned: true })
   })
 })
 

@@ -199,6 +199,42 @@ export async function actionCancel(session: Session, supabase: SupabaseClient): 
 }
 
 // ---------------------------------------------------------------------------
+// Lock-at-acceptance for the WhatsApp edits. Once the client answered or signed
+// an estimate it is read-only everywhere; these actions write with the service
+// role and used to skip that rule. For sections and items the database refuses
+// the write too (20261121130001, SQLSTATE P0022); this check runs first so the
+// owner gets a plain answer, and it also covers the header fields, which have
+// no database guard.
+// ---------------------------------------------------------------------------
+
+export const ESTIMATE_ANSWERED_MESSAGE =
+  "The client already answered this estimate, so it can't be changed anymore. For new or changed work, create a change order in the app."
+
+export async function isEstimateAnswered(
+  supabase: SupabaseClient,
+  estimateId: string
+): Promise<boolean> {
+  try {
+    const { data: estimate } = await supabase
+      .from('estimates')
+      .select('client_response')
+      .eq('id', estimateId)
+      .single()
+    if ((estimate as { client_response?: string | null } | null)?.client_response) return true
+
+    const { data: signatures } = await supabase
+      .from('estimate_signatures')
+      .select('id')
+      .eq('estimate_id', estimateId)
+    return Array.isArray(signatures) && signatures.length > 0
+  } catch {
+    // An unreadable estimate cannot be edited anyway; the database guard still
+    // protects the lines.
+    return false
+  }
+}
+
+// ---------------------------------------------------------------------------
 // update field — patches estimate, returns refreshed context
 // ---------------------------------------------------------------------------
 
@@ -215,6 +251,9 @@ export async function actionUpdateField(
   patch: EditableFields
 ): Promise<EstimateContext | null> {
   if (!session.draft_estimate_id) throw new Error('No estimate to update.')
+  if (await isEstimateAnswered(supabase, session.draft_estimate_id)) {
+    throw new Error(ESTIMATE_ANSWERED_MESSAGE)
+  }
   const { error } = await supabase
     .from('estimates')
     .update(patch)
@@ -471,6 +510,9 @@ export async function actionUpdateItem(
   fields: ItemEditFields
 ): Promise<ItemMutationResult> {
   if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  if (await isEstimateAnswered(supabase, session.draft_estimate_id)) {
+    return { ok: false, message: ESTIMATE_ANSWERED_MESSAGE }
+  }
   const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
   if (!numbered) return { ok: false, message: 'No estimate loaded.' }
 
@@ -514,6 +556,9 @@ export async function actionAddItem(
   quantity = 1
 ): Promise<ItemMutationResult> {
   if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  if (await isEstimateAnswered(supabase, session.draft_estimate_id)) {
+    return { ok: false, message: ESTIMATE_ANSWERED_MESSAGE }
+  }
   const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
   if (!numbered) return { ok: false, message: 'No estimate loaded.' }
 
@@ -579,6 +624,9 @@ export async function actionRemoveItem(
   itemNumber: number
 ): Promise<ItemMutationResult> {
   if (!session.draft_estimate_id) return { ok: false, message: 'No estimate to update.' }
+  if (await isEstimateAnswered(supabase, session.draft_estimate_id)) {
+    return { ok: false, message: ESTIMATE_ANSWERED_MESSAGE }
+  }
   const numbered = await getNumberedEstimate(supabase, session.draft_estimate_id)
   if (!numbered) return { ok: false, message: 'No estimate loaded.' }
 

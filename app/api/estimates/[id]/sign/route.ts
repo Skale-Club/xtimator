@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { createHash } from 'node:crypto'
 import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
@@ -9,14 +8,11 @@ import { checkShareAccess } from '@/lib/estimates/public-access'
 import { isSameSignerRetry } from '@/lib/estimates/signer-retry'
 import { notifyEstimateResponse } from '@/lib/estimate/notify-response'
 import {
-  buildSignedContentSnapshot,
-  canonicalJsonStringify,
-  SIGN_CONSENT_STATEMENT,
-  SIGN_CONSENT_KEY,
   type SnapshotSourceEstimate,
   type SnapshotSourceSection,
   type SignedContentSnapshot,
 } from '@/lib/estimate/signed-snapshot'
+import { buildSignableSnapshot, fingerprintSignedContent } from '@/lib/estimate/content-fingerprint'
 
 interface SignRequestBody {
   token: string
@@ -29,6 +25,13 @@ interface SignRequestBody {
    * estimate stays editable, so the client must sign what they actually saw).
    */
   contentVersion?: unknown
+  /**
+   * Fingerprint of the content the public page rendered (lib/estimate/
+   * content-fingerprint.ts). The version above only covers the estimate and its
+   * lines; this also covers the company Terms & Conditions the snapshot freezes.
+   * The route recomputes it from fresh rows and refuses to sign on a mismatch.
+   */
+  contentFingerprint?: unknown
 }
 
 // TRUST-01: select('*') here (not the old minimal column list) because the
@@ -171,7 +174,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { token, signerName, signerEmail, signatureData, contentVersion } = body
+    const { token, signerName, signerEmail, signatureData, contentVersion, contentFingerprint } = body
 
     if (!token) return NextResponse.json({ error: 'Token required' }, { status: 400 })
 
@@ -267,6 +270,12 @@ export async function POST(
       return NextResponse.json({ error: 'estimate_updated' }, { status: 409 })
     }
     const expectedUpdatedAt = contentVersion as string
+    // A page rendered before this check existed sends no fingerprint. Refuse it
+    // the same way as changed content: the page reloads and gets a fresh one.
+    if (typeof contentFingerprint !== 'string' || contentFingerprint.length === 0) {
+      return NextResponse.json({ error: 'estimate_updated' }, { status: 409 })
+    }
+    const pageFingerprint = contentFingerprint
 
     // Captured outside the attemptSign closure below: TS narrowing of a
     // captured outer `const` does not survive into a nested function
@@ -274,8 +283,8 @@ export async function POST(
     // `company` itself would still type as possibly-null inside attemptSign
     // even though the guard above already proved it non-null here.
     const companyTerms = {
-      enabled: !!company.estimate_terms_enabled,
-      text: company.estimate_terms_text ?? null,
+      estimate_terms_enabled: company.estimate_terms_enabled as boolean | null,
+      estimate_terms_text: company.estimate_terms_text as string | null,
     }
 
     type AttemptOutcome =
@@ -283,6 +292,7 @@ export async function POST(
       | { kind: 'rpc_error'; code: string | undefined }
       | { kind: 'load_error' }
       | { kind: 'snapshot_error' }
+      | { kind: 'content_changed' }
 
     // TRUST-01: load the full render content (sections + items, ordered by
     // sort_order) and build the immutable snapshot from it, THEN call the
@@ -306,13 +316,10 @@ export async function POST(
 
       let signedContent: SignedContentSnapshot
       try {
-        signedContent = buildSignedContentSnapshot(
+        signedContent = buildSignableSnapshot(
           estimateRow,
           sectionsData as unknown as SnapshotSourceSection[],
-          {
-            companyTerms,
-            consent: { statement: SIGN_CONSENT_STATEMENT, key: SIGN_CONSENT_KEY },
-          }
+          companyTerms
         )
       } catch (snapshotError) {
         console.error('Signature snapshot build error:', snapshotError)
@@ -337,9 +344,17 @@ export async function POST(
       // the hash instead covers a serialization a verifier CAN always
       // reproduce: read `estimate_signatures.signed_content` back, pass it
       // through canonicalJsonStringify the same way, and compare.
-      const snapshotSha256 = createHash('sha256')
-        .update(canonicalJsonStringify(signedContent))
-        .digest('hex')
+      const snapshotSha256 = fingerprintSignedContent(signedContent)
+
+      // The client signs exactly what they saw. The page was rendered with the
+      // fingerprint of the snapshot a signature would have frozen at that
+      // moment; if the snapshot built from the rows read just now hashes
+      // differently, something the client would be agreeing to (a line, a
+      // total, the company terms) changed after the page loaded. Nothing is
+      // written: the client reloads and reviews the current document.
+      if (snapshotSha256 !== pageFingerprint) {
+        return { kind: 'content_changed' }
+      }
 
       const { data: rpcData, error: rpcError } = await supabase.rpc('sign_estimate_atomic', {
         p_estimate_id: estimateRow.id,
@@ -374,6 +389,9 @@ export async function POST(
     }
     if (outcome.kind === 'snapshot_error') {
       return NextResponse.json({ error: 'Failed to build signature snapshot' }, { status: 500 })
+    }
+    if (outcome.kind === 'content_changed') {
+      return NextResponse.json({ error: 'estimate_updated' }, { status: 409 })
     }
     if (outcome.kind === 'rpc_error') {
       if (outcome.code === SIGN_RPC_NOT_FOUND) {

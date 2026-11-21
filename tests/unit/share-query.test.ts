@@ -16,6 +16,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 import { getEstimateByShareToken, getShareLinkState } from '@/lib/queries/share'
+import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
 
 type AnyRow = Record<string, unknown>
 
@@ -167,6 +168,57 @@ describe('getEstimateByShareToken', () => {
     installMock({ estimateRow: null })
     const result = await getEstimateByShareToken('nope')
     expect(result).toBeNull()
+  })
+})
+
+// The page is rendered with the fingerprint of the content a signature would
+// freeze; the sign route recomputes it from the database and refuses a mismatch.
+describe('getEstimateByShareToken: content fingerprint', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const section = { id: 's1', estimate_id: 'e1', title: 'Labor', sort_order: 0, subtotal: 100 }
+  const company = { ...validCompany, digital_signature_enabled: true, estimate_terms_enabled: true, estimate_terms_text: 'Net 15.' }
+
+  it('unsigned: equals what the sign route computes from the same raw rows', async () => {
+    installMock({ estimateRow: { ...validEstimate }, sections: [section], projectRow: validProject, companyRow: company })
+    const result = await getEstimateByShareToken('tok-SECRET')
+    expect(result!.estimate.contentFingerprint).toMatch(/^[0-9a-f]{64}$/)
+    // The route reads the full estimates row and sections with nested items.
+    expect(result!.estimate.contentFingerprint).toBe(
+      computeContentFingerprint(validEstimate as never, [{ ...section, items: [] }] as never, company)
+    )
+  })
+
+  it('moves with the company terms, which the estimate version does not cover', async () => {
+    installMock({ estimateRow: { ...validEstimate }, sections: [section], projectRow: validProject, companyRow: company })
+    const before = (await getEstimateByShareToken('tok-SECRET'))!.estimate.contentFingerprint
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [section],
+      projectRow: validProject,
+      companyRow: { ...company, estimate_terms_text: 'Net 30. No refunds.' },
+    })
+    const after = (await getEstimateByShareToken('tok-SECRET'))!.estimate.contentFingerprint
+    expect(after).not.toBe(before)
+  })
+
+  it('signed: null, there is nothing left to sign', async () => {
+    installMock({
+      estimateRow: { ...validEstimate },
+      sections: [section],
+      projectRow: validProject,
+      companyRow: company,
+      signatureRow: {
+        id: 'sig-1',
+        signer_name: 'Jane Client',
+        signature_data: 'data:image/png;base64,AAA',
+        signed_at: '2026-07-01T12:00:00Z',
+        signed_content: null,
+        signed_total: null,
+      },
+    })
+    const result = await getEstimateByShareToken('tok-SECRET')
+    expect(result!.estimate.contentFingerprint).toBeNull()
   })
 })
 

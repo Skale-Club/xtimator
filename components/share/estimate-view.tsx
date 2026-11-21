@@ -387,6 +387,7 @@ function EstimateViewInner({
           signerEmail: signerEmail.trim() || undefined,
           signatureData,
           contentVersion: estimate.updated_at,
+          contentFingerprint: estimate.contentFingerprint,
         }),
       })
       if (!res.ok) {
