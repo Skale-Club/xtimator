@@ -346,6 +346,16 @@ describe('recordChangeOrderResponse', () => {
     })
   })
 
+  it('never reads the company: the owner can record an answer whatever the online-signing switches say', async () => {
+    scenario({})
+    const { recordChangeOrderResponse } = await actions()
+    for (const response of ['accepted', 'declined'] as const) {
+      const r = await recordChangeOrderResponse('co-1', response)
+      expect(r.data ?? r.error).toBeTruthy()
+    }
+    expect(fake.calls.filter((c) => c.table === 'companies')).toEqual([])
+  })
+
   it('refuses to approve when the parent is no longer the accepted current estimate', async () => {
     scenario({ estimate: { is_current: false, client_response: 'accepted' } })
     const { recordChangeOrderResponse } = await actions()

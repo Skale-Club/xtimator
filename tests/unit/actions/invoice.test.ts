@@ -1046,3 +1046,62 @@ describe('current version and rate limit gates', () => {
     expect((accepted as { data: { accepted: boolean } }).data.accepted).toBe(true)
   })
 })
+
+/**
+ * Switch-off scenarios (unit-test audit): in EVERY state where online payments
+ * must not issue, neither path (full/deposit/balance and a change order) may
+ * touch Stripe, insert a draft row or spend rate-limit budget.
+ */
+describe('issuing is refused in every switched-off state (no Stripe, no draft, no rate limit)', () => {
+  const linked = { stripe_account_id: 'acct_abc123', stripe_connect_status: 'active', stripe_charges_enabled: true }
+  const CO_ID = '33333333-3333-4333-8333-333333333333'
+
+  const states: Array<[string, () => void]> = [
+    ['platform switch off', () => configureSupabase({ estimate: acceptedEstimate, company: { ...ON, ...linked, online_payments_allowed: false } })],
+    ['tenant switch off', () => configureSupabase({ estimate: acceptedEstimate, company: { ...ON, ...linked, online_payments_enabled: false } })],
+    [
+      'global stop closed',
+      () => {
+        getPlatformFeatureState.mockResolvedValue({ connectPaymentsOpen: false })
+        configureSupabase({ estimate: acceptedEstimate, company: { ...ON, ...linked } })
+      },
+    ],
+    ['both switches off but still linked', () => configureSupabase({ estimate: acceptedEstimate, company: { id: 'co_1', ...linked, online_payments_allowed: false, online_payments_enabled: false } })],
+    ['switch columns not selected (fail closed)', () => configureSupabase({ estimate: acceptedEstimate, company: { id: 'co_1', ...linked } })],
+    ['restricted account', () => configureSupabase({ estimate: acceptedEstimate, company: { ...ON, ...linked, stripe_charges_enabled: false } })],
+  ]
+
+  it.each(states)('generateInvoice: %s', async (_name, arrange) => {
+    arrange()
+    withChangeOrders({ approved: [] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    for (const kind of ['full', 'deposit', 'balance'] as const) {
+      const res = await generateInvoice('est_1', { kind })
+      expect(res).toHaveProperty('error')
+    }
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesInsert).not.toHaveBeenCalled()
+    expect(rateLimit).not.toHaveBeenCalled()
+  })
+
+  it.each(states)('invoiceChangeOrder: %s', async (_name, arrange) => {
+    arrange()
+    withChangeOrders({
+      approved: [{ id: CO_ID, number: 2, total: 515 }],
+      lookup: { id: CO_ID, company_id: 'co_1', estimate_id: 'est_1' },
+    })
+    const { invoiceChangeOrder } = await import('@/lib/actions/invoice')
+    expect(await invoiceChangeOrder(CO_ID)).toHaveProperty('error')
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesInsert).not.toHaveBeenCalled()
+    expect(rateLimit).not.toHaveBeenCalled()
+  })
+
+  it('control: with every layer on, the same setup does issue (the refusals above are the switches, not the fixture)', async () => {
+    configureSupabase({ estimate: acceptedEstimate, company: { ...ON, ...linked } })
+    withChangeOrders({ approved: [] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
+  })
+})
