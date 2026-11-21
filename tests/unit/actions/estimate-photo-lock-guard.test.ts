@@ -59,8 +59,11 @@ function configureSupabase() {
     if (table === 'estimates') {
       return {
         select: vi.fn().mockReturnValue({
+          // .eq(id).eq(company_id).maybeSingle() for the guard; .eq(id).eq(company_id).maybeSingle() again for the updated_at read.
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: estimateRow, error: null }),
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: estimateRow, error: null }),
+            }),
           }),
         }),
       }
@@ -110,7 +113,7 @@ function configureSupabase() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  estimateRow = { project_id: 'proj_1', sent_at: null, client_response: null }
+  estimateRow = { project_id: 'proj_1', sent_at: null, client_response: null, is_current: true, updated_at: '2026-11-21T10:00:00.000Z' }
   signatureRows = []
   configureSupabase()
 })
@@ -197,5 +200,42 @@ describe('removePhotoFromEstimate — lock guard', () => {
     expect(result.error).toBeUndefined()
     expect(result.data).toBe(true)
     expect(photoDeleteCalled).toBe(true)
+  })
+})
+
+describe('photo actions: scope, is_current and version tokens', () => {
+  it('refuses a superseded version (add and remove)', async () => {
+    estimateRow = { project_id: 'proj_1', sent_at: null, client_response: null, is_current: false }
+    const { addPhotoToEstimate, removePhotoFromEstimate } = await import('@/lib/actions/estimate-photo')
+
+    const added = await addPhotoToEstimate('est_1', 'photo_1')
+    const removed = await removePhotoFromEstimate('est_1', 'photo_1')
+
+    expect(added.error).toMatch(/superseded/i)
+    expect(removed.error).toMatch(/superseded/i)
+    expect(photoInsertCalled).toBe(false)
+    expect(photoDeleteCalled).toBe(false)
+  })
+
+  it('fails closed when the estimate is not found for this company', async () => {
+    estimateRow = null
+    const { addPhotoToEstimate } = await import('@/lib/actions/estimate-photo')
+
+    const result = await addPhotoToEstimate('est_1', 'photo_1')
+
+    expect(result.error).toBe('Estimate not found')
+    expect(photoInsertCalled).toBe(false)
+  })
+
+  it('returns the version before and after so the editor can adopt it safely', async () => {
+    const { removePhotoFromEstimate } = await import('@/lib/actions/estimate-photo')
+
+    const result = await removePhotoFromEstimate('est_1', 'photo_1')
+
+    expect(result).toMatchObject({
+      data: true,
+      updated_at: '2026-11-21T10:00:00.000Z',
+      previous_updated_at: '2026-11-21T10:00:00.000Z',
+    })
   })
 })

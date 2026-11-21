@@ -16,7 +16,7 @@ import { findProjectCoveredByPhoto, releaseCoverOfDeletedPhoto } from '@/lib/pro
 // (lib/actions/estimate-photo.ts's assertPhotoMutationAllowed) returns, so a
 // caller sees identical wording regardless of which mutation path it hit.
 const ESTIMATE_LOCKED_ERROR =
-  'Estimate has been delivered and is locked; create a new version to make changes'
+  'This estimate was answered by the client and is locked. If it was declined, revise and reopen it; if it was accepted, add a change order.'
 
 async function getAuthContext() {
   const supabase = await createClient()

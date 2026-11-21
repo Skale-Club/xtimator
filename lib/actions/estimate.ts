@@ -27,7 +27,6 @@ import {
 } from '@/lib/estimate/document-blocks'
 import { billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable, assertCompanyWritable } from '@/lib/demo/guard'
-import { isEstimateLocked } from '@/lib/estimate/lock'
 import {
   hashSharePassword,
   SHARE_PASSWORD_MIN_LENGTH,
@@ -373,7 +372,7 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
 export async function savePresentationSettings(
   estimateId: string,
   settings: PresentationSettings,
-  expectedUpdatedAt?: string
+  expectedUpdatedAt: string
 ) {
   // Runtime boundary guard (this is a 'use server' action reachable directly
   // via its RPC endpoint, bypassing TypeScript — same discipline as
@@ -381,6 +380,11 @@ export async function savePresentationSettings(
   // rather than duplicating it).
   if (typeof estimateId !== 'string' || !estimateId) {
     return { error: 'Invalid estimate id' }
+  }
+  // The compare-and-set token is mandatory: a write without it would overwrite
+  // whatever another device saved in between (same rule as saveEstimate).
+  if (typeof expectedUpdatedAt !== 'string' || !expectedUpdatedAt) {
+    return { error: 'Invalid estimate version' }
   }
   const parsed = presentationSettingsSchema.safeParse(settings)
   if (!parsed.success) {
@@ -395,25 +399,35 @@ export async function savePresentationSettings(
   if (denied) return denied
   const billingDenied = await billingEditDenied(ctx.company.id)
   if (billingDenied) return billingDenied
-  const { supabase } = ctx
+  const { supabase, company } = ctx
+  const companyId = company.id as string
 
-  let updateQuery = supabase
+  // Only the current version of one of the caller's own estimates may change
+  // (a superseded version is history; saveEstimate refuses it the same way).
+  const { data: existing } = await supabase
     .from('estimates')
-    .update({
-      presentation_settings: parsed.data,
-      updated_at: new Date().toISOString(),
-    })
+    .select('id, is_current')
     .eq('id', estimateId)
-
-  if (expectedUpdatedAt) {
-    updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt)
+    .eq('company_id', companyId)
+    .maybeSingle()
+  if (!existing) return { error: 'Estimate not found' }
+  if ((existing as { is_current?: boolean | null }).is_current === false) {
+    return { error: 'estimate_not_current' }
   }
 
-  const { data: updatedRows, error } = await updateQuery.select('id, updated_at')
+  // updated_at is stamped by the estimates trigger (presentation_settings is a
+  // content column), so it is not sent here.
+  const { data: updatedRows, error } = await supabase
+    .from('estimates')
+    .update({ presentation_settings: parsed.data })
+    .eq('id', estimateId)
+    .eq('company_id', companyId)
+    .eq('updated_at', expectedUpdatedAt)
+    .select('id, updated_at')
 
   if (error) return { error: 'Failed to save presentation settings' }
 
-  if (expectedUpdatedAt && (!updatedRows || updatedRows.length === 0)) {
+  if (!updatedRows || updatedRows.length === 0) {
     return {
       error:
         'This estimate was changed elsewhere since you last loaded it. Reload to see the latest version before continuing.',
@@ -421,8 +435,8 @@ export async function savePresentationSettings(
     }
   }
 
-  const savedUpdatedAt =
-    (updatedRows?.[0] as { updated_at?: string } | undefined)?.updated_at ?? new Date().toISOString()
+  const savedUpdatedAt = (updatedRows[0] as { updated_at?: string }).updated_at
+  if (!savedUpdatedAt) return { error: 'Failed to save presentation settings' }
 
   return { data: { updated_at: savedUpdatedAt } }
 }
@@ -542,266 +556,6 @@ export async function createBlankEstimate(projectId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Security-hardening S3 (audit finding A) — signature pre-check helper
-// ---------------------------------------------------------------------------
-//
-// A signed estimate's evidentiary snapshot (estimate_signatures.signed_content,
-// Phase 164) is immutable, but the LIVE estimate_sections/estimate_items rows
-// underneath it are not otherwise guarded against direct deletion the way
-// saveEstimate's content path is (TRUST-02, save_estimate_atomic's ERRCODE
-// P0001 lock). This pre-check gives the user a friendly, specific error
-// instead of silently removing content from an estimate a client has already
-// signed off on. (The 20260729000001 migration's BEFORE DELETE trigger only
-// guards the `estimates` table itself — deleting a section/item never issues
-// a DELETE against `estimates`, so there is no trigger ERRCODE to map here;
-// that defensive mapping lives in lib/actions/project.ts, where a project
-// delete DOES cascade into `estimates`.)
-//
-// Fix-pack F1 (finding #10): widened from a signature-only check to the SAME
-// two-part predicate lib/actions/estimate-photo.ts's assertPhotoMutationAllowed
-// uses — isEstimateLocked({client_response}) (lock-at-acceptance: a sent estimate stays
-// editable until answered) OR an existing
-// estimate_signatures row. Previously a sent-but-unsigned estimate (delivered
-// to the client, saveEstimate's own freeze-on-send guard already blocks
-// editing it) could still have whole sections/items deleted through THESE two
-// actions, bypassing that freeze via a different code path. Error string
-// matches the photo guard's EXACTLY, for editor consistency.
-const ESTIMATE_CONTENT_LOCKED_ERROR =
-  'Estimate has been delivered and is locked; create a new version to make changes'
-
-async function estimateHasSignature(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  estimateId: string
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('estimate_signatures')
-    .select('id')
-    .eq('estimate_id', estimateId)
-    .limit(1)
-  return !!data && data.length > 0
-}
-
-/** Returns the friendly lock error, or null when the delete may proceed. */
-async function assertEstimateContentDeleteAllowed(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  estimateId: string
-): Promise<string | null> {
-  const { data: estimate } = await supabase
-    .from('estimates')
-    .select('client_response')
-    .eq('id', estimateId)
-    .single()
-
-  const hasSignature = await estimateHasSignature(supabase, estimateId)
-
-  if (isEstimateLocked(estimate) || hasSignature) {
-    return ESTIMATE_CONTENT_LOCKED_ERROR
-  }
-  return null
-}
-
-// ---------------------------------------------------------------------------
-// Action 3: deleteEstimateSection
-// ---------------------------------------------------------------------------
-
-export async function deleteEstimateSection(sectionId: string) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase } = ctx
-
-  // Get section's estimate_id before deletion
-  const { data: section } = await supabase
-    .from('estimate_sections')
-    .select('estimate_id')
-    .eq('id', sectionId)
-    .single()
-
-  if (!section) return { error: 'Section not found' }
-
-  const estimateId = section.estimate_id as string
-
-  const lockError = await assertEstimateContentDeleteAllowed(supabase, estimateId)
-  if (lockError) return { error: lockError }
-
-  // Delete section (items cascade via FK)
-  const { error: deleteError } = await supabase
-    .from('estimate_sections')
-    .delete()
-    .eq('id', sectionId)
-
-  if (deleteError) return { error: 'Failed to delete section' }
-
-  // Recalculate estimate totals
-  return recalculateEstimateTotals(supabase, estimateId)
-}
-
-// ---------------------------------------------------------------------------
-// Action 4: deleteEstimateItem
-// ---------------------------------------------------------------------------
-
-export async function deleteEstimateItem(itemId: string) {
-  const ctx = await getAuthContext()
-  if ('error' in ctx) return { error: ctx.error }
-  const denied = await assertWritable()
-  if (denied) return denied
-  const billingDenied = await billingEditDenied(ctx.company.id)
-  if (billingDenied) return billingDenied
-  const { supabase } = ctx
-
-  // Get item's section_id before deletion
-  const { data: item } = await supabase
-    .from('estimate_items')
-    .select('section_id')
-    .eq('id', itemId)
-    .single()
-
-  if (!item) return { error: 'Item not found' }
-
-  const sectionId = item.section_id as string
-
-  // Resolve estimate_id UP FRONT (previously only fetched after the delete,
-  // for recalculateEstimateTotals) so the signature pre-check below can run
-  // BEFORE the item is removed.
-  const { data: sectionRow } = await supabase
-    .from('estimate_sections')
-    .select('estimate_id')
-    .eq('id', sectionId)
-    .single()
-
-  if (!sectionRow) return { error: 'Section not found' }
-
-  const estimateId = sectionRow.estimate_id as string
-
-  const lockError = await assertEstimateContentDeleteAllowed(supabase, estimateId)
-  if (lockError) return { error: lockError }
-
-  // Delete item
-  const { error: deleteError } = await supabase
-    .from('estimate_items')
-    .delete()
-    .eq('id', itemId)
-
-  if (deleteError) return { error: 'Failed to delete item' }
-
-  return recalculateEstimateTotals(supabase, estimateId)
-}
-
-// ---------------------------------------------------------------------------
-// Helper: recalculate estimate totals from its sections
-// ---------------------------------------------------------------------------
-
-/**
- * Delegates to the SAME shared engine as saveEstimate (GUARD-03) instead of
- * reimplementing totals math. The prior inline version summed persisted
- * section.subtotal values and applied a flat discount+tax formula, which
- * silently ignored the company's per-category tax_config and never touched
- * deposit_type/deposit_value — so balance_due went stale (still reflecting
- * the pre-delete total) whenever a deposit was configured.
- */
-async function recalculateEstimateTotals(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  estimateId: string
-) {
-  const { data: estimate } = await supabase
-    .from('estimates')
-    .select(
-      'discount_type, discount_value, tax_rate, deposit_type, deposit_value, project_id, company_id'
-    )
-    .eq('id', estimateId)
-    .single()
-
-  if (!estimate) return { error: 'Estimate not found' }
-
-  const { data: company } = await supabase
-    .from('companies')
-    .select('tax_config, currency_code')
-    .eq('id', estimate.company_id as string)
-    .single()
-
-  const { data: sections } = await supabase
-    .from('estimate_sections')
-    .select(
-      'id, title, items:estimate_items(quantity, unit_price, discount, taxable, tax_category, cost, markup_pct)'
-    )
-    .eq('estimate_id', estimateId)
-
-  // Editor/DB domain → engine domain ('percent'|'amount'|'none'), same shared
-  // mapping helper as saveEstimate.
-  const engineDiscountType = mapDiscountTypeToEngine(estimate.discount_type as string | null)
-
-  const taxConfig =
-    company?.tax_config != null ? (company.tax_config as TaxConfig) : null
-
-  const engineResult = computeEstimateTotals(
-    (sections ?? []).map((section) => ({
-      title: section.title as string,
-      items: ((section.items ?? []) as Array<Record<string, unknown>>).map((item) => ({
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-        discount: (item.discount as number | null) ?? 0,
-        taxable: (item.taxable as boolean | null) ?? true,
-        tax_category: (item.tax_category as 'labor' | 'materials' | 'other' | null) ?? null,
-        cost: (item.cost as number | null) ?? null,
-        markup_pct: (item.markup_pct as number | null) ?? null,
-      })),
-    })),
-    {
-      taxRate: Number(estimate.tax_rate),
-      taxConfig,
-      discountType: engineDiscountType,
-      discountValue: Number(estimate.discount_value ?? 0),
-      depositType: (estimate.deposit_type as 'none' | 'percent' | 'amount' | null) ?? 'none',
-      depositValue: (estimate.deposit_value as number | null) ?? null,
-      // Same reason as saveEstimate: the deposit rounds in minor units, so the
-      // engine must use the company's real currency scale.
-      currencyCode: normalizeCurrencyCode(
-        (company?.currency_code as string | null) ?? DEFAULT_CURRENCY_CODE
-      ),
-    }
-  )
-
-  const { subtotal, discountAmount, taxAmount, grandTotal: total, balanceDue } = engineResult
-
-  await Promise.all(
-    (sections ?? []).map((section, idx) =>
-      supabase
-        .from('estimate_sections')
-        .update({ subtotal: engineResult.sections[idx].subtotal })
-        .eq('id', section.id as string)
-    )
-  )
-
-  await supabase
-    .from('estimates')
-    .update({
-      subtotal,
-      discount_amount: discountAmount,
-      tax_amount: taxAmount,
-      total,
-      balance_due: balanceDue,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', estimateId)
-
-  // Update project total
-  const projectId = estimate.project_id as string
-  if (projectId) {
-    await supabase
-      .from('projects')
-      .update({ total })
-      .eq('id', projectId)
-
-    revalidatePath(`/projects/${projectId}`)
-  }
-
-  return { data: { total } }
-}
-
-// ---------------------------------------------------------------------------
 // Action 5: getEstimateByIdAction (for version switching in the editor)
 // ---------------------------------------------------------------------------
 
@@ -818,6 +572,35 @@ export async function getEstimateByIdAction(
   // ai_meta is the platform-admin debug tool's data; never hand it to a non-admin browser.
   const safe = (await isPlatformAdmin()) ? estimate : stripOwnerOnlyEstimate(estimate)
   return { data: { ...safe, owner_review: buildOwnerEstimateReview(estimate) } }
+}
+
+// ---------------------------------------------------------------------------
+// Action 5b: getEstimateUpdatedAtAction (the editor's "Keep my changes" baseline)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns ONLY the estimate's current content version (updated_at) for an
+ * estimate of the caller's own company. "Keep my changes" saves with
+ * compare-and-set against this value, so it overwrites exactly the version the
+ * owner chose to overwrite and never a newer one saved in the meantime.
+ */
+export async function getEstimateUpdatedAtAction(
+  estimateId: string
+): Promise<{ data?: { updated_at: string }; error?: string }> {
+  if (typeof estimateId !== 'string' || !estimateId) return { error: 'Invalid estimate id' }
+  const ctx = await getAuthContext()
+  if ('error' in ctx) return { error: ctx.error }
+  const { supabase, company } = ctx
+
+  const { data } = await supabase
+    .from('estimates')
+    .select('updated_at')
+    .eq('id', estimateId)
+    .eq('company_id', company.id as string)
+    .maybeSingle()
+  const updatedAt = (data as { updated_at?: string | null } | null)?.updated_at
+  if (!updatedAt) return { error: 'Estimate not found' }
+  return { data: { updated_at: updatedAt } }
 }
 
 // ---------------------------------------------------------------------------

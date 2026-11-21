@@ -173,7 +173,7 @@ export async function POST(
       throw new XtimatorError(
         'estimate_locked',
         'estimates',
-        'Estimate has been delivered and is locked; create a new version to make changes'
+        'This estimate was answered by the client and is locked. If it was declined, revise and reopen it; if it was accepted, add a change order.'
       )
     }
 

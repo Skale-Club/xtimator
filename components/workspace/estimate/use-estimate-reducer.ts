@@ -161,6 +161,14 @@ export type EstimateAction =
       updated_at: string | null
     }
   | {
+      /** A server write the owner made OUTSIDE the content save (translate, photo
+       *  attach/detach) returned the estimate's new content version. Adopt it so
+       *  the next save does not report a false "changed elsewhere". Touches
+       *  nothing else: never clears isDirty, never changes content. */
+      type: 'ADOPT_UPDATED_AT'
+      updated_at: string
+    }
+  | {
       type: 'MARK_SAVED'
       updated_at: string
       /** SAVE-03 — server-assigned uuids for every temp- section/item this
@@ -751,6 +759,9 @@ function estimateReducer(state: EstimateEditorState, action: EstimateAction): Es
         updated_at: action.updated_at,
       }
     }
+
+    case 'ADOPT_UPDATED_AT':
+      return { ...state, updated_at: action.updated_at }
 
     case 'SET_CLIENT_RESPONSE':
       return {

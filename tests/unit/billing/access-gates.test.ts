@@ -118,7 +118,7 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({ dispatchXphereSync: vi.fn
 vi.mock('@/lib/inngest/client', () => ({ inngest: { send: vi.fn() } }))
 vi.mock('@/lib/inngest/job-ownership', () => ({ recordJobOwnership: vi.fn() }))
 
-import { createBlankEstimate, saveEstimate, deleteEstimateSection } from '@/lib/actions/estimate'
+import { createBlankEstimate, saveEstimate } from '@/lib/actions/estimate'
 import { createProjectAction, renameProjectAction, duplicateProjectAction } from '@/lib/actions/project'
 import { createClientAction, updateClientAction } from '@/lib/actions/client'
 import { createFolder } from '@/lib/actions/price-book'
@@ -159,7 +159,6 @@ const createGates: Array<[string, () => Promise<unknown>]> = [
 // Entry points that EDIT existing data (refused only when paywalled).
 const editGates: Array<[string, () => Promise<unknown>]> = [
   ['saveEstimate', () => saveEstimate(estimatePayload)],
-  ['deleteEstimateSection', () => deleteEstimateSection('s1')],
   ['renameProjectAction', () => renameProjectAction('p1', 'New name')],
   ['updateClientAction', () => updateClientAction('c1', clientForm)],
   ['createFolder (price book write)', () => createFolder('Plumbing')],

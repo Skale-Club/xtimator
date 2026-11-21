@@ -34,6 +34,10 @@ vi.mock('@/lib/integrations/xphere/dispatch', () => ({
 const fromImpl = vi.fn()
 const rpcImpl = vi.fn()
 let estimatesUpdated = false
+// Row the presentation-settings existence/is_current read returns (null = not found).
+let estimateRow: { id: string; is_current: boolean } | null = { id: 'est_1', is_current: true }
+// Rows the compare-and-set UPDATE matches (empty = the token was stale).
+let updatedRows: Array<{ id: string; updated_at: string }> = [{ id: 'est_1', updated_at: '2026-07-17T12:00:00.000Z' }]
 let activityInsertPayload: Record<string, unknown> | null = null
 
 // Configurable per-test: what save_estimate_atomic's mocked rpc() call returns.
@@ -80,16 +84,21 @@ function configureSupabase() {
     // savePresentationSettings-only path (lock-exempt; untouched by 165-01).
     if (table === 'estimates') {
       return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({ data: estimateRow, error: null }),
+            }),
+          }),
+        }),
         update: vi.fn().mockImplementation(() => {
           estimatesUpdated = true
-          return {
-            eq: vi.fn().mockReturnValue({
-              select: vi.fn().mockResolvedValue({
-                data: [{ id: 'est_1', updated_at: '2026-07-17T12:00:00.000Z' }],
-                error: null,
-              }),
-            }),
+          // .eq(id).eq(company_id).eq(updated_at).select(...)
+          const chain: { eq: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn> } = {
+            eq: vi.fn().mockImplementation(() => chain),
+            select: vi.fn().mockImplementation(() => Promise.resolve({ data: updatedRows, error: null })),
           }
+          return chain
         }),
       }
     }
@@ -111,6 +120,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   getActiveCompanyId.mockResolvedValue('co_1')
   rpcError = null
+  estimateRow = { id: 'est_1', is_current: true }
+  updatedRows = [{ id: 'est_1', updated_at: '2026-07-17T12:00:00.000Z' }]
   rpcData = {
     updated_at: '2026-07-17T12:00:00.000Z',
     project_total: 1000,
@@ -199,7 +210,7 @@ describe('TRUST-02: savePresentationSettings is lock-exempt (untouched by 165-01
   it('updates presentation_settings directly via .from(estimates).update, never calling the RPC', async () => {
     const { savePresentationSettings } = await import('@/lib/actions/estimate')
 
-    const result = await savePresentationSettings('est_1', { sections: { summary: false } })
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, '2026-07-17T11:00:00.000Z')
 
     expect(result.error).toBeUndefined()
     expect(estimatesUpdated).toBe(true)
@@ -210,10 +221,50 @@ describe('TRUST-02: savePresentationSettings is lock-exempt (untouched by 165-01
     rpcError = { code: 'P0001', message: 'estimate_locked' }
     const { savePresentationSettings } = await import('@/lib/actions/estimate')
 
-    const result = await savePresentationSettings('est_1', { discount: { enabled: false } })
+    const result = await savePresentationSettings('est_1', { discount: { enabled: false } }, '2026-07-17T11:00:00.000Z')
 
     expect(result.error).toBeUndefined()
     expect(estimatesUpdated).toBe(true)
     expect(rpcImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('savePresentationSettings: compare-and-set, scope and is_current', () => {
+  const TOKEN = '2026-07-17T11:00:00.000Z'
+
+  it('returns the version the write produced, for the editor to adopt', async () => {
+    const { savePresentationSettings } = await import('@/lib/actions/estimate')
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, TOKEN)
+    expect(result.data).toEqual({ updated_at: '2026-07-17T12:00:00.000Z' })
+  })
+
+  it('refuses a call without the expected version (never writes blind)', async () => {
+    const { savePresentationSettings } = await import('@/lib/actions/estimate')
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, '' as never)
+    expect(result.error).toBeTruthy()
+    expect(estimatesUpdated).toBe(false)
+  })
+
+  it('reports a conflict when the version moved (no row matched)', async () => {
+    updatedRows = []
+    const { savePresentationSettings } = await import('@/lib/actions/estimate')
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, TOKEN)
+    expect(result).toMatchObject({ conflict: true })
+  })
+
+  it('refuses a superseded version', async () => {
+    estimateRow = { id: 'est_1', is_current: false }
+    const { savePresentationSettings } = await import('@/lib/actions/estimate')
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, TOKEN)
+    expect(result.error).toBe('estimate_not_current')
+    expect(estimatesUpdated).toBe(false)
+  })
+
+  it('refuses an estimate that is not in the caller company', async () => {
+    estimateRow = null
+    const { savePresentationSettings } = await import('@/lib/actions/estimate')
+    const result = await savePresentationSettings('est_1', { sections: { summary: false } }, TOKEN)
+    expect(result.error).toBe('Estimate not found')
+    expect(estimatesUpdated).toBe(false)
   })
 })

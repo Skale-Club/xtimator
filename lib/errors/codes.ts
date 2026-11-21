@@ -60,7 +60,7 @@ export const defaultMessageByType: Record<ErrorType, string> = {
   offline: 'The service is temporarily unavailable. Please try again.',
   internal: 'Something went wrong on our side. Please try again.',
   estimate_locked:
-    'Estimate has been delivered and is locked; create a new version to make changes.',
+    'This estimate was answered by the client and is locked. If it was declined, revise and reopen it; if it was accepted, add a change order.',
 }
 
 /**

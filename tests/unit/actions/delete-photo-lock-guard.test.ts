@@ -159,7 +159,7 @@ describe('deletePhoto — lock guard (fix-pack F2, finding #9)', () => {
     const result = await deletePhoto('photo_1')
 
     expect(result.error).toBe(
-      'Estimate has been delivered and is locked; create a new version to make changes'
+      'This estimate was answered by the client and is locked. If it was declined, revise and reopen it; if it was accepted, add a change order.'
     )
   })
 

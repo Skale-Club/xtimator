@@ -872,8 +872,6 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ...guarded('lib/actions/estimate-translate.ts', 'assertWritable', ['translateEstimate']),
   ...guarded('lib/actions/estimate.ts', 'assertWritable', [
     'createBlankEstimate',
-    'deleteEstimateItem',
-    'deleteEstimateSection',
     'logDeliveryAction',
     'markAsSentAction',
     'saveEstimate',
@@ -881,6 +879,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...excepted('lib/actions/estimate.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
     'getEstimateByIdAction',
+    'getEstimateUpdatedAtAction',
   ]),
   // Phase 193-02 — owner-side share-password set/remove. Guarded by
   // assertCompanyWritable(companyId) (not the bare assertWritable() the rest

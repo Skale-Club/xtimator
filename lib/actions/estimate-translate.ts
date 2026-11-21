@@ -1,6 +1,6 @@
 'use server'
 
-import { randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
@@ -27,8 +27,9 @@ import {
 //
 // Order: translate first (nothing is written if the model fails), then save
 // the translated texts through saveEstimate (same compare-and-set, lock and
-// totals path as an editor save), then set the language. The editor reloads
-// afterwards, so it never keeps a stale copy.
+// totals path as an editor save), then debit (only a saved translation is
+// charged), then set the language with compare-and-set on the version the save
+// returned. The final version goes back to the editor, which adopts it.
 // ---------------------------------------------------------------------------
 
 const inputSchema = z.object({
@@ -37,10 +38,18 @@ const inputSchema = z.object({
   expectedUpdatedAt: z.string().min(1),
 })
 
+/** Deterministic uuid-shaped key for one translate request. */
+function translateAttemptId(estimateId: string, target: string, token: string): string {
+  const h = createHash('sha256').update(`translate:${estimateId}:${target}:${token}`).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
 /** Strings sent to the model per call: keeps each answer far below max_tokens. */
 const CHUNK = 60
 
-export type TranslateEstimateResult = { ok: true; translated: number } | { error: string; code?: string }
+export type TranslateEstimateResult =
+  | { ok: true; translated: number; updated_at: string | null }
+  | { error: string; code?: string; updated_at?: string }
 
 export async function translateEstimate(raw: z.infer<typeof inputSchema>): Promise<TranslateEstimateResult> {
   const parsed = inputSchema.safeParse(raw)
@@ -76,10 +85,12 @@ export async function translateEstimate(raw: z.infer<typeof inputSchema>): Promi
   }
 
   const source = ((estimate.language as EstimateLanguageCode | null) ?? 'en') as EstimateLanguageCode
-  if (source === targetLanguage) return { ok: true, translated: 0 }
+  if (source === targetLanguage) return { ok: true, translated: 0, updated_at: estimate.updated_at ?? null }
 
   const texts = collectEstimateTexts(estimate)
-  const attemptId = randomUUID()
+  // Stable per translate request (estimate + target + the version the client sent),
+  // so the debit below is idempotent across retries of the same request.
+  const attemptId = translateAttemptId(estimateId, targetLanguage, expectedUpdatedAt)
   let translations: string[] = []
   let costUsd: number | null = null
 
@@ -107,14 +118,11 @@ export async function translateEstimate(raw: z.infer<typeof inputSchema>): Promi
     }
   }
 
-  // The model ran: charge it whether or not the save below succeeds.
-  await recordCreditDebit({
-    companyId,
-    operationType: 'refine',
-    realCostUsd: costUsd,
-    attemptId,
-  })
-
+  // 1) Save the translated texts FIRST, through saveEstimate (same compare-and-set,
+  // lock and totals path as an editor save). If the owner's autosave (or another
+  // device) got in during the multi-second model call, this fails with a conflict
+  // and nothing was charged: the charge follows the save, not the model call.
+  let token = expectedUpdatedAt
   if (texts.length > 0) {
     const translated = applyEstimateTranslations(estimate, translations)
     const payload: SaveEstimateInput = {
@@ -166,21 +174,83 @@ export async function translateEstimate(raw: z.infer<typeof inputSchema>): Promi
       })),
     }
     const saved = await saveEstimate(payload)
-    if (saved && 'error' in saved && saved.error) return { error: saved.error }
+    const savedToken = saved && 'data' in saved ? saved.data?.updated_at : undefined
+    if (!savedToken) {
+      const code = saved && 'error' in saved ? saved.error : undefined
+      if (code === 'estimate_locked') {
+        return {
+          error: 'This estimate was already answered by the client and can no longer change.',
+          code: 'locked',
+        }
+      }
+      if (code === 'estimate_not_current') {
+        return { error: 'Only the current version can change language.', code: 'not_current' }
+      }
+      if (saved && 'conflict' in saved && saved.conflict) {
+        return { error: 'This estimate changed elsewhere. Reload and try again.', code: 'conflict' }
+      }
+      return { error: 'The translation could not be saved. Nothing was changed. Try again.' }
+    }
+    token = savedToken
+
+    // 2) The texts are saved: now the model's cost is owed. The key is derived
+    // from this request (estimate + target + the version the client sent), so a
+    // repeated request can never debit twice.
+    await recordCreditDebit({
+      companyId,
+      operationType: 'refine',
+      realCostUsd: costUsd,
+      attemptId,
+    })
   }
 
-  const { error: langError } = await supabase
-    .from('estimates')
-    .update({ language: targetLanguage })
-    .eq('id', estimate.id)
-    .eq('company_id', companyId)
-  if (langError) {
-    console.warn('[translateEstimate] language update failed:', langError)
+  // 3) The language flag, compare-and-set against the token the save returned.
+  // A failure here does not undo the (already charged) translation: it is retried
+  // once, then reported honestly.
+  const writeLanguage = async (at: string) =>
+    supabase
+      .from('estimates')
+      .update({ language: targetLanguage })
+      .eq('id', estimate.id)
+      .eq('company_id', companyId)
+      .eq('updated_at', at)
+      .select('id, updated_at')
+
+  let switched: { updated_at: string } | null = null
+  const first = await writeLanguage(token)
+  const firstRow = (first.data as Array<{ updated_at?: string }> | null)?.[0]
+  if (!first.error && firstRow?.updated_at) {
+    switched = { updated_at: firstRow.updated_at }
+  } else {
+    console.warn('[translateEstimate] language update failed, retrying once:', first.error)
+    // The retry re-reads the row: if the language already is the target (a lost
+    // response) there is nothing to write; otherwise it uses the freshest token.
+    const { data: current } = await supabase
+      .from('estimates')
+      .select('updated_at, language')
+      .eq('id', estimate.id)
+      .eq('company_id', companyId)
+      .maybeSingle()
+    const cur = current as { updated_at?: string | null; language?: string | null } | null
+    if (cur?.updated_at && cur.language === targetLanguage) {
+      switched = { updated_at: cur.updated_at }
+    } else if (cur?.updated_at) {
+      const second = await writeLanguage(cur.updated_at)
+      const secondRow = (second.data as Array<{ updated_at?: string }> | null)?.[0]
+      if (!second.error && secondRow?.updated_at) switched = { updated_at: secondRow.updated_at }
+      else console.warn('[translateEstimate] language update failed again:', second.error)
+    }
+  }
+  if (!switched) {
     return {
-      error: 'The texts were translated but the language could not be saved. Try again.',
+      error: 'The texts were translated but the language could not be switched. Reload the page.',
+      code: 'language_not_switched',
+      // The texts were saved, so the editor must adopt this version (otherwise
+      // its next save would look like a conflict).
+      updated_at: token,
     }
   }
 
   revalidatePath(`/projects/${estimate.project_id}`)
-  return { ok: true, translated: texts.length }
+  return { ok: true, translated: texts.length, updated_at: switched.updated_at }
 }

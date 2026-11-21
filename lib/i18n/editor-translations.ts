@@ -18,6 +18,7 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Open questions': 'Perguntas em aberto',
     'Assumptions': 'Suposições',
     'The client has already answered this estimate, so it can no longer be edited.': 'O cliente já respondeu este orçamento, então ele não pode mais ser editado.',
+    'This estimate is locked, so it cannot be changed. If the client declined it, use Revise and reopen; if they accepted it, add a change order.': 'Este orçamento está bloqueado e não pode ser alterado. Se o cliente recusou, use Revisar e reabrir; se aceitou, adicione um aditivo.',
     // Top bar
     'Back to projects': 'Voltar para projetos',
     'Not saved': 'Não salvo',
@@ -116,6 +117,7 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
     'Open questions': 'Preguntas pendientes',
     'Assumptions': 'Suposiciones',
     'The client has already answered this estimate, so it can no longer be edited.': 'El cliente ya respondió este presupuesto, así que ya no se puede editar.',
+    'This estimate is locked, so it cannot be changed. If the client declined it, use Revise and reopen; if they accepted it, add a change order.': 'Este presupuesto está bloqueado y no se puede cambiar. Si el cliente lo rechazó, usa Revisar y reabrir; si lo aceptó, agrega una orden de cambio.',
     // Top bar
     'Back to projects': 'Volver a proyectos',
     'Not saved': 'No guardado',

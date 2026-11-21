@@ -38,6 +38,7 @@ vi.mock('sonner', () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
     success: (...args: unknown[]) => mockToastSuccess(...args),
+    dismiss: vi.fn(),
   },
 }))
 
@@ -54,11 +55,13 @@ const mockSaveEstimate = vi.fn()
 const mockSavePresentationSettings = vi.fn()
 const mockCreateBlankEstimate = vi.fn()
 const mockGetEstimateByIdAction = vi.fn()
+const mockGetEstimateUpdatedAtAction = vi.fn()
 vi.mock('@/lib/actions/estimate', () => ({
   saveEstimate: (...args: unknown[]) => mockSaveEstimate(...args),
   savePresentationSettings: (...args: unknown[]) => mockSavePresentationSettings(...args),
   createBlankEstimate: (...args: unknown[]) => mockCreateBlankEstimate(...args),
   getEstimateByIdAction: (...args: unknown[]) => mockGetEstimateByIdAction(...args),
+  getEstimateUpdatedAtAction: (...args: unknown[]) => mockGetEstimateUpdatedAtAction(...args),
 }))
 
 vi.mock('@/lib/actions/estimate-photo', () => ({
@@ -111,6 +114,7 @@ beforeEach(() => {
   mockSavePresentationSettings.mockReset()
   mockCreateBlankEstimate.mockReset()
   mockGetEstimateByIdAction.mockReset()
+  mockGetEstimateUpdatedAtAction.mockReset()
 })
 
 afterEach(() => {
@@ -262,12 +266,141 @@ describe('EstimateEditor — conflict/not-current UX (SAVE-05) + dirty-epoch (SA
     expect(mockToastError).toHaveBeenCalledTimes(1)
   })
 
-  it('"Keep my changes" clears conflictPending and retries the save with force (last-writer-wins on content)', async () => {
+  it('"Keep my changes" reads the server version and saves with compare-and-set against THAT value (never blind)', async () => {
     vi.useFakeTimers()
     mockSaveEstimate.mockResolvedValueOnce({
       error: 'This estimate was changed elsewhere since you last loaded it.',
       conflict: true as const,
     })
+    mockSaveEstimate.mockResolvedValueOnce(successResult())
+    mockGetEstimateUpdatedAtAction.mockResolvedValue({ data: { updated_at: '2026-03-05T00:00:00.000Z' } })
+
+    renderEditor()
+
+    fireEvent.click(screen.getByTestId('edit-btn'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
+    // The first save carried the editor's own baseline.
+    expect((mockSaveEstimate.mock.calls[0][0] as { expectedUpdatedAt?: string }).expectedUpdatedAt).toBe(
+      '2026-01-01T00:00:00.000Z'
+    )
+
+    const [, options] = mockToastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    await act(async () => {
+      options.action.onClick()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(mockGetEstimateUpdatedAtAction).toHaveBeenCalledWith('est-1')
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(2)
+    // Compare-and-set against the version just read, never undefined and never the stale baseline.
+    const secondCallPayload = mockSaveEstimate.mock.calls[1][0] as { expectedUpdatedAt?: string }
+    expect(secondCallPayload.expectedUpdatedAt).toBe('2026-03-05T00:00:00.000Z')
+
+    // conflictPending cleared -> a subsequent edit resumes normal autosave, now on the saved version.
+    fireEvent.click(screen.getByTestId('edit-btn'))
+    mockSaveEstimate.mockResolvedValueOnce(successResult())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(3)
+    expect((mockSaveEstimate.mock.calls[2][0] as { expectedUpdatedAt?: string }).expectedUpdatedAt).toBe(
+      '2026-01-02T00:00:00.000Z'
+    )
+  })
+
+  it('"Keep my changes" shows the conflict notice again when the version changed once more in between', async () => {
+    vi.useFakeTimers()
+    mockSaveEstimate.mockResolvedValue({
+      error: 'This estimate was changed elsewhere since you last loaded it.',
+      conflict: true as const,
+    })
+    mockGetEstimateUpdatedAtAction.mockResolvedValue({ data: { updated_at: '2026-03-05T00:00:00.000Z' } })
+
+    renderEditor()
+
+    fireEvent.click(screen.getByTestId('edit-btn'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    const [, options] = mockToastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    await act(async () => {
+      options.action.onClick()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(2)
+    expect(mockToastError).toHaveBeenCalledTimes(2)
+    expect((mockToastError.mock.calls[1][1] as { id: string }).id).toBe('estimate-save-conflict')
+  })
+
+  it('"Keep my changes" never saves when the server version cannot be read', async () => {
+    vi.useFakeTimers()
+    mockSaveEstimate.mockResolvedValue({
+      error: 'This estimate was changed elsewhere since you last loaded it.',
+      conflict: true as const,
+    })
+    mockGetEstimateUpdatedAtAction.mockResolvedValue({ error: 'Estimate not found' })
+
+    renderEditor()
+
+    fireEvent.click(screen.getByTestId('edit-btn'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    const [, options] = mockToastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    await act(async () => {
+      options.action.onClick()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
+    expect(mockToastError).toHaveBeenCalledTimes(2)
+    expect((mockToastError.mock.calls[1][1] as { id: string }).id).toBe('estimate-save-conflict')
+  })
+
+  it('a failing autosave backs off (6 s, 12 s, ...) and shows the error toast once per streak', async () => {
+    vi.useFakeTimers()
+    mockSaveEstimate.mockResolvedValue({ error: 'Failed to save estimate' })
+
+    renderEditor()
+
+    fireEvent.click(screen.getByTestId('edit-btn'))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
+
+    // Not retried before the 6 s backoff...
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5900)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(2)
+
+    // ...then 12 s.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(11900)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(mockSaveEstimate).toHaveBeenCalledTimes(3)
+
+    // One toast for the whole streak.
+    expect(mockToastError).toHaveBeenCalledTimes(1)
+    expect((mockToastError.mock.calls[0][1] as { id: string }).id).toBe('estimate-save-error')
+  })
+
+  it('a failed save is retried immediately when the browser comes back online, and a success ends the streak', async () => {
+    vi.useFakeTimers()
+    mockSaveEstimate.mockResolvedValueOnce({ error: 'Failed to save estimate' })
     mockSaveEstimate.mockResolvedValueOnce(successResult())
 
     renderEditor()
@@ -278,25 +411,19 @@ describe('EstimateEditor — conflict/not-current UX (SAVE-05) + dirty-epoch (SA
     })
     expect(mockSaveEstimate).toHaveBeenCalledTimes(1)
 
-    const [, options] = mockToastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
     await act(async () => {
-      options.action.onClick()
-      await Promise.resolve()
-      await Promise.resolve()
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(0)
     })
-
     expect(mockSaveEstimate).toHaveBeenCalledTimes(2)
-    // force:true -> expectedUpdatedAt omitted (undefined), never the stale baseline.
-    const secondCallPayload = mockSaveEstimate.mock.calls[1][0] as { expectedUpdatedAt?: string }
-    expect(secondCallPayload.expectedUpdatedAt).toBeUndefined()
 
-    // conflictPending cleared -> a subsequent edit resumes normal autosave.
+    // The streak is over: the next failure toasts again.
+    mockSaveEstimate.mockResolvedValue({ error: 'Failed to save estimate' })
     fireEvent.click(screen.getByTestId('edit-btn'))
-    mockSaveEstimate.mockResolvedValueOnce(successResult())
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
-    expect(mockSaveEstimate).toHaveBeenCalledTimes(3)
+    expect(mockToastError).toHaveBeenCalledTimes(2)
   })
 
   it('"Reload latest" discards local edits via handleDiscard and clears conflictPending', async () => {
