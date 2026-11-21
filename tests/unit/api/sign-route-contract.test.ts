@@ -436,7 +436,7 @@ describe('sign_estimate_atomic RPC error-code mapping', () => {
     await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
     expect(supabase.__rpcMock).toHaveBeenCalledOnce()
     // Only the initial estimate read: the route must not re-read to retry.
-    const estimateReads = supabase.__fromMock.mock.calls.filter(([t]: [string]) => t === 'estimates')
+    const estimateReads = supabase.__fromMock.mock.calls.filter((call) => call[0] === 'estimates')
     expect(estimateReads).toHaveLength(1)
     expect(mockNotify).not.toHaveBeenCalled()
   })
@@ -616,7 +616,7 @@ describe('content fingerprint: signing exactly the document the page rendered', 
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toEqual({ error: 'estimate_updated' })
     expect(supabase.__rpcMock).not.toHaveBeenCalled()
-    const sectionReads = supabase.__fromMock.mock.calls.filter(([t]: [string]) => t === 'estimate_sections')
+    const sectionReads = supabase.__fromMock.mock.calls.filter((call) => call[0] === 'estimate_sections')
     expect(sectionReads).toHaveLength(0)
   })
 
