@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Sparkles,
@@ -15,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { Category } from '@/lib/admin/integrations-providers'
+import { SidePanelColumn, SidePanelMobilePicker, type SidePanelGroup } from '@/components/ui/side-panel'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface Props {
@@ -37,49 +37,51 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 /**
  * Sub-sidebar nav for the integrations area. Each category is a real URL
  * (`/admin/integrations/{slug}`) so bookmarks, the back button, and share links
- * work. Vertical rail on md+ (mirrors the main AdminNav styling), collapsing to
- * a horizontally-scrollable row on small screens.
+ * work. The shared side panel: a collapsible column on md+, a full-width bottom
+ * sheet picker on phones.
  *
- * The outer div is the flex item: it stretches to the card's full height, which
- * both keeps the `border-r` divider full-length and gives the sticky <nav>
- * inside it room to travel while the category content scrolls.
+ * The column is the flex item and stretches to the card's full height (default
+ * flex stretch, no sticky), so its `border-r` divider runs the full length.
  *
  * Active state derived from `usePathname()` matching `/admin/integrations/{slug}`.
  */
 export function IntegrationsNav({ categories, defaultSlug }: Props) {
   const pathname = usePathname()
   const { t } = useTranslation()
+
+  const items = categories.map((c) => ({
+    key: c.slug,
+    label: t(c.navLabel ?? c.title),
+    icon: CATEGORY_ICONS[c.slug] ?? Settings2,
+    href: `/admin/integrations/${c.slug}`,
+  }))
+  const groups: SidePanelGroup[] = [{ key: 'categories', items }]
+  const activeKey =
+    categories.find((c) => {
+      const href = `/admin/integrations/${c.slug}`
+      return (
+        (c.slug === defaultSlug && pathname === '/admin/integrations') ||
+        pathname === href ||
+        pathname.startsWith(`${href}/`)
+      )
+    })?.slug ?? null
+
   return (
-    <div className="border-b border-border pb-3 md:w-[184px] md:flex-shrink-0 md:border-b-0 md:border-r md:pb-0 md:pr-6">
-      <nav
-        aria-label={t('Integration categories')}
-        className="flex gap-1 overflow-x-auto md:sticky md:top-6 md:flex-col md:overflow-visible"
-      >
-        {categories.map((c) => {
-          const href = `/admin/integrations/${c.slug}`
-          const isDefaultRoot =
-            c.slug === defaultSlug && pathname === '/admin/integrations'
-          const isActive =
-            isDefaultRoot || pathname === href || pathname.startsWith(`${href}/`)
-          const Icon = CATEGORY_ICONS[c.slug] ?? Settings2
-          return (
-            <Link
-              key={c.slug}
-              href={href}
-              aria-current={isActive ? 'page' : undefined}
-              className={[
-                'relative flex h-[38px] items-center gap-2.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors',
-                isActive
-                  ? "bg-[var(--glass-bg-light)] text-foreground md:before:absolute md:before:left-0 md:before:top-2 md:before:bottom-2 md:before:w-[1.5px] md:before:rounded-full md:before:bg-[image:var(--gradient-brand)] md:before:content-['']"
-                  : 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-              ].join(' ')}
-            >
-              <Icon size={16} className="flex-shrink-0" />
-              {t(c.navLabel ?? c.title)}
-            </Link>
-          )
-        })}
-      </nav>
-    </div>
+    <>
+      <SidePanelColumn
+        id="admin-integrations"
+        title={t('Integration categories')}
+        groups={groups}
+        activeKey={activeKey}
+        filterThreshold={Infinity}
+      />
+      <SidePanelMobilePicker
+        title={t('Integration categories')}
+        groups={groups}
+        activeKey={activeKey}
+        filterThreshold={Infinity}
+        className="h-10 w-full max-w-none justify-between"
+      />
+    </>
   )
 }

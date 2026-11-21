@@ -245,6 +245,8 @@ export interface SidePanelListProps {
   reorder?: SidePanelReorder
   /** data-testid for a row, e.g. (k) => `category-filter-${k}`. */
   getItemTestId?: (key: string) => string
+  /** data-testid for a group wrapper, e.g. (k) => `category-group-${k}`. */
+  getGroupTestId?: (groupKey: string) => string
   className?: string
 }
 
@@ -259,6 +261,7 @@ export function SidePanelList({
   footer,
   reorder,
   getItemTestId,
+  getGroupTestId,
   className,
 }: SidePanelListProps) {
   const { t } = useTranslation()
@@ -327,7 +330,7 @@ export function SidePanelList({
   const body = (
     <div className="space-y-4">
       {visibleGroups.map((group) => (
-        <div key={group.key} className="space-y-1">
+        <div key={group.key} className="space-y-1" data-testid={getGroupTestId?.(group.key)}>
           {group.label && (
             <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               {group.label}

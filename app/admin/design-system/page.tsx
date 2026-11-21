@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { ArrowUpRight, Inbox, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { SidePanelList } from "@/components/ui/side-panel"
 import {
   Card,
   CardHeader,
@@ -280,29 +281,25 @@ export default function DesignSystemPage() {
 
       {/* Pattern 4: Sidebar nav item */}
       <div className="mb-10">
-        <p className="text-xs text-muted-foreground mb-3">9.4 Sidebar nav item (gradient active bar)</p>
-        <aside className="glass border-r border-[var(--glass-border)] w-56 rounded-md p-2">
-          <ul className="space-y-1">
-            {[
-              { label: "Dashboard", active: true },
-              { label: "Projects", active: false },
-              { label: "Clients", active: false },
-            ].map((it) => (
-              <li key={it.label}>
-                <button
-                  className={`relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition ${
-                    it.active
-                      ? "bg-[var(--glass-bg-light)] text-foreground before:content-[''] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[1.5px] before:rounded-full before:bg-[image:var(--gradient-brand)]"
-                      : "text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground"
-                  }`}
-                >
-                  <Inbox className="size-4" />
-                  {it.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <p className="text-xs text-muted-foreground mb-3">
+          9.4 Side panel (SidePanelList; SidePanelColumn wraps it as a collapsible desktop column and SidePanelMobilePicker opens it as a bottom sheet on phones)
+        </p>
+        <div className="w-56 rounded-md border border-[var(--glass-border)] p-2">
+          <SidePanelList
+            groups={[
+              {
+                key: "sample",
+                label: "Workspace",
+                items: [
+                  { key: "dashboard", label: "Dashboard", icon: Inbox },
+                  { key: "projects", label: "Projects", icon: Inbox, count: 12 },
+                  { key: "clients", label: "Clients", icon: Inbox },
+                ],
+              },
+            ]}
+            activeKey="dashboard"
+          />
+        </div>
       </div>
 
       {/* Pattern 5: Toast */}

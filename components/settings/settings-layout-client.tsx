@@ -22,14 +22,14 @@ export function settingsOpenWhilePaywalled(pathname: string | null): boolean {
 /**
  * Settings shell.
  *
- * - md+: a fixed-width grouped rail on the left, sticky so it stays put while
+ * - md+: a fixed-width grouped column on the left, sticky so it stays put while
  *   the page scrolls (its containing block is the min-h-full container in
  *   app/(app)/settings/layout.tsx, which grows with the content). It is the
  *   full height under the 4rem top bar: that container cancels main's md:pb-6
  *   with md:-mb-6, so the rail's border reaches the bottom of the screen and
  *   the rail is not nudged up at the end of the scroll.
  * - Below md: no rail. A button pinned under the top bar names the section and
- *   opens the same grouped nav as a left drawer, so the page keeps the width.
+ *   opens the same grouped list as a bottom sheet, so the page keeps the width.
  *
  * The content column owns the page padding and the reading width, so no page
  * adds its own `p-6` or max-width.
@@ -42,9 +42,7 @@ export function SettingsLayoutClient({ children, isDemo }: { children: ReactNode
         <SettingsNavStrip isDemo={isDemo} />
       </div>
 
-      <aside className="sticky top-0 hidden h-[calc(100dvh-4rem)] w-56 shrink-0 self-start overflow-y-auto border-r border-border px-3 py-8 md:block">
-        <SettingsNav isDemo={isDemo} />
-      </aside>
+      <SettingsNav isDemo={isDemo} />
 
       <div className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 md:px-8 md:py-8">

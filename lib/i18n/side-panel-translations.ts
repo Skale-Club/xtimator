@@ -19,6 +19,8 @@ export const sidePanelTranslations: Record<'pt' | 'es', Dict> = {
     'Filter': 'Filtrar',
     'No matches': 'Nenhum resultado',
     'Could not reorder the categories.': 'Não foi possível reordenar as categorias.',
+    'Integration categories': 'Categorias de integrações',
+    'Notification events': 'Eventos de notificação',
   },
   es: {
     'Collapse sidebar': 'Contraer barra lateral',
@@ -33,5 +35,7 @@ export const sidePanelTranslations: Record<'pt' | 'es', Dict> = {
     'Filter': 'Filtrar',
     'No matches': 'Sin resultados',
     'Could not reorder the categories.': 'No se pudieron reordenar las categorías.',
+    'Integration categories': 'Categorías de integraciones',
+    'Notification events': 'Eventos de notificación',
   },
 }

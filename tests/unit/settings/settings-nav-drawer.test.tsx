@@ -3,18 +3,25 @@ import { render, screen, fireEvent } from '@testing-library/react'
 
 /**
  * Redesign 2026-11-20: on phones the settings sections open from a button that
- * names the current section, as a left drawer with the desktop's grouped nav
+ * names the current section, as a bottom sheet with the desktop's grouped list
  * (no sideways-scrolling pills).
  */
 
 vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (k: string) => k, language: 'en' }),
 }))
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: any) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}))
 vi.mock('next/navigation', () => ({ usePathname: () => '/settings/billing' }))
 
 import { SettingsNavStrip } from '@/components/settings/settings-nav'
 
-describe('SettingsNavStrip (phone drawer)', () => {
+describe('SettingsNavStrip (phone bottom sheet)', () => {
   it('names the current section on the trigger and shows no links until opened', () => {
     render(<SettingsNavStrip />)
     expect(screen.getByTestId('settings-nav-trigger').textContent).toContain('Plan and billing')

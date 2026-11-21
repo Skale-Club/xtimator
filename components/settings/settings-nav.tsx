@@ -1,14 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, type ElementType } from 'react'
+import type { ElementType } from 'react'
 import {
-  Bell, BookOpen, Building2, ChevronDown, CreditCard, FileText,
-  Mail, Menu, Palette, Plug, UserRound, Users,
+  Bell, BookOpen, Building2, CreditCard, FileText,
+  Mail, Palette, Plug, UserRound, Users,
 } from 'lucide-react'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
+import { SidePanelColumn, SidePanelMobilePicker, type SidePanelGroup } from '@/components/ui/side-panel'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 interface NavItem {
@@ -62,6 +60,7 @@ export const SETTINGS_NAV_GROUPS: NavGroup[] = [
 
 function useNav(isDemo?: boolean) {
   const pathname = usePathname()
+  const { t } = useTranslation()
   const groups = SETTINGS_NAV_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((i) => !(isDemo && i.demoHidden)) }))
     .filter((g) => g.items.length > 0)
@@ -69,89 +68,55 @@ function useNav(isDemo?: boolean) {
     groups
       .flatMap((g) => g.items)
       .find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))?.value ?? ''
-  return { groups, active }
+  const panelGroups: SidePanelGroup[] = groups.map((g) => ({
+    key: g.label,
+    label: t(g.label),
+    items: g.items.map((i) => ({ key: i.value, label: t(i.label), icon: i.Icon, href: i.href })),
+  }))
+  return { panelGroups, active }
 }
 
-/** Grouped vertical list: the desktop rail, and the phone drawer's content. */
-export function SettingsNav({ isDemo, onNavigate }: { isDemo?: boolean; onNavigate?: () => void }) {
+/**
+ * Desktop column (md+): the shared side panel, sticky and full height under the
+ * 4rem top bar. The page keeps scrolling in main (settings pages have a sticky
+ * save bar), so the column is the only thing pinned.
+ */
+export function SettingsNav({ isDemo }: { isDemo?: boolean }) {
   const { t } = useTranslation()
-  const { groups, active } = useNav(isDemo)
+  const { panelGroups, active } = useNav(isDemo)
 
   return (
-    <nav aria-label={t('Settings')} className="space-y-6">
-      {groups.map((group) => (
-        <div key={group.label} className="space-y-1">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            {t(group.label)}
-          </p>
-          {group.items.map(({ value, label, Icon, href }) => {
-            const isActive = active === value
-            return (
-              <Link
-                key={value}
-                href={href}
-                onClick={onNavigate}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-[var(--glass-bg-light)] text-foreground'
-                    : 'text-muted-foreground hover:bg-[var(--glass-bg-light)] hover:text-foreground',
-                )}
-              >
-                <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary')} aria-hidden />
-                <span className="truncate">{t(label)}</span>
-              </Link>
-            )
-          })}
-        </div>
-      ))}
-    </nav>
+    <SidePanelColumn
+      id="settings"
+      title={t('Settings')}
+      groups={panelGroups}
+      activeKey={active}
+      filterThreshold={Infinity}
+      className="sticky top-0 h-[calc(100dvh-4rem)] self-start"
+    />
   )
 }
 
 /**
- * Phone/tablet (redesign 2026-11-20): no sideways-scrolling pills. A button
- * pinned under the top bar names the current section and opens the same
- * grouped sidebar as desktop from the left; picking a section closes it.
+ * Phone/tablet: a full-width button pinned under the top bar names the current
+ * section and opens the same grouped list as a bottom sheet; picking a section
+ * navigates and closes it.
  */
 export function SettingsNavStrip({ isDemo }: { isDemo?: boolean }) {
   const { t } = useTranslation()
-  const { groups, active } = useNav(isDemo)
-  const [open, setOpen] = useState(false)
-  const current = groups.flatMap((g) => g.items).find((i) => i.value === active)
+  const { panelGroups, active } = useNav(isDemo)
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <div className="px-4 py-2.5">
-        <SheetTrigger asChild>
-          <button
-            type="button"
-            data-testid="settings-nav-trigger"
-            className="flex h-10 w-full items-center gap-2.5 rounded-[var(--radius-md)] border border-border bg-[var(--glass-bg-light)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--glass-bg)]"
-          >
-            <Menu className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            {current ? (
-              <>
-                <current.Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                <span className="truncate">{t(current.label)}</span>
-              </>
-            ) : (
-              <span className="truncate">{t('Settings')}</span>
-            )}
-            <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-          </button>
-        </SheetTrigger>
-      </div>
-      <SheetContent side="left" className="w-[290px] gap-0 p-0 sm:max-w-[290px]">
-        <SheetHeader className="h-14 flex-row items-center border-b border-[var(--glass-border)] px-4 py-0">
-          <SheetTitle className="text-base">{t('Settings')}</SheetTitle>
-          <SheetDescription className="sr-only">{t('Choose a settings section')}</SheetDescription>
-        </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-3 py-5">
-          <SettingsNav isDemo={isDemo} onNavigate={() => setOpen(false)} />
-        </div>
-      </SheetContent>
-    </Sheet>
+    <div className="px-4 py-2.5">
+      <SidePanelMobilePicker
+        title={t('Settings')}
+        description={t('Choose a settings section')}
+        groups={panelGroups}
+        activeKey={active}
+        filterThreshold={Infinity}
+        testId="settings-nav-trigger"
+        className="h-10 w-full max-w-none justify-between"
+      />
+    </div>
   )
 }

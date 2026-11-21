@@ -1,34 +1,36 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
- * Skeleton counterpart of the vertical Settings sub-sidebar
- * (`components/settings/settings-nav.tsx` → `SubNav` in `alwaysVertical` mode).
+ * Skeleton counterpart of the Settings side-panel list
+ * (`components/settings/settings-nav.tsx` -> `SidePanelColumn`, `w-60`).
  *
- * Mirrors the real rail: a vertical list of icon + label rows at ALL
- * breakpoints, inside an `<aside>` (`w-52`) that is a viewport-height,
- * self-scrolling sticky column while the page content scrolls independently.
+ * Mirrors the real list: small group headings over icon + label rows. The
+ * shell skeleton supplies the column frame (header row, border, sticky).
  *
  * Use inside any `/settings/*` loading.tsx so the sub-nav stays in place
  * during the page data fetch.
  */
-export function SettingsSubnavSkeleton({ itemCount = 11 }: { itemCount?: number }) {
+export function SettingsSubnavSkeleton({ itemCount = 10 }: { itemCount?: number }) {
+  const groupSizes = [3, 3, 3, 1]
+  let remaining = itemCount
   return (
-    <nav
-      aria-label="Section navigation"
-      aria-busy
-      className="flex flex-col gap-1 flex-1"
-    >
-      {Array.from({ length: itemCount }).map((_, i) => (
-        <div
-          key={i}
-          className="flex shrink-0 flex-row items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 min-w-0 justify-start"
-        >
-          {/* Icon placeholder — square like lucide's h-4 w-4 */}
-          <Skeleton className="h-4 w-4 shrink-0 rounded" />
-          {/* Label placeholder — narrower than full width to match the real text */}
-          <Skeleton className="h-3 w-24" />
-        </div>
-      ))}
+    <nav aria-label="Section navigation" aria-busy className="space-y-4">
+      {groupSizes.map((size, g) => {
+        const rows = Math.max(0, Math.min(size, remaining))
+        remaining -= rows
+        if (rows === 0) return null
+        return (
+          <div key={g} className="space-y-1">
+            <Skeleton className="mx-3 mb-2 h-2.5 w-16" />
+            {Array.from({ length: rows }).map((_, i) => (
+              <div key={i} className="flex min-h-9 min-w-0 shrink-0 flex-row items-center gap-2 rounded-[var(--radius-md)] px-3">
+                <Skeleton className="size-4 shrink-0 rounded" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ))}
+          </div>
+        )
+      })}
     </nav>
   )
 }

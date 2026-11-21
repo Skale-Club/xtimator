@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { SidePanelColumn, SidePanelMobilePicker, type SidePanelGroup } from '@/components/ui/side-panel'
 import { T } from '@/components/i18n/t'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import {
@@ -63,6 +64,16 @@ export function NotificationTemplatesPanel({
 
   const grouped = useMemo(() => groupByCategory(TENANT_TEMPLATE_CATALOG), [])
 
+  const eventGroups = useMemo<SidePanelGroup[]>(
+    () =>
+      CATEGORY_ORDER.filter((category) => grouped.has(category)).map((category) => ({
+        key: category,
+        label: t(CATEGORY_LABELS[category]),
+        items: grouped.get(category)!.map((entry) => ({ key: entry.eventType, label: entry.label })),
+      })),
+    [grouped, t],
+  )
+
   // Keyed by `${event_type}:${channel}` so the editor can look up its
   // matching row (or null, for the 34 not-yet-saved combinations) in O(1).
   const templateMap = useMemo(() => {
@@ -96,66 +107,56 @@ export function NotificationTemplatesPanel({
       </div>
 
       <TabsContent value="tenant" className="mt-0">
-        <div className="grid lg:grid-cols-[280px_1fr] gap-6">
-          <Card variant="glass" className="p-4 h-fit">
-            <nav aria-label={t('Notification events')} className="space-y-4">
-              {CATEGORY_ORDER.filter((category) => grouped.has(category)).map((category) => (
-                <div key={category} data-testid={`category-group-${category}`}>
-                  <div className="px-2 pb-1 text-xs uppercase tracking-wide text-muted-foreground">
-                    {t(CATEGORY_LABELS[category])}
-                  </div>
-                  <ul className="space-y-0.5">
-                    {grouped.get(category)!.map((entry) => (
-                      <li key={entry.eventType}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEvent(entry.eventType)}
-                          className={[
-                            'w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors',
-                            entry.eventType === selectedEvent
-                              ? 'bg-[var(--glass-bg-light)] text-foreground font-medium'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-[var(--glass-bg-light)]',
-                          ].join(' ')}
-                        >
-                          {entry.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </nav>
-          </Card>
-
-          <div className="space-y-4">
-            <Tabs
-              value={selectedChannel}
-              onValueChange={(v) => setSelectedChannel(v as TemplateChannel)}
-            >
-              <TabsList
-                variant="line"
-                className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start border-b border-[var(--glass-border)]"
-              >
-                {EDITABLE_CHANNELS.map((channel) => (
-                  <TabsTrigger key={channel} value={channel} className={TAB_TRIGGER_CLASSES}>
-                    {t(CHANNEL_LABELS[channel])}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-
-            {/* Keyed by (event, channel) so React remounts the editor on
-                navigation instead of stale-merging local form state across
-                two different templates. */}
-            <NotificationTemplateEditor
-              key={`${selectedEvent}:${selectedChannel}`}
-              eventType={selectedEvent}
-              channel={selectedChannel}
-              existing={existing}
-              onSaved={() => router.refresh()}
+        <Card variant="glass" className="p-0">
+          <div className="flex flex-col md:flex-row">
+            <SidePanelColumn
+              id="admin-notification-events"
+              title={t('Notification events')}
+              groups={eventGroups}
+              activeKey={selectedEvent}
+              onSelect={(key) => setSelectedEvent(key as EventType)}
+              getGroupTestId={(key) => `category-group-${key}`}
             />
+            <div className="border-b border-[var(--glass-border)] p-3 md:hidden">
+              <SidePanelMobilePicker
+                title={t('Notification events')}
+                groups={eventGroups}
+                activeKey={selectedEvent}
+                onSelect={(key) => setSelectedEvent(key as EventType)}
+                className="h-10 w-full max-w-none justify-between"
+              />
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-4 p-4 md:p-6">
+              <Tabs
+                value={selectedChannel}
+                onValueChange={(v) => setSelectedChannel(v as TemplateChannel)}
+              >
+                <TabsList
+                  variant="line"
+                  className="w-auto h-auto bg-transparent p-0 gap-0 rounded-none justify-start border-b border-[var(--glass-border)]"
+                >
+                  {EDITABLE_CHANNELS.map((channel) => (
+                    <TabsTrigger key={channel} value={channel} className={TAB_TRIGGER_CLASSES}>
+                      {t(CHANNEL_LABELS[channel])}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+
+              {/* Keyed by (event, channel) so React remounts the editor on
+                  navigation instead of stale-merging local form state across
+                  two different templates. */}
+              <NotificationTemplateEditor
+                key={`${selectedEvent}:${selectedChannel}`}
+                eventType={selectedEvent}
+                channel={selectedChannel}
+                existing={existing}
+                onSaved={() => router.refresh()}
+              />
+            </div>
           </div>
-        </div>
+        </Card>
       </TabsContent>
 
       <TabsContent value="customer" className="mt-0">
