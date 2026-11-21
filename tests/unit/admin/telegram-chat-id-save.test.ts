@@ -102,7 +102,7 @@ vi.mock('@/lib/telegram/client', () => ({
 }))
 
 // ---- import under test (after mocks) ---------------------------------------
-import { saveTelegramChatId } from '@/app/admin/integrations/actions'
+import { saveTelegramChatId, saveTelegramLeadsChatId } from '@/app/admin/integrations/actions'
 
 beforeEach(() => {
   requireAdminMock.mockClear()
@@ -143,6 +143,42 @@ describe('saveTelegramChatId', () => {
   it('3. non-admin rejected before any DB write', async () => {
     requireAdminMock.mockRejectedValueOnce(new Error('NEXT_NOT_FOUND'))
     await expect(saveTelegramChatId('123456789')).rejects.toThrow()
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('saveTelegramLeadsChatId', () => {
+  it('stores leads_chat_id next to the Ops chat_id and the encrypted token', async () => {
+    const res = await saveTelegramLeadsChatId('-1003852529496')
+    expect(res.ok).toBe(true)
+    expect(lastUpsertPayload?.metadata).toEqual({ chat_id: 'old-value', leads_chat_id: '-1003852529496' })
+    expect(lastUpsertPayload?.ciphertext).toBe(EXISTING_ROW.ciphertext)
+    expect(lastUpsertPayload?.iv).toBe(EXISTING_ROW.iv)
+    expect(lastUpsertPayload?.auth_tag).toBe(EXISTING_ROW.auth_tag)
+  })
+
+  it('refuses a non-group id', async () => {
+    expect((await saveTelegramLeadsChatId('123456789')).ok).toBe(false)
+    expect((await saveTelegramLeadsChatId('abc')).ok).toBe(false)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses the same chat as Ops', async () => {
+    selectSingleMock.mockResolvedValueOnce({ data: { ...EXISTING_ROW, metadata: { chat_id: '-100555' } }, error: null })
+    const res = await saveTelegramLeadsChatId('-100555')
+    expect(res.ok).toBe(false)
+    expect(upsertMock).not.toHaveBeenCalled()
+  })
+
+  it('empty clears it', async () => {
+    const res = await saveTelegramLeadsChatId('')
+    expect(res.ok).toBe(true)
+    expect(lastUpsertPayload?.metadata?.leads_chat_id).toBe('')
+  })
+
+  it('non-admin rejected before any DB write', async () => {
+    requireAdminMock.mockRejectedValueOnce(new Error('NEXT_NOT_FOUND'))
+    await expect(saveTelegramLeadsChatId('-1003852529496')).rejects.toThrow()
     expect(upsertMock).not.toHaveBeenCalled()
   })
 })

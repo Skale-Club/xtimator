@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { SettingsSaveBar } from '@/components/settings/settings-ui'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { saveTelegramChatId, sendTelegramTestAlert } from './actions'
+import { saveTelegramChatId, saveTelegramLeadsChatId, sendTelegramTestAlert } from './actions'
 import { TestButton } from './test-button'
 
 interface TelegramChatIdFormProps {
@@ -54,6 +54,54 @@ export function TelegramChatIdForm({ current }: TelegramChatIdFormProps) {
       </div>
       <div>
         <TestButton onRun={() => sendTelegramTestAlert()} />
+      </div>
+      <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
+    </div>
+  )
+}
+
+interface TelegramLeadsChatIdFormProps {
+  current: string
+}
+
+/** The Xtimator | Leads group: sign-up notices go only here, never to the ops chat. */
+export function TelegramLeadsChatIdForm({ current }: TelegramLeadsChatIdFormProps) {
+  const [value, setValue] = useState(current)
+  const [saved, setSaved] = useState(current)
+  const [isPending, startTransition] = useTransition()
+  const dirty = value !== saved
+
+  function handleSave() {
+    startTransition(async () => {
+      const result = await saveTelegramLeadsChatId(value)
+      if (!result.ok) {
+        toast.error(result.message)
+      } else {
+        setSaved(value)
+        toast.success('Leads group saved.')
+      }
+    })
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card/40 p-4 md:p-6 space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">Leads Group (leads_chat_id)</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          The Telegram group that receives new sign-up notices. It must be a group (negative id)
+          different from the alert chat above. Empty turns sign-up notices off; they never go to the
+          alert chat.
+        </p>
+      </div>
+      <div className="grid gap-2 max-w-sm">
+        <Label htmlFor="telegram-leads-chat-id">Leads chat ID</Label>
+        <Input
+          id="telegram-leads-chat-id"
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/[^\d-]/g, ''))}
+          placeholder="-1001234567890"
+          disabled={isPending}
+        />
       </div>
       <SettingsSaveBar dirty={dirty} pending={isPending} onDiscard={() => setValue(saved)} onSave={handleSave} />
     </div>
