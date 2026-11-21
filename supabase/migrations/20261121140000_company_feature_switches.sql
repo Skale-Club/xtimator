@@ -20,14 +20,42 @@
 --
 -- APPLY BY HAND to BOTH databases (Supabase dev AND the Coolify production
 -- database) BEFORE the deploy that depends on it; the deploy never runs
--- migrations. Additive and idempotent.
+-- migrations. Additive. Safe to re-run: the backfill runs only the first time.
 
-ALTER TABLE public.companies
-  ADD COLUMN IF NOT EXISTS online_payments_allowed BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE public.companies
-  ADD COLUMN IF NOT EXISTS online_payments_enabled BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE public.companies
-  ADD COLUMN IF NOT EXISTS digital_signature_allowed BOOLEAN NOT NULL DEFAULT true;
+-- Columns and the ONE-TIME backfill, in one block so the backfill can tell a
+-- first application from a re-run. The backfill must run only when the columns
+-- are being created: on a later re-run it would turn payments back on for an
+-- owner who had switched them off (seen on a local replay of the migration
+-- history). A company whose Stripe account is disconnected is not switched on.
+DO $do$
+DECLARE
+  first_run boolean;
+BEGIN
+  SELECT NOT EXISTS (
+    SELECT 1
+      FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'companies'
+       AND column_name  = 'online_payments_allowed'
+  ) INTO first_run;
+
+  ALTER TABLE public.companies
+    ADD COLUMN IF NOT EXISTS online_payments_allowed BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE public.companies
+    ADD COLUMN IF NOT EXISTS online_payments_enabled BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE public.companies
+    ADD COLUMN IF NOT EXISTS digital_signature_allowed BOOLEAN NOT NULL DEFAULT true;
+
+  IF first_run THEN
+    -- Companies already linked to Stripe keep the feature.
+    UPDATE public.companies
+       SET online_payments_allowed = true,
+           online_payments_enabled = true
+     WHERE stripe_account_id IS NOT NULL
+       AND stripe_connect_status IS DISTINCT FROM 'disconnected';
+  END IF;
+END
+$do$;
 
 COMMENT ON COLUMN public.companies.online_payments_allowed IS
   'Platform switch: the company may use online payments (Stripe Connect invoices). Written by the service role / super admin only (guarded by protect_company_billing_columns). See lib/features/company-features.ts.';
@@ -35,13 +63,6 @@ COMMENT ON COLUMN public.companies.online_payments_enabled IS
   'Tenant switch: the company owner turned online payments on. Effective only while online_payments_allowed is true. Written by the company owner. See lib/features/company-features.ts.';
 COMMENT ON COLUMN public.companies.digital_signature_allowed IS
   'Platform switch: the company may offer online approve-and-sign to clients. Written by the service role / super admin only (guarded by protect_company_billing_columns). See lib/features/company-features.ts.';
-
--- Backfill (idempotent): companies already linked to Stripe keep the feature.
-UPDATE public.companies
-   SET online_payments_allowed = true,
-       online_payments_enabled = true
- WHERE stripe_account_id IS NOT NULL
-   AND (online_payments_allowed = false OR online_payments_enabled = false);
 
 -- Extend the tenant-write guard (same function the trigger already points at).
 -- Starts from the 20260823000005 definition; every column it listed is kept.

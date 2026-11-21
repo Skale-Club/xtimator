@@ -29,8 +29,23 @@ describe('20261121140000_company_feature_switches', () => {
     expect(sql).toContain('lib/features/company-features.ts')
   })
 
-  it('backfills linked Stripe companies only, idempotently', () => {
-    expect(sql).toMatch(/UPDATE public\.companies\s+SET online_payments_allowed = true,\s+online_payments_enabled = true\s+WHERE stripe_account_id IS NOT NULL\s+AND \(online_payments_allowed = false OR online_payments_enabled = false\)/)
+  it('backfills linked Stripe companies only on the FIRST application', () => {
+    // A re-run must not turn payments back on for an owner who switched them
+    // off, so the UPDATE sits behind a first_run flag computed BEFORE the
+    // columns are added.
+    const firstRunCheck = sql.indexOf("column_name  = 'online_payments_allowed'")
+    const addColumn = sql.indexOf('ADD COLUMN IF NOT EXISTS online_payments_allowed')
+    const guard = sql.indexOf('IF first_run THEN')
+    const update = sql.indexOf('UPDATE public.companies')
+    expect(firstRunCheck).toBeGreaterThan(-1)
+    expect(firstRunCheck).toBeLessThan(addColumn)
+    expect(addColumn).toBeLessThan(guard)
+    expect(guard).toBeLessThan(update)
+    expect(sql).toMatch(
+      /IF first_run THEN[\s\S]*?UPDATE public\.companies\s+SET online_payments_allowed = true,\s+online_payments_enabled = true\s+WHERE stripe_account_id IS NOT NULL\s+AND stripe_connect_status IS DISTINCT FROM 'disconnected';\s+END IF;/,
+    )
+    // Exactly one UPDATE of companies in the whole migration.
+    expect(sql.match(/UPDATE public\.companies/g)).toHaveLength(1)
   })
 
   it('replaces the guard function and guards both platform switches', () => {
