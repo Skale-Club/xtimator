@@ -19,6 +19,8 @@ import { deriveInterest, type InterestReason } from '@/lib/estimate/analytics/co
 export type EstimateListState = 'unopened' | 'viewed' | 'accepted' | 'declined'
 
 export interface EstimateListStatus {
+  /** The current estimate version, so the list can open its analytics drawer. */
+  estimateId: string | null
   state: EstimateListState
   /** Times the client opened the share page. */
   views: number
@@ -31,6 +33,8 @@ export interface EstimateListStatus {
   lastActivityAt: string | null
   /** True when the client opened it and has not answered yet. */
   openedNoAnswer: boolean
+  /** The client opened the signature flow (and has not answered yet). */
+  signStarted: boolean
 }
 
 export interface EstimateListRow {
@@ -88,7 +92,7 @@ function laterOf(a: string | null, b: string | null): string | null {
 
 /** Pure mapping of one estimate row to what the list shows. */
 export function toEstimateListStatus(
-  row: Pick<EstimateListRow, 'sent_at' | 'view_count' | 'last_viewed_at' | 'client_response' | 'responded_at'>,
+  row: Pick<EstimateListRow, 'sent_at' | 'view_count' | 'last_viewed_at' | 'client_response' | 'responded_at'> & { id?: string },
   now: Date = new Date(),
   signals?: EngagementSignals,
 ): EstimateListStatus {
@@ -108,6 +112,7 @@ export function toEstimateListStatus(
   const hot = interest.level === 'hot'
 
   return {
+    estimateId: row.id ?? null,
     state,
     views,
     lastViewedAt: row.last_viewed_at,
@@ -116,6 +121,7 @@ export function toEstimateListStatus(
     hotReasons: hot ? interest.reasons.slice(0, 3) : [],
     lastActivityAt: laterOf(row.last_viewed_at, row.responded_at),
     openedNoAnswer: state === 'viewed',
+    signStarted: state === 'viewed' && (signals?.signStarts ?? 0) > 0,
   }
 }
 

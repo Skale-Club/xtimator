@@ -14,7 +14,7 @@ import { pausedHref } from '@/components/billing/paused-estimate-sheet'
 import { linkProjectToClient } from '@/lib/actions/project'
 import type { ClientDetail } from '@/lib/queries/clients'
 import { useBackgroundGeneration } from '@/hooks/use-background-generations'
-import { EstimateListStatusPill } from '@/components/projects/estimate-list-status'
+import { EstimateAnalyticsButton } from '@/components/projects/estimate-list-status'
 import { AwaitingAnswerToggle } from '@/components/projects/awaiting-answer-filter'
 import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
 
@@ -232,16 +232,6 @@ export function ProjectTable<TProject extends ProjectTableRow>({
         />
       ),
     },
-    ...(hasEstimateStatus
-      ? [
-          {
-            key: 'status',
-            header: t('Status'),
-            sortDesc: 'activity',
-            cell: (project: TProject) => <EstimateListStatusPill status={project.estimate_status} />,
-          } satisfies Column<TProject>,
-        ]
-      : []),
     {
       key: 'total',
       header: t('Total'),
@@ -268,8 +258,17 @@ export function ProjectTable<TProject extends ProjectTableRow>({
     {
       key: 'actions',
       header: actionsHeader ?? t('Actions'),
-      className: 'w-[50px]',
-      cell: (project) => renderActions(project),
+      // The analytics icon sits beside the row menu (it replaced the Status column).
+      className: hasEstimateStatus ? 'w-[96px]' : 'w-[50px]',
+      cell: (project) =>
+        hasEstimateStatus ? (
+          <div className="flex items-center justify-end gap-1.5">
+            <EstimateAnalyticsButton status={project.estimate_status} clientName={project.client?.name ?? null} />
+            {renderActions(project)}
+          </div>
+        ) : (
+          renderActions(project)
+        ),
     },
   ]
 
@@ -448,7 +447,6 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
             </>
           )}
         </div>
-        {project.estimate_status && <EstimateListStatusPill status={project.estimate_status} className="mt-1.5 max-w-full" />}
       </div>
       <span className="shrink-0 font-semibold text-sm">
         {formatMoney(project.total, project.currency_code ?? fallbackCurrencyCode, {
@@ -456,7 +454,12 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
           maximumFractionDigits: 0,
         })}
       </span>
-      <div className="shrink-0 relative z-10">{renderActions(project, { clientAction })}</div>
+      <div className="relative z-10 flex shrink-0 items-center gap-1">
+        {project.estimate_status !== undefined && (
+          <EstimateAnalyticsButton status={project.estimate_status} clientName={project.client?.name ?? null} />
+        )}
+        {renderActions(project, { clientAction })}
+      </div>
       <ClientPicker
         projectId={project.id}
         currentClientId={project.client?.id ?? null}

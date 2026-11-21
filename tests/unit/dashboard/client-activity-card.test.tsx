@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ClientActivityCard, clientActivityHref } from '@/components/dashboard/client-activity-card'
-import { EstimateListStatusPill } from '@/components/projects/estimate-list-status'
+import { EstimateAnalyticsButton } from '@/components/projects/estimate-list-status'
 import { toEstimateListStatus } from '@/lib/queries/estimate-list-status'
 import type { ClientActivityRow } from '@/lib/queries/client-activity'
 
@@ -9,6 +9,10 @@ vi.mock('next/link', () => ({
   default: ({ children, href, ...rest }: { children: React.ReactNode; href: string }) => (
     <a href={href} {...rest}>{children}</a>
   ),
+}))
+vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({
+  EstimateAnalyticsDrawer: ({ open, estimateId }: { open: boolean; estimateId: string }) =>
+    open ? <div data-testid="analytics-drawer">{estimateId}</div> : null,
 }))
 vi.mock('@/lib/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (s: string) => s }),
@@ -68,44 +72,75 @@ describe('ClientActivityCard', () => {
   })
 })
 
-describe('EstimateListStatusPill', () => {
+describe('EstimateAnalyticsButton', () => {
   const NOW = new Date()
-  const base = { sent_at: null, view_count: 0, last_viewed_at: null, client_response: null, responded_at: null }
+  const base = { id: 'est-1', sent_at: null, view_count: 0, last_viewed_at: null, client_response: null, responded_at: null }
+  const signals = (over = {}) => ({ uniqueVisitors: 1, distinctVisitDays: 1, signStarts: 0, pdfDownloads: 0, prints: 0, ...over })
+  const button = () => screen.getByTestId('estimate-analytics-button')
 
-  it('renders Not opened yet, with or without a send', () => {
-    const { rerender } = render(<EstimateListStatusPill status={toEstimateListStatus(base, NOW)} />)
-    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Not opened yet')
-    rerender(<EstimateListStatusPill status={toEstimateListStatus({ ...base, sent_at: NOW.toISOString() }, NOW)} />)
-    expect(screen.getByTestId('estimate-list-status').textContent).toBe('Not opened yet')
+  it('is grey with no badge before the client opens it, with or without a send', () => {
+    const { rerender } = render(<EstimateAnalyticsButton status={toEstimateListStatus(base, NOW)} />)
+    expect(button().getAttribute('data-state')).toBe('unopened')
+    expect(button().getAttribute('aria-label')).toBe('Estimate analytics: Not opened yet')
+    expect(screen.queryByTestId('estimate-analytics-count')).toBeNull()
+    rerender(<EstimateAnalyticsButton status={toEstimateListStatus({ ...base, sent_at: NOW.toISOString() }, NOW)} />)
+    expect(button().getAttribute('data-state')).toBe('unopened')
   })
 
-  it('renders Viewed N× with relative time, no Hot when only opened once', () => {
+  it('counts opens and says when, without Hot after one open', () => {
     const last = new Date(NOW.getTime() - 2 * 3_600_000).toISOString()
-    render(<EstimateListStatusPill status={toEstimateListStatus({ ...base, view_count: 1, last_viewed_at: last }, NOW)} />)
-    expect(screen.getByTestId('estimate-list-status').textContent).toContain('Viewed 1× · 2h ago')
-    expect(screen.queryByTestId('estimate-hot')).toBeNull()
+    render(<EstimateAnalyticsButton status={toEstimateListStatus({ ...base, view_count: 1, last_viewed_at: last }, NOW)} />)
+    expect(screen.getByTestId('estimate-analytics-count').textContent).toBe('1')
+    expect(button().getAttribute('title')).toBe('Viewed 1× · 2h ago')
+    expect(screen.queryByTestId('glyph-hot')).toBeNull()
   })
 
-  it('shows the Hot flame with the reasons in its title', () => {
+  it('shows the flame and the Hot reasons in the tooltip', () => {
     const last = new Date(NOW.getTime() - 3_600_000).toISOString()
-    render(<EstimateListStatusPill status={toEstimateListStatus({ ...base, sent_at: last, view_count: 4, last_viewed_at: last }, NOW, { uniqueVisitors: 2, distinctVisitDays: 1, signStarts: 0, pdfDownloads: 0, prints: 0 })} />)
-    const hot = screen.getByTestId('estimate-hot')
-    expect(hot.getAttribute('title')).toContain('Hot')
-    expect(hot.getAttribute('title')).toContain('Opened many times')
+    render(
+      <EstimateAnalyticsButton
+        status={toEstimateListStatus({ ...base, view_count: 4, last_viewed_at: last }, NOW, signals({ uniqueVisitors: 2 }))}
+      />,
+    )
+    expect(screen.getByTestId('glyph-hot')).toBeTruthy()
+    expect(button().getAttribute('title')).toContain('Hot: ')
+    expect(button().getAttribute('title')).toContain('Opened many times')
   })
 
-  it('renders Accepted with the answer date and no Hot', () => {
+  it('flags signing over Hot', () => {
+    const last = new Date(NOW.getTime() - 3_600_000).toISOString()
     render(
-      <EstimateListStatusPill
+      <EstimateAnalyticsButton
+        status={toEstimateListStatus({ ...base, view_count: 2, last_viewed_at: last }, NOW, signals({ signStarts: 1 }))}
+      />,
+    )
+    expect(screen.getByTestId('glyph-signing')).toBeTruthy()
+    expect(screen.queryByTestId('glyph-hot')).toBeNull()
+    expect(button().getAttribute('title')).toContain('Started signing')
+  })
+
+  it('shows the answer as a check or a cross, without the count', () => {
+    const { rerender } = render(
+      <EstimateAnalyticsButton
         status={toEstimateListStatus({ ...base, view_count: 6, last_viewed_at: NOW.toISOString(), client_response: 'accepted', responded_at: '2026-11-06T15:00:00Z' }, NOW)}
       />,
     )
-    expect(screen.getByTestId('estimate-list-status').textContent).toContain('Accepted · Nov 6')
-    expect(screen.queryByTestId('estimate-hot')).toBeNull()
+    expect(screen.getByTestId('glyph-accepted')).toBeTruthy()
+    expect(screen.queryByTestId('estimate-analytics-count')).toBeNull()
+    expect(button().getAttribute('title')).toContain('Accepted · Nov 6')
+    rerender(<EstimateAnalyticsButton status={toEstimateListStatus({ ...base, client_response: 'declined' }, NOW)} />)
+    expect(screen.getByTestId('glyph-declined')).toBeTruthy()
   })
 
-  it('renders nothing without a status', () => {
-    const { container } = render(<EstimateListStatusPill status={null} />)
-    expect(container.firstChild).toBeNull()
+  it('opens the analytics drawer for that estimate', () => {
+    render(<EstimateAnalyticsButton status={toEstimateListStatus({ ...base, view_count: 2, last_viewed_at: NOW.toISOString() }, NOW)} />)
+    expect(screen.queryByTestId('analytics-drawer')).toBeNull()
+    fireEvent.click(button())
+    expect(screen.getByTestId('analytics-drawer').textContent).toBe('est-1')
+  })
+
+  it('keeps an empty slot without a status or estimate', () => {
+    render(<EstimateAnalyticsButton status={null} />)
+    expect(screen.queryByTestId('estimate-analytics-button')).toBeNull()
   })
 })

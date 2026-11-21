@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BarChart3, Check } from 'lucide-react'
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
@@ -12,7 +12,9 @@ import {
 import { InterestBadge } from '@/components/workspace/estimate/analytics/analytics-content'
 import { EstimateAnalyticsDrawer } from '@/components/workspace/estimate/analytics/estimate-analytics-drawer'
 import { relativeAgo, shortDate } from '@/components/workspace/estimate/analytics/format'
-import { deriveInterest } from '@/lib/estimate/analytics/contracts'
+import { deriveInterest, type InterestResult } from '@/lib/estimate/analytics/contracts'
+import { createClient } from '@/lib/supabase/client'
+import { getEstimateAnalytics } from '@/lib/queries/engagement'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 
@@ -143,7 +145,25 @@ export function EstimateStatusSheet({
     },
   ]
 
-  const interest = deriveInterest({ opens: viewCount, lastViewedAt, clientResponse })
+  // Same Hot / Warm / Cold as the analytics drawer: the full rule needs the
+  // visit events (people, return days, reading, signing), so fetch them while
+  // the sheet is open; the counters give a first answer until they arrive.
+  const [fullInterest, setFullInterest] = useState<InterestResult | null>(null)
+  useEffect(() => {
+    if (!open || viewCount === 0) return
+    let cancelled = false
+    getEstimateAnalytics(createClient(), estimateId)
+      .then((a) => {
+        if (!cancelled) setFullInterest(a.interest)
+      })
+      .catch(() => {
+        /* keep the counter-based answer */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, estimateId, viewCount, clientResponse])
+  const interest = fullInterest ?? deriveInterest({ opens: viewCount, lastViewedAt, clientResponse })
 
   function openAnalytics() {
     if (onOpenAnalytics) {

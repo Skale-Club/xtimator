@@ -1,8 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import React from 'react'
 import { EstimateStatusSheet } from '@/components/workspace/editor-frame/estimate-status-sheet'
 
+const getEstimateAnalytics = vi.fn((..._args: unknown[]) => new Promise<unknown>(() => {}))
+vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({}) }))
+vi.mock('@/lib/queries/engagement', () => ({
+  getEstimateAnalytics: (...args: unknown[]) => getEstimateAnalytics(...args),
+}))
 vi.mock('@/components/workspace/estimate/analytics/estimate-analytics-drawer', () => ({
   EstimateAnalyticsDrawer: ({ open }: { open: boolean }) => (open ? <div data-testid="own-drawer" /> : null),
 }))
@@ -100,5 +105,24 @@ describe('EstimateStatusSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open analytics' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(screen.getByTestId('own-drawer')).toBeTruthy()
+  })
+
+  it('uses the full Hot rule from the visit events, like the analytics drawer', async () => {
+    getEstimateAnalytics.mockResolvedValueOnce({ interest: { level: 'hot', reasons: ['several_people', 'came_back'] } })
+    render(
+      <EstimateStatusSheet
+        {...base}
+        viewCount={2}
+        lastViewedAt={new Date(Date.now() - 3_600_000).toISOString()}
+      />,
+    )
+    expect(getEstimateAnalytics).toHaveBeenCalledWith(expect.anything(), 'est-1')
+    await waitFor(() => expect(screen.getByText('Hot')).toBeTruthy())
+  })
+
+  it('does not fetch events before the client opened it', () => {
+    getEstimateAnalytics.mockClear()
+    render(<EstimateStatusSheet {...base} />)
+    expect(getEstimateAnalytics).not.toHaveBeenCalled()
   })
 })
