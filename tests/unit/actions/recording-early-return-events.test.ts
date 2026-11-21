@@ -39,6 +39,16 @@ vi.mock('@/lib/inngest/client', () => ({
   inngest: { send: vi.fn() },
 }))
 
+// The credit gate fails CLOSED now (an unreadable balance refuses the dispatch),
+// so the chain tests below state the balance explicitly instead of relying on a
+// swallowed error from the hand-rolled supabase mock.
+vi.mock('@/lib/billing/credit-ledger', () => ({
+  checkCredits: vi.fn().mockResolvedValue({ allowed: true, balance: 1000, shortfall: 0 }),
+}))
+vi.mock('@/lib/ratelimit', () => ({
+  rateLimit: vi.fn().mockResolvedValue({ allowed: true, count: 1, max: 10 }),
+}))
+
 import { createRecording, createTextRecording } from '@/lib/actions/recording'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveCompanyId } from '@/lib/queries/active-company'

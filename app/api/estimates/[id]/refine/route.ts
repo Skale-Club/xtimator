@@ -191,7 +191,13 @@ export async function POST(
     // (164-02 coordination: the TRUST-02 lock guard above now runs BEFORE
     // this gate, per the plan's locked ordering — auth → ownership/current →
     // LOCK → credit gate → paid work.)
-    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('refine'))
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('refine'), { failClosed: true })
+    if (credit.unavailable) {
+      return NextResponse.json(
+        { error: 'service_unavailable', message: "We couldn't start this right now. Please try again." },
+        { status: 503, headers: { 'Retry-After': '5' } }
+      )
+    }
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(

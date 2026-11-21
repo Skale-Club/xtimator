@@ -138,7 +138,13 @@ export async function POST(request: Request) {
     // estimation is a calibration refinement, not needed for the wall). BYOK
     // companies bypass inside checkCredits; enforcementEnabled=false (admin
     // panel) reverts this to record-only.
-    const credit = await checkCredits(svc, companyId, await getEstimatedCredits('estimate'))
+    const credit = await checkCredits(svc, companyId, await getEstimatedCredits('estimate'), { failClosed: true })
+    if (credit.unavailable) {
+      return NextResponse.json(
+        { error: 'service_unavailable', message: "We couldn't start this right now. Please try again." },
+        { status: 503, headers: { 'Retry-After': '5' } }
+      )
+    }
     if (!credit.allowed) {
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(

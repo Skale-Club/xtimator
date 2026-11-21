@@ -101,7 +101,13 @@ export async function POST(request: Request) {
     // estimate, so it is gated on the estimate's entry gate (the chained
     // generation then always runs).
     const gateOp = autoGenerateEstimate ? 'estimate' : 'photo_batch'
-    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits(gateOp))
+    const credit = await checkCredits(supabase, companyId, await getEstimatedCredits(gateOp), { failClosed: true })
+    if (credit.unavailable) {
+      return NextResponse.json(
+        { error: 'service_unavailable', message: "We couldn't start this right now. Please try again." },
+        { status: 503, headers: { 'Retry-After': '5' } }
+      )
+    }
     if (!credit.allowed) {
       return NextResponse.json(
         {

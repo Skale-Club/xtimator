@@ -174,6 +174,20 @@ describe('BILL-01: refine route credit gate', () => {
     expect(body.success).toBe(true)
   })
 
+  it('fails CLOSED when the balance cannot be read: 503 with a retryable message, no paid work', async () => {
+    mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 40, unavailable: true })
+
+    const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
+
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({
+      error: 'service_unavailable',
+      message: "We couldn't start this right now. Please try again.",
+    })
+    expect(mockIngestMultimodal).not.toHaveBeenCalled()
+    expect(mockGraphInvoke).not.toHaveBeenCalled()
+  })
+
   it('gate is called with the resolved companyId and the configured AI-edit pre-gate cost', async () => {
     mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
 
@@ -182,7 +196,8 @@ describe('BILL-01: refine route credit gate', () => {
     expect(mockCheckCredits).toHaveBeenCalledWith(
       expect.anything(),
       'company-1',
-      40 // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.refine (recalibrated 2026-11-19)
+      40, // DEFAULT_BILLING_CONFIG.estimatedCreditsByOp.refine (recalibrated 2026-11-19)
+      { failClosed: true }
     )
   })
 })

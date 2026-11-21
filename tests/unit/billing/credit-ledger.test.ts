@@ -773,6 +773,54 @@ describe('CREDIT-05: checkCredits', () => {
     expect(res.allowed).toBe(true)
   })
 
+  // Owner decision (paid AI dispatch paths): opt-in fail CLOSED. Without the
+  // option the legacy fail-open behaviour above is unchanged.
+  describe('failClosed option', () => {
+    it('an unreadable company row reports unavailable and refuses', async () => {
+      billingConfig.enforcementEnabled = true
+      const broken = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({ single: async () => ({ data: null, error: { message: 'connection reset' } }) }),
+          }),
+        }),
+      }
+      const res = await checkCredits(broken as never, COMPANY, 100, { failClosed: true })
+      expect(res).toMatchObject({ allowed: false, unavailable: true })
+      // Same failure without the option keeps the old fail-open posture.
+      const legacy = await checkCredits(broken as never, COMPANY, 100)
+      expect(legacy.allowed).toBe(true)
+      expect(legacy.unavailable).toBeUndefined()
+    })
+
+    it('a spendable-balance resolution error reports unavailable and refuses', async () => {
+      billingConfig.enforcementEnabled = true
+      const row = { credit_balance: 500, byok_enabled: false }
+      const flaky = {
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              single: async () => ({ data: row, error: null }),
+              maybeSingle: async () => {
+                throw new Error('db down')
+              },
+            }),
+          }),
+        }),
+      }
+      const res = await checkCredits(flaky as never, COMPANY, 100, { failClosed: true })
+      expect(res).toMatchObject({ allowed: false, unavailable: true })
+      expect((await checkCredits(flaky as never, COMPANY, 100)).allowed).toBe(true)
+    })
+
+    it('a healthy read is unaffected by the option', async () => {
+      billingConfig.enforcementEnabled = true
+      const res = await checkCredits(injectedClient(500) as never, COMPANY, 100, { failClosed: true })
+      expect(res).toMatchObject({ allowed: true, balance: 500, shortfall: 0 })
+      expect(res.unavailable).toBeUndefined()
+    })
+  })
+
   // Billing v2 (BYOK): a company on its OWN OpenRouter key is never gated by
   // platform credits — even at zero balance with enforcement ON.
   it('byok_enabled:true → allowed:true even at zero balance under enforcement', async () => {

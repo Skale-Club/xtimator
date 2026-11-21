@@ -110,7 +110,15 @@ export async function POST(request: Request) {
     // Billing v2 credit gate — "everything on our AI spends credits": a spent
     // balance blocks transcription too (otherwise a zero-credit account could
     // still burn Whisper costs). BYOK bypass lives inside checkCredits.
-    const credit = await checkCredits(supabase, rec.company_id, await getEstimatedCredits('audio_minutes'))
+    const credit = await checkCredits(supabase, rec.company_id, await getEstimatedCredits('audio_minutes'), {
+      failClosed: true,
+    })
+    if (credit.unavailable) {
+      return NextResponse.json(
+        { error: 'service_unavailable', message: "We couldn't start this right now. Please try again." },
+        { status: 503, headers: { 'Retry-After': '5' } }
+      )
+    }
     if (!credit.allowed) {
       return NextResponse.json(
         {

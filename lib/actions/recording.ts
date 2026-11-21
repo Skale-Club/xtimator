@@ -19,11 +19,61 @@ import {
 } from '@/lib/billing/access-guard'
 import type { BillingBlockCode } from '@/lib/billing/block-codes'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
+import { rateLimit } from '@/lib/ratelimit'
 
 // 260707-lyq (P4): Billing v2 credit gate shared by every server-owned dispatch
 // path in this module (startRecordingPipeline, createTextRecording's optional
 // chain). SEED-055 Phase D: the denial carries `code` ('paywalled' |
 // 'out_of_credits') plus the matching BILLING_BLOCK_MESSAGES copy.
+
+// The credit gate fails CLOSED: when the balance cannot be read, no AI work is
+// dispatched and the caller gets a retryable message (never a silent free run).
+const CREDIT_GATE_UNAVAILABLE_MESSAGE = "We couldn't start this right now. Please try again."
+const TOO_MANY_ATTEMPTS_MESSAGE = 'Too many attempts. Try again in a minute.'
+const TOO_MANY_ATTEMPTS_LATER_MESSAGE = 'Too many attempts. Please try again later.'
+
+/**
+ * Same per-user limits the API routes apply to paid AI work, so the server
+ * actions are not a way around them. `kind: 'transcribe'` mirrors
+ * app/api/transcribe/route.ts (transcribePerMinute); `kind: 'estimate'`
+ * mirrors app/api/generate-estimate/route.ts (userEstimatePerHour + Day).
+ * Identifier is the signed-in user id (claims.sub), like the routes; falls
+ * back to the company id only when the claim carries no subject. Returns the
+ * message to show, or null when allowed. Fails open without Redis (rateLimit).
+ */
+async function aiDispatchLimited(
+  kind: 'transcribe' | 'estimate',
+  userId: string | undefined,
+  companyId: string,
+): Promise<string | null> {
+  const key = userId ?? companyId
+  if (kind === 'transcribe') {
+    const rl = await rateLimit('transcribePerMinute', key)
+    return rl.allowed ? null : TOO_MANY_ATTEMPTS_MESSAGE
+  }
+  const hourly = await rateLimit('userEstimatePerHour', key)
+  if (!hourly.allowed) return TOO_MANY_ATTEMPTS_LATER_MESSAGE
+  const daily = await rateLimit('userEstimatePerDay', key)
+  if (!daily.allowed) return TOO_MANY_ATTEMPTS_LATER_MESSAGE
+  return null
+}
+
+/**
+ * The estimate's entry credit gate, FAIL CLOSED: checkCredits is asked to
+ * report an unreadable balance as `unavailable` (instead of failing open) and
+ * that is turned into a throw here, so every caller's catch refuses the
+ * dispatch with CREDIT_GATE_UNAVAILABLE_MESSAGE.
+ */
+async function estimateCreditGateAllows(
+  supabase: Parameters<typeof checkCredits>[0],
+  companyId: string,
+): Promise<boolean> {
+  const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'), {
+    failClosed: true,
+  })
+  if (credit.unavailable) throw new Error('credit gate unavailable')
+  return credit.allowed
+}
 
 async function getAuthContext() {
   const supabase = await createClient()
@@ -154,18 +204,45 @@ export async function createTextRecording(
   // the client gap between saving a typed description and dispatching generation.
   // Lazy-imported + try/caught in the same style as transcribeRecording's dispatch.
   if (options?.autoGenerateEstimate) {
+    // Same per-user limits as POST /api/generate-estimate (this branch
+    // dispatches the same paid generation). The description is already saved.
+    const limited = await aiDispatchLimited('estimate', ctx.userId, company.id)
+    if (limited) {
+      void recordPipelineEvent({
+        attemptId: eventAttemptId,
+        inputType: 'manual_text',
+        step: 'generate_estimate',
+        status: 'failed',
+        companyId: company.id,
+        projectId,
+        errorCode: 'rate_limited',
+        errorMessage: 'Rate limit exceeded',
+        provider: null,
+      })
+      return { error: limited }
+    }
+
     // 260707-lyq (P4): Billing v2 credit gate — insufficient credits BLOCK the
     // generate-estimate dispatch (plain saves stay free: this whole branch only
-    // runs when autoGenerateEstimate was requested). Wrapped so a checkCredits
-    // read failure fails OPEN (never wrongly blocks generation on an
-    // infrastructure hiccup) — mirrors the never-throw discipline the rest of
-    // lib/billing/credit-ledger.ts already follows internally (isByokCompany).
+    // runs when autoGenerateEstimate was requested). The gate fails CLOSED: if
+    // checkCredits itself errors, nothing is dispatched and the caller can retry.
     let creditsAllowed = true
     try {
-      const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('estimate'))
-      creditsAllowed = credit.allowed
+      creditsAllowed = await estimateCreditGateAllows(supabase, company.id)
     } catch (err) {
-      console.warn('[createTextRecording] checkCredits failed — failing open:', err)
+      console.warn('[createTextRecording] checkCredits failed — failing closed:', err)
+      void recordPipelineEvent({
+        attemptId: eventAttemptId,
+        inputType: 'manual_text',
+        step: 'generate_estimate',
+        status: 'failed',
+        companyId: company.id,
+        projectId,
+        errorCode: 'credit_check_failed',
+        errorMessage: 'Credit check unavailable',
+        provider: null,
+      })
+      return { error: CREDIT_GATE_UNAVAILABLE_MESSAGE }
     }
     if (!creditsAllowed) {
       void recordPipelineEvent({
@@ -434,6 +511,28 @@ export async function transcribeRecording(
     dispatchNonce?: number
   }
 ) {
+  return transcribeRecordingInternal(recordingId, attemptId, options, true)
+}
+
+/**
+ * Shared body of transcribeRecording. `enforceLimits` is false only for
+ * startRecordingPipeline, which applies the same limits once up front (before
+ * it creates a recording row) so one capture is never counted twice. It is a
+ * module-private argument: the exported server action always enforces.
+ */
+async function transcribeRecordingInternal(
+  recordingId: string,
+  attemptId: string | undefined,
+  options:
+    | {
+        autoGenerateEstimate?: boolean
+        requestId?: string
+        estimateLanguage?: 'en' | 'pt' | 'es'
+        dispatchNonce?: number
+      }
+    | undefined,
+  enforceLimits: boolean
+) {
   // 260707-grq: no attemptId fallback previously existed here — mint one so
   // every early-return below has a stable id to write a pipeline event against.
   const eventAttemptId = attemptId ?? randomUUID()
@@ -454,6 +553,31 @@ export async function transcribeRecording(
     return { error: ctx.error }
   }
   const { supabase } = ctx
+
+  if (enforceLimits) {
+    // Same limits as POST /api/transcribe (Whisper) and, for a capture that
+    // ends in an estimate, POST /api/generate-estimate (once per capture: a
+    // Retry carries dispatchNonce and is not counted against it again).
+    const limited =
+      (await aiDispatchLimited('transcribe', ctx.userId, ctx.company.id)) ??
+      (options?.autoGenerateEstimate && !options.dispatchNonce
+        ? await aiDispatchLimited('estimate', ctx.userId, ctx.company.id)
+        : null)
+    if (limited) {
+      void recordPipelineEvent({
+        attemptId: eventAttemptId,
+        inputType: 'recording',
+        step: 'transcribe',
+        status: 'failed',
+        companyId: ctx.company.id,
+        projectId: null,
+        errorCode: 'rate_limited',
+        errorMessage: 'Rate limit exceeded',
+        provider: null,
+      })
+      return { error: limited }
+    }
+  }
 
   // Get recording row (RLS-enforced via authenticated client)
   const { data: recording } = await supabase
@@ -591,6 +715,27 @@ export async function startRecordingPipeline(input: {
   if ('error' in ctx) return { error: ctx.error ?? 'Not authenticated' }
   const { supabase, company } = ctx
 
+  // Same limits as the API routes, applied ONCE for this capture, before any
+  // recording row is created (the dispatch below skips them: no double count).
+  // The estimate limits apply to a fresh capture only, like the credit gate.
+  const limited =
+    (await aiDispatchLimited('transcribe', ctx.userId, company.id)) ??
+    (!input.recordingId ? await aiDispatchLimited('estimate', ctx.userId, company.id) : null)
+  if (limited) {
+    void recordPipelineEvent({
+      attemptId: input.attemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId: input.projectId,
+      errorCode: 'rate_limited',
+      errorMessage: 'Rate limit exceeded',
+      provider: null,
+    })
+    return { error: limited }
+  }
+
   let creditsAllowed = true
   try {
     // Credit recalibration 2026-11-19: this pipeline always ends in an estimate,
@@ -598,12 +743,24 @@ export async function startRecordingPipeline(input: {
     // accepted capture (recordingId present) is not gated again: its audio may
     // already be charged, and refusing now would leave it with no estimate.
     if (!input.recordingId) {
-      const credit = await checkCredits(supabase, company.id, await getEstimatedCredits('estimate'))
-      creditsAllowed = credit.allowed
+      creditsAllowed = await estimateCreditGateAllows(supabase, company.id)
     }
   } catch (err) {
-    // Fail OPEN — a metering-read failure must never wrongly block generation.
-    console.warn('[startRecordingPipeline] checkCredits failed — failing open:', err)
+    // Fail CLOSED — when the balance cannot be read, dispatch nothing; the
+    // capture can simply be retried (the audio stays on the device).
+    console.warn('[startRecordingPipeline] checkCredits failed — failing closed:', err)
+    void recordPipelineEvent({
+      attemptId: input.attemptId,
+      inputType: 'recording',
+      step: 'save_recording',
+      status: 'failed',
+      companyId: company.id,
+      projectId: input.projectId,
+      errorCode: 'credit_check_failed',
+      errorMessage: 'Credit check unavailable',
+      provider: null,
+    })
+    return { error: CREDIT_GATE_UNAVAILABLE_MESSAGE }
   }
   if (!creditsAllowed) {
     void recordPipelineEvent({
@@ -646,12 +803,17 @@ export async function startRecordingPipeline(input: {
     recordingId = created.data.id as string
   }
 
-  const dispatched = await transcribeRecording(recordingId, input.attemptId, {
-    autoGenerateEstimate: true,
-    requestId: input.requestId,
-    estimateLanguage: input.estimateLanguage,
-    dispatchNonce: input.dispatchNonce,
-  })
+  const dispatched = await transcribeRecordingInternal(
+    recordingId,
+    input.attemptId,
+    {
+      autoGenerateEstimate: true,
+      requestId: input.requestId,
+      estimateLanguage: input.estimateLanguage,
+      dispatchNonce: input.dispatchNonce,
+    },
+    false,
+  )
   if ('error' in dispatched) {
     return { error: dispatched.error ?? 'Transcription service is temporarily unavailable — your recording is saved. Please retry.' }
   }

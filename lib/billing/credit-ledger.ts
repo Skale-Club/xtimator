@@ -489,6 +489,12 @@ async function readCachedBalance(svc: SupabaseClient, companyId: string): Promis
  *     they pay their own AI bill, so the platform balance is irrelevant.
  *   - enforcementEnabled=false (admin panel) reverts to record-only: never
  *     block, still report shortfall for UI.
+ *
+ * `opts.failClosed` (owner decision, paid AI dispatch paths): when the balance
+ * cannot be read or resolved, return `{ allowed: false, unavailable: true }`
+ * instead of failing open, so the caller dispatches nothing and tells the user
+ * to retry. The default stays fail-open for callers that did not opt in
+ * (WhatsApp, chat/MCP).
  */
 export async function checkCredits(
   supabase: SupabaseClient,
@@ -497,13 +503,18 @@ export async function checkCredits(
   // enforcement-ON gate would pass regardless of balance. A gate caller passes
   // the op's estimated cost (>= 1 blocks an empty balance); an affordance-only
   // read passes 0 on purpose (see app/api/generate-estimate/route.ts).
-  estimatedCredits: number
-): Promise<{ allowed: boolean; balance: number; shortfall: number }> {
-  const { data } = await supabase
+  estimatedCredits: number,
+  opts?: { failClosed?: boolean }
+): Promise<{ allowed: boolean; balance: number; shortfall: number; unavailable?: boolean }> {
+  const { data, error: readError } = await supabase
     .from('companies')
     .select('credit_balance, byok_enabled')
     .eq('id', companyId)
     .single()
+  if (opts?.failClosed && (readError || !data)) {
+    console.warn('[checkCredits] balance read failed, failing closed:', readError)
+    return { allowed: false, balance: 0, shortfall: estimatedCredits, unavailable: true }
+  }
   const row = data as { credit_balance?: number; byok_enabled?: boolean | null } | null
   const balance = row?.credit_balance ?? 0
   const shortfall = Math.max(0, estimatedCredits - balance)
@@ -529,6 +540,10 @@ export async function checkCredits(
     if (r.exempt) return { allowed: true, balance, shortfall: 0 }
     return { allowed: r.ok, balance: r.balance, shortfall: Math.max(0, estimatedCredits - r.balance) }
   } catch (err) {
+    if (opts?.failClosed) {
+      console.warn('[checkCredits] spendable-balance resolution failed, failing closed:', err)
+      return { allowed: false, balance, shortfall, unavailable: true }
+    }
     // Fail-open on infrastructure errors (matches access-guard): a broken read
     // must not lock every company out. Debits still record; the ledger and
     // reconcileBalance are the backstop.
