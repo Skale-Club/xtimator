@@ -15,6 +15,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { emailFrom } from '@/lib/email/sender'
+import { sendOwnerEmailWithRetry } from '@/lib/email/send-with-retry'
 import { formatChangeOrderNumber } from './types'
 
 export interface NotifyChangeOrderInput {
@@ -87,13 +88,20 @@ export async function notifyChangeOrderResponse(
     const branding = await getBranding()
     const appName = branding.appName
     const verb = response === 'accepted' ? 'approved' : 'declined'
-    await resend.emails.send({
-      from: emailFrom(appName),
-      to: company.email,
-      subject: `Change order ${verb} - ${projectName}`,
-      text: `Hi ${company.name},\n\n${copy.body}\n\nProject: "${projectName}".\n\nLog in to ${appName} to see more details.`,
-    })
-  } catch {
-    // Resend missing or the send failed: skip silently, like the estimate path.
+    await sendOwnerEmailWithRetry(
+      resend as unknown as Parameters<typeof sendOwnerEmailWithRetry>[0],
+      {
+        from: emailFrom(appName),
+        to: company.email,
+        subject: `Change order ${verb} - ${projectName}`,
+        text: `Hi ${company.name},\n\n${copy.body}\n\nProject: "${projectName}".\n\nLog in to ${appName} to see more details.`,
+      },
+      { resourceType: 'change_order', resourceId: changeOrder.id, channel: 'owner_email' },
+    )
+  } catch (err) {
+    console.warn(
+      `[notify] owner_email setup failed for change_order ${changeOrder.id}`,
+      err instanceof Error ? err.name : 'unknown',
+    )
   }
 }

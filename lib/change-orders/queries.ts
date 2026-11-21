@@ -13,6 +13,7 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { resolveClientIp } from '@/lib/http/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
+import { isLikelyBotUserAgent } from '@/lib/security/bot-defense'
 import { loadPublicContractSummary, resolveEstimateNumber } from './contract'
 import { loadChangeOrder } from './load'
 import type { ChangeOrderInvoice, ContractSummary, PublicChangeOrderData } from './types'
@@ -154,6 +155,7 @@ async function loadPublicData(
         pendingTotal: 0,
         contractTotal: 0,
       },
+    contractActive: contract !== null,
     invoice,
   }
 }
@@ -194,6 +196,14 @@ export async function recordChangeOrderView(token: string): Promise<void> {
     }
     const rl = await rateLimit('trackEstimatePerMinute', ip ?? 'no-ip')
     if (!rl.allowed) return
+
+    // A link-preview fetcher or scraper is not a client view.
+    try {
+      const ua = (await headers()).get('user-agent')
+      if (ua && isLikelyBotUserAgent(ua)) return
+    } catch {
+      // Outside a request scope: no user agent to judge.
+    }
 
     const supabase = requireServiceClient()
     const { data } = await supabase

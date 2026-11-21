@@ -4,6 +4,7 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { rateLimit } from '@/lib/ratelimit'
+import { isSameSignerRetry } from '@/lib/estimates/signer-retry'
 import { notifyChangeOrderResponse } from '@/lib/change-orders/notify'
 import {
   buildChangeOrderSnapshot,
@@ -141,6 +142,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Answered already (a second tap, or the owner recorded it): say so before
     // the version check, which would otherwise report a restamped updated_at.
     if (changeOrder.client_response) {
+      // Lost-reply retry by the same signer: success, not a 409.
+      if (
+        changeOrder.client_response === 'accepted' &&
+        (await isSameSignerRetry(supabase, 'change_order_signatures', changeOrder.id, trimmedName, signerEmailValue))
+      ) {
+        return NextResponse.json({ ok: true, alreadySigned: true })
+      }
       return NextResponse.json({ error: 'already_responded' }, { status: 409 })
     }
 
@@ -191,6 +199,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Change order not found' }, { status: 404 })
       }
       if (code === SIGN_RPC_ALREADY_RESPONDED) {
+        if (await isSameSignerRetry(supabase, 'change_order_signatures', changeOrder.id, trimmedName, signerEmailValue)) {
+          return NextResponse.json({ ok: true, alreadySigned: true })
+        }
         return NextResponse.json({ error: 'already_responded' }, { status: 409 })
       }
       if (code === SIGN_RPC_CONFLICT) {

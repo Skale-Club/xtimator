@@ -16,10 +16,21 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { registerClient } from '@/lib/oauth/clients'
+import { rateLimit } from '@/lib/ratelimit'
+import { resolveClientIp } from '@/lib/http/client-ip'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  // Anonymous write: throttle by client IP before reading the body or touching the DB.
+  const rl = await rateLimit('oauthRegisterPerHour', resolveClientIp(req.headers) ?? 'no-ip')
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'temporarily_unavailable', error_description: 'too many registrations, try again later' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 3600) } },
+    )
+  }
+
   let body: unknown
   try {
     body = await req.json()

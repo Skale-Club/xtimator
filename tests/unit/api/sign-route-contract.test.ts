@@ -122,6 +122,7 @@ function makeChain(resolveValue: { data: unknown; error: unknown }) {
   chain.eq = vi.fn().mockReturnValue(chain)
   chain.select = vi.fn().mockReturnValue(chain)
   chain.order = vi.fn().mockReturnValue(chain)
+  chain.limit = vi.fn().mockReturnValue(chain)
   chain.single = vi.fn().mockResolvedValue(resolveValue)
   // estimate_sections is awaited directly (no .single()) — make the chain
   // object itself thenable so `await supabase.from(...).select(...)...` works.
@@ -134,6 +135,8 @@ interface SupabaseTestConfig {
   estimateRows: Array<Record<string, unknown>>
   companyRow?: Record<string, unknown> | null
   sectionsRows?: unknown[]
+  /** Rows returned for estimate_signatures (the idempotent-retry lookup). */
+  signatureRows?: unknown[]
   rpcHandler: (params: Record<string, unknown>, callIndex: number) => { data: unknown; error: unknown }
 }
 
@@ -153,6 +156,9 @@ function buildSupabase(config: SupabaseTestConfig) {
     }
     if (table === 'companies') {
       return makeChain({ data: config.companyRow ?? COMPANY_ROW, error: null })
+    }
+    if (table === 'estimate_signatures') {
+      return makeChain({ data: config.signatureRows ?? [], error: null })
     }
     if (table === 'estimate_sections') {
       return makeChain({ data: config.sectionsRows ?? [], error: null })
@@ -764,5 +770,52 @@ describe('tamper-evidence hash (fix-pack F1 finding #3)', () => {
       .update(canonicalJsonStringify(reorderedContent))
       .digest('hex')
     expect(reorderedHash).toBe(rpcParams.p_snapshot_sha256)
+  })
+})
+
+describe('lost-reply retry (idempotent sign)', () => {
+  const body = { token: 'share-token-abc', signerName: 'Jane Doe', signerEmail: 'jane@example.com', signatureData: TINY_PNG_DATA_URL }
+
+  it('already accepted by the same signer: 200 success, no RPC, no second notification', async () => {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow({ client_response: 'accepted' })],
+      signatureRows: [{ signer_name: 'jane doe', signer_email: 'JANE@example.com' }],
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(jsonRequest(body), PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ success: true, alreadySigned: true })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('already accepted by a different signer: still 409', async () => {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow({ client_response: 'accepted' })],
+      signatureRows: [{ signer_name: 'Someone Else', signer_email: null }],
+      rpcHandler: () => ({ data: null, error: { code: 'P0008' } }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(jsonRequest(body), PARAMS)
+
+    expect(res.status).toBe(409)
+  })
+
+  it('the RPC reporting already-responded for the same signer (concurrent duplicate) is also success', async () => {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow()],
+      signatureRows: [{ signer_name: 'Jane Doe', signer_email: 'jane@example.com' }],
+      rpcHandler: () => ({ data: null, error: { code: 'P0008' } }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(jsonRequest(body), PARAMS)
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ success: true, alreadySigned: true })
   })
 })

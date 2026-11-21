@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { rateLimit } from '@/lib/ratelimit'
 import { checkShareAccess } from '@/lib/estimates/public-access'
+import { isSameSignerRetry } from '@/lib/estimates/signer-retry'
 import { notifyEstimateResponse } from '@/lib/estimate/notify-response'
 import {
   buildSignedContentSnapshot,
@@ -224,6 +225,15 @@ export async function POST(
       return NextResponse.json({ error: 'link_locked' }, { status: 403 })
     }
 
+    // Lost-reply retry: already accepted by this same signer => success, not a 409.
+    // Runs before the version checks (a retry after the commit may carry an older version).
+    if (
+      estimate.client_response === 'accepted' &&
+      (await isSameSignerRetry(supabase, 'estimate_signatures', estimate.id, trimmedName, signerEmailValue))
+    ) {
+      return NextResponse.json({ success: true, alreadySigned: true })
+    }
+
     // Demo guard: unchanged in relative position — still runs before the
     // company check and every downstream write below (fix-pack F1 only moved
     // the RATE LIMIT ahead of it, per finding #4's rationale above; the demo
@@ -370,6 +380,10 @@ export async function POST(
         return NextResponse.json({ error: 'Estimate not found' }, { status: 404 })
       }
       if (outcome.code === SIGN_RPC_ALREADY_RESPONDED) {
+        // Concurrent duplicate of the same signature: also idempotent.
+        if (await isSameSignerRetry(supabase, 'estimate_signatures', id, trimmedName, signerEmailValue)) {
+          return NextResponse.json({ success: true, alreadySigned: true })
+        }
         return NextResponse.json({ error: 'Estimate already responded to' }, { status: 409 })
       }
       if (outcome.code === SIGN_RPC_CONFLICT) {

@@ -11,6 +11,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { inngest } from '@/lib/inngest/client'
 import { EVENT_ESTIMATE_VIEWED_NOTIFICATION } from '@/lib/inngest/events'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
+import { isLikelyBotUserAgent } from '@/lib/security/bot-defense'
 import { sha256Hex, setUnlockCookie, verifySharePassword } from '@/lib/auth/share-password'
 import { checkShareAccess, readClientIp } from '@/lib/estimates/public-access'
 
@@ -36,6 +37,15 @@ export async function logEstimateView(token: string): Promise<void> {
   }
   const rl = await rateLimit('trackEstimatePerMinute', ip ?? 'no-ip')
   if (!rl.allowed) return
+
+  // A link-preview fetcher or scraper is not a client view: no viewed_at stamp, activity row
+  // or owner notification.
+  try {
+    const ua = (await headers()).get('user-agent')
+    if (ua && isLikelyBotUserAgent(ua)) return
+  } catch {
+    // Outside a request scope (test harness): fall through, same as the ip lookup above.
+  }
 
   const supabase = requireServiceClient()
 
@@ -284,7 +294,16 @@ export async function respondToEstimate(
     metadata: {},
   })
 
-  await notifyEstimateResponse(est, response)
+  // Best-effort: the answer is already committed, so a notification failure must never
+  // turn it into an error for the client.
+  try {
+    await notifyEstimateResponse(est, response)
+  } catch (err) {
+    console.warn(
+      `[respondToEstimate] owner notification failed for estimate ${est.id}`,
+      err instanceof Error ? err.name : 'unknown',
+    )
+  }
 
   return { success: true }
 }

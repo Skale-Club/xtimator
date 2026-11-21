@@ -6,6 +6,7 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { rateLimit } from '@/lib/ratelimit'
 import { assertCompanyWritable } from '@/lib/demo/guard'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
+import { isLikelyBotUserAgent } from '@/lib/security/bot-defense'
 
 /**
  * Phase 193-01 — public engagement-tracking beacon collector.
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     const ip = resolveClientIp(headersList)
     const rl = await rateLimit('trackEstimatePerMinute', ip ?? 'no-ip')
     if (!rl.allowed) return noContent()
+
+    // Link-preview fetchers and scrapers are not engagement: drop them silently, before the
+    // body is read or any DB work, so they neither log events nor bump view_count.
+    if (isLikelyBotUserAgent(headersList.get('user-agent'))) return noContent()
 
     // Cheap header-based size check before reading the body; the byte-length
     // check on the actual text below is the authoritative backstop (a caller

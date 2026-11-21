@@ -24,6 +24,28 @@ function clampedNumber(min: number, max: number) {
     .transform((n) => Math.min(max, Math.max(min, n)))
 }
 
+/** Largest serialized metadata kept per event. Real beacons carry one small number. */
+export const MAX_EVENT_METADATA_BYTES = 2048
+
+/**
+ * The only metadata keys the analytics ever read (lib/estimate/analytics/build.ts): the
+ * heartbeat's seconds, a scroll milestone's pct and a section's dwell_seconds. Each is kept
+ * only as a bounded finite number; everything else a caller sends is dropped.
+ */
+const METADATA_NUMBER_KEYS = ['seconds', 'pct', 'dwell_seconds'] as const
+
+function sanitizeMetadata(raw: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const key of METADATA_NUMBER_KEYS) {
+    const value = raw[key]
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = Math.min(1_000_000, Math.max(0, value))
+    }
+  }
+  // Belt and braces: the allowlist already bounds this far below the cap.
+  return JSON.stringify(out).length > MAX_EVENT_METADATA_BYTES ? {} : out
+}
+
 const TrackEventSchema = z.object({
   event_type: z.enum(CLIENT_EVENT_TYPES),
   target: z.string().trim().min(1).max(200).optional(),
@@ -32,7 +54,10 @@ const TrackEventSchema = z.object({
   doc_h: clampedNumber(0, 500_000).optional(),
   viewport_w: clampedNumber(0, 20_000).optional(),
   device: z.enum(['mobile', 'desktop']).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z
+    .record(z.string(), z.unknown())
+    .transform(sanitizeMetadata)
+    .optional(),
 })
 
 const TrackBodySchema = z.object({

@@ -21,6 +21,7 @@ import { getIntegrationKey, getBranding } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
 import { emailFrom } from '@/lib/email/sender'
+import { sendOwnerEmailWithRetry } from '@/lib/email/send-with-retry'
 
 export interface NotifyResponseEstimate {
   id: string
@@ -40,6 +41,21 @@ export interface NotifyResponseEstimate {
  * AFTER their own atomic write has succeeded).
  */
 export async function notifyEstimateResponse(
+  estimate: NotifyResponseEstimate,
+  response: 'accepted' | 'declined'
+): Promise<void> {
+  try {
+    await deliverEstimateResponseNotifications(estimate, response)
+  } catch (err) {
+    // Never rethrow: the client's answer already committed.
+    console.warn(
+      `[notify] estimate response notification failed for estimate ${estimate.id}`,
+      err instanceof Error ? err.name : 'unknown',
+    )
+  }
+}
+
+async function deliverEstimateResponseNotifications(
   estimate: NotifyResponseEstimate,
   response: 'accepted' | 'declined'
 ): Promise<void> {
@@ -64,8 +80,11 @@ export async function notifyEstimateResponse(
       resourceId: estimate.id,
       copyContext: ctx,
     })
-  } catch {
-    /* best-effort */
+  } catch (err) {
+    console.warn(
+      `[notify] in_app failed for estimate ${estimate.id}`,
+      err instanceof Error ? err.name : 'unknown',
+    )
   }
 
   // Send notification email if enabled
@@ -95,14 +114,21 @@ export async function notifyEstimateResponse(
         const resend = new Resend(resendKey)
         const branding = await getBranding()
         const appName = branding.appName
-        await resend.emails.send({
-          from: emailFrom(appName),
-          to: company.email,
-          subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
-          text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,
-        })
-      } catch {
-        // Resend not installed yet or send failed — skip silently
+        await sendOwnerEmailWithRetry(
+          resend as unknown as Parameters<typeof sendOwnerEmailWithRetry>[0],
+          {
+            from: emailFrom(appName),
+            to: company.email,
+            subject: `Estimate ${response} - ${project?.name ?? 'Unknown Project'}`,
+            text: `Hi ${company.name},\n\nYour estimate for "${project?.name ?? 'Unknown Project'}" has been ${response} by the client.\n\nLog in to ${appName} to see more details.`,
+          },
+          { resourceType: 'estimate', resourceId: estimate.id, channel: 'owner_email' },
+        )
+      } catch (err) {
+        console.warn(
+          `[notify] owner_email setup failed for estimate ${estimate.id}`,
+          err instanceof Error ? err.name : 'unknown',
+        )
       }
     }
   }

@@ -90,7 +90,8 @@ function ChangeOrderViewInner({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatedNotice, setUpdatedNotice] = useState(false)
-  const [blocked, setBlocked] = useState<Blocked>(null)
+  // The parent estimate is no longer the current accepted one: no answer is possible.
+  const [blocked, setBlocked] = useState<Blocked>(data.contractActive === false ? 'unavailable' : null)
   const noticeRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -149,6 +150,9 @@ function ChangeOrderViewInner({
         setConfirmingDecline(false)
       } else if (result.error === 'already_responded') {
         setBlocked('answered')
+        setConfirmingDecline(false)
+      } else if (result.error === 'contract_not_accepted') {
+        setBlocked('unavailable')
         setConfirmingDecline(false)
       } else {
         setError(result.error ?? t('Something went wrong'))

@@ -115,7 +115,9 @@ beforeEach(() => {
   mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 60 })
   mockAssertCompanyWritable.mockResolvedValue(null)
   mockIsOwnerVisit.mockResolvedValue(false)
-  mockHeaders.mockReturnValue(new Headers({ 'x-forwarded-for': '198.51.100.1' }))
+  mockHeaders.mockReturnValue(
+    new Headers({ 'x-forwarded-for': '198.51.100.1', 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1' }),
+  )
 })
 
 describe('parseTrackBody', () => {
@@ -433,5 +435,39 @@ describe('POST /api/track/estimate — happy path', () => {
 
     expect(supabase.__rpcMock).not.toHaveBeenCalled()
     expect(supabase.__updateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/track/estimate — bots and metadata size', () => {
+  const view = { token: 'share-token-abc', visitor_id: 'v1', session_id: 's1', events: [{ event_type: 'view' }] }
+
+  it.each([
+    ['a known crawler', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
+    ['a link-preview scraper', 'facebookexternalhit/1.1'],
+    ['an HTTP library', 'python-requests/2.31'],
+    ['a missing user agent', ''],
+  ])('%s: 204, no event rows and no view_count bump', async (_label, ua) => {
+    mockHeaders.mockReturnValue(new Headers({ 'x-forwarded-for': '198.51.100.1', ...(ua ? { 'user-agent': ua } : {}) }))
+    const supabase = buildSupabase({ estimateByShareToken: estimateRow() })
+    mockRequireServiceClient.mockReturnValue(supabase)
+
+    const res = await POST(jsonRequest(view))
+
+    expect(res.status).toBe(204)
+    expect(supabase.__insertMock).not.toHaveBeenCalled()
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps only the known numeric metadata keys, far below 2 KB', () => {
+    const parsed = parseTrackBody({
+      token: 't',
+      visitor_id: 'v',
+      session_id: 's',
+      events: [
+        { event_type: 'heartbeat', metadata: { seconds: 12, pad: 'x'.repeat(20_000), nested: { a: 1 }, pct: 'NaN' } },
+      ],
+    })
+    expect(parsed?.events[0].metadata).toEqual({ seconds: 12 })
+    expect(JSON.stringify(parsed?.events[0].metadata).length).toBeLessThan(2048)
   })
 })

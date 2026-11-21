@@ -57,6 +57,8 @@ export type LimitName =
   | 'publicEstimateResponsePerMinute'
   // Public change-order decline and PDF download. Keyed by IP (+ token hash when present).
   | 'publicChangeOrderPerMinute'
+  // Anonymous OAuth dynamic client registration (writes a client row). Keyed by IP.
+  | 'oauthRegisterPerHour'
 
 interface LimitConfig {
   max: number
@@ -120,6 +122,7 @@ export const limits: Record<LimitName, LimitConfig> = {
   // Public answer paths: declining an estimate, and the change-order decline/PDF.
   publicEstimateResponsePerMinute: { max: 10, window: 60 },
   publicChangeOrderPerMinute: { max: 20, window: 60 },
+  oauthRegisterPerHour: { max: 20, window: 3600 },
 }
 
 export interface RateLimitResult {

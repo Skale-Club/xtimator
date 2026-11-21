@@ -132,6 +132,18 @@ describe('respondToEstimate — conditional-atomic update closes the sign-vs-dec
     expect(mockNotify).toHaveBeenCalledWith(ESTIMATE_ROW, 'declined')
   })
 
+  it('a throwing owner notification never turns the committed decline into an error', async () => {
+    mockNotify.mockRejectedValueOnce(new Error('smtp down'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+
+    const result = await respondToEstimate('tok_1', 'declined')
+
+    expect(result).toEqual({ success: true })
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
   it('the conditional update claims ZERO rows (a concurrent sign already accepted it) -> already-responded error, no side effects', async () => {
     conditionalUpdateResult = { data: [], error: null }
     const { respondToEstimate } = await import('@/app/estimate/[token]/actions')

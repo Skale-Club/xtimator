@@ -349,6 +349,18 @@ function allowlist(): Set<string> {
 /** Known search/SEO crawlers. UA is spoofable; the worst a liar gets is the 404. */
 const CRAWLER_UA = /(googlebot|google-inspectiontool|bingbot|duckduckbot|applebot|yandex(bot)?|baiduspider|slurp|ahrefsbot|semrushbot|facebookexternalhit|linkedinbot|twitterbot)/i
 
+/**
+ * True when a request does not look like a real browser visit: no user agent at all, a known
+ * crawler (CRAWLER_UA above), or a generic bot / HTTP-library signature. Used to keep link
+ * previews and scrapers out of engagement counters. Spoofable, so never a security control.
+ */
+export function isLikelyBotUserAgent(userAgent?: string | null): boolean {
+  const ua = (userAgent ?? '').trim()
+  if (!ua) return true
+  if (CRAWLER_UA.test(ua)) return true
+  return /(?:^|[^a-z])(?:bot|crawler|spider|headless)(?:[^a-z]|$)|python-requests|^curl[/]|^wget[/]|go-http-client/i.test(ua)
+}
+
 export function isBannable(ip: string | null | undefined, userAgent?: string | null): ip is string {
   if (!ip) return false
   if (isInternalIp(ip) || isCloudflareIp(ip)) return false

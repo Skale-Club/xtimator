@@ -160,6 +160,11 @@ export interface PublicChangeOrderData {
   }
   /** Public view: drafts excluded. */
   contract: ContractSummary
+  /**
+   * False when the parent estimate is no longer the current accepted one: the page then
+   * offers no answer buttons. Absent (undefined) is treated as true.
+   */
+  contractActive?: boolean
   /** This change order's own live invoice (open or paid), else null. */
   invoice: ChangeOrderInvoice | null
 }
