@@ -570,6 +570,65 @@ export async function saveTelegramChatId(chatId: string): Promise<ActionResult> 
   return { ok: true }
 }
 
+/**
+ * Save the Xtimator | Leads group into platform_integrations.telegram metadata
+ * as leads_chat_id, next to the Ops chat_id and the encrypted bot token (both
+ * preserved). Sign-up notices read only this value (getTelegramConfig('leads'))
+ * and never fall back to Ops, so it must be a group id (negative) and differ
+ * from chat_id. Empty clears it, which silences sign-up notices.
+ */
+export async function saveTelegramLeadsChatId(chatId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin()
+  const trimmed = chatId.trim()
+  if (trimmed && !/^-[1-9]\d*$/.test(trimmed)) {
+    return {
+      ok: false,
+      message: 'Leads chat ID must be a Telegram group id, which is negative (e.g. -1001234567890).',
+    }
+  }
+
+  const svc = requireServiceClient()
+  const { data: existing } = await svc
+    .from('platform_integrations')
+    .select('ciphertext, iv, auth_tag, metadata')
+    .eq('provider', 'telegram')
+    .maybeSingle()
+
+  const metadata = (existing?.metadata as Record<string, unknown> | null) ?? {}
+  if (trimmed && trimmed === String(metadata.chat_id ?? '').trim()) {
+    return { ok: false, message: 'The Leads group must be different from the ops alert chat.' }
+  }
+
+  const { error } = await svc.from('platform_integrations').upsert(
+    {
+      provider: 'telegram',
+      ciphertext: existing?.ciphertext ?? null,
+      iv: existing?.iv ?? null,
+      auth_tag: existing?.auth_tag ?? null,
+      metadata: { ...metadata, leads_chat_id: trimmed },
+      updated_at: new Date().toISOString(),
+      updated_by: ctx.userId,
+    },
+    { onConflict: 'provider' }
+  )
+
+  if (error) return { ok: false, message: error.message }
+
+  invalidatePlatformConfig()
+  revalidatePath('/admin/integrations')
+
+  void logAdminAction({
+    actorId: ctx.userId,
+    actorEmail: ctx.email,
+    action: 'integration.save',
+    targetType: 'integration',
+    targetId: 'telegram_leads_chat_id',
+    metadata: { leads_chat_id: trimmed },
+  })
+
+  return { ok: true }
+}
+
 /** Notion database ids: 32 hex chars, with or without dashes (what Notion URLs contain). */
 const NOTION_DB_ID_RE = /^[0-9a-f]{32}$|^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

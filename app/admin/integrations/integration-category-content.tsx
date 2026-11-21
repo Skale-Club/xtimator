@@ -20,7 +20,7 @@ import { WhatsAppSystemPromptForm } from './whatsapp-system-prompt-form'
 import { WhatsAppWelcomeForm } from './whatsapp-welcome-form'
 import { XphereConfigForm } from './xphere-config-form'
 import { XphereStatus } from './xphere-status'
-import { TelegramChatIdForm } from './telegram-chat-id-form'
+import { TelegramChatIdForm, TelegramLeadsChatIdForm } from './telegram-chat-id-form'
 import { NotionAcademyForm } from './notion-academy-form'
 import { PlatformEventTogglesForm } from './platform-event-toggles-form'
 import { PriceResearchConfigForm } from './price-research-config-form'
@@ -112,6 +112,7 @@ export async function IntegrationCategoryContent({
   }
 
   let telegramChatId = ''
+  let telegramLeadsChatId = ''
   if (category.showTelegramConfig) {
     const svc = requireServiceClient()
     const { data } = await svc
@@ -120,6 +121,7 @@ export async function IntegrationCategoryContent({
       .eq('provider', 'telegram')
       .maybeSingle()
     telegramChatId = (data?.metadata as { chat_id?: string } | null)?.chat_id ?? ''
+    telegramLeadsChatId = (data?.metadata as { leads_chat_id?: string } | null)?.leads_chat_id ?? ''
   }
 
   let notionCoursesDb = ''
@@ -224,7 +226,10 @@ export async function IntegrationCategoryContent({
       )}
 
       {category.showTelegramConfig && (
-        <TelegramChatIdForm current={telegramChatId} />
+        <>
+          <TelegramChatIdForm current={telegramChatId} />
+          <TelegramLeadsChatIdForm current={telegramLeadsChatId} />
+        </>
       )}
 
       {category.showNotionAcademyConfig && (
