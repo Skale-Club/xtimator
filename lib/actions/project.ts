@@ -8,6 +8,8 @@ import { getProjectsByCompany, getProjectById } from '@/lib/queries/project'
 import type { ProjectDetail } from '@/lib/queries/project'
 import { PLACEHOLDER_PREFIX } from '@/lib/constants/project'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
+// Draft projects run no AI: an unreadable balance fails OPEN here (fail closed
+// applies to the AI-spending gates; see access-guard.ts).
 import { billingCreateDenied, billingEditDenied } from '@/lib/billing/access-guard'
 import { assertWritable } from '@/lib/demo/guard'
 
@@ -65,7 +67,7 @@ export async function createProjectAction(formData: ProjectFormValues) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
-  const billingDenied = await billingCreateDenied(ctx.company.id)
+  const billingDenied = await billingCreateDenied(ctx.company.id, 'estimate', { failOpen: true })
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
@@ -126,7 +128,7 @@ export async function resumeOrCreateDraftProjectAction(
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
-  const billingDenied = await billingCreateDenied(ctx.company.id)
+  const billingDenied = await billingCreateDenied(ctx.company.id, 'estimate', { failOpen: true })
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 
@@ -291,7 +293,7 @@ export async function createProjectWithClientAction(clientId: string) {
   if ('error' in ctx) return { error: ctx.error }
   const denied = await assertWritable()
   if (denied) return denied
-  const billingDenied = await billingCreateDenied(ctx.company.id)
+  const billingDenied = await billingCreateDenied(ctx.company.id, 'estimate', { failOpen: true })
   if (billingDenied) return billingDenied
   const { supabase, company } = ctx
 

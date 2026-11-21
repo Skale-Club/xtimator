@@ -47,6 +47,8 @@ export type PolicyReplyKey =
   | 'image_too_large'
   | 'audio_unreadable'
   | 'photo_unreadable'
+  // The credit balance could not be read: nothing was started, ask to resend.
+  | 'try_again'
 
 export interface PolicyDecision {
   action: PolicyAction
@@ -209,6 +211,7 @@ const REPLY_COPY: Record<EstimateLanguage, Record<PolicyReplyKey, string>> = {
     image_too_large: 'Essa foto é pesada demais (máximo 10 MB). Me manda uma menor.',
     audio_unreadable: 'Não consegui ouvir seu áudio. Me descreve o serviço por texto.',
     photo_unreadable: 'Não consegui ler sua foto. Me descreve o serviço por texto.',
+    try_again: 'Não consegui verificar sua conta agora. Tente de novo em instantes.',
   },
   en: {
     video_unsupported: "I can't process videos. Send me photos or a voice message of the job.",
@@ -218,6 +221,7 @@ const REPLY_COPY: Record<EstimateLanguage, Record<PolicyReplyKey, string>> = {
     image_too_large: 'That photo is too large (10 MB max). Send a smaller one.',
     audio_unreadable: "Sorry, I couldn't read your audio. Please describe the job in a text message.",
     photo_unreadable: "Sorry, I couldn't read your photo. Please describe the job in a text message.",
+    try_again: "We couldn't check your account right now. Please try again in a moment.",
   },
   es: {
     video_unsupported: 'No puedo procesar videos. Envíeme fotos o un audio del trabajo.',
@@ -227,6 +231,7 @@ const REPLY_COPY: Record<EstimateLanguage, Record<PolicyReplyKey, string>> = {
     image_too_large: 'Esa foto es demasiado pesada (máximo 10 MB). Envíe una más pequeña.',
     audio_unreadable: 'No pude escuchar su audio. Descríbame el trabajo por texto.',
     photo_unreadable: 'No pude leer su foto. Descríbame el trabajo por texto.',
+    try_again: 'No pude revisar su cuenta en este momento. Inténtelo de nuevo en unos instantes.',
   },
 }
 

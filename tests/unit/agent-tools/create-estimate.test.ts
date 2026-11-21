@@ -27,16 +27,26 @@ const mockCheckCredits = vi.fn()
 vi.mock('@/lib/billing/credit-ledger', () => ({
   checkCredits: (...args: unknown[]) => mockCheckCredits(...args),
 }))
+// The wall behind a blocked gate (the real guard reads the database).
+const mockBillingCreateDenied = vi.fn()
+vi.mock('@/lib/billing/access-guard', () => ({
+  billingCreateDenied: (...args: unknown[]) => mockBillingCreateDenied(...args),
+}))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: vi.fn().mockReturnValue({}),
 }))
 
-import { createEstimate, INSUFFICIENT_CREDITS_MESSAGE } from '@/lib/agent-tools/create-estimate'
+import {
+  createEstimate,
+  INSUFFICIENT_CREDITS_MESSAGE,
+  CREDIT_CHECK_UNAVAILABLE_MESSAGE,
+} from '@/lib/agent-tools/create-estimate'
 import { EVENT_ESTIMATE_GENERATE } from '@/lib/inngest/events'
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockCheckCredits.mockResolvedValue({ allowed: true, balance: 1000, shortfall: 0 })
+  mockBillingCreateDenied.mockResolvedValue({ code: 'out_of_credits', error: 'x' })
 })
 
 describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => {
@@ -124,6 +134,28 @@ describe('createEstimate — EVENT_ESTIMATE_GENERATE dispatch (NEUT-01)', () => 
     await expect(
       createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
     ).rejects.toThrow(INSUFFICIENT_CREDITS_MESSAGE)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  // Owner decision: an unreadable balance refuses the run (fail closed) with a
+  // plain retry message - never the paywall / credits copy.
+  it('Test 5: asks checkCredits to fail closed and throws the plain retry message when the balance is unavailable', async () => {
+    mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 1, unavailable: true })
+    const run = createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
+    await expect(run).rejects.toThrow(CREDIT_CHECK_UNAVAILABLE_MESSAGE)
+    await run.catch((err: Error) => {
+      expect(err.message).not.toMatch(/credits|subscribe|billing/i)
+    })
+    expect(mockCheckCredits.mock.calls[0][3]).toEqual({ failClosed: true })
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('Test 6: a blocked gate whose wall re-check is "unavailable" also throws the plain retry message', async () => {
+    mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 1 })
+    mockBillingCreateDenied.mockResolvedValue({ code: 'unavailable', error: 'x' })
+    await expect(
+      createEstimate({ companyId: 'co-1', projectId: 'proj-1' })
+    ).rejects.toThrow(CREDIT_CHECK_UNAVAILABLE_MESSAGE)
     expect(mockSend).not.toHaveBeenCalled()
   })
 })

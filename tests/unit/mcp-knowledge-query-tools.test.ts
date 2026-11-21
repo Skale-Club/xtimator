@@ -106,6 +106,9 @@ function makeMockClient() {
 // A stable client instance the query handlers receive as the 2nd positional arg.
 let MOCK_CLIENT: ReturnType<typeof makeMockClient>
 
+// The paid-AI gate fails closed when billing cannot be read; this file tests the
+// tool, not the gate, so stub it permissive.
+vi.mock('@/lib/billing/access-guard', () => ({ billingCreateDenied: async () => null }))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => MOCK_CLIENT,
 }))

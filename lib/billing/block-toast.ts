@@ -5,6 +5,7 @@ import {
   BILLING_SETTINGS_PATH,
   isBillingBlockCode,
   type BillingBlockCode,
+  type BillingWallCode,
 } from '@/lib/billing/block-codes'
 import { TWA_OUT_OF_CREDITS_COPY, readTwaCookieClient } from '@/lib/pwa/twa-signal'
 import { openBuyCredits } from '@/components/billing/buy-credits'
@@ -20,6 +21,15 @@ type RouterLike = { push: (href: string) => void }
  * created without credits.
  */
 export function billingBlockCopy(code: BillingBlockCode, t: Translate) {
+  // The balance could not be read: not a wall. Plain message, no CTA (and the
+  // same in the Android TWA, where the credits copy would be wrong).
+  if (code === 'unavailable') {
+    return {
+      title: t("We couldn't check your account right now"),
+      description: t('Please try again.'),
+      cta: null as string | null,
+    }
+  }
   // Android TWA (Google Play): purchase-free mode - neutral copy, no CTA.
   if (readTwaCookieClient()) {
     return {
@@ -58,7 +68,7 @@ export function showBillingBlockToast(
     id: `billing-block-${code}`,
     description: copy.description,
     duration: 9000,
-    ...(copy.cta
+    ...(copy.cta && code !== 'unavailable'
       ? { action: { label: copy.cta, onClick: () => billingBlockAction(code, router) } }
       : {}),
   })
@@ -69,7 +79,7 @@ export function showBillingBlockToast(
  * Credits plan 2026-11-20: what a block's CTA does. Out of credits opens the
  * buy dialog in place; the paywall goes straight to the Pro offer.
  */
-export function billingBlockAction(code: BillingBlockCode, router: RouterLike) {
+export function billingBlockAction(code: BillingWallCode, router: RouterLike) {
   if (code === 'out_of_credits') {
     openBuyCredits()
     return

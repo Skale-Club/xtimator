@@ -53,6 +53,8 @@ export async function requestRefine(
     refined?: RefinementPayload
     instruction?: string
     error?: string
+    /** Human-readable copy some routes send next to a machine `error` code (e.g. 503 service_unavailable). */
+    message?: string
     code?: string
     reason?: string
     state?: string
@@ -65,5 +67,7 @@ export async function requestRefine(
     const billing = body.state === 'paywalled' || body.state === 'out_of_credits' ? body.state : 'out_of_credits'
     return { ok: false, error: body.error ?? 'Not enough credits', code: body.reason ?? body.code, billing }
   }
-  return { ok: false, error: body.error ?? 'Could not refine the estimate', code: body.code }
+  // A 503 (credit check unavailable) carries a machine code in `error` and the
+  // owner-facing copy in `message`: show the copy, never the raw code.
+  return { ok: false, error: body.message ?? body.error ?? 'Could not refine the estimate', code: body.code ?? (res.status === 503 ? body.error : undefined) }
 }

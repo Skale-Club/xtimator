@@ -1,10 +1,6 @@
 import 'server-only'
-import {
-  assertCanCreate,
-  assertCanEdit,
-  getAccessState,
-  type BillingBlockCode,
-} from '@/lib/billing/access-state'
+import { assertCanCreate, assertCanEdit, getAccessState } from '@/lib/billing/access-state'
+import type { BillingBlockCode, BillingWallCode } from '@/lib/billing/block-codes'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { formatUsd } from '@/lib/billing/format-usd'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
@@ -13,9 +9,14 @@ import type { EstimatedCreditOp } from '@/lib/billing/estimated-credit-ops'
 /**
  * SEED-055 Phase D: adapters that turn the access-state gates into the
  * `{ error, code }` shape server actions already return, so a UI can react to
- * the machine code. Both are inert (return null) while enforcement is OFF and
- * FAIL OPEN on any infrastructure error: a billing-read hiccup must never take
- * the app down (the AI routes' credit check keeps its own hard gate).
+ * the machine code. Both are inert (return null) while enforcement is OFF.
+ *
+ * Failure policy (owner decision): FAIL CLOSED wherever paid AI would run, FAIL
+ * OPEN where nothing paid runs. billingCreateDenied is closed by default (every
+ * EstimatedCreditOp is an AI-spending op); a caller that creates something
+ * without AI (a draft project) opts out with `{ failOpen: true }`. The edit
+ * gate and the display contexts (paywall banner, capture screen) stay open: a
+ * billing-read hiccup must never lock a customer out of the app or its pages.
  */
 export type BillingDenied = {
   error: string
@@ -29,6 +30,7 @@ export type BillingDenied = {
 export const BILLING_BLOCK_MESSAGES: Record<BillingBlockCode, string> = {
   paywalled: 'Your free credits are used up. Subscribe to Xtimator Pro to keep working.',
   out_of_credits: "You're out of credits. Buy credits to create new estimates.",
+  unavailable: "We couldn't check your account right now. Please try again.",
 }
 
 /**
@@ -48,22 +50,37 @@ function denied(code: BillingBlockCode): BillingDenied {
   return { error: BILLING_BLOCK_MESSAGES[code], code }
 }
 
-/** Gate for creating something (estimate, project, client, AI-backed op). */
+/**
+ * Gate for creating something (estimate, AI-backed op, or a draft project).
+ *
+ * When the balance cannot be read this returns denied('unavailable') (fail
+ * closed), because every EstimatedCreditOp spends AI. A caller whose action runs
+ * no AI passes { failOpen: true } to keep the old behaviour (allow).
+ */
 export async function billingCreateDenied(
   companyId: string | null | undefined,
-  op: EstimatedCreditOp = 'estimate'
+  op: EstimatedCreditOp = 'estimate',
+  opts?: { failOpen?: boolean }
 ): Promise<BillingDenied | null> {
   if (!companyId) return null
   try {
     const res = await assertCanCreate(companyId, await getEstimatedCredits(op))
     return res.ok ? null : denied(res.code)
   } catch (err) {
-    console.warn('[billing] create gate failed open:', err)
-    return null
+    if (opts?.failOpen) {
+      console.warn('[billing] create gate failed open (no AI runs here):', err)
+      return null
+    }
+    console.warn('[billing] create gate failed closed:', err)
+    return denied('unavailable')
   }
 }
 
-/** Gate for editing existing data: refused only while paywalled (read-only app). */
+/**
+ * Gate for editing existing data: refused only while paywalled (read-only app).
+ * Fails OPEN by design: an edit runs no paid AI, so a billing-read hiccup must
+ * not freeze the customer's own data.
+ */
 export async function billingEditDenied(
   companyId: string | null | undefined
 ): Promise<BillingDenied | null> {
@@ -80,7 +97,9 @@ export async function billingEditDenied(
 /**
  * Which wall a credit-blocked caller hit, for the `state` field of the 402
  * bodies (UpgradeModal picks "Subscribe" vs "Buy credits" from it). Resolves to
- * `paywalled` when it cannot be determined.
+ * `paywalled` when the gate now says "allowed" (a race with a top-up), and to
+ * `unavailable` when the balance cannot be read: callers then answer a
+ * retryable 503 / plain error instead of a 402 paywall.
  */
 export async function creditBlockState(
   companyId: string | null | undefined,
@@ -92,7 +111,7 @@ export async function creditBlockState(
 
 export type PaywallContext =
   | { state: 'active' }
-  | { state: BillingBlockCode; priceLabel: string }
+  | { state: BillingWallCode; priceLabel: string }
 
 /**
  * What the two layouts ((app) banner, (capture) full-screen block) need to
@@ -126,8 +145,9 @@ export async function getCaptureGateContext(companyId: string): Promise<PaywallC
   const paywall = await getPaywallContext(companyId)
   if (paywall.state !== 'active') return paywall
   try {
-    const denied = await billingCreateDenied(companyId, 'estimate')
-    if (!denied) return { state: 'active' }
+    // Display only (nothing paid runs while the screen renders): fail open.
+    const denied = await billingCreateDenied(companyId, 'estimate', { failOpen: true })
+    if (!denied || denied.code === 'unavailable') return { state: 'active' }
     const cfg = await getBillingConfig()
     return { state: denied.code, priceLabel: formatUsd(cfg.tiers.pro.subscriptionPriceCents) }
   } catch (err) {

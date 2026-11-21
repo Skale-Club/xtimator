@@ -11,6 +11,7 @@ import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { creditBlockState } from '@/lib/billing/access-guard'
+import { creditUnavailableResponse } from '@/lib/billing/credit-unavailable-response'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { recordJobOwnership } from '@/lib/inngest/job-ownership'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -127,11 +128,14 @@ export async function POST(request: Request) {
       )
     }
     if (!credit.allowed) {
+      const state = await creditBlockState(rec.company_id, 'audio_minutes')
+      // Balance unreadable on the re-check: retryable 503, never a paywall 402.
+      if (state === 'unavailable') return creditUnavailableResponse()
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
-          state: await creditBlockState(rec.company_id, 'audio_minutes'),
+          state,
           upgradeUrl: '/settings/billing',
         },
         { status: 402 }

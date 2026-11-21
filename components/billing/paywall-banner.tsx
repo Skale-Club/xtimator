@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { AlertTriangle, ArrowRight } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { BILLING_SETTINGS_PATH, type BillingWallCode } from '@/lib/billing/block-codes'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 import { TWA_OUT_OF_CREDITS_COPY } from '@/lib/pwa/twa-signal'
 import { openBuyCredits } from '@/components/billing/buy-credits'
@@ -23,7 +23,7 @@ export function PaywallBanner({
   logoUrl,
   appName,
 }: {
-  state: BillingBlockCode
+  state: BillingWallCode
   priceLabel: string
   /** Platform branding, the same logo the sidebar shows. */
   logoUrl?: string | null

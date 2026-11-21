@@ -11,6 +11,7 @@ import { checkQuota } from '@/lib/quota'
 import { checkCredits } from '@/lib/billing/credit-ledger'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { creditBlockState } from '@/lib/billing/access-guard'
+import { creditUnavailableResponse } from '@/lib/billing/credit-unavailable-response'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isSupportedLanguage } from '@/lib/i18n/resolve-estimate-language'
 import { demoGuardResponse } from '@/lib/demo/guard'
@@ -146,12 +147,15 @@ export async function POST(request: Request) {
       )
     }
     if (!credit.allowed) {
+      const state = await creditBlockState(companyId, 'estimate')
+      // Balance unreadable on the re-check: retryable 503, never a paywall 402.
+      if (state === 'unavailable') return creditUnavailableResponse()
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
-          state: await creditBlockState(companyId, 'estimate'),
+          state,
           upgradeUrl: '/settings/billing',
           ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
         },

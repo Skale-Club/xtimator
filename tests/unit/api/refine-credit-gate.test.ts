@@ -22,6 +22,16 @@ const mockCheckCredits = vi.fn()
 const mockIngestMultimodal = vi.fn()
 const mockGraphInvoke = vi.fn()
 const mockGetActiveCompanyId = vi.fn()
+// Passthrough to the real creditBlockState unless a test overrides it.
+let creditBlockStateOverride: string | null = null
+vi.mock('@/lib/billing/access-guard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/billing/access-guard')>()
+  return {
+    ...actual,
+    creditBlockState: async (...args: Parameters<typeof actual.creditBlockState>) =>
+      creditBlockStateOverride ?? actual.creditBlockState(...args),
+  }
+})
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
@@ -86,6 +96,7 @@ const PARAMS = { params: Promise.resolve({ id: 'est-1' }) }
 describe('BILL-01: refine route credit gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    creditBlockStateOverride = null
     mockGetClaims.mockResolvedValue({ data: { claims: { sub: 'user-1' } } })
     mockDemoGuard.mockResolvedValue(null)
     mockRateLimit.mockResolvedValue({ allowed: true })
@@ -184,6 +195,24 @@ describe('BILL-01: refine route credit gate', () => {
       error: 'service_unavailable',
       message: "We couldn't start this right now. Please try again.",
     })
+    expect(mockIngestMultimodal).not.toHaveBeenCalled()
+    expect(mockGraphInvoke).not.toHaveBeenCalled()
+  })
+
+  it('blocked but the wall cannot be resolved ("unavailable"): retryable 503, never a 402 paywall', async () => {
+    mockCheckCredits.mockResolvedValue({ allowed: false, balance: 0, shortfall: 40 })
+    creditBlockStateOverride = 'unavailable'
+
+    const res = await POST(jsonRequest({ instruction: 'Add a cleanup section.' }), PARAMS)
+
+    expect(res.status).toBe(503)
+    expect(res.status).not.toBe(402)
+    const body = await res.json()
+    expect(body).toEqual({
+      error: 'service_unavailable',
+      message: "We couldn't start this right now. Please try again.",
+    })
+    expect(body).not.toHaveProperty('state')
     expect(mockIngestMultimodal).not.toHaveBeenCalled()
     expect(mockGraphInvoke).not.toHaveBeenCalled()
   })

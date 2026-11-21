@@ -64,9 +64,13 @@ export function CaptureFailure({
   retriesUsed,
   onRetry,
   onEditManually,
-  billingBlock,
+  billingBlock: rawBillingBlock,
 }: CaptureFailureProps) {
   const { t } = useTranslation()
+  // 'unavailable' = the balance could not be read: nothing is wrong with the
+  // account, so no Subscribe / Buy credits CTA; it renders as a plain failure
+  // (the message already says to try again, and Retry stays available).
+  const billingBlock = rawBillingBlock === 'unavailable' ? undefined : rawBillingBlock
   const isTwa = useIsTwa()
   if (billingBlock && isTwa) {
     // Android TWA: no purchase CTA; the error message itself stays.

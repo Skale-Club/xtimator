@@ -7,7 +7,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { billingBlockAction, billingBlockCopy } from '@/lib/billing/block-toast'
 import {
   BILLING_SETTINGS_PATH,
-  isBillingBlockCode,
+  isBillingWallCode,
 } from '@/lib/billing/block-codes'
 import { TWA_OUT_OF_CREDITS_COPY, readTwaCookieClient } from '@/lib/pwa/twa-signal'
 
@@ -53,7 +53,15 @@ export function UpgradeModal() {
             // built without them, so there is no "do it by hand" copy. The 402
             // body carries `state`; a credits block with no state (an older
             // server) is treated as the paywall.
-            const isCredits = body.reason === 'credits' || isBillingBlockCode(body.state)
+            // Defensive: the routes answer 503 (not 402) when the balance cannot be
+            // read, but if an 'unavailable' state ever rides a 402 it must never
+            // open the paywall: show the plain retry message.
+            if (body.state === 'unavailable') {
+              const copy = billingBlockCopy('unavailable', t)
+              toast.error(copy.title, { id: 'billing-block', description: copy.description, duration: 9000 })
+              return
+            }
+            const isCredits = body.reason === 'credits' || isBillingWallCode(body.state)
             const target = body.upgradeUrl ?? BILLING_SETTINGS_PATH
             if (isCredits) {
               const copy = billingBlockCopy(

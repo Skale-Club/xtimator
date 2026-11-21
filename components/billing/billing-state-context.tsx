@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, useContext, type ReactNode } from 'react'
-import type { BillingBlockCode } from '@/lib/billing/block-codes'
+import type { BillingWallCode } from '@/lib/billing/block-codes'
 
-export type BillingState = 'active' | BillingBlockCode
+export type BillingState = 'active' | BillingWallCode
 
 const BillingStateContext = createContext<BillingState>('active')
 

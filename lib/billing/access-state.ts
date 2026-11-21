@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { isDemoCompany } from '@/lib/demo/config'
-import type { BillingBlockCode } from '@/lib/billing/block-codes'
+import type { BillingWallCode } from '@/lib/billing/block-codes'
 
 /**
  * SEED-055 Phase D: the single server-side answer to "what may this company do?".
@@ -32,8 +32,9 @@ export type AccessStateResult = {
   enforcement: boolean
 }
 
-export type { BillingBlockCode }
-export type GateResult = { ok: true } | { ok: false; code: BillingBlockCode }
+// The gates only ever resolve a real wall; 'unavailable' is added by access-guard.
+export type { BillingWallCode }
+export type GateResult = { ok: true } | { ok: false; code: BillingWallCode }
 
 type CompanyRow = {
   tier: string | null
@@ -53,13 +54,21 @@ const NON_SUBSCRIBER_SOURCES = ['signup', 'adjust'] as const
 /** Subscription statuses that keep a paid tier "live" (past_due = Stripe dunning). */
 const LIVE_STATUSES = new Set(['active', 'trialing', 'past_due'])
 
-async function readCompany(db: SupabaseClient, companyId: string): Promise<CompanyRow | null> {
-  const { data } = await db.from('companies').select(COMPANY_COLUMNS).eq('id', companyId).maybeSingle()
+// `strict` (the create gate): a failed read THROWS instead of reading as "unknown
+// company" (which resolves to active / exempt). billingCreateDenied turns the
+// throw into the fail-closed 'unavailable' denial; display callers stay lenient.
+async function readCompany(
+  db: SupabaseClient,
+  companyId: string,
+  strict = false
+): Promise<CompanyRow | null> {
+  const { data, error } = await db.from('companies').select(COMPANY_COLUMNS).eq('id', companyId).maybeSingle()
+  if (strict && error) throw new Error(`company read failed: ${error.message}`)
   return (data as CompanyRow | null) ?? null
 }
 
 /** Which wall an empty balance hits for this company. */
-function emptyBalanceState(row: CompanyRow): BillingBlockCode {
+function emptyBalanceState(row: CompanyRow): BillingWallCode {
   const paidTier = row.tier === 'pro' || row.tier === 'business'
   const hasSub = Boolean(row.stripe_subscription_id)
   const status = row.stripe_subscription_status
@@ -95,9 +104,13 @@ async function spendableNonSubscriberBalance(
   return live - (row.credit_debt ?? 0)
 }
 
-type Resolved = AccessStateResult & { exempt: boolean; blocked: BillingBlockCode }
+type Resolved = AccessStateResult & { exempt: boolean; blocked: BillingWallCode }
 
-async function resolve(companyId: string, client?: SupabaseClient): Promise<Resolved> {
+async function resolve(
+  companyId: string,
+  client?: SupabaseClient,
+  opts?: { strict?: boolean }
+): Promise<Resolved> {
   const cfg = await getBillingConfig()
   const enforcement = cfg.enforcementEnabled === true
   if (!enforcement) {
@@ -107,7 +120,7 @@ async function resolve(companyId: string, client?: SupabaseClient): Promise<Reso
   }
   const db = client ?? requireServiceClient()
 
-  let row = await readCompany(db, companyId)
+  let row = await readCompany(db, companyId, opts?.strict)
   if (!row) {
     // Unknown company: never lock out on a missing row.
     return { state: 'active', tier: null, balance: 0, enforcement, exempt: true, blocked: 'paywalled' }
@@ -171,7 +184,8 @@ export async function assertCanCreate(
   estimatedCredits: number,
   client?: SupabaseClient
 ): Promise<GateResult> {
-  const r = await resolve(companyId, client)
+  // strict: an unreadable company row must not read as "unknown company" here.
+  const r = await resolve(companyId, client, { strict: true })
   if (r.state !== 'active') return { ok: false, code: r.state }
   if (!r.exempt && r.balance < startGate(r, estimatedCredits)) return { ok: false, code: r.blocked }
   return { ok: true }
@@ -185,7 +199,7 @@ export async function assertCanCreate(
 export async function canContinueRun(
   companyId: string,
   client?: SupabaseClient
-): Promise<{ ok: boolean; code: BillingBlockCode; balance: number }> {
+): Promise<{ ok: boolean; code: BillingWallCode; balance: number }> {
   const r = await resolve(companyId, client)
   return { ok: r.exempt || r.state === 'active', code: r.blocked, balance: r.balance }
 }

@@ -111,6 +111,32 @@ async function screenBatchByPolicy(
 // platform cost (not billable), so a blocked account never sinks into debt.
 // Returns true when the message was answered and must not be processed.
 // -------------------------------------------------------------------------
+// Owner decision: when the balance cannot be read, paid AI does not run (fail
+// closed). The owner gets a plain "try again" in their language, never the
+// out-of-credits message (nothing is wrong with the account) and nothing is
+// dispatched. The reply is platform cost (not billable).
+async function replyCreditCheckUnavailable(
+  companyId: string,
+  ownerPhone: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const language = await resolveOwnerLanguage(supabase, companyId)
+  const body = policyReplyText('try_again', language)
+  const wamid = await sendWhatsAppMessage(
+    ownerPhone,
+    { type: 'text', text: { body } },
+    { companyId, purpose: 'bot_reply', billable: false }
+  )
+  logOutboundMessage(supabase, {
+    companyId,
+    contactPhone: ownerPhone,
+    body,
+    msgType: 'text',
+    waMessageId: wamid,
+    status: 'sent',
+  }).catch(() => undefined)
+}
+
 async function replyIfAccountBlocked(
   companyId: string,
   ownerPhone: string,
@@ -118,6 +144,10 @@ async function replyIfAccountBlocked(
 ): Promise<boolean> {
   const denied = await billingCreateDenied(companyId, 'chat')
   if (!denied) return false
+  if (denied.code === 'unavailable') {
+    await replyCreditCheckUnavailable(companyId, ownerPhone, supabase)
+    return true
+  }
   // Credits plan 2026-11-20: a full https link WhatsApp can tap.
   const body = creditBlockMessage(denied.code)
   const wamid = await sendWhatsAppMessage(
@@ -503,9 +533,21 @@ export async function processInboundMessages(
   // Billing v2 credit gate — mirrors the web generate route: a spent balance
   // blocks the (expensive) WhatsApp estimate-creation pipeline BEFORE any draft
   // or media ingest. BYOK bypass + the enforcement flag live inside checkCredits.
-  const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'))
+  // Fail closed: an unreadable balance is not "allowed" (see
+  // replyCreditCheckUnavailable) - the batch is answered and nothing dispatches.
+  const credit = await checkCredits(supabase, companyId, await getEstimatedCredits('estimate'), {
+    failClosed: true,
+  })
+  if (credit.unavailable) {
+    await replyCreditCheckUnavailable(companyId, ownerPhone, supabase)
+    return
+  }
   if (!credit.allowed) {
     const blockedState = await creditBlockState(companyId, 'estimate')
+    if (blockedState === 'unavailable') {
+      await replyCreditCheckUnavailable(companyId, ownerPhone, supabase)
+      return
+    }
     const body = creditBlockMessage(blockedState)
     const wamid = await sendWhatsAppMessage(
       ownerPhone,

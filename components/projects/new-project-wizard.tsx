@@ -10,7 +10,7 @@ import { consumeSearchParam } from '@/lib/utils/modal-url'
 import { resumeOrCreateDraftProjectAction, getProjectMinimalAction } from '@/lib/actions/project'
 import { createBlankEstimate } from '@/lib/actions/estimate'
 import { billingBlockCopy, showBillingBlockToast } from '@/lib/billing/block-toast'
-import { BILLING_SETTINGS_PATH, isBillingBlockCode, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { BILLING_SETTINGS_PATH, isBillingWallCode, type BillingWallCode } from '@/lib/billing/block-codes'
 import { CreditCard } from 'lucide-react'
 import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { Button } from '@/components/ui/button'
@@ -102,7 +102,7 @@ export function NewProjectWizard({
   // The company cannot start a new estimate (paywalled / out of credits, or
   // below the estimate's entry gate): the popup shows why, with the way out,
   // instead of an endless loader behind a toast that disappears.
-  const [blockedCode, setBlockedCode] = useState<BillingBlockCode | null>(null)
+  const [blockedCode, setBlockedCode] = useState<BillingWallCode | null>(null)
   const createdRef = useRef(false)
   // Edit mode: the project's current estimate. When set the popup REFINES it
   // (preview + apply); when null the popup keeps the generate behavior.
@@ -159,7 +159,8 @@ export function NewProjectWizard({
         // credits way out (credit recalibration 2026-11-19: it used to show a
         // toast and keep the loader spinning forever).
         const code = (result as { code?: unknown }).code
-        if (isBillingBlockCode(code)) setBlockedCode(code)
+        // Only a real wall opens the block screen; 'unavailable' is a plain error.
+        if (isBillingWallCode(code)) setBlockedCode(code)
         else toast.error(result.error)
         setIsCreating(false)
         return

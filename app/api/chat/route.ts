@@ -56,6 +56,7 @@ import {
 import { rateLimit } from '@/lib/ratelimit'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { assertCanCreate } from '@/lib/billing/access-state'
+import { creditUnavailableResponse } from '@/lib/billing/credit-unavailable-response'
 import { recordCreditDebit } from '@/lib/billing/credit-ledger'
 
 // Pre-launch audit fix (B9): every other AI endpoint has a rate limit; this
@@ -142,7 +143,15 @@ export async function POST(req: Request) {
   // 3b. Credit gate (SEED-055 Phase D). Runs BEFORE resolveChatModel /
   //     buildChatTools / streamText so a blocked tenant triggers no model build.
   //     Same 402 contract as the other AI routes; inert while enforcement is OFF.
-  const gate = await assertCanCreate(companyId, billingCfg.estimatedCreditsByOp?.chat ?? 1)
+  // Fail closed (owner decision): an unreadable balance answers a retryable 503,
+  // never a 402 paywall and never a free model call.
+  let gate: Awaited<ReturnType<typeof assertCanCreate>>
+  try {
+    gate = await assertCanCreate(companyId, billingCfg.estimatedCreditsByOp?.chat ?? 1)
+  } catch (err) {
+    console.warn('[chat] credit gate unavailable, failing closed:', err)
+    return creditUnavailableResponse()
+  }
   if (!gate.ok) {
     return new Response(
       JSON.stringify({

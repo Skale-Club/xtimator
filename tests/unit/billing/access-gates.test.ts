@@ -34,6 +34,7 @@ const PRO_EMPTY: CompanyRow = {
   stripe_subscription_status: 'active',
 }
 let companyRow: CompanyRow = FREE_EMPTY
+let companyReadFails = false // the companies read comes back with a database error
 
 vi.mock('@/lib/billing/billing-config', () => ({
   getBillingConfig: async () => ({
@@ -53,7 +54,7 @@ vi.mock('@/lib/supabase/service', () => ({
     },
     from: (table: string) =>
       table === 'companies'
-        ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: companyRow, error: null }) }) }) }
+        ? { select: () => ({ eq: () => ({ maybeSingle: async () => (companyReadFails ? { data: null, error: { message: 'boom' } } : { data: companyRow, error: null }) }) }) }
         : table === 'credit_lots'
           ? {
               // Non-subscribers spend signup/adjust lots only: one signup lot
@@ -144,6 +145,7 @@ const estimatePayload = {
 beforeEach(() => {
   enforcementEnabled = true
   companyRow = FREE_EMPTY
+  companyReadFails = false
 })
 
 type Result = { code?: string; error?: string } | undefined | null
@@ -244,12 +246,47 @@ describe('enforcement OFF: every gate is inert', () => {
   })
 })
 
-describe('gates fail open on infrastructure errors', () => {
-  it('an unreadable company row never blocks the action', async () => {
+describe('failure policy: closed where AI runs, open where nothing paid runs', () => {
+  it('an unreadable company row refuses every AI-spending op with the "unavailable" code', async () => {
+    const { billingCreateDenied, BILLING_BLOCK_MESSAGES } = await import('@/lib/billing/access-guard')
+    companyReadFails = true
+    for (const op of ['estimate', 'refine', 'photo_batch', 'audio_minutes', 'price_research', 'chat'] as const) {
+      const denied = await billingCreateDenied('co-1', op)
+      expect(denied?.code, op).toBe('unavailable')
+      expect(denied?.error).toBe(BILLING_BLOCK_MESSAGES.unavailable)
+    }
+    // The default op is the estimate: closed too.
+    expect((await billingCreateDenied('co-1'))?.code).toBe('unavailable')
+  })
+
+  it('"unavailable" copy is plain: no paywall or credits wording', async () => {
+    const { BILLING_BLOCK_MESSAGES } = await import('@/lib/billing/access-guard')
+    expect(BILLING_BLOCK_MESSAGES.unavailable).toBe("We couldn't check your account right now. Please try again.")
+    expect(BILLING_BLOCK_MESSAGES.unavailable).not.toMatch(/credit|subscribe|upgrade/i)
+  })
+
+  it('a non-AI caller (draft project) opts out with failOpen and is never blocked', async () => {
+    const { billingCreateDenied } = await import('@/lib/billing/access-guard')
+    companyReadFails = true
+    expect(await billingCreateDenied('co-1', 'estimate', { failOpen: true })).toBeNull()
+  })
+
+  it('edit gate and unknown company stay open', async () => {
     const { billingCreateDenied, billingEditDenied } = await import('@/lib/billing/access-guard')
-    companyRow = null as never // makes the fake company read throw downstream
-    expect(await billingCreateDenied('co-1')).toBeNull()
+    companyReadFails = true
     expect(await billingEditDenied('co-1')).toBeNull()
     expect(await billingCreateDenied(null)).toBeNull()
+  })
+
+  it('the capture screen context stays open (display only)', async () => {
+    const { getCaptureGateContext } = await import('@/lib/billing/access-guard')
+    companyReadFails = true
+    expect(await getCaptureGateContext('co-1')).toEqual({ state: 'active' })
+  })
+
+  it('creditBlockState reports "unavailable" so routes answer 503, not a 402 wall', async () => {
+    const { creditBlockState } = await import('@/lib/billing/access-guard')
+    companyReadFails = true
+    expect(await creditBlockState('co-1', 'estimate')).toBe('unavailable')
   })
 })

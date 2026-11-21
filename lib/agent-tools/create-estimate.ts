@@ -50,6 +50,10 @@ export const INSUFFICIENT_CREDITS_MESSAGE =
 export const PAYWALLED_MESSAGE =
   'Your free credits are used up — subscribe to Xtimator Pro to keep creating estimates'
 
+/** Thrown when the credit balance cannot be read: nothing was started. */
+export const CREDIT_CHECK_UNAVAILABLE_MESSAGE =
+  "We couldn't start this right now. Please try again."
+
 export async function createEstimate(args: {
   companyId: string
   projectId: string
@@ -65,13 +69,18 @@ export async function createEstimate(args: {
   // covered. BYOK bypass + the enforcement flag live inside checkCredits.
   // SEED-055 Phase D: the op's configured estimate replaces the old hard-coded 1,
   // and the message names the right next step (subscribe vs buy credits).
-  const { allowed } = await checkCredits(
+  // Fail closed (owner decision): an unreadable balance refuses the run with a
+  // plain retry message, never the paywall / credits message.
+  const { allowed, unavailable } = await checkCredits(
     requireServiceClient(),
     args.companyId,
     await getEstimatedCredits('estimate'),
+    { failClosed: true },
   )
+  if (unavailable) throw new Error(CREDIT_CHECK_UNAVAILABLE_MESSAGE)
   if (!allowed) {
     const blocked = await billingCreateDenied(args.companyId, 'estimate')
+    if (blocked?.code === 'unavailable') throw new Error(CREDIT_CHECK_UNAVAILABLE_MESSAGE)
     throw new Error(creditBlockMessage(blocked?.code === 'paywalled' ? 'paywalled' : 'out_of_credits'))
   }
 

@@ -110,6 +110,21 @@ describe('requestRefine', () => {
     expect(res).toMatchObject({ ok: false, billing: 'out_of_credits' })
   })
 
+  it('a 503 credit-check failure shows the plain message, never the raw code or a billing wall', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'service_unavailable', message: "We couldn't start this right now. Please try again." }),
+    })
+    const res = await requestRefine('e', { instruction: 'x' })
+    expect(res).toEqual({
+      ok: false,
+      error: "We couldn't start this right now. Please try again.",
+      code: 'service_unavailable',
+    })
+    expect(res).not.toHaveProperty('billing')
+  })
+
   it('tolerates extra fields on refined items', async () => {
     const extra = {
       ...refined,

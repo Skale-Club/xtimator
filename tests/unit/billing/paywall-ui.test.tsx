@@ -223,7 +223,11 @@ describe('pre-gate cost is configured, never hard-coded', () => {
     'app/api/transcribe/route.ts',
   ])('%s 402 body carries the access state', (file) => {
     const src = readFileSync(resolve(process.cwd(), file), 'utf8')
-    expect(src).toMatch(/state:\s*await creditBlockState\(/)
+    // The wall is resolved once (creditBlockState) and echoed as `state`; an
+    // 'unavailable' resolution answers a 503 instead of this 402.
+    expect(src).toMatch(/await creditBlockState\(/)
+    expect(src).toMatch(/^\s+state,$/m)
+    expect(src).toContain('creditUnavailableResponse')
     expect(src).toContain("reason: 'credits'")
     expect(src).toContain("error: 'plan_limit_reached'")
   })

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { BuyCreditsInline } from '@/components/billing/buy-credits'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { BILLING_SETTINGS_PATH, type BillingBlockCode } from '@/lib/billing/block-codes'
+import { BILLING_SETTINGS_PATH, type BillingWallCode } from '@/lib/billing/block-codes'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 import { TWA_OUT_OF_CREDITS_COPY } from '@/lib/pwa/twa-signal'
 
@@ -20,7 +20,7 @@ export function CaptureBlocked({
   state,
   priceLabel,
 }: {
-  state: BillingBlockCode
+  state: BillingWallCode
   priceLabel: string
 }) {
   const { t } = useTranslation()

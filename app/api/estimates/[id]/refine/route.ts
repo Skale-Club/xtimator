@@ -31,6 +31,7 @@ import { checkCredits, recordCreditDebit } from '@/lib/billing/credit-ledger'
 import { chargeableGenerationCostUsd } from '@/lib/billing/markup-ops'
 import { getEstimatedCredits } from '@/lib/billing/estimated-credits'
 import { creditBlockState } from '@/lib/billing/access-guard'
+import { creditUnavailableResponse } from '@/lib/billing/credit-unavailable-response'
 import { buildOverageAffordance } from '@/lib/billing/overage-affordance'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -199,12 +200,15 @@ export async function POST(
       )
     }
     if (!credit.allowed) {
+      const state = await creditBlockState(companyId, 'refine')
+      // Balance unreadable on the re-check: retryable 503, never a paywall 402.
+      if (state === 'unavailable') return creditUnavailableResponse()
       const affordance = buildOverageAffordance(credit)
       return NextResponse.json(
         {
           error: 'plan_limit_reached',
           reason: 'credits',
-          state: await creditBlockState(companyId, 'refine'),
+          state,
           upgradeUrl: '/settings/billing',
           ...(affordance ? { topUpUrl: affordance.topUpUrl } : {}),
         },
