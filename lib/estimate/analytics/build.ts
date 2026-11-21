@@ -26,6 +26,7 @@ import {
   deriveInterest,
   type ActionEventType,
   type AnalyticsTimelineEntry,
+  type AnalyticsVisit,
   type EngagementEventType,
   type EstimateAnalytics,
   type EstimateAnalyticsSummary,
@@ -338,7 +339,7 @@ export function buildEstimateAnalytics(input: BuildEstimateAnalyticsInput): Esti
   let run: string[] = []
   const flush = () => {
     if (run.length === 0) return
-    timelineAsc.push({ kind: 'quick_opens', at: run[0], count: run.length, until: run[run.length - 1] })
+    timelineAsc.push({ kind: 'quick_opens', at: run[run.length - 1], since: run[0], count: run.length })
     run = []
   }
   for (const item of chronological) {
@@ -401,5 +402,16 @@ export function buildEstimateAnalytics(input: BuildEstimateAnalyticsInput): Esti
     now,
   })
 
-  return { summary, interest, timeline }
+  const visitList: AnalyticsVisit[] = visits.map((v) => ({
+    at: v.session.start,
+    sessionId: v.session.sessionId,
+    visitorId: v.session.visitorId,
+    visitorIndex: visitorIndex.get(v.session.visitorId) ?? 1,
+    device: v.device,
+    seconds: v.session.seconds,
+    maxScrollPct: v.session.maxScrollPct,
+    quick: v.quick,
+  }))
+
+  return { summary, interest, timeline, visits: visitList }
 }

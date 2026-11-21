@@ -11,6 +11,7 @@ import {
   getEstimateItemLabels,
 } from '@/lib/queries/engagement'
 import type { EstimateAnalytics } from '@/lib/estimate/analytics/contracts'
+import type { EstimateAnalyticsContext } from '@/lib/queries/engagement'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { EngagementHeatmap } from '../engagement-heatmap'
 import { AnalyticsBody, AnalyticsError, AnalyticsSkeleton } from './analytics-content'
@@ -20,7 +21,7 @@ export interface EstimateAnalyticsDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   estimateId: string
-  /** Optional header context. When both are missing the drawer looks them up. */
+  /** Optional header context. The drawer always looks the rest up (contact, project, total). */
   clientName?: string | null
   estimateNumber?: string | null
 }
@@ -47,7 +48,7 @@ export function EstimateAnalyticsDrawer({
   const phone = useIsPhone()
   const [load, setLoad] = useState<Load>({ status: 'loading' })
   const [itemLabels, setItemLabels] = useState<Record<string, string>>({})
-  const [context, setContext] = useState<{ clientName: string | null; estimateNumber: string | null } | null>(null)
+  const [context, setContext] = useState<EstimateAnalyticsContext | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [heatmapOpen, setHeatmapOpen] = useState(false)
 
@@ -73,26 +74,25 @@ export function EstimateAnalyticsDrawer({
       .catch(() => {
         if (!cancelled) setLoad({ status: 'error' })
       })
-    if (clientName == null && estimateNumber == null) {
-      getEstimateAnalyticsContext(supabase, estimateId)
-        .then((ctx) => {
-          if (!cancelled) setContext(ctx)
-        })
-        .catch(() => {
-          /* header context is cosmetic */
-        })
-    }
+    getEstimateAnalyticsContext(supabase, estimateId)
+      .then((ctx) => {
+        if (!cancelled) setContext(ctx)
+      })
+      .catch(() => {
+        /* header and follow-up context are cosmetic */
+      })
     return () => {
       cancelled = true
     }
-  }, [open, estimateId, attempt, clientName, estimateNumber])
+  }, [open, estimateId, attempt])
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
   const name = clientName ?? context?.clientName ?? null
   const number = estimateNumber ?? context?.estimateNumber ?? null
+  const total = formatTotal(context?.total ?? null, context?.currency ?? null)
   const subtitle =
-    [name, number ? `#${number}` : null].filter(Boolean).join(' · ') ||
+    [context?.projectName, number ? `#${number}` : null, total].filter(Boolean).join(' · ') ||
     t('How the client engaged with this estimate.')
 
   const header = (
@@ -102,8 +102,8 @@ export function EstimateAnalyticsDrawer({
     >
       <div className="min-w-0">
         {/* Dialog* parts work under both roots: Sheet is the same Radix Dialog. */}
-        <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">
-          {t('Estimate analytics')}
+        <DialogTitle className="truncate text-xl font-semibold leading-tight tracking-tight">
+          {name ?? t('Estimate analytics')}
         </DialogTitle>
         <DialogDescription className="mt-0.5 truncate text-[13px]">{subtitle}</DialogDescription>
       </div>
@@ -120,6 +120,7 @@ export function EstimateAnalyticsDrawer({
           analytics={load.analytics}
           itemLabels={itemLabels}
           onOpenHeatmap={() => setHeatmapOpen(true)}
+          contact={{ name, phone: context?.clientPhone, email: context?.clientEmail }}
         />
       )}
     </div>
@@ -147,12 +148,21 @@ export function EstimateAnalyticsDrawer({
   )
 }
 
+function formatTotal(total: number | null, currency: string | null): string | null {
+  if (total == null) return null
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(total)
+  } catch {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(total)
+  }
+}
+
 function DesktopShell({ children }: { children: ReactNode }) {
   return (
     <SheetContent
       side="right"
       showCloseButton={false}
-      className="w-full gap-0 overflow-hidden bg-background p-0 backdrop-blur-none sm:max-w-[600px]"
+      className="w-full gap-0 overflow-hidden bg-background p-0 backdrop-blur-none sm:max-w-[min(960px,94vw)]"
     >
       {children}
     </SheetContent>

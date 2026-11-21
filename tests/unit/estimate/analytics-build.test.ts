@@ -145,11 +145,31 @@ describe('buildEstimateAnalytics', () => {
     ]
     const r = build(events)
     const quick = r.timeline.find((e) => e.kind === 'quick_opens')
-    expect(quick).toMatchObject({ count: 3, at: '2026-11-10T10:00:00.000Z', until: '2026-11-10T12:00:00.000Z' })
+    expect(quick).toMatchObject({ count: 3, at: '2026-11-10T12:00:00.000Z', since: '2026-11-10T10:00:00.000Z' })
     expect(r.summary.opens).toBe(4)
     expect(r.summary.realVisits).toBe(1)
     expect(r.summary.avgSecondsPerVisit).toBe(100)
     expect(kinds(r.timeline)).toEqual(['visit', 'quick_opens', 'created'])
+  })
+
+  it('files a quick-open run under the day of its LAST open, with since = first', () => {
+    const r = build([
+      ...visit('s1', '2026-11-16T23:31:00.000Z', { seconds: 1 }),
+      ...visit('s2', '2026-11-17T22:12:00.000Z', { seconds: 2 }),
+    ])
+    const quick = r.timeline.find((e) => e.kind === 'quick_opens')
+    expect(quick).toMatchObject({ count: 2, at: '2026-11-17T22:12:00.000Z', since: '2026-11-16T23:31:00.000Z' })
+    expect(r.summary.lastViewedAt).toBe('2026-11-17T22:12:00.000Z')
+  })
+
+  it('exposes every visit, oldest first, with quick flag and visitor index', () => {
+    const r = build([
+      ...visit('s2', '2026-11-11T09:00:00.000Z', { seconds: 100, pct: 80, visitor: 'v2', device: 'desktop' }),
+      ...visit('s1', '2026-11-10T10:00:00.000Z', { seconds: 2 }),
+    ])
+    expect(r.visits.map((v) => v.sessionId)).toEqual(['s1', 's2'])
+    expect(r.visits[0]).toMatchObject({ quick: true, visitorIndex: 1, device: 'mobile', seconds: 2, visitorId: 'v1' })
+    expect(r.visits[1]).toMatchObject({ quick: false, visitorIndex: 2, device: 'desktop', seconds: 100, maxScrollPct: 80 })
   })
 
   it('treats a short visit that scrolled far as a real visit', () => {

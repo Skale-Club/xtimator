@@ -351,24 +351,43 @@ export async function getEstimateAnalytics(
 export interface EstimateAnalyticsContext {
   estimateNumber: string | null
   clientName: string | null
+  clientPhone: string | null
+  clientEmail: string | null
+  projectName: string | null
+  total: number | null
+  currency: string | null
 }
 
-/** Header context for the analytics drawer: estimate number and client name. */
+/** Header and follow-up context for the analytics drawer. */
 export async function getEstimateAnalyticsContext(
   supabase: SupabaseClient,
   estimateId: string
 ): Promise<EstimateAnalyticsContext> {
   const { data } = await supabase
     .from('estimates')
-    .select('estimate_number, project:projects(client:clients(name))')
+    .select('estimate_number, total, currency_code, project:projects(name, client:clients(name, phone, email))')
     .eq('id', estimateId)
     .maybeSingle()
-  type Client = { name: string | null }
-  type Project = { client: Client | Client[] | null }
-  const row = data as { estimate_number: string | null; project: Project | Project[] | null } | null
+  type Client = { name: string | null; phone: string | null; email: string | null }
+  type Project = { name: string | null; client: Client | Client[] | null }
+  const row = data as {
+    estimate_number: string | null
+    total: number | string | null
+    currency_code: string | null
+    project: Project | Project[] | null
+  } | null
   const project = Array.isArray(row?.project) ? row?.project[0] : row?.project
   const client = Array.isArray(project?.client) ? project?.client[0] : project?.client
-  return { estimateNumber: row?.estimate_number ?? null, clientName: client?.name ?? null }
+  const total = row?.total == null ? null : Number(row.total)
+  return {
+    estimateNumber: row?.estimate_number ?? null,
+    clientName: client?.name ?? null,
+    clientPhone: client?.phone?.trim() || null,
+    clientEmail: client?.email?.trim() || null,
+    projectName: project?.name ?? null,
+    total: total != null && Number.isFinite(total) ? total : null,
+    currency: row?.currency_code ?? null,
+  }
 }
 
 export interface EngagementDwell {

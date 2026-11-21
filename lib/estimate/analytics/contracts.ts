@@ -165,7 +165,9 @@ export type AnalyticsTimelineEntry =
       /** True for the first visit ever. */
       first: boolean
     }
-  | { kind: 'quick_opens'; at: string; count: number; until: string }
+  // `at` is the LAST open of the run (so it sorts and groups by when the client
+  // last came by); `since` is the first.
+  | { kind: 'quick_opens'; at: string; since: string; count: number }
   | { kind: 'action'; at: string; action: ActionEventType; target?: string | null }
   | { kind: 'accepted'; at: string; signedOnline: boolean }
   | { kind: 'declined'; at: string }
@@ -194,9 +196,25 @@ export interface EstimateAnalyticsSummary {
   unlockFails: number
 }
 
+/** One open of the share page, quick ones included. Oldest first in `visits`. */
+export interface AnalyticsVisit {
+  at: string
+  sessionId: string
+  visitorId: string
+  /** 1-based index of the visitor in order of first appearance. */
+  visitorIndex: number
+  device: 'mobile' | 'desktop' | null
+  seconds: number
+  maxScrollPct: number
+  /** Shorter than QUICK_OPEN_MAX_SECONDS and barely scrolled. */
+  quick: boolean
+}
+
 export interface EstimateAnalytics {
   summary: EstimateAnalyticsSummary
   interest: InterestResult
   /** Newest first. */
   timeline: AnalyticsTimelineEntry[]
+  /** Every visit including quick ones, oldest first. */
+  visits: AnalyticsVisit[]
 }
