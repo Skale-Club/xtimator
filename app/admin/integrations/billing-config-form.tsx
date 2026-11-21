@@ -251,6 +251,7 @@ export function BillingConfigForm({ current }: Props) {
       whisperUsdPerMinute: Number(whisperUsdPerMinute),
       estimateFeePct: Number(estimateFeePct),
       estimateFeeMinCents: Number(estimateFeeMinCents),
+      connectPaymentsOpen: current.connectPaymentsOpen,
       seatPriceCents: Number(seatPriceCents),
       seatPriceAnnualCents: Number(seatPriceAnnualCents),
       tiers: TIERS.reduce(

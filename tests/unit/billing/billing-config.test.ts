@@ -871,6 +871,13 @@ describe('credit scale: defaults', () => {
     expect(mergeStoredBillingConfig({ brlPricingEnabled: true }).brlPricingEnabled).toBe(true)
   })
 
+  it('connectPaymentsOpen defaults to true; a stored row without it loads as true, false is kept', () => {
+    expect(DEFAULT_BILLING_CONFIG.connectPaymentsOpen).toBe(true)
+    expect(mergeStoredBillingConfig({}).connectPaymentsOpen).toBe(true)
+    expect(mergeStoredBillingConfig({ markup: 6 }).connectPaymentsOpen).toBe(true)
+    expect(mergeStoredBillingConfig({ connectPaymentsOpen: false }).connectPaymentsOpen).toBe(false)
+  })
+
   it('the default config (with BRL fields) round-trips through the admin schema', () => {
     const parsed = billingConfigSchema.parse(DEFAULT_BILLING_CONFIG)
     expect(parsed.topUpPacks).toEqual(DEFAULT_BILLING_CONFIG.topUpPacks)
