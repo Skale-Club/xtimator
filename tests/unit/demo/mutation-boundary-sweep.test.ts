@@ -494,6 +494,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'saveIntegrationKey',
     'saveNotionAcademyConfig',
     'saveTelegramChatId',
+    'saveTelegramLeadsChatId',
     'saveTwilioCustomerMessagingServiceSid',
     'saveTwilioFromPhone',
     'saveWhatsAppConfig',
