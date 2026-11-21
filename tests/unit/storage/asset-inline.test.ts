@@ -103,10 +103,32 @@ describe('resolveAssetForRenderer — absolute URL passthrough', () => {
     expect(mockFetchStoredAsset).toHaveBeenCalledTimes(0)
   })
 
-  it('returns an http: URL untouched', async () => {
-    expect(await resolveAssetForRenderer('http://cdn.example.test/a.png')).toBe(
-      'http://cdn.example.test/a.png',
+  it('returns an https: URL to a public DNS host untouched', async () => {
+    expect(await resolveAssetForRenderer('https://cdn.example.test/a.png')).toBe(
+      'https://cdn.example.test/a.png',
     )
+    expect(mockFetchStoredAsset).not.toHaveBeenCalled()
+  })
+
+  // SSRF: react-pdf fetches a remote logo server-side, and the URL is user-controlled.
+  it.each([
+    'http://cdn.example.test/a.png',
+    'https://169.254.169.254/latest/meta-data/',
+    'https://127.0.0.1/a.png',
+    'https://2130706433/a.png',
+    'https://0x7f.1/a.png',
+    'https://[::1]/a.png',
+    'https://[fd00::1]/a.png',
+    'https://localhost/a.png',
+    'https://localhost./a.png',
+    'https://intranet/a.png',
+    'https://metadata.google.internal/a.png',
+    'https://printer.local/a.png',
+    'https://app.localhost/a.png',
+    'https://user:pass@cdn.example.test/a.png',
+    'ftp://cdn.example.test/a.png',
+  ])('refuses %s (returns null)', async (url) => {
+    expect(await resolveAssetForRenderer(url)).toBeNull()
     expect(mockFetchStoredAsset).not.toHaveBeenCalled()
   })
 

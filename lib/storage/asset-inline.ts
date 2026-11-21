@@ -39,7 +39,11 @@ import 'server-only'
  * transcode in here — the favicon route would pay it for nothing, and this
  * module would gain a `sharp` dependency it has no business holding.
  */
-import { isAcceptableAbsoluteAssetUrl, parseStorageProxyPath } from './asset-url'
+import {
+  isAcceptableAbsoluteAssetUrl,
+  isPublicHttpsAssetUrl,
+  parseStorageProxyPath,
+} from './asset-url'
 import { fetchStoredAsset } from './asset-source'
 
 /**
@@ -74,9 +78,11 @@ const MAX_INLINE_BYTES = 2 * 1024 * 1024
  *
  *   - falsy                          -> null
  *   - `/storage/{bucket}/{key}`      -> `data:{type};base64,...`, allowlisted image types only
- *   - acceptable absolute URL        -> returned BYTE-IDENTICAL (existing
- *                                       `*.supabase.co` rows keep today's exact
- *                                       react-pdf code path)
+ *   - data: URL, or https: URL to a    -> returned BYTE-IDENTICAL (existing
+ *     public DNS host                     `*.supabase.co` rows keep today's exact
+ *                                       react-pdf code path); http:, IP literals,
+ *                                       localhost, single-label and
+ *                                       .internal/.local hosts -> null
  *   - anything else                  -> null
  *
  * Never throws. Never logs — not even on the reject branches: a "could not
@@ -94,7 +100,12 @@ export async function resolveAssetForRenderer(
     // `isAcceptableAbsoluteAssetUrl` is Plan 01's shared predicate — do NOT
     // hand-roll a second definition of "an absolute URL we accept" here. This is
     // what keeps `javascript:` and protocol-relative `//host/...` out.
-    return isAcceptableAbsoluteAssetUrl(url) ? url : null
+    if (!isAcceptableAbsoluteAssetUrl(url)) return null
+    // SSRF defense in depth: react-pdf fetches a remote URL server-side, and the
+    // logo URL is user-controlled. `data:` fetches nothing; a remote URL must be
+    // https to a public-looking DNS name (no IP literal, localhost, intranet).
+    if (url.slice(0, 5).toLowerCase() === 'data:') return url
+    return isPublicHttpsAssetUrl(url) ? url : null
   }
 
   // `parseStorageProxyPath` returns the segments STILL ENCODED (it mirrors what

@@ -4,7 +4,7 @@ import { isAddonAvailable, ADD_COMPANY_UNAVAILABLE_ERROR } from '@/lib/billing/a
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
-import { storageProxyPath } from '@/lib/storage/asset-url'
+import { isOwnLogoProxyPath, storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
 import { redirect } from 'next/navigation'
@@ -200,6 +200,13 @@ export async function createOrUpdateCompany(
   // Settings → Defaults.
   const autoTaxRate = getDefaultTaxRate(primaryIndustry, data.state)
 
+  // The logo URL comes from the browser and is later fetched server-side by the
+  // PDF renderer (SSRF). Accept only empty or a proxy path under the caller's own
+  // user prefix (what the onboarding uploaders write); anything else is dropped.
+  const submittedLogoUrl = data.logoUrl || null
+  const logoUrlTrusted =
+    submittedLogoUrl === null || isOwnLogoProxyPath(submittedLogoUrl, [claims.sub as string])
+
   // Build the row object mapping form fields to DB columns
   const row = {
     user_id: claims.sub,
@@ -212,7 +219,7 @@ export async function createOrUpdateCompany(
     industry: primaryIndustry,
     industries: resolvedIndustries,
     brand_primary_color: data.brandPrimaryColor || SYSTEM_COLORS.primary,
-    logo_url: data.logoUrl || null,
+    logo_url: logoUrlTrusted ? submittedLogoUrl : null,
     address: data.address || null,
     city: data.city || null,
     state: data.state || null,
@@ -356,9 +363,11 @@ export async function createOrUpdateCompany(
 
   if (existing) {
     // Update existing company
+    // An untrusted logo URL leaves the stored logo untouched instead of wiping it.
+    const { logo_url: _logoUrl, ...rowWithoutLogo } = row
     const { error } = await supabase
       .from('companies')
-      .update(row)
+      .update(logoUrlTrusted ? row : rowWithoutLogo)
       .eq('id', existing.id)
 
     if (error) {

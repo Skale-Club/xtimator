@@ -179,3 +179,53 @@ export function isAcceptableAbsoluteAssetUrl(value: string): boolean {
   }
   return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'data:'
 }
+
+/**
+ * Stricter predicate for URLs a SERVER-SIDE renderer (react-pdf) is about to
+ * fetch on its own: closes the SSRF where a user-supplied logo URL pointed at an
+ * internal service. Accepts only `https:` URLs whose host is a public-looking
+ * DNS name: no credentials, no IP literal (v4 in any notation, or v6), no
+ * `localhost`, no single-label host and no `.internal` / `.local` / `.localhost`
+ * suffix. `data:` URIs are NOT handled here (they fetch nothing).
+ */
+export function isPublicHttpsAssetUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:') return false
+  if (parsed.username || parsed.password) return false
+
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, '')
+  if (!host) return false
+  // IPv6 literal (URL keeps the brackets in `hostname`).
+  if (host.includes(':') || host.startsWith('[')) return false
+  const labels = host.split('.')
+  // Single-label (intranet) names, including `localhost`.
+  if (labels.length < 2) return false
+  // IPv4 literal: WHATWG normalizes decimal/hex/octal forms to dotted quad, and no
+  // real TLD is all digits, so a numeric last label means an IP.
+  if (/^\d+$/.test(labels[labels.length - 1])) return false
+  const tld = labels[labels.length - 1]
+  if (tld === 'internal' || tld === 'local' || tld === 'localhost') return false
+  return true
+}
+
+/**
+ * True when `value` is a same-origin storage proxy path in the `logos` bucket
+ * whose first key segment is one of `ownerIds` (a company id or a user id, the
+ * two prefixes the logo uploaders write under). Used to vet a logo URL that
+ * arrives from the browser before it is persisted: anything else (an arbitrary
+ * external URL) would later be fetched server-side by the PDF renderer.
+ */
+export function isOwnLogoProxyPath(value: string, ownerIds: readonly string[]): boolean {
+  const parsed = parseStorageProxyPath(value)
+  if (!parsed || parsed.bucket !== 'logos') return false
+  try {
+    return ownerIds.includes(decodeURIComponent(parsed.segments[0]))
+  } catch {
+    return false
+  }
+}

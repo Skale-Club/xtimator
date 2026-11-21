@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
-import { storageProxyPath } from '@/lib/storage/asset-url'
+import { isOwnLogoProxyPath, storageProxyPath } from '@/lib/storage/asset-url'
 import { convertImageToWebp } from '@/lib/image/webp'
 import { imagePositionSchema } from '@/lib/schemas/admin'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -84,7 +84,23 @@ export async function updateCompanySettings(formData: FormData) {
     : DEFAULT_ESTIMATE_TEMPLATE_ID
 
   // Handle logo upload
-  let logoUrl = existingLogoUrl
+  //
+  // `existingLogoUrl` comes from the browser, and the PDF renderer later fetches
+  // whatever is stored here server-side (SSRF). Accept only: empty (logo
+  // removed), exactly the stored value, or a storage proxy path under THIS
+  // company's prefix. Anything else keeps the stored value.
+  let logoUrl: string | null = existingLogoUrl
+  if (existingLogoUrl) {
+    const { data: stored } = await supabase
+      .from('companies')
+      .select('logo_url')
+      .eq('id', company.id)
+      .single()
+    const storedLogoUrl = (stored?.logo_url as string | null | undefined) ?? null
+    const trusted =
+      existingLogoUrl === storedLogoUrl || isOwnLogoProxyPath(existingLogoUrl, [company.id])
+    logoUrl = trusted ? existingLogoUrl : storedLogoUrl
+  }
   const logoFile = formData.get('logo') as File | null
   if (logoFile && logoFile.size > 0) {
     const storagePath = `${company.id}/logo.webp`
