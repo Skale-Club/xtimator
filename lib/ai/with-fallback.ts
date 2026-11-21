@@ -84,6 +84,22 @@ export class TruncatedOutputError extends Error {
 }
 
 /**
+ * Marker error thrown by the OpenRouter adapter when the model replied without
+ * calling the `create_estimate` tool (a prose answer: Claude 5.5 runs with
+ * tool_choice 'auto'). Typed so the in-call retry in
+ * `provider-with-fallback.ts` can tell it apart from a real HTTP/network
+ * failure. If the retry also fails it still surfaces as
+ * `ProvidersUnavailableError` (diagnosable via `.cause`).
+ */
+export class NoToolCallError extends Error {
+  readonly noToolCall = true as const
+  constructor(model: string) {
+    super(`OpenRouter did not return a structured estimate from model ${model}`)
+    this.name = 'NoToolCallError'
+  }
+}
+
+/**
  * Run the OpenRouter `primary()`.
  *   - succeeds -> { result, servedBy: 'primary' }.
  *   - throws `InvalidEstimateOutputError` -> rethrown UNCHANGED so the outer

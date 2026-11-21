@@ -20,7 +20,7 @@ import {
   ESTIMATE_V2_TOP_PROPERTIES,
   ESTIMATE_V2_UNIT_PROPERTY,
 } from '../tool-schema-v2'
-import { InvalidEstimateOutputError, TruncatedOutputError } from '../with-fallback'
+import { InvalidEstimateOutputError, NoToolCallError, TruncatedOutputError } from '../with-fallback'
 import { toRefineEstimateInput } from './refine-input'
 import { langfuseClient } from '@/lib/observability/langfuse'
 import { recordAICost } from '@/lib/billing/record-ai-cost'
@@ -433,9 +433,7 @@ export class OpenRouterAdapter implements AIProvider {
     }
 
     if (!argsJson) {
-      throw new Error(
-        `OpenRouter did not return a structured estimate from model ${this.model}`
-      )
+      throw new NoToolCallError(this.model)
     }
 
     try {
