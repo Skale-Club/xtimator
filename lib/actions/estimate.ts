@@ -272,6 +272,16 @@ export async function saveEstimate(rawEstimateData: SaveEstimateInput) {
     if (rpcError.code === 'P0003') {
       return { error: 'estimate_not_current' }
     }
+    // P0021 estimate_foreign_row (20261121120001): the payload carried a section
+    // or item id that belongs to another estimate, or the caller's company does
+    // not own this one. Never a normal editor state, so it is logged and fails
+    // like any other save error (not as a conflict: a forced re-save would only
+    // hit it again).
+    if (rpcError.code === 'P0021') {
+      console.error('[saveEstimate] refused rows that belong to another estimate', {
+        estimateId: estimateData.id,
+      })
+    }
     return { error: 'Failed to save estimate' }
   }
 
