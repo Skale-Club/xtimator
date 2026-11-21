@@ -6,7 +6,16 @@ import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useIsTwa } from '@/components/pwa/twa-provider'
 
-export function ManageSubscriptionButton({ isOwner = true }: { isOwner?: boolean }) {
+export function ManageSubscriptionButton({
+  isOwner = true,
+  label = 'Manage Subscription',
+  variant = 'outline',
+}: {
+  isOwner?: boolean
+  /** Button text (a translation key); the portal is the same either way. */
+  label?: string
+  variant?: 'outline' | 'default'
+}) {
   const { t } = useTranslation()
   const isTwa = useIsTwa()
   const [loading, setLoading] = useState(false)
@@ -33,8 +42,8 @@ export function ManageSubscriptionButton({ isOwner = true }: { isOwner?: boolean
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button onClick={handleManage} disabled={loading || !isOwner} variant="outline">
-        {loading ? t('Opening portal...') : t('Manage Subscription')}
+      <Button onClick={handleManage} disabled={loading || !isOwner} variant={variant}>
+        {loading ? t('Opening portal...') : t(label)}
       </Button>
       {!isOwner && (
         <p className="text-xs text-muted-foreground">{t('Only the company owner can manage billing.')}</p>

@@ -164,4 +164,19 @@ describe('CreditBalanceCard (CREDITUI-03 / CREDITUI-04)', () => {
       expect(container.innerHTML).toContain('0')
     })
   })
+
+  it('hides the low-credit warning when the balance is zero ("almost gone" next to "used up")', () => {
+    const { queryByTestId } = render(<CreditBalanceCard percentUsed={100} tier="free" balance={0} />)
+    expect(queryByTestId('credit-low-warning')).toBeNull()
+  })
+
+  it('hides the low-credit warning when the company is paywalled', () => {
+    const { queryByTestId } = render(<CreditBalanceCard percentUsed={95} tier="free" balance={20} paywalled />)
+    expect(queryByTestId('credit-low-warning')).toBeNull()
+  })
+
+  it('still shows the genuine low state when credits remain and the company is not paywalled', () => {
+    const { getByTestId } = render(<CreditBalanceCard percentUsed={95} tier="free" balance={20} />)
+    expect(getByTestId('credit-low-warning')).toBeTruthy()
+  })
 })

@@ -49,6 +49,8 @@ type CreditBalanceProps = {
   topupEligible?: boolean
   /** Android TWA (Google Play): no purchase links or subscribe nudges. */
   hidePurchase?: boolean
+  /** Paywalled or blocked: the page already says the credits are gone, so no "almost gone" box. */
+  paywalled?: boolean
 }
 
 export function CreditBalanceCard({ className, ...props }: CreditBalanceProps & { className?: string }) {
@@ -76,11 +78,21 @@ export function CreditBalanceBody({
   lots = [],
   topupEligible = true,
   hidePurchase = false,
+  paywalled = false,
   showCaption = true,
   compact = false,
 }: CreditBalanceProps & { showCaption?: boolean; compact?: boolean }) {
+  // Out of credits (or paywalled) is not "low": the plan card and the global
+  // banner already say it, so the warning box would only repeat it as "almost gone".
+  const outOfCredits = paywalled || (balance !== undefined && balance <= 0)
   const band =
-    percentUsed === null ? 'healthy' : percentUsed >= 90 ? 'critical' : percentUsed >= 70 ? 'warning' : 'healthy'
+    outOfCredits || percentUsed === null
+      ? 'healthy'
+      : percentUsed >= 90
+        ? 'critical'
+        : percentUsed >= 70
+          ? 'warning'
+          : 'healthy'
 
   // Owner 2026-11-20: no "free credits never expire" caption; only the paid
   // plan's expiry rule is worth a line.

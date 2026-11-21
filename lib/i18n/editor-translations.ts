@@ -51,10 +51,13 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
       'Ainda não foi compartilhado. A resposta do cliente aparece aqui depois que você compartilhar o orçamento.',
     // Estimate options panel (presentation-settings-panel.tsx)
     'Estimate options': 'Ajustes do orçamento',
+    'Estimate date': 'Data do orçamento',
+    'Pick the date shown on this estimate.': 'Escolha a data exibida neste orçamento.',
     'Estimate language': 'Idioma do orçamento',
     'Translate this estimate to': 'Traduzir este orçamento para',
-    'The texts and items are translated with AI and use a few credits.':
-      'Os textos e itens são traduzidos com IA e usam alguns créditos.',
+    'The texts and items are translated with AI.': 'Os textos e itens são traduzidos com IA.',
+    'The client has already seen this. Changes show on their next view.':
+      'O cliente já viu isto. As alterações aparecem na próxima visualização.',
     'Translate': 'Traduzir',
     'Translating…': 'Traduzindo…',
     'Estimate translated': 'Orçamento traduzido',
@@ -146,10 +149,13 @@ export const editorTranslations: Record<'pt' | 'es', Dict> = {
       'Aún no se ha compartido. La respuesta del cliente aparece aquí después de compartir el presupuesto.',
     // Estimate options panel (presentation-settings-panel.tsx)
     'Estimate options': 'Ajustes del presupuesto',
+    'Estimate date': 'Fecha del presupuesto',
+    'Pick the date shown on this estimate.': 'Elige la fecha que se muestra en este presupuesto.',
     'Estimate language': 'Idioma del presupuesto',
     'Translate this estimate to': 'Traducir este presupuesto al',
-    'The texts and items are translated with AI and use a few credits.':
-      'Los textos y las partidas se traducen con IA y usan algunos créditos.',
+    'The texts and items are translated with AI.': 'Los textos y las partidas se traducen con IA.',
+    'The client has already seen this. Changes show on their next view.':
+      'El cliente ya vio esto. Los cambios se muestran en su próxima visualización.',
     'Translate': 'Traducir',
     'Translating…': 'Traduciendo…',
     'Estimate translated': 'Presupuesto traducido',

@@ -271,6 +271,9 @@ export default async function BillingPage() {
               )}
             </p>
           </div>
+          {!isTwa && hasStripeCustomer && (
+            <ManageSubscriptionButton isOwner={isOwner} label="Update payment method" />
+          )}
         </div>
       )}
 
@@ -309,17 +312,8 @@ export default async function BillingPage() {
                 </span>
               )
             )}
-            {/* Owner 2026-11-20: no "free credits never expire" line - only the
-                paywall's consequence is worth saying. */}
-            {data.tier === 'free' && paywall.state === 'paywalled' && (
-              <span>
-                {isTwa ? (
-                  <T>Your free credits are used up.</T>
-                ) : (
-                  <T>Your free credits are used up. Until you subscribe, your estimates are read-only.</T>
-                )}
-              </span>
-            )}
+            {/* "Credits used up" is said once on this page, by the badge above
+                (the app-wide banner covers the rest). */}
           </p>
           {!isTwa && isPaid && !hasStripeCustomer && (
             <p className="text-sm text-muted-foreground">
@@ -345,6 +339,7 @@ export default async function BillingPage() {
             lots={lots}
             topupEligible={topupEligible}
             hidePurchase={isTwa}
+            paywalled={blocked}
             showCaption={isPaid}
           />
         </div>

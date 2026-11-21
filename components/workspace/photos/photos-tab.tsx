@@ -14,7 +14,7 @@ import {
 import type { Photo } from '@/lib/queries/photo'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { useEstimateVersionSlot } from '@/components/workspace/estimate-version-context'
-import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface PhotosTabProps {
   projectId: string
@@ -114,7 +114,9 @@ export function PhotosTab({
   return (
     <div className="space-y-6 py-4">
       {readOnly ? (
-        <PaywallReadOnlyNotice />
+        <p className="text-sm text-muted-foreground" data-testid="photos-read-only-note">
+          {t('Photos are read-only until you subscribe.')}
+        </p>
       ) : (
         <PhotoDropZone
           projectId={projectId}

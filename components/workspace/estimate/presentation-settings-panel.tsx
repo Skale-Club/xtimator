@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, type ReactNode, type JSX, type RefObject } from 'react'
-import { Eye, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -28,7 +28,6 @@ import {
 } from '@/lib/estimate/presentation-settings'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import Link from 'next/link'
-import { PaywallReadOnlyNotice } from '@/components/billing/paywall-read-only'
 
 // ---------------------------------------------------------------------------
 // Phase 162-04 (DOCUX-01) — The gear-triggered Presentation Settings Panel
@@ -246,17 +245,10 @@ function PanelBody({
   return (
     <div className="flex flex-col gap-5 px-4 pt-2 pb-5">
       {estimateSentOrViewed && (
-        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <Eye className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            {t(
-              'This estimate has already been seen by the client. Changes here will affect the next view.',
-            )}
-          </span>
-        </div>
+        <p className="px-1 text-[13px] text-muted-foreground" data-testid="presentation-seen-note">
+          {t('The client has already seen this. Changes show on their next view.')}
+        </p>
       )}
-
-      {readOnly && <PaywallReadOnlyNotice />}
 
       {/* Paywalled: a native disabled fieldset turns off every control below
           (client picker, segmented choices, switches, the tax field) while the
@@ -296,7 +288,7 @@ function PanelBody({
                   {t('Translate this estimate to')} {LANGUAGE_NAMES[pendingLanguage]}?
                 </p>
                 <p className="text-[13px] text-muted-foreground">
-                  {t('The texts and items are translated with AI and use a few credits.')}
+                  {t('The texts and items are translated with AI.')}
                 </p>
                 <div className="flex gap-2">
                   <Button

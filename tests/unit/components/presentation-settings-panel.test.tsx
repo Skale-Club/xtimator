@@ -223,21 +223,16 @@ describe('PresentationSettingsPanel (DOCUX-01)', () => {
     }
   })
 
-  it('sent or viewed notice — renders amber banner when estimateSentOrViewed=true', async () => {
+  it('sent or viewed note — renders one muted line (no amber box) when estimateSentOrViewed=true', async () => {
     await renderPanel({ estimateSentOrViewed: true })
-    // The banner text (Portuguese/EN passthrough via the mocked useTranslation
-    // returns the source string verbatim). Match a distinctive substring so
-    // the exact copy can evolve without breaking this test.
-    const banner = screen.getByText(/already been seen/i)
-    expect(banner).toBeTruthy()
-    // Amber styling — the banner container should carry an amber background class
-    const container = banner.closest('div')
-    expect(container?.className).toMatch(/amber/)
+    const note = screen.getByTestId('presentation-seen-note')
+    expect(note.textContent).toMatch(/already seen/i)
+    expect(note.className).not.toMatch(/amber|border/)
   })
 
-  it('sent or viewed notice — hidden when estimateSentOrViewed=false', async () => {
+  it('sent or viewed note — hidden when estimateSentOrViewed=false', async () => {
     await renderPanel({ estimateSentOrViewed: false })
-    expect(screen.queryByText(/already been seen/i)).toBeNull()
+    expect(screen.queryByTestId('presentation-seen-note')).toBeNull()
   })
 
   it('Tax mode "off" writes { tax: { mode: "off", preservedRate: <current> } } — never mutates tax_rate to 0', async () => {
@@ -377,12 +372,12 @@ describe('PresentationSettingsPanel — estimate language', () => {
 // refuses every write this panel makes, so the panel shows the settings with
 // every control off instead of accepting changes that vanish on reload.
 describe('PresentationSettingsPanel — paywalled (readOnly)', () => {
-  it('shows the Subscribe notice and disables the client slot and every control', async () => {
+  it('disables the client slot and every control, with no second notice', async () => {
     const { onChange } = await renderPanel({
       readOnly: true,
       clientSlot: <button data-testid="link-client">Link Client</button>,
     })
-    expect(screen.getByTestId('paywall-read-only-notice')).toBeTruthy()
+    expect(screen.queryByTestId('paywall-read-only-notice')).toBeNull()
     const slot = screen.getByTestId('link-client') as HTMLButtonElement
     expect(slot.closest('fieldset[disabled]')).toBeTruthy()
     expect(slot.matches(':disabled')).toBe(true)
