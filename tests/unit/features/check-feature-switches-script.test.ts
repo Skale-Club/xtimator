@@ -65,6 +65,15 @@ describe('check-feature-switches.mjs safety', () => {
     expect(code).toMatch(/target:\s+\$\{target\.host\}:\$\{target\.port\}\/\$\{target\.database\}/)
   })
 
+  it('supports --only=insert-guard and reports an open insert gap as INFO, never FAIL', () => {
+    expect(src).toContain('--only=insert-guard')
+    expect(code).toContain("only !== 'insert-guard'")
+    expect(code).toContain('GAP OPEN: migration 20261121170000 not applied')
+    expect(code).toContain('companies_protect_billing_columns_on_insert')
+    // the open-gap wording is only ever passed to info()
+    expect(code).not.toMatch(/fail\([^)]*GAP OPEN/)
+  })
+
   it('exits non-zero when a check failed', () => {
     expect(code).toMatch(/process\.exit\(results\.FAIL > 0 \? 1 : 0\)/)
   })
