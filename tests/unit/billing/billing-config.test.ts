@@ -565,7 +565,13 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
     // consumers — added here together so the dormancy guard stays green when
     // Plan 03 lands, while the guard still fails on any OTHER consumer.
     const INVOICE_ACTION_PATH = resolve(process.cwd(), 'lib/actions/invoice.ts')
-    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/integrations/stripe/page.tsx')
+    // XTM-D-20261121-feature-switches: the disclosure moved to Settings ->
+    // Client actions (the old Stripe page is now a redirect). The page reads
+    // estimateFeePct for the fee notice. lib/features/platform-feature-state.ts
+    // reads connectPaymentsOpen, the platform-wide stop for client payments,
+    // and is the only way gates obtain it. Both are legitimate consumers.
+    const PAYMENTS_PAGE_PATH = resolve(process.cwd(), 'app/(app)/settings/client-actions/page.tsx')
+    const PLATFORM_FEATURE_STATE_PATH = resolve(process.cwd(), 'lib/features/platform-feature-state.ts')
     // Phase 115 (Credit Balance UX): the owner-facing credit overview query reads
     // lowBalanceThresholds from getBillingConfig to surface low-balance guidance
     // (CREDITUI-01) — the runtime-authoritative billing source, a legitimate
@@ -700,6 +706,7 @@ describe('BILLCFG-03: getBillingConfig consumed ONLY by the reader + credit-ledg
       TOPUP_SESSION_PATH,
       INVOICE_ACTION_PATH,
       PAYMENTS_PAGE_PATH,
+      PLATFORM_FEATURE_STATE_PATH,
       CREDITS_QUERY_PATH,
       SEAT_BILLING_PATH,
       SEAT_COST_SUMMARY_PATH,

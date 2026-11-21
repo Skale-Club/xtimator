@@ -8,13 +8,15 @@ import { verifyOAuthState, exchangeCode } from '@/lib/billing/connect-oauth'
 import { getStripeClient } from '@/lib/billing/stripe-client'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { demoGuardResponse } from '@/lib/demo/guard'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 
 /**
  * GET /api/stripe/connect/callback
  *
  * Stripe Connect OAuth callback. Verifies the HMAC state, exchanges the code
  * for a `stripe_user_id`, persists it on `companies`, and redirects back to
- * `/settings/integrations/stripe` with `?connected=1` (success) or `?error=...` (failure).
+ * `/settings/client-actions` with `?connected=1` (success) or `?error=...` (failure).
  *
  * IDEMPOTENT: If the company already has `stripe_account_id` set, the handler
  * short-circuits without re-exchanging the code. OAuth codes are single-use
@@ -27,7 +29,7 @@ export async function GET(req: NextRequest) {
   const state = url.searchParams.get('state')
   const stripeError = url.searchParams.get('error')
   const base = resolveBaseUrl(req)
-  const settingsUrl = new URL('/settings/integrations/stripe', base)
+  const settingsUrl = new URL('/settings/client-actions', base)
 
   if (stripeError) {
     settingsUrl.searchParams.set('error', stripeError)
@@ -50,7 +52,7 @@ export async function GET(req: NextRequest) {
   const svc = requireServiceClient()
   const { data: company } = await svc
     .from('companies')
-    .select('id, stripe_account_id')
+    .select(`id, ${COMPANY_FEATURE_COLUMNS}`)
     .eq('id', companyId)
     .single()
   if (!company) return NextResponse.redirect(new URL('/onboarding', base))
@@ -68,6 +70,18 @@ export async function GET(req: NextRequest) {
     await requireCompanyOwner(company.id as string)
   } catch {
     settingsUrl.searchParams.set('error', 'owner_required')
+    return NextResponse.redirect(settingsUrl)
+  }
+
+  // The platform switch may have been turned off while the owner was on
+  // Stripe's screen: re-check before touching the code.
+  const payments = resolveCompanyFeatures(company, await getPlatformFeatureState()).onlinePayments
+  if (!payments.allowed) {
+    settingsUrl.searchParams.set('error', 'payments_not_available')
+    return NextResponse.redirect(settingsUrl)
+  }
+  if (!payments.enabled) {
+    settingsUrl.searchParams.set('error', 'payments_off')
     return NextResponse.redirect(settingsUrl)
   }
 

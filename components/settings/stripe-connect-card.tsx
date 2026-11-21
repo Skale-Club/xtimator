@@ -24,7 +24,7 @@ export type ConnectState =
     }
 
 /**
- * Four-state card for the /settings/payments page. The `not_configured`
+ * Four-state card for the Client actions settings page. The `not_configured`
  * branch fires when the platform-level Connect Client ID is unset; the
  * `not_connected` branch shows the Connect CTA; the `connected` branch shows
  * the linked Stripe account + a Disconnect button (POST to disconnect API);
@@ -37,9 +37,12 @@ export type ConnectState =
 export function StripeConnectCard({
   state,
   feePct,
+  readOnly = false,
 }: {
   state: ConnectState
   feePct: number
+  /** Non-owners see the state but cannot connect or disconnect. */
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
@@ -140,6 +143,8 @@ export function StripeConnectCard({
             className="mt-3 rounded-md border-l-[3px] border-l-amber-500 bg-amber-500/5 p-3 text-sm text-muted-foreground"
           >
             {t(`Xtimator charges a ${feeLabel} fee on each payment you receive through the platform | this is separate from Stripe's processing fees.`)}
+            {' '}
+            {t('If you refund a payment, the Xtimator fee is not returned.')}
           </p>
         )}
         {error && (
@@ -147,14 +152,14 @@ export function StripeConnectCard({
         )}
       </CardContent>
       <CardFooter className="px-5 sm:px-6">
-        {state.kind === 'not_connected' && (
+        {state.kind === 'not_connected' && !readOnly && (
           <a href="/api/stripe/connect/initiate">
             <Button variant="primary">
               {t('Connect Stripe Account')}
             </Button>
           </a>
         )}
-        {(state.kind === 'connected' || state.kind === 'restricted') && (
+        {(state.kind === 'connected' || state.kind === 'restricted') && !readOnly && (
           <Button
             variant="outline"
             onClick={handleDisconnect}

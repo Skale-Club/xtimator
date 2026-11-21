@@ -55,11 +55,6 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/queries/auth', () => ({
   getAuthClaims: (...args: unknown[]) => getAuthClaims(...args),
 }))
-// The Connect initiation case exercises the route with onboarding OPEN; the
-// closed-at-launch switch is covered in tests/unit/billing/connect-availability.
-vi.mock('@/lib/billing/connect-availability', () => ({
-  isConnectOnboardingOpen: () => true,
-}))
 vi.mock('@/lib/demo/guard', () => ({
   demoGuardResponse: (...args: unknown[]) => demoGuardResponse(...args),
   isDemoSession: (...args: unknown[]) => isDemoSession(...args),
@@ -117,6 +112,8 @@ type RouteCase = {
   unauthenticatedStatus: number
   assertUnauthenticated?: (response: Response) => void
   effects: Array<ReturnType<typeof vi.fn>>
+  /** Optional per-route fixture, run before the normal-tenant request. */
+  prepare?: () => void
   assertNormalEffect: () => void
 }
 
@@ -191,6 +188,18 @@ const routeCases: RouteCase[] = [
       cookieSet,
       buildAuthorizeUrl,
     ],
+    // Feature switches on and no Stripe account linked yet: the only state
+    // that may start the OAuth flow.
+    prepare: () =>
+      serviceSingle.mockResolvedValue({
+        data: {
+          id: 'company-id',
+          email: 'owner@example.com',
+          online_payments_allowed: true,
+          online_payments_enabled: true,
+          stripe_account_id: null,
+        },
+      }),
     assertNormalEffect: () => {
       expect(mintOAuthState).toHaveBeenCalledWith('company-id')
       expect(cookieSet).toHaveBeenCalled()
@@ -217,6 +226,7 @@ const routeCases: RouteCase[] = [
         stripe_account_id: null,
         stripe_connect_status: 'disconnected',
       })
+      expect(revalidatePath).toHaveBeenCalledWith('/settings/client-actions')
       expect(revalidatePath).toHaveBeenCalledWith('/settings/integrations/stripe')
     },
   },
@@ -313,6 +323,7 @@ describe('SAFE-01/SAFE-02: billing and Stripe Connect routes deny demo effects',
     })
 
     it(`preserves the normal-tenant effect path for ${routeCase.name}`, async () => {
+      routeCase.prepare?.()
       const handler = await routeCase.load()
       const response = await handler(routeCase.request())
 

@@ -478,6 +478,7 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
   ]),
   ...excepted('app/admin/companies/actions.ts', 'admin-only', ADMIN_AUTHORITY, ADMIN_REASON, [
     'setByokConfig',
+    'setCompanyFeatureAllowed',
     'setCompanyModelOverride',
     'setDemoEstimateQuota',
   ]),
@@ -823,6 +824,10 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'listChatConversations',
     'normalizeChatInput',
     'resolveCurrentEstimateId',
+  ]),
+  ...guarded('lib/actions/client-actions.ts', 'assertWritable', [
+    'setDigitalSignatureEnabled',
+    'setOnlinePaymentsEnabled',
   ]),
   ...guarded('lib/actions/client.ts', 'assertWritable', [
     'createClientAction',

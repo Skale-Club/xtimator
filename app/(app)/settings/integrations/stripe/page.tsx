@@ -1,130 +1,22 @@
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { redirect } from 'next/navigation'
-import { getAuthClaims } from '@/lib/queries/auth'
-import { requireServiceClient } from '@/lib/supabase/service'
-import { getIntegrationKey } from '@/lib/platform-config'
-import { getBillingConfig } from '@/lib/billing/billing-config'
-import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
-import { isDemoCompany } from '@/lib/demo/config'
-import { getActiveCompanyId } from '@/lib/queries/active-company'
-import {
-  StripeConnectCard,
-  type ConnectState,
-} from '@/components/settings/stripe-connect-card'
-import { Card } from '@/components/ui/card'
-import { T } from '@/components/i18n/t'
-import { SettingsHeader } from '@/components/settings/settings-ui'
 
-export const metadata = { title: 'Stripe | Settings' }
-
-export default async function StripeIntegrationPage({
+/**
+ * Stripe settings moved to "Client actions" (owner decision
+ * XTM-D-20261121-feature-switches). Old links, bookmarks and Stripe return
+ * URLs keep working: redirect and keep the query string (?connected=1, ?error=).
+ * The demo guard lives on the target page.
+ */
+export default async function StripeIntegrationRedirect({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | undefined>>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const claims = await getAuthClaims()
-  if (!claims) redirect('/?auth=login')
-
-  // Fix 3: resolve the ACTIVE company (multi-company-safe) instead of
-  // `.eq('user_id', claims.sub).single()`. The old lookup broke for a
-  // multi-company owner (2+ rows → PostgREST error on `.single()` → redirect
-  // to /onboarding) and, for a non-owner member (whose user_id never matches
-  // `companies.user_id`), would also fail to resolve — or, worse, could
-  // show/disconnect the WRONG company if a future schema changed that
-  // assumption. `getActiveCompanyId()` is the same active-company resolver
-  // every other billing route now uses.
-  const activeCompanyId = await getActiveCompanyId()
-  if (!activeCompanyId) redirect('/onboarding')
-
-  const svc = requireServiceClient()
-  const { data: company } = await svc
-    .from('companies')
-    .select(
-      'id, stripe_account_id, stripe_connect_status, stripe_account_email, stripe_account_display_name, stripe_charges_enabled, stripe_connect_disabled_reason'
-    )
-    .eq('id', activeCompanyId)
-    .single()
-  if (!company) redirect('/onboarding')
-  if (isDemoCompany(company.id)) redirect('/settings/company')
-
-  const clientId = await getIntegrationKey('stripe_connect_client_id')
-
-  let state: ConnectState
-  // Connect onboarding is closed at launch (lib/billing/connect-availability):
-  // a company that never connected sees the "not enabled" state, never the CTA.
-  if (!clientId || (!isConnectOnboardingOpen() && !company.stripe_account_id)) {
-    state = { kind: 'not_configured' }
-  } else if (
-    company.stripe_account_id &&
-    company.stripe_connect_status === 'active'
-  ) {
-    state = {
-      kind: 'connected',
-      displayName:
-        (company.stripe_account_display_name as string | null) ??
-        (company.stripe_account_id as string),
-      email: (company.stripe_account_email as string | null) ?? null,
-    }
-  } else if (
-    // CONNECT-HEALTH-01: Stripe restricted a previously-connected account
-    // (failed verification, a rejected review, a paused capability, ...).
-    // The account is still linked (stripe_account_id present) but cannot
-    // currently be paid — surface that distinctly from "never connected".
-    company.stripe_account_id &&
-    company.stripe_connect_status === 'restricted'
-  ) {
-    state = {
-      kind: 'restricted',
-      displayName:
-        (company.stripe_account_display_name as string | null) ??
-        (company.stripe_account_id as string),
-      email: (company.stripe_account_email as string | null) ?? null,
-      disabledReason:
-        (company.stripe_connect_disabled_reason as string | null) ?? null,
-    }
-  } else {
-    state = { kind: 'not_connected' }
-  }
-
-  const { estimateFeePct } = await getBillingConfig()
-
   const sp = await searchParams
-  const toastError = sp.error
-  const toastConnected = sp.connected === '1'
-
-  return (
-    <div className="space-y-6">
-      <Link
-        href="/settings/integrations"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" aria-hidden />
-        <T>Integrations</T>
-      </Link>
-      <SettingsHeader
-        title={<T>Stripe</T>}
-        description={<T>Connect Stripe to let customers pay estimates online.</T>}
-      />
-      {toastConnected && (
-        <Card
-          variant="glass"
-          className="border-l-[3px] border-l-emerald-500 p-4 text-sm"
-        >
-          <T>Stripe account connected successfully.</T>
-        </Card>
-      )}
-      {toastError && (
-        <Card
-          variant="glass"
-          className="border-l-[3px] border-l-[hsl(var(--destructive))] p-4 text-sm text-destructive"
-        >
-          {toastError === 'platform_not_configured'
-            ? <T>Stripe Connect is not yet enabled on the platform.</T>
-            : <T text={`Connection failed: ${toastError}`} />}
-        </Card>
-      )}
-      <StripeConnectCard state={state} feePct={estimateFeePct} />
-    </div>
-  )
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(sp)) {
+    if (Array.isArray(value)) value.forEach((v) => qs.append(key, v))
+    else if (value !== undefined) qs.set(key, value)
+  }
+  const query = qs.toString()
+  redirect(`/settings/client-actions${query ? `?${query}` : ''}`)
 }

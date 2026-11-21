@@ -44,6 +44,12 @@ vi.mock('@/lib/billing/billing-config', () => ({
   getBillingConfig: (...args: unknown[]) => getBillingConfig(...args),
 }))
 
+// Platform-wide global stop (billing_config.connectPaymentsOpen). Defaults open.
+const getPlatformFeatureState = vi.fn()
+vi.mock('@/lib/features/platform-feature-state', () => ({
+  getPlatformFeatureState: (...args: unknown[]) => getPlatformFeatureState(...args),
+}))
+
 // Per-table Supabase mock. estimates/companies selects + invoices insert.
 const invoicesInsert = vi.fn()
 const invoicesInsertSelect = vi.fn()
@@ -85,6 +91,8 @@ function invoicesSelectChain() {
   return chain
 }
 
+const ON = { id: 'co_1', online_payments_allowed: true, online_payments_enabled: true }
+
 function configureSupabase(opts: {
   estimate?: Record<string, unknown> | null
   company?: Record<string, unknown> | null
@@ -102,6 +110,8 @@ function configureSupabase(opts: {
   }
   const company = opts.company ?? {
     id: 'co_1',
+    online_payments_allowed: true,
+    online_payments_enabled: true,
     stripe_account_id: 'acct_abc123',
     stripe_connect_status: 'active',
   }
@@ -151,6 +161,7 @@ beforeEach(() => {
   getAuthContext.mockResolvedValue({ userId: 'u_1', companyId: 'co_1' })
   requireCompanyOwner.mockResolvedValue({ userId: 'u_1', companyId: 'co_1', role: 'owner' })
   getBillingConfig.mockResolvedValue({ estimateFeePct: 0.01, estimateFeeMinCents: 1 })
+  getPlatformFeatureState.mockResolvedValue({ connectPaymentsOpen: true })
   createConnectInvoice.mockResolvedValue({
     stripeInvoiceId: 'in_123',
     stripeCustomerId: 'cus_123',
@@ -186,7 +197,7 @@ describe('INVOICE-03: generateInvoice action', () => {
   })
 
   it('refuses when stripe_account_id is null', async () => {
-    configureSupabase({ company: { id: 'co_1', stripe_account_id: null, stripe_connect_status: 'active' } })
+    configureSupabase({ company: { ...ON, stripe_account_id: null, stripe_connect_status: 'active' } })
     const { generateInvoice } = await import('@/lib/actions/invoice')
 
     const result = await generateInvoice('est_1', { kind: 'full' })
@@ -195,7 +206,7 @@ describe('INVOICE-03: generateInvoice action', () => {
   })
 
   it('refuses when stripe_connect_status is not active', async () => {
-    configureSupabase({ company: { id: 'co_1', stripe_account_id: 'acct_abc123', stripe_connect_status: 'pending' } })
+    configureSupabase({ company: { ...ON, stripe_account_id: 'acct_abc123', stripe_connect_status: 'pending' } })
     const { generateInvoice } = await import('@/lib/actions/invoice')
 
     const result = await generateInvoice('est_1', { kind: 'full' })
@@ -383,7 +394,7 @@ describe('CONNECT-HEALTH-01: restricted Connect account blocks invoicing', () =>
   it('refuses with a distinct message when stripe_charges_enabled is false, and never calls Stripe', async () => {
     configureSupabase({
       company: {
-        id: 'co_1',
+        ...ON,
         stripe_account_id: 'acct_abc123',
         stripe_connect_status: 'restricted',
         stripe_charges_enabled: false,
@@ -395,6 +406,61 @@ describe('CONNECT-HEALTH-01: restricted Connect account blocks invoicing', () =>
     expect(result).toEqual({
       error:
         'Stripe has paused payments on your connected account. Finish verification in Stripe, then try again.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Feature switches: platform switch, tenant switch and global stop all gate
+ * the issue path before any Stripe call.
+ */
+describe('feature switches gate invoicing', () => {
+  const linked = { stripe_account_id: 'acct_abc123', stripe_connect_status: 'active', stripe_charges_enabled: true }
+
+  it('refuses when the platform switch is off and never calls Stripe', async () => {
+    configureSupabase({ company: { ...ON, ...linked, online_payments_allowed: false } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Online payments are not available for this account.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesInsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses with the same message when the global stop is closed', async () => {
+    getPlatformFeatureState.mockResolvedValue({ connectPaymentsOpen: false })
+    configureSupabase({ company: { ...ON, ...linked } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Online payments are not available for this account.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('refuses when the tenant switch is off and never calls Stripe', async () => {
+    configureSupabase({ company: { ...ON, ...linked, online_payments_enabled: false } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Turn on online payments in Settings → Client actions before issuing invoices.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('refuses a restricted account with the verification message', async () => {
+    configureSupabase({ company: { ...ON, ...linked, stripe_charges_enabled: false } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Stripe has paused payments on your connected account. Finish verification in Stripe, then try again.',
+    })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('refuses a switched-on company with no Stripe account and points to Client actions', async () => {
+    configureSupabase({ company: { ...ON, stripe_account_id: null, stripe_connect_status: null } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Connect a Stripe account in Settings → Client actions before issuing invoices.',
     })
     expect(createConnectInvoice).not.toHaveBeenCalled()
   })

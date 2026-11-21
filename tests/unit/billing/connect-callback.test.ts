@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
  * Wave 0 tests for the OAuth callback route (`/api/stripe/connect/callback`)
  * shipped in Plan 70-02. Verifies:
  *   - Happy path: valid state + code → exchangeCode invoked → company row
- *     populated → 302 to /settings/payments?connected=1.
+ *     populated → 302 to /settings/client-actions?connected=1.
  *   - Idempotency: when `companies.stripe_account_id` is already set, the
  *     callback MUST NOT call exchangeCode (OAuth codes are single-use; a
  *     second exchange revokes the connection per OAuth 2 spec).
@@ -48,6 +48,10 @@ vi.mock('@/lib/billing/connect-oauth', async () => {
 vi.mock('@/lib/billing/stripe-client', () => ({
   getStripeClient: vi.fn(),
 }))
+// Platform-wide global stop; defaults to open.
+vi.mock('@/lib/features/platform-feature-state', () => ({
+  getPlatformFeatureState: vi.fn(async () => ({ connectPaymentsOpen: true })),
+}))
 
 const cookieGetFn = vi.fn()
 const cookieDeleteFn = vi.fn()
@@ -71,6 +75,7 @@ const { mintOAuthState, exchangeCode } = await import(
   '@/lib/billing/connect-oauth'
 )
 const { getStripeClient } = await import('@/lib/billing/stripe-client')
+const { getPlatformFeatureState } = await import('@/lib/features/platform-feature-state')
 const { GET } = await import('@/app/api/stripe/connect/callback/route')
 
 /** Sets the `stripe_oauth_state` cookie the route reads/compares against `state`. */
@@ -83,7 +88,11 @@ function setOAuthStateCookie(value: string | undefined) {
 function makeSupabaseMock(company: {
   id: string
   stripe_account_id: string | null
+  online_payments_allowed?: boolean
+  online_payments_enabled?: boolean
 }) {
+  // Feature switches default ON; individual cases override them.
+  company = { online_payments_allowed: true, online_payments_enabled: true, ...company }
   const updateChain = {
     update: vi.fn().mockReturnThis(),
     eq: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -240,6 +249,50 @@ describe('GET /api/stripe/connect/callback', () => {
     const res = await GET(makeRequest({ code: 'ac_test', state }))
 
     expect(res.headers.get('location')).toContain('error=owner_required')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_not_available and never exchanges the code when the platform switch was turned off mid-flow', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      makeSupabaseMock({ id: companyId, stripe_account_id: null, online_payments_allowed: false }),
+    )
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('/settings/client-actions?error=payments_not_available')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_not_available when the global stop is closed', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(makeSupabaseMock({ id: companyId, stripe_account_id: null }))
+    vi.mocked(getPlatformFeatureState).mockResolvedValueOnce({ connectPaymentsOpen: false })
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('error=payments_not_available')
+    expect(exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('refuses with payments_off and never exchanges the code when the tenant switch was turned off', async () => {
+    const companyId = 'company_abc'
+    const state = mintOAuthState(companyId)
+    setOAuthStateCookie(state)
+    vi.mocked(getAuthClaims).mockResolvedValue({ sub: 'user_1' } as never)
+    vi.mocked(requireServiceClient).mockReturnValue(
+      makeSupabaseMock({ id: companyId, stripe_account_id: null, online_payments_enabled: false }),
+    )
+
+    const res = await GET(makeRequest({ code: 'ac_test', state }))
+
+    expect(res.headers.get('location')).toContain('/settings/client-actions?error=payments_off')
     expect(exchangeCode).not.toHaveBeenCalled()
   })
 })

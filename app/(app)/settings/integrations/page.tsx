@@ -16,7 +16,8 @@ import { getActiveCompanyId } from '@/lib/queries/active-company'
 import { isDemoCompany } from '@/lib/demo/config'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { SettingsHeader } from '@/components/settings/settings-ui'
-import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 
 export const metadata = { title: 'Integrations | Settings' }
 
@@ -35,21 +36,18 @@ export default async function SettingsIntegrationsPage() {
   const claims = await getAuthClaims()
 
   let stripeConnected = false
-  let stripeLinked = false
-  if (claims) {
+  let showCollectPayments = false
+  if (claims && companyId) {
     const svc = requireServiceClient()
     const { data: company } = await svc
       .from('companies')
-      .select('stripe_account_id, stripe_connect_status')
-      .eq('user_id', claims.sub as string)
+      .select(COMPANY_FEATURE_COLUMNS)
+      .eq('id', companyId)
       .single()
-    stripeLinked = !!company?.stripe_account_id
-    stripeConnected =
-      stripeLinked && company?.stripe_connect_status === 'active'
+    const { onlinePayments } = resolveCompanyFeatures(company, await getPlatformFeatureState())
+    stripeConnected = onlinePayments.healthy
+    showCollectPayments = onlinePayments.showInSettings
   }
-  // Connect onboarding is closed at launch: hide the card from companies that
-  // never connected (a linked company keeps its status and Disconnect).
-  const showCollectPayments = isConnectOnboardingOpen() || stripeLinked
 
   return (
     <div className="space-y-6">
@@ -58,14 +56,14 @@ export default async function SettingsIntegrationsPage() {
         description={<T>Connect the tools your business runs on.</T>}
       />
 
-      {/* Collect payments — Stripe Connect setup. */}
+      {/* Collect payments: shown only when the platform allows online payments (or an account is still linked). */}
       {showCollectPayments && (
       <section className="space-y-3">
         <SectionHeading>
           <T>Collect payments</T>
         </SectionHeading>
         <Link
-          href="/settings/integrations/stripe"
+          href="/settings/client-actions"
           className="group block focus:outline-none"
         >
           <Card variant="glass" className="transition hover:border-primary/40 hover:shadow-sm group-focus-visible:ring-2 group-focus-visible:ring-ring">

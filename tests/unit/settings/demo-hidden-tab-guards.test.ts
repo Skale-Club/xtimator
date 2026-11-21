@@ -114,8 +114,8 @@ describe('demo-hidden settings tab guards (181-03, PARITY-02)', () => {
     })
   })
 
-  describe('app/(app)/settings/integrations/stripe/page.tsx', () => {
-    const src = read('app/(app)/settings/integrations/stripe/page.tsx')
+  describe('app/(app)/settings/client-actions/page.tsx', () => {
+    const src = read('app/(app)/settings/client-actions/page.tsx')
 
     it('guards on isDemoCompany(company.id)', () => {
       expect(src).toContain('isDemoCompany(company.id)')
@@ -151,7 +151,7 @@ describe('demo-hidden settings tab guards (181-03, PARITY-02)', () => {
 
     it('gates the redirect target on isDemoCompany(companyId)', () => {
       expect(src).toContain(
-        "isDemoCompany(companyId) ? '/settings/company' : '/settings/integrations/stripe'"
+        "isDemoCompany(companyId) ? '/settings/company' : '/settings/client-actions'"
       )
     })
   })

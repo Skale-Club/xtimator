@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', company.id as string)
 
+  revalidatePath('/settings/client-actions')
   revalidatePath('/settings/integrations/stripe')
   return NextResponse.json({ ok: true })
 }

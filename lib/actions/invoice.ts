@@ -12,7 +12,8 @@ import { createConnectInvoice } from '@/lib/billing/invoice-service'
 import { getBillingConfig } from '@/lib/billing/billing-config'
 import { computeApplicationFee } from '@/lib/billing/estimate-fee'
 import { resolveChargeAmount } from '@/lib/billing/charge-amount'
-import { paymentsEnabled } from '@/lib/billing/payments-enabled'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits, formatMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
@@ -241,28 +242,31 @@ async function issueInvoice(
   if (targetDenied) return targetDenied
 
   // 4. Connect-active check. The auth context does not carry Connect status, so
-  //    read it explicitly (mirror pay route). The gate calls the single
-  //    `paymentsEnabled` predicate (PAYGATE-01) — same source of truth as the
-  //    owner editor's Generate-invoice affordance, so the action and the UI can
-  //    never drift on what "payments are on" means.
+  //    read it explicitly (mirror pay route). The gate is the single feature
+  //    resolver (platform switch, global stop, tenant switch, Stripe readiness),
+  //    the same source of truth as the owner editor's Generate-invoice
+  //    affordance, so the action and the UI can never drift.
   const { data: company } = await supabase
     .from('companies')
-    .select('stripe_account_id, stripe_connect_status, stripe_charges_enabled')
+    .select(COMPANY_FEATURE_COLUMNS)
     .eq('id', companyId)
     .single()
 
-  if (!company || !paymentsEnabled(company)) {
-    // CONNECT-HEALTH-01 (Fix 1): distinguish "Stripe paused charges on an
-    // already-connected account" (actionable — go finish verification) from
-    // "never connected / disconnected" (go connect). Both states fail the same
-    // `paymentsEnabled` predicate, but they need different guidance.
-    if (company?.stripe_account_id && company.stripe_charges_enabled === false) {
+  const platform = await getPlatformFeatureState()
+  const payments = resolveCompanyFeatures(company, platform).onlinePayments
+  if (!company || !payments.canIssue) {
+    if (!payments.allowed) return { error: 'Online payments are not available for this account.' }
+    if (!payments.enabled) {
+      return { error: 'Turn on online payments in Settings → Client actions before issuing invoices.' }
+    }
+    // CONNECT-HEALTH-01: Stripe paused charges on an already-connected account.
+    if (payments.restricted) {
       return {
         error:
           'Stripe has paused payments on your connected account. Finish verification in Stripe, then try again.',
       }
     }
-    return { error: 'Connect a Stripe account in Settings → Payments before issuing invoices.' }
+    return { error: 'Connect a Stripe account in Settings → Client actions before issuing invoices.' }
   }
 
   // 5. Compute the snapshot amount in integer minor units.

@@ -9,7 +9,8 @@ import { mintOAuthState, buildAuthorizeUrl } from '@/lib/billing/connect-oauth'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { resolveBaseUrl } from '@/lib/utils/site-url'
 import { rateLimit } from '@/lib/ratelimit'
-import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
+import { COMPANY_FEATURE_COLUMNS, resolveCompanyFeatures } from '@/lib/features/company-features'
+import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 
 /**
  * GET /api/stripe/connect/initiate
@@ -17,7 +18,7 @@ import { isConnectOnboardingOpen } from '@/lib/billing/connect-availability'
  * Owner-initiated entry point for connecting a company's Stripe account via
  * Standard OAuth. Sets an httpOnly HMAC state cookie (10-min TTL) and 302s to
  * `connect.stripe.com/oauth/authorize`. When the platform's Connect Client ID
- * is not yet configured, redirects back to `/settings/integrations/stripe` with a
+ * is not yet configured, redirects back to `/settings/client-actions` with a
  * friendly error param instead of producing a broken Stripe URL.
  */
 export async function GET(req: NextRequest) {
@@ -41,15 +42,32 @@ export async function GET(req: NextRequest) {
     await requireCompanyOwner(companyId)
   } catch {
     return NextResponse.redirect(
-      new URL('/settings/integrations/stripe?error=owner_required', base)
+      new URL('/settings/client-actions?error=owner_required', base)
     )
   }
 
-  // Connect onboarding is closed at launch (lib/billing/connect-availability).
-  if (!isConnectOnboardingOpen()) {
-    return NextResponse.redirect(
-      new URL('/settings/integrations/stripe?error=platform_not_configured', base)
-    )
+  // Feature switches (platform switch, global stop, tenant switch): the single
+  // resolver decides whether this company may start connecting Stripe.
+  const svc = requireServiceClient()
+  const { data: company } = await svc
+    .from('companies')
+    .select(`id, email, ${COMPANY_FEATURE_COLUMNS}`)
+    .eq('id', companyId)
+    .single()
+  if (!company) return NextResponse.redirect(new URL('/onboarding', base))
+
+  const payments = resolveCompanyFeatures(company, await getPlatformFeatureState()).onlinePayments
+  if (!payments.allowed) {
+    return NextResponse.redirect(new URL('/settings/client-actions?error=payments_not_available', base))
+  }
+  if (!payments.enabled) {
+    return NextResponse.redirect(new URL('/settings/client-actions?error=payments_off', base))
+  }
+  if (payments.linked) {
+    return NextResponse.redirect(new URL('/settings/client-actions?connected=1', base))
+  }
+  if (!payments.canConnect) {
+    return NextResponse.redirect(new URL('/settings/client-actions?error=payments_not_available', base))
   }
 
   // FIX 3 — rate limit AFTER auth+owner gate, BEFORE any Stripe call.
@@ -61,18 +79,10 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const svc = requireServiceClient()
-  const { data: company } = await svc
-    .from('companies')
-    .select('id, email')
-    .eq('id', companyId)
-    .single()
-  if (!company) return NextResponse.redirect(new URL('/onboarding', base))
-
   const clientId = await getIntegrationKey('stripe_connect_client_id')
   if (!clientId) {
     return NextResponse.redirect(
-      new URL('/settings/integrations/stripe?error=platform_not_configured', base)
+      new URL('/settings/client-actions?error=platform_not_configured', base)
     )
   }
 

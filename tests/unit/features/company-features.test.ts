@@ -112,6 +112,29 @@ describe('resolveCompanyFeatures: online payments', () => {
     expect(resolveCompanyFeatures({ ...base, online_payments_allowed: false }, open).onlinePayments.canConnect).toBe(false)
   })
 
+  it('cannot issue when the linked status is disconnected or pending', () => {
+    for (const status of ['disconnected', 'pending']) {
+      const p = resolveCompanyFeatures({ ...healthyPayments, stripe_connect_status: status }, open).onlinePayments
+      expect(p).toMatchObject({ linked: true, healthy: false, canIssue: false })
+    }
+  })
+
+  it('cannot issue without an account id even if the status says active, or when never connected', () => {
+    const active = resolveCompanyFeatures({ ...healthyPayments, stripe_account_id: null }, open).onlinePayments
+    expect(active).toMatchObject({ linked: false, healthy: false, canIssue: false })
+    const never = resolveCompanyFeatures(
+      { online_payments_allowed: true, online_payments_enabled: true, stripe_account_id: null, stripe_connect_status: null },
+      open,
+    ).onlinePayments
+    expect(never).toMatchObject({ linked: false, healthy: false, canIssue: false })
+  })
+
+  it('stays healthy when stripe_charges_enabled is omitted entirely (legacy row shape)', () => {
+    const { stripe_charges_enabled: _omit, ...legacy } = healthyPayments
+    void _omit
+    expect(resolveCompanyFeatures(legacy, open).onlinePayments).toMatchObject({ healthy: true, canIssue: true })
+  })
+
   it('showInSettings stays true when not allowed but still linked', () => {
     const p = resolveCompanyFeatures({ online_payments_allowed: false, stripe_account_id: 'acct_test_123', stripe_connect_status: 'active' }, open).onlinePayments
     expect(p.showInSettings).toBe(true)
