@@ -12,8 +12,27 @@ import { toMinorUnits } from '@/lib/money/currency'
 import { isShareLinkExpired } from '@/lib/estimates/share-link'
 import { applySignedSnapshot, applySignedCompanyTerms } from '@/lib/estimate/signed-snapshot'
 import { loadLatestSignedSnapshot } from '@/lib/queries/estimate-signature' // local binding for share.ts's own 2 call sites
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { computeContentFingerprint } from '@/lib/estimate/content-fingerprint'
 import type { SnapshotSourceEstimate, SnapshotSourceSection } from '@/lib/estimate/signed-snapshot'
+
+type PublicCompanyRow = {
+  digital_signature_allowed?: boolean | null
+  digital_signature_enabled?: boolean | null
+} & Record<string, unknown>
+
+/**
+ * The anonymous viewer gets only the FINAL yes/no for online signing (platform
+ * switch AND tenant switch). `digital_signature_allowed` is stripped: the
+ * platform switch is never exposed. The content fingerprint reads only the
+ * Terms fields, so it is unaffected by this overlay.
+ */
+function toPublicCompany(row: PublicCompanyRow) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { digital_signature_allowed: _allowed, ...rest } = row
+  return { ...rest, digital_signature_enabled: resolveDigitalSignature(row).active }
+}
+
 
 // Internal fields never sent to the public browser payload: share_token is a
 // bearer credential the viewer already holds. attachedPhotos is also omitted
@@ -258,7 +277,7 @@ export async function getEstimateByShareToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_allowed, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()
@@ -281,7 +300,7 @@ export async function getEstimateByShareToken(
   // snapshot or no signature at all is a no-op (renders live terms, today's
   // behavior).
   const companyDataFrozen = applySignedCompanyTerms(
-    companyData as ShareEstimateData['estimate']['company'],
+    toPublicCompany(companyData as unknown as PublicCompanyRow) as ShareEstimateData['estimate']['company'],
     signedContent
   )
 
@@ -528,7 +547,7 @@ export async function getEstimateByPublicToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_allowed, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()
@@ -549,7 +568,7 @@ export async function getEstimateByPublicToken(
   // getEstimateByShareToken above; see that call site's comment for the
   // full rationale.
   const companyDataFrozen = applySignedCompanyTerms(
-    companyData as ShareEstimateData['estimate']['company'],
+    toPublicCompany(companyData as unknown as PublicCompanyRow) as ShareEstimateData['estimate']['company'],
     signedContent
   )
 

@@ -84,7 +84,7 @@ beforeEach(() => {
     }
     if (table === 'companies') {
       return {
-        select: () => ({ eq: () => ({ single: async () => ({ data: { digital_signature_enabled: true } }) }) }),
+        select: () => ({ eq: () => ({ single: async () => ({ data: { digital_signature_allowed: true, digital_signature_enabled: true } }) }) }),
       }
     }
     if (table === 'projects') {

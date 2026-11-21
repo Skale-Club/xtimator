@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { headers } from 'next/headers'
 import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -244,17 +245,17 @@ export async function POST(
     const blocked = await demoGuardResponse({ companyId: estimate.company_id })
     if (blocked) return blocked
 
-    // Verify company has digital_signature_enabled. Also fetch the Terms &
+    // Verify online signing is active (platform switch AND tenant switch). Also fetch the Terms &
     // Conditions fields here (not a separate query) — security-hardening S1:
     // the snapshot must freeze company terms AS OF signing, so they're read
     // from this SAME row buildSignedContentSnapshot's extras use below.
     const { data: company } = await supabase
       .from('companies')
-      .select('digital_signature_enabled, estimate_terms_enabled, estimate_terms_text')
+      .select('digital_signature_allowed, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text')
       .eq('id', estimate.company_id)
       .single()
 
-    if (!company?.digital_signature_enabled) {
+    if (!company || !resolveDigitalSignature(company).active) {
       return NextResponse.json({ error: 'Digital signature not enabled' }, { status: 403 })
     }
 

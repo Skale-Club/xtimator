@@ -78,7 +78,7 @@ function setup(over: { co?: unknown; company?: unknown; items?: unknown; rpc?: R
   fake = makeFakeSupabase(
     (c: Call) => {
       if (c.table === 'change_orders') return { data: over.co === undefined ? CO_ROW : over.co }
-      if (c.table === 'companies') return { data: over.company === undefined ? { digital_signature_enabled: true } : over.company }
+      if (c.table === 'companies') return { data: over.company === undefined ? { digital_signature_allowed: true, digital_signature_enabled: true } : over.company }
       if (c.table === 'change_order_items') return over.items === undefined ? { data: ITEMS } : (over.items as Result)
     },
     () => over.rpc ?? { data: RPC_OK },
@@ -187,8 +187,23 @@ describe('sign route: guards', () => {
     expect(fake.rpcCalls).toHaveLength(0)
   })
 
+  it('403 (same response) when the platform switch is off but the tenant switch is on', async () => {
+    setup({ company: { digital_signature_allowed: false, digital_signature_enabled: true } })
+    const res = await POST(req({}), PARAMS)
+    expect(res.status).toBe(403)
+    expect((await json(res)).error).toBe('Digital signature not enabled')
+    expect(fake.rpcCalls).toHaveLength(0)
+  })
+
+  it('403 fails closed when the allowed column is missing from the row', async () => {
+    setup({ company: { digital_signature_enabled: true } })
+    const res = await POST(req({}), PARAMS)
+    expect(res.status).toBe(403)
+    expect(fake.rpcCalls).toHaveLength(0)
+  })
+
   it('403 when the company has online approval off', async () => {
-    setup({ company: { digital_signature_enabled: false } })
+    setup({ company: { digital_signature_allowed: true, digital_signature_enabled: false } })
     const res = await POST(req({}), PARAMS)
     expect(res.status).toBe(403)
     expect((await json(res)).error).toBe('Digital signature not enabled')

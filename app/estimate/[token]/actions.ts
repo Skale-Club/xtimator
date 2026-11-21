@@ -1,5 +1,6 @@
 'use server'
 
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { headers } from 'next/headers'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { notify } from '@/lib/notifications/dispatch'
@@ -234,19 +235,17 @@ export async function respondToEstimate(
   }
 
   // Online approval exists ONLY when the company requires a digital signature
-  // (companies.digital_signature_enabled). When it is off the contractor
+  // (platform switch AND companies.digital_signature_enabled). When it is off the contractor
   // records the response inside the app, so this public action refuses both
   // outcomes. When it is on, acceptance must go through the sign route
   // (/api/estimates/[id]/sign -> sign_estimate_atomic) so a signature is always
   // captured; only 'declined' is allowed here. Runs before any write.
   const { data: companyRow } = await supabase
     .from('companies')
-    .select('digital_signature_enabled')
+    .select('digital_signature_allowed, digital_signature_enabled')
     .eq('id', est.company_id)
     .single()
-  const signatureEnabled =
-    (companyRow as { digital_signature_enabled?: boolean | null } | null)
-      ?.digital_signature_enabled === true
+  const signatureEnabled = resolveDigitalSignature(companyRow).active
   if (!signatureEnabled) {
     return { success: false, error: 'Online responses are not enabled for this estimate' }
   }

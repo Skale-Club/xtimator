@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import { headers } from 'next/headers'
 import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
@@ -131,11 +132,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: company } = await supabase
       .from('companies')
-      .select('digital_signature_enabled')
+      .select('digital_signature_allowed, digital_signature_enabled')
       .eq('id', changeOrder.company_id)
       .single()
 
-    if (!company?.digital_signature_enabled) {
+    if (!resolveDigitalSignature(company).active) {
       return NextResponse.json({ error: 'Digital signature not enabled' }, { status: 403 })
     }
 

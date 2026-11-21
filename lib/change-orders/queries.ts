@@ -4,6 +4,7 @@
  * lib/change-orders/types.ts; everything here uses the SERVICE client, so
  * callers must already be authorized (a share token, or the PDF route's check).
  */
+import { resolveDigitalSignature } from '@/lib/features/company-features'
 import 'server-only'
 import { headers } from 'next/headers'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -88,7 +89,7 @@ async function loadPublicData(
     supabase
       .from('companies')
       .select(
-        'id, name, slug, logo_url, phone, email, brand_primary_color, digital_signature_enabled',
+        'id, name, slug, logo_url, phone, email, brand_primary_color, digital_signature_allowed, digital_signature_enabled',
       )
       .eq('id', changeOrder.company_id)
       .maybeSingle(),
@@ -107,6 +108,7 @@ async function loadPublicData(
     phone: string | null
     email: string | null
     brand_primary_color: string | null
+    digital_signature_allowed: boolean | null
     digital_signature_enabled: boolean | null
   }
 
@@ -121,7 +123,8 @@ async function loadPublicData(
       phone: company.phone ?? null,
       email: company.email ?? null,
       brand_primary_color: company.brand_primary_color ?? null,
-      digital_signature_enabled: company.digital_signature_enabled === true,
+      // EFFECTIVE value (platform switch AND tenant switch); `_allowed` is never exposed.
+      digital_signature_enabled: resolveDigitalSignature(company).active,
     },
     estimate: {
       id: estimate.id,

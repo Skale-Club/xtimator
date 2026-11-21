@@ -168,7 +168,7 @@ describe('estimate.accepted / estimate.declined instrumentation', () => {
       },
       // Online approval gate: respondToEstimate reads the company's
       // digital_signature_enabled flag before any write.
-      { data: { digital_signature_enabled: true }, error: null },
+      { data: { digital_signature_allowed: true, digital_signature_enabled: true }, error: null },
       {
         data: {
           notify_on_accept: false,

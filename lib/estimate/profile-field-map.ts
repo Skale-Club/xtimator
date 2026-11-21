@@ -137,7 +137,7 @@ export const ESTIMATE_PROFILE_FIELD_MAP: readonly ProfileFieldMapping[] = [
     companyColumn: 'digital_signature_enabled',
     estimateColumn: null,
     inherited: false,
-    notes: 'Delivery/signature feature toggle. Affects the share/sign flow, not an estimate column.',
+    notes: 'Tenant switch for online approval, written only by setDigitalSignatureEnabled (owner). Effective only with the platform digital_signature_allowed switch (resolveDigitalSignature). Affects the share/sign flow, not an estimate column.',
   },
   {
     key: 'email_delivery_enabled',

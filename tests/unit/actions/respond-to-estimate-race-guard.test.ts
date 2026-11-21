@@ -44,6 +44,7 @@ const ESTIMATE_ROW = {
 
 let estimateRowOverride: Record<string, unknown> = {}
 let conditionalUpdateResult: { data: unknown; error: unknown }
+let signatureAllowed = true
 let signatureEnabled = true
 let estimateUpdateCalled = false
 let projectUpdateCalled = false
@@ -83,7 +84,7 @@ function configureSupabase() {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { digital_signature_enabled: signatureEnabled },
+              data: { digital_signature_allowed: signatureAllowed, digital_signature_enabled: signatureEnabled },
               error: null,
             }),
           }),
@@ -115,6 +116,7 @@ beforeEach(() => {
   conditionalUpdateResult = { data: [{ id: 'est_1' }], error: null }
   estimateRowOverride = {}
   signatureEnabled = true
+  signatureAllowed = true
   configureSupabase()
 })
 
@@ -195,6 +197,20 @@ describe('respondToEstimate — gated by companies.digital_signature_enabled', (
       expect(estimateUpdateCalled).toBe(false)
       expect(projectUpdateCalled).toBe(false)
       expect(activityInsertCalled).toBe(false)
+      expect(mockNotify).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['accepted', 'declined'] as const)(
+    'platform switch OFF (tenant switch on) refuses %s before any write',
+    async (response) => {
+      signatureAllowed = false
+      const { respondToEstimate } = await import('@/app/estimate/[token]/actions')
+
+      const result = await respondToEstimate('tok_1', response)
+
+      expect(result.success).toBe(false)
+      expect(estimateUpdateCalled).toBe(false)
       expect(mockNotify).not.toHaveBeenCalled()
     }
   )
