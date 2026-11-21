@@ -158,6 +158,37 @@ describe('INNGEST-03: POST /api/transcribe dispatch', () => {
     expect(payload.data.storagePath).toBe('company-1/proj-1/rec.webm')
   })
 
+  it('folds a retry nonce into the event id so an explicit retry is not deduped', async () => {
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
+
+    await POST(
+      new Request('http://localhost/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recordingId: 'rec-1', dispatchNonce: 2 }),
+      })
+    )
+
+    const payload = mockSend.mock.calls[0][0] as { id: string; data: { dispatchNonce?: number } }
+    expect(payload.id).toBe('transcribe-rec-1-r2')
+    expect(payload.data.dispatchNonce).toBe(2)
+  })
+
+  it('ignores a bogus nonce (zero, negative, non-integer) and keeps the plain event id', async () => {
+    for (const bad of [0, -1, 1.5, '3', null]) {
+      mockSend.mockClear()
+      vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
+      await POST(
+        new Request('http://localhost/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recordingId: 'rec-1', dispatchNonce: bad }),
+        })
+      )
+      expect((mockSend.mock.calls[0][0] as { id: string }).id).toBe('transcribe-rec-1')
+    }
+  })
+
   it('does NOT call OpenAI Whisper directly (no fetch to api.openai.com)', async () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never)
 

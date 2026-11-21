@@ -37,6 +37,7 @@ import { assertCompanyWritable } from '@/lib/demo/guard'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
 import { transcribeAudioOR } from '@/lib/ai/openrouter-client'
+import { transcriberFormatFromPath } from '@/lib/ai/audio-format'
 import { getTranscriptionModel } from '@/lib/platform-config'
 import { notify } from '@/lib/notifications/dispatch'
 import { buildNotificationCopy } from '@/lib/notifications/copy'
@@ -166,10 +167,7 @@ export const transcribeAudioJob = inngest.createFunction(
   async ({ event, step }) => {
     const data = event.data as TranscribeAudioPayload
     const { recordingId, storagePath } = data
-    // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback.
-    const attemptId = data.attemptId ?? randomUUID()
     const inputType = data.inputType ?? 'recording'
-    const t0 = Date.now()
 
     // Phase 92 (EVENT-02/D-03): started event at handler entry (best-effort).
     // Phase 167 (BILL-05): also carries the transcript up-front so the
@@ -179,14 +177,26 @@ export const transcribeAudioJob = inngest.createFunction(
     if (denied) return { skipped: true, reason: 'demo_readonly' as const }
     const eventDenied = await assertCompanyWritable(data.companyId)
     if (eventDenied) return { skipped: true, reason: 'demo_readonly' as const }
-    void recordPipelineEvent({
-      attemptId,
-      inputType,
-      step: 'transcribe',
-      status: 'started',
-      companyId: ident.companyId,
-      projectId: ident.projectId,
-      userId: ident.userId,
+    // Phase 92 (EVENT-02/D-08): attempt lineage with server fallback. The id,
+    // t0 and the `started` event live in ONE memoized step (same fix as
+    // generate-estimate's 'generation-start'): Inngest replays the handler from
+    // the top at every step boundary, so a bare `?? randomUUID()` minted a new id
+    // per replay (breaking the audio_minutes cost read-back keyed on it), a bare
+    // Date.now() measured only the last leg, and `void recordPipelineEvent`
+    // re-fired a duplicate `started` row each time. Awaited, not voided, so the
+    // write is not cut off when the step returns (recordPipelineEvent never throws).
+    const { attemptId, t0 } = await step.run('transcribe-start', async () => {
+      const id = data.attemptId ?? randomUUID()
+      await recordPipelineEvent({
+        attemptId: id,
+        inputType,
+        step: 'transcribe',
+        status: 'started',
+        companyId: ident.companyId,
+        projectId: ident.projectId,
+        userId: ident.userId,
+      })
+      return { attemptId: id, t0: Date.now() }
     })
 
     // Platform-wide speech-to-text model (super-admin selectable, DB-driven, no
@@ -228,7 +238,8 @@ export const transcribeAudioJob = inngest.createFunction(
         )
       }
 
-      const ext = storagePath.split('.').pop() ?? 'webm'
+      // iPhone recordings are stored as .mp4; the transcriber needs m4a for them.
+      const ext = transcriberFormatFromPath(storagePath)
 
       // BILL-02: server-derived duration from the downloaded blob's real size
       // (byte-clamp, one-sided) — the "declare 1s on a 10-min blob" exploit no

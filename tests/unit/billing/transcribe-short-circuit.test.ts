@@ -338,6 +338,8 @@ describe('Phase 3 (3.4): transcribe cost + debit run BEFORE the generate dispatc
       step,
     })
     expect(ids).toEqual([
+      // Memoized attemptId / t0 / 'started' event, so replays do not re-stamp them.
+      'transcribe-start',
       'whisper-transcribe',
       'save-transcript',
       'record-credit-debit',

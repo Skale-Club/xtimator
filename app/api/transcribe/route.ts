@@ -54,6 +54,13 @@ export async function POST(request: Request) {
       typeof body?.recordingId === 'string' ? body.recordingId : null
     // REC-03: attempt lineage carried on the event payload (in-flight only).
     const attemptId = typeof body?.attemptId === 'string' ? body.attemptId : undefined
+    // Retry ordinal (same contract as lib/actions/recording.ts dispatchNonce): a
+    // positive integer folds into the event id so Inngest does not dedupe an
+    // explicit retry against the original dispatch for 24 h.
+    const dispatchNonce =
+      Number.isSafeInteger(body?.dispatchNonce) && body.dispatchNonce > 0
+        ? (body.dispatchNonce as number)
+        : undefined
     if (!recordingId) {
       throw new XtimatorError(
         'bad_request',
@@ -132,7 +139,7 @@ export async function POST(request: Request) {
     }
 
     // Dispatch — recordingId is a UUID, so event id 'transcribe-{recordingId}'
-    // is naturally unique per recording.
+    // is naturally unique per recording; a retry adds '-r{dispatchNonce}'.
     const payload: TranscribeAudioPayload = {
       companyId: rec.company_id,
       recordingId: rec.id,
@@ -141,10 +148,11 @@ export async function POST(request: Request) {
       // Phase 92 (EVENT-03 / D-07): the transcribe path is always recording.
       inputType: 'recording',
       notifyUserId: typeof claims.sub === 'string' ? claims.sub : undefined,
+      ...(dispatchNonce !== undefined && { dispatchNonce }),
     }
     const { ids } = await inngest.send({
       name: EVENT_TRANSCRIBE_AUDIO,
-      id: `transcribe-${recordingId}`,
+      id: `transcribe-${recordingId}${dispatchNonce !== undefined ? `-r${dispatchNonce}` : ''}`,
       data: payload,
     })
     // Awaited (not fire-and-forget): the client's first poll can arrive within
