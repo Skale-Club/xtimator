@@ -40,7 +40,7 @@ import type { GeneratePhaseProgress, GeneratePhaseVisit } from '@/lib/estimate/g
 import type { StepTiming } from '@/lib/estimate/progress-model'
 
 export type EstimateOutcome =
-  | { state: 'completed'; estimateId: string }
+  | { state: 'completed'; estimateId: string; photosSkipped?: number }
   // QUICK-psh-02: reason/questions forward the AttemptOutcome needs_details
   // enrichment (lib/actions/attempt-outcome.ts) — absent when the journal path
   // wasn't used, the enrichment read missed, or the fallback DB-truth check
@@ -220,7 +220,11 @@ export async function pollEstimateOutcome(opts: {
       if (attemptId) {
         const attemptOutcome = await getAttemptOutcome(attemptId)
         if (attemptOutcome.state === 'completed') {
-          return { state: 'completed', estimateId: attemptOutcome.estimateId }
+          return {
+            state: 'completed',
+            estimateId: attemptOutcome.estimateId,
+            ...(attemptOutcome.photosSkipped ? { photosSkipped: attemptOutcome.photosSkipped } : {}),
+          }
         }
         if (attemptOutcome.state === 'needs_details') {
           return {

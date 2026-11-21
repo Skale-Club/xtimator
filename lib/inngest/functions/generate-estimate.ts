@@ -247,7 +247,7 @@ export const generateEstimateJob = inngest.createFunction(
       if (gate === 'expired') return { paused: true, expired: true }
     }
 
-    await step.run('analyze-pending-photos', async () => {
+    const photoAnalysis = await step.run('analyze-pending-photos', async () => {
       try {
         const { analyzePendingPhotos } = await import(
           '@/lib/estimate/photos/analyze-pending-photos'
@@ -261,6 +261,12 @@ export const generateEstimateJob = inngest.createFunction(
         return { pending: 0, analyzed: 0, failed: 0 }
       }
     })
+
+    // Photos that could not be read are part of the outcome: the count rides on
+    // the generate_estimate/succeeded journal row below and reaches the owner
+    // through getAttemptOutcome (the existing "estimate ready" announcement).
+    // The step result is memoized, so the number is stable across replays.
+    const photosSkipped = Math.max(0, Number(photoAnalysis?.failed ?? 0) || 0)
 
     {
       const gate = await continueOrPauseForCredits(step as unknown as StepLike, { ...pauseCtx, next: 'generate_estimate' })
@@ -469,6 +475,8 @@ export const generateEstimateJob = inngest.createFunction(
       estimateId,
       provider: null,
       durationMs: Date.now() - t0,
+      // Only when something was skipped, so the common row stays unchanged.
+      ...(photosSkipped > 0 ? { metadata: { photosSkipped } } : {}),
     })
 
     // Phase 92 (EVENT-02/D-04, Open-Question 3): preview_redirect succeeded marker.

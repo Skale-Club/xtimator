@@ -34,6 +34,7 @@ import type { GeneratePhaseVisit } from '@/lib/estimate/generation-phases'
 import type { StepTiming } from '@/lib/estimate/progress-model'
 import { getStepMedians } from '@/lib/actions/attempt-outcome'
 import { useTranslation } from '@/lib/i18n/use-translation'
+import { skippedPhotosLine } from '@/lib/estimate/photos/skipped-photos-line'
 import { useAppLanguage, useLanguage } from '@/lib/i18n/language-context'
 import { useWakeLock } from '@/hooks/use-wake-lock'
 import {
@@ -912,6 +913,7 @@ export function CaptureRecorder({
   // (extractor requirement) forwarded in as a plain string.
   const handleEstimateOutcome = useCallback((outcome: EstimateOutcome, vagueMessage: string) => {
     if (outcome.state === 'completed') {
+      if (outcome.photosSkipped) toast.info(skippedPhotosLine(t, outcome.photosSkipped), { duration: 15_000 })
       setStage('done')
       if (onComplete) {
         onComplete(outcome.estimateId)

@@ -20,7 +20,11 @@ const mockNotify = vi.fn().mockResolvedValue(undefined)
 const mockNotifyOps = vi.fn().mockResolvedValue(undefined)
 const mockBuildNotificationCopy = vi.fn((..._args: unknown[]) => ({ title: 't', body: 'b' }))
 const mockGraphInvoke = vi.fn().mockResolvedValue({ estimateId: 'est-1' })
+const mockAnalyzePending = vi.fn().mockResolvedValue({ pending: 0, analyzed: 0, failed: 0 })
 
+vi.mock('@/lib/estimate/photos/analyze-pending-photos', () => ({
+  analyzePendingPhotos: (...args: unknown[]) => mockAnalyzePending(...args),
+}))
 vi.mock('@/lib/inngest/client', () => ({
   inngest: {
     createFunction: (opts: unknown, handler: unknown) => ({ opts, handler }),
@@ -163,6 +167,32 @@ describe('generate-estimate push (260928)', () => {
       .filter((e) => e.status === 'succeeded')
     expect(succeeded.length).toBeGreaterThan(0)
     for (const e of succeeded) expect(e.estimateId).toBeNull()
+  })
+
+  it('journals how many photos could not be read on the succeeded row, once, even on replay', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
+    mockAnalyzePending.mockResolvedValue({ pending: 3, analyzed: 1, failed: 2 })
+    const fn = await load()
+    const cache = new Map<string, unknown>()
+    await fn.handler({ event: event(), step: makeReplayStep(cache) })
+    await fn.handler({ event: event(), step: makeReplayStep(cache) })
+    expect(mockAnalyzePending).toHaveBeenCalledTimes(1)
+    const succeeded = mockRecordPipelineEvent.mock.calls
+      .map((c) => c[0] as { step: string; status: string; metadata?: Record<string, unknown> })
+      .filter((e) => e.step === 'generate_estimate' && e.status === 'succeeded')
+    expect(succeeded.length).toBeGreaterThan(0)
+    for (const e of succeeded) expect(e.metadata).toEqual({ photosSkipped: 2 })
+  })
+
+  it('leaves the succeeded row without metadata when every photo was read', async () => {
+    mockGraphInvoke.mockResolvedValue({ estimateId: 'est-9' })
+    mockAnalyzePending.mockResolvedValue({ pending: 1, analyzed: 1, failed: 0 })
+    const fn = await load()
+    await fn.handler({ event: event(), step: makeReplayStep(new Map()) })
+    const succeeded = mockRecordPipelineEvent.mock.calls
+      .map((c) => c[0] as { step: string; status: string; metadata?: unknown })
+      .filter((e) => e.step === 'generate_estimate' && e.status === 'succeeded')
+    for (const e of succeeded) expect(e.metadata).toBeUndefined()
   })
 
   it('threads inputType into the graph input', async () => {

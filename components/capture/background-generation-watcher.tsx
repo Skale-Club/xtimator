@@ -10,6 +10,7 @@ import {
 } from '@/lib/estimate/background-generations'
 import { useBackgroundGenerations } from '@/hooks/use-background-generations'
 import { useAppTranslation } from '@/lib/i18n/use-translation'
+import { skippedPhotosLine } from '@/lib/estimate/photos/skipped-photos-line'
 
 /** Journal read cadence per watched attempt. Slower than the popup's 2.5s: nobody is staring at it. */
 export const BACKGROUND_POLL_MS = 5_000
@@ -86,6 +87,8 @@ export function BackgroundGenerationWatcher() {
 
           if (outcome.state === 'completed') {
             removeBackgroundGeneration(g.attemptId)
+            // Shown even while the owner is on the project page (no other toast is).
+            if (outcome.photosSkipped) toast.info(skippedPhotosLine(tr, outcome.photosSkipped), { duration: 15_000 })
             const url = `${projectUrl}?tab=estimate&estimate=${outcome.estimateId}`
             if (onProject) {
               r.refresh()

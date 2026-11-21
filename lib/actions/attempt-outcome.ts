@@ -40,7 +40,9 @@ import {
 import { computeJournalMedians, type MedianJournalRow } from '@/lib/estimate/journal-medians'
 
 export type AttemptOutcome =
-  | { state: 'completed'; estimateId: string }
+  // photosSkipped: how many photos could not be read and so were left out of the
+  // estimate (generate_estimate/succeeded metadata); absent when none.
+  | { state: 'completed'; estimateId: string; photosSkipped?: number }
   // QUICK-psh-02: reason/questions are additive enrichment read from
   // projects.needs_details (set once at the final vague terminal — see
   // lib/estimate/adapters/default.ts). Optional/absent when the attempt_id
@@ -211,7 +213,12 @@ export async function getAttemptOutcome(attemptId: string): Promise<AttemptOutco
           .eq('is_current', true)
           .maybeSingle()
         if (estimateRow) {
-          return { state: 'completed', estimateId: succeeded.estimate_id }
+          const skipped = (succeeded.metadata as { photosSkipped?: unknown } | null)?.photosSkipped
+          return {
+            state: 'completed',
+            estimateId: succeeded.estimate_id,
+            ...(typeof skipped === 'number' && skipped > 0 ? { photosSkipped: skipped } : {}),
+          }
         }
       }
       // estimate_id was null, OR the row is gone (deleted by auto-refine, the
