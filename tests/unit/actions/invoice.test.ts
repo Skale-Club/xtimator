@@ -50,11 +50,28 @@ vi.mock('@/lib/features/platform-feature-state', () => ({
   getPlatformFeatureState: (...args: unknown[]) => getPlatformFeatureState(...args),
 }))
 
-// Per-table Supabase mock. estimates/companies selects + invoices insert.
+const rateLimit = vi.fn()
+vi.mock('@/lib/ratelimit', () => ({
+  rateLimit: (...args: unknown[]) => rateLimit(...args),
+}))
+
+const notifyOps = vi.fn()
+vi.mock('@/lib/observability/ops-alert', () => ({
+  notifyOps: (...args: unknown[]) => notifyOps(...args),
+}))
+
+// Per-table Supabase mock. estimates/companies selects + invoices draft insert,
+// promote update and rollback delete (all service-role, shared `fromImpl`).
 const invoicesInsert = vi.fn()
-const invoicesInsertSelect = vi.fn()
-const invoicesInsertSingle = vi.fn()
+const invoicesUpdate = vi.fn()
+const invoicesUpdatePayload = vi.fn()
+const invoicesDelete = vi.fn()
+const invoicesDeleteIn = vi.fn()
+const invoicesUpdateIn = vi.fn()
+const invoicesSelectEq = vi.fn()
 const fromImpl = vi.fn()
+// Records every cross-system step so ordering can be asserted.
+const callLog: string[] = []
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({ from: (t: string) => fromImpl(t) }),
@@ -81,7 +98,10 @@ const invoicesSelectResult: { data: Array<Record<string, unknown>>; error: null 
 function invoicesSelectChain() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chain: any = {
-    eq: () => chain,
+    eq: (...args: unknown[]) => {
+      invoicesSelectEq(...args)
+      return chain
+    },
     not: () => chain,
     order: () => chain,
     limit: () => chain,
@@ -98,15 +118,18 @@ function configureSupabase(opts: {
   company?: Record<string, unknown> | null
   existingInvoices?: Array<Record<string, unknown>>
 }) {
-  const estimate = opts.estimate ?? {
-    id: 'est_1',
-    company_id: 'co_1',
-    currency_code: 'usd',
-    total: 1000,
-    project: {
-      name: 'Bathroom remodel',
-      client: { name: 'Jane Doe', email: 'jane@example.com' },
-    },
+  const estimate = {
+    is_current: true,
+    ...(opts.estimate ?? {
+      id: 'est_1',
+      company_id: 'co_1',
+      currency_code: 'usd',
+      total: 1000,
+      project: {
+        name: 'Bathroom remodel',
+        client: { name: 'Jane Doe', email: 'jane@example.com' },
+      },
+    }),
   }
   const company = opts.company ?? {
     id: 'co_1',
@@ -116,12 +139,42 @@ function configureSupabase(opts: {
     stripe_connect_status: 'active',
   }
 
-  invoicesInsertSingle.mockResolvedValue({
-    data: { id: 'inv_row_1', hosted_invoice_url: 'https://h', invoice_pdf_url: 'https://p' },
-    error: null,
+  invoicesInsert.mockImplementation(async () => {
+    callLog.push('insert-draft')
+    return { error: null }
   })
-  invoicesInsertSelect.mockReturnValue({ single: invoicesInsertSingle })
-  invoicesInsert.mockReturnValue({ select: invoicesInsertSelect })
+  invoicesUpdate.mockImplementation((payload: unknown) => {
+    invoicesUpdatePayload(payload)
+    const result = Promise.resolve({ error: null })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {
+      eq: () => chain,
+      in: (...args: unknown[]) => {
+        invoicesUpdateIn(payload, ...args)
+        return chain
+      },
+      is: () => chain,
+      then: result.then.bind(result),
+      catch: result.catch.bind(result),
+    }
+    return chain
+  })
+  invoicesDelete.mockImplementation(() => {
+    callLog.push('delete-draft')
+    const result = Promise.resolve({ error: null })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {
+      eq: () => chain,
+      in: (...args: unknown[]) => {
+        invoicesDeleteIn(...args)
+        return chain
+      },
+      is: () => chain,
+      then: result.then.bind(result),
+      catch: result.catch.bind(result),
+    }
+    return chain
+  })
   invoicesSelectResult.data = opts.existingInvoices ?? []
 
   fromImpl.mockImplementation((table: string) => {
@@ -130,6 +183,7 @@ function configureSupabase(opts: {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({ data: estimate, error: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: estimate, error: null }),
           }),
         }),
       }
@@ -146,6 +200,8 @@ function configureSupabase(opts: {
     if (table === 'invoices') {
       return {
         insert: invoicesInsert,
+        update: invoicesUpdate,
+        delete: invoicesDelete,
         select: vi.fn().mockImplementation(() => invoicesSelectChain()),
       }
     }
@@ -155,6 +211,8 @@ function configureSupabase(opts: {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  callLog.length = 0
+  rateLimit.mockResolvedValue({ allowed: true, count: 1, max: 30 })
   assertWritable.mockResolvedValue(null)
   assertCompanyWritable.mockResolvedValue(null)
   billingEditDenied.mockResolvedValue(null)
@@ -162,13 +220,16 @@ beforeEach(() => {
   requireCompanyOwner.mockResolvedValue({ userId: 'u_1', companyId: 'co_1', role: 'owner' })
   getBillingConfig.mockResolvedValue({ estimateFeePct: 0.01, estimateFeeMinCents: 1 })
   getPlatformFeatureState.mockResolvedValue({ connectPaymentsOpen: true })
-  createConnectInvoice.mockResolvedValue({
+  createConnectInvoice.mockImplementation(async () => {
+    callLog.push('stripe')
+    return {
     stripeInvoiceId: 'in_123',
     stripeCustomerId: 'cus_123',
     hostedInvoiceUrl: 'https://invoice.stripe.com/i/test_hosted',
     invoicePdfUrl: 'https://invoice.stripe.com/i/test_pdf',
     status: 'open',
     number: 'INV-0001',
+    }
   })
 })
 
@@ -683,5 +744,305 @@ describe('XTM-CONTRACT-CO-01 delivery 3: contract-aware invoices', () => {
 
     await generateInvoice('est_1', { kind: 'full' })
     expect(createConnectInvoice).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 100000 }))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Package 2 (invoice integrity): draft-first ordering, account-scoped customer
+// reuse, stale drafts, current-version and rate limit gates.
+// ---------------------------------------------------------------------------
+describe('draft-first issue order', () => {
+  it('inserts the draft row BEFORE any Stripe call, then promotes it with the Stripe ids and account', async () => {
+    configureSupabase({})
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('data')
+    expect(callLog).toEqual(['insert-draft', 'stripe'])
+
+    const draft = invoicesInsert.mock.calls[0][0] as Record<string, unknown>
+    expect(draft).toMatchObject({
+      status: 'draft',
+      company_id: 'co_1',
+      estimate_id: 'est_1',
+      stripe_account_id: 'acct_abc123',
+      stripe_invoice_id: null,
+      stripe_customer_id: null,
+      hosted_invoice_url: null,
+      invoice_pdf_url: null,
+    })
+    // The draft id is the same id Stripe is told to route the webhook with.
+    expect((createConnectInvoice.mock.calls[0][0] as { metadata: { invoice_id: string } }).metadata.invoice_id).toBe(
+      draft.id,
+    )
+    expect(invoicesUpdatePayload).toHaveBeenCalledTimes(1)
+    expect(invoicesUpdatePayload.mock.calls[0][0]).toMatchObject({
+      status: 'open',
+      stripe_invoice_id: 'in_123',
+      stripe_customer_id: 'cus_123',
+      hosted_invoice_url: 'https://invoice.stripe.com/i/test_hosted',
+      invoice_pdf_url: 'https://invoice.stripe.com/i/test_pdf',
+    })
+  })
+
+  it('marks the row paid when Stripe already reports the invoice paid', async () => {
+    configureSupabase({})
+    createConnectInvoice.mockResolvedValueOnce({
+      stripeInvoiceId: 'in_paid',
+      stripeCustomerId: 'cus_1',
+      hostedInvoiceUrl: null,
+      invoicePdfUrl: null,
+      status: 'paid',
+      number: null,
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    await generateInvoice('est_1', { kind: 'full' })
+    expect(invoicesUpdatePayload.mock.calls[0][0]).toMatchObject({ status: 'paid', stripe_invoice_id: 'in_paid' })
+  })
+
+  it('a failed draft insert returns an error and creates nothing in Stripe', async () => {
+    configureSupabase({})
+    invoicesInsert.mockResolvedValue({ error: { message: 'db down' } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toEqual({ error: 'Failed to create the invoice. Please try again.' })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesUpdate).not.toHaveBeenCalled()
+  })
+
+  it('a Stripe failure deletes the draft row and returns the existing error', async () => {
+    configureSupabase({})
+    createConnectInvoice.mockRejectedValue(new Error('stripe down'))
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toEqual({ error: 'Failed to create the invoice. Please try again.' })
+    expect(invoicesDelete).toHaveBeenCalledTimes(1)
+    expect(callLog).toEqual(['insert-draft', 'delete-draft'])
+    expect(invoicesUpdate).not.toHaveBeenCalled()
+    errSpy.mockRestore()
+  })
+
+  it('a failed draft delete after a Stripe failure is logged, not thrown', async () => {
+    configureSupabase({})
+    createConnectInvoice.mockRejectedValue(new Error('stripe down'))
+    invoicesDelete.mockImplementation(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error: { message: 'x' } }).then(r) }
+      return chain
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Failed to create the invoice. Please try again.',
+    })
+    expect(errSpy).toHaveBeenCalledWith('[generateInvoice] Failed to delete draft invoice row', { message: 'x' })
+    errSpy.mockRestore()
+  })
+
+  it('a failed final update is retried once, then alerts ops and returns the could-not-be-saved error', async () => {
+    configureSupabase({})
+    invoicesUpdate.mockImplementation((payload: unknown) => {
+      invoicesUpdatePayload(payload)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error: { message: 'db down' } }).then(r) }
+      return chain
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toEqual({ error: 'Invoice was created in Stripe but could not be saved. Please contact support.' })
+    expect(invoicesUpdate).toHaveBeenCalledTimes(2)
+    expect(invoicesDelete).not.toHaveBeenCalled() // the draft stays so the paid webhook can still find it
+    expect(notifyOps).toHaveBeenCalledTimes(1)
+    expect(notifyOps).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'invoice_row_save_failed', severity: 'error' }),
+    )
+    errSpy.mockRestore()
+  })
+
+  it('a final update that succeeds on the retry does not alert', async () => {
+    configureSupabase({})
+    let n = 0
+    invoicesUpdate.mockImplementation((payload: unknown) => {
+      invoicesUpdatePayload(payload)
+      n += 1
+      const error = n === 1 ? { message: 'blip' } : null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = { eq: () => chain, then: (r: (v: unknown) => unknown) => Promise.resolve({ error }).then(r) }
+      return chain
+    })
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+
+    expect(await generateInvoice('est_1', { kind: 'full' })).toHaveProperty('data')
+    expect(invoicesUpdate).toHaveBeenCalledTimes(2)
+    expect(notifyOps).not.toHaveBeenCalled()
+    errSpy.mockRestore()
+  })
+})
+
+describe('stale drafts', () => {
+  const minutesAgo = (m: number) => new Date(Date.now() - m * 60 * 1000).toISOString()
+
+  it('a fresh draft still locks the estimate (acts as a lock against a concurrent double issue)', async () => {
+    configureSupabase({
+      existingInvoices: [
+        { id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: null, created_at: minutesAgo(2) },
+      ],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect((result as { error: string }).error).toMatch(/already has an invoice issued/)
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesDelete).not.toHaveBeenCalled()
+  })
+
+  it('a draft with no Stripe id older than 10 minutes is ignored and marked void, never deleted', async () => {
+    configureSupabase({
+      existingInvoices: [
+        { id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: null, created_at: minutesAgo(11) },
+      ],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('data')
+    expect(createConnectInvoice).toHaveBeenCalledTimes(1)
+    // Kept as a void row so a late payment of an invoice Stripe may already
+    // have sent can still be matched by metadata.invoice_id.
+    expect(invoicesUpdateIn).toHaveBeenCalledWith(expect.objectContaining({ status: 'void' }), 'id', ['d1'])
+    expect(invoicesDelete).not.toHaveBeenCalled()
+  })
+
+  it('an old draft that already has a Stripe invoice id is NOT stale', async () => {
+    configureSupabase({
+      existingInvoices: [
+        { id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: 'in_9', created_at: minutesAgo(60) },
+      ],
+    })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    const result = await generateInvoice('est_1', { kind: 'full' })
+    expect(result).toHaveProperty('error')
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('getInvoicingPreview applies the same stale rule', async () => {
+    configureSupabase({
+      existingInvoices: [
+        { id: 'd1', status: 'draft', amount_cents: 100000, kind: 'full', stripe_invoice_id: null, created_at: minutesAgo(30) },
+        { id: 'd2', status: 'draft', amount_cents: 5000, kind: 'deposit', stripe_invoice_id: null, created_at: minutesAgo(1) },
+      ],
+    })
+    const { getInvoicingPreview } = await import('@/lib/actions/invoice')
+    const result = await getInvoicingPreview('est_1')
+    expect(result).toHaveProperty('data')
+    const data = (result as { data: { liveInvoices: Array<{ kind: string }> } }).data
+    expect(data.liveInvoices.map((i) => i.kind)).toEqual(['deposit'])
+    expect(invoicesDelete).not.toHaveBeenCalled()
+  })
+})
+
+describe('customer reuse is scoped to the connected account', () => {
+  const prior = (account: string | null) => ({
+    status: 'paid',
+    amount_cents: 20000,
+    kind: 'deposit',
+    stripe_customer_id: 'cus_prior',
+    stripe_account_id: account,
+  })
+  const estimateWithDeposit = {
+    id: 'est_1',
+    company_id: 'co_1',
+    currency_code: 'usd',
+    total: 1000,
+    deposit_type: 'amount',
+    deposit_value: 200,
+    project: { name: 'Bathroom remodel', client: { name: 'Jane Doe', email: 'jane@example.com' } },
+  }
+
+  it('reuses the prior customer when the prior row was issued on the same account', async () => {
+    configureSupabase({ estimate: estimateWithDeposit, existingInvoices: [prior('acct_abc123')] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    await generateInvoice('est_1', { kind: 'balance', depositPct: 20 })
+    expect(createConnectInvoice.mock.calls[0][0]).toMatchObject({ existingCustomerId: 'cus_prior' })
+    expect(invoicesSelectEq).toHaveBeenCalledWith('stripe_account_id', 'acct_abc123')
+  })
+
+  it('does not reuse a customer from a different account', async () => {
+    configureSupabase({ estimate: estimateWithDeposit, existingInvoices: [prior('acct_old')] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    await generateInvoice('est_1', { kind: 'balance', depositPct: 20 })
+    expect(createConnectInvoice.mock.calls[0][0]).toMatchObject({ existingCustomerId: null })
+  })
+
+  it('does not reuse a customer from a row with a null stripe_account_id (issued before the column)', async () => {
+    configureSupabase({ estimate: estimateWithDeposit, existingInvoices: [prior(null)] })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    await generateInvoice('est_1', { kind: 'balance', depositPct: 20 })
+    expect(createConnectInvoice.mock.calls[0][0]).toMatchObject({ existingCustomerId: null })
+  })
+})
+
+describe('current version and rate limit gates', () => {
+  it('refuses an estimate that is not the current version, with no Stripe call or draft', async () => {
+    configureSupabase({ estimate: { ...acceptedEstimate, is_current: false } })
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    for (const opts of [
+      { kind: 'full' },
+      { kind: 'deposit', depositPct: 30 },
+      { kind: 'balance', depositPct: 30 },
+    ] as const) {
+      expect(await generateInvoice('est_1', opts)).toEqual({
+        error: 'Only the current version of an estimate can be invoiced.',
+      })
+    }
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+    expect(invoicesInsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses a change order invoice on a non-current estimate too', async () => {
+    const id = '33333333-3333-4333-8333-333333333333'
+    configureSupabase({ estimate: { ...acceptedEstimate, is_current: false } })
+    withChangeOrders({ approved: [{ id, number: 1, total: 100 }], lookup: { id, company_id: 'co_1', estimate_id: 'est_1' } })
+    const { invoiceChangeOrder } = await import('@/lib/actions/invoice')
+    expect(await invoiceChangeOrder(id)).toEqual({ error: 'Only the current version of an estimate can be invoiced.' })
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('refuses over the rate limit with no draft and no Stripe call, keyed by company id', async () => {
+    rateLimit.mockResolvedValue({ allowed: false, count: 31, max: 30, retryAfter: 100 })
+    configureSupabase({})
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    expect(await generateInvoice('est_1', { kind: 'full' })).toEqual({
+      error: 'Too many invoices in a short time. Please try again later.',
+    })
+    expect(rateLimit).toHaveBeenCalledWith('invoiceIssuePerHour', 'co_1')
+    expect(invoicesInsert).not.toHaveBeenCalled()
+    expect(createConnectInvoice).not.toHaveBeenCalled()
+  })
+
+  it('does not spend rate limit budget when an earlier gate refuses', async () => {
+    requireCompanyOwner.mockRejectedValue(new Error('forbidden'))
+    configureSupabase({})
+    const { generateInvoice } = await import('@/lib/actions/invoice')
+    await generateInvoice('est_1', { kind: 'full' })
+    expect(rateLimit).not.toHaveBeenCalled()
+  })
+
+  it('getInvoicingPreview reports whether the client accepted', async () => {
+    configureSupabase({ estimate: { ...acceptedEstimate, client_response: null } })
+    withChangeOrders({ approved: [] })
+    const { getInvoicingPreview } = await import('@/lib/actions/invoice')
+    const open = await getInvoicingPreview('est_1')
+    expect((open as { data: { accepted: boolean } }).data.accepted).toBe(false)
+
+    configureSupabase({ estimate: acceptedEstimate })
+    withChangeOrders({ approved: [] })
+    const accepted = await getInvoicingPreview('est_1')
+    expect((accepted as { data: { accepted: boolean } }).data.accepted).toBe(true)
   })
 })

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  hasLiveDepositInvoice,
   invoiceAmountCents,
   planInvoice,
   summarizeInvoicing,
@@ -122,6 +123,57 @@ describe('planInvoice', () => {
       depositCents: 348600,
       approvedChangeOrders: [{ id: 'co2', number: 2, totalCents: -10000 }],
       liveInvoices: [{ kind: 'deposit', amount_cents: 348600, change_order_id: null }],
+    })
+    expect(planInvoice(input, { kind: 'balance' }).error).toBe('Nothing left to invoice.')
+  })
+})
+
+describe('balance after a live deposit bills what remains', () => {
+  const noCo = (over: Partial<InvoicingInput> = {}) => base({ approvedChangeOrders: [], ...over })
+
+  it('a 30% deposit followed by a 50% balance request still bills the remaining 70%', () => {
+    // Deposit invoice issued at 30% of $1,000.00; the balance form later asks for a 50% split.
+    const input = noCo({
+      estimateTotalCents: 100000,
+      depositCents: 50000,
+      liveInvoices: [{ kind: 'deposit', amount_cents: 30000, change_order_id: null }],
+    })
+    expect(invoiceAmountCents(input, { kind: 'balance' })).toBe(70000)
+    expect(planInvoice(input, { kind: 'balance' })).toEqual({ amountCents: 70000 })
+  })
+
+  it('with no live deposit the balance is computed as before', () => {
+    const input = noCo({ estimateTotalCents: 100000, depositCents: 30000 })
+    expect(hasLiveDepositInvoice(input)).toBe(false)
+    expect(invoiceAmountCents(input, { kind: 'balance' })).toBe(70000)
+  })
+
+  it('a void deposit (not in liveInvoices) does not count', () => {
+    const input = noCo({ estimateTotalCents: 100000, depositCents: 30000, liveInvoices: [] })
+    expect(hasLiveDepositInvoice(input)).toBe(false)
+  })
+
+  it('subtracts change orders billed alone and keeps the one-balance-per-estimate guard', () => {
+    const live = [
+      { kind: 'deposit' as const, amount_cents: 20000, change_order_id: null },
+      { kind: 'change_order' as const, amount_cents: 51500, change_order_id: 'co1' },
+    ]
+    const input = base({
+      estimateTotalCents: 100000,
+      depositCents: 99999,
+      approvedChangeOrders: [{ id: 'co1', number: 1, totalCents: 51500 }],
+      liveInvoices: live,
+    })
+    expect(planInvoice(input, { kind: 'balance' })).toEqual({ amountCents: 100000 + 51500 - 20000 - 51500 })
+    const withBalance = { ...input, liveInvoices: [...live, { kind: 'balance' as const, amount_cents: 80000, change_order_id: null }] }
+    expect(planInvoice(withBalance, { kind: 'balance' }).error).toMatch(/balance invoice has already been issued/)
+  })
+
+  it('never bills above the contract', () => {
+    const input = noCo({
+      estimateTotalCents: 100000,
+      depositCents: 30000,
+      liveInvoices: [{ kind: 'deposit', amount_cents: 100000, change_order_id: null }],
     })
     expect(planInvoice(input, { kind: 'balance' }).error).toBe('Nothing left to invoice.')
   })

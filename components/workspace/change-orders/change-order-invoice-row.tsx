@@ -5,12 +5,20 @@ import { formatMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import type { ChangeOrderInvoice } from '@/lib/change-orders/types'
+import { VoidInvoiceButton } from '@/components/workspace/estimate/issued-invoices-panel'
 
 /**
  * Compact row for the change order's own invoice in the owner editor. Same
  * visual family as the issued invoices panel of the estimate editor.
  */
-export function ChangeOrderInvoiceRow({ invoice }: { invoice: ChangeOrderInvoice }) {
+export function ChangeOrderInvoiceRow({
+  invoice,
+  voidInvoice,
+}: {
+  invoice: ChangeOrderInvoice
+  /** Injected like the other change order actions (default: the real server action). */
+  voidInvoice?: (invoiceId: string) => Promise<{ error: string } | { success: true }>
+}) {
   const { t } = useTranslation()
   const paid = invoice.status === 'paid'
   return (
@@ -28,17 +36,20 @@ export function ChangeOrderInvoiceRow({ invoice }: { invoice: ChangeOrderInvoice
           </span>
         </p>
       </div>
+      <div className="flex shrink-0 items-center gap-3">
       {invoice.hosted_invoice_url && (
         <a
           href={invoice.hosted_invoice_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           <ExternalLink className="size-3.5" aria-hidden />
           {t('View invoice')}
         </a>
       )}
+      {invoice.status === 'open' && <VoidInvoiceButton invoiceId={invoice.id} onVoid={voidInvoice} />}
+      </div>
     </div>
   )
 }

@@ -5,7 +5,10 @@
  * The contract is the accepted estimate plus every approved change order, and
  * invoices are measured against it:
  *   - deposit: the estimate's deposit, unchanged.
- *   - balance: estimate total - deposit + approved change orders that were NOT
+ *   - balance: when a live deposit invoice exists, whatever remains of the
+ *     contract (contract - already invoiced), so a deposit of any size followed
+ *     by a balance can never leave a gap no invoice kind can bill. With no live
+ *     deposit: estimate total - deposit + approved change orders that were NOT
  *     invoiced on their own. Credits (negative change orders) always land here.
  *   - full: the whole contract, only when nothing else was issued.
  *   - change_order: one approved, positive change order on its own, once.
@@ -84,6 +87,11 @@ export function summarizeInvoicing(input: InvoicingInput): InvoicingSummary {
   }
 }
 
+/** True when a deposit invoice is live (not void / uncollectible). */
+export function hasLiveDepositInvoice(input: Pick<InvoicingInput, 'liveInvoices'>): boolean {
+  return input.liveInvoices.some((inv) => inv.kind === 'deposit')
+}
+
 /** Amount the requested invoice would charge, before the guards. */
 export function invoiceAmountCents(input: InvoicingInput, request: InvoiceRequest): number {
   const s = summarizeInvoicing(input)
@@ -93,7 +101,12 @@ export function invoiceAmountCents(input: InvoicingInput, request: InvoiceReques
     case 'deposit':
       return input.depositCents
     case 'balance':
-      return input.estimateTotalCents - input.depositCents + s.changeOrdersInBalanceCents
+      // A live deposit invoice means the balance bills what remains of the
+      // contract, not a recomputation from a percentage (which could disagree
+      // with the deposit actually issued and strand part of the contract).
+      return hasLiveDepositInvoice(input)
+        ? s.remainingCents
+        : input.estimateTotalCents - input.depositCents + s.changeOrdersInBalanceCents
     case 'change_order': {
       const co = input.approvedChangeOrders.find((c) => c.id === request.changeOrderId)
       return co ? co.totalCents : 0

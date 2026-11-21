@@ -14,7 +14,12 @@ import {
 } from '@/components/ui/dialog'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { generateInvoice, getInvoicingPreview } from '@/lib/actions/invoice'
-import { invoiceAmountCents, summarizeInvoicing, type InvoicingInput } from '@/lib/change-orders/invoicing'
+import {
+  hasLiveDepositInvoice,
+  invoiceAmountCents,
+  summarizeInvoicing,
+  type InvoicingInput,
+} from '@/lib/change-orders/invoicing'
 import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
@@ -119,6 +124,9 @@ export function GenerateInvoiceDialog({
     : null
   const contractSummary = contractInput ? summarizeInvoicing(contractInput) : null
   const withChangeOrders = !!contractInput && !!contractSummary && contractSummary.changeOrdersCents !== 0
+  // A live deposit invoice: the balance is whatever remains of the contract (the
+  // server uses the same pure math), so the percent picker is meaningless there.
+  const liveDeposit = !!contractInput && hasLiveDepositInvoice(contractInput)
 
   const depositCents = hasConfiguredDeposit
     ? (configuredDepositCents ?? 0)
@@ -126,7 +134,7 @@ export function GenerateInvoiceDialog({
   const shownDepositCents =
     withChangeOrders && contractInput ? contractInput.depositCents : depositCents
   const previewCents =
-    withChangeOrders && contractInput
+    (withChangeOrders || (liveDeposit && kind === 'balance')) && contractInput
       ? invoiceAmountCents(contractInput, { kind })
       : kind === 'full'
         ? estimateTotalCents
@@ -136,7 +144,9 @@ export function GenerateInvoiceDialog({
   // A credit reads "− $100.00", never "+ -$100.00".
   const signed = (cents: number) => (cents < 0 ? '−' : '+')
   const breakdown =
-    withChangeOrders && contractInput && contractSummary
+    liveDeposit && kind === 'balance' && contractInput && contractSummary
+      ? `${t('Contract')} ${formatMinorUnits(contractSummary.contractCents, currencyCode)} − ${t('Already invoiced')} ${formatMinorUnits(contractSummary.alreadyInvoicedCents, currencyCode)}`
+      : withChangeOrders && contractInput && contractSummary
       ? kind === 'balance'
         ? `${t('Estimate')} ${formatMinorUnits(contractInput.estimateTotalCents, currencyCode)} − ${t('Deposit')} ${formatMinorUnits(shownDepositCents, currencyCode)} ${signed(contractSummary.changeOrdersInBalanceCents)} ${t('Change orders')} ${formatMinorUnits(Math.abs(contractSummary.changeOrdersInBalanceCents), currencyCode)}`
         : kind === 'full'
@@ -176,8 +186,9 @@ export function GenerateInvoiceDialog({
   // DEP-03: when the estimate has a server-configured deposit, the percent
   // picker is meaningless (the server ignores depositPct entirely in that
   // case) — show the configured deposit amount instead.
-  const showPercent = (kind === 'deposit' || kind === 'balance') && !hasConfiguredDeposit
-  const showConfiguredDeposit = (kind === 'deposit' || kind === 'balance') && hasConfiguredDeposit
+  const balanceIsRemainder = kind === 'balance' && liveDeposit
+  const showPercent = (kind === 'deposit' || kind === 'balance') && !hasConfiguredDeposit && !balanceIsRemainder
+  const showConfiguredDeposit = (kind === 'deposit' || kind === 'balance') && hasConfiguredDeposit && !balanceIsRemainder
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -229,6 +240,16 @@ export function GenerateInvoiceDialog({
               </button>
             ))}
           </div>
+
+          {/* Balance after an issued deposit: the remainder, no percent to pick. */}
+          {balanceIsRemainder && (
+            <div
+              data-testid="balance-remainder-note"
+              className="rounded-[var(--radius-md)] border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+            >
+              {t('Balance is what remains after the deposit invoice already issued.')}
+            </div>
+          )}
 
           {/* Configured-deposit readout (deposit / balance, when the estimate
               already has a deposit_type/deposit_value — replaces the percent
@@ -303,6 +324,12 @@ export function GenerateInvoiceDialog({
           {breakdown && (
             <p data-testid="invoice-breakdown" className="-mt-3 px-1 text-xs text-muted-foreground">
               {breakdown}
+            </p>
+          )}
+
+          {preview?.accepted === false && (
+            <p data-testid="not-accepted-note" className="px-1 text-xs text-muted-foreground">
+              {t('Your client has not accepted this estimate yet.')}
             </p>
           )}
 

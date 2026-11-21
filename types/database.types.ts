@@ -1867,6 +1867,7 @@ export type Database = {
           paid_at: string | null
           project_name: string | null
           status: string
+          stripe_account_id: string | null
           stripe_customer_id: string | null
           stripe_invoice_id: string | null
           updated_at: string
@@ -1885,6 +1886,7 @@ export type Database = {
           paid_at?: string | null
           project_name?: string | null
           status?: string
+          stripe_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string
@@ -1903,6 +1905,7 @@ export type Database = {
           paid_at?: string | null
           project_name?: string | null
           status?: string
+          stripe_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_invoice_id?: string | null
           updated_at?: string

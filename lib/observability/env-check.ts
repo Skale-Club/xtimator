@@ -44,6 +44,10 @@ const IMPORTANT_VARS = [
   // Stripe webhook signature verification fails closed without this — every
   // checkout.session.completed / invoice.paid event silently stops crediting.
   'STRIPE_WEBHOOK_SECRET',
+  // Signs the Stripe Connect (connected-account) webhook. Without it the
+  // payment of a client invoice is never recorded: invoices stay open in the
+  // app even after the client paid. A warning, never a boot failure.
+  'STRIPE_CONNECT_WEBHOOK_SECRET',
   // lib/crypto/aes (BYOK keys, other encrypted platform_integrations rows)
   // throws on every encrypt/decrypt call without this — degrades a specific
   // feature set rather than the whole app, so IMPORTANT not CRITICAL.
@@ -79,7 +83,8 @@ export function validateProductionEnv(): void {
       `[env-check] Missing important production env var(s): ${missingImportant.join(', ')}. ` +
         'Affected features will silently degrade (rate limiting fails open without ' +
         'UPSTASH_*, AI generation fails without OPENROUTER_API_KEY, background jobs ' +
-        'never run without INNGEST_SIGNING_KEY). Boot continues.'
+        'never run without INNGEST_SIGNING_KEY, payments of client invoices are never ' +
+        'recorded without STRIPE_CONNECT_WEBHOOK_SECRET). Boot continues.'
     )
   }
 }

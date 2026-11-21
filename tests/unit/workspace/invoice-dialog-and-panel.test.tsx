@@ -70,6 +70,67 @@ describe('GenerateInvoiceDialog - contract preview', () => {
     expect(screen.getByText('$2,486.00')).toBeTruthy()
   })
 
+  it('after a live deposit the Balance tab shows the remainder and hides the percent picker', async () => {
+    getInvoicingPreview.mockResolvedValue({
+      data: {
+        currencyCode: 'USD',
+        estimateTotalCents: 100000,
+        accepted: true,
+        configuredDepositCents: null,
+        approvedChangeOrders: [],
+        liveInvoices: [{ kind: 'deposit', amount_cents: 30000, change_order_id: null }],
+      },
+    })
+    render(<GenerateInvoiceDialog estimateId="est-1" currencyCode="USD" estimateTotalCents={100000} />)
+    fireEvent.click(screen.getByRole('button', { name: /Generate invoice/ }))
+    await waitFor(() => expect(getInvoicingPreview).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Balance' }))
+    await screen.findByTestId('balance-remainder-note')
+    expect(screen.queryByLabelText('Custom percentage')).toBeNull()
+    expect(screen.getByText('$700.00')).toBeTruthy()
+    expect(screen.queryByTestId('not-accepted-note')).toBeNull()
+
+    // Deposit keeps its picker (no configured deposit).
+    fireEvent.click(screen.getByRole('button', { name: 'Deposit' }))
+    expect(screen.getByLabelText('Custom percentage')).toBeTruthy()
+  })
+
+  it('keeps the percent picker for Balance when no deposit invoice exists', async () => {
+    getInvoicingPreview.mockResolvedValue({
+      data: {
+        currencyCode: 'USD',
+        estimateTotalCents: 100000,
+        accepted: true,
+        configuredDepositCents: null,
+        approvedChangeOrders: [],
+        liveInvoices: [],
+      },
+    })
+    render(<GenerateInvoiceDialog estimateId="est-1" currencyCode="USD" estimateTotalCents={100000} />)
+    fireEvent.click(screen.getByRole('button', { name: /Generate invoice/ }))
+    await waitFor(() => expect(getInvoicingPreview).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Balance' }))
+    expect(screen.getByLabelText('Custom percentage')).toBeTruthy()
+    expect(screen.queryByTestId('balance-remainder-note')).toBeNull()
+  })
+
+  it('says so, in one muted line, when the client has not accepted the estimate yet', async () => {
+    getInvoicingPreview.mockResolvedValue({
+      data: {
+        currencyCode: 'USD',
+        estimateTotalCents: 100000,
+        accepted: false,
+        configuredDepositCents: null,
+        approvedChangeOrders: [],
+        liveInvoices: [],
+      },
+    })
+    render(<GenerateInvoiceDialog estimateId="est-1" currencyCode="USD" estimateTotalCents={100000} />)
+    fireEvent.click(screen.getByRole('button', { name: /Generate invoice/ }))
+    const note = await screen.findByTestId('not-accepted-note')
+    expect(note.textContent).toBe('Your client has not accepted this estimate yet.')
+  })
+
   it('falls back to the live total when the preview fails', async () => {
     getInvoicingPreview.mockResolvedValue({ error: 'Estimate not found' })
     openDialog()

@@ -28,7 +28,7 @@ export interface InvoiceRow {
 }
 
 /**
- * Returns every invoice for an estimate, newest first. Amounts are the stored
+ * Returns every issued invoice for an estimate (drafts excluded), newest first. Amounts are the stored
  * snapshot values, returned verbatim.
  */
 export async function getInvoicesByEstimateId(
@@ -41,9 +41,18 @@ export async function getInvoicesByEstimateId(
       'id, estimate_id, company_id, kind, change_order_id, amount_cents, currency_code, status, stripe_invoice_id, hosted_invoice_url, invoice_pdf_url, paid_at, created_at, change_order:change_orders(number)',
     )
     .eq('estimate_id', estimateId)
+    // A draft row is a reservation made while the Stripe invoice is being
+    // created (lib/actions/invoice.ts). It is not an invoice the owner issued.
+    .neq('status', 'draft')
     .order('created_at', { ascending: false })
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+  // A void row that never got a Stripe invoice id is an abandoned reservation
+  // (kept only so a late payment can still be matched), not an issued invoice.
+  const issued = ((data ?? []) as Array<Record<string, unknown>>).filter(
+    (row) => !(row.status === 'void' && !row.stripe_invoice_id),
+  )
+
+  return issued.map((row) => {
     const { change_order, ...rest } = row as Record<string, unknown> & { change_order?: unknown }
     const co = (Array.isArray(change_order) ? change_order[0] : change_order) as { number?: number } | null | undefined
     return {

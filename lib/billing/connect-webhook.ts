@@ -100,6 +100,15 @@ async function assertEventOwnsCompany(
     (data as { stripe_account_id?: string | null } | null)?.stripe_account_id ?? null
 
   if (companyAccountId !== event.account) {
+    // Invoice-scoped events from a PREVIOUSLY connected account are still
+    // honored: a company that switched accounts must still get paid for an
+    // invoice issued (and paid) on the old one. The proof is OUR stored row,
+    // never the payload: the invoices row named by metadata.invoice_id must
+    // belong to this company AND carry a stripe_account_id equal to the
+    // signed event.account. Rows issued before that column existed have it null
+    // and never qualify.
+    if (await invoiceRowProvesAccount(svc, companyId, event)) return companyId
+
     console.warn(
       '[stripe-webhook][connect] event.account does not match resolved company.stripe_account_id — dropping event:',
       'eventId=', event.id,
@@ -119,6 +128,42 @@ async function assertEventOwnsCompany(
   }
 
   return companyId
+}
+
+const INVOICE_SCOPED_EVENT_TYPES: readonly string[] = [
+  'invoice.paid',
+  'invoice.voided',
+  'invoice.marked_uncollectible',
+  'invoice.payment_failed',
+]
+
+async function invoiceRowProvesAccount(
+  svc: ServiceClient,
+  companyId: string,
+  event: Stripe.Event,
+): Promise<boolean> {
+  if (!INVOICE_SCOPED_EVENT_TYPES.includes(event.type) || !event.account) return false
+  const invoiceRowId = (event.data.object as { metadata?: Record<string, string> | null }).metadata
+    ?.invoice_id
+  if (!invoiceRowId) return false
+
+  const { data, error } = await svc
+    .from('invoices')
+    .select('company_id, stripe_account_id')
+    .eq('id', invoiceRowId)
+    .maybeSingle()
+  if (error) {
+    throw new Error(
+      `[stripe-webhook][connect] failed to verify invoice/account ownership: ${error.message}`,
+    )
+  }
+  const row = data as { company_id?: string | null; stripe_account_id?: string | null } | null
+  return (
+    !!row &&
+    row.company_id === companyId &&
+    !!row.stripe_account_id &&
+    row.stripe_account_id === event.account
+  )
 }
 
 /**
@@ -500,10 +545,17 @@ async function handleInvoicePaid(
   // email/notification payload. This write IS the purpose of the event — a DB
   // error throws (Fix 3) so the route clears the dedup row and Stripe retries,
   // rather than silently leaving a paid invoice marked unpaid forever.
+  //
+  // maybeSingle: zero matching rows is NOT a database error. It is acknowledged
+  // (200) with an ops alert, because retrying cannot make the row appear and
+  // Stripe would retry for days. Setting stripe_invoice_id here covers an issue
+  // whose final row update failed (the row stayed a draft with no Stripe id);
+  // it is the id of the very invoice this trusted event is about.
   const { data: updated, error } = await svc
     .from('invoices')
     .update({
       status: 'paid',
+      stripe_invoice_id: invoice.id,
       paid_at: new Date().toISOString(),
       hosted_invoice_url: invoice.hosted_invoice_url ?? null,
       invoice_pdf_url: invoice.invoice_pdf ?? null,
@@ -514,7 +566,7 @@ async function handleInvoicePaid(
     .select(
       'id, company_id, estimate_id, change_order_id, amount_cents, currency_code, project_name'
     )
-    .single()
+    .maybeSingle()
 
   if (error) {
     throw new Error(
@@ -523,10 +575,19 @@ async function handleInvoicePaid(
   }
   if (!updated) {
     console.error(
-      '[stripe-webhook][connect] failed to mark invoice paid: no matching row',
+      '[stripe-webhook][connect] invoice.paid matched no invoices row:',
       'invoiceRowId=',
-      invoiceRowId
+      invoiceRowId,
+      'stripeInvoiceId=',
+      invoice.id
     )
+    void notifyOps({
+      kind: 'invoice_paid_unmatched',
+      title: 'Stripe invoice paid but no matching invoice row',
+      message: `event ${event.id}: stripe invoice ${invoice.id} was paid but invoices row ${invoiceRowId} was not found for company ${companyId}; the payment is not recorded`,
+      severity: 'error',
+      dedupeKey: event.id,
+    })
     return
   }
 
@@ -944,6 +1005,9 @@ async function handleAccountDeauthorized(
     .update({
       stripe_account_id: null,
       stripe_connect_status: 'disconnected',
+      // Account health belongs to the account that just went away.
+      stripe_charges_enabled: null,
+      stripe_connect_disabled_reason: null,
     })
     .eq('stripe_account_id', acctId)
   if (error) {

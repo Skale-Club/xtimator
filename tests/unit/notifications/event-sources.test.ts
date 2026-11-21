@@ -369,7 +369,7 @@ describe('payment.received instrumentation', () => {
       project_name: 'Bathroom remodel',
     }
     const invoiceSingle = vi.fn().mockResolvedValueOnce({ data: updatedInvoice, error: null })
-    const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle })
+    const invoiceSelectAfterUpdate = vi.fn().mockReturnValue({ single: invoiceSingle, maybeSingle: invoiceSingle })
     const invoiceUpdateEq2 = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate })
     const invoiceUpdateEq = vi.fn().mockReturnValue({ select: invoiceSelectAfterUpdate, eq: invoiceUpdateEq2 })
     const invoiceUpdate = vi.fn().mockReturnValue({ eq: invoiceUpdateEq })

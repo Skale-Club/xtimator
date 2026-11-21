@@ -17,6 +17,8 @@ import { getPlatformFeatureState } from '@/lib/features/platform-feature-state'
 import { splitDepositBalance } from '@/lib/money/invoice-split'
 import { toMinorUnits, formatMinorUnits } from '@/lib/money/currency'
 import { getInvoicesByEstimateId, type InvoiceRow } from '@/lib/queries/invoice'
+import { rateLimit } from '@/lib/ratelimit'
+import { notifyOps } from '@/lib/observability/ops-alert'
 import { resolveEstimateNumber } from '@/lib/change-orders/contract'
 import { formatChangeOrderNumber } from '@/lib/change-orders/types'
 import {
@@ -36,6 +38,11 @@ import {
  *   2. estimate ownership
  *   3. demo guard — blocks ALL real Stripe side effects (Pitfall 6)
  *   4. Connect-active check (stripe_account_id + stripe_connect_status === 'active')
+ *
+ * Write order: a draft `invoices` row is inserted BEFORE Stripe is called, then
+ * promoted to open/paid with the Stripe ids. A Stripe failure deletes the draft;
+ * a failed promotion alerts ops and leaves the draft so the paid webhook can
+ * still match it by metadata.invoice_id.
  *
  * The amount is snapshotted at issue time (cents, immutable). `metadata.invoice_id`
  * is the row PK so the `invoice.paid` webhook can route back to this exact row.
@@ -114,6 +121,8 @@ export async function getInvoicingPreview(estimateId: string): Promise<
       data: {
         currencyCode: string
         estimateTotalCents: number
+        /** True once the client accepted this estimate (invoicing before that is allowed, the dialog only says so). */
+        accepted: boolean
         /** null when the estimate has no configured deposit (the dialog's percent picker applies). */
         configuredDepositCents: number | null
         approvedChangeOrders: InvoicingApprovedChangeOrder[]
@@ -134,14 +143,16 @@ export async function getInvoicingPreview(estimateId: string): Promise<
   const currencyCode = (estimate.currency_code as string) ?? 'USD'
   const totalDollars = Number(estimate.total) || 0
   const hasConfiguredDeposit = estimate.deposit_type === 'percent' || estimate.deposit_type === 'amount'
-  const [approvedChangeOrders, liveInvoices] = await Promise.all([
+  const [approvedChangeOrders, live] = await Promise.all([
     loadApprovedChangeOrders(supabase, estimate, currencyCode),
     loadLiveInvoices(supabase, estimateId),
   ])
+  const liveInvoices = live.invoices
   return {
     data: {
       currencyCode,
       estimateTotalCents: toMinorUnits(totalDollars, currencyCode),
+      accepted: estimate.client_response === 'accepted',
       configuredDepositCents: hasConfiguredDeposit
         ? resolveChargeAmount(
             {
@@ -180,19 +191,49 @@ async function loadApprovedChangeOrders(
   }))
 }
 
-async function loadLiveInvoices(supabase: RlsClient, estimateId: string): Promise<InvoicingLiveInvoice[]> {
+/**
+ * A draft row with no Stripe invoice id is a reservation made by issueInvoice
+ * while it calls Stripe. While fresh it locks out a concurrent double issue;
+ * once older than this a crashed request left it behind and it must not block
+ * the estimate (it is ignored here and best-effort marked void by issueInvoice;
+ * it is kept, not deleted, so a late payment can still be matched to it).
+ */
+const STALE_DRAFT_MS = 10 * 60 * 1000
+
+async function loadLiveInvoices(
+  supabase: RlsClient,
+  estimateId: string,
+): Promise<{ invoices: InvoicingLiveInvoice[]; staleDraftIds: string[] }> {
   const { data } = await supabase
     .from('invoices')
-    .select('status, amount_cents, kind, change_order_id')
+    .select('id, status, amount_cents, kind, change_order_id, stripe_invoice_id, created_at')
     .eq('estimate_id', estimateId)
     .not('status', 'in', '(void,uncollectible)')
-  return ((data ?? []) as Array<{ amount_cents: number | null; kind: string | null; change_order_id: string | null }>).map(
-    (row) => ({
+  const rows = (data ?? []) as Array<{
+    id?: string | null
+    status?: string | null
+    amount_cents: number | null
+    kind: string | null
+    change_order_id: string | null
+    stripe_invoice_id?: string | null
+    created_at?: string | null
+  }>
+  const cutoff = Date.now() - STALE_DRAFT_MS
+  const staleDraftIds: string[] = []
+  const invoices: InvoicingLiveInvoice[] = []
+  for (const row of rows) {
+    const createdAt = row.created_at ? Date.parse(row.created_at) : NaN
+    if (row.status === 'draft' && !row.stripe_invoice_id && Number.isFinite(createdAt) && createdAt < cutoff) {
+      if (row.id) staleDraftIds.push(row.id)
+      continue
+    }
+    invoices.push({
       kind: (row.kind ?? 'full') as InvoicingLiveInvoice['kind'],
       amount_cents: row.amount_cents ?? 0,
       change_order_id: row.change_order_id ?? null,
-    }),
-  )
+    })
+  }
+  return { invoices, staleDraftIds }
 }
 
 async function issueInvoice(
@@ -236,6 +277,12 @@ async function issueInvoice(
   if (estimateError || !estimate) return { error: 'Estimate not found' }
   if (estimate.company_id !== companyId) return { error: 'Unauthorized' }
 
+  // Only the current version is the contract. The dialog only offers the button
+  // there, but the action is the boundary, for every kind, before any Stripe call.
+  if (estimate.is_current !== true) {
+    return { error: 'Only the current version of an estimate can be invoiced.' }
+  }
+
   // 3. The estimate's persisted company is trusted after the ownership check.
   // Guard it explicitly before any Stripe or invoice persistence work.
   const targetDenied = await assertCompanyWritable(estimate.company_id)
@@ -269,6 +316,12 @@ async function issueInvoice(
     return { error: 'Connect a Stripe account in Settings → Client actions before issuing invoices.' }
   }
 
+  // 4b. Rate limit (per company), after every gate and before any draft insert
+  //     or Stripe call.
+  const limited = await rateLimit('invoiceIssuePerHour', companyId)
+  if (!limited.allowed) return { error: 'Too many invoices in a short time. Please try again later.' }
+  const stripeAccountId = company.stripe_account_id as string
+
   // 5. Compute the snapshot amount in integer minor units.
   const currencyCode = (estimate.currency_code as string) ?? 'USD'
   const totalDollars = (estimate.total as number) ?? 0
@@ -297,10 +350,31 @@ async function issueInvoice(
   // when nothing else is live, each estimate kind is issued once, and the live
   // invoices never add up to more than the contract. Reads run AFTER the
   // owner/Connect gates above and BEFORE any Stripe call below.
-  const [approvedChangeOrders, liveInvoices] = await Promise.all([
+  const [approvedChangeOrders, live] = await Promise.all([
     loadApprovedChangeOrders(supabase, estimate, currencyCode),
     loadLiveInvoices(supabase, estimateId),
   ])
+  const liveInvoices = live.invoices
+  const svc = requireServiceClient()
+  if (live.staleDraftIds.length > 0) {
+    // Best effort: an earlier request left these behind (see STALE_DRAFT_MS).
+    // They are marked void, NOT deleted: the request may have died after Stripe
+    // created and sent the invoice, and if that invoice is paid later the
+    // webhook must still find this row by metadata.invoice_id. Void also frees
+    // the one-live-invoice-per-change-order unique index.
+    try {
+      const { error: staleError } = await svc
+        .from('invoices')
+        .update({ status: 'void', updated_at: new Date().toISOString() })
+        .in('id', live.staleDraftIds)
+        .eq('company_id', companyId)
+        .eq('status', 'draft')
+        .is('stripe_invoice_id', null)
+      if (staleError) console.error('[generateInvoice] Failed to void stale draft invoices', staleError)
+    } catch (err) {
+      console.error('[generateInvoice] Failed to void stale draft invoices', err)
+    }
+  }
   const plan = planInvoice(
     { estimateTotalCents: totalCents, depositCents, approvedChangeOrders, liveInvoices },
     request,
@@ -354,31 +428,66 @@ async function issueInvoice(
   }
 
   // 7. Customer reuse (D-14): reuse the most recent prior customer id for this
-  //    estimate when present. Guarded so an insert-only client doesn't break the
-  //    happy path — degrades to a fresh customer when no prior row is readable.
+  //    estimate, but ONLY one created on the SAME connected account. A Stripe
+  //    customer exists inside one account, so after the company connected a
+  //    different account an old id would be rejected by Stripe. Rows issued
+  //    before invoices.stripe_account_id existed have it null; we cannot know
+  //    whether the company ever changed account since, so null is treated as
+  //    "do not reuse" and a fresh customer is created. Degrades to a fresh
+  //    customer when no prior row is readable.
   let existingCustomerId: string | null = null
   try {
     const { data: priors } = await supabase
       .from('invoices')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, stripe_account_id')
       .eq('estimate_id', estimateId)
+      .eq('stripe_account_id', stripeAccountId)
       .not('stripe_customer_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
-    existingCustomerId = priors?.[0]?.stripe_customer_id ?? null
+    const prior = (priors ?? []).find(
+      (row: { stripe_customer_id: string | null; stripe_account_id: string | null }) =>
+        !!row.stripe_customer_id && row.stripe_account_id === stripeAccountId,
+    )
+    existingCustomerId = prior?.stripe_customer_id ?? null
   } catch {
     existingCustomerId = null
   }
 
-  // 8. Pre-generate the row id so it can route the webhook via metadata.invoice_id
-  //    BEFORE the row is inserted (single insert keeps the snapshot immutable).
+  // 8. Pre-generate the row id so it can route the webhook via metadata.invoice_id.
   const invoiceRowId = crypto.randomUUID()
 
-  // 9. Issue the real Stripe Invoice on the connected account.
+  // 9. Reserve the row FIRST as a draft (service role: tenants have SELECT only
+  //    on `invoices`). If this fails nothing exists in Stripe. The draft also
+  //    locks out a concurrent double issue, and gives the paid webhook a row to
+  //    find even if the final update below fails.
+  const { error: draftError } = await svc.from('invoices').insert({
+    id: invoiceRowId,
+    estimate_id: estimateId,
+    company_id: companyId,
+    kind,
+    change_order_id: billedChangeOrder?.id ?? null,
+    amount_cents: amountCents,
+    currency_code: currencyCode,
+    project_name: projectName,
+    description,
+    status: 'draft',
+    stripe_account_id: stripeAccountId,
+    stripe_invoice_id: null,
+    stripe_customer_id: null,
+    hosted_invoice_url: null,
+    invoice_pdf_url: null,
+  })
+  if (draftError) {
+    console.error('[generateInvoice] Failed to reserve invoice row', draftError)
+    return { error: 'Failed to create the invoice. Please try again.' }
+  }
+
+  // 10. Issue the real Stripe Invoice on the connected account.
   let stripeResult: Awaited<ReturnType<typeof createConnectInvoice>>
   try {
     stripeResult = await createConnectInvoice({
-      stripeAccountId: company.stripe_account_id,
+      stripeAccountId,
       customerEmail,
       customerName,
       existingCustomerId,
@@ -397,38 +506,55 @@ async function issueInvoice(
     })
   } catch (err) {
     console.error('[generateInvoice] Stripe invoice creation failed', err)
+    // Release the reservation. If this fails the stale-draft rule frees the
+    // estimate after STALE_DRAFT_MS.
+    try {
+      const { error: deleteError } = await svc
+        .from('invoices')
+        .delete()
+        .eq('id', invoiceRowId)
+        .eq('company_id', companyId)
+      if (deleteError) console.error('[generateInvoice] Failed to delete draft invoice row', deleteError)
+    } catch (deleteErr) {
+      console.error('[generateInvoice] Failed to delete draft invoice row', deleteErr)
+    }
     return { error: 'Failed to create the invoice. Please try again.' }
   }
 
-  // 10. Persist the immutable snapshot row (single insert with the Stripe result).
-  //     Financial rows are written server-side only — the tenant INSERT/UPDATE
-  //     RLS policies on `invoices` are gone, so this MUST go through the service
-  //     role. The ownership check in step 2/3 already scoped this action to the
-  //     caller's company; the SELECT read-back above stays on the RLS client.
-  const svc = requireServiceClient()
-  const { data: row, error: insertError } = await svc
-    .from('invoices')
-    .insert({
-      id: invoiceRowId,
-      estimate_id: estimateId,
-      company_id: companyId,
-      kind,
-      change_order_id: billedChangeOrder?.id ?? null,
-      amount_cents: amountCents,
-      currency_code: currencyCode,
-      project_name: projectName,
-      description,
-      status: stripeResult.status === 'paid' ? 'paid' : 'open',
-      stripe_invoice_id: stripeResult.stripeInvoiceId,
-      stripe_customer_id: stripeResult.stripeCustomerId,
-      hosted_invoice_url: stripeResult.hostedInvoiceUrl,
-      invoice_pdf_url: stripeResult.invoicePdfUrl,
+  // 11. Promote the draft with the Stripe result (service role). One retry; if
+  //     it still fails the row stays a draft carrying the right id, so the paid
+  //     webhook can still find it, and ops is alerted.
+  const finalFields = {
+    status: stripeResult.status === 'paid' ? 'paid' : 'open',
+    stripe_invoice_id: stripeResult.stripeInvoiceId,
+    stripe_customer_id: stripeResult.stripeCustomerId,
+    hosted_invoice_url: stripeResult.hostedInvoiceUrl,
+    invoice_pdf_url: stripeResult.invoicePdfUrl,
+    updated_at: new Date().toISOString(),
+  }
+  let saveError: unknown = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { error } = await svc
+        .from('invoices')
+        .update(finalFields)
+        .eq('id', invoiceRowId)
+        .eq('company_id', companyId)
+      saveError = error ?? null
+    } catch (err) {
+      saveError = err
+    }
+    if (!saveError) break
+  }
+  if (saveError) {
+    console.error('[generateInvoice] Failed to persist invoice row', saveError)
+    void notifyOps({
+      kind: 'invoice_row_save_failed',
+      title: 'Stripe invoice created but not saved',
+      message: `invoice row ${invoiceRowId} (stripe ${stripeResult.stripeInvoiceId}) was created on the connected account but the row could not be updated; it stays a draft`,
+      severity: 'error',
+      dedupeKey: `invoice_row_save_failed:${invoiceRowId}`,
     })
-    .select('id, hosted_invoice_url, invoice_pdf_url')
-    .single()
-
-  if (insertError || !row) {
-    console.error('[generateInvoice] Failed to persist invoice row', insertError)
     return { error: 'Invoice was created in Stripe but could not be saved. Please contact support.' }
   }
 
