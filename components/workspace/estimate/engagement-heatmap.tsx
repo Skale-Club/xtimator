@@ -23,7 +23,7 @@ import {
   type EngagementHeatmapDocument,
 } from '@/lib/queries/engagement'
 import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
-import { useIsPhone } from './analytics/use-phone'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 // Same code-split reasoning as components/share/estimate-view.tsx: the public

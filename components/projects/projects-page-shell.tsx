@@ -13,6 +13,9 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { cn } from '@/lib/utils'
 import { TOOLBAR_CONTROL } from '@/components/ui/list-toolbar'
@@ -49,7 +52,33 @@ function ClientFilter({ clients, clientId, onChange, fullWidth }: {
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const isPhone = useIsPhone()
   const selected = clientId ? clients.find((c) => c.id === clientId) : null
+  const clientCommand = (
+    <Command className={isPhone ? 'min-h-0 flex-1 bg-transparent' : undefined}>
+      <CommandInput placeholder={t('Search clients...')} className={isPhone ? 'text-base' : undefined} />
+      <CommandList>
+        <CommandEmpty>{t('No clients found.')}</CommandEmpty>
+        <CommandGroup>
+          <CommandItem value={ALL_CLIENTS} onSelect={() => { onChange(null); setOpen(false) }}>
+            <Check className={cn('mr-2 size-3.5', !clientId ? 'opacity-100' : 'opacity-0')} />
+            {t('All clients')}
+          </CommandItem>
+          {clients.map((client) => (
+            <CommandItem
+              key={client.id}
+              value={`${client.name} ${client.id}`}
+              onSelect={() => { onChange(client.id); setOpen(false) }}
+            >
+              <Check className={cn('mr-2 size-3.5', clientId === client.id ? 'opacity-100' : 'opacity-0')} />
+              {client.name}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  )
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -68,30 +97,26 @@ function ClientFilter({ clients, clientId, onChange, fullWidth }: {
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(260px,calc(100vw-2rem))] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={t('Search clients...')} />
-          <CommandList>
-            <CommandEmpty>{t('No clients found.')}</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value={ALL_CLIENTS} onSelect={() => { onChange(null); setOpen(false) }}>
-                <Check className={cn('mr-2 size-3.5', !clientId ? 'opacity-100' : 'opacity-0')} />
-                {t('All clients')}
-              </CommandItem>
-              {clients.map((client) => (
-                <CommandItem
-                  key={client.id}
-                  value={`${client.name} ${client.id}`}
-                  onSelect={() => { onChange(client.id); setOpen(false) }}
-                >
-                  <Check className={cn('mr-2 size-3.5', clientId === client.id ? 'opacity-100' : 'opacity-0')} />
-                  {client.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
+      {isPhone ? (
+        // Phones: the list opens as the app's bottom sheet (over the filter sheet when the picker sits inside it).
+        <Dialog open={open} onOpenChange={setOpen}>
+          <BottomSheetContent desktopClassName="sm:max-w-md">
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left"
+            >
+              <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Client')}</DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} />
+              <DialogDescription className="sr-only">{t('Search clients...')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">{clientCommand}</div>
+          </BottomSheetContent>
+        </Dialog>
+      ) : (
+        <PopoverContent className="w-[min(260px,calc(100vw-2rem))] p-0" align="start">
+          {clientCommand}
+        </PopoverContent>
+      )}
     </Popover>
   )
 }

@@ -14,7 +14,7 @@ import type { EstimateAnalytics } from '@/lib/estimate/analytics/contracts'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { EngagementHeatmap } from '../engagement-heatmap'
 import { AnalyticsBody, AnalyticsError, AnalyticsSkeleton } from './analytics-content'
-import { useIsPhone } from './use-phone'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 
 export interface EstimateAnalyticsDrawerProps {
   open: boolean

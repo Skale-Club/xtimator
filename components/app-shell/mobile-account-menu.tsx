@@ -2,7 +2,11 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Settings, LogOut, HelpCircle, GraduationCap, SunMoon } from 'lucide-react'
+import { Settings, LogOut, HelpCircle, GraduationCap, SunMoon, Coins } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/utils'
+import { usageBandClass } from '@/lib/billing/usage-color'
+import { formatCredits } from '@/lib/billing/format-usd'
 import { ThemeSegmentedPicker } from '@/components/app-shell/theme-toggle'
 import { CreditMenuRow } from '@/components/app-shell/credit-chip'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -35,6 +39,9 @@ interface MobileAccountMenuProps {
   /** Company credit state; the Credits row renders whenever present. */
   credits?: { percentUsed: number | null; balance: number }
 }
+
+const PHONE_ROW =
+  'flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-foreground transition-colors hover:bg-accent active:bg-accent'
 
 /**
  * Mobile profile menu — opens the SAME dropdown as the desktop sidebar footer,
@@ -128,10 +135,76 @@ export function MobileAccountMenu({
     </>
   )
 
+  // Phones (< 640px): the same items as comfortable rows inside the bottom
+  // sheet the selector opens (the dropdown items need a dropdown around them).
+  const phoneSlot = (close: () => void) => (
+    <>
+      <div className="mt-2 border-t border-border px-3 pb-1 pt-3">
+        {userName && <p className="truncate text-sm font-medium">{userName}</p>}
+        <p className="truncate text-xs text-muted-foreground">{navUser.email}</p>
+      </div>
+      {credits && (
+        <Link
+          href="/settings/billing"
+          data-testid="credit-menu-row"
+          onClick={close}
+          className={cn(PHONE_ROW, 'flex-col items-stretch gap-1.5')}
+        >
+          <span className="flex items-center gap-3">
+            <Coins className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <span className="flex-1">{t('Credits')}</span>
+            <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+              {formatCredits(credits.balance ?? 0)}
+              {credits.percentUsed === null ? ` ${t('credits')}` : ` · ${credits.percentUsed}% ${t('used')}`}
+            </span>
+          </span>
+          {credits.percentUsed !== null && (
+            <Progress value={credits.percentUsed} className={cn('h-1.5 w-full', usageBandClass(credits.percentUsed))} />
+          )}
+        </Link>
+      )}
+      <div data-testid="theme-menu-row" className="flex min-h-12 items-center gap-3 px-3 py-2 text-[15px]">
+        <SunMoon className="h-5 w-5 text-muted-foreground" />
+        <span className="flex-1">{t('Theme')}</span>
+        <ThemeSegmentedPicker />
+      </div>
+      <Link href="/settings" onClick={close} className={PHONE_ROW}>
+        <Settings className="h-5 w-5 text-muted-foreground" />{t('Settings')}
+      </Link>
+      <InstallAppMenuItem variant="row" onDone={close} onShowInstructions={() => setInstallHelpOpen(true)} />
+      <button
+        type="button"
+        className={PHONE_ROW}
+        onClick={() => {
+          close()
+          handleOpenTour()
+        }}
+      >
+        <HelpCircle className="h-5 w-5 text-muted-foreground" />{t('App Tour')}
+      </button>
+      {academyAvailable && !isDemo && (
+        <Link href="/academy" onClick={close} className={PHONE_ROW}>
+          <GraduationCap className="h-5 w-5 text-muted-foreground" />{t('Academy')}
+        </Link>
+      )}
+      <button
+        type="button"
+        className={cn(PHONE_ROW, 'text-red-400')}
+        onClick={() => {
+          close()
+          signOut()
+        }}
+      >
+        <LogOut className="h-5 w-5" />{t('Sign Out')}
+      </button>
+    </>
+  )
+
   return (
     <>
       <CompanySelector
         trigger={trigger}
+        phoneSlot={phoneSlot}
         align="end"
         companies={memberships}
         activeCompanyId={activeCompanyId}

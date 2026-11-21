@@ -6,11 +6,11 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 
 // Lazy-loaded: the CaptureRecorder bundle (~1.5k LOC + the MediaRecorder
 // pipeline) is heavy and this popup is mounted on every authenticated page.
@@ -166,10 +166,10 @@ function EstimateCreationPopupInner() {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) clearParams() }}>
-      <DialogContent className="p-0 gap-0 sm:max-w-md max-h-[85dvh] flex flex-col overflow-hidden">
-        {/* pr-12 reserves room for the dialog's absolutely positioned close (X) button;
-            without it the project name input ran underneath the X. */}
-        <DialogHeader className="py-3 pl-4 pr-12 border-b shrink-0 text-left">
+      <BottomSheetContent data-testid="estimate-creation-sheet" desktopClassName="sm:max-w-md">
+        {/* Bottom sheet on phones. Dragging it closes through onOpenChange, same
+            as the X, so the recorder unmounts exactly as it did before. */}
+        <DialogHeader data-sheet-drag="" className="touch-none py-3 pl-5 pr-3 border-b shrink-0 text-left">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -199,6 +199,7 @@ function EstimateCreationPopupInner() {
               disabled={loading || !project}
               className="flex-1 min-w-0 bg-transparent text-base font-semibold outline-none placeholder:font-normal placeholder:text-muted-foreground/60 rounded px-1.5 py-0.5 -mx-0.5 focus:bg-muted/40 transition-colors"
             />
+            <BottomSheetCloseButton label={t('Close')} />
           </div>
           <DialogDescription className="sr-only">
             <T>Record audio, type, or upload photos to generate an estimate. The popup stays open until the estimate is ready.</T>
@@ -224,7 +225,7 @@ function EstimateCreationPopupInner() {
             restorePhotos
           />
         )}
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

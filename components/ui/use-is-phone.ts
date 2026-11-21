@@ -18,7 +18,7 @@ function getSnapshot() {
     : false
 }
 
-/** True below 640px: the analytics UI uses the shared bottom sheet there. SSR-safe (false on the server). */
+/** True below 640px, where overlays open as the shared bottom sheet (components/ui/bottom-sheet.tsx). SSR-safe (false on the server). */
 export function useIsPhone(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, () => false)
 }

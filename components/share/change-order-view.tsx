@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { CheckCircle, XCircle, Loader2, PenLine, Download, FileText, Receipt, ExternalLink } from 'lucide-react'
 import { declineChangeOrder } from '@/app/change-order/[token]/actions'
 import { SYSTEM_COLORS } from '@/lib/system-colors'
@@ -584,23 +584,29 @@ function ChangeOrderViewInner({
         >
           {/* Portals to <body>, outside the forced-light share layout: re-declare
               the light scope so it does not turn dark around the white canvas. */}
-          <DialogContent
+          <BottomSheetContent
             data-theme="light"
-            className="max-h-[90dvh] gap-3 overflow-y-auto p-4 text-foreground sm:max-w-xl sm:gap-4 sm:p-6"
+            desktopClassName="sm:max-w-xl"
+            className="text-foreground"
             onOpenAutoFocus={(e) => {
               e.preventDefault()
               ;(e.currentTarget as HTMLElement | null)?.focus()
             }}
           >
-            <DialogHeader>
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 flex-row items-center justify-between gap-3 pb-2 pl-5 pr-3 pt-1 text-left touch-none sm:pl-6 sm:pr-4 sm:pt-5"
+            >
               <DialogTitle className="flex items-center gap-2 text-base">
                 <PenLine className="h-5 w-5" style={{ color: brandText }} />
                 {t('Sign to approve this change order')}
               </DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} disabled={isSubmitting} />
               <DialogDescription className="sr-only">
                 {t('By signing, you approve this change and the new contract total.')}
               </DialogDescription>
             </DialogHeader>
+            <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 pb-5 pt-1 sm:gap-4 sm:px-6 sm:pb-6">
             <SignaturePad
               signerName={signerName}
               onSignerNameChange={setSignerName}
@@ -637,7 +643,8 @@ function ChangeOrderViewInner({
                 {t('Cancel')}
               </Button>
             </div>
-          </DialogContent>
+            </div>
+          </BottomSheetContent>
         </Dialog>
       )}
     </div>

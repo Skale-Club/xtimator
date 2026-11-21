@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { AppIcon } from '@/components/ui/app-icon'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { VISIBLE_AREA_DIALOG } from '@/lib/visual-viewport'
-import { cn } from '@/lib/utils'
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import '@/lib/visual-viewport'
 import { PhoneSignIn } from './phone-sign-in'
 
 /** The thin brand gradient across the top edge of the sign-in card, with a soft glow under it. */
@@ -37,23 +37,28 @@ export function OwnedAuthDialog({ branding, open, onClose, next }: {
   branding: { appName: string; logoUrl: string | null }; open: boolean; onClose: () => void; next?: string | null
 }) {
   return <Dialog open={open} onOpenChange={value => { if (!value) onClose() }}>
-    <DialogContent
-      className={cn('w-[92%] max-w-md gap-0 rounded-2xl p-5 shadow-[0_24px_80px_rgba(0,0,0,0.65)] sm:p-7 [&>[data-slot=dialog-close]]:right-3 [&>[data-slot=dialog-close]]:top-3', VISIBLE_AREA_DIALOG)}
-      // Only the close button or Escape closes it. A stray tap beside the card (or on the
+    <BottomSheetContent
+      desktopClassName="sm:max-w-md"
+      className="shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+      // Only the close button, Escape or a deliberate drag on the handle closes it (the drag
+      // goes through onOpenChange like the X). A stray tap beside the card (or on the
       // country list, the reCAPTCHA check or the keyboard closing) used to throw away the
       // number and the code being typed.
       onInteractOutside={event => event.preventDefault()}
     >
       <GradientTopLine />
-      <div className="relative pb-5 pt-1 text-center">
+      <div data-sheet-drag="" className="relative shrink-0 px-5 pb-4 pt-1 text-center touch-none sm:px-7 sm:pt-6">
+        <div className="absolute right-3 top-0 z-30 sm:top-3"><BottomSheetCloseButton label="Close" /></div>
         <AuthBrand appName={branding.appName} logoUrl={branding.logoUrl} />
         <DialogTitle className="sr-only">Sign in to {branding.appName}</DialogTitle>
         <DialogDescription className="mx-auto mt-4 max-w-sm text-center text-sm leading-6 text-muted-foreground">
           Sign in or create your account with your phone or Google.
         </DialogDescription>
       </div>
-      {open ? <PhoneSignIn next={next} /> : null}
-      <AuthAgreement />
-    </DialogContent>
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 sm:px-7 sm:pb-7">
+        {open ? <PhoneSignIn next={next} /> : null}
+        <AuthAgreement />
+      </div>
+    </BottomSheetContent>
   </Dialog>
 }

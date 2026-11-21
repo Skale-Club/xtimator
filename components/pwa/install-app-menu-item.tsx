@@ -4,11 +4,11 @@ import { Check, Download, Share, SquarePlus, EllipsisVertical } from 'lucide-rea
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { AppIcon } from '@/components/ui/app-icon'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import { googlePlayUrl } from '@/lib/store-links'
@@ -17,7 +17,14 @@ import { useInstallApp, type InstallPlatform } from './use-install-app'
 interface InstallAppMenuItemProps {
   /** Opens the manual install instructions (iOS, or Android without the native prompt). */
   onShowInstructions: () => void
+  /** 'row' renders a plain full-width row for the phone account sheet (no dropdown context). */
+  variant?: 'menu' | 'row'
+  /** Called after the row is tapped (the phone sheet closes itself). */
+  onDone?: () => void
 }
+
+const ROW_CLASS =
+  'flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] text-foreground transition-colors hover:bg-accent active:bg-accent'
 
 /**
  * "Install app" entry for the account menu, shown only where installing is
@@ -30,11 +37,39 @@ interface InstallAppMenuItemProps {
  *   desktop install adds nothing.
  * - Already installed (home-screen app, or the Play app itself): hidden.
  */
-export function InstallAppMenuItem({ onShowInstructions }: InstallAppMenuItemProps) {
+export function InstallAppMenuItem({ onShowInstructions, variant = 'menu', onDone }: InstallAppMenuItemProps) {
   const { t } = useTranslation()
   const { platform, installed } = useInstallApp()
 
   if (!platform || installed || platform === 'desktop') return null
+
+  if (variant === 'row') {
+    if (platform === 'android') {
+      return (
+        <a
+          href={googlePlayUrl('account_menu')}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={ROW_CLASS}
+          onClick={onDone}
+        >
+          <Download className="h-5 w-5 text-muted-foreground" />{t('Install app')}
+        </a>
+      )
+    }
+    return (
+      <button
+        type="button"
+        className={ROW_CLASS}
+        onClick={() => {
+          onDone?.()
+          onShowInstructions()
+        }}
+      >
+        <Download className="h-5 w-5 text-muted-foreground" />{t('Install app')}
+      </button>
+    )
+  }
 
   if (platform === 'android') {
     return (
@@ -84,15 +119,21 @@ export function InstallAppDialog({ open, onOpenChange }: InstallAppDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader className="items-center text-center sm:items-center sm:text-center">
+      <BottomSheetContent desktopClassName="sm:max-w-sm">
+        <DialogHeader
+          data-sheet-drag=""
+          className="relative shrink-0 items-center px-5 pb-3 pt-1 text-center touch-none sm:items-center sm:pt-6 sm:text-center"
+        >
+          <div className="absolute right-3 top-0 sm:top-4">
+            <BottomSheetCloseButton label={t('Close')} />
+          </div>
           <AppIcon className="h-14 w-14 rounded-2xl" />
           <DialogTitle>{t('Install Xtimator')}</DialogTitle>
           <DialogDescription>
             {t('Add Xtimator to your home screen for quick, full-screen access.')}
           </DialogDescription>
         </DialogHeader>
-        <ol className="flex flex-col gap-3">
+        <ol className="flex flex-col gap-3 overflow-y-auto px-5 pb-6 pt-2">
           {steps.map((step, i) => (
             <li key={i} className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2.5">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
@@ -103,7 +144,7 @@ export function InstallAppDialog({ open, onOpenChange }: InstallAppDialogProps) 
             </li>
           ))}
         </ol>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

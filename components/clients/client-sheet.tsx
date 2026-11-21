@@ -7,11 +7,11 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import {
   Form,
   FormControl,
@@ -152,17 +152,21 @@ function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetP
         onOpenChange(nextOpen)
       }}
     >
-      <DialogContent
-        style={{ overflow: 'hidden' }}
+      <BottomSheetContent
+        desktopClassName="sm:w-[min(760px,calc(100vw-2rem))] sm:max-w-[760px] sm:max-h-[min(820px,calc(var(--app-vvh,100dvh)-2rem))]"
+        className="min-h-0"
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           if (window.matchMedia?.('(pointer: coarse)').matches) titleRef.current?.focus()
           else form.setFocus('name')
         }}
-        className="flex min-h-0 w-[calc(100vw-1rem)] max-w-none flex-col gap-0 overflow-hidden bg-background p-0 backdrop-blur-none sm:w-[min(760px,calc(100vw-2rem))] sm:max-w-[760px] max-h-[calc(var(--app-vvh,100dvh)-1rem)] sm:max-h-[min(820px,calc(var(--app-vvh,100dvh)-2rem))]"
       >
-        <DialogHeader className="shrink-0 border-b px-5 py-4 text-left sm:px-7">
-          <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">{isEditing ? t('Edit Client') : t('Add Client')}</DialogTitle>
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 border-b pl-5 pr-3 pt-1 pb-3 text-left sm:px-7 sm:py-4"
+        >
+          <DialogTitle ref={titleRef} tabIndex={-1} className="text-[19px] leading-tight font-semibold tracking-tight outline-none">{isEditing ? t('Edit Client') : t('Add Client')}</DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} disabled={isPending} />
           <DialogDescription className="sr-only">
             {isEditing ? t('Update client information.') : t('Add a new client to your database.')}
           </DialogDescription>
@@ -303,7 +307,7 @@ function ClientSheetForm({ open, onOpenChange, client, onCreated }: ClientSheetP
             </div>
           </form>
         </Form>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

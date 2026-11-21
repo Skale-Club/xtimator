@@ -40,6 +40,16 @@ export function defaultChatPanel(viewport: ChatPanelViewport, desktop: boolean, 
   }, viewport)
 }
 
+/**
+ * Phones (< 640px): the panel is a drawer, like every other phone overlay. Full
+ * width, pinned to the bottom of the visible viewport, about 85% tall. No
+ * position or size of its own: nothing to drag or resize.
+ */
+export function phoneChatPanel(viewport: ChatPanelViewport): ChatPanelRect {
+  const height = Math.max(1, Math.round(viewport.height * 0.85))
+  return { x: viewport.x, y: viewport.y + viewport.height - height, width: viewport.width, height }
+}
+
 /** Move the top edge while keeping the bottom anchored, or resize the corner. */
 export function resizeChatPanel(start: ChatPanelRect, dx: number, dy: number, edge: 'top' | 'corner', viewport: ChatPanelViewport): ChatPanelRect {
   const limits = panelLimits(viewport)

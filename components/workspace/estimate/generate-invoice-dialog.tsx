@@ -7,12 +7,12 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { generateInvoice, getInvoicingPreview } from '@/lib/actions/invoice'
 import { invoiceAmountCents, summarizeInvoicing, type InvoicingInput } from '@/lib/change-orders/invoicing'
 import { formatMinorUnits, toMinorUnits } from '@/lib/money/currency'
@@ -188,18 +188,24 @@ export function GenerateInvoiceDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="inline-flex items-center gap-2">
-            <Receipt className="h-4 w-4 text-primary" />
-            {t('Generate invoice')}
-          </DialogTitle>
-          <DialogDescription>
-            {t('Issue a real invoice for this estimate. The amount is frozen at the moment you issue it.')}
-          </DialogDescription>
+      <BottomSheetContent data-testid="generate-invoice-sheet" desktopClassName="sm:max-w-md">
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-start justify-between gap-3 pl-5 pr-3 pt-1 pb-2 text-left sm:pt-5"
+        >
+          <div className="min-w-0 space-y-1.5">
+            <DialogTitle className="inline-flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-primary" />
+              {t('Generate invoice')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('Issue a real invoice for this estimate. The amount is frozen at the moment you issue it.')}
+            </DialogDescription>
+          </div>
+          <BottomSheetCloseButton label={t('Close')} />
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain space-y-5 px-5 pt-2 pb-6">
           {/* Segmented control: Full | Deposit | Balance */}
           <div
             role="group"
@@ -310,7 +316,7 @@ export function GenerateInvoiceDialog({
             {t('Issue invoice')}
           </Button>
         </div>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

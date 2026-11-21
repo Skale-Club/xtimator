@@ -48,6 +48,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Calendar } from '@/components/ui/calendar'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import { formatMoney, getCurrencySymbol } from '@/lib/money/currency'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { isPercentageDiscount } from '@/lib/estimate/discount-display'
@@ -241,7 +244,7 @@ const SECTION_PX = 'px-6 sm:px-10'
 // DatePopover — inline-styled date trigger that opens a calendar popover
 // ---------------------------------------------------------------------------
 
-function DatePopover({
+export function DatePopover({
   value,
   onChange,
   lang,
@@ -251,39 +254,74 @@ function DatePopover({
   lang: EstimateLanguage
 }) {
   const [open, setOpen] = useState(false)
+  const isPhone = useIsPhone()
+  const { t } = useTranslation()
   const parsed = value ? new Date(`${value}T00:00:00`) : undefined
+
+  const trigger = (
+    <button
+      type="button"
+      onClick={isPhone ? () => setOpen(true) : undefined}
+      className="text-base text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-colors tabular-nums"
+    >
+      {parsed ? formatDate(value, lang) : '—'}
+    </button>
+  )
+
+  const calendar = (
+    <Calendar
+      mode="single"
+      selected={parsed}
+      defaultMonth={parsed}
+      captionLayout="dropdown"
+      onSelect={(d) => {
+        if (d) {
+          const yyyy = d.getFullYear()
+          const mm = String(d.getMonth() + 1).padStart(2, '0')
+          const dd = String(d.getDate()).padStart(2, '0')
+          onChange(`${yyyy}-${mm}-${dd}`)
+        } else {
+          onChange(null)
+        }
+        setOpen(false)
+      }}
+    />
+  )
+
+  // Phones: the calendar opens as the app's bottom sheet.
+  if (isPhone) {
+    return (
+      <>
+        {trigger}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <BottomSheetContent data-testid="estimate-date-sheet">
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left"
+            >
+              <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">
+                {t('Estimate date')}
+              </DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} />
+              <DialogDescription className="sr-only">{t('Pick the date shown on this estimate.')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 justify-center overflow-y-auto overscroll-contain px-3 py-4">
+              {calendar}
+            </div>
+          </BottomSheetContent>
+        </Dialog>
+      </>
+    )
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="text-base text-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none transition-colors tabular-nums"
-        >
-          {parsed ? formatDate(value, lang) : '—'}
-        </button>
-      </PopoverTrigger>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         align="start"
         className="w-auto p-0 rounded-xl border shadow-xl"
       >
-        <Calendar
-          mode="single"
-          selected={parsed}
-          defaultMonth={parsed}
-          captionLayout="dropdown"
-          onSelect={(d) => {
-            if (d) {
-              const yyyy = d.getFullYear()
-              const mm = String(d.getMonth() + 1).padStart(2, '0')
-              const dd = String(d.getDate()).padStart(2, '0')
-              onChange(`${yyyy}-${mm}-${dd}`)
-            } else {
-              onChange(null)
-            }
-            setOpen(false)
-          }}
-        />
+        {calendar}
       </PopoverContent>
     </Popover>
   )

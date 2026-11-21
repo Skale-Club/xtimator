@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CheckCircle, XCircle, Loader2, PenLine, Receipt, ExternalLink } from 'lucide-react'
 import { respondToEstimate } from '@/app/estimate/[token]/actions'
@@ -648,9 +648,10 @@ function EstimateViewInner({
               re-declares the light scope (otherwise it turns dark for dark-mode
               visitors around a white signature canvas). Tighter padding/gaps on
               phones keep the footer actions closer to the fold. */}
-          <DialogContent
+          <BottomSheetContent
             data-theme="light"
-            className="max-h-[90dvh] gap-3 overflow-y-auto p-4 text-foreground sm:max-w-xl sm:gap-4 sm:p-6"
+            desktopClassName="sm:max-w-xl"
+            className="text-foreground"
             // Focus the dialog itself, not the name field: auto-focusing the field
             // raises the phone keyboard over the signature box the moment the
             // client taps Accept. They tap the field when they are ready to type.
@@ -659,15 +660,20 @@ function EstimateViewInner({
               ;(e.currentTarget as HTMLElement | null)?.focus()
             }}
           >
-            <DialogHeader>
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 flex-row items-center justify-between gap-3 pb-2 pl-5 pr-3 pt-1 text-left touch-none sm:pl-6 sm:pr-4 sm:pt-5"
+            >
               <DialogTitle className="flex items-center gap-2 text-base">
                 <PenLine className="h-5 w-5" style={{ color: brandText }} />
                 {t('Sign to accept this estimate')}
               </DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} disabled={isSubmittingSignature || responding} />
               <DialogDescription className="sr-only">
                 {t('By signing, you agree to the pricing and terms in this estimate.')}
               </DialogDescription>
             </DialogHeader>
+            <div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-5 pb-5 pt-1 sm:gap-4 sm:px-6 sm:pb-6">
             <SignaturePad
               signerName={signerName}
               onSignerNameChange={setSignerName}
@@ -741,7 +747,8 @@ function EstimateViewInner({
                 </button>
               )}
             </div>
-          </DialogContent>
+            </div>
+          </BottomSheetContent>
         </Dialog>
       )}
 

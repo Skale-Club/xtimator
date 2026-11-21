@@ -4,10 +4,10 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsCard } from '@/components/settings/settings-ui'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { PhoneSignIn } from './phone-sign-in'
-import { VISIBLE_AREA_DIALOG } from '@/lib/visual-viewport'
-import { cn } from '@/lib/utils'
+import '@/lib/visual-viewport'
 import { identityError } from '@/lib/auth/google-browser'
 import { invalidateOwnedBrowserSession } from '@/lib/auth/owned-browser'
 
@@ -52,6 +52,13 @@ export function OwnedAccountSecurity({ loginPhone = null }: { loginPhone?: strin
         {sent ? <Button type="button" variant="ghost" disabled={busy} onClick={() => { setSent(false); setCode('') }}>Change email or request another code</Button> : null}
       </form>
     </SettingsCard>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className={cn('w-[92%] max-w-md rounded-2xl', VISIBLE_AREA_DIALOG)} onInteractOutside={event => event.preventDefault()}><DialogTitle>{loginPhone ? 'Change login phone' : 'Add phone'}</DialogTitle><DialogDescription className="sr-only">Verify the phone with a text message code.</DialogDescription>{open ? <PhoneSignIn purpose="link" allowGoogle={!!loginPhone} /> : null}</DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><BottomSheetContent desktopClassName="sm:max-w-md" onInteractOutside={event => event.preventDefault()}>
+      <div data-sheet-drag="" className="flex shrink-0 items-center justify-between gap-3 pb-2 pl-5 pr-3 pt-1 touch-none sm:pl-6 sm:pt-5">
+        <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">{loginPhone ? 'Change login phone' : 'Add phone'}</DialogTitle>
+        <BottomSheetCloseButton label="Close" />
+      </div>
+      <DialogDescription className="sr-only">Verify the phone with a text message code.</DialogDescription>
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-6 pt-1 sm:px-6 sm:pb-6">{open ? <PhoneSignIn purpose="link" allowGoogle={!!loginPhone} /> : null}</div>
+    </BottomSheetContent></Dialog>
   </>
 }

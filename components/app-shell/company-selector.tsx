@@ -13,6 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { switchActiveCompany } from '@/lib/actions/active-company'
 import { AdminCreateCompanyModal } from '@/components/app-shell/admin-create-company-modal'
 
@@ -55,6 +59,12 @@ interface CompanySelectorProps {
   trigger?: React.ReactNode
   /** Alignment of the dropdown content relative to the trigger. Defaults to 'start'. */
   align?: 'start' | 'end'
+  /**
+   * Phones (< 640px) with a custom `trigger` open a bottom sheet instead of the
+   * dropdown. This is its account section (plain rows, not DropdownMenuItem);
+   * `close` dismisses the sheet. Without it, phones keep the dropdown.
+   */
+  phoneSlot?: (close: () => void) => React.ReactNode
 }
 
 function initialOf(name: string): string {
@@ -69,8 +79,12 @@ export function CompanySelector({
   accountMenuSlot,
   trigger,
   align = 'start',
+  phoneSlot,
 }: CompanySelectorProps) {
   const router = useRouter()
+  const { t } = useTranslation()
+  const isPhone = useIsPhone()
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -78,7 +92,7 @@ export function CompanySelector({
   const active =
     companies.find((c) => c.id === activeCompanyId) ?? companies[0] ?? null
 
-  function handleSwitch(id: string) {
+  function handleSwitch(id: string, onSwitched?: () => void) {
     if (id === activeCompanyId) return // SWITCH-09 no-op
     setPendingId(id)
     startTransition(async () => {
@@ -88,9 +102,81 @@ export function CompanySelector({
         // generic access message and a layout refresh so stale data is purged.
         toast.error('You no longer have access to that company.')
         router.refresh()
+      } else {
+        onSwitched?.()
       }
       setPendingId(null)
     })
+  }
+
+  if (isPhone && trigger && phoneSlot) {
+    const close = () => setSheetOpen(false)
+    return (
+      <>
+        <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+          <DialogTrigger asChild>{trigger}</DialogTrigger>
+          <BottomSheetContent className="nx-surface" data-testid="account-sheet">
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 flex-row items-center justify-between gap-3 pb-2 pl-6 pr-3 pt-1 text-left touch-none"
+            >
+              <DialogTitle className="text-[19px] font-semibold leading-tight tracking-tight">
+                {t('Account')}
+              </DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} />
+              <DialogDescription className="sr-only">{t('Companies')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-col gap-1 overflow-y-auto px-3 pb-5 pt-1">
+              {companies.length > 0 && (
+                <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t('Companies')}
+                </p>
+              )}
+              {companies.map((c) => {
+                const isActive = c.id === activeCompanyId
+                const isItemPending = c.id === pendingId
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    disabled={isPending}
+                    aria-current={isActive ? 'true' : undefined}
+                    onClick={() => handleSwitch(c.id, close)}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent active:bg-accent disabled:opacity-60"
+                  >
+                    <Avatar className="h-7 w-7 shrink-0">
+                      {c.logo_url && <AvatarImage src={c.logo_url} alt={c.name} />}
+                      <AvatarFallback className="text-xs">{initialOf(c.name)}</AvatarFallback>
+                    </Avatar>
+                    <span className="flex-1 truncate">{c.name}</span>
+                    {isItemPending ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                    ) : isActive ? (
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                    ) : null}
+                  </button>
+                )
+              })}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close()
+                    setShowCreateModal(true)
+                  }}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition-colors hover:bg-accent active:bg-accent"
+                >
+                  <Building2 className="h-5 w-5 text-muted-foreground" />
+                  <span>{t('Add new company')}</span>
+                </button>
+              )}
+              {phoneSlot(close)}
+            </div>
+          </BottomSheetContent>
+        </Dialog>
+        {isAdmin && <AdminCreateCompanyModal open={showCreateModal} onOpenChange={setShowCreateModal} />}
+      </>
+    )
   }
 
   return (

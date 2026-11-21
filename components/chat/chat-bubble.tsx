@@ -42,6 +42,7 @@ import { useTranslation } from '@/lib/i18n/use-translation'
 import { Button } from '@/components/ui/button'
 import { AppIcon } from '@/components/ui/app-icon'
 import { useChatPanel } from '@/hooks/use-chat-panel'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -192,10 +193,54 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
       ? { ...launcherStyle, bottom: `max(${baseBottom}, ${liftTo}px)`, transition: 'bottom 200ms ease, transform 150ms, box-shadow 150ms' }
       : launcherStyle
   const panelRef = useRef<HTMLDivElement>(null)
-  const panel = useChatPanel()
+  // Phones (< 640px): a drawer pinned to the bottom, like every other phone
+  // overlay. No drag-to-move or resize; pulling the grab bar or header down closes it.
+  const isPhone = useIsPhone()
+  const panel = useChatPanel(isPhone)
+  const [sheetDy, setSheetDy] = useState(0)
+  const sheetDrag = useRef<{ id: number; y: number; t: number; v: number; dy: number } | null>(null)
   const panelStyle: CSSProperties & { '--chat-panel-height': string } = {
     left: panel.rect.x, top: panel.rect.y, width: panel.rect.width, height: panel.rect.height,
     '--chat-panel-height': `${panel.rect.height}px`,
+    ...(isPhone
+      ? {
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          transform: sheetDy > 0 ? `translate3d(0, ${sheetDy}px, 0)` : undefined,
+          transition: sheetDrag.current ? 'none' : 'transform 220ms cubic-bezier(0.32,0.72,0,1)',
+        }
+      : null),
+  }
+  const sheetHandlers = {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (sheetDrag.current) return
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+      if ((event.target as Element).closest('button, a, [role="menuitem"]')) return
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      sheetDrag.current = { id: event.pointerId, y: event.clientY, t: event.timeStamp, v: 0, dy: 0 }
+    },
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      const d = sheetDrag.current
+      if (!d || d.id !== event.pointerId) return
+      const dt = event.timeStamp - d.t
+      const dy = Math.max(0, event.clientY - d.y)
+      if (dt > 0) d.v = (dy - d.dy) / dt
+      d.dy = dy
+      d.t = event.timeStamp
+      setSheetDy(dy)
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+      const d = sheetDrag.current
+      if (!d || d.id !== event.pointerId) return
+      sheetDrag.current = null
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+      const shouldClose = d.dy > Math.min(panel.rect.height * 0.3, 160) || (d.v > 0.5 && d.dy > 24)
+      setSheetDy(0)
+      if (shouldClose) hidePanel()
+    },
+    onPointerCancel: () => {
+      sheetDrag.current = null
+      setSheetDy(0)
+    },
   }
 
   function hidePanel() {
@@ -334,28 +379,38 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
           }}
           style={panelStyle}
           className={cn(
-            'fixed z-[60] min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl outline-none',
+            'fixed z-[60] min-h-0 min-w-0 flex-col overflow-hidden border border-border bg-background shadow-2xl outline-none',
+            isPhone ? 'rounded-t-[28px] rounded-b-none border-x-0 border-b-0' : 'rounded-2xl',
             open ? 'flex' : 'hidden',
           )}
         >
-          <button
-            type="button"
-            aria-label={t('Resize chat height')}
-            title={t('Drag to resize. Use arrow keys for smaller adjustments.')}
-            {...panel.handlers('top')}
-            className="flex h-6 w-full shrink-0 touch-none cursor-ns-resize select-none items-center justify-center hover:bg-muted/60 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
-          >
-            <span className="h-1 w-10 rounded-full bg-muted-foreground/35" />
-          </button>
+          {isPhone ? (
+            <div
+              {...sheetHandlers}
+              data-testid="chat-grabber"
+              aria-hidden="true"
+              className="flex h-6 w-full shrink-0 cursor-grab touch-none select-none items-center justify-center active:cursor-grabbing"
+            >
+              <span className="h-[5px] w-10 rounded-full bg-foreground/30" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              aria-label={t('Resize chat height')}
+              title={t('Drag to resize. Use arrow keys for smaller adjustments.')}
+              {...panel.handlers('top')}
+              className="flex h-6 w-full shrink-0 touch-none cursor-ns-resize select-none items-center justify-center hover:bg-muted/60 focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+            >
+              <span className="h-1 w-10 rounded-full bg-muted-foreground/35" />
+            </button>
+          )}
           {/* Dragging and resizing have separate targets; scrolling messages is safe. */}
           <header
-            {...panel.handlers('move')}
-            tabIndex={0}
-            aria-label={t('Move chat window')}
-            title={t('Drag to move')}
+            {...(isPhone ? sheetHandlers : panel.handlers('move'))}
+            {...(isPhone ? {} : { tabIndex: 0, 'aria-label': t('Move chat window'), title: t('Drag to move') })}
             className={cn(
               'flex min-w-0 shrink-0 touch-none select-none items-center gap-0.5 border-b border-border px-2 pb-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
-              panel.gestureKind === 'move' ? 'cursor-grabbing' : 'cursor-grab',
+              !isPhone && (panel.gestureKind === 'move' ? 'cursor-grabbing' : 'cursor-grab'),
             )}
           >
             <AppIcon logoUrl={logoUrl} className="pointer-events-none mr-1 h-6 w-6 shrink-0" />
@@ -485,7 +540,7 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
               onConversationCreated={onConversationCreated}
             />
           )}
-          <div className="relative h-3 shrink-0">
+          {!isPhone && <div className="relative h-3 shrink-0">
             <button
               type="button"
               aria-label={t('Resize chat window')}
@@ -495,7 +550,7 @@ export function ChatBubble({ chatEnabled, logoUrl }: { chatEnabled: boolean; log
             >
               <Grip className="h-3 w-3" />
             </button>
-          </div>
+          </div>}
         </div>
       )}
     </>

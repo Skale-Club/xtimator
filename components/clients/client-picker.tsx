@@ -23,6 +23,9 @@ import {
   CommandList,
   CommandEmpty,
 } from '@/components/ui/command'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import { useTranslation } from '@/lib/i18n/use-translation'
 
 // ---------------------------------------------------------------------------
@@ -85,6 +88,7 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
     props.onOpenChange?.(next)
   }
   const [search, setSearch] = useState('')
+  const isPhone = useIsPhone()
 
   function handleLink(clientId: string): void {
     startTransition(async () => {
@@ -223,57 +227,80 @@ export function ClientPicker(props: ClientPickerProps): React.JSX.Element {
 
   const popoverWidth = props.variant === 'card' ? 'w-[350px]' : 'w-[320px]'
 
+  // The same search + list + footer in both placements: a popover on desktop,
+  // the app's bottom sheet on phones.
+  const pickerBody = (
+    /*
+      shouldFilter={false} — we do our own case-insensitive substring match
+      on name+email inside ClientList. cmdk's built-in filter would otherwise
+      run over `value={c.id}` (a UUID) and clobber the visible list; the
+      three legacy pickers had this same latent bug, unnoticed because their
+      test coverage never exercised typed search.
+    */
+    <Command shouldFilter={false} className={isPhone ? 'min-h-0 flex-1 bg-transparent' : undefined}>
+      <CommandInput
+        placeholder={t('Search clients...')}
+        value={search}
+        onValueChange={setSearch}
+        className={isPhone ? 'text-base' : undefined}
+      />
+      <ClientList search={search} onSelect={handleLink} />
+      {(props.onCreateNew || props.currentClientId != null) && (
+        <div className="border-t border-border px-2 py-1">
+          {props.onCreateNew && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                props.onCreateNew?.()
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent transition-colors max-sm:min-h-11"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              {t('New client')}
+            </button>
+          )}
+          {props.currentClientId != null && (
+            <button
+              type="button"
+              onClick={handleUnlink}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors max-sm:min-h-11"
+            >
+              <X className="h-3.5 w-3.5" />
+              {t('Unlink client')}
+            </button>
+          )}
+        </div>
+      )}
+    </Command>
+  )
+
   return (
     <Popover open={open} onOpenChange={setOpen} modal={props.modal}>
       {trigger}
-      <PopoverContent
-        align={props.align ?? (props.variant === 'button' ? 'end' : 'start')}
-        side={props.side ?? (props.variant === 'button' ? 'top' : 'bottom')}
-        className={`${popoverWidth} p-0`}
-      >
-        {/*
-          shouldFilter={false} — we do our own case-insensitive substring match
-          on name+email inside ClientList. cmdk's built-in filter would otherwise
-          run over `value={c.id}` (a UUID) and clobber the visible list; the
-          three legacy pickers had this same latent bug, unnoticed because their
-          test coverage never exercised typed search.
-        */}
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={t('Search clients...')}
-            value={search}
-            onValueChange={setSearch}
-          />
-          <ClientList search={search} onSelect={handleLink} />
-          {(props.onCreateNew || props.currentClientId != null) && (
-            <div className="border-t border-border px-2 py-1">
-              {props.onCreateNew && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false)
-                    props.onCreateNew?.()
-                  }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent transition-colors"
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  {t('New client')}
-                </button>
-              )}
-              {props.currentClientId != null && (
-                <button
-                  type="button"
-                  onClick={handleUnlink}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  {t('Unlink client')}
-                </button>
-              )}
-            </div>
-          )}
-        </Command>
-      </PopoverContent>
+      {isPhone ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <BottomSheetContent desktopClassName="sm:max-w-md">
+            <DialogHeader
+              data-sheet-drag=""
+              className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left"
+            >
+              <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Link a client')}</DialogTitle>
+              <BottomSheetCloseButton label={t('Close')} />
+              <DialogDescription className="sr-only">{t('Search clients...')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">{pickerBody}</div>
+          </BottomSheetContent>
+        </Dialog>
+      ) : (
+        <PopoverContent
+          align={props.align ?? (props.variant === 'button' ? 'end' : 'start')}
+          side={props.side ?? (props.variant === 'button' ? 'top' : 'bottom')}
+          className={`${popoverWidth} p-0`}
+        >
+          {pickerBody}
+        </PopoverContent>
+      )}
     </Popover>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent } from 'react'
-import { defaultChatPanel, fitChatPanel, readChatPanel, resizeChatPanel, type ChatPanelRect, type ChatPanelViewport } from '@/lib/chat/panel-geometry'
+import { defaultChatPanel, fitChatPanel, phoneChatPanel, readChatPanel, resizeChatPanel, type ChatPanelRect, type ChatPanelViewport } from '@/lib/chat/panel-geometry'
 
 const STORAGE_KEY = 'xtimator.chat-panel.v1'
 type Gesture = { id: number; kind: 'move' | 'top' | 'corner'; start: ChatPanelRect; preferred: ChatPanelRect; x: number; y: number }
@@ -13,7 +13,8 @@ function visibleViewport(): ChatPanelViewport {
 
 function storageKey() { return `${STORAGE_KEY}.${window.innerWidth >= 1024 ? 'desktop' : 'mobile'}` }
 
-export function useChatPanel() {
+/** `phone`: the panel is a pinned bottom drawer (no drag, no resize, nothing saved). */
+export function useChatPanel(phone = false) {
   const [viewport, setViewport] = useState<ChatPanelViewport>({ x: 0, y: 0, width: 390, height: 844 })
   const [preferred, setPreferred] = useState<ChatPanelRect | null>(null)
   const [gestureKind, setGestureKind] = useState<Gesture['kind'] | null>(null)
@@ -44,7 +45,7 @@ export function useChatPanel() {
     }
   }, [])
 
-  const rect = fitChatPanel(preferred ?? defaultChatPanel(viewport, viewport.width >= 1024), viewport)
+  const rect = phone ? phoneChatPanel(viewport) : fitChatPanel(preferred ?? defaultChatPanel(viewport, viewport.width >= 1024), viewport)
 
   function save(next: ChatPanelRect) {
     latest.current = next
@@ -55,6 +56,7 @@ export function useChatPanel() {
   function place(launcher?: DOMRect) {
     const bounds = visibleViewport()
     setViewport(bounds)
+    if (phone) return
     // Opening again preserves the owner's chosen size and position.
     if (!latest.current) {
       const next = defaultChatPanel(bounds, window.innerWidth >= 1024, launcher)
@@ -64,6 +66,7 @@ export function useChatPanel() {
   }
 
   function start(event: PointerEvent<HTMLElement>, kind: Gesture['kind']) {
+    if (phone) return
     if (gesture.current) return // A second finger must not replace an active drag.
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (kind === 'move' && (event.target as Element).closest('button, a, [role="menuitem"]')) return
@@ -100,6 +103,7 @@ export function useChatPanel() {
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>, kind: Gesture['kind']) {
+    if (phone) return
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
     if (kind === 'move' && event.target !== event.currentTarget) return
     event.preventDefault()

@@ -7,12 +7,11 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import {
   Form,
   FormControl,
@@ -102,16 +101,21 @@ export function BulkAdjustDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="break-words">{t('Adjust prices')} | {folderName}</DialogTitle>
-          <DialogDescription>
-            {t('Apply a percentage increase or decrease to every item in this category.')}
-          </DialogDescription>
+      <BottomSheetContent desktopClassName="sm:max-w-lg">
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:px-6 sm:pt-5"
+        >
+          <DialogTitle className="min-w-0 break-words text-[19px] leading-tight font-semibold tracking-tight">{t('Adjust prices')} | {folderName}</DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} />
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+            <DialogDescription>
+              {t('Apply a percentage increase or decrease to every item in this category.')}
+            </DialogDescription>
             {/* % Input */}
             <FormField
               control={form.control}
@@ -170,8 +174,10 @@ export function BulkAdjustDialog({
               </div>
             )}
 
+            </div>
+
             {/* Footer */}
-            <DialogFooter>
+            <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-5 py-3 sm:px-6">
               <Button
                 type="button"
                 variant="outline"
@@ -190,10 +196,10 @@ export function BulkAdjustDialog({
               >
                 {isPending ? t('Applying...') : `${t('Apply to')} ${items.length} ${t('items')}`}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

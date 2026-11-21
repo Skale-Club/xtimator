@@ -26,6 +26,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
+import { useTranslation } from '@/lib/i18n/use-translation'
 import { FIELD_DISABLED, FIELD_FOCUS, FIELD_SURFACE } from '@/components/ui/field-styles'
 import { cn } from '@/lib/utils'
 import { COUNTRIES, applyMask, maxDigits, type Country } from '@/lib/phone/countries'
@@ -152,6 +156,8 @@ export function PhoneInput({
   const [countryCode, setCountryCode] = useState(initial.countryCode)
   const [localNumber, setLocalNumber] = useState(initial.localNumber)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const isPhone = useIsPhone()
+  const { t } = useTranslation()
 
   const country = COUNTRIES.find(c => c.code === countryCode) ?? COUNTRIES[0]
 
@@ -232,6 +238,23 @@ export function PhoneInput({
     )
   }
 
+  // One list for both placements: a popover on desktop, the app's bottom sheet on phones.
+  const countryCommand = (
+    <Command className={isPhone ? 'min-h-0 flex-1 bg-transparent' : undefined} filter={(itemValue, search) => {
+      const query = search.trim().toLowerCase().replace(/^\+/, '')
+      if (!query) return 1
+      return itemValue.toLowerCase().split(' ').some(word => word.replace(/^\+/, '').startsWith(query)) || itemValue.toLowerCase().includes(query) ? 1 : 0
+    }}>
+      <CommandInput placeholder={t('Search country or code')} className="text-base sm:text-sm" />
+      <CommandList className={isPhone ? 'max-h-[min(24rem,55dvh)]' : 'max-h-[min(18rem,calc(var(--radix-popover-content-available-height,18rem)-3rem))]'}>
+        <CommandEmpty>{t('No country found.')}</CommandEmpty>
+        <CommandGroup heading={t('Suggested')}>{preferred.map(renderCountry)}</CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading={t('Other countries')}>{others.map(renderCountry)}</CommandGroup>
+      </CommandList>
+    </Command>
+  )
+
   return (
     <div className={`flex gap-2 ${className ?? ''}`}>
       <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -246,31 +269,37 @@ export function PhoneInput({
             <ChevronDown className={`ml-auto size-4 shrink-0 opacity-50 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          collisionPadding={8}
-          data-country-picker
-          className="w-[min(18rem,calc(100vw-1rem))] p-0"
-          onOpenAutoFocus={event => {
-            // A touch screen would throw the keyboard up over the list; there the
-            // search field is focused only when the person taps it.
-            if (window.matchMedia?.('(pointer: coarse)').matches) event.preventDefault()
-          }}
-        >
-          <Command filter={(itemValue, search) => {
-            const query = search.trim().toLowerCase().replace(/^\+/, '')
-            if (!query) return 1
-            return itemValue.toLowerCase().split(' ').some(word => word.replace(/^\+/, '').startsWith(query)) || itemValue.toLowerCase().includes(query) ? 1 : 0
-          }}>
-            <CommandInput placeholder="Search country or code" className="text-base sm:text-sm" />
-            <CommandList className="max-h-[min(18rem,calc(var(--radix-popover-content-available-height,18rem)-3rem))]">
-              <CommandEmpty>No country found.</CommandEmpty>
-              <CommandGroup heading="Suggested">{preferred.map(renderCountry)}</CommandGroup>
-              <CommandSeparator />
-              <CommandGroup heading="Other countries">{others.map(renderCountry)}</CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
+        {isPhone ? (
+          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+            <BottomSheetContent
+              desktopClassName="sm:max-w-md"
+              data-country-picker
+              onOpenAutoFocus={event => event.preventDefault()}
+            >
+              <DialogHeader
+                data-sheet-drag=""
+                className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left"
+              >
+                <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Select country')}</DialogTitle>
+                <BottomSheetCloseButton label={t('Close')} />
+                <DialogDescription className="sr-only">{t('Search country or code')}</DialogDescription>
+              </DialogHeader>
+              <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">{countryCommand}</div>
+            </BottomSheetContent>
+          </Dialog>
+        ) : (
+          <PopoverContent
+            align="start"
+            collisionPadding={8}
+            data-country-picker
+            className="w-[min(18rem,calc(100vw-1rem))] p-0"
+            onOpenAutoFocus={event => {
+              if (window.matchMedia?.('(pointer: coarse)').matches) event.preventDefault()
+            }}
+          >
+            {countryCommand}
+          </PopoverContent>
+        )}
       </Popover>
 
       <Input

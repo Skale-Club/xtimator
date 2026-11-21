@@ -8,11 +8,12 @@ import { ChevronsUpDown, ImageIcon, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
+import { useIsPhone } from '@/components/ui/use-is-phone'
 import {
   Form,
   FormControl,
@@ -61,7 +62,7 @@ import {
 } from '@/lib/actions/price-book'
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 import { ImagePositionEditor, DEFAULT_IMAGE_POSITION, type ImagePosition } from '@/components/admin/image-position-editor'
 
 const MAX_ITEM_PHOTO_SIZE = 4 * 1024 * 1024
@@ -144,6 +145,7 @@ export function PriceBookItemDialog({
   const readOnly = usePaywallReadOnly()
   const [isPending, startTransition] = useTransition()
   const [folderOpen, setFolderOpen] = useState(false)
+  const isPhone = useIsPhone()
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imagePosition, setImagePosition] = useState<ImagePosition>(DEFAULT_IMAGE_POSITION)
@@ -287,14 +289,45 @@ export function PriceBookItemDialog({
 
   const effectiveCurrency = item?.currency_code ?? currencyCode
 
+  // The folder search + list, shared by the desktop popover and the phone sheet.
+  const folderCommand = (onPick: (id: string | null) => void) => (
+    <Command className={isPhone ? 'min-h-0 flex-1 bg-transparent' : undefined}>
+      <CommandInput placeholder={t('Search folders...')} className={isPhone ? 'text-base' : undefined} />
+      <CommandList>
+        <CommandEmpty>{t('No folders found.')}</CommandEmpty>
+        <CommandGroup>
+          <CommandItem
+            value=""
+            onSelect={() => { onPick(null); setFolderOpen(false) }}
+          >
+            {t('No folder')}
+          </CommandItem>
+          {folders.map((folder) => (
+            <CommandItem
+              key={folder.id}
+              value={folder.name}
+              onSelect={() => { onPick(folder.id); setFolderOpen(false) }}
+            >
+              {folder.name}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* grid-cols-[minmax(0,1fr)]: the dialog is a grid, and its implicit column
-          otherwise grows to the widest input row (the dialog scrolled sideways). */}
-      <DialogContent className="sm:max-w-lg max-h-[90dvh] grid-cols-[minmax(0,1fr)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? t('Edit Service') : t('Add Service')}</DialogTitle>
-          <DialogDescription>
+      {/* The app's bottom sheet: the header stays put, the form scrolls, and the
+          save action sits in a footer that is always reachable. */}
+      <BottomSheetContent desktopClassName="sm:max-w-lg">
+        <DialogHeader
+          data-sheet-drag=""
+          className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 border-b pl-5 pr-3 pt-1 pb-3 text-left sm:px-6 sm:py-4"
+        >
+          <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{isEditing ? t('Edit Service') : t('Add Service')}</DialogTitle>
+          <BottomSheetCloseButton label={t('Close')} />
+          <DialogDescription className="sr-only">
             {isEditing
               ? t('Update price book service.')
               : t('Add a new service to your price book.')}
@@ -302,8 +335,8 @@ export function PriceBookItemDialog({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            {readOnly && <PaywallReadOnlyNotice />}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
             <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-5 border-0 p-0">
 
             {/* Folder */}
@@ -331,31 +364,26 @@ export function PriceBookItemDialog({
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                          <CommandInput placeholder={t('Search folders...')} />
-                          <CommandList>
-                            <CommandEmpty>{t('No folders found.')}</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value=""
-                                onSelect={() => { field.onChange(null); setFolderOpen(false) }}
-                              >
-                                {t('No folder')}
-                              </CommandItem>
-                              {folders.map((folder) => (
-                                <CommandItem
-                                  key={folder.id}
-                                  value={folder.name}
-                                  onSelect={() => { field.onChange(folder.id); setFolderOpen(false) }}
-                                >
-                                  {folder.name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
+                      {isPhone ? (
+                        // Phones: the folder list opens as a bottom sheet over this one.
+                        <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
+                          <BottomSheetContent desktopClassName="sm:max-w-md">
+                            <DialogHeader
+                              data-sheet-drag=""
+                              className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left"
+                            >
+                              <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('Select folder')}</DialogTitle>
+                              <BottomSheetCloseButton label={t('Close')} />
+                              <DialogDescription className="sr-only">{t('Search folders...')}</DialogDescription>
+                            </DialogHeader>
+                            <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">{folderCommand(field.onChange)}</div>
+                          </BottomSheetContent>
+                        </Dialog>
+                      ) : (
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                          {folderCommand(field.onChange)}
+                        </PopoverContent>
+                      )}
                     </Popover>
                     <FormMessage />
                   </FormItem>
@@ -766,27 +794,30 @@ export function PriceBookItemDialog({
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending
-                ? isEditing ? t('Updating...') : t('Adding...')
-                : isEditing ? t('Update Service') : t('Add Service')}
-            </Button>
-            {item && onDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="-mt-2 w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                disabled={isPending}
-                onClick={() => onDelete(item)}
-                data-testid="price-book-dialog-delete"
-              >
-                {t('Delete service')}
-              </Button>
-            )}
             </fieldset>
+            </div>
+            <div className="shrink-0 space-y-1 border-t bg-background px-5 py-3 sm:px-6">
+              <Button type="submit" className="h-11 w-full" disabled={isPending || readOnly}>
+                {isPending
+                  ? isEditing ? t('Updating...') : t('Adding...')
+                  : isEditing ? t('Update Service') : t('Add Service')}
+              </Button>
+              {item && onDelete && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isPending || readOnly}
+                  onClick={() => onDelete(item)}
+                  data-testid="price-book-dialog-delete"
+                >
+                  {t('Delete service')}
+                </Button>
+              )}
+            </div>
           </form>
         </Form>
-      </DialogContent>
+      </BottomSheetContent>
     </Dialog>
   )
 }

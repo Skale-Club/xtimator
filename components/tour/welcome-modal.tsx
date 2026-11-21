@@ -2,10 +2,10 @@
 
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { BottomSheetCloseButton, BottomSheetContent } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Mic, Camera, Sparkles, Send, ArrowRight } from 'lucide-react'
 import { GradientTopLine } from '@/components/auth/owned-auth-dialog'
@@ -61,10 +61,12 @@ export function WelcomeModal() {
         }
       }}
     >
-      <DialogContent className="w-[92%] max-w-[420px] gap-0 overflow-hidden rounded-2xl p-6 shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:p-7">
+      <BottomSheetContent desktopClassName="sm:max-w-[420px]" className="shadow-[0_24px_80px_rgba(0,0,0,0.55)]">
         <GradientTopLine />
+        <div className="absolute right-3 top-1 z-30 sm:top-3"><BottomSheetCloseButton label={t('Close')} /></div>
 
-        <div className="relative flex flex-col items-center text-center">
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pb-6 sm:px-7 sm:pb-7 sm:pt-6">
+        <div data-sheet-drag="" className="relative flex touch-none flex-col items-center text-center">
           <div className="gradient-brand flex size-12 items-center justify-center rounded-2xl text-white shadow-[0_10px_30px_hsl(var(--primary)/0.35)]">
             <Sparkles className="size-6" aria-hidden />
           </div>
@@ -110,7 +112,8 @@ export function WelcomeModal() {
             {t('Show me around')}
           </Button>
         </div>
-      </DialogContent>
+        </div>
+      </BottomSheetContent>
     </Dialog>
   )
 }

@@ -63,7 +63,7 @@ import {
 import type { PriceBookItem, PriceBookFolder } from '@/lib/queries/price-book'
 import { DEFAULT_CURRENCY_CODE, formatMoney } from '@/lib/money/currency'
 import { useTranslation } from '@/lib/i18n/use-translation'
-import { PaywallReadOnlyNotice, usePaywallReadOnly } from '@/components/billing/paywall-read-only'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface PriceBookListProps {
   items: PriceBookItem[]
@@ -406,9 +406,7 @@ export function PriceBookList({
           actionLabel={readOnly ? undefined : t('Add first item')}
           onAction={readOnly ? undefined : handleAddItem}
         />
-        {readOnly ? (
-          <PaywallReadOnlyNotice className="mx-auto -mt-4 max-w-xl" />
-        ) : (
+        {!readOnly && (
           <div className="flex justify-center -mt-4">
             <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
@@ -449,7 +447,6 @@ export function PriceBookList({
 
   return (
     <>
-      {readOnly && <PaywallReadOnlyNotice className="mb-4" />}
       {/* Desktop: one panel (header, then categories | services). Phone: the
           same content flat on the page, so the list gets the full width. No
           backdrop blur anywhere: a blurred element as tall as the list inside
@@ -847,30 +844,36 @@ export function PriceBookList({
 
       {/* New Folder Dialog */}
       <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle>{t('New Category')}</DialogTitle>
-            <DialogDescription>
+        <BottomSheetContent desktopClassName="sm:max-w-sm">
+          <DialogHeader
+            data-sheet-drag=""
+            className="flex shrink-0 touch-none flex-row items-center justify-between gap-3 pl-5 pr-3 pt-1 pb-1 text-left sm:px-6 sm:pt-5"
+          >
+            <DialogTitle className="text-[19px] leading-tight font-semibold tracking-tight">{t('New Category')}</DialogTitle>
+            <BottomSheetCloseButton label={t('Close')} />
+            <DialogDescription className="sr-only">
               {t('Enter a name for the new price book category.')}
             </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder={t('Category name...')}
-            enterKeyHint="done"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}
-            autoFocus
-          />
-          <DialogFooter>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+            <Input
+              placeholder={t('Category name...')}
+              enterKeyHint="done"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder() }}
+              autoFocus
+            />
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-5 py-3 sm:px-6">
             <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
               {t('Cancel')}
             </Button>
             <Button onClick={handleCreateFolder} disabled={!newFolderName.trim() || isPending}>
               {t('Create')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </div>
+        </BottomSheetContent>
       </Dialog>
 
       {/* Import CSV Wizard (Phase 76) */}
