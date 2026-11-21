@@ -47,6 +47,7 @@ import { computePageBreaks } from '@/lib/estimate/pagination/engine'
 import { computeEstimatePageConstraints } from '@/lib/estimate/pagination/page-constraints'
 import { deriveDepositDisplay } from '@/lib/estimate/deposit-display'
 import { resolvePresentationSettings } from '@/lib/estimate/presentation-settings'
+import { pdfRenderKeySuffix } from '@/lib/pdf/pdf-cache-key'
 
 // Registry-keyed lookup — NOT if/else. Matches app/api/estimates/[id]/pdf/route.ts's
 // existing PDF_TEMPLATE_COMPONENTS map exactly (kept local here so this module
@@ -124,10 +125,13 @@ export async function resolveEstimatePdfContext(
     ? rawTemplateId
     : DEFAULT_ESTIMATE_TEMPLATE_ID
   const estimateLanguage = isSupportedLanguage(estimate.language) ? estimate.language : 'en'
-  const contentKey =
+  // Content version + the render inputs updated_at cannot see: company branding, attached
+  // photos and the build (a deploy can change the PDF layout).
+  const baseKey =
     signedSnapshotRow && signedSnapshotRow.signed_content
       ? `sig-${signedSnapshotRow.id}-${signedSnapshotRow.signed_at}`
       : `est-${estimate.id}-${estimate.updated_at}`
+  const contentKey = `${baseKey}-${pdfRenderKeySuffix(company, estimate.attachedPhotos)}`
 
   return {
     templateId,
