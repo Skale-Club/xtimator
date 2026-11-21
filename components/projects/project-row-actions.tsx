@@ -30,6 +30,8 @@ import {
 import type { ProjectListStatus } from '@/lib/queries/project'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { ProjectClientMenuAction } from '@/components/projects/project-table'
+import { ProjectCoverDialog } from '@/components/projects/project-cover-dialog'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface Props {
   projectId: string
@@ -44,6 +46,9 @@ export function ProjectRowActions({ projectId, projectName, status, clientAction
   const { t } = useTranslation()
   const [isPending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [coverOpen, setCoverOpen] = useState(false)
+  // A paywalled account is read-only: the server refuses thumbnail writes.
+  const readOnly = usePaywallReadOnly()
 
   function run(
     action: () => Promise<{ data?: unknown; error?: string }>,
@@ -80,6 +85,9 @@ export function ProjectRowActions({ projectId, projectName, status, clientAction
               <DropdownMenuItem onSelect={clientAction.onSelect}>{clientAction.label}</DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
+          )}
+          {!readOnly && (
+            <DropdownMenuItem onSelect={() => setCoverOpen(true)}>{t('Change thumbnail')}</DropdownMenuItem>
           )}
           {status === 'active' && (
             <>
@@ -124,6 +132,15 @@ export function ProjectRowActions({ projectId, projectName, status, clientAction
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {!readOnly && (
+        <ProjectCoverDialog
+          open={coverOpen}
+          onOpenChange={setCoverOpen}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      )}
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>

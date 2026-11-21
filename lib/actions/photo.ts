@@ -9,6 +9,7 @@ import { assertWritable } from '@/lib/demo/guard'
 import { billingEditDenied } from '@/lib/billing/access-guard'
 import { isEstimateLocked } from '@/lib/estimate/lock'
 import { getEntitlementsForTier } from '@/lib/entitlements-server'
+import { findProjectCoveredByPhoto, releaseCoverOfDeletedPhoto } from '@/lib/projects/cover'
 
 // Security-hardening S3 (audit finding B / fix-pack F2, finding #9) — SAME
 // error message addPhotoToEstimate/removePhotoFromEstimate's guard
@@ -202,7 +203,7 @@ export async function updatePhotoCaption(photoId: string, caption: string) {
 export async function deletePhoto(photoId: string) {
   const ctx = await getAuthContext()
   if ('error' in ctx) return { error: ctx.error }
-  const { supabase } = ctx
+  const { supabase, company } = ctx
 
   // Get photo for storage_path and project_id
   const { data: photo } = await supabase
@@ -263,6 +264,11 @@ export async function deletePhoto(photoId: string) {
     return { error: 'Failed to delete photo file' }
   }
 
+  // Project thumbnails: when this photo is the picked cover, the project goes
+  // back to automatic once the row is gone. Looked up BEFORE the delete: the FK
+  // nulls projects.cover_photo_id and would hide the link.
+  const coveredProject = await findProjectCoveredByPhoto(supabase, company.id, photoId)
+
   // Delete DB row
   const { error: dbError } = await supabase
     .from('photos')
@@ -270,6 +276,12 @@ export async function deletePhoto(photoId: string) {
     .eq('id', photoId)
 
   if (dbError) return { error: 'Failed to delete photo' }
+
+  if (coveredProject) {
+    await releaseCoverOfDeletedPhoto(supabase, company.id, coveredProject)
+    revalidatePath('/projects')
+    revalidatePath('/dashboard')
+  }
 
   revalidatePath(`/projects/${photo.project_id}`)
   return { data: true }

@@ -6,6 +6,7 @@ import { getAuthClaims } from '@/lib/queries/auth'
 import { getActiveCompany } from '@/lib/queries/active-company'
 import { DashboardStatsClient } from '@/components/dashboard/dashboard-stats-client'
 import { ProjectList } from '@/components/dashboard/project-list'
+import { scheduleCoverBackfill } from '@/lib/projects/cover'
 import { getPausedCaptures, withPausedStatus } from '@/lib/queries/credit-pauses'
 import { ListCard } from '@/components/ui/list-page'
 import { RecentProjectsSkeleton, StatCardsSkeleton } from '@/components/dashboard/dashboard-skeletons'
@@ -78,6 +79,8 @@ async function DashboardProjects({ companyId }: { companyId: string }) {
   const supabase = await createClient()
   const [listed, paused] = await Promise.all([getProjects(supabase, companyId), getPausedCaptures(companyId)])
   const projects = withPausedStatus(listed, paused)
+  // Automatic thumbnails are generated after the response, a few per visit.
+  await scheduleCoverBackfill(companyId, listed)
   // Same glass card as the Projects, Clients and Price Book screens.
   return <ListCard><ProjectList projects={projects} /></ListCard>
 }

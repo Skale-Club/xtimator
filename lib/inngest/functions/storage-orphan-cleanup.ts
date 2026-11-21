@@ -134,7 +134,15 @@ async function photosReference(svc: ServiceClientLike, fullKey: string): Promise
     .from('photos')
     .select('id', { count: 'exact', head: true })
     .eq('storage_path', fullKey)
-  return (count ?? 0) > 0
+  if ((count ?? 0) > 0) return true
+  // Project thumbnails (<company>/<project>/cover-<uuid>.webp) have no photos
+  // row; projects.cover_thumb_path references them.
+  if (!/\/cover-[^/]+\.webp$/.test(fullKey)) return false
+  const { count: coverCount } = await svc
+    .from('projects')
+    .select('id', { count: 'exact', head: true })
+    .eq('cover_thumb_path', fullKey)
+  return (coverCount ?? 0) > 0
 }
 
 const BUCKET_CONFIGS: BucketConfig[] = [

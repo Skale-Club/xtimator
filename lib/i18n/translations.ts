@@ -10,6 +10,7 @@ import { editorTranslations } from './editor-translations'
 import { analyticsTranslations } from './analytics-translations'
 import { clientActivityTranslations } from './client-activity-translations'
 import { sidePanelTranslations } from './side-panel-translations'
+import { projectCoverTranslations } from './project-cover-translations'
 
 type TranslationDict = Record<string, string>
 
@@ -27,6 +28,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...analyticsTranslations.pt,
     ...clientActivityTranslations.pt,
     ...sidePanelTranslations.pt,
+    ...projectCoverTranslations.pt,
     // Navigation
     'Dashboard': 'Painel',
     'Clients': 'Clientes',
@@ -528,6 +530,7 @@ export const staticDict: Record<'pt' | 'es', TranslationDict> = {
     ...analyticsTranslations.es,
     ...clientActivityTranslations.es,
     ...sidePanelTranslations.es,
+    ...projectCoverTranslations.es,
     // Navigation
     'Dashboard': 'Panel',
     'Clients': 'Clientes',

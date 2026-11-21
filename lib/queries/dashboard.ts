@@ -19,6 +19,9 @@ export interface ProjectWithClient {
   /** Phase 70: payment status pulled from the project's current estimate. */
   payment_status: 'unpaid' | 'paid' | 'refunded' | null
   paid_at: string | null
+  /** Project thumbnail: 'auto' | 'photo' | 'upload' | 'none'; the key renders via storageProxyPath. */
+  cover_mode?: string
+  cover_thumb_path?: string | null
 }
 
 export async function getDashboardStats(
@@ -117,7 +120,7 @@ export async function getProjects(
   const { data } = await supabase
     .from('projects')
     .select(
-      `id, name, project_type, status, total, created_at,
+      `id, name, project_type, status, total, created_at, cover_mode, cover_thumb_path,
        client:clients(id, name),
        estimates!estimates_project_id_fkey(payment_status, paid_at, currency_code, is_current)`
     )
@@ -145,6 +148,8 @@ export async function getProjects(
       client: row.client as { id: string; name: string } | null,
       payment_status: current?.payment_status ?? null,
       paid_at: current?.paid_at ?? null,
+      cover_mode: (row.cover_mode as string | null) ?? 'auto',
+      cover_thumb_path: (row.cover_thumb_path as string | null) ?? null,
     }
   })
 }

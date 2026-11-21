@@ -17,6 +17,7 @@ import { useBackgroundGeneration } from '@/hooks/use-background-generations'
 import { EstimateAnalyticsButton } from '@/components/projects/estimate-list-status'
 import { AwaitingAnswerToggle } from '@/components/projects/awaiting-answer-filter'
 import type { EstimateListStatus } from '@/lib/queries/estimate-list-status'
+import { ProjectThumb } from '@/components/projects/project-thumb'
 
 export interface ProjectTableRow {
   id: string
@@ -31,6 +32,8 @@ export interface ProjectTableRow {
   paid_at?: string | null
   /** Client-side standing of the current estimate (lib/queries/estimate-list-status.ts). */
   estimate_status?: EstimateListStatus | null
+  /** Stored thumbnail key (rendered through the storage proxy), null = initials. */
+  cover_thumb_path?: string | null
 }
 
 /** Extra item the phone card asks the row menu to show (link or change the
@@ -212,6 +215,7 @@ export function ProjectTable<TProject extends ProjectTableRow>({
             aria-hidden="true"
             tabIndex={-1}
           />
+          <ProjectThumb name={project.name} thumbPath={project.cover_thumb_path} size={40} className="mr-3" />
           <span className="font-medium hover:underline">{project.name}</span>
           {project.status === 'awaiting_credits' && <PausedForCreditsBadge project={project} />}
           <ProjectGeneratingBadge projectId={project.id} />
@@ -428,6 +432,7 @@ function ProjectTableCard<TProject extends ProjectTableRow>({
   return (
     <div className="relative flex items-center gap-2 border-b border-border/50 py-3 last:border-0">
       <Link href={`/projects/${project.id}`} className="absolute inset-0" aria-hidden tabIndex={-1} />
+      <ProjectThumb name={project.name} thumbPath={project.cover_thumb_path} size={40} className="mr-1" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="min-w-0 truncate font-medium">{project.name}</span>

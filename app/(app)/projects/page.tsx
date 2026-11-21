@@ -6,6 +6,7 @@ import { getProjectsForListPage, type ProjectListStatus } from '@/lib/queries/pr
 import { getClientsForEditing } from '@/lib/queries/clients'
 import { getPausedCaptures, withPausedStatus } from '@/lib/queries/credit-pauses'
 import { getEstimateListStatuses, withEstimateStatus } from '@/lib/queries/estimate-list-status'
+import { scheduleCoverBackfill } from '@/lib/projects/cover'
 import { ProjectsPageShell } from '@/components/projects/projects-page-shell'
 
 function parseStatus(raw: string | string[] | undefined): ProjectListStatus {
@@ -41,6 +42,8 @@ export default async function ProjectsPage({
     getPausedCaptures(company.id),
     getEstimateListStatuses(supabase, company.id),
   ])
+  // Automatic thumbnails are generated after the response, a few per visit.
+  await scheduleCoverBackfill(company.id, listed)
   // Credits plan 2026-11-20: a capture paused for credits shows on its project.
   // Client activity (Draft / Sent / Viewed / Accepted + Hot) for the Status column.
   const projects = withEstimateStatus(withPausedStatus(listed, paused), estimateStatuses)

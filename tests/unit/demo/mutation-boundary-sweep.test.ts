@@ -923,6 +923,15 @@ const MUTATION_BOUNDARY_MANIFEST: Coverage[] = [
     'fetchItemOptions',
     'getRecentUndoableImport',
   ]),
+  ...guarded('lib/actions/project-cover.ts', 'assertWritable', [
+    'removeProjectCover',
+    'resetProjectCover',
+    'setProjectCoverFromPhoto',
+    'uploadProjectCover',
+  ]),
+  ...excepted('lib/actions/project-cover.ts', 'read-only', READ_AUTHORITY, READ_REASON, [
+    'listProjectCoverPhotos',
+  ]),
   ...guarded('lib/actions/project.ts', 'assertWritable', [
     'archiveProjectAction',
     'createProjectAction',

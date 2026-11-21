@@ -46,6 +46,15 @@ const ACTIONS = {
     ],
     reads: ['fetchItemOptions', 'getRecentUndoableImport'],
   },
+  'project-cover': {
+    mutators: [
+      'setProjectCoverFromPhoto',
+      'uploadProjectCover',
+      'removeProjectCover',
+      'resetProjectCover',
+    ],
+    reads: ['listProjectCoverPhotos'],
+  },
 } as const
 
 function moduleSource(module: keyof typeof ACTIONS) {

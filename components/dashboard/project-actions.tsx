@@ -25,6 +25,8 @@ import { deleteProjectAction, duplicateProjectAction } from '@/lib/actions/proje
 import { toast } from 'sonner'
 import { useTranslation } from '@/lib/i18n/use-translation'
 import type { ProjectClientMenuAction } from '@/components/projects/project-table'
+import { ProjectCoverDialog } from '@/components/projects/project-cover-dialog'
+import { usePaywallReadOnly } from '@/components/billing/paywall-read-only'
 
 interface ProjectActionsProps {
   projectId: string
@@ -36,6 +38,8 @@ interface ProjectActionsProps {
 export function ProjectActions({ projectId, projectName, clientAction }: ProjectActionsProps) {
   const { t } = useTranslation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [coverOpen, setCoverOpen] = useState(false)
+  const readOnly = usePaywallReadOnly()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [isDuplicating, startDuplicateTransition] = useTransition()
 
@@ -84,6 +88,9 @@ export function ProjectActions({ projectId, projectName, clientAction }: Project
           <DropdownMenuItem asChild>
             <Link href={`/projects/${projectId}`}>{t('Edit')}</Link>
           </DropdownMenuItem>
+          {!readOnly && (
+            <DropdownMenuItem onSelect={() => setCoverOpen(true)}>{t('Change thumbnail')}</DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleDuplicate} disabled={isDuplicating}>
             {isDuplicating ? t('Duplicating...') : t('Duplicate')}
@@ -97,6 +104,15 @@ export function ProjectActions({ projectId, projectName, clientAction }: Project
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {!readOnly && (
+        <ProjectCoverDialog
+          open={coverOpen}
+          onOpenChange={setCoverOpen}
+          projectId={projectId}
+          projectName={projectName}
+        />
+      )}
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

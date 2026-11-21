@@ -261,7 +261,10 @@ export async function duplicateProjectAction(projectId: string) {
 
   if (fetchError || !original) return { error: 'Project not found.' }
 
-  // Insert copy
+  // Insert copy. The field list is explicit on purpose: the copy must NOT carry
+  // cover_thumb_path / cover_photo_id / cover_mode (that would share, or point
+  // at, the original's files) nor sort_order (the BEFORE INSERT trigger puts
+  // the copy on top). It starts with an automatic thumbnail of its own.
   const { data: newProject, error: insertError } = await supabase
     .from('projects')
     .insert({
