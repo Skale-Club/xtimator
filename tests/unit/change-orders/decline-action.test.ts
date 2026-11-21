@@ -17,6 +17,13 @@ vi.mock('@/lib/change-orders/notify', () => ({
   notifyChangeOrderResponse: (...a: unknown[]) => notifyChangeOrderResponse(...a),
 }))
 
+const mockRateLimit = vi.fn()
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: (...a: unknown[]) => mockRateLimit(...a) }))
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ 'x-forwarded-for': '198.51.100.4' }),
+  cookies: async () => ({ get: () => undefined, set: () => undefined }),
+}))
+
 let fake: ReturnType<typeof makeFakeSupabase>
 let handler: (c: Call) => Result | undefined
 vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: () => fake.client }))
@@ -62,6 +69,7 @@ beforeEach(() => {
   vi.resetModules()
   assertWritable.mockResolvedValue(null)
   assertCompanyWritable.mockResolvedValue(null)
+  mockRateLimit.mockResolvedValue({ allowed: true, count: 1, max: 20 })
   setup()
 })
 
@@ -130,6 +138,31 @@ describe('declineChangeOrder', () => {
     expect(await decline()).toEqual({ success: false, error: 'This change order has already been responded to' })
     expect(fake.calls.some((c) => c.table === 'estimate_activity')).toBe(false)
     expect(notifyChangeOrderResponse).not.toHaveBeenCalled()
+  })
+
+  it('is rate limited by IP + a token hash before any lookup', async () => {
+    await decline('tok-1')
+    const [name, key] = mockRateLimit.mock.calls[0]
+    expect(name).toBe('publicChangeOrderPerMinute')
+    expect(key).toMatch(/^198\.51\.100\.4:[0-9a-f]{16}$/)
+    expect(String(key)).not.toContain('tok-1')
+  })
+
+  it('refuses with a plain message and touches nothing when rate limited', async () => {
+    mockRateLimit.mockResolvedValue({ allowed: false, count: 21, max: 20, retryAfter: 30 })
+    expect(await decline()).toEqual({ success: false, error: 'Too many attempts. Try again in a minute.' })
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('refuses a change order that is still a draft (the UI only hides the buttons)', async () => {
+    setup({ co: { ...CO, status: 'draft' } })
+    expect(await decline()).toEqual({ success: false, error: 'This change order has not been sent yet' })
+    expect(fake.calls.some((c) => c.op === 'update')).toBe(false)
+  })
+
+  it('declines a sent change order', async () => {
+    setup({ co: { ...CO, status: 'sent' } })
+    expect(await decline()).toEqual({ success: true })
   })
 
   it('a failing notification never fails the decline', async () => {

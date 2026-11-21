@@ -404,6 +404,13 @@ function EstimateViewInner({
           window.scrollTo({ top: 0, behavior: 'smooth' })
           return
         }
+        if (res.status === 410 || (res.status === 403 && body.error === 'link_locked')) {
+          // The link expired or was locked after this page loaded: a reload
+          // shows the current state (fresh link request / password form).
+          setShowSignaturePad(false)
+          setError(t('This link is no longer available. Please reload the page.'))
+          return
+        }
         throw new Error(body.error ?? 'Failed to submit signature')
       }
       // sign_estimate_atomic already committed client_response='accepted' as

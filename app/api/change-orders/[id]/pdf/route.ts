@@ -3,6 +3,9 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { getAuthContext } from '@/lib/auth/context'
+import { rateLimit } from '@/lib/ratelimit'
+import { sha256Hex } from '@/lib/auth/share-password'
+import { readClientIp } from '@/lib/estimates/public-access'
 import { getChangeOrderDocumentById } from '@/lib/change-orders/queries'
 import { formatChangeOrderNumber } from '@/lib/change-orders/types'
 import { resolvePdfLogo } from '@/lib/pdf/resolve-pdf-logo'
@@ -25,6 +28,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params
     const token = new URL(request.url).searchParams.get('token')
+
+    // Throttle FIRST: PDF rendering is expensive and the token path is anonymous.
+    // Keyed by IP + a truncated hash of the token (or the id when absent).
+    const ip = await readClientIp()
+    const rl = await rateLimit(
+      'publicChangeOrderPerMinute',
+      `pdf:${ip ?? 'no-ip'}:${sha256Hex(token ?? id).slice(0, 16)}`,
+    )
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Try again in a minute.' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+      )
+    }
 
     // Loaded only to authorize against; never returned unless a check passes.
     const data = await getChangeOrderDocumentById(id)

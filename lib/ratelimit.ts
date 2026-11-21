@@ -53,6 +53,10 @@ export type LimitName =
   // `${ip}:${tokenHashPrefix}` (never the raw token) — a tight ceiling since
   // this is a brute-force guard on a 4-72 char password, not a UX throttle.
   | 'estimateUnlockPerMinute'
+  // Public answer paths on a share link (decline). Keyed by `${ip}:${tokenHashPrefix}`.
+  | 'publicEstimateResponsePerMinute'
+  // Public change-order decline and PDF download. Keyed by IP (+ token hash when present).
+  | 'publicChangeOrderPerMinute'
 
 interface LimitConfig {
   max: number
@@ -112,6 +116,10 @@ export const limits: Record<LimitName, LimitConfig> = {
   // app/estimate/[token]/actions.ts). Checked BEFORE any password
   // verification work.
   estimateUnlockPerMinute: { max: 5, window: 60 },
+
+  // Public answer paths: declining an estimate, and the change-order decline/PDF.
+  publicEstimateResponsePerMinute: { max: 10, window: 60 },
+  publicChangeOrderPerMinute: { max: 20, window: 60 },
 }
 
 export interface RateLimitResult {

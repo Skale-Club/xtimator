@@ -119,6 +119,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const changeOrder = changeOrderData as unknown as SignChangeOrderRow
 
+    // A draft has not been sent to the client: the UI hides Accept, this
+    // refuses the call itself (before the RPC).
+    if ((changeOrder as { status?: string | null }).status === 'draft') {
+      return NextResponse.json({ error: 'This change order has not been sent yet' }, { status: 409 })
+    }
+
     const blocked = await demoGuardResponse({ companyId: changeOrder.company_id })
     if (blocked) return blocked
 

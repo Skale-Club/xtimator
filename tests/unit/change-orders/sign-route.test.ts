@@ -256,3 +256,21 @@ describe('sign route: RPC error mapping', () => {
     expect(fake.rpcCalls).toHaveLength(0)
   })
 })
+
+describe('sign route: draft change orders', () => {
+  it('409 for a draft (the UI only hides Accept): no snapshot, no RPC, no notification', async () => {
+    setup({ co: { ...CO_ROW, status: 'draft' } })
+    const res = await POST(req({}), PARAMS)
+    expect(res.status).toBe(409)
+    expect((await json(res)).error).toBe('This change order has not been sent yet')
+    expect(fake.rpcCalls).toHaveLength(0)
+    expect(mockNotify).not.toHaveBeenCalled()
+  })
+
+  it('a sent change order still signs', async () => {
+    setup({ co: { ...CO_ROW, status: 'sent' } })
+    const res = await POST(req({}), PARAMS)
+    expect(res.status).toBe(200)
+    expect(fake.rpcCalls).toHaveLength(1)
+  })
+})

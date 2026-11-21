@@ -12,6 +12,7 @@ import { inngest } from '@/lib/inngest/client'
 import { EVENT_ESTIMATE_VIEWED_NOTIFICATION } from '@/lib/inngest/events'
 import { isOwnerVisit } from '@/lib/estimates/owner-visit'
 import { sha256Hex, setUnlockCookie, verifySharePassword } from '@/lib/auth/share-password'
+import { checkShareAccess, readClientIp } from '@/lib/estimates/public-access'
 
 export async function logEstimateView(token: string): Promise<void> {
   // Phase 193-01 — this is called fire-and-forget from an anonymous share
@@ -161,12 +162,25 @@ export async function respondToEstimate(
   token: string,
   response: 'accepted' | 'declined'
 ): Promise<{ success: boolean; error?: string }> {
+  // Throttle FIRST (before any lookup), keyed by client IP + a truncated token
+  // hash (never the raw token in a Redis key). Mirrors unlockEstimate.
+  const ip = await readClientIp()
+  const rl = await rateLimit(
+    'publicEstimateResponsePerMinute',
+    `${ip ?? 'no-ip'}:${sha256Hex(String(token ?? '')).slice(0, 16)}`,
+  )
+  if (!rl.allowed) {
+    return { success: false, error: 'Too many attempts. Try again in a minute.' }
+  }
+
   const supabase = requireServiceClient()
 
   // Look up estimate
   const { data: estimate } = await supabase
     .from('estimates')
-    .select('id, project_id, company_id, client_response, is_current, estimate_number')
+    .select(
+      'id, project_id, company_id, client_response, is_current, estimate_number, share_token, share_expires_at, share_password_hash',
+    )
     .eq('share_token', token)
     .single()
 
@@ -181,6 +195,19 @@ export async function respondToEstimate(
     client_response: string | null
     is_current: boolean
     estimate_number?: string | null
+    share_token?: string | null
+    share_expires_at?: string | null
+    share_password_hash?: string | null
+  }
+
+  // The public page refuses an expired link and a password-protected link
+  // without a valid unlock cookie; this write path enforces the same rules.
+  const access = await checkShareAccess(est, est.share_token ?? token)
+  if (access === 'expired') {
+    return { success: false, error: 'This estimate link has expired' }
+  }
+  if (access === 'locked') {
+    return { success: false, error: 'Please unlock this estimate to continue' }
   }
 
   const denied = (await assertWritable()) ?? await assertCompanyWritable(est.company_id)

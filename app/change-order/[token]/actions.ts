@@ -9,15 +9,23 @@ import { requireServiceClient } from '@/lib/supabase/service'
 import { assertCompanyWritable, assertWritable } from '@/lib/demo/guard'
 import { notifyChangeOrderResponse } from '@/lib/change-orders/notify'
 import { resolveEstimateNumber } from '@/lib/change-orders/contract'
+import { rateLimit } from '@/lib/ratelimit'
+import { sha256Hex } from '@/lib/auth/share-password'
+import { readClientIp } from '@/lib/estimates/public-access'
 
 export async function declineChangeOrder(token: string): Promise<{ success: boolean; error?: string }> {
   if (typeof token !== 'string' || !token) return { success: false, error: 'Change order not found' }
+
+  // Throttle FIRST: anonymous, token-gated public write. IP + truncated token hash.
+  const ip = await readClientIp()
+  const rl = await rateLimit('publicChangeOrderPerMinute', `${ip ?? 'no-ip'}:${sha256Hex(token).slice(0, 16)}`)
+  if (!rl.allowed) return { success: false, error: 'Too many attempts. Try again in a minute.' }
 
   const supabase = requireServiceClient()
 
   const { data: row } = await supabase
     .from('change_orders')
-    .select('id, project_id, company_id, estimate_id, number, title, total, client_response')
+    .select('id, project_id, company_id, estimate_id, number, title, total, client_response, status')
     .eq('share_token', token)
     .maybeSingle()
 
@@ -31,7 +39,12 @@ export async function declineChangeOrder(token: string): Promise<{ success: bool
     title: string | null
     total: number
     client_response: string | null
+    status?: string | null
   }
+
+  // A draft has not been sent to the client: the UI hides the buttons, this
+  // refuses the call itself.
+  if (co.status === 'draft') return { success: false, error: 'This change order has not been sent yet' }
 
   const denied = (await assertWritable()) ?? (await assertCompanyWritable(co.company_id))
   if (denied) return { success: false, error: denied.error }

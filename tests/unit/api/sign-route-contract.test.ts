@@ -27,8 +27,17 @@ const mockDemoGuard = vi.fn()
 const mockRateLimit = vi.fn()
 const mockNotify = vi.fn()
 const mockHeaders = vi.fn()
+const mockCookieGet = vi.fn()
+const mockHasValidUnlock = vi.fn()
 
-vi.mock('next/headers', () => ({ headers: () => mockHeaders() }))
+vi.mock('next/headers', () => ({
+  headers: () => mockHeaders(),
+  cookies: async () => ({ get: (name: string) => mockCookieGet(name) }),
+}))
+vi.mock('@/lib/auth/share-password', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/share-password')>()),
+  hasValidUnlock: (...args: unknown[]) => mockHasValidUnlock(...args),
+}))
 vi.mock('@/lib/supabase/service', () => ({
   requireServiceClient: () => mockRequireServiceClient(),
 }))
@@ -526,6 +535,67 @@ describe('lock-at-acceptance: signing exactly the content the client loaded', ()
     expect(res.status).toBe(409)
     await expect(res.json()).resolves.toEqual({ error: 'estimate_superseded' })
     expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('public link gate: expiry and share password (same rules as the public page)', () => {
+  function configure(rowOverrides: Record<string, unknown> = {}) {
+    const supabase = buildSupabase({
+      estimateRows: [estimateRow(rowOverrides)],
+      rpcHandler: () => ({ data: RPC_SUCCESS_RESULT, error: null }),
+    })
+    mockRequireServiceClient.mockReturnValue(supabase)
+    return supabase
+  }
+  const BASE = { token: 'share-token-abc', signerName: 'Jane Doe', signatureData: TINY_PNG_DATA_URL }
+  const PAST = '2020-01-01T00:00:00.000Z'
+  const FUTURE = '2999-01-01T00:00:00.000Z'
+
+  beforeEach(() => {
+    mockCookieGet.mockReturnValue({ value: 'signed-cookie' })
+    mockHasValidUnlock.mockReturnValue(false)
+  })
+
+  it('an expired link -> 410 link_expired, nothing signed', async () => {
+    const supabase = configure({ share_expires_at: PAST })
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(410)
+    await expect(res.json()).resolves.toEqual({ error: 'link_expired' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a password-protected link without a valid unlock cookie -> 403 link_locked, nothing signed', async () => {
+    const supabase = configure({ share_password_hash: 'scrypt$hash', share_expires_at: FUTURE })
+    mockCookieGet.mockReturnValue(undefined)
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({ error: 'link_locked' })
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a password-protected link with a cookie that does not verify for THIS token -> 403', async () => {
+    const supabase = configure({ share_password_hash: 'scrypt$hash' })
+    mockHasValidUnlock.mockReturnValue(false)
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(403)
+    expect(mockHasValidUnlock).toHaveBeenCalledWith('signed-cookie', 'share-token-abc')
+    expect(supabase.__rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('a password-protected link WITH a valid unlock cookie signs normally', async () => {
+    const supabase = configure({ share_password_hash: 'scrypt$hash', share_expires_at: FUTURE })
+    mockHasValidUnlock.mockReturnValue(true)
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(200)
+    expect(supabase.__rpcMock).toHaveBeenCalledOnce()
+  })
+
+  it('an unprotected, unexpired link signs without any cookie', async () => {
+    const supabase = configure({ share_password_hash: null, share_expires_at: null })
+    const res = await POST(jsonRequest(BASE), PARAMS)
+    expect(res.status).toBe(200)
+    expect(supabase.__rpcMock).toHaveBeenCalledOnce()
+    expect(mockHasValidUnlock).not.toHaveBeenCalled()
   })
 })
 

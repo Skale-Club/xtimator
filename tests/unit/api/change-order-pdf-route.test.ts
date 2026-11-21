@@ -11,6 +11,12 @@ vi.mock('@react-pdf/renderer', async (orig) => ({
   renderToBuffer: (el: unknown) => renderMock(el),
 }))
 vi.mock('@/components/pdf/change-order-pdf', () => ({ default: () => null }))
+const rateLimitMock = vi.fn()
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: (...a: unknown[]) => rateLimitMock(...a) }))
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ 'x-forwarded-for': '198.51.100.8' }),
+  cookies: async () => ({ get: () => undefined }),
+}))
 
 import { GET } from '@/app/api/change-orders/[id]/pdf/route'
 import { buildChangeOrderData } from '../share/change-order-fixtures'
@@ -26,6 +32,7 @@ beforeEach(() => {
   getDoc.mockResolvedValue(buildChangeOrderData())
   getAuth.mockResolvedValue({ error: 'Not authenticated' })
   renderMock.mockResolvedValue(Buffer.from('%PDF-1.4 test'))
+  rateLimitMock.mockResolvedValue({ allowed: true, count: 1, max: 20 })
 })
 
 describe('GET /api/change-orders/[id]/pdf', () => {
@@ -54,6 +61,23 @@ describe('GET /api/change-orders/[id]/pdf', () => {
   it('404 for a signed-in user of ANOTHER company', async () => {
     getAuth.mockResolvedValue({ userId: 'u2', companyId: 'other-company' })
     expect((await call()).status).toBe(404)
+    expect(renderMock).not.toHaveBeenCalled()
+  })
+
+  it('is rate limited by IP + a token hash, before the document is even loaded', async () => {
+    await call('?token=tok-co1')
+    const [name, key] = rateLimitMock.mock.calls[0]
+    expect(name).toBe('publicChangeOrderPerMinute')
+    expect(key).toMatch(/^pdf:198.51.100.8:[0-9a-f]{16}$/)
+    expect(String(key)).not.toContain('tok-co1')
+  })
+
+  it('429 with Retry-After when limited: nothing loaded, nothing rendered', async () => {
+    rateLimitMock.mockResolvedValue({ allowed: false, count: 21, max: 20, retryAfter: 42 })
+    const res = await call('?token=tok-co1')
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('42')
+    expect(getDoc).not.toHaveBeenCalled()
     expect(renderMock).not.toHaveBeenCalled()
   })
 

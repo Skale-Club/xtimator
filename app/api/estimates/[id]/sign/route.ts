@@ -5,6 +5,7 @@ import { resolveClientIp } from '@/lib/http/client-ip'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { demoGuardResponse } from '@/lib/demo/guard'
 import { rateLimit } from '@/lib/ratelimit'
+import { checkShareAccess } from '@/lib/estimates/public-access'
 import { notifyEstimateResponse } from '@/lib/estimate/notify-response'
 import {
   buildSignedContentSnapshot,
@@ -207,6 +208,21 @@ export async function POST(
     }
 
     const estimate = estimateData as unknown as SignEstimateRow
+
+    // Same gate as the public page: an expired link, or a password-protected
+    // link without a valid unlock cookie, can never be signed. Runs before any
+    // snapshot is built or RPC is called. Generic bodies: no detail about the
+    // password or the estimate leaks.
+    const access = await checkShareAccess(
+      estimate as unknown as { share_expires_at?: string | null; share_password_hash?: string | null },
+      estimate.share_token,
+    )
+    if (access === 'expired') {
+      return NextResponse.json({ error: 'link_expired' }, { status: 410 })
+    }
+    if (access === 'locked') {
+      return NextResponse.json({ error: 'link_locked' }, { status: 403 })
+    }
 
     // Demo guard: unchanged in relative position — still runs before the
     // company check and every downstream write below (fix-pack F1 only moved
