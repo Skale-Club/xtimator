@@ -17,10 +17,11 @@ import { join, relative } from 'node:path'
 const { serviceClientMock } = vi.hoisted(() => ({ serviceClientMock: { from: vi.fn() } }))
 vi.mock('@/lib/supabase/service', () => ({ requireServiceClient: () => serviceClientMock }))
 
-import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
+import { stripOwnerOnlyEstimate, stripOwnerOnlyItem, stripPublicEstimate, stripPublicItem } from '@/lib/estimate/ai-meta'
 import { getEstimateByPublicToken, getEstimateByShareToken } from '@/lib/queries/share'
 
 type AnyRow = Record<string, unknown>
+const companySelects: string[] = []
 
 const ESTIMATE: AnyRow = {
   id: 'e1',
@@ -31,6 +32,7 @@ const ESTIMATE: AnyRow = {
   summary: 'Job summary',
   share_token: 'tok-SECRET',
   public_slug_token: 'shorttok123',
+  share_password_hash: 'scrypt$SECRET-HASH',
   share_expires_at: null,
   payment_status: 'unpaid',
   ai_meta: {
@@ -61,9 +63,12 @@ const ITEM: AnyRow = {
   confidence: 'low',
   basis: 'SECRET-BASIS',
   optional: true,
+  cost: 61.5,
+  markup_pct: 62.6,
 }
 
 function installMock() {
+  companySelects.length = 0
   serviceClientMock.from.mockImplementation((table: string) => {
     if (table === 'estimates') {
       return {
@@ -85,7 +90,12 @@ function installMock() {
       return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { name: 'Kitchen', client: null } }) })) })) }
     }
     if (table === 'companies') {
-      return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { name: 'Acme' } }) })) })) }
+      return {
+        select: vi.fn((columns: string) => {
+          companySelects.push(columns)
+          return { eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { name: 'Acme' } }) })) }
+        }),
+      }
     }
     if (table === 'estimate_photos') {
       return { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn().mockResolvedValue({ data: [] }) })) })) }
@@ -116,6 +126,18 @@ describe('strip helpers', () => {
   })
 })
 
+describe('public strip helpers', () => {
+  it('stripPublicItem also drops cost and markup_pct, while the owner-side strip keeps them', () => {
+    const row = { id: 'i', cost: 5, markup_pct: 20, confidence: 'low', unit_price: 6 }
+    expect(stripPublicItem(row)).toEqual({ id: 'i', unit_price: 6 })
+    expect(stripOwnerOnlyItem(row)).toEqual({ id: 'i', cost: 5, markup_pct: 20, unit_price: 6 })
+  })
+
+  it('stripPublicEstimate also drops share_password_hash', () => {
+    expect(stripPublicEstimate({ id: 'e', ai_meta: {}, share_password_hash: 'h', summary: 's' })).toEqual({ id: 'e', summary: 's' })
+  })
+})
+
 describe('public share loaders never hand owner-only AI data to the page', () => {
   beforeEach(() => installMock())
 
@@ -126,7 +148,7 @@ describe('public share loaders never hand owner-only AI data to the page', () =>
     const data = await load()
     expect(data).not.toBeNull()
     const serialised = JSON.stringify(data)
-    for (const secret of ['SECRET-ASSUMPTION', 'SECRET-QUESTION', 'SECRET-FINDING', 'SECRET-BASIS', 'ai_meta', 'owner_review', 'OWNER-REVIEW-QUESTION', 'OWNER-REVIEW-ASSUMPTION']) {
+    for (const secret of ['SECRET-ASSUMPTION', 'SECRET-QUESTION', 'SECRET-FINDING', 'SECRET-BASIS', 'ai_meta', 'owner_review', 'OWNER-REVIEW-QUESTION', 'OWNER-REVIEW-ASSUMPTION', 'SECRET-HASH', 'share_password_hash', 'markup_pct', '"cost"']) {
       expect(serialised, secret).not.toContain(secret)
     }
     const estimate = (data as { estimate: AnyRow }).estimate
@@ -138,10 +160,23 @@ describe('public share loaders never hand owner-only AI data to the page', () =>
       expect(item).not.toHaveProperty('confidence')
       expect(item).not.toHaveProperty('basis')
       expect(item).not.toHaveProperty('optional')
+      // Contractor cost basis and margin never reach an anonymous visitor.
+      expect(item).not.toHaveProperty('cost')
+      expect(item).not.toHaveProperty('markup_pct')
     }
+    expect(estimate).not.toHaveProperty('share_password_hash')
+    expect(estimate).not.toHaveProperty('share_token')
     // ...while the content the client is meant to see is intact.
+    // The company select never asks for the Stripe Connect columns.
+    expect(companySelects.length).toBeGreaterThan(0)
+    for (const columns of companySelects) {
+      expect(columns).not.toContain('stripe_')
+      expect(columns).toContain('logo_url')
+    }
     expect(estimate.summary).toBe('Job summary')
     expect(items[0].description).toBe('Paint walls')
+    expect(items[0].unit_price).toBe(100)
+    expect(estimate.total).toBe(100)
   })
 })
 

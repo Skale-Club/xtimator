@@ -1,4 +1,4 @@
-import { stripOwnerOnlyEstimate, stripOwnerOnlyItem } from '@/lib/estimate/ai-meta'
+import { stripPublicEstimate, stripPublicItem } from '@/lib/estimate/ai-meta'
 import { requireServiceClient } from '@/lib/supabase/service'
 import type {
   Estimate,
@@ -41,8 +41,8 @@ export interface ShareEstimateData {
       brand_primary_color: string | null
       // notify_on_* flags are internal prefs — intentionally NOT exposed to the
       // public share payload (used only server-side by logEstimateView/respond).
-      stripe_account_id: string | null
-      stripe_connect_status: string | null
+      // stripe_account_id / stripe_connect_status are never exposed publicly:
+      // no public component reads them.
       digital_signature_enabled: boolean
       estimate_terms_enabled: boolean
       estimate_terms_text: string | null
@@ -159,7 +159,7 @@ export async function getEstimateByShareToken(
   }
 
   // SEED-057: ai_meta is owner-only; this row is spread into a client component's props.
-  const estimate = stripOwnerOnlyEstimate(estimateData) as Estimate
+  const estimate = stripPublicEstimate(estimateData) as Estimate
 
   // Fetch sections with items (same pattern as fetchEstimateWithSections)
   const { data: sectionsData } = await supabase
@@ -181,7 +181,7 @@ export async function getEstimateByShareToken(
       return {
         ...section,
         // SEED-057: per-line AI confidence / basis are owner-only.
-        items: ((itemsData ?? []) as EstimateItem[]).map(stripOwnerOnlyItem),
+        items: ((itemsData ?? []) as EstimateItem[]).map(stripPublicItem),
       }
     })
   )
@@ -248,7 +248,7 @@ export async function getEstimateByShareToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()
@@ -435,7 +435,7 @@ export async function getEstimateByPublicToken(
   }
 
   // SEED-057: ai_meta is owner-only; this row is spread into a client component's props.
-  const estimate = stripOwnerOnlyEstimate(estimateData) as Estimate
+  const estimate = stripPublicEstimate(estimateData) as Estimate
   const realShareToken = estimate.share_token
 
   const { data: sectionsData } = await supabase
@@ -457,7 +457,7 @@ export async function getEstimateByPublicToken(
       return {
         ...section,
         // SEED-057: per-line AI confidence / basis are owner-only.
-        items: ((itemsData ?? []) as EstimateItem[]).map(stripOwnerOnlyItem),
+        items: ((itemsData ?? []) as EstimateItem[]).map(stripPublicItem),
       }
     })
   )
@@ -507,7 +507,7 @@ export async function getEstimateByPublicToken(
   const { data: companyData } = await supabase
     .from('companies')
     .select(
-      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, stripe_account_id, stripe_connect_status, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
+      'id, name, owner_name, phone, email, website, address, city, state, zip, logo_url, brand_primary_color, digital_signature_enabled, estimate_terms_enabled, estimate_terms_text, estimate_template_style'
     )
     .eq('id', estimate.company_id)
     .single()

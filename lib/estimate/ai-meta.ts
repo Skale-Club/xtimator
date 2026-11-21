@@ -315,3 +315,32 @@ export function stripOwnerOnlyEstimate<T extends object>(row: T): T {
 export function stripOwnerOnlyItem<T extends object>(row: T): T {
   return without(row, OWNER_ONLY_ITEM_COLUMNS)
 }
+
+// ---------------------------------------------------------------------------
+// Anonymous (public share page) payload: a stricter cut than the owner-only one.
+//
+// The owner's own surfaces (editor, MCP tools) legitimately read the contractor
+// cost basis and margin (`cost`, `markup_pct`), so those stay OUT of the shared
+// OWNER_ONLY_ITEM_COLUMNS above. They must never reach an anonymous visitor
+// though, and neither may the share-password hash.
+// ---------------------------------------------------------------------------
+
+export const PUBLIC_HIDDEN_ITEM_COLUMNS = [
+  ...OWNER_ONLY_ITEM_COLUMNS,
+  'cost',
+  'markup_pct',
+] as const
+export const PUBLIC_HIDDEN_ESTIMATE_COLUMNS = [
+  ...OWNER_ONLY_ESTIMATE_COLUMNS,
+  'share_password_hash',
+] as const
+
+/** An estimate_items row safe to serialise to the anonymous public page. */
+export function stripPublicItem<T extends object>(row: T): T {
+  return without(row, PUBLIC_HIDDEN_ITEM_COLUMNS)
+}
+
+/** An estimates row safe to serialise to the anonymous public page. */
+export function stripPublicEstimate<T extends object>(row: T): T {
+  return without(row, PUBLIC_HIDDEN_ESTIMATE_COLUMNS)
+}
