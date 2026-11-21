@@ -256,15 +256,16 @@ export async function createOrUpdateCompany(
       }
     }
 
-    // Build INSERT row. If we resolved a source, inherit its tier; otherwise the
-    // DB DEFAULT 'free' applies (degenerate path — Phase 80 UI requires a source).
+    // Build INSERT row. `tier` is deliberately NOT sent: billing/ownership columns
+    // are service-role only, and migration 20261121170000 resets any value a
+    // client role puts on INSERT to its default. The inherited tier is applied
+    // through the service client after the insert (below); without a source
+    // company the DB DEFAULT 'free' applies (degenerate path — Phase 80 UI
+    // requires a source).
     //
     // Phase 85: companies.user_id stays NOT NULL until v5+ drops the column.
     // INSERT WITH CHECK still requires (user_id = auth.uid()). Set it explicitly to claims.sub.
     const insertRow: Record<string, unknown> = { ...row, user_id: claims.sub }
-    if (inheritedTier !== undefined) {
-      insertRow.tier = inheritedTier
-    }
 
     const { data: inserted, error: insertErr } = await supabase
       .from('companies')
@@ -297,6 +298,24 @@ export async function createOrUpdateCompany(
       return {
         error:
           'Could not finalize company membership. Please try again.',
+      }
+    }
+
+    // D-14: inherit the source company's tier through the service client. The
+    // value was read above from a company the caller can already see, so this
+    // grants nothing new. A failure must not strand the user: the company and
+    // its membership already exist, so log it (Sentry) and carry on; the
+    // company then keeps the default 'free' tier, which is the safe direction.
+    if (inheritedTier !== undefined) {
+      const { error: tierErr } = await service
+        .from('companies')
+        .update({ tier: inheritedTier })
+        .eq('id', newCompanyId)
+      if (tierErr) {
+        console.error(
+          `[createOrUpdateCompany] mode:add could not apply inherited tier "${inheritedTier}" to company ${newCompanyId}: ${tierErr.message}`,
+        )
+        captureBackgroundError('company.inheritTier')(tierErr)
       }
     }
 
