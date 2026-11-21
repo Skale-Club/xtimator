@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { createClient } from '@/lib/supabase/server'
 import { requireServiceClient } from '@/lib/supabase/service'
 import { serverStorage } from '@/lib/storage/server'
+import { isOwnedStoragePath } from '@/lib/storage/owned-path'
 import { revalidatePath } from 'next/cache'
 import { getIntegrationKey } from '@/lib/platform-config'
 import { getActiveCompanyId } from '@/lib/queries/active-company'
@@ -346,7 +347,7 @@ export async function createRecording(
   }
   const { supabase, company } = ctx
 
-  if (!storagePath.startsWith(`${company.id}/`)) {
+  if (!isOwnedStoragePath(storagePath, company.id)) {
     // 260707-grq: cross-tenant / malformed path — was previously invisible.
     void recordPipelineEvent({
       attemptId: eventAttemptId,

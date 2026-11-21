@@ -117,12 +117,22 @@ function makeSvc() {
               Promise.resolve({ data: state.photos }).then(resolve, reject)
             return chain
           },
-          update: (patch: Record<string, unknown>) => ({
-            eq: async (_col: string, photoId: string) => {
-              state.updateCalls.push({ photoId, patch })
-              return { error: null }
-            },
-          }),
+          update: (patch: Record<string, unknown>) => {
+            // The worker scopes the update by id AND company_id; await resolves the chain.
+            const eqs: Array<[string, unknown]> = []
+            const chain: Record<string, unknown> = {
+              eq: (col: string, val: unknown) => {
+                eqs.push([col, val])
+                return chain
+              },
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
+                const photoId = eqs.find((e) => e[0] === 'id')?.[1] as string
+                state.updateCalls.push({ photoId, patch })
+                return Promise.resolve({ error: null }).then(resolve, reject)
+              },
+            }
+            return chain
+          },
         }
       }
       if (table === 'ai_cost_events') {

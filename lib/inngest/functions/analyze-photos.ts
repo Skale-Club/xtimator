@@ -184,6 +184,7 @@ export async function analyzePhotoById(args: {
         ai_description: extraction.overall_description,
       })
       .eq('id', photo.id)
+      .eq('company_id', companyId)
     // Phase 3 (3.2): a failed persist means the photo is NOT analyzed
     // (ai_description stays null -> it is re-analyzed on a later
     // dispatch) and is never charged.
@@ -202,6 +203,7 @@ export async function analyzePhotoById(args: {
     .from('photos')
     .update({ ai_description: description })
     .eq('id', photo.id)
+    .eq('company_id', companyId)
   if (descErr) {
     throw new Error(`Failed to save analysis for photo ${photo.id}: ${descErr.message}`)
   }

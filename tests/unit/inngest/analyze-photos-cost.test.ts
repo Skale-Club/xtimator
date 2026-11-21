@@ -106,11 +106,13 @@ const state: {
   aiCostRows: Array<{ real_cost_usd: number | null }>
   aiCostEqCalls: Array<{ col: string; value: unknown }>
   failUpdateFor: string[]
+  photoUpdateEqs: Array<Array<[string, unknown]>>
 } = {
   photos: [],
   aiCostRows: [],
   aiCostEqCalls: [],
   failUpdateFor: [],
+  photoUpdateEqs: [],
 }
 
 function makeSvc() {
@@ -136,11 +138,23 @@ function makeSvc() {
               Promise.resolve({ data: state.photos }).then(resolve, reject)
             return chain
           },
-          update: () => ({
-            eq: async (_c: string, id: string) => ({
-              error: state.failUpdateFor.includes(id) ? { message: 'db down' } : null,
-            }),
-          }),
+          update: () => {
+            const eqs: Array<[string, unknown]> = []
+            const chain: Record<string, unknown> = {
+              eq: (col: string, val: unknown) => {
+                eqs.push([col, val])
+                return chain
+              },
+              then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
+                state.photoUpdateEqs.push([...eqs])
+                const id = eqs.find((e) => e[0] === 'id')?.[1] as string
+                return Promise.resolve({
+                  error: state.failUpdateFor.includes(id) ? { message: 'db down' } : null,
+                }).then(resolve, reject)
+              },
+            }
+            return chain
+          },
         }
       }
       if (table === 'ai_cost_events') {
@@ -230,8 +244,23 @@ describe('BILL-03: analyze-photos worker threads costContext into the (real) vis
     state.aiCostRows = []
     state.aiCostEqCalls = []
     state.failUpdateFor = []
+    state.photoUpdateEqs = []
     mockCheckCredits.mockResolvedValue({ allowed: true, balance: 100, shortfall: 0 })
     global.fetch = vi.fn() as unknown as typeof fetch
+  })
+
+  it('scopes every photos update by company_id as well as id (service role bypasses RLS)', async () => {
+    state.photos = makePhotos(2)
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockVisionResponse('a description', 0.002)
+    )
+
+    await invokeJob({ companyId: 'company-42' })
+
+    expect(state.photoUpdateEqs.length).toBeGreaterThanOrEqual(2)
+    for (const eqs of state.photoUpdateEqs) {
+      expect(eqs).toContainEqual(['company_id', 'company-42'])
+    }
   })
 
   it('recordAICost receives the derived per-photo UUID (from the job attemptId) + real company/project ids for every photo — not a random uuid / null', async () => {
