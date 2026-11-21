@@ -80,8 +80,10 @@ interface TierCardsGridProps {
  *   a limit that no longer exists. Pro "photos per estimate" matches
  *   maxPhotosPerEstimate (20); Business keeps its 50.
  * - Business "Custom domain": matches customDomainEnabled=true (business-exclusive).
- * - "Custom branding" (pro) / "Stripe Connect payments" (business): no code-level
- *   gate exists — aspirational/ungated copy, editable in the panel.
+ * - "Custom branding" (pro): no code-level gate exists — aspirational/ungated
+ *   copy, editable in the panel.
+ * - Online payments are not a plan feature (owner decision XTM-D-20261121-feature-switches):
+ *   they are switched per company, so no plan lists them as a bullet.
  */
 const TIERS: Array<{
   tier: Tier
@@ -124,7 +126,6 @@ const TIERS: Array<{
       'Everything in Pro',
       '50 photos per estimate',
       'Custom domain',
-      'Stripe Connect payments',
       'Phone + chat support',
     ],
   },

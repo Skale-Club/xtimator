@@ -363,7 +363,6 @@ export const DEFAULT_BILLING_CONFIG: BillingConfig = {
         'Everything in Pro',
         '50 photos per estimate',
         'Custom domain',
-        'Stripe Connect payments',
         'Phone + chat support',
       ],
     },

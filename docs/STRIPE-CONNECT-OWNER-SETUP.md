@@ -1,210 +1,177 @@
-# Stripe Connect — Owner Setup Runbook
+# Stripe Connect: owner setup runbook
 
-This is a one-time platform setup. After completing, any tenant company can
-connect their Stripe account from **Settings → Payments** and start accepting
-card payments on their shared estimates.
+This runbook sets up client payments on Xtimator. It is written for the platform owner, not for an engineer. Follow the numbered steps in order. Do the whole thing in Stripe test mode first, then repeat the Stripe steps in live mode.
 
-- **Time required:** ~15 minutes.
-- **Prerequisites:**
-  - Stripe account with test mode access (and production access when ready to
-    go live).
-  - Super-admin login to Xtimator (i.e. a row in `platform_admins`).
-  - DB access to apply the Phase 70 migration to your target environment.
-- **Owner of this doc:** Xtimator platform owner. Re-read this whenever you
-  promote Connect from staging → production.
+## 1. What this is
 
----
+Companies on Xtimator receive money from their own clients through Stripe hosted invoices. Each invoice is issued on the company's own Stripe account (a "direct charge"), so the money goes straight to the company. Xtimator takes an application fee on each invoice and never holds the money.
 
-## ✅ TEST MODE — Already Done Automatically (2026-05-17)
+- The fee is a percentage read from the billing configuration (`billing_config`). The default is 1 percent.
+- The fee is never lower than the configured minimum (default 1 cent).
+- The fee is never more than 10 percent of the charge, and always strictly less than the charge itself.
+- On a charge so small that no valid fee exists, the invoice is issued with no fee.
 
-The following steps were executed via `supabase` and `stripe` CLIs during ship,
-so **test mode is ready to use out of the box**:
+The client opens the Stripe hosted invoice page from the email Stripe sends (or from the link in the app), pays by card, and the Stripe webhook tells Xtimator the invoice is paid. Xtimator then marks the invoice row paid and sends two emails (one to the company owner, one receipt to the client).
 
-| Step | What was done | Artifact |
-|------|---------------|----------|
-| ✅ Migration applied | `supabase db push --db-url $DATABASE_URL` ran the Phase 70 migration against production DB | All Connect columns now exist on `companies` + `estimates` |
-| ✅ Connect verified enabled | `stripe accounts list` returned 200 (Connect is active on `acct_1OLXrgFNcPC8Pzz0`) | — |
-| ✅ Connect webhook created | `stripe webhook_endpoints create --connect --url https://xtimator.com/api/webhooks/stripe` | Webhook ID: `we_<your-connect-webhook-id>` |
-| ✅ Test mode Connect Client ID captured | Returned in webhook creation response (`application` field) | `ca_<your-connect-client-id>` |
-| ✅ Test mode Connect webhook secret captured | Returned in webhook creation response (`secret` field) | `whsec_<your-connect-webhook-secret>` (stored in `.env.local`, never committed) |
-| ✅ Credentials added to `.env.local` | `STRIPE_CONNECT_CLIENT_ID_API_KEY` + `STRIPE_CONNECT_WEBHOOK_SECRET` | (gitignored) |
-| ✅ Webhook handler updated | Now verifies signature against BOTH platform secret AND Connect secret (try-each pattern) | `app/api/webhooks/stripe/route.ts` |
+## 2. Which Stripe account to use
 
-**You can skip directly to Section 7 (smoke test) for test mode** — sections 1-6 below are reference / for go-live to LIVE mode.
+Use Xtimator's OWN Stripe account (the platform account). Every company connects its separate Stripe account to this one.
 
-For **production live mode**, you still need to:
-1. Repeat steps via Dashboard in live mode (Stripe issues separate `ca_live_...` and live-mode webhook secrets)
-2. Set the live values in `/opt/xtimator/.env.production` on the Hetzner VPS (or the Coolify UI → service → Environment Variables), then redeploy so the container picks them up — NOT Vercel
-3. Configure the Connect platform branding (logo, color) in Dashboard for end-user OAuth pages
+Warning: a Stripe CLI profile on a developer machine may be logged in to a different account. Never use a local CLI profile to audit or configure this setup. Use the Stripe dashboard and check the account name in the top-left corner before every change.
 
----
+## 3. Enable Connect (test mode first)
 
-## 1. Enable Connect in the Stripe Dashboard
+1. Open the Stripe dashboard and switch on **Test mode**.
+2. Open **Connect** and complete the Get started flow for a platform. Choose the platform type that lets other businesses connect their existing Stripe accounts.
+3. Caution about OAuth. Stripe's documentation now says OAuth is "not recommended for new Connect platforms" and steers new platforms to Stripe-hosted onboarding. The Xtimator connect step currently uses OAuth: it sends the company to `connect.stripe.com/oauth/authorize` with scope `read_write`, and exchanges the returned code at `connect.stripe.com/oauth/token`.
+4. The first thing to verify is that the Connect settings in the dashboard offer an OAuth client id (it starts with `ca_`) and a place to enter redirect URIs. If they do not, STOP here. The connect routes must be changed to Stripe-hosted onboarding before going any further (task P2-00 in the Notion plan). Do not continue this runbook until that is done.
 
-1. Log into [dashboard.stripe.com](https://dashboard.stripe.com) (top-left
-   account switcher → your Xtimator platform account).
-2. Top-left product menu → **Connect** → **Get Started**.
-3. Choose integration type: **Standard**.
-4. Confirm — Connect is now enabled for the Xtimator platform.
+## 4. Platform profile and branding
 
-Connect is now switched on. The remaining sections wire it up.
+In the Stripe dashboard, open **Settings, Connect, Branding** (the exact menu names change over time; look for the branding page of Connect). Fill in:
 
-## 2. Configure Platform Branding
+- Brand name: Xtimator.
+- Brand color and logo (square image, transparent background).
+- Support email and public business URL (`https://xtimator.com`).
 
-Stripe Dashboard → **Connect → Settings → Branding**. Connected accounts'
-OAuth consent screen and customer-facing Checkout pages use these values.
+Connected businesses see these on the authorization screen, and their clients may see them on invoices.
 
-- **Brand name:** `Xtimator`
-- **Brand color:** `#406EF1`
-- **Logo:** upload the Xtimator logo (square SVG/PNG, transparent background).
-  Stripe scales it automatically for the OAuth banner and Checkout header.
-- **Support email:** `support@xtimator.com` (or your owner email).
-- **Public business URL:** `https://xtimator.com`.
+## 5. Redirect URIs
 
-## 3. Configure OAuth Redirect URIs
+In the Connect settings, add both redirect URIs exactly as written:
 
-Stripe Dashboard → **Connect → Settings → Integration**. Stripe will redirect
-the connecting business back to one of these URIs after they authorize the
-OAuth grant. Add both:
+- `https://xtimator.com/api/stripe/connect/callback`
+- `http://localhost:9633/api/stripe/connect/callback` (only needed for local development)
 
-- Production: `https://xtimator.com/api/stripe/connect/callback`
-- Local development: `http://localhost:9633/api/stripe/connect/callback`
-  (the dev server listens on port 9633 per `playwright.config.ts`).
+Stripe rejects any other address with `invalid_redirect_uri`. If you also use a staging address, add its callback URL here too.
 
-If you deploy to a staging URL, add it here too — Stripe rejects any redirect
-not on this allowlist with `invalid_redirect_uri`.
+## 6. Save the client id in Xtimator
 
-## 4. Copy the Connect Client ID into Xtimator Admin
+The client id is the public `ca_` value shown in the Connect settings. Test mode and live mode each have their own.
 
-The Client ID is a **public** identifier that Xtimator embeds in the OAuth
-authorize URL. It is not a secret, but it is per-platform and unique.
+1. Sign in to Xtimator as a platform admin and open `/admin/integrations`.
+2. Find the **Stripe Connect Client ID** card and paste the value, in the form `ca_<your-client-id>`.
+3. Save. The card should show as connected with a last-updated time.
 
-1. Stripe Dashboard → **Connect → Settings**. Top of the page shows
-   **Client ID** in the form `ca_<random>` (test-mode and live-mode each have
-   their own — copy the one matching your current Xtimator env).
-2. Copy the value.
-3. Log into Xtimator as a super-admin → navigate to `/admin/integrations`.
-4. Find the **Stripe Connect Client ID** card (registered in Plan 70-01).
-5. Paste → click **Save**.
-6. Confirm the card flips to **Connected** with a `Last updated` timestamp.
+The value is stored encrypted in the `platform_integrations` table. It is not an environment variable. If Stripe later says the client id is invalid, you probably pasted a secret key (`sk_...`) by mistake.
 
-The value is stored encrypted (AES-GCM via `platform_integrations`) and
-read at runtime by `getIntegrationKey('stripe_connect_client_id')`.
+Note: the platform Stripe secret key itself is also kept in `/admin/integrations`, not in environment variables. The connect step needs it to exchange the authorization code.
 
-> **Common pitfall:** the Client ID starts with `ca_`, not `sk_`. If Stripe
-> rejects the OAuth authorize request with "ca_xxx invalid", you likely
-> pasted a secret key by mistake.
+## 7. The Connect webhook
 
-## 5. Enable "Connected accounts" Event Scope on the Existing Webhook (CRITICAL)
+Xtimator uses one URL for two separate Stripe webhook endpoints. Each endpoint has its own signing secret, and the server tries them in turn: first `STRIPE_WEBHOOK_SECRET` (the platform endpoint, used for subscriptions), then `STRIPE_CONNECT_WEBHOOK_SECRET` (the Connect endpoint). The Connect endpoint does NOT share the platform signing secret.
 
-The existing platform webhook endpoint (`/api/webhooks/stripe`) handles
-**both** platform subscription events AND Connect customer-payment events.
-Same URL, same `STRIPE_WEBHOOK_SECRET`, two event scopes.
-
-Stripe Dashboard → **Developers → Webhooks** → click the existing endpoint:
-
-1. Tab **Events from**: ensure **both** "Your account" AND
-   "**Connected accounts**" are toggled on.
-2. Under the "Connected accounts" scope, add these three events:
-   - `checkout.session.completed`
-   - `account.application.deauthorized`
+1. In the Stripe dashboard, open **Developers, Webhooks** and add a NEW endpoint (do not edit the existing platform one).
+2. Endpoint URL: `https://xtimator.com/api/webhooks/stripe`.
+3. Choose to listen to events on **connected accounts** (not "your account").
+4. Select exactly these events. They are the ones the code resolves to a company:
+   - `invoice.paid`
+   - `invoice.voided`
+   - `invoice.marked_uncollectible`
+   - `invoice.payment_failed`
+   - `charge.refunded`
    - `account.updated`
-3. Click **Save**.
+   - `account.application.deauthorized`
+   - `checkout.session.completed`
+   - `checkout.session.async_payment_succeeded`
 
-The `STRIPE_WEBHOOK_SECRET` env var does **not** change — Stripe signs both
-scopes with the same secret on the same endpoint.
+   The last two belong to the older estimate checkout flow, which no longer exists in the app. They are still handled so that old payments are recorded, and are harmless to keep. The invoice flow itself needs `invoice.paid` (marks the invoice paid and sends the emails), `charge.refunded` (refund notification), and `account.updated` plus `account.application.deauthorized` (keeps connection health in sync and handles a company disconnecting from the Stripe side).
+5. API version caveat. The refund handler in `lib/billing/connect-webhook.ts` reads the `invoice` field of the charge. Newer Stripe API versions no longer send that field. Until that handler is changed, create the endpoint with an API version that still includes `charge.invoice`. If you use a newer version, the refund notification will not match the invoice (the paid status is not affected).
+6. Copy the signing secret of this endpoint, in the form `whsec_<your-secret>`.
+7. In Coolify, open the Xtimator application, go to Environment Variables, add `STRIPE_CONNECT_WEBHOOK_SECRET` with that value, save, and redeploy the application. The variable is only read at start, so the redeploy is required.
 
-> **Warning sign of misconfiguration:** customer pays → redirects back to
-> `/estimate/<token>?stripe=success` with the green banner → but the
-> dashboard estimate row stays "unpaid" forever. First debug step:
-> Stripe Dashboard → Workbench → Events for the connected account, and
-> verify `checkout.session.completed` has a delivery attempt against your
-> endpoint. No delivery attempt = the "Connected accounts" scope toggle
-> was not saved.
+Test mode and live mode have separate endpoints and separate secrets. Do the same again in live mode when you go live, and replace the value in Coolify.
 
-## 6. Apply the Phase 70 DB Migration
+## 8. Database
 
-The Phase 70-01 migration adds 10 columns (5 on `companies`, 5 on
-`estimates`) plus two partial indexes and two CHECK constraints. It was
-committed but not auto-applied in dev (local Supabase was offline at the
-time per Plan 70-01 SUMMARY). You must apply it explicitly to each
-environment.
+The feature switches need the migration `supabase/migrations/20261121140000_company_feature_switches.sql`, plus any migration added after it. Migrations are applied by hand, never by the deploy, and on BOTH databases before the deploy that needs them.
 
-```bash
-# Local / linked project (after `supabase login` + `supabase link`)
-npx supabase migration up
+1. Development database: run `npm run db:migrate`. By default it uses the development (Supabase) connection from `.env.local`.
+2. Production database (PostgreSQL on Coolify): run the same command with the `MIGRATION_DATABASE_URL` variable pointing at the production database.
+3. Never write to production without the owner's explicit OK.
 
-# Production: prefer the Supabase Studio "Migrations" tab or
-# `supabase db push --linked` against the production project ref.
-```
+The migration adds the per-company switch columns and the global stop. Without it, the settings pages and the invoice action fail closed (the feature appears off).
 
-After applying, regenerate types so TS picks up the new columns:
+## 9. The switches
 
-```bash
-npx supabase gen types typescript --linked > types/database.types.ts
-```
+There are three layers, plus one global stop.
 
-Hand edits performed during Plan 70-01 (5 fields × 2 tables × 3 shapes)
-will be overwritten by this regen — that is expected.
+- Global stop: **Client payments open** in the admin billing configuration. When it is off, connecting a Stripe account and issuing invoices are closed for every company.
+- Platform switch, per company: open `/admin/companies/<id>` and use the **Features** card. It has two switches, **Online payments** and **Digital signature**. Every change is recorded in the admin audit log.
+- Company switches, set by the company owner: **Settings, Client actions**. The owner sees a switch for a feature only when the platform allows it for that company.
 
-## 7. Smoke Test (Test Mode)
+The rule: a feature works only when the platform allows it AND the owner turned it on AND (payments only) Stripe is connected and charges are enabled.
 
-End-to-end customer payment loop. Run this exactly once after sections 1-6
-to confirm Connect is wired correctly.
+Defaults:
 
-1. Sign up a **fresh non-admin company** in Xtimator (use an incognito
-   window so existing cookies don't interfere).
-2. Navigate to **Settings → Payments**.
-3. Click **Connect Stripe Account** → complete OAuth in Stripe test mode
-   (use your platform's test account or create a sandbox account).
-4. Return to `/settings/payments?connected=1` → verify the page shows
-   **Connected ✓ as `<display name>` (`<email>`)**.
-5. Create a project + share an estimate (any total > $0; the test card
-   ignores the actual amount).
-6. Open the share link in a new incognito window → click **Pay $X** →
-   use test card `4242 4242 4242 4242`, any future expiry, any CVC,
-   any ZIP.
-7. Verify each of the four post-payment actions fired:
-   - **Redirect:** lands on `/estimate/<token>?stripe=success` with the
-     green "Payment received" banner; Pay Now button no longer renders.
-   - **Dashboard:** the project row shows the green **Paid** badge
-     (Plan 70-05 polish) within ~5 seconds of paying.
-   - **Database:** `SELECT payment_status, paid_at, payment_amount_cents,
-     stripe_checkout_session_id, stripe_payment_intent_id FROM estimates
-     WHERE id = '<estimate-id>';` returns `paid` plus the 4 populated
-     Stripe references.
-   - **Emails:** Resend dashboard shows **2 sends** for this event — one
-     to the business owner (`payment-received`, from the Xtimator brand)
-     and one to the customer (`payment-receipt`, from the business name).
-8. Click **Disconnect** in Settings → Payments → confirm
-   `companies.stripe_account_id` is NULL and
-   `stripe_connect_status = 'disconnected'`. The paid estimate from
-   step 7 retains `payment_status = 'paid'` (soft disconnect — history
-   is preserved).
+- Online payments are NOT allowed for any company until you allow them in the Features card. The owner switch is also off by default.
+- Digital signature is allowed by default for every company. The owner switch is off by default.
 
-If all four checks pass, Connect is production-ready.
+## 10. Smoke test in test mode
 
-## 8. Troubleshooting
+Use a test company, never a real customer.
 
-| Symptom                                                          | Likely cause                                                                                                                  |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| OAuth redirects to "platform not configured" / friendly message  | Section 4 skipped — `stripe_connect_client_id` is unset in `/admin/integrations`. Xtimator graceful-degrades when missing.    |
-| Stripe rejects authorize URL with "ca_xxx invalid"               | You pasted a secret key (`sk_...`) instead of the Client ID (`ca_...`). Re-do section 4 with the right value.                 |
-| OAuth callback shows `invalid_redirect_uri`                      | Section 3 incomplete — the env's callback URL isn't on the Stripe redirect-URI allowlist.                                     |
-| OAuth callback shows `invalid_state` / `expired_state`           | CSRF state cookie blocked (strict third-party cookie mode in incognito) or the user took >10 min to complete the grant. Retry in a normal window. |
-| Pay Now button never appears on the share page                   | The tenant company didn't complete Connect — `companies.stripe_account_id` is NULL for that row. Check `/settings/payments` for that company.    |
-| Customer pays, redirect shows green banner, DB stays `unpaid`    | Section 5 skipped — the webhook endpoint doesn't subscribe to "Connected accounts" events. Check Stripe Workbench → Events.   |
-| Webhook returns 500                                              | `STRIPE_WEBHOOK_SECRET` env var mismatch or the migration in section 6 wasn't applied (missing columns). Check server logs.  |
-| Deauthorize call fails when user clicks Disconnect               | Best-effort by design — Xtimator clears its own DB regardless. The tenant can also disconnect from their Stripe Dashboard.    |
-| Resend dashboard shows 0 sends after a paid event                | `resend` integration key missing in `/admin/integrations`, or the connected company's owner email is NULL. Webhook handler swallows email errors silently — check server logs for `console.error` lines from `lib/email/payment-emails.ts`. |
+1. In `/admin/companies/<id>`, allow **Online payments** for the test company.
+2. Sign in as that company's owner, open **Settings, Client actions**, and turn Online payments on.
+3. Click connect and finish the Stripe authorization with a Stripe test account. You return to Client actions with a connected message.
+4. Open an estimate whose project client has an email address, and issue a deposit invoice.
+5. Open the Stripe hosted invoice page (the link in the invoice or in the email Stripe sent) and pay with the test card `4242 4242 4242 4242`, any future expiry, any CVC and any postal code.
+6. Within a few seconds confirm:
+   - the invoice row in the app shows paid;
+   - two emails went out (one to the owner, one receipt to the client);
+   - in the Stripe dashboard of the PLATFORM account, the payment shows a collected application fee.
+7. Repeat for a balance invoice and for a change order invoice.
+8. Refund the payment in the Stripe dashboard (on the connected test account) and confirm the owner gets a refund notification. The invoice row itself is not changed by a refund (recording refunds on the invoice row is planned, not built yet).
+9. In the Stripe test dashboard, pause charges on the connected test account (or use a test account that is restricted). Confirm the app blocks new invoices with a message about Stripe pausing payments.
+10. Disconnect from Settings, Client actions. Confirm the company shows as not connected and the earlier paid invoice stays paid.
 
-## Reference
+## 11. Pilot in live mode
 
-- Phase 70 plans: `.planning/phases/70-stripe-connect-customer-payments/`
-- Architecture spec: `.planning/seeds/SEED-020-stripe-connect-customer-payments.md`
-- Research: `.planning/phases/70-stripe-connect-customer-payments/70-RESEARCH.md`
-- DB migration: `supabase/migrations/20260517000001_phase70_stripe_connect_columns.sql`
+1. Repeat steps 3 to 7 of this runbook in live mode: Connect, client id, redirect URIs, live Connect webhook, new live signing secret in Coolify, redeploy.
+2. Allow Online payments for ONE company only (a company you control).
+3. Issue one real invoice of US$1.00 to a real email address you own.
+4. Pay it with a real card, confirm the invoice turns paid, the emails arrive and the fee is collected.
+5. Refund the payment in the Stripe dashboard.
+6. Only then allow other companies.
+
+## 12. What switching off does
+
+- Online payments off (platform or owner): connecting a Stripe account and issuing new invoices are blocked. Invoices already sent stay visible and payable on Stripe's page, and the webhook still records any payment that arrives. Voiding an invoice from the app is planned, not built yet.
+- Digital signature off (platform or owner): links already sent become view-only at once. Estimates and change orders that were already signed stay signed.
+
+## 13. Troubleshooting
+
+| Symptom | Likely cause and fix |
+| --- | --- |
+| Client paid in Stripe but the invoice is still open in the app | The Connect webhook is missing `invoice.paid`, is set to "your account" instead of connected accounts, or `STRIPE_CONNECT_WEBHOOK_SECRET` is wrong or was added without a redeploy. Check the endpoint's delivery log in Stripe. A `400 Invalid signature` there means the secret is wrong. |
+| Connect returns to Client actions with `payments_not_available` | The platform switch is off for that company, or the global stop (Client payments open) is closed. |
+| Connect returns with `payments_off` | The owner has not turned Online payments on in Settings, Client actions. |
+| Connect returns with `owner_required` | Only the company owner can connect. A member or admin cannot. |
+| Connect returns with `platform_not_configured` | The Stripe Connect Client ID is not saved in `/admin/integrations` (step 6). |
+| Connect returns with `invalid_state` | The sign-in cookie was blocked, or more than 10 minutes passed. Try again in a normal browser window. |
+| Connect returns with `token_exchange_failed` | The platform Stripe secret key is missing or belongs to a different mode than the client id (test vs live). Check the server logs. |
+| Stripe says `invalid_redirect_uri` | The callback address is not in the Connect redirect URI list (step 5). |
+| Stripe says the client id is invalid | A secret key was pasted instead of the `ca_` value, or the id is from the other mode. |
+| Issuing an invoice says to add an email to the client | The project's client has no email, so Stripe cannot send the invoice. Add one. |
+| Issuing an invoice says Stripe has paused payments | The connected account is restricted. The owner must finish verification in Stripe. The app clears this on its own after Stripe's `account.updated` event. |
+| Issuing an invoice says online payments are not available | The platform switch or the global stop is off. |
+| Issuing an invoice says to turn on online payments | The owner switch is off. |
+| Webhook returns 400 for every event | Neither signing secret matches. Compare both secrets in Coolify with the endpoints in Stripe. |
+| Webhook returns 503 | The platform Stripe secret key is not configured in `/admin/integrations`. |
+| Refund happened but no refund notification | The endpoint uses a newer API version without `charge.invoice` (step 7, item 5). |
+| No emails after a payment | The email provider key is missing in `/admin/integrations`, or the company has no email. Check the server logs. |
+
+## 14. Reference
+
+- Invoice issuing action: `lib/actions/invoice.ts`
+- Stripe invoice creation (direct charge and fee): `lib/billing/invoice-service.ts`
+- Fee calculation: `lib/billing/estimate-fee.ts`
+- Fee percentage, minimum and global stop (defaults): `lib/billing/billing-config.ts`
+- Connect webhook handler and the event list: `lib/billing/connect-webhook.ts`
+- Webhook entry point (two signing secrets): `app/api/webhooks/stripe/route.ts`
 - OAuth helpers: `lib/billing/connect-oauth.ts`
-- Webhook handler: `lib/billing/connect-webhook.ts`
+- Connect routes: `app/api/stripe/connect/initiate/route.ts`, `app/api/stripe/connect/callback/route.ts`, `app/api/stripe/connect/disconnect/route.ts`
+- Feature switch rules (single source of truth): `lib/features/company-features.ts`
+- Switch migration: `supabase/migrations/20261121140000_company_feature_switches.sql`
 - Payment emails: `lib/email/payment-emails.ts`
-- E2E snapshot tests: `tests/e2e/estimate-share-payment.spec.ts` (CONNECT-06 hard-gate)
+- Deployment pipeline: the Deployment section of `CLAUDE.md`
